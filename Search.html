@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans|Roboto+Condensed&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <style>
+  select{
+    font-size: 50px;
+    font-family: 'Roboto Condensed', sans-serif;
+  }
+  body{
+    font-size: 50px;
+    font-family: 'Roboto Condensed', sans-serif;
+  }
+  h1{
+    font-size: 75px;
+    font-family: 'Roboto Condensed', sans-serif;
+  }
+  p { margin:0 }
+  input[type="checkbox"]{
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #FFFFFF;
+  border-radius: 5px;
+  box-sizing: border-box;
+  position: relative;
+  box-sizing: content-box ;
+  width: 70px;
+  height: 70px;
+
+  transition: all .3s linear;
+  border-style: solid;
+  border-width: 2px;
+  }
+  input[type="checkbox"]:checked{
+  background-color: #2ECC71;
+  }
+  input[type="checkbox"]:focus{
+  outline: 0 none;
+  box-shadow: 0;
+  }
+
+  </style>
+  <body>
+  <div class="w3-margin"><p><a href="<?=url?>" target="_top">Home</a></p></div>
+    
+   <div class="w3-card-4"> 
+
+    <form action="<?=url?>" target="_top" method="GET" class="w3-container w3-padding-16">
+    <input type="hidden" name="action" value="search">
+    <input type="hidden" name="start" value="0">
+      <!--- Search Bar --->
+      <label class="w3-text-deep-purple w3-margin-left" style="font-size: 35px"><b>Search</b></label>
+      <input class="w3-input w3-border w3-light-grey w3-margin-left w3-margin-right" type="text" name="term" value="<?=term?>">
+      
+       <div class="w3-col s5 m5 l5">
+       <label class="w3-text-deep-purple w3-col s4 m4 l4 w3-margin-left" style="font-size: 30px"><b>Sort by</b></label>
+       </div>
+       <div class="w3-col s6 m6 l6 w3-margin-left">
+       <label class="w3-text-deep-purple w3-col s2 m2 l2 w3-margin-left" style="font-size: 30px"><b>Or</b></label>
+       </div>
+      <!--- Sort --->
+      <select class="w3-select w3-border w3-col s4 m4 l4 w3-margin-left w3-margin-bottom " name="sort" value="<?=sort?>">
+        <option value="Rating" <?if(sort=="Rating"){?>selected="selected"<?}?>>Rating</option>
+        <option value="IMDb" <?if(sort=="IMDb"){?>selected="selected"<?}?>>IMDb</option>
+        <option value="Year" <?if(sort=="Year"){?>selected="selected"<?}?>>Year</option>
+        <option value="Title" <?if(sort=="Title"){?>selected="selected"<?}?>>Title</option>
+      </select>
+
+      <div class="w3-col s1 m1 l1">&nbsp</div>
+      
+      <!--- Or --->
+      <input class='w3-check w3-margin-left w3-margin-bottom w3-margin-right' type='checkbox' name='xor' <?if(xor=='on'){?>checked='checked'<?}?>>
+      
+      <!--- Submit --->
+      <div class="w3-margin-top">
+      <input type="submit" value="Search" class="w3-btn w3-deep-purple w3-col s5 m5 l4" style="font-size: 50px">
+      </div>
+    </form>
+   </div> 
+    <?
+    start = Number(start);
+    var end = Number(start) + 200;
+    var results_length = searchResults.length;
+    var sum = 0;
+    var divide = 0;
+    for(var i=0;i<results_length;i++){if(searchResults[i][29]>0){sum = sum + searchResults[i][29]; divide++;}}
+    if(searchResults.length < (end-start)){end = searchResults.length;}
+    ?>
+    <center>
+    <p class="w3-margin"><?=results_length;?> films | Average Rating: <?=Math.round(100*sum/divide)/100;?>
+    </center>
+    <?for(var i=start;i<end;i++){?>
+    <?
+      var views = searchResults[i][3].trim();
+        views = views.replace(/\|/g," on");
+        views = views.replace(/\(PJ\)/g,"at the Pat Jason Theater");
+        views = views.split(";");
+      
+      var rating1 = Math.round(100*searchResults[i][29])/100;
+      if(rating1.toString().length < 3){rating1 = rating1.toString() + ".00";}
+      if(rating1.toString().length < 4){rating1 = rating1.toString() + "0";}     
+      if(rating1=="0.00"){rating1="";}
+      
+      if(searchResults[i][12].substr(searchResults[i][12].length-2)==", "){searchResults[i][12]=searchResults[i][12].substr(0,searchResults[i][12].length-2);}
+    ?>
+       <div class="w3-panel w3-border w3-border-deep-purple w3-margin" onclick="myFunction('Info<?=i+1;?>')">
+       <table><tr>
+       <td style="padding: 5px; width:7%"><?=i+1;?></td>
+       <td style="padding: 5px; width:15%"><img src="<?=searchResults[i][26];?>" style="width:100%"></td>
+       <td style="padding: 5px; width:68%"><p style="font-size: 40px;"><?=searchResults[i][1];?> (<a href="<?=url+"?action=search&start=0&sort=Rating&term=Year+%3D+"+searchResults[i][2]?>" target="_blank" style="text-decoration: none;"><?=searchResults[i][2];?></a>)</p><p style="font-size: 20px;"><?=searchResults[i][16];?> | <?=searchResults[i][17].replace(/\ \|\ /g,', ');?> | Director: <a href="<?=url+"?action=search&start=0&sort=Rating&term=Director+%3D+"+searchResults[i][19]?>" target="_blank"><?=searchResults[i][19];?></a></p><p style="font-size: 16px;"><i><?=searchResults[i][12];?></i></p></td>
+       <td style="padding: 5px; width:10%"><p><?=rating1;?></p></td>
+       </tr></table>
+       </div>
+         <div id="Info<?=i+1;?>" class="w3-container w3-hide">
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Full Rating</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;">Direction: <?=searchResults[i][4];?> | Imagery: <?=searchResults[i][5];?> | Story: <?=searchResults[i][6];?> | Performance: <?=searchResults[i][7];?> | Soundtrack: <?=searchResults[i][8];?> | Impression: <?=searchResults[i][9];?> | Love: <?=searchResults[i][10];?> | Overall: <?=searchResults[i][11];?></p>
+
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Production Companies</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;"><?=searchResults[i][18];?></p>
+
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Producer(s)</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;"><?=searchResults[i][22];?></p>
+
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Writer(s)</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;"><?=searchResults[i][20];?></p>
+            
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Actors</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;"><?=searchResults[i][21];?></p>
+    
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Composer(s)</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;"><?=searchResults[i][23];?></p>
+            
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Editor(s)</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;"><?=searchResults[i][25];?></p>
+    
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Cinematographer(s)</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;"><?=searchResults[i][24];?></p>
+            
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Tags</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;"><?=searchResults[i][13];?></p>
+    
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Academy Awards</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;">Won: <?=searchResults[i][27];?></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;">Nominated: <?=searchResults[i][28];?></p>
+            
+            <p style="font-size: 20px; font-family: 'Open Sans', sans-serif;"><b>Viewings</b></p>
+            <p style="font-size: 18px; font-family: 'Open Sans', sans-serif;">
+            <?for(var j=0;j<views.length;j++){?>
+            <?=views[j];?><br>
+            <?}?>
+            </p>
+            
+            <p style="font-size: 30px; font-family: 'Open Sans', sans-serif;"><b><a href="https://www.imdb.com/title/<?=searchResults[i][15];?>/" target="_blank">View on IMDb</a></b> | <b><a href="<?=url+"?action=rate&id="+searchResults[i][14]?>" target="_blank">Open Rating</a></b> (<?=Math.round(10000*searchResults[i][29])/10000;?>)</p>
+         </div>
+
+    <?}?>
+    
+    
+    <table style="width:100%"><tr>
+    <td><?if(start>0){?><a href="<?=url?>?action=search&start=<?=start-200;?>&term=<?=term;?>&sort=<?=sort;?>&xor=<?=xor;?>" class="w3-btn w3-deep-purple" target="_top">Previous</a><?}?></td>
+    <td style="text-align:right"><?if(searchResults.length > end){?><a href="<?=url?>?action=search&start=<?=Number(end);?>&term=<?=term;?>&sort=<?=sort;?>&xor=<?=xor;?>" class="w3-btn w3-deep-purple" target="_top">Next</a><?}?></td>
+    </tr></table>
+    
+    <script>
+    function myFunction(id) {
+      var x = document.getElementById(id);
+      if (x.className.indexOf("w3-show") == -1) {
+        x.className += " w3-show";
+      } else { 
+        x.className = x.className.replace(" w3-show", "");
+      }
+    }
+   
+    </script>
+    <br><br><br>
+  </body>
+  <footer><center>&copy; 2022 - Brian Goegan Incorporated</center></footer>
+</html>
+
+

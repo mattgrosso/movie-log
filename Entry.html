@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link href="https://fonts.googleapis.com/css?family=Anton|Open+Sans|Roboto+Condensed&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+    img {
+    max-height: 450px;
+    min-height: 450px;
+    width: auto;
+    height: auto;
+    max-width: 100%
+    }
+    
+    body{
+    font-family: 'Roboto Condensed', sans-serif;
+    }
+  </style>
+  
+  </head>
+  <body>
+  
+    <div class="w3-row-padding w3-margin-top">
+
+<? for(var i=0;i<TMDB_results.length;i++){ ?>
+<? var applink = url+"?action=rate&id="+TMDB_results[i][2]; ?>
+  <div class="w3-col s4 l2 w3-padding-16">
+    <div class="w3-card">
+      <a href="<?=applink?>"><img src="https://image.tmdb.org/t/p/original<?=TMDB_results[i][3]?>" align="center"></a>
+      <div class="w3-container" style="min-height:134px">
+        <p align="center"><a href="https://www.themoviedb.org/movie/<?=TMDB_results[i][2]?>">TMDB #<?=TMDB_results[i][2]?></a></p>
+        <p align="center"><a href="<?=applink?>"><?=TMDB_results[i][0]?><br><?=TMDB_results[i][1]?></a></p>
+      </div>
+    </div>
+  </div>
+<? } ?>
+</div>
+<br><br><br>
+  </body>
+</html>
+
+
