@@ -621,48 +621,6 @@
         </script>
       </div>
 
-      <!--- Ownership --->
-      <div class="col-12 ownership my-5">
-        <label class="form-label">Ownership</label>
-        <div class="ownership-list d-flex flex-wrap">
-          <div class="form-check">
-            <input class='form-check-input' type='checkbox' id='bluray' onchange='ownUpdate()' <?if(card[12].indexOf('Bluray')>=0){?>checked='checked'<?}?>>
-            <label class="form-check-label" for="bluray">Bluray</label>
-          </div>
-          <div class="form-check">
-            <input class='form-check-input' type='checkbox' id='vudu' onchange='ownUpdate()' <?if(card[12].indexOf('Vudu')>=0){?>checked='checked'<?}?>>
-            <label class="form-check-label" for="vudu">Vudu</label>
-          </div>
-          <div class="form-check">
-            <input class='form-check-input' type='checkbox' id='dvd' onchange='ownUpdate()' <?if(card[12].indexOf('DVD')>=0){?>checked='checked'<?}?>>
-            <label class="form-check-label" for="dvd">DVD</label>
-          </div>
-          <div class="form-check">
-            <input class='form-check-input' type='checkbox' id='4k' onchange='ownUpdate()' <?if(card[12].indexOf('4K')>=0){?>checked='checked'<?}?>>
-            <label class="form-check-label" for="4k">4K</label>
-          </div>
-        </div>
-        <input type='hidden' name="own" id='own'>
-        <script>
-          function ownUpdate() {
-            var output = "";
-            if (document.getElementById('bluray').checked == true) {
-              output = output + 'Bluray, ';
-            }
-            if (document.getElementById('vudu').checked == true) {
-              output = output + 'Vudu, ';
-            }
-            if (document.getElementById('dvd').checked == true) {
-              output = output + 'DVD, ';
-            }
-            if (document.getElementById('4k').checked == true) {
-              output = output + '4K, ';
-            }
-            document.getElementById('own').value = output;
-          }
-        </script>
-      </div>
-
       <button class="btn btn-primary col-12 my-5" type="submit" value="Submit" onclick="showSpinner(event)">
         <span>Submit</span>
         <div class="spinner">
