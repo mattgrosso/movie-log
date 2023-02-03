@@ -25,8 +25,32 @@
       opacity: 0.3;
     }
 
-    button.btn.btn-primary {
-      font-size: 5rem;
+    .btn {
+      font-family: 'Roboto Condensed', sans-serif;
+      font-size: 3.125rem;
+      min-height: 46px;
+      position: relative;
+    }
+
+    .btn span {
+      pointer-events: none;
+    }
+
+    .spinner {
+      display: none;
+    }
+
+    .loading > .spinner {
+      display: block;
+      position: absolute;
+      height: 100%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .btn.loading > span {
+      opacity: 0;
     }
 
     .form-control, .form-select, .form-date {
@@ -68,6 +92,12 @@
       updateRating();
       tagUpdate();
       ownUpdate();
+    }
+
+    function showSpinner(event) {
+      event.stopPropagation();
+      const target = event.target;
+      target.classList.add("loading");
     }
   </script>
 </head>
@@ -633,8 +663,13 @@
         </script>
       </div>
 
-      <button class="btn btn-primary col-12 my-5" type="submit" value="Submit">
-        Submit
+      <button class="btn btn-primary col-12 my-5" type="submit" value="Submit" onclick="showSpinner(event)">
+        <span>Submit</span>
+        <div class="spinner">
+          <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
       </button>
 
       <!--- Information --->
