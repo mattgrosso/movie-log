@@ -56,6 +56,15 @@
                 {{calculateShare(weight.weight)}}%
               </td>
             </tr>
+            <tr>
+              <td>Total</td>
+              <td>
+                <span>
+                  {{totalWeight}}
+                </span>
+              </td>
+              <td></td>
+            </tr>
           </tbody>
         </table>
       </div>
