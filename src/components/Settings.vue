@@ -92,6 +92,10 @@ export default {
   },
   computed: {
     totalWeight () {
+      if (!this.settings.weights) {
+        return 0;
+      }
+
       const weights = this.settings.weights.map((weight) => {
         if (weight.name === "Impression") {
           return weight.weight / 2;

@@ -19,7 +19,11 @@
       <PickAMovie :newEntrySearchResults="newEntrySearchResults" @rateMovie="rateMovie"/>
     </div>
     <div v-if="isVisible('rate-movie')" class="rate">
-      <RateMovie :movieToRate="movieToRate"/>
+      <RateMovie
+        :movieToRate="movieToRate"
+        :settings="settings"
+        @addNewTag="addNewTag"
+      />
     </div>
     <Footer/>
   </div>

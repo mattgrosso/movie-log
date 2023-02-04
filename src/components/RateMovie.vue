@@ -382,6 +382,35 @@
       <p id="rating">
         {{rating}}
       </p>
+
+      <hr>
+
+      <!--- Tags --->
+      <div class="col-12 my-5 tags">
+        <label class="form-label">Select Additional Tags</label>
+        <div class="tag-list d-flex flex-wrap">
+          <div v-for="(tag, index) in settings.tags" :key="index" class='form-check mx-2 mb-2'>
+            <input class='form-check-input' type='checkbox' :id="`tag-${index}`">
+            <label class="form-check-label" :for="`tag-${index}`">
+              {{tag.title}}
+            </label>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <input type="text" class="form-control" placeholder="new tag" v-model="newTagTitle">
+          <button class="btn btn-dark" type="button" @click="addTag">
+            add
+          </button>
+        </div>
+      </div>
+
+      <hr>
+
+      <!-- Submit -->
+      <button class="btn btn-primary col-12 my-5" type="submit" value="Submit">
+        <span>Submit</span>
+      </button>
     </form>
   </div>
 </template>
@@ -390,6 +419,10 @@
 export default {
   props: {
     movieToRate: {
+      type: Object,
+      required: true
+    },
+    settings: {
       type: Object,
       required: true
     }
@@ -407,7 +440,8 @@ export default {
       soundtrack: null,
       impression: null,
       love: null,
-      overall: null
+      overall: null,
+      newTagTitle: null
     }
   },
   mounted() {
@@ -422,7 +456,11 @@ export default {
   methods: {
     rateMovie () {
       console.log("submit rating to database...");
-    }
+    },
+    addTag () {
+      this.$emit("addNewTag", { title: this.newTagTitle });
+      this.newTagTitle = null;
+    },
   },
 }
 </script>
