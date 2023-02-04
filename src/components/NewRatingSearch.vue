@@ -1,5 +1,5 @@
 <template>
-  <form class="my-5 mx-3" @submit.prevent="onSubmit" target="_top" method="GET">
+  <form class="my-5 mx-3" @submit.prevent="searchTMDB" target="_top" method="GET">
     <input type="hidden" name="action" value="entry">
 
     <div class="mb-3">
@@ -15,6 +15,8 @@
 </template>
 
 <script>
+import axios from 'axios';
+
 export default {
   data () {
     return {
@@ -22,8 +24,9 @@ export default {
     }
   },
   methods: {
-    onSubmit () {
-      console.log("Search for movie and show search entry page");
+    async searchTMDB () {
+      const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
+      this.$emit('newEntrySearch', resp.data);
     }
   }
 }
