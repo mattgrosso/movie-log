@@ -15,6 +15,7 @@
 export default {
   methods: {
     openSettings () {
+      this.$el.querySelector(".settings").classList.toggle("rotated");
       this.$emit('openSettings');
     }
   },
@@ -39,7 +40,14 @@ export default {
       right: -47px;
       transform: rotate(-45deg);
 
+      &.rotated {
+        svg {
+          transform: rotate(-200deg);
+        }
+      }
+
       svg {
+        transition: transform 0.75s ease;
         color: white;
         height: 24px;
         width: 24px;

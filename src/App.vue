@@ -2,10 +2,11 @@
   <div class="movie-log">
     <Header @openSettings="toggleSettings"/>
     <Settings
-      v-show="showSettings"
+      :showSettings="showSettings"
       :settings="settings"
       @addNewTag="addNewTag"
       @removeTag="removeTag"
+      @updateWeight="updateWeight"
     />
     <div v-show="isVisible('home')" class="home">
       <NewRatingSearch @newEntrySearch="newEntrySearch"/>
@@ -114,6 +115,14 @@ export default {
     async removeTag (tagIndex) {
       await axios.delete(
         `https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings/tags/${tagIndex}.json`
+      );
+
+      this.getSettings();
+    },
+    async updateWeight (payload) {
+      await axios.patch(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings/weights/${payload.index}.json`,
+        payload.weight
       );
 
       this.getSettings();
