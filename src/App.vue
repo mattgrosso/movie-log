@@ -1,7 +1,8 @@
 <template>
   <div class="movie-log">
-    <Header/>
-    <div v-if="isVisible('home')" class="home">
+    <Header @openSettings="toggleSettings"/>
+    <Settings v-show="showSettings" :settings="settings" @addNewTag="addNewTag"/>
+    <div v-show="isVisible('home')" class="home">
       <NewRatingSearch @newEntrySearch="newEntrySearch"/>
       <hr>
       <SearchDatabase/>
@@ -21,7 +22,8 @@
 <script>
 import axios from 'axios';
 
-import Header from "./components/Header.vue"
+import Header from "./components/Header.vue";
+import Settings from "./components/Settings.vue";
 import NewRatingSearch from "./components/NewRatingSearch.vue";
 import SearchDatabase from "./components/SearchDatabase.vue";
 import QuickSearch from "./components/QuickSearch.vue";
@@ -33,6 +35,7 @@ export default {
   name: "Movie-Log",
   components: {
     Header,
+    Settings,
     NewRatingSearch,
     SearchDatabase,
     QuickSearch,
@@ -43,20 +46,34 @@ export default {
   data () {
     return {
       database: [],
+      settings: {},
       newEntrySearchResults: null,
       movieToRate: null,
-      visible: "home"
+      visible: "home",
+      showSettings: false
     }
   },
   async mounted () {
-    const resp = await axios.get(
-      "https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog.json"
-    );
-
-    this.database = resp.data;
+    await this.getMovieDatabase();
+    await this.getSettings();
   },
   methods: {
+    async getMovieDatabase () {
+      const movies = await axios.get(
+        "https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog.json"
+      );
+
+      this.database = movies.data;
+    },
+    async getSettings () {
+      const settings = await axios.get(
+        "https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings.json"
+      );
+
+      this.settings = settings.data;
+    },
     show (pane) {
+      this.previouslyVisible = this.visible;
       this.visible = pane;
     },
     isVisible (pane) {
@@ -73,6 +90,21 @@ export default {
     rateMovie (movie) {
       this.show("rate-movie");
       this.movieToRate = movie;
+    },
+    toggleSettings () {
+      if (this.showSettings) {
+        this.showSettings = false;
+      } else {
+        this.showSettings = true;
+      }
+    },
+    async addNewTag (tag) {
+      await axios.post(
+        "https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings/tags.json",
+        tag
+      );
+
+      this.getSettings();
     }
   },
 }
