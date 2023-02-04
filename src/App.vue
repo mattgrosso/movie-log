@@ -1,7 +1,12 @@
 <template>
   <div class="movie-log">
     <Header @openSettings="toggleSettings"/>
-    <Settings v-show="showSettings" :settings="settings" @addNewTag="addNewTag"/>
+    <Settings
+      v-show="showSettings"
+      :settings="settings"
+      @addNewTag="addNewTag"
+      @removeTag="removeTag"
+    />
     <div v-show="isVisible('home')" class="home">
       <NewRatingSearch @newEntrySearch="newEntrySearch"/>
       <hr>
@@ -102,6 +107,13 @@ export default {
       await axios.post(
         "https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings/tags.json",
         tag
+      );
+
+      this.getSettings();
+    },
+    async removeTag (tagIndex) {
+      await axios.delete(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings/tags/${tagIndex}.json`
       );
 
       this.getSettings();
