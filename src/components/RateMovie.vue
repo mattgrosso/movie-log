@@ -1,6 +1,6 @@
 <template>
   <div class="rate-movie">
-    <form class="p-4" @submit.prevent="rateMovie">
+    <form class="p-4" @submit.prevent="addRating">
       <!--- Title --->
       <div class="col-12 my-5">
         <label class="form-label fs-4" for="title">Title</label>
@@ -379,8 +379,8 @@
 
       <hr>
 
-      <p id="rating">
-        {{rating}}
+      <p class="rating col-12 my-3 fs-3 text-center" id="rating">
+        Rating: {{rating}}
       </p>
 
       <hr>
@@ -431,6 +431,7 @@ export default {
     return {
       title: null,
       year: null,
+      id: this.movieToRate.id,
       medium: "",
       date: null,
       direction: null,
@@ -450,17 +451,61 @@ export default {
   },
   computed: {
     rating () {
-      return "rating";
+      const direction = this.getRatingFor("direction") >= 0 ? this.getRatingFor("direction") : 5;
+      const imagery = this.getRatingFor("imagery") >= 0 ? this.getRatingFor("imagery") : 5;
+      const story = this.getRatingFor("story") >= 0 ? this.getRatingFor("story") : 5;
+      const performance = this.getRatingFor("performance") >= 0 ? this.getRatingFor("performance") : 5;
+      const soundtrack = this.getRatingFor("soundtrack") >= 0 ? this.getRatingFor("soundtrack") : 5;
+      const impression = this.getRatingFor("impression") >= 0 ? this.getRatingFor("impression") : 0;
+      const love = this.getRatingFor("love") >= 0 ? this.getRatingFor("love") : 5;
+      const overall = this.getRatingFor("overall") >= 0 ? this.getRatingFor("overall") : 5;
+
+      const total = direction + imagery + story + performance + soundtrack + impression + love + overall;
+      
+      return total / 10;
     }
   },
   methods: {
-    rateMovie () {
-      console.log("submit rating to database...");
+    getWeight (weightName) {
+      const weightObj = this.settings.weights.find((weight) => {
+        return weight.name === weightName;
+      });
+
+      return weightObj.weight;
+    },
+    getScore (scoreName) {
+      const lowerCase = scoreName.toLowerCase();
+      const property = this[lowerCase];
+
+      return parseFloat(property);
+    },
+    getRatingFor (category) {
+      return this.getWeight(category) * this.getScore(category);
     },
     addTag () {
       this.$emit("addNewTag", { title: this.newTagTitle });
       this.newTagTitle = null;
     },
+    addRating () {
+      const rating = {
+        title: this.title,
+        year: this.year,
+        id: this.id,
+        medium: this.medium,
+        date: this.date,
+        direction: this.direction,
+        imagery: this.imagery,
+        story: this.story,
+        performance: this.performance,
+        soundtrack: this.soundtrack,
+        impression: this.impression,
+        love: this.love,
+        overall: this.overall,
+        rating: this.rating
+      };
+
+      this.$emit('addRating', rating);
+    }
   },
 }
 </script>

@@ -23,6 +23,7 @@
         :movieToRate="movieToRate"
         :settings="settings"
         @addNewTag="addNewTag"
+        @addRating="addRating"
       />
     </div>
     <Footer/>
@@ -31,6 +32,7 @@
 
 <script>
 import axios from 'axios';
+import cheerio from "cheerio";
 
 import Header from "./components/Header.vue";
 import Settings from "./components/Settings.vue";
@@ -130,6 +132,62 @@ export default {
       );
 
       this.getSettings();
+    },
+    async getTMDBData (id) {
+      const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+
+      const dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
+      const data = dataResp.data;
+      
+      const creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
+      const credits = creditsResp.data;
+
+      return {
+        ...data,
+        ...credits
+      }
+    },
+    parseScrapedAwards (string) {
+      return string.replace(/ {2}/g, "").split("\n").filter((str) => str);
+    },
+    async getIMDBData (id) {
+      const resp = await axios.get(`https://fast-refuge-34363.herokuapp.com/www.imdb.com/title/${id}/awards`);
+
+      const $ = cheerio.load(resp.data);
+
+      const oscarWins = $("h3:contains('Oscar [Winner]')").parent().next().text();
+      const oscarNoms = $("h3:contains('Oscar [Nominee]')").parent().next().text();
+
+      const BAFTAWins = $("h3:contains('BAFTA Film Award [Winner]')").parent().next().text();
+      const BAFTANoms = $("h3:contains('BAFTA Film Award [Nominee]')").parent().next().text();
+      
+      const GoldGlobeWins = $("h3:contains('Golden Globe [Winner]')").parent().next().text();
+      const GoldGlobeNoms = $("h3:contains('Golden Globe [Nominee]')").parent().next().text();
+
+      return {
+        oscarWins: this.parseScrapedAwards(oscarWins),
+        oscarNoms: this.parseScrapedAwards(oscarNoms),
+        BAFTAWins: this.parseScrapedAwards(BAFTAWins),
+        BAFTANoms: this.parseScrapedAwards(BAFTANoms),
+        GoldGlobeWins: this.parseScrapedAwards(GoldGlobeWins),
+        GoldGlobeNoms: this.parseScrapedAwards(GoldGlobeNoms)
+      };
+    },
+    async addRating (rating) {
+      const tmdbData = await this.getTMDBData(rating.id);
+      const imdbData = await this.getIMDBData(tmdbData.imdb_id);
+
+      const movieWithRating = {
+        movie: tmdbData,
+        awards: imdbData,
+        ratings: [rating]
+      }
+
+      // Right here I need to post this movieWithRating to the database.
+      // I also need to detect if this movie has been previously rated.
+      // If it has been previously rated, I'll need to update the existing entry
+      // Also, I'll want to display that data at the bottom of the rate page.
+      console.log('movieWithRating: ', movieWithRating);
     }
   },
 }
