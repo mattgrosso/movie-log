@@ -1,6 +1,9 @@
 <template>
   <div class="movie-log">
     <Header @openSettings="toggleSettings"/>
+    <div class="col-12 m-3">
+      <button class="btn btn-block btn-success col-10" @click="foobar">Click</button>
+    </div>
     <Settings
       :showSettings="showSettings"
       :settings="settings"
@@ -183,13 +186,20 @@ export default {
         ratings: [rating]
       }
 
-      // Right here I need to post this movieWithRating to the database.
       // I also need to detect if this movie has been previously rated.
       // If it has been previously rated, I'll need to update the existing entry
       // Also, I'll want to display that data at the bottom of the rate page.
-      console.log('movieWithRating: ', movieWithRating);
+      await axios.post(
+        "https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog.json",
+        movieWithRating
+      );
+
+      this.getMovieDatabase();
+    },
+    foobar () {
+      console.log("foobar");
     }
-  },
+  }
 }
 </script>
 
