@@ -89,12 +89,27 @@ export default {
     async login (resp) {
       const userData = decodeCredential(resp.credential)
       this.googleLogin = userData;
-      this.databaseTopKey = this.createDBTopKey(userData.email);
-      await this.getMovieDatabase();
-      await this.getSettings();
+      // this.databaseTopKey = this.createDBTopKey(userData.email);
+      this.databaseTopKey = this.createDBTopKey("mattgrosso+testing@gmail.com");
+      await this.getDatabase();
     },
     createDBTopKey (email) {
       return email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
+    },
+    async getDatabase () {
+      console.error('getDatabase');
+      const database = await axios.get(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}.json`
+      );
+
+      if (database.data) {
+        console.log('database.data: ', database.data);
+        this.database = database.data.movieLog;
+        this.settings = database.data.settings;
+      } else {
+        console.error('no database.data');
+        await this.initiateNewDatabase();
+      }
     },
     async getMovieDatabase () {
       const movies = await axios.get(
@@ -109,6 +124,30 @@ export default {
       );
 
       this.settings = settings.data;
+    },
+    async initiateNewDatabase () {
+      const newDB = {
+        settings: {
+          tags: ["default tag"],
+          weights: [
+            {name: "direction", weight: 1.015},
+            {name: "imagery", weight: 0.9},
+            {name: "impression", weight: 1.9},
+            {name: "love", weight: 2.985},
+            {name: "overall", weight: 2.05},
+            {name: "performance", weight: 0.65},
+            {name: "soundtrack", weight: 0.2},
+            {name: "story", weight: 1.25}
+          ]
+        }
+      }
+
+      await axios.put(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}.json`,
+        newDB
+      );
+
+      await this.getDatabase();
     },
     show (pane) {
       this.previouslyVisible = this.visible;
