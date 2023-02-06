@@ -59,6 +59,7 @@
       "no-undef": "warn",
       "padded-blocks": "warn",
       "object-curly-spacing": "warn",
+      "array-bracket-spacing": "warn",
       "no-unused-vars": "warn"
     }
   },

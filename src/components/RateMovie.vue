@@ -8,12 +8,12 @@
       </div>
 
       <!--- Year / Medium / Date / PJ Theater--->
-      <div class="year-medium-date col-12 my-5 d-flex">
-        <div class="year">
+      <div class="year-medium-date col-12 my-5 d-flex justify-content-between">
+        <div class="year col-2">
           <label class="form-label fs-4" for="year">Year</label>
           <input class="form-control" name="year" id="year" type="text" v-model="year">
         </div>
-        <div class="medium">
+        <div class="medium col-3">
           <label class="form-label fs-4" for="medium">Medium</label>
           <select class="form-select" name="medium" id="medium" v-model="medium">
             <option value=""></option>
@@ -36,7 +36,7 @@
             <option value="Other">Other</option>
           </select>
         </div>
-        <div class="date">
+        <div class="date col-5">
           <label class="form-label fs-4" for="date">Date</label>
           <input class="form-control" name="date" id="date" type="date" v-model="date">
         </div>
@@ -379,8 +379,12 @@
 
       <hr>
 
-      <p class="rating col-12 my-3 fs-3 text-center" id="rating">
+      <p class="rating col-12 my-3 fs-5 text-center" id="rating">
         Rating: {{rating}}
+        <span class="mx-3 fs-1">|</span>
+        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{allMoviesAsArray.length}}
+        <span class="mx-3 fs-1">|</span>
+        #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear)}} in {{movieYear(this.movieToRate)}}
       </p>
 
       <hr>
@@ -408,16 +412,54 @@
       <hr>
 
       <!-- Submit -->
-      <button class="btn btn-primary col-12 my-5" type="submit" value="Submit">
+      <button class="btn btn-primary col-12 mt-5 mb-4" type="submit" value="Submit">
         <span>Submit</span>
       </button>
     </form>
+
+    <hr>
+
+    <div v-if="movieToRate.ratings" class="previous-ratings my-3 mb-5 px-4 pt-3 pb-5">
+      <label class="fs-4">Previous Viewings</label>
+      <table class="table table-small table-striped-columns">
+        <thead>
+          <th><span>date</span></th>
+          <th><span>dir</span></th>
+          <th><span>img</span></th>
+          <th><span>stry</span></th>
+          <th><span>perf</span></th>
+          <th><span>sndtk</span></th>
+          <th><span>imp</span></th>
+          <th><span>love</span></th>
+          <th><span>ovral</span></th>
+          <th><span>rating</span></th>
+        </thead>
+        <tbody>
+          <tr class="col-12" v-for="(rating, index) in movieToRate.ratings" :key="index">
+            <td class="col-2">{{rating.date}}</td>
+            <td class="col-1">{{rating.direction}}</td>
+            <td class="col-1">{{rating.imagery}}</td>
+            <td class="col-1">{{rating.story}}</td>
+            <td class="col-1">{{rating.performance}}</td>
+            <td class="col-1">{{rating.soundtrack}}</td>
+            <td class="col-1">{{rating.impression}}</td>
+            <td class="col-1">{{rating.love}}</td>
+            <td class="col-1">{{rating.overall}}</td>
+            <td class="col-2">{{rating.rating}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
 <script>
 export default {
   props: {
+    database: {
+      type: Object,
+      required: true
+    },
     movieToRate: {
       type: Object,
       required: true
@@ -431,7 +473,7 @@ export default {
     return {
       title: null,
       year: null,
-      id: this.movieToRate.id,
+      id: this.movieToRate.movie.id,
       medium: "",
       date: null,
       direction: null,
@@ -446,8 +488,8 @@ export default {
     }
   },
   mounted() {
-    this.title = this.movieToRate.title;
-    this.year = new Date(this.movieToRate.release_date).getFullYear();
+    this.title = this.movieToRate.movie.title;
+    this.year = new Date(this.movieToRate.movie.release_date).getFullYear();
   },
   computed: {
     rating () {
@@ -462,10 +504,63 @@ export default {
 
       const total = direction + imagery + story + performance + soundtrack + impression + love + overall;
       
-      return total / 10;
+      return parseFloat(total / 10).toFixed(2);
+    },
+    movieAsRatedOnPage () {
+      return {
+        ...this.movieToRate,
+        ratings: [{rating: this.rating}]
+      };
+    },
+    allMoviesAsArray () {
+      return Object.keys(this.database).map((key) => {
+        return this.database[key];
+      })
+    },
+    allMoviesRanked () {
+      const movies = [...this.allMoviesAsArray];
+      return movies.sort(this.sortByRating);
+    },
+    moviesRankedFromYear () {
+      const moviesFromYear = this.allMoviesAsArray.filter((movie) => {
+        return this.movieYear(movie) === this.movieYear(this.movieToRate);
+      })
+
+      return moviesFromYear.sort(this.sortByRating);
     }
   },
   methods: {
+    movieYear (movie) {
+      return new Date(movie.movie.release_date).getFullYear();
+    },
+    previouslyRated (id) {
+      const ids = Object.keys(this.database).map((key) => this.database[key].movie.id);
+
+      return ids.includes(id);
+    },
+    mostRecentRating (movie) {
+      let mostRecentRating = movie.ratings[0];
+      movie.ratings.forEach((rating) => {
+        if (rating.date && rating.date > mostRecentRating.date) {
+          mostRecentRating = rating;
+        }
+      })
+
+      return mostRecentRating;
+    },
+    sortByRating (a, b) {
+      const aRating = this.mostRecentRating(a).rating;
+      const bRating = this.mostRecentRating(b).rating;
+
+      if (aRating < bRating) {
+        return 1;
+      }
+      if (aRating > bRating) {
+        return -1;
+      }
+
+      return 0;
+    },
     getWeight (weightName) {
       const weightObj = this.settings.weights.find((weight) => {
         return weight.name === weightName;
@@ -482,11 +577,25 @@ export default {
     getRatingFor (category) {
       return this.getWeight(category) * this.getScore(category);
     },
+    indexIfSortedIntoArray (movie, array) {
+      const arr = [...array];
+      arr.push(movie);
+
+      arr.sort(this.sortByRating);
+
+      return arr.indexOf(movie);
+    },
     addTag () {
       this.$emit("addNewTag", { title: this.newTagTitle });
       this.newTagTitle = null;
     },
     addRating () {
+      let ratings = [];
+      
+      if (this.movieToRate.ratings) {
+        ratings = [...this.movieToRate.ratings];
+      }
+
       const rating = {
         title: this.title,
         year: this.year,
@@ -504,7 +613,9 @@ export default {
         rating: this.rating
       };
 
-      this.$emit('addRating', rating);
+      ratings.push(rating);
+
+      this.$emit('addRating', ratings);
     }
   },
 }
@@ -515,16 +626,19 @@ export default {
     column-gap: 1rem;
   }
 
-  .year {
-    width: calc(((100% - 2rem) / 12) * 2);
-  }
+  .previous-ratings {
+    table {
+      th {
+        span {
+          display: inline-block;
+          transform: rotate(60deg);
+          font-size: 0.6rem;
+        }
+      }
 
-  .medium {
-    width: calc(((100% - 2rem) / 12) * 5);
-  }
-
-  .date {
-    width: calc(((100% - 2rem) / 12) * 5);
-
+      td {
+        font-size: 0.6rem;
+      }
+    }
   }
 </style>

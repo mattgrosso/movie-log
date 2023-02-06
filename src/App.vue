@@ -1,7 +1,7 @@
 <template>
   <div class="movie-log">
     <Header @openSettings="toggleSettings"/>
-    <div class="col-12 m-3">
+    <div class="col-12 my-3">
       <button class="btn btn-block btn-success col-10" @click="foobar">Click</button>
     </div>
     <Settings
@@ -23,6 +23,7 @@
     </div>
     <div v-if="isVisible('rate-movie')" class="rate">
       <RateMovie
+        :database="database"
         :movieToRate="movieToRate"
         :settings="settings"
         @addNewTag="addNewTag"
@@ -60,7 +61,7 @@ export default {
   },
   data () {
     return {
-      database: [],
+      database: {},
       settings: {},
       newEntrySearchResults: null,
       movieToRate: null,
@@ -104,7 +105,11 @@ export default {
     },
     rateMovie (movie) {
       this.show("rate-movie");
-      this.movieToRate = movie;
+      if (this.previouslyRated(movie.id)) {
+        this.movieToRate = this.findMovieInDatabase(movie.id);
+      } else {
+        this.movieToRate = { movie };
+      }
     },
     toggleSettings () {
       if (this.showSettings) {
@@ -176,28 +181,69 @@ export default {
         GoldGlobeNoms: this.parseScrapedAwards(GoldGlobeNoms)
       };
     },
-    async addRating (rating) {
-      const tmdbData = await this.getTMDBData(rating.id);
+    previouslyRated (id) {
+      const ids = Object.keys(this.database).map((key) => this.database[key].movie.id);
+
+      return ids.includes(id);
+    },
+    findMovieInDatabase (id) {
+      const keys = Object.keys(this.database);
+      const movies = keys.map((key) => {
+        return {
+          ...this.database[key],
+          index: key
+        }
+      })
+
+      const movie = movies.find((movie) => movie.movie.id === id);
+
+      return this.database[movie.index];
+    },
+    findKeyForMovieInDatabase (id) {
+      const keys = Object.keys(this.database);
+      const movies = keys.map((key) => {
+        return {
+          ...this.database[key],
+          key
+        }
+      })
+
+      const movie = movies.find((movie) => movie.movie.id === id);
+
+      if (movie) {
+        return movie.key;
+      } else {
+        return false;
+      }
+    },
+    async addRating (ratings) {
+      const tmdbData = await this.getTMDBData(ratings[0].id);
       const imdbData = await this.getIMDBData(tmdbData.imdb_id);
 
       const movieWithRating = {
         movie: tmdbData,
         awards: imdbData,
-        ratings: [rating]
+        ratings: ratings
       }
 
-      // I also need to detect if this movie has been previously rated.
-      // If it has been previously rated, I'll need to update the existing entry
-      // Also, I'll want to display that data at the bottom of the rate page.
-      await axios.post(
-        "https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog.json",
-        movieWithRating
-      );
+      const key = this.findKeyForMovieInDatabase(ratings[0].id);
+
+      if (key) {
+        await axios.patch(
+          `https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog/${key}.json`,
+          movieWithRating
+        );
+      } else {
+        await axios.post(
+          "https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog.json",
+          movieWithRating
+        );
+      }
 
       this.getMovieDatabase();
     },
     foobar () {
-      console.log("foobar");
+      this.findMovieInDatabase(2107);
     }
   }
 }
