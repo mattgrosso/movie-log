@@ -1,9 +1,9 @@
 <template>
   <div class="movie-log">
     <Header @openSettings="toggleSettings"/>
-    <div class="col-12 my-3">
+    <!-- <div class="col-12 my-3">
       <button class="btn btn-block btn-success col-10" @click="foobar">Click</button>
-    </div>
+    </div> -->
     <Settings
       :showSettings="showSettings"
       :settings="settings"
@@ -14,7 +14,7 @@
     <div v-show="isVisible('home')" class="home">
       <NewRatingSearch @newEntrySearch="newEntrySearch"/>
       <hr>
-      <SearchDatabase/>
+      <SearchDatabase @dBSearch="dBSearch"/>
       <hr>
       <QuickSearch/>
     </div>
@@ -30,6 +30,9 @@
         @addRating="addRating"
       />
     </div>
+    <div v-if="isVisible('db-search-results')" class="db-search-results">
+      <DBSearchResults :database="database" :initialValue="dBSearchValue" @rateMovie="rateMovie"/>
+    </div>
     <Footer/>
   </div>
 </template>
@@ -42,6 +45,7 @@ import Header from "./components/Header.vue";
 import Settings from "./components/Settings.vue";
 import NewRatingSearch from "./components/NewRatingSearch.vue";
 import SearchDatabase from "./components/SearchDatabase.vue";
+import DBSearchResults from "./components/DBSearchResults.vue";
 import QuickSearch from "./components/QuickSearch.vue";
 import PickAMovie from "./components/PickAMovie.vue";
 import RateMovie from "./components/RateMovie.vue";
@@ -54,6 +58,7 @@ export default {
     Settings,
     NewRatingSearch,
     SearchDatabase,
+    DBSearchResults,
     QuickSearch,
     PickAMovie,
     RateMovie,
@@ -66,7 +71,8 @@ export default {
       newEntrySearchResults: null,
       movieToRate: null,
       visible: "home",
-      showSettings: false
+      showSettings: false,
+      dBSearchValue: ""
     }
   },
   async mounted () {
@@ -241,6 +247,13 @@ export default {
       }
 
       this.getMovieDatabase();
+      // todo: I might want this to show a different screen after you finish rating...
+      // also, it's not working
+      this.show(home);
+    },
+    dBSearch (value) {
+      this.dBSearchValue = value;
+      this.show("db-search-results");
     },
     foobar () {
       this.findMovieInDatabase(2107);

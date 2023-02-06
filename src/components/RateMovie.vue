@@ -394,7 +394,7 @@
         <label class="form-label">Select Additional Tags</label>
         <div class="tag-list d-flex flex-wrap">
           <div v-for="(tag, index) in settings.tags" :key="index" class='form-check mx-2 mb-2'>
-            <input class='form-check-input' type='checkbox' :id="`tag-${index}`">
+            <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleTag(tag)">
             <label class="form-check-label" :for="`tag-${index}`">
               {{tag.title}}
             </label>
@@ -484,6 +484,7 @@ export default {
       impression: null,
       love: null,
       overall: null,
+      tags: [],
       newTagTitle: null
     }
   },
@@ -589,6 +590,13 @@ export default {
       this.$emit("addNewTag", { title: this.newTagTitle });
       this.newTagTitle = null;
     },
+    toggleTag (tag) {
+      if (this.tags.includes(tag)) {
+        this.tags.splice(this.tags.indexOf(tag), 1);
+      } else {
+        this.tags.push(tag);
+      }
+    },
     addRating () {
       let ratings = [];
       
@@ -602,6 +610,7 @@ export default {
         id: this.id,
         medium: this.medium,
         date: this.date,
+        tags: this.tags,
         direction: this.direction,
         imagery: this.imagery,
         story: this.story,
@@ -622,22 +631,24 @@ export default {
 </script>
 
 <style lang="scss">
-  .year-medium-date {
-    column-gap: 1rem;
-  }
-
-  .previous-ratings {
-    table {
-      th {
-        span {
-          display: inline-block;
-          transform: rotate(60deg);
+  .rate-movie {
+    .year-medium-date {
+      column-gap: 1rem;
+    }
+  
+    .previous-ratings {
+      table {
+        th {
+          span {
+            display: inline-block;
+            transform: rotate(60deg);
+            font-size: 0.6rem;
+          }
+        }
+  
+        td {
           font-size: 0.6rem;
         }
-      }
-
-      td {
-        font-size: 0.6rem;
       }
     }
   }

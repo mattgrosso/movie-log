@@ -1,5 +1,5 @@
 <template>
-  <div class="my-3 mx-3">
+  <div class="quick-search my-3 mx-3 mb-5">
     <label class="mb-3 text-center col-12">Quick Search</label>
     <ul class="p-0 d-flex justify-content-around flex-wrap">
       <li class="col-2">
@@ -85,9 +85,11 @@ export default {
 </script>
 
 <style lang="scss">
-  ul {
-    column-gap: 0.35rem;
-    list-style: none;
-    row-gap: 0.35rem;
+  .quick-search {
+    ul {
+      column-gap: 0.35rem;
+      list-style: none;
+      row-gap: 0.35rem;
+    }
   }
 </style>
