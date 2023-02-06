@@ -8,7 +8,7 @@
       <div class="form-group mb-3">
         <label class="form-label" for="sortValue">Sort by</label>
         <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
-          <option value="best">Best</option>
+          <option value="best">Best Match</option>
           <option value="rating">Rating</option>
           <option value="year">Year</option>
           <option value="title">Title</option>

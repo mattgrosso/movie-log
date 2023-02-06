@@ -1,45 +1,53 @@
 <template>
   <div class="movie-log">
-    <Header @openSettings="toggleSettings"/>
-    <!-- <div class="col-12 my-3">
-      <button class="btn btn-block btn-success col-10" @click="foobar">Click</button>
-    </div> -->
-    <Settings
-      :showSettings="showSettings"
-      :settings="settings"
-      @addNewTag="addNewTag"
-      @removeTag="removeTag"
-      @updateWeight="updateWeight"
-    />
-    <div v-show="isVisible('home')" class="home">
-      <NewRatingSearch @newEntrySearch="newEntrySearch"/>
-      <hr>
-      <SearchDatabase @dBSearch="dBSearch"/>
-      <hr>
-      <QuickSearch/>
+    <div v-if="!googleLogin" class="login">
+      <h1>Welcome to Movie Log</h1>
+      <h2 class="fs-6 mb-5">Please sign in with Google</h2>
+      <GoogleLogin :callback="login" prompt auto-login/>
     </div>
-    <div v-if="isVisible('pick-a-movie')" class="pick-a-movie">
-      <PickAMovie :newEntrySearchResults="newEntrySearchResults" @rateMovie="rateMovie"/>
-    </div>
-    <div v-if="isVisible('rate-movie')" class="rate">
-      <RateMovie
-        :database="database"
-        :movieToRate="movieToRate"
+    <div v-if="googleLogin" class="content">
+      <Header @openSettings="toggleSettings"/>
+      <!-- <div class="col-12 my-3">
+        <button class="btn btn-block btn-success col-10" @click="foobar">Click</button>
+      </div> -->
+      <Settings
+        :showSettings="showSettings"
         :settings="settings"
         @addNewTag="addNewTag"
-        @addRating="addRating"
+        @removeTag="removeTag"
+        @updateWeight="updateWeight"
       />
+      <div v-show="isVisible('home')" class="home">
+        <NewRatingSearch @newEntrySearch="newEntrySearch"/>
+        <hr>
+        <SearchDatabase @dBSearch="dBSearch"/>
+        <hr>
+        <QuickSearch/>
+      </div>
+      <div v-if="isVisible('pick-a-movie')" class="pick-a-movie">
+        <PickAMovie :newEntrySearchResults="newEntrySearchResults" @rateMovie="rateMovie"/>
+      </div>
+      <div v-if="isVisible('rate-movie')" class="rate">
+        <RateMovie
+          :database="database"
+          :movieToRate="movieToRate"
+          :settings="settings"
+          @addNewTag="addNewTag"
+          @addRating="addRating"
+        />
+      </div>
+      <div v-if="isVisible('db-search-results')" class="db-search-results">
+        <DBSearchResults :database="database" :initialValue="dBSearchValue" @rateMovie="rateMovie"/>
+      </div>
+      <Footer/>
     </div>
-    <div v-if="isVisible('db-search-results')" class="db-search-results">
-      <DBSearchResults :database="database" :initialValue="dBSearchValue" @rateMovie="rateMovie"/>
-    </div>
-    <Footer/>
   </div>
 </template>
 
 <script>
 import axios from 'axios';
 import cheerio from "cheerio";
+import { decodeCredential } from 'vue3-google-login'
 
 import Header from "./components/Header.vue";
 import Settings from "./components/Settings.vue";
@@ -66,6 +74,7 @@ export default {
   },
   data () {
     return {
+      googleLogin: null,
       database: {},
       settings: {},
       newEntrySearchResults: null,
@@ -80,6 +89,10 @@ export default {
     await this.getSettings();
   },
   methods: {
+    login (resp) {
+      const userData = decodeCredential(resp.credential)
+      this.googleLogin = userData;
+    },
     async getMovieDatabase () {
       const movies = await axios.get(
         "https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog.json"
@@ -248,8 +261,7 @@ export default {
 
       this.getMovieDatabase();
       // todo: I might want this to show a different screen after you finish rating...
-      // also, it's not working
-      this.show(home);
+      this.show("home");
     },
     dBSearch (value) {
       this.dBSearchValue = value;
@@ -271,5 +283,12 @@ export default {
     border-top: 1px solid;
     margin: 0 10%;
     opacity: 0.3;
+  }
+
+  .login {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 30vh 24px;
   }
 </style>

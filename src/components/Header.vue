@@ -33,6 +33,7 @@ export default {
       align-items: center;
       background: black;
       bottom: -7px;
+      cursor: pointer;
       display: flex;
       justify-content: center;
       padding: 6px 50px 12px;
