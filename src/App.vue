@@ -75,6 +75,7 @@ export default {
   data () {
     return {
       googleLogin: null,
+      databaseTopKey: null,
       database: {},
       settings: {},
       newEntrySearchResults: null,
@@ -84,25 +85,27 @@ export default {
       dBSearchValue: ""
     }
   },
-  async mounted () {
-    await this.getMovieDatabase();
-    await this.getSettings();
-  },
   methods: {
-    login (resp) {
+    async login (resp) {
       const userData = decodeCredential(resp.credential)
       this.googleLogin = userData;
+      this.databaseTopKey = this.createDBTopKey(userData.email);
+      await this.getMovieDatabase();
+      await this.getSettings();
+    },
+    createDBTopKey (email) {
+      return email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
     },
     async getMovieDatabase () {
       const movies = await axios.get(
-        "https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog.json"
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/movieLog.json`
       );
 
       this.database = movies.data;
     },
     async getSettings () {
       const settings = await axios.get(
-        "https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings.json"
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings.json`
       );
 
       this.settings = settings.data;
@@ -139,7 +142,7 @@ export default {
     },
     async addNewTag (tag) {
       await axios.post(
-        "https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings/tags.json",
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/tags.json`,
         tag
       );
 
@@ -147,14 +150,14 @@ export default {
     },
     async removeTag (tagIndex) {
       await axios.delete(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings/tags/${tagIndex}.json`
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/tags/${tagIndex}.json`
       );
 
       this.getSettings();
     },
     async updateWeight (payload) {
       await axios.patch(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/settings/weights/${payload.index}.json`,
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/weights/${payload.index}.json`,
         payload.weight
       );
 
@@ -249,12 +252,12 @@ export default {
 
       if (key) {
         await axios.patch(
-          `https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog/${key}.json`,
+          `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/movieLog/${key}.json`,
           movieWithRating
         );
       } else {
         await axios.post(
-          "https://movie-log-8c4d5-default-rtdb.firebaseio.com/movieLog.json",
+          `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/movieLog.json`,
           movieWithRating
         );
       }
