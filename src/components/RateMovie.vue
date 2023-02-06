@@ -473,7 +473,7 @@ export default {
     return {
       title: null,
       year: null,
-      id: this.movieToRate.movie.id,
+      id: null,
       medium: "",
       date: null,
       direction: null,
@@ -491,6 +491,7 @@ export default {
   mounted() {
     this.title = this.movieToRate.movie.title;
     this.year = new Date(this.movieToRate.movie.release_date).getFullYear();
+    this.id = this.movieToRate.movie.id;
   },
   computed: {
     rating () {

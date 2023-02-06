@@ -97,17 +97,14 @@ export default {
       return email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
     },
     async getDatabase () {
-      console.error('getDatabase');
       const database = await axios.get(
         `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}.json`
       );
 
       if (database.data) {
-        console.log('database.data: ', database.data);
-        this.database = database.data.movieLog;
+        this.database = database.data.movieLog ? database.data.movieLog : {};
         this.settings = database.data.settings;
       } else {
-        console.error('no database.data');
         await this.initiateNewDatabase();
       }
     },
@@ -128,7 +125,7 @@ export default {
     async initiateNewDatabase () {
       const newDB = {
         settings: {
-          tags: ["default tag"],
+          tags: [{title: "default tag"}],
           weights: [
             {name: "direction", weight: 1.015},
             {name: "imagery", weight: 0.9},
@@ -165,12 +162,13 @@ export default {
       this.newEntrySearchResults = data.results;
     },
     rateMovie (movie) {
-      this.show("rate-movie");
       if (this.previouslyRated(movie.id)) {
         this.movieToRate = this.findMovieInDatabase(movie.id);
       } else {
         this.movieToRate = { movie };
       }
+
+      this.show("rate-movie");
     },
     toggleSettings () {
       if (this.showSettings) {
@@ -243,6 +241,10 @@ export default {
       };
     },
     previouslyRated (id) {
+      if (!this.database) {
+        return false;
+      }
+
       const ids = Object.keys(this.database).map((key) => this.database[key].movie.id);
 
       return ids.includes(id);
