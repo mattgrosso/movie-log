@@ -27,8 +27,8 @@
       <div class="input-group mb-3">
         <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
           <option value="rating" selected>Rating</option>
-          <option value="best">Best Match</option>
-          <option value="date">Date</option>
+          <option value="watched">Watch Date</option>
+          <option value="release">Release Date</option>
           <option value="title">Title</option>
         </select>
         <label class="input-group-text" @click="sortDescending = !sortDescending">
@@ -187,12 +187,17 @@ export default {
       type: String,
       required: false,
       default: ""
+    },
+    initialSortValue: {
+      type: String,
+      required: false,
+      default: ""
     }
   },
   data () {
     return {
       value: "",
-      sortValue: "rating",
+      sortValue: null,
       popperInstance: null,
       sortDescending: true
     }
@@ -203,12 +208,22 @@ export default {
         this.value = newVal;
       }
     },
+    initialSortValue (newVal) {
+      if (newVal) {
+        this.sortValue = newVal;
+      }
+    },
     value (newVal) {
       this.$emit('clearSearch');
     }
   },
   mounted () {
     this.value = this.initialValue;
+    if (this.initialSortValue) {
+      this.sortValue = this.initialSortValue;
+    } else {
+      this.sortValue = "rating";
+    }
 
     this.popperInstance = createPopper(this.$refs.target, this.$refs.popper, {
       modifiers: [
@@ -318,12 +333,18 @@ export default {
       if (!this.sortValue || this.sortValue === "rating") {
         sortValueA = this.mostRecentRating(a).rating;
         sortValueB = this.mostRecentRating(b).rating;
-      } else if (this.sortValue === "date") {
+      } else if (this.sortValue === "release") {
         sortValueA = new Date(b.movie.release_date);
         sortValueB = new Date(a.movie.release_date);
       } else if (this.sortValue === "title") {
         sortValueA = b.movie.title;
         sortValueB = a.movie.title;
+      } else if (this.sortValue === "watched") {
+        const dateA = this.mostRecentRating(a).date || "3/22/1982";
+        const dateB = this.mostRecentRating(b).date || "3/22/1982";
+
+        sortValueA = new Date(dateA);
+        sortValueB = new Date(dateB);
       } else {
         sortValueA = 0;
         sortValueB = 0;

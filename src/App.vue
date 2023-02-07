@@ -20,7 +20,7 @@
         <hr>
         <SearchDatabase @dBSearch="dBSearch"/>
         <hr>
-        <QuickSearch/>
+        <QuickSearch @dBSearch="dBSearch"/>
       </div>
       <div v-if="isVisible('pick-a-movie')" class="pick-a-movie">
         <PickAMovie :newEntrySearchResults="newEntrySearchResults" @rateMovie="rateMovie"/>
@@ -38,6 +38,7 @@
         <DBSearchResults
           :database="database"
           :initialValue="dBSearchValue"
+          :initialSortValue="dBSortValue"
           @reRateMovie="rateMovie"
           @search="dBSearch"
           @clearSearch="dBSearchValue = null"
@@ -86,7 +87,8 @@ export default {
       movieToRate: null,
       visible: "home",
       showSettings: false,
-      dBSearchValue: ""
+      dBSearchValue: "",
+      dBSortValue: ""
     }
   },
   methods: {
@@ -315,8 +317,11 @@ export default {
 
       this.show("home");
     },
-    dBSearch (value) {
+    dBSearch (value, sortValue) {
       this.dBSearchValue = `${value}`;
+      if (sortValue) {
+        this.dBSortValue = `${sortValue}`;
+      }
       this.show("db-search-results");
     },
     uploadRatings (ratings) {
