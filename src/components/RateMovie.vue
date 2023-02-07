@@ -413,6 +413,7 @@
       <hr>
 
       <!-- Submit -->
+      <!-- todo: This button needs to give better feedback and needs to disable so they can't click twice -->
       <button class="btn btn-primary col-12 mt-5 mb-4" type="submit" value="Submit">
         <span>Submit</span>
       </button>

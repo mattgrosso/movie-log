@@ -1,9 +1,27 @@
 <template>
   <div class="db-search-results p-3">
     <div class="search-bar">
-      <div class="form-group mb-3">
-        <!-- todo: add info here about how to use the search bar -->
-        <label class="form-label" for="search">Search</label>
+      <div class="input-group mb-3">
+        <span ref="target" class="search-help input-group-text" @click="togglePopper" v-click-away="onClickAway">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
+            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+            <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+          </svg>
+        </span>
+        <div ref=popperWrapper>
+          <div ref="popper" id="search-help" class="popper mx-1" role="tooltip">
+            <div class="year help mb-1">
+              <p class="title m-0">Search by year</p>
+              <p class="example my-0 px-3">y:2002</p>
+              <p class="example my-0 px-3">y:1990-1998</p>
+            </div>
+            <div class="person help mb-1">
+              <p class="title m-0">Search for cast or crew</p>
+              <p class="example my-0 px-3">p:"Natalie Portman"</p>
+            </div>
+            <div id="arrow" data-popper-arrow></div>
+          </div>
+        </div>
         <input class="form-control" type="text" name="search" id="search" placeholder="search..." v-model="value">
       </div>
       <div class="form-group mb-3">
@@ -17,6 +35,7 @@
       </div>
     </div>
     <hr class="mt-4">
+    <!-- todo: add some stats here -->
     <ul class="col-12 py-3 px-0 d-flex flex-wrap">
       <li 
         class="movie-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
@@ -47,7 +66,7 @@
           </p>
         </div>
         <div class="rating col-2 d-flex justify-content-center">
-          <p class="m-0 fs-3">{{mostRecentRating(result).rating.toFixed(2)}}</p>
+          <p class="m-0 fs-3">{{parseFloat(mostRecentRating(result).rating).toFixed(2)}}</p>
         </div>
 
         <div :id="`Info-${result.movie.id}`" class="full-info ps-3 hidden">
@@ -139,6 +158,7 @@
 <script>
 import Fuse from 'fuse.js';
 import searchQuery from 'search-query-parser';
+import { createPopper } from '@popperjs/core';
 import inRange from 'lodash/inRange';
 
 export default {
@@ -156,7 +176,8 @@ export default {
   data() {
     return {
       value: "",
-      sortValue: "rating"
+      sortValue: "rating",
+      popperInstance: null
     }
   },
   watch: {
@@ -171,6 +192,17 @@ export default {
   },
   mounted() {
     this.value = this.initialValue;
+
+    this.popperInstance = createPopper(this.$refs.target, this.$refs.popper, {
+      modifiers: [
+        {
+          name: 'offset',
+          options: {
+            offset: [50, 8],
+          },
+        },
+      ],
+    });
   },
   computed: {
     allMoviesAsArray () {
@@ -217,7 +249,7 @@ export default {
   methods: {
     searchFor (term) {
       this.value = term;
-      
+
       window.scroll({
         top: top,
         behavior: 'smooth'
@@ -364,6 +396,27 @@ export default {
         x.classList.add("hidden");
         x.classList.remove("shown");
       }
+    },
+    togglePopper () {
+      const popper = this.$refs.popper;
+      if (popper.hasAttribute('data-show', '')) {
+        popper.removeAttribute('data-show', '')
+      } else {
+        popper.setAttribute('data-show', '');
+      }
+
+      this.popperInstance.update();
+    },
+    onClickAway (event) {
+      const popperWrapper = this.$refs.popperWrapper;
+      const popper = this.$refs.popper;
+
+      if (popperWrapper.contains(event.target)) {
+        return;
+      } else if (popper.hasAttribute('data-show', '')) {
+        popper.removeAttribute('data-show', '')
+        this.popperInstance.update();
+      }
     }
   },
 }
@@ -371,6 +424,68 @@ export default {
 
 <style lang="scss">
   .db-search-results {
+    .search-bar {
+      .search-help {
+        cursor: pointer;
+      }
+
+      #search-help {
+        background: #333;
+        color: white;
+        border-radius: 4px;
+        padding: 1rem;
+        display: none;
+
+        &[data-show] {
+          display: block;
+        }
+
+        &[data-popper-placement^='top'] > #arrow {
+          bottom: -4px;
+        }
+
+        &[data-popper-placement^='bottom'] > #arrow {
+          top: -4px;
+        }
+
+        &[data-popper-placement^='left'] > #arrow {
+          right: -4px;
+        }
+
+        &[data-popper-placement^='right'] > #arrow {
+          left: -4px;
+        }
+
+        .help {
+          .title {
+            font-size: 1.2rem;
+          }
+
+          .example {
+            font-size: 0.9rem;
+          }
+        }
+
+        #arrow,
+        #arrow::before {
+          position: absolute;
+          width: 8px;
+          height: 8px;
+          background: inherit;
+        }
+
+        #arrow {
+          visibility: hidden;
+        }
+
+        #arrow::before {
+          visibility: visible;
+          content: '';
+          transform: rotate(45deg);
+        }
+      }
+    }
+
     ul {
       list-style: none;
 
