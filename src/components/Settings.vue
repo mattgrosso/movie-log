@@ -1,5 +1,5 @@
 <template>
-  <div 
+  <div
     class="settings bg-secondary text-light"
     :class="{open: showSettings, closed: !showSettings}"
   >
@@ -93,7 +93,7 @@ export default {
       required: true
     }
   },
-  data() {
+  data () {
     return {
       newTagTitle: null
     }
@@ -133,7 +133,7 @@ export default {
     showRemoveButton (event) {
       const all = Array.from(this.$el.querySelectorAll('.show-remove-button'));
       const notTarget = all.filter((el) => el !== event.target);
-      
+
       notTarget.forEach((el) => el.classList.remove("show-remove-button"));
 
       event.target.classList.toggle('show-remove-button');
@@ -153,7 +153,7 @@ export default {
     updateWeight (event, index, weight) {
       const value = event.target.previousElementSibling.value;
       const payload = {
-        index: index, 
+        index: index,
         weight: {
           ...weight,
           weight: parseFloat(value)
@@ -182,7 +182,7 @@ export default {
     &.open {
       max-height: 1000px;
     }
-    
+
     ul {
       list-style: none;
       margin: 0;

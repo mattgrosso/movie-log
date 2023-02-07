@@ -129,16 +129,16 @@ export default {
     async initiateNewDatabase () {
       const newDB = {
         settings: {
-          tags: [{title: "default tag"}],
+          tags: [{ title: "default tag" }],
           weights: [
-            {name: "direction", weight: 1.015},
-            {name: "imagery", weight: 0.9},
-            {name: "impression", weight: 1.9},
-            {name: "love", weight: 2.985},
-            {name: "overall", weight: 2.05},
-            {name: "performance", weight: 0.65},
-            {name: "soundtrack", weight: 0.2},
-            {name: "story", weight: 1.25}
+            { name: "direction", weight: 1.015 },
+            { name: "imagery", weight: 0.9 },
+            { name: "impression", weight: 1.9 },
+            { name: "love", weight: 2.985 },
+            { name: "overall", weight: 2.05 },
+            { name: "performance", weight: 0.65 },
+            { name: "soundtrack", weight: 0.2 },
+            { name: "story", weight: 1.25 }
           ]
         }
       }
@@ -213,7 +213,7 @@ export default {
 
       const dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
       const data = dataResp.data;
-      
+
       const creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
       const credits = creditsResp.data;
 
@@ -235,7 +235,7 @@ export default {
 
       const BAFTAWins = $("h3:contains('BAFTA Film Award [Winner]')").parent().next().text();
       const BAFTANoms = $("h3:contains('BAFTA Film Award [Nominee]')").parent().next().text();
-      
+
       const GoldGlobeWins = $("h3:contains('Golden Globe [Winner]')").parent().next().text();
       const GoldGlobeNoms = $("h3:contains('Golden Globe [Nominee]')").parent().next().text();
 

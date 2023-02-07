@@ -51,12 +51,12 @@ export default {
       list-style: none;
       margin: 1rem;
       row-gap: 1rem;
-  
+
       .card {
         border-radius: 4px;
         cursor: pointer;
         width: calc((100% - 2rem) / 3);
-  
+
         p {
           font-size: .75rem;
         }

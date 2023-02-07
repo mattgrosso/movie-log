@@ -471,7 +471,7 @@ export default {
       required: true
     }
   },
-  data() {
+  data () {
     return {
       title: null,
       year: null,
@@ -490,7 +490,7 @@ export default {
       newTagTitle: null
     }
   },
-  mounted() {
+  mounted () {
     this.title = this.movieToRate.movie.title;
     this.year = new Date(this.movieToRate.movie.release_date).getFullYear();
     this.id = this.movieToRate.movie.id;
@@ -507,13 +507,13 @@ export default {
       const overall = this.getRatingFor("overall") >= 0 ? this.getRatingFor("overall") : 5;
 
       const total = direction + imagery + story + performance + soundtrack + impression + love + overall;
-      
+
       return parseFloat(total / 10).toFixed(2);
     },
     movieAsRatedOnPage () {
       return {
         ...this.movieToRate,
-        ratings: [{rating: this.rating}]
+        ratings: [{ rating: this.rating }]
       };
     },
     allMoviesAsArray () {
@@ -602,7 +602,7 @@ export default {
     },
     addRating () {
       let ratings = [];
-      
+
       if (this.movieToRate.ratings) {
         ratings = [...this.movieToRate.ratings];
       }
@@ -638,7 +638,7 @@ export default {
     .year-medium-date {
       column-gap: 1rem;
     }
-  
+
     .previous-ratings {
       table {
         th {
@@ -648,7 +648,7 @@ export default {
             font-size: 0.6rem;
           }
         }
-  
+
         td {
           font-size: 0.6rem;
         }

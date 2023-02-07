@@ -54,7 +54,7 @@
     </p>
     <hr>
     <ul class="col-12 py-3 px-0 d-flex flex-wrap">
-      <li 
+      <li
         class="movie-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
         v-for="(result, index) in sortedResults"
         :key="index"
@@ -97,7 +97,7 @@
           </p>
 
           <hr>
-          
+
           <h3 class="mt-3 mb-2 fs-5">Production Companies</h3>
           <p class="m-3">{{turnArrayIntoList(result.movie.production_companies, "name")}}</p>
 
@@ -112,32 +112,32 @@
           <p class="m-3">{{getCrewMember(result.movie.crew, "Writer")}}</p>
 
           <hr>
-          
+
           <h3 class="mt-3 mb-2 fs-5">Actors</h3>
           <div class="actors">
             <p class="m-3">{{turnArrayIntoList(result.movie.cast, "name")}}</p>
           </div>
-          
+
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Composer(s)</h3>
           <p class="m-3">{{getCrewMember(result.movie.crew, "Composer")}}</p>
-          
+
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Editor(s)</h3>
           <p class="m-3">{{getCrewMember(result.movie.crew, "Editor", "strict")}}</p>
-          
+
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Cinematographer(s)</h3>
           <p class="m-3">{{getCrewMember(result.movie.crew, "Photo")}}</p>
-          
+
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Tags</h3>
           <p class="m-3">{{turnArrayIntoList(mostRecentRating(result).tags, "title")}}</p>
-          
+
           <hr v-if="turnArrayIntoList(result.awards?.oscarWins).length || turnArrayIntoList(result.awards?.oscarNoms).length">
 
           <h3 class="mt-3 mb-2 fs-5" v-if="turnArrayIntoList(result.awards?.oscarWins).length || turnArrayIntoList(result.awards?.oscarNoms).length">Academy Awards</h3>
@@ -145,7 +145,7 @@
             <p v-if="turnArrayIntoList(result.awards?.oscarWins).length">Won: {{turnArrayIntoList(result.awards?.oscarWins)}}</p>
             <p v-if="turnArrayIntoList(result.awards?.oscarNoms).length">Nominated: {{turnArrayIntoList(result.awards?.oscarNoms)}}</p>
           </div>
-          
+
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Viewings</h3>
@@ -155,7 +155,7 @@
             <span v-else-if="rating.date">On</span>
             {{rating.date}}
           </p>
-          
+
           <hr>
 
           <p class="m-3">
@@ -189,7 +189,7 @@ export default {
       default: ""
     }
   },
-  data() {
+  data () {
     return {
       value: "",
       sortValue: "rating",
@@ -207,7 +207,7 @@ export default {
       this.$emit('clearSearch');
     }
   },
-  mounted() {
+  mounted () {
     this.value = this.initialValue;
 
     this.popperInstance = createPopper(this.$refs.target, this.$refs.popper, {
@@ -285,7 +285,7 @@ export default {
           "movie.tagline"
         ]
       };
-      
+
       const fuse = new Fuse(this.allMoviesAsArray, options);
 
       const results = fuse.search(`"${this.value}"`);
@@ -361,7 +361,7 @@ export default {
       }
 
       let arr = [...array];
-      
+
       if (arr[0][key] && !key) {
         return "";
       }
@@ -369,7 +369,7 @@ export default {
       if (key && arr[0][key]) {
         arr = arr.map((el) => el[key]);
       }
-      
+
       if (arr.length > 1) {
         return arr.join(", ");
       } else {
@@ -379,7 +379,7 @@ export default {
     getCrewMember (crew, title, strict) {
       let matches;
       if (strict) {
-        matches = crew.filter((crew) => crew.job === title);  
+        matches = crew.filter((crew) => crew.job === title);
       } else {
         matches = crew.filter((crew) => crew.job.includes(title));
       }
@@ -407,8 +407,8 @@ export default {
     reRateMovie (movie) {
       this.$emit('reRateMovie', movie);
     },
-    showInfo(id) {
-      var x = document.getElementById(id);
+    showInfo (id) {
+      const x = document.getElementById(id);
 
       if (!x) {
         return;

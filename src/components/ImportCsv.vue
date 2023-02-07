@@ -16,7 +16,7 @@
 import Papa from 'papaparse';
 
 export default {
-  data() {
+  data () {
     return {
       csv: null,
       parsedCsv: null,
@@ -99,13 +99,13 @@ export default {
       Papa.parse(event.target.files[0], config);
     },
     transformHeader (header) {
-      let transformedHeader = header.toLowerCase();
+      const transformedHeader = header.toLowerCase();
 
       return transformedHeader;
     },
     parsingComplete (result) {
       this.parsedCsv = result.data;
-      
+
       this.$emit("uploadRatings", this.ratingsForUpload);
     },
     uploadErrored (error) {
@@ -118,7 +118,7 @@ export default {
       }
 
       return string.split(" | ").map((tag) => {
-        return {title: tag};
+        return { title: tag };
       })
     }
   },
