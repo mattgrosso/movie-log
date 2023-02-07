@@ -216,7 +216,12 @@ export default {
   },
   methods: {
     searchFor (term) {
-      this.$emit('search', term);
+      this.value = term;
+      
+      window.scroll({
+        top: top,
+        behavior: 'smooth'
+      })
     },
     fuzzySearch () {
       const options = {
