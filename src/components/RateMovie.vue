@@ -1,8 +1,9 @@
 <template>
   <div class="rate-movie">
     <form class="p-4" @submit.prevent="addRating">
+      <h1 class="mb-4">Rate Movie</h1>
       <!--- Title --->
-      <div class="col-12 my-5">
+      <div class="col-12 mb-4">
         <label class="form-label fs-4" for="title">Title</label>
         <input class="form-control" name="title" type="text" id="title" v-model="title">
       </div>

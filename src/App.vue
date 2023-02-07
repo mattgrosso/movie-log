@@ -6,7 +6,7 @@
       <GoogleLogin :callback="login" prompt auto-login/>
     </div>
     <div v-show="googleLogin" class="content">
-      <Header @openSettings="toggleSettings"/>
+      <Header @openSettings="toggleSettings" @showHome="show('home')"/>
       <Settings
         :showSettings="showSettings"
         :settings="settings"
@@ -35,7 +35,13 @@
         />
       </div>
       <div v-if="isVisible('db-search-results')" class="db-search-results">
-        <DBSearchResults :database="database" :initialValue="dBSearchValue" @rateMovie="rateMovie"/>
+        <DBSearchResults
+          :database="database"
+          :initialValue="dBSearchValue"
+          @reRateMovie="rateMovie"
+          @search="dBSearch"
+          @clearSearch="dBSearchValue = null"
+        />
       </div>
       <Footer/>
     </div>
@@ -147,6 +153,10 @@ export default {
     show (pane) {
       this.previouslyVisible = this.visible;
       this.visible = pane;
+      window.scroll({
+        top: top,
+        behavior: 'smooth'
+      })
     },
     isVisible (pane) {
       if (this.visible === pane) {
@@ -306,10 +316,11 @@ export default {
       this.show("home");
     },
     dBSearch (value) {
-      this.dBSearchValue = value;
+      this.dBSearchValue = `${value}`;
       this.show("db-search-results");
     },
     uploadRatings (ratings) {
+      // todo: this doesn't read like it's working. We need to get some sort of response when it's really done.
       for (const rating of ratings) {
         this.addRating(rating);
       }

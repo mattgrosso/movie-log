@@ -2,15 +2,16 @@
   <div class="db-search-results p-3">
     <div class="search-bar">
       <div class="form-group mb-3">
+        <!-- todo: add info here about how to use the search bar -->
         <label class="form-label" for="search">Search</label>
         <input class="form-control" type="text" name="search" id="search" placeholder="search..." v-model="value">
       </div>
       <div class="form-group mb-3">
         <label class="form-label" for="sortValue">Sort by</label>
         <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
-          <option value="best">Best Match</option>
           <option value="rating">Rating</option>
-          <option value="year">Year</option>
+          <option value="best">Best Match</option>
+          <option value="date">Date</option>
           <option value="title">Title</option>
         </select>
       </div>
@@ -34,14 +35,14 @@
             <span class="fs-4">
               {{result.movie.title}}
             </span>
-            <a class="link mx-2" @click="setValue(getYear(result.movie.release_date))">({{getYear(result.movie.release_date)}})</a>
+            <a class="link mx-2" @click.stop="searchFor(`y:${getYear(result.movie.release_date)}`)">({{getYear(result.movie.release_date)}})</a>
           </p>
           <p class="etc m-0 d-flex flex-wrap">
             <span>{{prettifyRuntime(result.movie.runtime)}}</span>
             <span>{{turnArrayIntoList(result.movie.genres, "name")}}</span>
             <span>
               Director:
-              <a class="link" @click="setValue(getCrewMember(result.movie.crew, 'Director', 'strict'))">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
+              <a class="link" @click.stop="searchFor(`p:\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
             </span>
           </p>
         </div>
@@ -137,6 +138,8 @@
 
 <script>
 import Fuse from 'fuse.js';
+import searchQuery from 'search-query-parser';
+import inRange from 'lodash/inRange';
 
 export default {
   props: {
@@ -153,7 +156,17 @@ export default {
   data() {
     return {
       value: "",
-      sortValue: "best"
+      sortValue: "rating"
+    }
+  },
+  watch: {
+    initialValue (newVal) {
+      if (newVal) {
+        this.value = newVal;
+      }
+    },
+    value (newVal) {
+      this.$emit('clearSearch');
     }
   },
   mounted() {
@@ -177,7 +190,35 @@ export default {
       }
     },
     results () {
-      // todo: figure out how to include directors here.
+      const options = {
+        alwaysArray: true,
+        offsets: false,
+        keywords: ["p", "person"],
+        ranges: ["y", "year"]
+      }
+
+      const query = searchQuery.parse(this.value, options);
+
+      if (!this.value) {
+        return this.allMoviesAsArray;
+      } else if (query.y) {
+        return this.yearSearch(query.y);
+      } else if (query.year) {
+        return this.yearSearch(query.year);
+      } else if (query.p) {
+        return this.personSearch(query.p);
+      } else if (query.person) {
+        return this.personSearch(query.person);
+      } else {
+        return this.fuzzySearch();
+      }
+    }
+  },
+  methods: {
+    searchFor (term) {
+      this.$emit('search', term);
+    },
+    fuzzySearch () {
       const options = {
         threshold: this.threshold,
         keys: [
@@ -196,19 +237,36 @@ export default {
       const results = fuse.search(`"${this.value}"`);
 
       return results.map((result) => result.item);
-    }
-  },
-  methods: {
+    },
+    yearSearch (range) {
+      if (range.to) {
+        return this.allMoviesAsArray.filter((movie) => {
+          return inRange(this.getYear(movie.movie.release_date), range.from, parseInt(range.to) + 1);
+        });
+      } else {
+        return this.allMoviesAsArray.filter((movie) => {
+          return inRange(this.getYear(movie.movie.release_date), range.from, parseInt(range.from) + 1);
+        });
+      }
+    },
+    personSearch (names) {
+      return this.allMoviesAsArray.filter((movie) => {
+        // this is a sort of crazy thing to do. It might be kind of slow.
+        const everyone = `${JSON.stringify(movie.movie.crew)} ${JSON.stringify(movie.movie.cast)}`;
+
+        return names.every((name) => everyone.toLowerCase().includes(name.toLowerCase()));
+      })
+    },
     sortResults (a, b) {
       let sortValueA;
       let sortValueB;
 
-      if (this.sortValue === "rating") {
+      if (!this.value || this.sortValue === "rating") {
         sortValueA = this.mostRecentRating(a).rating;
         sortValueB = this.mostRecentRating(b).rating;
-      } else if (this.sortValue === "year") {
-        sortValueA = this.getYear(b.movie.release_date);
-        sortValueB = this.getYear(a.movie.release_date);
+      } else if (this.sortValue === "date") {
+        sortValueA = new Date(b.movie.release_date);
+        sortValueB = new Date(a.movie.release_date);
       } else if (this.sortValue === "title") {
         sortValueA = b.movie.title;
         sortValueB = a.movie.title;
@@ -289,6 +347,10 @@ export default {
     },
     showInfo(id) {
       var x = document.getElementById(id);
+
+      if (!x) {
+        return;
+      }
 
       if (x.classList.contains("hidden")) {
         x.classList.remove("hidden");
