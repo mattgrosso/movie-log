@@ -68,12 +68,20 @@
           </tbody>
         </table>
       </div>
+      <div class="uploader mt-3 p-3 border border-white">
+        <ImportCsv @uploadRatings="$emit('uploadRatings', $event)"/>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
+import ImportCsv from "./ImportCsv.vue";
+
 export default {
+  components: {
+    ImportCsv
+  },
   props: {
     showSettings: {
       type: Boolean,

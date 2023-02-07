@@ -1,21 +1,19 @@
 <template>
   <div class="movie-log">
-    <div v-if="!googleLogin" class="login">
+    <div v-show="!googleLogin" class="login">
       <h1>Welcome to Movie Log</h1>
       <h2 class="fs-6 mb-5">Please sign in with Google</h2>
       <GoogleLogin :callback="login" prompt auto-login/>
     </div>
-    <div v-if="googleLogin" class="content">
+    <div v-show="googleLogin" class="content">
       <Header @openSettings="toggleSettings"/>
-      <!-- <div class="col-12 my-3">
-        <button class="btn btn-block btn-success col-10" @click="foobar">Click</button>
-      </div> -->
       <Settings
         :showSettings="showSettings"
         :settings="settings"
         @addNewTag="addNewTag"
         @removeTag="removeTag"
         @updateWeight="updateWeight"
+        @uploadRatings="uploadRatings"
       />
       <div v-show="isVisible('home')" class="home">
         <NewRatingSearch @newEntrySearch="newEntrySearch"/>
@@ -310,6 +308,13 @@ export default {
     dBSearch (value) {
       this.dBSearchValue = value;
       this.show("db-search-results");
+    },
+    uploadRatings (ratings) {
+      for (const rating of ratings) {
+        this.addRating(rating);
+      }
+
+      this.showSettings = false;
     },
     foobar () {
       this.findMovieInDatabase(2107);
