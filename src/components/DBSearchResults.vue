@@ -2,14 +2,14 @@
   <div class="db-search-results p-3">
     <div class="search-bar">
       <div class="input-group mb-3">
-        <span ref="target" class="search-help input-group-text" @click="togglePopper" v-click-away="onClickAway">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
+        <span ref="target" class="search-help-icon input-group-text" @click="togglePopper" v-click-away="onClickAway">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
             <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
           </svg>
         </span>
         <div ref=popperWrapper>
-          <div ref="popper" id="search-help" class="popper mx-1" role="tooltip">
+          <div ref="popper" id="search-help-popper" class="popper" role="tooltip">
             <div class="year help mb-1">
               <p class="title m-0">Search by year</p>
               <p class="example my-0 px-3">y:2002</p>
@@ -24,18 +24,35 @@
         </div>
         <input class="form-control" type="text" name="search" id="search" placeholder="search..." v-model="value">
       </div>
-      <div class="form-group mb-3">
-        <label class="form-label" for="sortValue">Sort by</label>
+      <div class="input-group mb-3">
         <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
-          <option value="rating">Rating</option>
+          <option value="rating" selected>Rating</option>
           <option value="best">Best Match</option>
           <option value="date">Date</option>
           <option value="title">Title</option>
         </select>
+        <label class="input-group-text" @click="sortDescending = !sortDescending">
+          <div v-if="sortDescending" class="descending">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-down-alt" viewBox="0 0 16 16">
+              <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293V3.5zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
+            </svg>
+          </div>
+          <div v-if="!sortDescending" class="ascending">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-up-alt" viewBox="0 0 16 16">
+              <path d="M3.5 13.5a.5.5 0 0 1-1 0V4.707L1.354 5.854a.5.5 0 1 1-.708-.708l2-1.999.007-.007a.498.498 0 0 1 .7.006l2 2a.5.5 0 1 1-.707.708L3.5 4.707V13.5zm4-9.5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
+            </svg>
+          </div>
+        </label>
       </div>
     </div>
     <hr class="mt-4">
-    <!-- todo: add some stats here -->
+    <p v-if="results.length === allMoviesAsArray.length" class="fs-5 my-2 text-center">
+      You've rated {{allMoviesAsArray.length}} movies.
+    </p>
+    <p v-else class="fs-5 my-2 text-center">
+      {{results.length}} out of {{allMoviesAsArray.length}} movies match your search.
+    </p>
+    <hr>
     <ul class="col-12 py-3 px-0 d-flex flex-wrap">
       <li 
         class="movie-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
@@ -144,7 +161,6 @@
           <p class="m-3">
             <a :href="`https://www.imdb.com/title/${result.movie.imdb_id}/`" target="_blank">View on IMDb</a>
             <span> | </span>
-            <!-- todo: this isn't working -->
             <a class="link" @click.prevent="reRateMovie(result.movie)">
               Re-Rate ({{mostRecentRating(result).rating}})
             </a>
@@ -177,7 +193,8 @@ export default {
     return {
       value: "",
       sortValue: "rating",
-      popperInstance: null
+      popperInstance: null,
+      sortDescending: true
     }
   },
   watch: {
@@ -298,7 +315,7 @@ export default {
       let sortValueA;
       let sortValueB;
 
-      if (!this.value || this.sortValue === "rating") {
+      if (!this.sortValue || this.sortValue === "rating") {
         sortValueA = this.mostRecentRating(a).rating;
         sortValueB = this.mostRecentRating(b).rating;
       } else if (this.sortValue === "date") {
@@ -313,10 +330,18 @@ export default {
       }
 
       if (sortValueA < sortValueB) {
-        return 1;
+        if (this.sortDescending) {
+          return 1;
+        } else {
+          return -1;
+        }
       }
       if (sortValueA > sortValueB) {
-        return -1;
+        if (this.sortDescending) {
+          return -1;
+        } else {
+          return 1;
+        }
       }
 
       return 0;
@@ -425,16 +450,17 @@ export default {
 <style lang="scss">
   .db-search-results {
     .search-bar {
-      .search-help {
+      .search-help-icon {
         cursor: pointer;
       }
 
-      #search-help {
+      #search-help-popper {
         background: #333;
         color: white;
         border-radius: 4px;
         padding: 1rem;
         display: none;
+        z-index: 1;
 
         &[data-show] {
           display: block;
@@ -483,6 +509,11 @@ export default {
           content: '';
           transform: rotate(45deg);
         }
+      }
+
+      svg {
+        width: 18px;
+        height: 18px;
       }
     }
 
