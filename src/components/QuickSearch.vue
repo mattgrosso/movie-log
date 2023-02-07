@@ -77,7 +77,7 @@ export default {
   },
   methods: {
     searchDatabase (searchTerm) {
-      console.log('searchTerm: ', searchTerm);
+      // todo: this should work...
       console.log("Search database and show search page");
     }
   },

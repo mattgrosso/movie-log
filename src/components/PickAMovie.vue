@@ -1,6 +1,5 @@
 <template>
   <ul class="pick-a-movie p-0 d-flex justify-content-around flex-wrap">
-    <!-- todo: When no results are found, we need to tell the user -->
     <li class="card shadow border" v-for="movie in firstNineResults" :key="movie.id" @click="rateMovie(movie)">
       <img class="card-img-top" :src="`https://image.tmdb.org/t/p/original${movie.poster_path}`" align="center">
       <p class="m-2 mb-1 card-text text-center">

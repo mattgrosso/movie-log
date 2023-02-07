@@ -312,7 +312,7 @@ export default {
       }
 
       this.getMovieDatabase();
-      // todo: I might want this to show a different screen after you finish rating...
+
       this.show("home");
     },
     dBSearch (value) {
@@ -334,7 +334,7 @@ export default {
 }
 </script>
 
-<style>
+<style lang="scss">
   body {
     font-family: "Roboto Condensed", sans-serif;
   }

@@ -9,7 +9,7 @@
           </svg>
         </span>
         <div ref=popperWrapper>
-          <div ref="popper" id="search-help-popper" class="popper" role="tooltip">
+          <div ref="popper" id="search-help-popper" class="popper mx-2" role="tooltip">
             <div class="year help mb-1">
               <p class="title m-0">Search by year</p>
               <p class="example my-0 px-3">y:2002</p>
