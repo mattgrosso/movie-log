@@ -116,6 +116,16 @@ export default {
       column-gap: 0;
       row-gap: 0;
 
+      img.ten:hover, {
+        transition: transform 0.1s ease-out;
+        transform: scale(1.5);
+      }
+
+      img.twenty:hover {
+        transition: transform 0.1s ease-out;
+        transform: scale(3);
+      }
+
       .single {
         width: 100%;
       }
