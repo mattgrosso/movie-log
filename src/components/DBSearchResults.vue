@@ -1,5 +1,5 @@
 <template>
-  <div class="db-search-results p-3">
+  <div class="db-search-results p-3 pt-5">
     <div class="search-bar">
       <div class="input-group mb-3">
         <span ref="target" class="search-help-icon input-group-text" @click="togglePopper" v-click-away="onClickAway">
@@ -268,12 +268,12 @@ export default {
 
       if (!this.value) {
         return this.allMoviesAsArray;
-      } else if (query.y || query.Y || query.year) {
+      } else if (cleanQuery.y || cleanQuery.year) {
         const keys = ["y", "year"];
-        return this.yearSearch(query[keys.find((key) => query[key])]);
-      } else if (query.p || query.P || query.person) {
+        return this.yearSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
+      } else if (cleanQuery.p || cleanQuery.person) {
         const keys = ["p", "person"];
-        return this.personSearch(query[keys.find((key) => query[key])]);
+        return this.personSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
       } else {
         return this.fuzzySearch();
       }
