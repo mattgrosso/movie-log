@@ -1,8 +1,8 @@
 <template>
   <div class="movie-log">
     <div v-show="!googleLogin" class="login">
-      <h1>Welcome to Movie Log</h1>
-      <h2 class="fs-6 mb-5">Please sign in with Google</h2>
+      <h1 class="col-12 text-center">Welcome to Movie Log</h1>
+      <h2 class="col-12 text-center fs-6 mb-5">Please sign in with Google</h2>
       <GoogleLogin :callback="login" prompt auto-login/>
     </div>
     <div v-show="googleLogin" class="content">

@@ -10,11 +10,15 @@
         </svg>
       </div>
       <a class="home-link" :class="{'needs-contrast': posterLayout}" @click="$emit('showHome')">
-        Movie Log
+        <span>
+          Movie Log
+        </span>
       </a>
     </div>
     <a class="home-link-inverted" :class="{'needs-contrast': posterLayout}" @click="$emit('showHome')">
-      Movie Log
+      <span>
+        Movie Log
+      </span>
     </a>
   </div>
 </template>
@@ -208,7 +212,6 @@ export default {
       position: absolute;
       bottom: -40px;
       left: 0px;
-      transition: all 1s ease-in-out;
 
       &.needs-contrast {
         background: rgba(0, 0, 0, 0.5);
@@ -219,6 +222,10 @@ export default {
         border-radius: 100px;
         padding: 0 36px;
         border: 2px solid white;
+      }
+
+      span {
+        white-space: nowrap;
       }
     }
 
