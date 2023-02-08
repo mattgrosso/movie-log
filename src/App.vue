@@ -102,8 +102,8 @@ export default {
     async login (resp) {
       const userData = decodeCredential(resp.credential)
       this.googleLogin = userData;
-      // this.databaseTopKey = this.createDBTopKey(userData.email);
-      this.databaseTopKey = this.createDBTopKey("mattgrosso+testing@gmail.com");
+      this.databaseTopKey = this.createDBTopKey(userData.email);
+      // this.databaseTopKey = this.createDBTopKey("mattgrosso+testing@gmail.com");
       await this.getDatabase();
     },
     createDBTopKey (email) {
