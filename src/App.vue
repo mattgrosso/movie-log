@@ -349,6 +349,7 @@ export default {
 
       this.getSettings();
       this.posterLayout = value;
+      this.showSettings = false;
     }
   }
 }
