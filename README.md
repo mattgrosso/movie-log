@@ -20,5 +20,10 @@ yarn build
 yarn lint
 ```
 
+### Deploys project to surge
+```
+yarn deploy
+```
+
 ### Customize configuration
 See [Configuration Reference](https://cli.vuejs.org/config/).
