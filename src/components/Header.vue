@@ -116,26 +116,38 @@ export default {
       column-gap: 0;
       row-gap: 0;
 
-      img.ten:hover, {
-        transition: transform 0.1s ease-out;
-        transform: scale(1.5);
-      }
-
-      img.twenty:hover {
-        transition: transform 0.1s ease-out;
-        transform: scale(3);
-      }
-
       .single {
         width: 100%;
       }
 
       .ten {
         width: 10%;
+
+        &:hover {
+          transition: transform 0.1s ease-out;
+          transform: scale(2);
+        }
+
+        @media screen and (min-width: 832px) {
+          &:hover {
+            transition: transform 0.1s ease-out;
+            transform: scale(1.2);
+          }
+        }
+
       }
 
       .twenty {
         width: 5%;
+
+        @media screen and (min-width: 832px) {
+          width: 2.5%;
+        }
+
+        &:hover {
+          transition: transform 0.1s ease-out;
+          transform: scale(3);
+        }
       }
     }
 

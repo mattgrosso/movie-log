@@ -48,13 +48,17 @@ export default {
     ul {
       column-gap: 1rem;
       list-style: none;
-      margin: 1rem;
+      margin: 1rem 1rem 5rem;
       row-gap: 1rem;
 
       .card {
         border-radius: 4px;
         cursor: pointer;
         width: calc((100% - 2rem) / 3);
+
+        @media screen and (min-width: 832px) {
+          width: calc((100% - 2rem) / 6);
+        }
 
         p {
           font-size: .75rem;

@@ -1,5 +1,5 @@
 <template>
-  <div class="rate-movie">
+  <div class="rate-movie mx-auto">
     <form class="p-4" @submit.prevent="addRating">
       <h1 class="mb-4">Rate Movie</h1>
       <!--- Title --->
@@ -639,6 +639,8 @@ export default {
 
 <style lang="scss">
   .rate-movie {
+    max-width: 832px;
+
     .year-medium-date {
       column-gap: 1rem;
     }

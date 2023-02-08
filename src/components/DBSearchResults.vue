@@ -55,7 +55,7 @@
     <hr>
     <ul class="col-12 py-3 px-0 d-flex flex-wrap">
       <li
-        class="movie-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
+        class="movie-result py-3 px-1 my-3 col-md-5 mx-md-auto d-flex flex-wrap align-items-center shadow-lg"
         v-for="(result, index) in sortedResults"
         :key="index"
         @click="showInfo(`Info-${result.movie.id}`)"
