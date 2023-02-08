@@ -5,7 +5,7 @@
     <div class="search-inputs mb-3">
       <label for="title" class="form-label">New Entry</label>
       <input type="text" class="form-control" name="title" id="title" v-model="value">
-      <div ref="noResults" class="invalid-feedback">No results found</div> 
+      <div ref="noResults" class="invalid-feedback">No results found</div>
     </div>
     <div class="col-12 d-flex justify-content-end">
       <button type="submit" value="Enter" class="shadow-lg btn btn-primary col-4" :class="{disabled: !value}">
