@@ -404,7 +404,7 @@
 
         <div class="input-group">
           <input type="text" class="form-control" placeholder="new tag" v-model="newTagTitle">
-          <button class="btn btn-dark" type="button" @click="addTag">
+          <button class="btn btn-dark" type="button" @click.prevent="addTag">
             add
           </button>
         </div>
