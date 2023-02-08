@@ -22,7 +22,7 @@
             <div id="arrow" data-popper-arrow></div>
           </div>
         </div>
-        <input class="form-control" type="text" name="search" id="search" placeholder="search..." v-model="value">
+        <input class="form-control" type="text" autocapitalize="none" name="search" id="search" placeholder="search..." v-model="value">
       </div>
       <div class="input-group mb-3">
         <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
@@ -261,18 +261,19 @@ export default {
         ranges: ["y", "year"]
       }
 
-      const query = searchQuery.parse(this.value, options);
+      const notNull = this.value ? this.value : "";
+      const lowerCase = notNull.toLowerCase();
+      const noSmartQuotes = lowerCase.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+      const query = searchQuery.parse(noSmartQuotes, options);
 
       if (!this.value) {
         return this.allMoviesAsArray;
-      } else if (query.y) {
-        return this.yearSearch(query.y);
-      } else if (query.year) {
-        return this.yearSearch(query.year);
-      } else if (query.p) {
-        return this.personSearch(query.p);
-      } else if (query.person) {
-        return this.personSearch(query.person);
+      } else if (query.y || query.Y || query.year) {
+        const keys = ["y", "year"];
+        return this.yearSearch(query[keys.find((key) => query[key])]);
+      } else if (query.p || query.P || query.person) {
+        const keys = ["p", "person"];
+        return this.personSearch(query[keys.find((key) => query[key])]);
       } else {
         return this.fuzzySearch();
       }
