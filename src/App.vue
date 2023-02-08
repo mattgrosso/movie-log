@@ -342,10 +342,13 @@ export default {
     },
     async posterLayoutSwitched (value) {
       const layoutSetting = { grid: value }
-      await axios.patch(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/posterLayout.json`,
-        layoutSetting
-      );
+
+      if (this.databaseTopKey) {
+        await axios.patch(
+          `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/posterLayout.json`,
+          layoutSetting
+        );
+      }
 
       this.getSettings();
       this.posterLayout = value;
