@@ -324,10 +324,9 @@ export default {
       }
       this.show("db-search-results");
     },
-    uploadRatings (ratings) {
-      // todo: this doesn't read like it's working. We need to get some sort of response when it's really done.
+    async uploadRatings (ratings) {
       for (const rating of ratings) {
-        this.addRating(rating);
+        await this.addRating(rating);
       }
 
       this.showSettings = false;
