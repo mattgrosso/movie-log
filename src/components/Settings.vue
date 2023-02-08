@@ -267,8 +267,8 @@ export default {
             }
 
             button {
-              padding: 0 6px;
               font-size: 0.85rem;
+              padding: 0 6px;
             }
           }
         }

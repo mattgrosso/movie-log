@@ -103,18 +103,17 @@ export default {
   .header {
     overflow: hidden;
     position: relative;
-    position: relative;
 
     .poster-grid {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
       bottom: 0;
+      column-gap: 0;
       display: flex;
       flex-wrap: wrap;
-      column-gap: 0;
+      left: 0;
+      position: absolute;
+      right: 0;
       row-gap: 0;
+      top: 0;
 
       .single {
         width: 100%;
@@ -124,14 +123,14 @@ export default {
         width: 10%;
 
         &:hover {
-          transition: transform 0.1s ease-out;
           transform: scale(2);
+          transition: transform 0.1s ease-out;
         }
 
         @media screen and (min-width: 832px) {
           &:hover {
-            transition: transform 0.1s ease-out;
             transform: scale(1.2);
+            transition: transform 0.1s ease-out;
           }
         }
 
@@ -145,8 +144,8 @@ export default {
         }
 
         &:hover {
-          transition: transform 0.1s ease-out;
           transform: scale(3);
+          transition: transform 0.1s ease-out;
         }
       }
     }
@@ -175,9 +174,9 @@ export default {
       }
 
       svg {
-        transition: transform 0.75s ease;
         color: white;
         height: 24px;
+        transition: transform 0.75s ease;
         width: 24px;
       }
     }

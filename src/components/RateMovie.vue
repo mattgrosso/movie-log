@@ -474,22 +474,22 @@ export default {
   },
   data () {
     return {
-      loading: false,
-      title: null,
-      year: null,
-      id: null,
-      medium: "",
       date: null,
       direction: null,
+      id: null,
       imagery: null,
-      story: null,
+      impression: null,
+      loading: false,
+      love: null,
+      medium: "",
+      newTagTitle: null,
+      overall: null,
       performance: null,
       soundtrack: null,
-      impression: null,
-      love: null,
-      overall: null,
+      story: null,
       tags: [],
-      newTagTitle: null
+      title: null,
+      year: null
     }
   },
   mounted () {
@@ -612,21 +612,21 @@ export default {
       }
 
       const rating = {
-        title: this.title,
-        year: this.year,
-        id: this.id,
-        medium: this.medium,
         date: this.date,
-        tags: this.tags,
         direction: this.direction,
+        id: this.id,
         imagery: this.imagery,
-        story: this.story,
-        performance: this.performance,
-        soundtrack: this.soundtrack,
         impression: this.impression,
         love: this.love,
+        medium: this.medium,
         overall: this.overall,
-        rating: this.rating
+        performance: this.performance,
+        rating: this.rating,
+        soundtrack: this.soundtrack,
+        story: this.story,
+        tags: this.tags,
+        title: this.title,
+        year: this.year
       };
 
       ratings.push(rating);
@@ -662,8 +662,8 @@ export default {
         th {
           span {
             display: inline-block;
-            transform: rotate(60deg);
             font-size: 0.6rem;
+            transform: rotate(60deg);
           }
         }
 

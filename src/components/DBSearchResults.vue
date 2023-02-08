@@ -172,10 +172,10 @@
 </template>
 
 <script>
-import Fuse from 'fuse.js';
-import searchQuery from 'search-query-parser';
 import { createPopper } from '@popperjs/core';
+import Fuse from 'fuse.js';
 import inRange from 'lodash/inRange';
+import searchQuery from 'search-query-parser';
 
 export default {
   props: {
@@ -196,10 +196,10 @@ export default {
   },
   data () {
     return {
-      value: "",
-      sortValue: null,
       popperInstance: null,
-      sortDescending: true
+      sortDescending: true,
+      sortValue: null,
+      value: ""
     }
   },
   watch: {
@@ -477,10 +477,10 @@ export default {
 
       #search-help-popper {
         background: #333;
-        color: white;
         border-radius: 4px;
-        padding: 1rem;
+        color: white;
         display: none;
+        padding: 1rem;
         z-index: 1;
 
         &[data-show] {
@@ -515,10 +515,10 @@ export default {
 
         #arrow,
         #arrow::before {
+          background: inherit;
+          height: 8px;
           position: absolute;
           width: 8px;
-          height: 8px;
-          background: inherit;
         }
 
         #arrow {
@@ -526,15 +526,15 @@ export default {
         }
 
         #arrow::before {
-          visibility: visible;
           content: '';
           transform: rotate(45deg);
+          visibility: visible;
         }
       }
 
       svg {
-        width: 18px;
         height: 18px;
+        width: 18px;
       }
     }
 

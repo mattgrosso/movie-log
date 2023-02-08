@@ -13,13 +13,13 @@
         @showHome="show('home')"
       />
       <Settings
-        :showSettings="showSettings"
         :settings="settings"
+        :showSettings="showSettings"
         @addNewTag="addNewTag"
+        @posterLayoutSwitched="posterLayoutSwitched"
         @removeTag="removeTag"
         @updateWeight="updateWeight"
         @uploadRatings="uploadRatings"
-        @posterLayoutSwitched="posterLayoutSwitched"
       />
       <div v-show="isVisible('home')" class="home">
         <NewRatingSearch @newEntrySearch="newEntrySearch"/>
@@ -43,11 +43,11 @@
       <div v-if="isVisible('db-search-results')" class="db-search-results">
         <DBSearchResults
           :database="database"
-          :initialValue="dBSearchValue"
           :initialSortValue="dBSortValue"
+          :initialValue="dBSearchValue"
+          @clearSearch="dBSearchValue = null"
           @reRateMovie="rateMovie"
           @search="dBSearch"
-          @clearSearch="dBSearchValue = null"
         />
       </div>
       <Footer/>
@@ -56,46 +56,46 @@
 </template>
 
 <script>
+import { decodeCredential } from 'vue3-google-login'
 import axios from 'axios';
 import cheerio from "cheerio";
-import { decodeCredential } from 'vue3-google-login'
 
-import Header from "./components/Header.vue";
-import Settings from "./components/Settings.vue";
-import NewRatingSearch from "./components/NewRatingSearch.vue";
-import SearchDatabase from "./components/SearchDatabase.vue";
 import DBSearchResults from "./components/DBSearchResults.vue";
-import QuickSearch from "./components/QuickSearch.vue";
-import PickAMovie from "./components/PickAMovie.vue";
-import RateMovie from "./components/RateMovie.vue";
 import Footer from "./components/Footer.vue";
+import Header from "./components/Header.vue";
+import NewRatingSearch from "./components/NewRatingSearch.vue";
+import PickAMovie from "./components/PickAMovie.vue";
+import QuickSearch from "./components/QuickSearch.vue";
+import RateMovie from "./components/RateMovie.vue";
+import SearchDatabase from "./components/SearchDatabase.vue";
+import Settings from "./components/Settings.vue";
 
 export default {
   name: "Movie-Log",
   components: {
-    Header,
-    Settings,
-    NewRatingSearch,
-    SearchDatabase,
     DBSearchResults,
-    QuickSearch,
+    Footer,
+    Header,
+    NewRatingSearch,
     PickAMovie,
+    QuickSearch,
     RateMovie,
-    Footer
+    SearchDatabase,
+    Settings
   },
   data () {
     return {
-      googleLogin: null,
-      databaseTopKey: null,
       database: {},
-      settings: {},
-      newEntrySearchResults: null,
-      movieToRate: null,
-      visible: "home",
-      showSettings: false,
+      databaseTopKey: null,
       dBSearchValue: "",
       dBSortValue: "",
-      posterLayout: true
+      googleLogin: null,
+      movieToRate: null,
+      newEntrySearchResults: null,
+      posterLayout: true,
+      settings: {},
+      showSettings: false,
+      visible: "home"
     }
   },
   methods: {

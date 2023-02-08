@@ -20,8 +20,8 @@ export default {
     return {
       csv: null,
       parsedCsv: null,
-      showFileUploader: false,
-      parsing: false
+      parsing: false,
+      showFileUploader: false
     }
   },
   computed: {
@@ -35,19 +35,19 @@ export default {
 
         if (!movie.viewings) {
           return [{
-            title: movie.title,
-            year: movie.year,
-            id: movie["tmdb id"],
-            tags: this.parseTags(movie.tag),
             direction: movie.direction,
+            id: movie["tmdb id"],
             imagery: movie.imagery,
-            story: movie.story,
-            performance: movie.performance,
-            soundtrack: movie.soundtrack,
             impression: movie.impression,
             love: movie.love,
             overall: movie.overall,
-            rating: movie.rating
+            performance: movie.performance,
+            rating: movie.rating,
+            soundtrack: movie.soundtrack,
+            story: movie.story,
+            tags: this.parseTags(movie.tag),
+            title: movie.title,
+            year: movie.year
           }];
         }
 
@@ -61,21 +61,21 @@ export default {
         // The ratings all share the same values but the dates and mediums might be different
         return ratings.map((rating) => {
           return {
-            title: movie.title,
-            year: movie.year,
-            id: movie["tmdb id"],
-            medium: medium,
             date: date,
-            tags: this.parseTags(movie.tag),
             direction: movie.direction,
+            id: movie["tmdb id"],
             imagery: movie.imagery,
-            story: movie.story,
-            performance: movie.performance,
-            soundtrack: movie.soundtrack,
             impression: movie.impression,
             love: movie.love,
+            medium: medium,
             overall: movie.overall,
-            rating: movie.rating
+            performance: movie.performance,
+            rating: movie.rating,
+            soundtrack: movie.soundtrack,
+            story: movie.story,
+            tags: this.parseTags(movie.tag),
+            title: movie.title,
+            year: movie.year
           }
         })
       })
@@ -128,9 +128,9 @@ export default {
 <style lang="scss">
   .import-csv {
     .spinner-border {
+      align-items: center;
       display: flex;
       justify-content: center;
-      align-items: center;
       margin: 0 auto;
     }
   }
