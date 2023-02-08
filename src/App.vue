@@ -105,7 +105,7 @@ export default {
       this.databaseTopKey = this.createDBTopKey(userData.email);
       // this.databaseTopKey = this.createDBTopKey("mattgrosso+testing@gmail.com");
       await this.getDatabase();
-      this.posterLayout = this.settings.posterLayout.grid;
+      this.posterLayout = this.settings.posterLayout?.grid;
     },
     createDBTopKey (email) {
       return email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
