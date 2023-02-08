@@ -4,7 +4,16 @@
     :class="{open: showSettings, closed: !showSettings}"
   >
     <div class="p-3">
-      <div class="tags p-3 border border-white">
+      <div class="header-settings p-3 border-white border">
+        <div class="switch d-flex justify-content-center">
+          <label class="form-check-label mx-2" for="posterLayout">Random Poster</label>
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="posterLayout" v-model="posterLayout">
+            <label class="form-check-label" for="posterLayout">Poster Grid</label>
+          </div>
+        </div>
+      </div>
+      <div class="tags p-3 border border-white mt-3">
         <ul class="col-12">
           <li class="tag mb-2 dflex align-items-center" v-for="(tag, index) in settings.tags" :key="index">
             <span class="badge rounded-pill text-bg-light fs-6" @click="showRemoveButton($event)">
@@ -68,15 +77,6 @@
           </tbody>
         </table>
       </div>
-      <div class="header-settings p-3 border-white border mt-3">
-        <div class="switch d-flex justify-content-center">
-          <label class="form-check-label mx-2" for="posterLayout">Random Poster</label>
-          <div class="form-check form-switch m-0">
-            <input class="form-check-input" type="checkbox" role="switch" id="posterLayout" v-model="posterLayout">
-            <label class="form-check-label" for="posterLayout">Poster Grid</label>
-          </div>
-        </div>
-      </div>
       <div class="uploader mt-3 p-3 border border-white">
         <ImportCsv @uploadRatings="$emit('uploadRatings', $event)"/>
       </div>
@@ -109,6 +109,9 @@ export default {
     }
   },
   watch: {
+    settings () {
+      this.posterLayout = this.settings.posterLayout.grid;
+    },
     posterLayout (newVal) {
       this.$emit("posterLayoutSwitched", newVal);
     }
@@ -188,6 +191,7 @@ export default {
     display: flex;
     flex-wrap: wrap;
     overflow: hidden;
+    position: relative;
     transition: all 0.5s ease;
 
     &.closed {

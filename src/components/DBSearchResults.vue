@@ -261,10 +261,10 @@ export default {
         ranges: ["y", "year"]
       }
 
-      const notNull = this.value ? this.value : "";
-      const lowerCase = notNull.toLowerCase();
-      const noSmartQuotes = lowerCase.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
-      const query = searchQuery.parse(noSmartQuotes, options);
+      let cleanQuery = this.value ? this.value : "";
+      cleanQuery = cleanQuery ? cleanQuery.toLowerCase() : "";
+      cleanQuery = cleanQuery.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+      cleanQuery = searchQuery.parse(cleanQuery, options);
 
       if (!this.value) {
         return this.allMoviesAsArray;

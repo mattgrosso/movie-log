@@ -105,6 +105,7 @@ export default {
       this.databaseTopKey = this.createDBTopKey(userData.email);
       // this.databaseTopKey = this.createDBTopKey("mattgrosso+testing@gmail.com");
       await this.getDatabase();
+      this.posterLayout = this.settings.posterLayout.grid;
     },
     createDBTopKey (email) {
       return email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
@@ -138,6 +139,7 @@ export default {
     async initiateNewDatabase () {
       const newDB = {
         settings: {
+          posterLayout: { grid: true },
           tags: [{ title: "default tag" }],
           weights: [
             { name: "direction", weight: 1.015 },
@@ -338,7 +340,14 @@ export default {
 
       this.showSettings = false;
     },
-    posterLayoutSwitched (value) {
+    async posterLayoutSwitched (value) {
+      const layoutSetting = {grid: value}
+      await axios.patch(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/posterLayout.json`,
+        layoutSetting
+      );
+
+      this.getSettings();
       this.posterLayout = value;
     }
   }
