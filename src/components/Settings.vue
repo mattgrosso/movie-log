@@ -68,6 +68,15 @@
           </tbody>
         </table>
       </div>
+      <div class="header-settings p-3 border-white border mt-3">
+        <div class="switch d-flex justify-content-center">
+          <label class="form-check-label mx-2" for="posterLayout">Random Poster</label>
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="posterLayout" v-model="posterLayout">
+            <label class="form-check-label" for="posterLayout">Poster Grid</label>
+          </div>
+        </div>
+      </div>
       <div class="uploader mt-3 p-3 border border-white">
         <ImportCsv @uploadRatings="$emit('uploadRatings', $event)"/>
       </div>
@@ -95,7 +104,13 @@ export default {
   },
   data () {
     return {
-      newTagTitle: null
+      newTagTitle: null,
+      posterLayout: true
+    }
+  },
+  watch: {
+    posterLayout (newVal) {
+      this.$emit("posterLayoutSwitched", newVal);
     }
   },
   computed: {
@@ -267,6 +282,13 @@ export default {
           margin-left: 8px;
           width: 0.6rem;
         }
+      }
+    }
+
+    .header-settings {
+      .switch {
+        left: -20px;
+        position: relative;
       }
     }
   }

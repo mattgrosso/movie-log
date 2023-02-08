@@ -6,7 +6,12 @@
       <GoogleLogin :callback="login" prompt auto-login/>
     </div>
     <div v-show="googleLogin" class="content">
-      <Header @openSettings="toggleSettings" @showHome="show('home')"/>
+      <Header
+        :database="database"
+        :posterLayout="posterLayout"
+        @openSettings="toggleSettings"
+        @showHome="show('home')"
+      />
       <Settings
         :showSettings="showSettings"
         :settings="settings"
@@ -14,6 +19,7 @@
         @removeTag="removeTag"
         @updateWeight="updateWeight"
         @uploadRatings="uploadRatings"
+        @posterLayoutSwitched="posterLayoutSwitched"
       />
       <div v-show="isVisible('home')" class="home">
         <NewRatingSearch @newEntrySearch="newEntrySearch"/>
@@ -88,7 +94,8 @@ export default {
       visible: "home",
       showSettings: false,
       dBSearchValue: "",
-      dBSortValue: ""
+      dBSortValue: "",
+      posterLayout: true
     }
   },
   methods: {
@@ -331,8 +338,8 @@ export default {
 
       this.showSettings = false;
     },
-    foobar () {
-      this.findMovieInDatabase(2107);
+    posterLayoutSwitched (value) {
+      this.posterLayout = value;
     }
   }
 }
