@@ -413,9 +413,10 @@
       <hr>
 
       <!-- Submit -->
-      <!-- todo: This button needs to give better feedback and needs to disable so they can't click twice -->
-      <button class="btn btn-primary col-12 mt-5 mb-4" type="submit" value="Submit">
-        <span>Submit</span>
+      <button class="submit-button btn btn-primary col-12 mt-5 mb-4" type="submit" value="Submit" :disabled="loading">
+        <span v-if="!loading">Submit</span>
+        <span v-if="loading" class="disabled-show spinner-border spinner-border-sm mx-2" role="status" aria-hidden="true"></span>
+        <span v-if="loading" class="disabled-show ">Submiting...</span>
       </button>
     </form>
 
@@ -473,6 +474,7 @@ export default {
   },
   data () {
     return {
+      loading: false,
       title: null,
       year: null,
       id: null,
@@ -601,6 +603,8 @@ export default {
       }
     },
     addRating () {
+      this.loading = true;
+
       let ratings = [];
 
       if (this.movieToRate.ratings) {
@@ -637,6 +641,18 @@ export default {
   .rate-movie {
     .year-medium-date {
       column-gap: 1rem;
+    }
+
+    .submit-button {
+      &[disabled] {
+        .disabled-show {
+          display: inline-block;
+        }
+      }
+
+      .disabled-show {
+        display: none;
+      }
     }
 
     .previous-ratings {
