@@ -33,6 +33,7 @@ export default {
       const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
 
       if (resp.data.results.length) {
+        this.value = "";
         this.$emit('newEntrySearch', resp.data);
       } else {
         this.showNoResultsMessage();
