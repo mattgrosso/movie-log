@@ -60,7 +60,7 @@ export default {
 
           return {
             medium: split[0],
-            date: split[1]
+            date: split[1].split(";")[0]
           }
         })
 
@@ -125,7 +125,7 @@ export default {
       }
 
       return string.split(" | ").map((tag) => {
-        return { title: tag };
+        return { title: tag.split(" |")[0] };
       })
     }
   },
