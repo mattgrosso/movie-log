@@ -52,22 +52,29 @@ export default {
         }
 
         // First we grab each viewing.
-        const ratings = movie.viewings.split("| ");
+        const ratingStrings = movie.viewings.split("; ");
 
-        const medium = ratings[0];
-        const date = ratings[1]?.split(";")[0];
+        // For each rating we split it into date and medium
+        const ratings = ratingStrings.map((rating) => {
+          const split = rating.split("| ")
+
+          return {
+            medium: split[0],
+            date: split[1].split(";")[0]
+          }
+        })
 
         // For each viewing, create a new rating
         // The ratings all share the same values but the dates and mediums might be different
         return ratings.map((rating) => {
           return {
-            date: date,
+            date: rating.date,
             direction: movie.direction,
             id: movie["tmdb id"],
             imagery: movie.imagery,
             impression: movie.impression,
             love: movie.love,
-            medium: medium,
+            medium: rating.medium,
             overall: movie.overall,
             performance: movie.performance,
             rating: movie.rating,
@@ -76,7 +83,7 @@ export default {
             tags: this.parseTags(movie.tag),
             title: movie.title,
             year: movie.year
-          }
+          };
         })
       })
     }
@@ -118,7 +125,7 @@ export default {
       }
 
       return string.split(" | ").map((tag) => {
-        return { title: tag };
+        return { title: tag.split(" |")[0] };
       })
     }
   },

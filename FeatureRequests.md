@@ -1,0 +1,1 @@
+We should look into running multiple database instances (they call it sharding) https://firebase.google.com/docs/database/usage/sharding

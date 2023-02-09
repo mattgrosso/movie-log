@@ -60,6 +60,7 @@
         :key="index"
         @click="showInfo(`Info-${result.movie.id}`)"
       >
+        <!-- It would be cool to have a little snippet of plot summary included here somewhere. Or at least a link to wikipedia -->
         <label class="number col-1 text-center">
           {{index + 1}}
         </label>
