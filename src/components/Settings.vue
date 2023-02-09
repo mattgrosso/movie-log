@@ -80,7 +80,6 @@
       <div class="uploader mt-3 p-3 border border-white">
         <ImportCsv @uploadRatings="$emit('uploadRatings', $event)"/>
       </div>
-      <!-- We should have a "download JSON backup" tool -->
     </div>
   </div>
 </template>
