@@ -22,6 +22,7 @@
         @uploadRatings="uploadRatings"
       />
       <div v-show="isVisible('home')" class="home">
+        <!-- This form shoudl clear on return to home -->
         <NewRatingSearch @newEntrySearch="newEntrySearch"/>
         <hr>
         <SearchDatabase @dBSearch="dBSearch"/>
@@ -104,6 +105,7 @@ export default {
       this.googleLogin = userData;
       this.databaseTopKey = this.createDBTopKey(userData.email);
       // this.databaseTopKey = this.createDBTopKey("mattgrosso+testing@gmail.com");
+      // this.databaseTopKey = "brian-goegan-gmail-com";
       await this.getDatabase();
       this.posterLayout = this.settings.posterLayout?.grid;
     },
@@ -298,12 +300,39 @@ export default {
         return false;
       }
     },
-    async addRating (ratings) {
+    async addRating (ratings, batch) {
       const tmdbData = await this.getTMDBData(ratings[0].id);
       const imdbData = await this.getIMDBData(tmdbData.imdb_id);
 
+      const crew = tmdbData.crew.map((person) => {
+        return {
+          job: person.job,
+          name: person.name
+        }
+      })
+
+      const cast = tmdbData.cast.map((person) => {
+        return {
+          name: person.name
+        }
+      })
+
+      const tmdbDataWeStore = {
+        backdrop_path: tmdbData.backdrop_path,
+        cast: cast,
+        crew: crew,
+        genres: tmdbData.genres,
+        id: tmdbData.id,
+        imdb_id: tmdbData.imdb_id,
+        poster_path: tmdbData.poster_path,
+        production_companies: tmdbData.production_companies,
+        release_date: tmdbData.release_date,
+        runtime: tmdbData.runtime,
+        title: tmdbData.title
+      }
+
       const movieWithRating = {
-        movie: tmdbData,
+        movie: tmdbDataWeStore,
         awards: imdbData,
         ratings: ratings
       }
@@ -322,9 +351,10 @@ export default {
         );
       }
 
-      this.getMovieDatabase();
-
-      this.show("home");
+      if (!batch) {
+        this.getMovieDatabase();
+        this.show("home");
+      }
     },
     dBSearch (value, sortValue) {
       this.dBSearchValue = `${value}`;
@@ -335,9 +365,11 @@ export default {
     },
     async uploadRatings (ratings) {
       for (const rating of ratings) {
-        await this.addRating(rating);
+        await this.addRating(rating, true);
       }
 
+      this.getMovieDatabase();
+      this.show("home");
       this.showSettings = false;
     },
     async posterLayoutSwitched (value) {
