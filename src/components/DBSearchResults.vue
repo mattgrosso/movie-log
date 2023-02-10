@@ -65,7 +65,7 @@
           {{index + 1}}
         </label>
         <div class="poster col-2">
-          <img class="col-12" :src="`https://image.tmdb.org/t/p/original${result.movie.poster_path}`">
+          <img class="col-12" v-lazy="`https://image.tmdb.org/t/p/original${result.movie.poster_path}`">
         </div>
         <div class="details px-4 col-7">
           <p class="title mb-1">
