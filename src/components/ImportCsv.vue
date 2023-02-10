@@ -6,8 +6,10 @@
       <p class="fs-6 my-0">Be aware, once you choose the file it will begin the upload process.</p>
       <input id="csvUpload" type="file" class="form-control mt-2" @change="convertCsv">
     </div>
-    <div v-show="parsing" class="spinner-border text-white" role="status">
-      <span class="visually-hidden">Loading...</span>
+    <div v-show="parsing" class="progress">
+      <div :style="{width: `${roundPercentage}%`}" class="progress-bar" role="progressbar" aria-label="Basic example" :aria-valuenow="roundPercentage" aria-valuemin="0" aria-valuemax="100">
+        {{ roundPercentage }}%
+      </div>
     </div>
   </div>
 </template>
@@ -16,6 +18,13 @@
 import Papa from 'papaparse';
 
 export default {
+  props: {
+    uploadPercentage: {
+      type: Number,
+      required: false,
+      default: 0
+    }
+  },
   data () {
     return {
       csv: null,
@@ -25,14 +34,16 @@ export default {
     }
   },
   computed: {
+    roundPercentage () {
+      return (this.uploadPercentage * 100).toFixed(0);
+    },
     ratingsForUpload () {
       if (!this.parsedCsv) {
         return [];
       }
 
       return this.parsedCsv.map((movie) => {
-        this.parseTags(movie.tag);
-
+        // TODO: Do we still need this check?
         if (!movie.viewings) {
           return [{
             direction: movie.direction,
@@ -46,17 +57,22 @@ export default {
             soundtrack: movie.soundtrack,
             story: movie.story,
             tags: this.parseTags(movie.tag),
+            ownership: this.parseOwnership(movie.ownership),
             title: movie.title,
             year: movie.year
           }];
         }
 
         // First we grab each viewing.
-        const ratingStrings = movie.viewings.split("; ");
+        const viewingStrings = movie.viewings.split("; ");
 
         // For each rating we split it into date and medium
-        const ratings = ratingStrings.map((rating) => {
-          const split = rating.split("| ")
+        const viewings = viewingStrings.map((viewing) => {
+          if (!viewing) {
+            return null;
+          }
+
+          const split = viewing.split("| ");
 
           return {
             medium: split[0],
@@ -66,21 +82,22 @@ export default {
 
         // For each viewing, create a new rating
         // The ratings all share the same values but the dates and mediums might be different
-        return ratings.map((rating) => {
+        return viewings.map((rating) => {
           return {
-            date: rating.date,
+            date: rating ? rating.date : null,
             direction: movie.direction,
             id: movie["tmdb id"],
             imagery: movie.imagery,
             impression: movie.impression,
             love: movie.love,
-            medium: rating.medium,
+            medium: rating ? rating.medium : null,
             overall: movie.overall,
             performance: movie.performance,
             rating: movie.rating,
             soundtrack: movie.soundtrack,
             story: movie.story,
             tags: this.parseTags(movie.tag),
+            ownership: this.parseOwnership(movie.ownership),
             title: movie.title,
             year: movie.year
           };
@@ -127,6 +144,13 @@ export default {
       return string.split(" | ").map((tag) => {
         return { title: tag.split(" |")[0] };
       })
+    },
+    parseOwnership (string) {
+      if (!string) {
+        return [];
+      }
+
+      return string.split(", ").filter((string) => string);
     }
   },
 }
@@ -134,11 +158,12 @@ export default {
 
 <style lang="scss">
   .import-csv {
-    .spinner-border {
-      align-items: center;
-      display: flex;
-      justify-content: center;
-      margin: 0 auto;
+    .progress {
+      height: 36px;
+
+      .progress-bar {
+        font-size: 1rem;
+      }
     }
   }
 </style>

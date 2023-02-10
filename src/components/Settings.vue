@@ -78,7 +78,10 @@
         </table>
       </div>
       <div class="uploader mt-3 p-3 border border-white">
-        <ImportCsv @uploadRatings="$emit('uploadRatings', $event)"/>
+        <ImportCsv
+          :uploadPercentage="uploadPercentage"
+          @uploadRatings="$emit('uploadRatings', $event)"
+        />
       </div>
     </div>
   </div>
@@ -100,6 +103,11 @@ export default {
     settings: {
       type: Object,
       required: true
+    },
+    uploadPercentage: {
+      type: Number,
+      required: false,
+      default: 0
     }
   },
   data () {
