@@ -43,8 +43,7 @@ export default {
       }
 
       return this.parsedCsv.map((movie) => {
-        this.parseTags(movie.tag);
-
+        // TODO: Do we still need this check?
         if (!movie.viewings) {
           return [{
             direction: movie.direction,
@@ -58,17 +57,22 @@ export default {
             soundtrack: movie.soundtrack,
             story: movie.story,
             tags: this.parseTags(movie.tag),
+            ownership: this.parseOwnership(movie.ownership),
             title: movie.title,
             year: movie.year
           }];
         }
 
         // First we grab each viewing.
-        const ratingStrings = movie.viewings.split("; ");
+        const viewingStrings = movie.viewings.split("; ");
 
         // For each rating we split it into date and medium
-        const ratings = ratingStrings.map((rating) => {
-          const split = rating.split("| ")
+        const viewings = viewingStrings.map((viewing) => {
+          if (!viewing) {
+            return null;
+          }
+
+          const split = viewing.split("| ");
 
           return {
             medium: split[0],
@@ -78,21 +82,22 @@ export default {
 
         // For each viewing, create a new rating
         // The ratings all share the same values but the dates and mediums might be different
-        return ratings.map((rating) => {
+        return viewings.map((rating) => {
           return {
-            date: rating.date,
+            date: rating ? rating.date : null,
             direction: movie.direction,
             id: movie["tmdb id"],
             imagery: movie.imagery,
             impression: movie.impression,
             love: movie.love,
-            medium: rating.medium,
+            medium: rating ? rating.medium : null,
             overall: movie.overall,
             performance: movie.performance,
             rating: movie.rating,
             soundtrack: movie.soundtrack,
             story: movie.story,
             tags: this.parseTags(movie.tag),
+            ownership: this.parseOwnership(movie.ownership),
             title: movie.title,
             year: movie.year
           };
@@ -139,6 +144,13 @@ export default {
       return string.split(" | ").map((tag) => {
         return { title: tag.split(" |")[0] };
       })
+    },
+    parseOwnership (string) {
+      if (!string) {
+        return [];
+      }
+
+      return string.split(", ").filter((string) => string);
     }
   },
 }

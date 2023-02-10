@@ -227,14 +227,12 @@ export default {
       const apiKey = process.env.VUE_APP_TMDB_API_KEY;
 
       const dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
-      const data = dataResp.data;
 
       const creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
-      const credits = creditsResp.data;
 
       return {
-        ...data,
-        ...credits
+        ...dataResp.data,
+        ...creditsResp.data
       }
     },
     parseScrapedAwards (string) {
@@ -303,6 +301,10 @@ export default {
       }
     },
     async addRating (ratings, batch) {
+      if (!ratings[0].id) {
+        return;
+      }
+
       const tmdbData = await this.getTMDBData(ratings[0].id);
       const imdbData = await this.getIMDBData(tmdbData.imdb_id);
 
@@ -326,18 +328,27 @@ export default {
         genres: tmdbData.genres,
         id: tmdbData.id,
         imdb_id: tmdbData.imdb_id,
+        ownership: ratings[0].ownership,
         poster_path: tmdbData.poster_path,
         production_companies: tmdbData.production_companies,
         release_date: tmdbData.release_date,
         runtime: tmdbData.runtime,
         title: tmdbData.title
-      }
+      };
+
+      const ratingsWithoutOwnership = ratings.map((rating) => {
+        const tempRating = {...rating};
+
+        delete tempRating.ownership;
+
+        return tempRating;
+      })
 
       const movieWithRating = {
         movie: tmdbDataWeStore,
         awards: imdbData,
-        ratings: ratings
-      }
+        ratings: ratingsWithoutOwnership
+      };
 
       const key = this.findKeyForMovieInDatabase(ratings[0].id);
 
