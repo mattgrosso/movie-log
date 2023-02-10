@@ -18,6 +18,7 @@
         :uploadPercentage="uploadPercentage"
         @addNewTag="addNewTag"
         @posterLayoutSwitched="posterLayoutSwitched"
+        @devModeSwitched="devModeSwitched"
         @removeTag="removeTag"
         @updateWeight="updateWeight"
         @uploadRatings="uploadRatings"
@@ -103,13 +104,17 @@ export default {
   },
   methods: {
     async login (resp) {
+      const devMode = JSON.parse(window.localStorage.getItem('devMode'));
       const userData = decodeCredential(resp.credential)
       this.googleLogin = userData;
-      this.databaseTopKey = this.createDBTopKey(userData.email);
-      // this.databaseTopKey = this.createDBTopKey("mattgrosso+testing@gmail.com");
-      // this.databaseTopKey = "brian-goegan-gmail-com";
+
+      if (devMode) {
+        this.databaseTopKey = "testing-database";
+      } else {
+        this.databaseTopKey = this.createDBTopKey(userData.email);
+      }
+
       await this.getDatabase();
-      this.posterLayout = this.settings.posterLayout?.grid;
     },
     createDBTopKey (email) {
       return email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
@@ -125,6 +130,8 @@ export default {
       } else {
         await this.initiateNewDatabase();
       }
+
+      this.posterLayout = this.settings.posterLayout?.grid;
     },
     async getMovieDatabase () {
       const movies = await axios.get(
@@ -403,6 +410,15 @@ export default {
       this.getSettings();
       this.posterLayout = value;
       this.showSettings = false;
+    },
+    async devModeSwitched (devMode) {
+      if (devMode) {
+        this.databaseTopKey = "testing-database";
+      } else {
+        this.databaseTopKey = this.createDBTopKey(userData.email);
+      }
+
+      await this.getDatabase();
     }
   }
 }

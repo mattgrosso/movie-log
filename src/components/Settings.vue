@@ -83,6 +83,15 @@
           @uploadRatings="$emit('uploadRatings', $event)"
         />
       </div>
+      <div class="dev-mode mt-3 p-3 border border-white">
+        <div class="form-check form-switch m-0 d-flex justify-content-center">
+          <input class="form-check-input" type="checkbox" role="switch" id="devMode" v-model="devMode">
+          <label class="form-check-label ml-3" for="devMode">Dev Mode</label>
+        </div>
+        <div v-if="devMode" class="dev-mode-flag">
+          Dev Mode!
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -110,10 +119,14 @@ export default {
       default: 0
     }
   },
+  mounted() {
+    this.devMode = JSON.parse(window.localStorage.getItem('devMode'));
+  },
   data () {
     return {
       newTagTitle: null,
-      posterLayout: true
+      posterLayout: true,
+      devMode: false
     }
   },
   watch: {
@@ -122,6 +135,10 @@ export default {
     },
     posterLayout (newVal) {
       this.$emit("posterLayoutSwitched", newVal);
+    },
+    devMode (newVal) {
+      window.localStorage.setItem('devMode', newVal);
+      this.$emit("devModeSwitched", newVal);
     }
   },
   computed: {
@@ -301,6 +318,36 @@ export default {
       .switch {
         left: -20px;
         position: relative;
+      }
+    }
+
+    .dev-mode {
+      .form-check {
+        .form-check-input {
+          cursor: pointer;
+
+          &:checked {
+            background-color: #198754;
+            border-color: #198754;
+          }
+        }
+
+        .form-check-label {
+          margin: 0 12px;
+        }
+      }
+
+      .dev-mode-flag {
+        background-color: #dc3545;
+        border: 2px solid white;
+        box-shadow: 0px 0px 9px 0px #424242;
+        font-size: 1rem;
+        left: 0;
+        padding: 6px 64px;
+        pointer-events: none;
+        position: fixed;
+        top: 0;
+        transform: rotate(-45deg) translate(-55px, -33px);
       }
     }
   }
