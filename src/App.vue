@@ -15,6 +15,7 @@
       <Settings
         :settings="settings"
         :showSettings="showSettings"
+        :uploadPercentage="uploadPercentage"
         @addNewTag="addNewTag"
         @posterLayoutSwitched="posterLayoutSwitched"
         @removeTag="removeTag"
@@ -96,7 +97,8 @@ export default {
       posterLayout: true,
       settings: {},
       showSettings: false,
-      visible: "home"
+      visible: "home",
+      uploadPercentage: 0
     }
   },
   methods: {
@@ -364,8 +366,13 @@ export default {
       this.show("db-search-results");
     },
     async uploadRatings (ratings) {
+      const total = ratings.length;
+      let count = 0;
+
       for (const rating of ratings) {
         await this.addRating(rating, true);
+        count = count + 1;
+        this.uploadPercentage = count / total;
       }
 
       this.getMovieDatabase();

@@ -6,8 +6,10 @@
       <p class="fs-6 my-0">Be aware, once you choose the file it will begin the upload process.</p>
       <input id="csvUpload" type="file" class="form-control mt-2" @change="convertCsv">
     </div>
-    <div v-show="parsing" class="spinner-border text-white" role="status">
-      <span class="visually-hidden">Loading...</span>
+    <div v-show="parsing" class="progress">
+      <div :style="{width: `${roundPercentage}%`}" class="progress-bar" role="progressbar" aria-label="Basic example" :aria-valuenow="roundPercentage" aria-valuemin="0" aria-valuemax="100">
+        {{ roundPercentage }}%
+      </div>
     </div>
   </div>
 </template>
@@ -16,6 +18,13 @@
 import Papa from 'papaparse';
 
 export default {
+  props: {
+    uploadPercentage: {
+      type: Number,
+      required: false,
+      default: 0
+    }
+  },
   data () {
     return {
       csv: null,
@@ -25,6 +34,9 @@ export default {
     }
   },
   computed: {
+    roundPercentage () {
+      return (this.uploadPercentage * 100).toFixed(0);
+    },
     ratingsForUpload () {
       if (!this.parsedCsv) {
         return [];
@@ -134,11 +146,12 @@ export default {
 
 <style lang="scss">
   .import-csv {
-    .spinner-border {
-      align-items: center;
-      display: flex;
-      justify-content: center;
-      margin: 0 auto;
+    .progress {
+      height: 36px;
+
+      .progress-bar {
+        font-size: 1rem;
+      }
     }
   }
 </style>
