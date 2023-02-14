@@ -119,7 +119,7 @@ export default {
       default: 0
     }
   },
-  mounted() {
+  mounted () {
     this.devMode = JSON.parse(window.localStorage.getItem('devMode'));
   },
   data () {
