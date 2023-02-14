@@ -344,7 +344,7 @@ export default {
       };
 
       const ratingsWithoutOwnership = ratings.map((rating) => {
-        const tempRating = {...rating};
+        const tempRating = { ...rating };
 
         delete tempRating.ownership;
 
@@ -415,7 +415,7 @@ export default {
       if (devMode) {
         this.databaseTopKey = "testing-database";
       } else {
-        this.databaseTopKey = this.createDBTopKey(userData.email);
+        this.databaseTopKey = this.createDBTopKey(this.googleLogin.email);
       }
 
       await this.getDatabase();
