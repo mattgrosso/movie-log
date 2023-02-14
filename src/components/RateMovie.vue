@@ -424,34 +424,20 @@
 
     <div v-if="movieToRate.ratings" class="previous-ratings my-3 mb-5 px-4 pt-3 pb-5">
       <label class="fs-4">Previous Viewings</label>
-      <table class="table table-small table-striped-columns">
-        <thead>
-          <th><span>date</span></th>
-          <th><span>dir</span></th>
-          <th><span>img</span></th>
-          <th><span>stry</span></th>
-          <th><span>perf</span></th>
-          <th><span>sndtk</span></th>
-          <th><span>imp</span></th>
-          <th><span>love</span></th>
-          <th><span>ovral</span></th>
-          <th><span>rating</span></th>
-        </thead>
-        <tbody>
-          <tr class="col-12" v-for="(rating, index) in movieToRate.ratings" :key="index">
-            <td class="col-2">{{rating.date}}</td>
-            <td class="col-1">{{rating.direction}}</td>
-            <td class="col-1">{{rating.imagery}}</td>
-            <td class="col-1">{{rating.story}}</td>
-            <td class="col-1">{{rating.performance}}</td>
-            <td class="col-1">{{rating.soundtrack}}</td>
-            <td class="col-1">{{rating.impression}}</td>
-            <td class="col-1">{{rating.love}}</td>
-            <td class="col-1">{{rating.overall}}</td>
-            <td class="col-2">{{rating.rating}}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="col-8 mx-auto">
+        <table class="table table-small table-striped-columns border">
+          <thead class="border">
+            <th><span>date</span></th>
+            <th><span>rating</span></th>
+          </thead>
+          <tbody>
+            <tr class="col-12" v-for="(rating, index) in movieToRate.ratings" :key="index">
+              <td class="col-7">{{rating.date}}</td>
+              <td class="col-5">{{rating.rating}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>
@@ -662,13 +648,12 @@ export default {
         th {
           span {
             display: inline-block;
-            font-size: 0.6rem;
-            transform: rotate(60deg);
+            font-size: 1rem;
           }
         }
 
         td {
-          font-size: 0.6rem;
+          font-size: 1rem;
         }
       }
     }
