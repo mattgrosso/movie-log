@@ -23,67 +23,52 @@
         @updateWeight="updateWeight"
         @uploadRatings="uploadRatings"
       />
-      <div v-show="isVisible('home')" class="home">
-        <!-- This form shoudl clear on return to home -->
-        <NewRatingSearch @newEntrySearch="newEntrySearch"/>
-        <hr>
-        <SearchDatabase @dBSearch="dBSearch"/>
-        <hr>
-        <QuickSearch @dBSearch="dBSearch"/>
-      </div>
-      <div v-if="isVisible('pick-a-movie')" class="pick-a-movie">
-        <PickAMovie :newEntrySearchResults="newEntrySearchResults" @rateMovie="rateMovie"/>
-      </div>
-      <div v-if="isVisible('rate-movie')" class="rate">
-        <RateMovie
-          :database="database"
-          :movieToRate="movieToRate"
-          :settings="settings"
-          @addNewTag="addNewTag"
-          @addRating="addRating"
-        />
-      </div>
-      <div v-if="isVisible('db-search-results')" class="db-search-results">
-        <DBSearchResults
-          :database="database"
-          :initialSortValue="dBSortValue"
-          :initialValue="dBSearchValue"
-          @clearSearch="dBSearchValue = null"
-          @reRateMovie="rateMovie"
-          @search="dBSearch"
-        />
-      </div>
+      <router-view></router-view>
+      <!-- <Home 
+        v-show="isVisible('home')"
+        @newEntrySearch="newEntrySearch"
+        @dBSearch="dBSearch"
+      />
+      <PickAMovie
+        v-if="isVisible('pick-a-movie')"
+        :newEntrySearchResults="newEntrySearchResults"
+        @rateMovie="rateMovie"
+      />
+      <RateMovie
+        v-if="isVisible('rate-movie')"
+        :database="database"
+        :movieToRate="movieToRate"
+        :settings="settings"
+        @addNewTag="addNewTag"
+        @addRating="addRating"
+      />
+      <DBSearchResults
+        v-if="isVisible('db-search-results')"
+        :database="database"
+        :initialSortValue="dBSortValue"
+        :initialValue="dBSearchValue"
+        @clearSearch="dBSearchValue = null"
+        @reRateMovie="rateMovie"
+        @search="dBSearch"
+      /> -->
       <Footer/>
     </div>
   </div>
 </template>
 
 <script>
-import { decodeCredential } from 'vue3-google-login'
 import axios from 'axios';
 import cheerio from "cheerio";
 
-import DBSearchResults from "./components/DBSearchResults.vue";
 import Footer from "./components/Footer.vue";
 import Header from "./components/Header.vue";
-import NewRatingSearch from "./components/NewRatingSearch.vue";
-import PickAMovie from "./components/PickAMovie.vue";
-import QuickSearch from "./components/QuickSearch.vue";
-import RateMovie from "./components/RateMovie.vue";
-import SearchDatabase from "./components/SearchDatabase.vue";
 import Settings from "./components/Settings.vue";
 
 export default {
   name: "Movie-Log",
   components: {
-    DBSearchResults,
     Footer,
     Header,
-    NewRatingSearch,
-    PickAMovie,
-    QuickSearch,
-    RateMovie,
-    SearchDatabase,
     Settings
   },
   data () {
@@ -92,7 +77,6 @@ export default {
       databaseTopKey: null,
       dBSearchValue: "",
       dBSortValue: "",
-      googleLogin: null,
       movieToRate: null,
       newEntrySearchResults: null,
       posterLayout: true,
@@ -102,36 +86,20 @@ export default {
       uploadPercentage: 0
     }
   },
+  computed: {
+    googleLogin () {
+      return this.$store.state.googleLogin;
+    }
+  },
   methods: {
     async login (resp) {
-      const devMode = JSON.parse(window.localStorage.getItem('devMode'));
-      const userData = decodeCredential(resp.credential)
-      this.googleLogin = userData;
-
-      if (devMode) {
-        this.databaseTopKey = "testing-database";
-      } else {
-        this.databaseTopKey = this.createDBTopKey(userData.email);
-      }
-
-      await this.getDatabase();
+      this.$store.dispatch('login', resp);
     },
     createDBTopKey (email) {
       return email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
     },
     async getDatabase () {
-      const database = await axios.get(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}.json`
-      );
-
-      if (database.data) {
-        this.database = database.data.movieLog ? database.data.movieLog : {};
-        this.settings = database.data.settings;
-      } else {
-        await this.initiateNewDatabase();
-      }
-
-      this.posterLayout = this.settings.posterLayout?.grid;
+      await this.$store.dispatch('getDatabase');
     },
     async getMovieDatabase () {
       const movies = await axios.get(
@@ -148,29 +116,7 @@ export default {
       this.settings = settings.data;
     },
     async initiateNewDatabase () {
-      const newDB = {
-        settings: {
-          posterLayout: { grid: true },
-          tags: [{ title: "default tag" }],
-          weights: [
-            { name: "direction", weight: 1.015 },
-            { name: "imagery", weight: 0.9 },
-            { name: "impression", weight: 1.9 },
-            { name: "love", weight: 2.985 },
-            { name: "overall", weight: 2.05 },
-            { name: "performance", weight: 0.65 },
-            { name: "soundtrack", weight: 0.2 },
-            { name: "story", weight: 1.25 }
-          ]
-        }
-      }
-
-      await axios.put(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}.json`,
-        newDB
-      );
-
-      await this.getDatabase();
+      this.$store.dispatch('initiateNewDatabase');
     },
     show (pane) {
       this.previouslyVisible = this.visible;
@@ -230,44 +176,6 @@ export default {
 
       this.getSettings();
     },
-    async getTMDBData (id) {
-      const apiKey = process.env.VUE_APP_TMDB_API_KEY;
-
-      const dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
-
-      const creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
-
-      return {
-        ...dataResp.data,
-        ...creditsResp.data
-      }
-    },
-    parseScrapedAwards (string) {
-      return string.replace(/ {2}/g, "").split("\n").filter((str) => str);
-    },
-    async getIMDBData (id) {
-      const resp = await axios.get(`https://fast-refuge-34363.herokuapp.com/www.imdb.com/title/${id}/awards`);
-
-      const $ = cheerio.load(resp.data);
-
-      const oscarWins = $("h3:contains('Oscar [Winner]')").parent().next().text();
-      const oscarNoms = $("h3:contains('Oscar [Nominee]')").parent().next().text();
-
-      const BAFTAWins = $("h3:contains('BAFTA Film Award [Winner]')").parent().next().text();
-      const BAFTANoms = $("h3:contains('BAFTA Film Award [Nominee]')").parent().next().text();
-
-      const GoldGlobeWins = $("h3:contains('Golden Globe [Winner]')").parent().next().text();
-      const GoldGlobeNoms = $("h3:contains('Golden Globe [Nominee]')").parent().next().text();
-
-      return {
-        oscarWins: this.parseScrapedAwards(oscarWins),
-        oscarNoms: this.parseScrapedAwards(oscarNoms),
-        BAFTAWins: this.parseScrapedAwards(BAFTAWins),
-        BAFTANoms: this.parseScrapedAwards(BAFTANoms),
-        GoldGlobeWins: this.parseScrapedAwards(GoldGlobeWins),
-        GoldGlobeNoms: this.parseScrapedAwards(GoldGlobeNoms)
-      };
-    },
     previouslyRated (id) {
       if (!this.database) {
         return false;
@@ -289,92 +197,6 @@ export default {
       const movie = movies.find((movie) => movie.movie.id === id);
 
       return this.database[movie.index];
-    },
-    findKeyForMovieInDatabase (id) {
-      const keys = Object.keys(this.database);
-      const movies = keys.map((key) => {
-        return {
-          ...this.database[key],
-          key
-        }
-      })
-
-      const movie = movies.find((movie) => movie.movie.id === id);
-
-      if (movie) {
-        return movie.key;
-      } else {
-        return false;
-      }
-    },
-    async addRating (ratings, batch) {
-      if (!ratings[0].id) {
-        return;
-      }
-
-      const tmdbData = await this.getTMDBData(ratings[0].id);
-      const imdbData = await this.getIMDBData(tmdbData.imdb_id);
-
-      const crew = tmdbData.crew.map((person) => {
-        return {
-          job: person.job,
-          name: person.name
-        }
-      })
-
-      const cast = tmdbData.cast.map((person) => {
-        return {
-          name: person.name
-        }
-      })
-
-      const tmdbDataWeStore = {
-        backdrop_path: tmdbData.backdrop_path,
-        cast: cast,
-        crew: crew,
-        genres: tmdbData.genres,
-        id: tmdbData.id,
-        imdb_id: tmdbData.imdb_id,
-        ownership: ratings[0].ownership,
-        poster_path: tmdbData.poster_path,
-        production_companies: tmdbData.production_companies,
-        release_date: tmdbData.release_date,
-        runtime: tmdbData.runtime,
-        title: tmdbData.title
-      };
-
-      const ratingsWithoutOwnership = ratings.map((rating) => {
-        const tempRating = { ...rating };
-
-        delete tempRating.ownership;
-
-        return tempRating;
-      })
-
-      const movieWithRating = {
-        movie: tmdbDataWeStore,
-        awards: imdbData,
-        ratings: ratingsWithoutOwnership
-      };
-
-      const key = this.findKeyForMovieInDatabase(ratings[0].id);
-
-      if (key) {
-        await axios.patch(
-          `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/movieLog/${key}.json`,
-          movieWithRating
-        );
-      } else {
-        await axios.post(
-          `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/movieLog.json`,
-          movieWithRating
-        );
-      }
-
-      if (!batch) {
-        this.getMovieDatabase();
-        this.show("home");
-      }
     },
     dBSearch (value, sortValue) {
       this.dBSearchValue = `${value}`;

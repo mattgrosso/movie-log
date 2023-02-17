@@ -33,8 +33,7 @@ export default {
       const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
 
       if (resp.data.results.length) {
-        this.value = "";
-        this.$emit('newEntrySearch', resp.data);
+        this.newEntrySearch(resp.data.results);
       } else {
         this.showNoResultsMessage();
       }
@@ -45,7 +44,12 @@ export default {
       setTimeout(() => {
         this.$refs.noResults.classList.remove("show-message");
       }, 3000);
-    }
+    },
+    newEntrySearch (results) {
+      this.$store.commit('setNewEntrySearchResults', results)
+      
+      this.$router.push(`/pick-movie/${this.value}`);
+    },
   }
 }
 </script>
