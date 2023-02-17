@@ -20,8 +20,14 @@ export default {
     QuickSearch
   },
   methods: {
-    dBSearch (value) {
-      this.$emit("dBSearch", value);
+    dBSearch (value, sortValue) {
+      this.$store.commit('setDBSearchValue', value);
+
+      if (sortValue) {
+        this.$store.commit('setDBSearchValue', sortValue);
+      }
+
+      this.$router.push('/db-search');
     }
   },
 }

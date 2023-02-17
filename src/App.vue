@@ -24,33 +24,6 @@
         @uploadRatings="uploadRatings"
       />
       <router-view></router-view>
-      <!-- <Home 
-        v-show="isVisible('home')"
-        @newEntrySearch="newEntrySearch"
-        @dBSearch="dBSearch"
-      />
-      <PickAMovie
-        v-if="isVisible('pick-a-movie')"
-        :newEntrySearchResults="newEntrySearchResults"
-        @rateMovie="rateMovie"
-      />
-      <RateMovie
-        v-if="isVisible('rate-movie')"
-        :database="database"
-        :movieToRate="movieToRate"
-        :settings="settings"
-        @addNewTag="addNewTag"
-        @addRating="addRating"
-      />
-      <DBSearchResults
-        v-if="isVisible('db-search-results')"
-        :database="database"
-        :initialSortValue="dBSortValue"
-        :initialValue="dBSearchValue"
-        @clearSearch="dBSearchValue = null"
-        @reRateMovie="rateMovie"
-        @search="dBSearch"
-      /> -->
       <Footer/>
     </div>
   </div>
@@ -93,6 +66,7 @@ export default {
   },
   methods: {
     async login (resp) {
+      // Can we store some value in localStorage so that we don't have to reauth everytime?
       this.$store.dispatch('login', resp);
     },
     createDBTopKey (email) {
@@ -197,13 +171,6 @@ export default {
       const movie = movies.find((movie) => movie.movie.id === id);
 
       return this.database[movie.index];
-    },
-    dBSearch (value, sortValue) {
-      this.dBSearchValue = `${value}`;
-      if (sortValue) {
-        this.dBSortValue = `${sortValue}`;
-      }
-      this.show("db-search-results");
     },
     async uploadRatings (ratings) {
       const total = ratings.length;

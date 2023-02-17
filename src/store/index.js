@@ -9,7 +9,9 @@ export default createStore({
     googleLogin: null,
     databaseTopKey: null,
     newEntrySearchResults: [],
-    movieToRate: {}
+    movieToRate: {},
+    DBSearchValue: null,
+    DBSortValue: null
   },
   getters: {
   },
@@ -38,6 +40,12 @@ export default createStore({
     },
     setMovieToRate (state, movie) {
       state.movieToRate = movie;
+    },
+    setDBSearchValue (state, value) {
+      state.DBSearchValue = value;
+    },
+    setDBSortValue (state, value) {
+      state.DBSortValue = value;
     }
   },
   actions: {
