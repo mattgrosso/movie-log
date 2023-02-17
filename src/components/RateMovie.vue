@@ -1,14 +1,13 @@
 <template>
   <div class="rate-movie mx-auto">
-    <form class="p-4" @submit.prevent="addRating">
+    <div class="p-4">
       <h1 class="mb-4">Rate Movie</h1>
-      <!--- Title --->
+
       <div class="col-12 mb-4">
         <label class="form-label fs-4" for="title">Title</label>
         <input class="form-control" name="title" type="text" id="title" v-model="title">
       </div>
 
-      <!--- Year / Medium / Date / PJ Theater--->
       <div class="year-medium-date col-12 my-5 d-flex justify-content-between">
         <div class="year col-2">
           <label class="form-label fs-4" for="year">Year</label>
@@ -43,7 +42,6 @@
         </div>
       </div>
 
-      <!--- Direction --->
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="direction">Direction</label>
         <p class="fs-6 fst-italic">Rate the film's directing and editing.</p>
@@ -85,7 +83,6 @@
         </select>
       </div>
 
-      <!--- Imagery --->
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="imagery">Imagery</label>
         <p class="fs-6 fst-italic">
@@ -129,7 +126,6 @@
         </select>
       </div>
 
-      <!--- Story --->
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="story">Story</label>
         <p class="fs-6 fst-italic">
@@ -173,7 +169,6 @@
         </select>
       </div>
 
-      <!--- Performance --->
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="performance">Performance</label>
         <p class="fs-6 fst-italic">
@@ -217,7 +212,6 @@
         </select>
       </div>
 
-      <!--- Soundtrack --->
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="soundtrack">Soundtrack</label>
         <p class="fs-6 fst-italic">
@@ -261,7 +255,6 @@
         </select>
       </div>
 
-      <!--- Impression --->
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="impression">Impression</label>
         <p class="fs-6 fst-italic">
@@ -290,7 +283,6 @@
         </select>
       </div>
 
-      <!--- Love --->
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="love">Love</label>
         <p class="fs-6 fst-italic">
@@ -334,7 +326,6 @@
         </select>
       </div>
 
-      <!--- Overall --->
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="overall">Overall</label>
         <p class="fs-6 fst-italic">
@@ -390,7 +381,6 @@
 
       <hr>
 
-      <!--- Tags --->
       <div class="col-12 my-5 tags">
         <label class="form-label">Select Additional Tags</label>
         <div class="tag-list d-flex flex-wrap">
@@ -412,13 +402,18 @@
 
       <hr>
 
-      <!-- Submit -->
-      <button class="submit-button btn btn-primary col-12 mt-5 mb-4" type="submit" value="Submit" :disabled="loading">
+      <button
+        class="submit-button btn btn-primary col-12 mt-5 mb-4"
+        @click.prevent="addRating"
+        type="submit"
+        value="Submit"
+        :disabled="loading"
+      >
         <span v-if="!loading">Submit</span>
         <span v-if="loading" class="disabled-show spinner-border spinner-border-sm mx-2" role="status" aria-hidden="true"></span>
         <span v-if="loading" class="disabled-show ">Submiting...</span>
       </button>
-    </form>
+    </div>
 
     <hr>
 
@@ -472,21 +467,9 @@
 </template>
 
 <script>
+import addRating from "../assets/javascript/AddRating.js";
+
 export default {
-  props: {
-    database: {
-      type: Object,
-      required: true
-    },
-    movieToRate: {
-      type: Object,
-      required: true
-    },
-    settings: {
-      type: Object,
-      required: true
-    }
-  },
   data () {
     return {
       date: null,
@@ -508,11 +491,20 @@ export default {
     }
   },
   mounted () {
-    this.title = this.movieToRate.movie.title;
-    this.year = new Date(this.movieToRate.movie.release_date).getFullYear();
-    this.id = this.movieToRate.movie.id;
+    this.title = this.movieToRate.title;
+    this.year = new Date(this.movieToRate.release_date).getFullYear();
+    this.id = this.movieToRate.id;
   },
   computed: {
+    database () {
+      return this.$store.state.database;
+    },
+    movieToRate () {
+      return this.$store.state.movieToRate;
+    },
+    settings () {
+      return this.$store.state.settings;
+    },
     rating () {
       const direction = this.getRatingFor("direction") >= 0 ? this.getRatingFor("direction") : 5;
       const imagery = this.getRatingFor("imagery") >= 0 ? this.getRatingFor("imagery") : 5;
@@ -544,7 +536,7 @@ export default {
     },
     moviesRankedFromYear () {
       const moviesFromYear = this.allMoviesAsArray.filter((movie) => {
-        return this.movieYear(movie) === this.movieYear(this.movieToRate);
+        return this.movieYear(movie.movie) === this.movieYear(this.movieToRate);
       })
 
       return moviesFromYear.sort(this.sortByRating);
@@ -552,7 +544,7 @@ export default {
   },
   methods: {
     movieYear (movie) {
-      return new Date(movie.movie.release_date).getFullYear();
+      return new Date(movie.release_date).getFullYear();
     },
     previouslyRated (id) {
       const ids = Object.keys(this.database).map((key) => this.database[key].movie.id);
@@ -617,7 +609,7 @@ export default {
         this.tags.push(tag);
       }
     },
-    addRating () {
+    async addRating () {
       this.loading = true;
 
       let ratings = [];
@@ -646,7 +638,8 @@ export default {
 
       ratings.push(rating);
 
-      this.$emit('addRating', ratings);
+      await addRating(ratings);
+      this.$router.push('/');
     }
   },
 }

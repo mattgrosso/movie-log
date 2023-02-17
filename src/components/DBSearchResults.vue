@@ -179,22 +179,6 @@ import inRange from 'lodash/inRange';
 import searchQuery from 'search-query-parser';
 
 export default {
-  props: {
-    database: {
-      type: Object,
-      required: true
-    },
-    initialValue: {
-      type: String,
-      required: false,
-      default: ""
-    },
-    initialSortValue: {
-      type: String,
-      required: false,
-      default: ""
-    }
-  },
   data () {
     return {
       popperInstance: null,
@@ -204,12 +188,12 @@ export default {
     }
   },
   watch: {
-    initialValue (newVal) {
+    DBSearchValue (newVal) {
       if (newVal) {
         this.value = newVal;
       }
     },
-    initialSortValue (newVal) {
+    DBSortValue (newVal) {
       if (newVal) {
         this.sortValue = newVal;
       }
@@ -219,9 +203,9 @@ export default {
     }
   },
   mounted () {
-    this.value = this.initialValue;
-    if (this.initialSortValue) {
-      this.sortValue = this.initialSortValue;
+    this.value = this.DBSearchValue;
+    if (this.DBSortValue) {
+      this.sortValue = this.DBSortValue;
     } else {
       this.sortValue = "rating";
     }
@@ -238,6 +222,15 @@ export default {
     });
   },
   computed: {
+    database () {
+      return this.$store.state.database;
+    },
+    DBSearchValue () {
+      return this.$store.state.DBSearchValue;
+    },
+    DBSortValue () {
+      return this.$store.state.DBSortValue;
+    },
     allMoviesAsArray () {
       return Object.keys(this.database).map((key) => {
         return this.database[key];
