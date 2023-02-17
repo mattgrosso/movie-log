@@ -80,7 +80,7 @@
       <div class="uploader mt-3 p-3 border border-white">
         <ImportCsv
           :uploadPercentage="uploadPercentage"
-          @uploadRatings="$emit('uploadRatings', $event)"
+          @uploadRatings="uploadRatings"
         />
       </div>
       <div class="dev-mode mt-3 p-3 border border-white">
@@ -97,6 +97,7 @@
 </template>
 
 <script>
+import axios from 'axios';
 import ImportCsv from "./ImportCsv.vue";
 
 export default {
@@ -108,15 +109,6 @@ export default {
       type: Boolean,
       required: false,
       default: false
-    },
-    settings: {
-      type: Object,
-      required: true
-    },
-    uploadPercentage: {
-      type: Number,
-      required: false,
-      default: 0
     }
   },
   mounted () {
@@ -126,7 +118,8 @@ export default {
     return {
       newTagTitle: null,
       posterLayout: true,
-      devMode: false
+      devMode: false,
+      uploadPercentage: 0
     }
   },
   watch: {
@@ -134,14 +127,20 @@ export default {
       this.posterLayout = this.settings.posterLayout.grid;
     },
     posterLayout (newVal) {
-      this.$emit("posterLayoutSwitched", newVal);
+      this.posterLayoutSwitched(newVal);
     },
     devMode (newVal) {
       window.localStorage.setItem('devMode', newVal);
-      this.$emit("devModeSwitched", newVal);
+      this.devModeSwitched(newVal);
     }
   },
   computed: {
+    settings () {
+      return this.$store.state.settings;
+    },
+    databaseTopKey () {
+      return this.$store.state.databaseTopKey;
+    },
     totalWeight () {
       if (!this.settings.weights) {
         return 0;
@@ -169,9 +168,36 @@ export default {
       const share = (weight / this.totalWeight) * 100;
       return share.toPrecision(4);
     },
-    addTag () {
-      this.$emit("addNewTag", { title: this.newTagTitle });
+    async posterLayoutSwitched (value) {
+      const layoutSetting = { grid: value }
+
+      if (this.databaseTopKey) {
+        await axios.patch(
+          `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/posterLayout.json`,
+          layoutSetting
+        );
+      }
+
+      this.getSettings();
+      this.$emit('setPosterLayout', value);
+      this.$emit('hideSettings');
+    },
+    async getSettings () {
+      const settings = await axios.get(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings.json`
+      );
+
+      this.$store.commit('setSettings', settings.data);
+    },
+    async addTag () {
+      await axios.post(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/tags.json`,
+        { title: this.newTagTitle }
+      );
+
       this.newTagTitle = null;
+
+      this.getSettings();
     },
     showRemoveButton (event) {
       const all = Array.from(this.$el.querySelectorAll('.show-remove-button'));
@@ -181,8 +207,12 @@ export default {
 
       event.target.classList.toggle('show-remove-button');
     },
-    removeTag (tagIndex) {
-      this.$emit("removeTag", tagIndex);
+    async removeTag (tagIndex) {
+      await axios.delete(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/tags/${tagIndex}.json`
+      );
+
+      this.getSettings();
     },
     toggleEdit (event) {
       this.calculateShare();
@@ -193,7 +223,7 @@ export default {
     clickSave (index) {
       this.$refs[`save${index}`][0].click();
     },
-    updateWeight (event, index, weight) {
+    async updateWeight (event, index, weight) {
       const value = event.target.previousElementSibling.value;
       const payload = {
         index: index,
@@ -203,8 +233,38 @@ export default {
         }
       };
 
-      this.$emit('updateWeight', payload);
+      await axios.patch(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/weights/${payload.index}.json`,
+        payload.weight
+      );
+
+      this.getSettings();
       this.$el.querySelectorAll('td.editing').forEach((el) => el.classList.remove("editing"));
+    },
+    async devModeSwitched (devMode) {
+      if (devMode) {
+        this.$store.commit('setDatabaseTopKey', "testing-database");
+      } else {
+        const userData = this.$store.state.googleLogin;
+        const key = userData.email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
+        this.$store.commit('setDatabaseTopKey', key);
+      }
+
+      await this.$store.dispatch('getDatabase');
+    },
+    async uploadRatings (ratings) {
+      const total = ratings.length;
+      let count = 0;
+
+      for (const rating of ratings) {
+        await this.addRating(rating, true);
+        count = count + 1;
+        this.uploadPercentage = count / total;
+      }
+
+      this.$store.dispatch('getDatabase');
+      this.$emit('hideSettings');
+      this.$router.push('/');
     }
   },
 }
@@ -218,6 +278,7 @@ export default {
     overflow: hidden;
     position: relative;
     transition: all 0.5s ease;
+    z-index: 1;
 
     &.closed {
       max-height: 0;
