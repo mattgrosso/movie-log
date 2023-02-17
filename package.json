@@ -22,9 +22,9 @@
     "papaparse": "^5.3.2",
     "search-query-parser": "^1.6.0",
     "vue": "^3.2.13",
-    "vue-lazyload": "^3.0.0-rc.2",
     "vue3-click-away": "^1.2.4",
     "vue3-google-login": "^2.0.12",
+    "vue3-lazyload": "^0.3.6",
     "vuex": "^4.0.0"
   },
   "devDependencies": {

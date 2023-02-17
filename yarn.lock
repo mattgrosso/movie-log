@@ -6512,6 +6512,11 @@ vary@~1.1.2:
   resolved "https://registry.yarnpkg.com/vary/-/vary-1.1.2.tgz#2299f02c6ded30d4a5961b0b9f74524a18f634fc"
   integrity sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==
 
+vue-demi@^0.12.5:
+  version "0.12.5"
+  resolved "https://registry.yarnpkg.com/vue-demi/-/vue-demi-0.12.5.tgz#8eeed566a7d86eb090209a11723f887d28aeb2d1"
+  integrity sha512-BREuTgTYlUr0zw0EZn3hnhC3I6gPWv+Kwh4MCih6QcAeaTlaIX0DwOVN0wHej7hSvDPecz4jygy/idsgKfW58Q==
+
 vue-eslint-parser@^8.0.1:
   version "8.3.0"
   resolved "https://registry.yarnpkg.com/vue-eslint-parser/-/vue-eslint-parser-8.3.0.tgz#5d31129a1b3dd89c0069ca0a1c88f970c360bd0d"
@@ -6529,11 +6534,6 @@ vue-hot-reload-api@^2.3.0:
   version "2.3.4"
   resolved "https://registry.yarnpkg.com/vue-hot-reload-api/-/vue-hot-reload-api-2.3.4.tgz#532955cc1eb208a3d990b3a9f9a70574657e08f2"
   integrity sha512-BXq3jwIagosjgNVae6tkHzzIk6a8MHFtzAdwhnV5VlvPTFxDCvIttgSiHWjdGoTJvXtmRu5HacExfdarRcFhog==
-
-vue-lazyload@^3.0.0-rc.2:
-  version "3.0.0-rc.2"
-  resolved "https://registry.yarnpkg.com/vue-lazyload/-/vue-lazyload-3.0.0-rc.2.tgz#8a3daa598dcbb7349893d3bb39b50695049fb0d8"
-  integrity sha512-Cg7Gqb7jAoiImMPH3EMfAwJ8gZuFoBJCEtA7+TGRljrtktDtV7JAHIyKvuTgQR8DFAd7MhKi1Ys8QHdSrnGdZQ==
 
 vue-loader@^17.0.0:
   version "17.0.1"
@@ -6566,6 +6566,13 @@ vue3-google-login@^2.0.12:
   version "2.0.12"
   resolved "https://registry.yarnpkg.com/vue3-google-login/-/vue3-google-login-2.0.12.tgz#b235c10d83109d04fd67057336fc15d77bb14664"
   integrity sha512-gKc9yS6NDgU2JLKXZGYu9NQzIBd/CTXFFo1IU8nUZsP5QFjRuylSDZQ7tLUeueL+SYHJiE/FzxB5bQlcTdQ7Wg==
+
+vue3-lazyload@^0.3.6:
+  version "0.3.6"
+  resolved "https://registry.yarnpkg.com/vue3-lazyload/-/vue3-lazyload-0.3.6.tgz#87c509e7f0139ea5e00eb76c368519905ad19678"
+  integrity sha512-UcVnEN9JzxeFBa7nNAPWKXHTtvVAzWYhBSvRU+Gmx9MdTGLWKwjZiNSyB1Os25jr9HaFHWY0DaU8uugXkGu9Gw==
+  dependencies:
+    vue-demi "^0.12.5"
 
 vue@^3.2.13:
   version "3.2.47"

@@ -5,7 +5,7 @@ import vue3GoogleLogin from 'vue3-google-login';
 import VueClickAway from "vue3-click-away";
 import * as Sentry from "@sentry/vue";
 import { BrowserTracing } from "@sentry/tracing";
-import VueLazyload from 'vue-lazyload'
+import VueLazyLoad from 'vue3-lazyload'
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap"
 
@@ -15,10 +15,7 @@ app.use(vue3GoogleLogin, {
   clientId: '495603923646-j49hr3l4m6l9grbvrnp7fr652hon2um3.apps.googleusercontent.com'
 });
 app.use(VueClickAway);
-app.use(VueLazyload, {
-  preLoad: 1.3,
-  attempt: 1
-})
+app.use(VueLazyLoad, {})
 
 Sentry.init({
   app,
