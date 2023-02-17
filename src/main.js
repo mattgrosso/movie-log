@@ -6,6 +6,8 @@ import VueClickAway from "vue3-click-away";
 import * as Sentry from "@sentry/vue";
 import { BrowserTracing } from "@sentry/tracing";
 import VueLazyload from 'vue-lazyload'
+import "bootstrap/dist/css/bootstrap.min.css"
+import "bootstrap"
 
 const app = createApp(App);
 app.use(store);

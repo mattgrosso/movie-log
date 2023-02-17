@@ -424,34 +424,49 @@
 
     <div v-if="movieToRate.ratings" class="previous-ratings my-3 mb-5 px-4 pt-3 pb-5">
       <label class="fs-4">Previous Viewings</label>
-      <table class="table table-small table-striped-columns">
-        <thead>
-          <th><span>date</span></th>
-          <th><span>dir</span></th>
-          <th><span>img</span></th>
-          <th><span>stry</span></th>
-          <th><span>perf</span></th>
-          <th><span>sndtk</span></th>
-          <th><span>imp</span></th>
-          <th><span>love</span></th>
-          <th><span>ovral</span></th>
-          <th><span>rating</span></th>
-        </thead>
-        <tbody>
-          <tr class="col-12" v-for="(rating, index) in movieToRate.ratings" :key="index">
-            <td class="col-2">{{rating.date}}</td>
-            <td class="col-1">{{rating.direction}}</td>
-            <td class="col-1">{{rating.imagery}}</td>
-            <td class="col-1">{{rating.story}}</td>
-            <td class="col-1">{{rating.performance}}</td>
-            <td class="col-1">{{rating.soundtrack}}</td>
-            <td class="col-1">{{rating.impression}}</td>
-            <td class="col-1">{{rating.love}}</td>
-            <td class="col-1">{{rating.overall}}</td>
-            <td class="col-2">{{rating.rating}}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="accordion" id="previous-ratings-accordion">
+        <div class="accordion-item" v-for="(rating, index) in movieToRate.ratings" :key="index">
+          <h2 class="accordion-header" :id="`heading-${index}`">
+            <button class="accordion-button px-5" type="button" data-bs-toggle="collapse" :data-bs-target="`#collapse-${index}`" aria-expanded="false" :aria-controls="`collapse-${index}`">
+              <div class="col-12 d-flex">
+                <p class="col-7 m-0 text-center border-end">
+                  <span v-if="rating.date">{{rating.date}}</span>
+                  <span v-else>-</span>
+                </p>
+                <p class="col-5 m-0 text-center border-start">{{rating.rating}}</p>
+              </div>
+            </button>
+          </h2>
+          <div :id="`collapse-${index}`" class="accordion-collapse collapse" :aria-labelledby="`heading-${index}`">
+            <div class="accordion-body">
+              <table class="table mb-0 col-12 table-striped-columns">
+                <thead>
+                  <th class="col-1"><span>dir</span></th>
+                  <th class="col-1"><span>img</span></th>
+                  <th class="col-1"><span>stry</span></th>
+                  <th class="col-1"><span>perf</span></th>
+                  <th class="col-1"><span>sndtk</span></th>
+                  <th class="col-1"><span>imp</span></th>
+                  <th class="col-1"><span>love</span></th>
+                  <th class="col-1"><span>ovral</span></th>
+                </thead>
+                <tbody>
+                  <tr class="table-secondary">
+                    <td class="col-1">{{rating.direction}}</td>
+                    <td class="col-1">{{rating.imagery}}</td>
+                    <td class="col-1">{{rating.story}}</td>
+                    <td class="col-1">{{rating.performance}}</td>
+                    <td class="col-1">{{rating.soundtrack}}</td>
+                    <td class="col-1">{{rating.impression}}</td>
+                    <td class="col-1">{{rating.love}}</td>
+                    <td class="col-1">{{rating.overall}}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -658,6 +673,15 @@ export default {
     }
 
     .previous-ratings {
+      .accordion-button {
+        background-color: white;
+        color: black;
+
+        &:focus {
+          box-shadow: none;
+        }
+      }
+
       table {
         th {
           span {
