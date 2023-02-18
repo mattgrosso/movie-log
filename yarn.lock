@@ -5031,6 +5031,11 @@ ora@^5.3.0:
     strip-ansi "^6.0.0"
     wcwidth "^1.0.1"
 
+ordinal-js@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/ordinal-js/-/ordinal-js-1.1.0.tgz#9f35641152f8918e47f1f39e9df65c834acd31b4"
+  integrity sha512-k6lCtMT76q9wg5SRcAa2SkprDswVSlcosXAbJjwE/Mx3NmHh1rsdgpdWt3Yv37MVQ/v4g/de9ze0yizR5j9uYw==
+
 p-finally@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/p-finally/-/p-finally-1.0.0.tgz#3fbcfb15b899a44123b34b6dcc18b724336a2cae"

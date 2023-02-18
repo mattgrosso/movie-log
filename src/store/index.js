@@ -2,6 +2,17 @@ import { createStore } from "vuex"
 import axios from 'axios';
 import { decodeCredential } from 'vue3-google-login'
 
+const sortByVoteCount = (a, b) => {
+  if (a.vote_count < b.vote_count) {
+    return 1;
+  }
+  if (a.vote_count > b.vote_count) {
+    return -1;
+  }
+
+  return 0;
+}
+
 export default createStore({
   state: {
     database: {},
@@ -14,6 +25,11 @@ export default createStore({
     DBSortValue: null
   },
   getters: {
+    allMoviesAsArray: (state) => {
+      return Object.keys(state.database).map((key) => {
+        return state.database[key];
+      })
+    }
   },
   mutations: {
     // TODO: Can we just set a value on state without going through these mutations?
@@ -31,12 +47,13 @@ export default createStore({
     },
     setNewEntrySearchResults (state, value) {
       const results = [...value];
+      const sorted = results.sort(sortByVoteCount);
 
-      if (results.length > 9) {
-        results.length = 9;
+      if (sorted.length > 9) {
+        sorted.length = 9;
       }
 
-      state.newEntrySearchResults = results;
+      state.newEntrySearchResults = sorted;
     },
     setMovieToRate (state, movie) {
       state.movieToRate = movie;

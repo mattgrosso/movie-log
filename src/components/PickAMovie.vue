@@ -3,13 +3,8 @@
     <ul class="p-0 d-flex justify-content-around flex-wrap">
       <li class="card shadow border" v-for="movie in searchResults" :key="movie.id" @click="rateMovie(movie)">
         <img class="card-img-top" :src="`https://image.tmdb.org/t/p/original${movie.poster_path}`" align="center">
-        <p class="m-2 mb-1 card-text text-center">
-          <a class="link-success" target="_blank" @click.stop :href="`https://www.themoviedb.org/movie/${movie.id}`">
-            TMDB#{{movie.id}}
-          </a>
-        </p>
-        <p class="m-2 mt-1 card-text text-center">
-          {{movie.title}}
+        <p class="my-3 mx-1 card-text text-center" :title="movie.title">
+          {{truncate(movie.title)}}
           <br>
           {{movie.release_date}}
         </p>
@@ -29,6 +24,13 @@ export default {
     rateMovie (movie) {
       this.$store.commit('setMovieToRate', movie);
       this.$router.push('/rate-movie');
+    },
+    truncate (string) {
+      if (string.length > 15) {
+        return `${string.substr(0, 13)}...`;
+      } else {
+        return string;
+      }
     }
   },
 }

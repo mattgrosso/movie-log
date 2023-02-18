@@ -374,7 +374,7 @@
       <p class="rating col-12 my-3 fs-5 text-center" id="rating">
         Rating: {{rating}}
         <span class="mx-3 fs-1">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{allMoviesAsArray.length}}
+        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{$store.getters.allMoviesAsArray.length}}
         <span class="mx-3 fs-1">|</span>
         #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear)}} in {{movieYear(this.movieToRate)}}
       </p>
@@ -417,10 +417,10 @@
 
     <hr>
 
-    <div v-if="movieToRate.ratings" class="previous-ratings my-3 mb-5 px-4 pt-3 pb-5">
+    <div v-if="previousEntry?.ratings" class="previous-ratings my-3 mb-5 px-4 pt-3 pb-5">
       <label class="fs-4">Previous Viewings</label>
       <div class="accordion" id="previous-ratings-accordion">
-        <div class="accordion-item" v-for="(rating, index) in movieToRate.ratings" :key="index">
+        <div class="accordion-item" v-for="(rating, index) in previousEntry.ratings" :key="index">
           <h2 class="accordion-header" :id="`heading-${index}`">
             <button class="accordion-button px-5" type="button" data-bs-toggle="collapse" :data-bs-target="`#collapse-${index}`" aria-expanded="false" :aria-controls="`collapse-${index}`">
               <div class="col-12 d-flex">
@@ -525,21 +525,21 @@ export default {
         ratings: [{ rating: this.rating }]
       };
     },
-    allMoviesAsArray () {
-      return Object.keys(this.database).map((key) => {
-        return this.database[key];
-      })
-    },
     allMoviesRanked () {
-      const movies = [...this.allMoviesAsArray];
+      const movies = [...this.$store.getters.allMoviesAsArray];
       return movies.sort(this.sortByRating);
     },
     moviesRankedFromYear () {
-      const moviesFromYear = this.allMoviesAsArray.filter((movie) => {
+      const moviesFromYear = this.$store.getters.allMoviesAsArray.filter((movie) => {
         return this.movieYear(movie.movie) === this.movieYear(this.movieToRate);
       })
 
       return moviesFromYear.sort(this.sortByRating);
+    },
+    previousEntry () {
+      return this.$store.getters.allMoviesAsArray.find((entry) => {
+        return entry.movie.id === this.id;
+      })
     }
   },
   methods: {
@@ -614,8 +614,8 @@ export default {
 
       let ratings = [];
 
-      if (this.movieToRate.ratings) {
-        ratings = [...this.movieToRate.ratings];
+      if (this.previousEntry?.ratings) {
+        ratings = [...this.previousEntry.ratings];
       }
 
       const rating = {
