@@ -14,6 +14,11 @@ export default createStore({
     DBSortValue: null
   },
   getters: {
+    allMoviesAsArray: (state) => {
+      return Object.keys(state.database).map((key) => {
+        return state.database[key];
+      })
+    }
   },
   mutations: {
     // TODO: Can we just set a value on state without going through these mutations?

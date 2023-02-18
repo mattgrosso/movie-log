@@ -46,11 +46,11 @@
       </div>
     </div>
     <hr class="mt-4">
-    <p v-if="results.length === allMoviesAsArray.length" class="fs-5 my-2 text-center">
-      You've rated {{allMoviesAsArray.length}} movies.
+    <p v-if="results.length === $store.getters.allMoviesAsArray.length" class="fs-5 my-2 text-center">
+      You've rated {{$store.getters.allMoviesAsArray.length}} movies.
     </p>
     <p v-else class="fs-5 my-2 text-center">
-      {{results.length}} out of {{allMoviesAsArray.length}} movies match your search.
+      {{results.length}} out of {{$store.getters.allMoviesAsArray.length}} movies match your search.
     </p>
     <hr>
     <ul class="col-12 py-3 px-0 d-flex flex-wrap">
@@ -83,8 +83,9 @@
             </span>
           </p>
         </div>
-        <div class="rating col-2 d-flex justify-content-center">
-          <p class="m-0 fs-3">{{parseFloat(mostRecentRating(result).rating).toFixed(2)}}</p>
+        <div class="rating col-2 d-flex justify-content-center flex-wrap">
+          <p class="col-12 m-0 fs-3 text-center">{{parseFloat(mostRecentRating(result).rating).toFixed(2)}}</p>
+          <p class="rank col-12 m-0 text-center">({{getOrdinal(getRankById(result.movie.id))}})</p>
         </div>
 
         <div :id="`Info-${result.movie.id}`" class="full-info ps-3 hidden">
@@ -174,6 +175,7 @@
 
 <script>
 import { createPopper } from '@popperjs/core';
+import ordinal from "ordinal-js";
 import Fuse from 'fuse.js';
 import inRange from 'lodash/inRange';
 import searchQuery from 'search-query-parser';
@@ -231,14 +233,13 @@ export default {
     DBSortValue () {
       return this.$store.state.DBSortValue;
     },
-    allMoviesAsArray () {
-      return Object.keys(this.database).map((key) => {
-        return this.database[key];
-      })
-    },
     sortedResults () {
       const sorted = [...this.results];
       return sorted.sort(this.sortResults);
+    },
+    sortedByRating () {
+      const sorted = [...this.results];
+      return sorted.sort(this.sortByRating);
     },
     threshold () {
       if (this.value) {
@@ -261,7 +262,7 @@ export default {
       cleanQuery = searchQuery.parse(cleanQuery, options);
 
       if (!this.value) {
-        return this.allMoviesAsArray;
+        return this.$store.getters.allMoviesAsArray;
       } else if (cleanQuery.y || cleanQuery.year) {
         const keys = ["y", "year"];
         return this.yearSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
@@ -296,7 +297,7 @@ export default {
         ]
       };
 
-      const fuse = new Fuse(this.allMoviesAsArray, options);
+      const fuse = new Fuse(this.$store.getters.allMoviesAsArray, options);
 
       const results = fuse.search(`"${this.value}"`);
 
@@ -304,17 +305,17 @@ export default {
     },
     yearSearch (range) {
       if (range.to) {
-        return this.allMoviesAsArray.filter((movie) => {
+        return this.$store.getters.allMoviesAsArray.filter((movie) => {
           return inRange(this.getYear(movie.movie.release_date), range.from, parseInt(range.to) + 1);
         });
       } else {
-        return this.allMoviesAsArray.filter((movie) => {
+        return this.$store.getters.allMoviesAsArray.filter((movie) => {
           return inRange(this.getYear(movie.movie.release_date), range.from, parseInt(range.from) + 1);
         });
       }
     },
     personSearch (names) {
-      return this.allMoviesAsArray.filter((movie) => {
+      return this.$store.getters.allMoviesAsArray.filter((movie) => {
         // this is a sort of crazy thing to do. It might be kind of slow.
         const everyone = `${JSON.stringify(movie.movie.crew)} ${JSON.stringify(movie.movie.cast)}`;
 
@@ -361,6 +362,36 @@ export default {
       }
 
       return 0;
+    },
+    sortByRating (a, b) {
+      let sortValueA;
+      let sortValueB;
+
+      sortValueA = this.mostRecentRating(a).rating;
+      sortValueB = this.mostRecentRating(b).rating;
+
+      if (sortValueA < sortValueB) {
+        if (this.sortDescending) {
+          return 1;
+        } else {
+          return -1;
+        }
+      }
+      if (sortValueA > sortValueB) {
+        if (this.sortDescending) {
+          return -1;
+        } else {
+          return 1;
+        }
+      }
+
+      return 0;
+    },
+    getRankById (id) {
+      return this.sortedByRating.map((movie) => movie.movie.id).indexOf(id) + 1;
+    },
+    getOrdinal (number) {
+      return ordinal.toOrdinal(number);
     },
     setValue (value) {
       this.value = value;
@@ -551,6 +582,12 @@ export default {
             span {
               margin-right: 0.5rem;
             }
+          }
+        }
+
+        .rating {
+          .rank {
+            font-size: 0.65rem;
           }
         }
 

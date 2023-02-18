@@ -41,13 +41,8 @@ export default {
     database () {
       return this.$store.state.database;
     },
-    allMoviesAsArray () {
-      return Object.keys(this.database).map((key) => {
-        return this.database[key];
-      })
-    },
     allMoviePostersRanked () {
-      const movies = [...this.allMoviesAsArray];
+      const movies = [...this.$store.getters.allMoviesAsArray];
       return movies.sort(this.sortByRating).map((movie) => {
         return `https://image.tmdb.org/t/p/w94_and_h141_bestv2${movie.movie.poster_path}`;
       });
@@ -55,9 +50,9 @@ export default {
     postersForHeader () {
       if (!this.posterLayout) {
         return [this.randomPoster()];
-      } else if (this.allMoviesAsArray.length < 30) {
+      } else if (this.$store.getters.allMoviesAsArray.length < 30) {
         return ["https://live.staticflickr.com/65535/47980547206_7a02cb7f3f_h.jpg"];
-      } else if (this.allMoviesAsArray.length < 120) {
+      } else if (this.$store.getters.allMoviesAsArray.length < 120) {
         return this.allMoviePostersRanked.slice(0, 30);
       } else {
         return this.allMoviePostersRanked.slice(0, 120);
@@ -66,9 +61,9 @@ export default {
     posterWidth () {
       if (!this.posterLayout) {
         return "single";
-      } else if (this.allMoviesAsArray.length < 30) {
+      } else if (this.$store.getters.allMoviesAsArray.length < 30) {
         return "single";
-      } else if (this.allMoviesAsArray.length < 120) {
+      } else if (this.$store.getters.allMoviesAsArray.length < 120) {
         return "ten";
       } else {
         return "twenty";
@@ -107,10 +102,10 @@ export default {
       return 0;
     },
     randomPoster () {
-      const rand = Math.floor(Math.random() * this.allMoviesAsArray.length);
+      const rand = Math.floor(Math.random() * this.$store.getters.allMoviesAsArray.length);
 
-      if (this.allMoviesAsArray[rand]) {
-        return `https://image.tmdb.org/t/p/original${this.allMoviesAsArray[rand].movie.poster_path}`;
+      if (this.$store.getters.allMoviesAsArray[rand]) {
+        return `https://image.tmdb.org/t/p/original${this.$store.getters.allMoviesAsArray[rand].movie.poster_path}`;
       } else {
         return "https://live.staticflickr.com/65535/47980547206_7a02cb7f3f_h.jpg";
       }

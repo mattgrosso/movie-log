@@ -374,7 +374,7 @@
       <p class="rating col-12 my-3 fs-5 text-center" id="rating">
         Rating: {{rating}}
         <span class="mx-3 fs-1">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{allMoviesAsArray.length}}
+        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{$store.getters.allMoviesAsArray.length}}
         <span class="mx-3 fs-1">|</span>
         #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear)}} in {{movieYear(this.movieToRate)}}
       </p>
@@ -525,24 +525,19 @@ export default {
         ratings: [{ rating: this.rating }]
       };
     },
-    allMoviesAsArray () {
-      return Object.keys(this.database).map((key) => {
-        return this.database[key];
-      })
-    },
     allMoviesRanked () {
-      const movies = [...this.allMoviesAsArray];
+      const movies = [...this.$store.getters.allMoviesAsArray];
       return movies.sort(this.sortByRating);
     },
     moviesRankedFromYear () {
-      const moviesFromYear = this.allMoviesAsArray.filter((movie) => {
+      const moviesFromYear = this.$store.getters.allMoviesAsArray.filter((movie) => {
         return this.movieYear(movie.movie) === this.movieYear(this.movieToRate);
       })
 
       return moviesFromYear.sort(this.sortByRating);
     },
     previousEntry () {
-      return this.allMoviesAsArray.find((entry) => {
+      return this.$store.getters.allMoviesAsArray.find((entry) => {
         return entry.movie.id === this.id;
       })
     }
