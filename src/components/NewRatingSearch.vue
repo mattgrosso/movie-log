@@ -47,7 +47,7 @@ export default {
     },
     newEntrySearch (results) {
       this.$store.commit('setNewEntrySearchResults', results)
-      
+
       this.$router.push(`/pick-movie/${this.value}`);
     },
   }

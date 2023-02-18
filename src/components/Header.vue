@@ -31,7 +31,7 @@ export default {
   components: {
     Settings
   },
-  data() {
+  data () {
     return {
       showSettings: false,
       posterLayout: true
