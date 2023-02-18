@@ -364,11 +364,8 @@ export default {
       return 0;
     },
     sortByRating (a, b) {
-      let sortValueA;
-      let sortValueB;
-
-      sortValueA = this.mostRecentRating(a).rating;
-      sortValueB = this.mostRecentRating(b).rating;
+      const sortValueA = this.mostRecentRating(a).rating;
+      const sortValueB = this.mostRecentRating(b).rating;
 
       if (sortValueA < sortValueB) {
         if (this.sortDescending) {
