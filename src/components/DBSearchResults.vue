@@ -238,7 +238,7 @@ export default {
       return sorted.sort(this.sortResults);
     },
     sortedByRating () {
-      const sorted = [...this.results];
+      const sorted = [...this.$store.getters.allMoviesAsArray];
       return sorted.sort(this.sortByRating);
     },
     threshold () {
