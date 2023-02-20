@@ -375,6 +375,10 @@ export default {
       }
     }
 
+    .uploader {
+      display: none;
+    }
+
     .header-settings {
       .switch {
         left: -20px;
