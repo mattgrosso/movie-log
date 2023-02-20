@@ -639,7 +639,15 @@ export default {
       ratings.push(rating);
 
       await addRating(ratings);
-      this.$router.push('/');
+
+      this.$store.commit("setDBSortValue", "watched");
+
+      window.scroll({
+        top: top,
+        behavior: 'smooth'
+      })
+
+      this.$router.push("/db-search");
     }
   },
 }
