@@ -42,12 +42,6 @@ export default {
     font-family: "Roboto Condensed", sans-serif;
   }
 
-  hr {
-    border-top: 1px solid;
-    margin: 0 10%;
-    opacity: 0.3;
-  }
-
   .login {
     display: flex;
     flex-wrap: wrap;
