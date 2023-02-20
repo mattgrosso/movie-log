@@ -11,13 +11,25 @@
         <div ref=popperWrapper>
           <div ref="popper" id="search-help-popper" class="popper mx-2" role="tooltip">
             <div class="year help mb-1">
-              <p class="title m-0">Search by year</p>
+              <p class="title m-0 text-decoration-underline">Search by year</p>
+              <p class="example my-0 px-3">year:1990</p>
               <p class="example my-0 px-3">y:2002</p>
               <p class="example my-0 px-3">y:1990-1998</p>
             </div>
             <div class="person help mb-1">
-              <p class="title m-0">Search for cast or crew</p>
+              <p class="title m-0 text-decoration-underline">Search for cast or crew</p>
+              <p class="example my-0 px-3">person:"John Williams"</p>
               <p class="example my-0 px-3">p:"Natalie Portman"</p>
+            </div>
+            <div class="genre help mb-1">
+              <p class="title m-0 text-decoration-underline">Search for a genre</p>
+              <p class="example my-0 px-3">genre:Comedy</p>
+              <p class="example my-0 px-3">g:Drama</p>
+            </div>
+            <div class="tag help mb-1">
+              <p class="title m-0 text-decoration-underline">Search for a tag</p>
+              <p class="example my-0 px-3">tag:[your tag]</p>
+              <p class="example my-0 px-3">t:[your tag]</p>
             </div>
             <div id="arrow" data-popper-arrow></div>
           </div>
@@ -75,10 +87,9 @@
             <a class="link mx-2" @click.stop="searchFor(`y:${getYear(result.movie.release_date)}`)">({{getYear(result.movie.release_date)}})</a>
           </p>
           <p class="etc m-0 d-flex flex-wrap">
-            <span>{{prettifyRuntime(result.movie.runtime)}}</span>
-            <span>{{turnArrayIntoList(result.movie.genres, "name")}}</span>
-            <span>
-              Director:
+            <span class="col-12">{{prettifyRuntime(result.movie.runtime)}}</span>
+            <span class="col-12">{{turnArrayIntoList(result.movie.genres, "name")}}</span>
+            <span class="col-12">
               <a class="link" @click.stop="searchFor(`p:\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
             </span>
           </p>
@@ -238,7 +249,7 @@ export default {
       return sorted.sort(this.sortResults);
     },
     sortedByRating () {
-      const sorted = [...this.results];
+      const sorted = [...this.$store.getters.allMoviesAsArray];
       return sorted.sort(this.sortByRating);
     },
     threshold () {
@@ -252,7 +263,7 @@ export default {
       const options = {
         alwaysArray: true,
         offsets: false,
-        keywords: ["p", "person"],
+        keywords: ["p", "person", "g", "genre", "t", "tag"],
         ranges: ["y", "year"]
       }
 
@@ -269,6 +280,12 @@ export default {
       } else if (cleanQuery.p || cleanQuery.person) {
         const keys = ["p", "person"];
         return this.personSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
+      } else if (cleanQuery.g || cleanQuery.genre) {
+        const keys = ["g", "genre"];
+        return this.genreSearch(cleanQuery[keys.find((key) => cleanQuery[key])][0]);
+      } else if (cleanQuery.t || cleanQuery.tag) {
+        const keys = ["t", "tag"];
+        return this.tagSearch(cleanQuery[keys.find((key) => cleanQuery[key])][0]);
       } else {
         return this.fuzzySearch();
       }
@@ -320,6 +337,24 @@ export default {
         const everyone = `${JSON.stringify(movie.movie.crew)} ${JSON.stringify(movie.movie.cast)}`;
 
         return names.every((name) => everyone.toLowerCase().includes(name.toLowerCase()));
+      })
+    },
+    genreSearch (genre) {
+      return this.$store.getters.allMoviesAsArray.filter((entry) => {
+        const genres = entry.movie.genres.map((genre) => genre.name.toLowerCase());
+        return genres.includes(genre);
+      })
+    },
+    tagSearch (tag) {
+      return this.$store.getters.allMoviesAsArray.filter((entry) => {
+        const tags = entry.ratings.map((rating) => rating.tags).filter((rating) => rating);
+
+        if (tags.length) {
+          const tagString = tags[0].map((tag) => tag.title).toString().toLowerCase();
+          return tagString.includes(tag);
+        } else {
+          return false;
+        }
       })
     },
     sortResults (a, b) {
