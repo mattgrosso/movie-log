@@ -2,9 +2,9 @@
   <div class="home">
     <NewRatingSearch />
     <hr>
-    <SearchDatabase @dBSearch="dBSearch"/>
+    <SearchDatabase/>
     <hr>
-    <QuickSearch @dBSearch="dBSearch"/>
+    <QuickSearch/>
   </div>
 </template>
 
@@ -18,17 +18,6 @@ export default {
     NewRatingSearch,
     SearchDatabase,
     QuickSearch
-  },
-  methods: {
-    dBSearch (value, sortValue) {
-      this.$store.commit('setDBSearchValue', value);
-
-      if (sortValue) {
-        this.$store.commit('setDBSearchValue', sortValue);
-      }
-
-      this.$router.push('/db-search');
-    }
-  },
+  }
 }
 </script>

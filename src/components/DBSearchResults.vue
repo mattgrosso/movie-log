@@ -43,13 +43,13 @@
           <option value="release">Release Date</option>
           <option value="title">Title</option>
         </select>
-        <label class="input-group-text" @click="sortDescending = !sortDescending">
-          <div v-if="sortDescending" class="descending">
+        <label class="input-group-text" @click="toggleSortOrder">
+          <div v-if="sortOrder !== 'ascending'" class="descending">
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-down-alt" viewBox="0 0 16 16">
               <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293V3.5zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
             </svg>
           </div>
-          <div v-if="!sortDescending" class="ascending">
+          <div v-if="sortOrder === 'ascending'" class="ascending">
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-up-alt" viewBox="0 0 16 16">
               <path d="M3.5 13.5a.5.5 0 0 1-1 0V4.707L1.354 5.854a.5.5 0 1 1-.708-.708l2-1.999.007-.007a.498.498 0 0 1 .7.006l2 2a.5.5 0 1 1-.707.708L3.5 4.707V13.5zm4-9.5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
             </svg>
@@ -195,7 +195,7 @@ export default {
   data () {
     return {
       popperInstance: null,
-      sortDescending: true,
+      sortOrder: "ascending",
       sortValue: null,
       value: ""
     }
@@ -211,16 +211,28 @@ export default {
         this.sortValue = newVal;
       }
     },
+    DBSortOrder (newVal) {
+      if (newVal) {
+        this.sortOrder = newVal;
+      }
+    },
     value (newVal) {
       this.$emit('clearSearch');
     }
   },
   mounted () {
     this.value = this.DBSearchValue;
+
     if (this.DBSortValue) {
       this.sortValue = this.DBSortValue;
     } else {
       this.sortValue = "rating";
+    }
+
+    if (this.DBSortOrder) {
+      this.sortOrder = this.DBSortOrder;
+    } else {
+      this.sortOrder = "ascending";
     }
 
     this.popperInstance = createPopper(this.$refs.target, this.$refs.popper, {
@@ -243,6 +255,9 @@ export default {
     },
     DBSortValue () {
       return this.$store.state.DBSortValue;
+    },
+    DBSortOrder () {
+      return this.$store.state.DBSortOrder;
     },
     sortedResults () {
       const sorted = [...this.results];
@@ -357,6 +372,13 @@ export default {
         }
       })
     },
+    toggleSortOrder () {
+      if (this.sortOrder === "ascending") {
+        this.sortOrder = "descending";
+      } else {
+        this.sortOrder = "ascending";
+      }
+    },
     sortResults (a, b) {
       let sortValueA;
       let sortValueB;
@@ -382,14 +404,14 @@ export default {
       }
 
       if (sortValueA < sortValueB) {
-        if (this.sortDescending) {
+        if (this.sortOrder === "ascending") {
           return 1;
         } else {
           return -1;
         }
       }
       if (sortValueA > sortValueB) {
-        if (this.sortDescending) {
+        if (this.sortOrder === "ascending") {
           return -1;
         } else {
           return 1;
@@ -403,14 +425,14 @@ export default {
       const sortValueB = this.mostRecentRating(b).rating;
 
       if (sortValueA < sortValueB) {
-        if (this.sortDescending) {
+        if (this.sortOrder === "ascending") {
           return 1;
         } else {
           return -1;
         }
       }
       if (sortValueA > sortValueB) {
-        if (this.sortDescending) {
+        if (this.sortOrder === "ascending") {
           return -1;
         } else {
           return 1;
