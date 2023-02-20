@@ -64,6 +64,21 @@
     <p v-else class="fs-5 my-2 text-center">
       {{results.length}} out of {{$store.getters.allMoviesAsArray.length}} movies match your search.
     </p>
+    <div class="col-12 d-flex align-items-center">
+      <p class="col-11 fs-5 my-2 text-center">
+        They have an average rating of {{averageRating(results)}}
+      </p>
+      <button class="col-1 d-flex justify-content-center align-items-center accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-bar-chart-line-fill" viewBox="0 0 16 16">
+          <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2z"/>
+        </svg>
+      </button>
+    </div>
+    <div id="charts-accordion" class="accordion-collapse collapse" aria-labelledby="charts">
+      <div class="accordion-body">
+        <Charts :results="results" :sortOrder="sortOrder"/>
+      </div>
+    </div>
     <hr>
     <ul class="col-12 py-3 px-0 d-flex flex-wrap">
       <li
@@ -190,8 +205,12 @@ import ordinal from "ordinal-js";
 import Fuse from 'fuse.js';
 import inRange from 'lodash/inRange';
 import searchQuery from 'search-query-parser';
+import Charts from "./Charts.vue";
 
 export default {
+  components: {
+    Charts
+  },
   data () {
     return {
       popperInstance: null,
@@ -440,6 +459,11 @@ export default {
       }
 
       return 0;
+    },
+    averageRating (results) {
+      const ratings = results.map((result) => parseFloat(this.mostRecentRating(result).rating));
+      const total = ratings.reduce((a, b) => a + b, 0);
+      return (total / ratings.length).toFixed(2);
     },
     getRankById (id) {
       return this.sortedByRating.map((movie) => movie.movie.id).indexOf(id) + 1;
