@@ -21,3 +21,11 @@ export default {
   }
 }
 </script>
+
+<style lang="scss">
+  hr {
+    border-top: 1px solid;
+    margin: 0 10%;
+    opacity: 0.3;
+  }
+</style>
