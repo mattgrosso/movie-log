@@ -1,5 +1,5 @@
 <template>
-  <div class="header col-12 d-flex justify-content-center align-items-center flex-wrap">
+  <div class="header col-12 d-flex justify-content-end align-items-center flex-wrap">
     <div class="overflow-wrapper">
       <div class="poster-grid">
         <img v-for="(image, index) in postersForHeader" :src="image" :key="index" :class="posterWidth">

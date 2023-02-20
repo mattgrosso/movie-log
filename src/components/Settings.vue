@@ -3,7 +3,7 @@
     class="settings bg-secondary text-light"
     :class="{open: showSettings, closed: !showSettings}"
   >
-    <div class="p-3 mx-auto">
+    <div class="p-3">
       <div class="header-settings p-3 border-white border">
         <div class="switch d-flex justify-content-center">
           <label class="form-check-label mx-2" for="posterLayout">Random Poster</label>

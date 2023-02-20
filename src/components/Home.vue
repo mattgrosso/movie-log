@@ -1,5 +1,5 @@
 <template>
-  <div class="home">
+  <div class="home mx-auto">
     <NewRatingSearch />
     <hr>
     <SearchDatabase/>
@@ -23,6 +23,10 @@ export default {
 </script>
 
 <style lang="scss">
+  .home {
+    max-width: 640px;
+  }
+
   hr {
     border-top: 1px solid;
     margin: 0 10%;

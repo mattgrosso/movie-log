@@ -1,7 +1,7 @@
 <template>
-  <div class="db-search-results p-3 pt-5">
-    <div class="search-bar">
-      <div class="input-group mb-3">
+  <div class="db-search-results p-3 pt-5 mx-auto">
+    <div class="search-bar mx-auto">
+      <div class="input-group mb-3 col-12 md-col-6">
         <span ref="target" class="search-help-icon input-group-text" @click="togglePopper" v-click-away="onClickAway">
           <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
@@ -36,7 +36,7 @@
         </div>
         <input class="form-control" type="text" autocapitalize="none" name="search" id="search" placeholder="search..." v-model="value">
       </div>
-      <div class="input-group mb-3">
+      <div class="input-group mb-3 col-12 md-col-6">
         <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
           <option value="rating" selected>Rating</option>
           <option value="watched">Watch Date</option>
@@ -67,7 +67,7 @@
     <hr>
     <ul class="col-12 py-3 px-0 d-flex flex-wrap">
       <li
-        class="movie-result py-3 px-1 my-3 col-md-5 mx-md-auto d-flex flex-wrap align-items-center shadow-lg"
+        class="movie-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
         v-for="(result, index) in sortedResults"
         :key="index"
         @click="showInfo(`Info-${result.movie.id}`)"
@@ -553,7 +553,11 @@ export default {
 
 <style lang="scss">
   .db-search-results {
+    max-width: 832px;
+
     .search-bar {
+      max-width: 416px;
+
       .search-help-icon {
         cursor: pointer;
       }
