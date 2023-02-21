@@ -1,16 +1,18 @@
 <template>
   <div class="charts">
     <BarChart class="chart my-5" :chartData="allRatingsData" :options="allRatingsOptions"/>
-    <BarChart class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
+    <LineChart class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
     <DoughnutChart class="chart my-5" :chartData="genreChartData" :options="genreChartOptions"/>
     <ScatterChart class="chart my-5" :chartData="lengthVsRatingData" :options="lengthVsRatingOptions"/>
     <DoughnutChart class="chart my-5" :chartData="companyChartData" :options="companyChartOptions"/>
+    <RadarChart v-if="results.length < 10" class="chart my-5" :chartData="radarRatingsData" :options="radarRatingsOptions"/>
   </div>
 </template>
 
 <script>
-import { BarChart, DoughnutChart, ScatterChart } from "vue-chart-3";
+import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
 import { Chart, registerables } from "chart.js";
+import randomColor from 'randomcolor';
 
 Chart.register(...registerables);
 
@@ -27,8 +29,10 @@ export default {
   },
   components: {
     BarChart,
+    LineChart,
     DoughnutChart,
-    ScatterChart
+    ScatterChart,
+    RadarChart
   },
   computed: {
     allRatingsData () {
@@ -41,7 +45,7 @@ export default {
         datasets: [
           {
             data: data,
-            backgroundColor: ['#77CEFF', '#0079AF', '#123E6B', '#97B0C4', '#A5C8ED'],
+            backgroundColor: [randomColor(), randomColor(), randomColor(), randomColor()],
           }
         ]
       }
@@ -108,12 +112,16 @@ export default {
       const data = countsWithLabels.map((count) => count.value);
       const labels = countsWithLabels.map((count) => count.label);
 
+      const color = randomColor();
+
       return {
         labels: labels,
         datasets: [
           {
             data: data,
-            backgroundColor: ['#177E89', '#084C61', '#DB3A34', '#FFC857', '#323031'],
+            backgroundColor: color,
+            borderColor: color,
+            tension: 0.5
           }
         ]
       }
@@ -129,6 +137,7 @@ export default {
             text: "Ratings Distribution",
           },
         },
+        backgroundColor: 'rgba(100, 100, 0, 1)',
         scales: {
           x: {
             display: true
@@ -166,7 +175,7 @@ export default {
         datasets: [
           {
             data: data,
-            backgroundColor: ['#211A1D', '#6320EE', '#8075FF', '#87F1FF', '#C0F5FA'],
+            backgroundColor: [randomColor(), randomColor(), randomColor(), randomColor(), randomColor()],
           }
         ]
       }
@@ -190,17 +199,19 @@ export default {
       }
     },
     lengthVsRatingData () {
-      const data = this.results.map((result) => {
+      const data = this.results.map((result) => {        
         return {
           x: result.movie.runtime,
           y: this.mostRecentRating(result).rating
         }
-      })
+      });
+
       return {
         datasets: [{
           label: '(minutes, rating)',
           data: data,
-          backgroundColor: '#6A994E'
+          backgroundColor: randomColor(),
+          pointBorderColor: randomColor()
         }],
       }
     },
@@ -276,7 +287,7 @@ export default {
         datasets: [
           {
             data: data,
-            backgroundColor: ['#880D1E', '#DD2D4A', '#F26A8D', '#F49CBB', '#CBEEF3'],
+            backgroundColor: [randomColor(), randomColor(), randomColor(), randomColor(), randomColor()],
           }
         ]
       }
@@ -303,6 +314,68 @@ export default {
         }
       }
     },
+    radarRatingsData () {
+      const data = this.results.map((result) => {
+        const rating = this.mostRecentRating(result);
+        const color = randomColor({
+          format: 'rgba',
+          alpha: 0.5
+        });
+
+        return {
+          label: result.movie.title,
+          data: [
+            rating.direction,
+            rating.imagery,
+            rating.story,
+            rating.performance,
+            rating.soundtrack,
+            rating.impression,
+            rating.love,
+            rating.overall
+          ],
+          fill: true,
+          backgroundColor: color,
+          borderColor: randomColor({hue: color}),
+          pointBackgroundColor: randomColor({hue: color}),
+          pointBorderColor: '#fff',
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: randomColor({hue: color})
+        }
+      });
+
+      return {
+        labels: [
+          "direction",
+          "imagery",
+          "story",
+          "performance",
+          "soundtrack",
+          "impression",
+          "love",
+          "overall"
+        ],
+        datasets: data
+      };
+    },
+    radarRatingsOptions () {
+      return {
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: 'Ratings'
+          },
+        },
+        elements: {
+          line: {
+            borderWidth: 3
+          }
+        }
+      };
+    }
   },
   methods: {
     sortByRating (a, b) {

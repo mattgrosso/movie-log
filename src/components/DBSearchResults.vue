@@ -9,7 +9,7 @@
           </svg>
         </span>
         <div ref=popperWrapper>
-          <div ref="popper" id="search-help-popper" class="popper mx-2" role="tooltip">
+          <div ref="popper" id="search-help-popper" class="popper" role="tooltip">
             <div class="year help mb-1">
               <p class="title m-0 text-decoration-underline">Search by year</p>
               <p class="example my-0 px-3">year:1990</p>
@@ -268,6 +268,13 @@ export default {
             offset: [50, 8],
           },
         },
+        {
+          name: 'preventOverflow',
+          options: {
+            mainAxis: true,
+            padding: 12
+          },
+        }
       ],
     });
   },
@@ -633,11 +640,11 @@ export default {
 
         .help {
           .title {
-            font-size: 1.2rem;
+            font-size: 1rem;
           }
 
           .example {
-            font-size: 0.9rem;
+            font-size: 0.75rem;
           }
         }
 
