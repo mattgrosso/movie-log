@@ -199,7 +199,7 @@ export default {
       }
     },
     lengthVsRatingData () {
-      const data = this.results.map((result) => {        
+      const data = this.results.map((result) => {     
         return {
           x: result.movie.runtime,
           y: this.mostRecentRating(result).rating

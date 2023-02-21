@@ -638,6 +638,7 @@ export default {
 
       ratings.push(rating);
 
+      // TODO: When I don't fill in a value, I need it to go with the defaults
       await addRating(ratings);
 
       this.$store.commit("setDBSortValue", "watched");
