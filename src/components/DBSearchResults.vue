@@ -92,7 +92,11 @@
           {{index + 1}}
         </label>
         <div class="poster col-2">
-          <img class="col-12" v-lazy="`https://image.tmdb.org/t/p/original${result.movie.poster_path}`">
+          <img
+            class="col-12"
+            @click.stop="goToWikipedia(result.movie.title)"
+            v-lazy="`https://image.tmdb.org/t/p/original${result.movie.poster_path}`"
+          >
         </div>
         <div class="details px-4 col-7">
           <p class="title mb-1">
@@ -200,10 +204,12 @@
 </template>
 
 <script>
+import axios from 'axios';
 import { createPopper } from '@popperjs/core';
 import ordinal from "ordinal-js";
 import Fuse from 'fuse.js';
 import inRange from 'lodash/inRange';
+import minBy from 'lodash/minBy';
 import searchQuery from 'search-query-parser';
 import Charts from "./Charts.vue";
 
@@ -570,6 +576,17 @@ export default {
         popper.removeAttribute('data-show', '')
         this.popperInstance.update();
       }
+    },
+    async goToWikipedia (title) {
+      window.open(await this.wikiLinkFor(title));
+    },
+    async wikiLinkFor (title) {
+      const wiki = await axios.get(`https://en.wikipedia.org/w/api.php?action=query&origin=*&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=%27${title}%27`);
+      const pages = wiki.data.query.pages;
+      const pagesArray = Object.keys(pages).map((page) => pages[page]);
+      const bestMatch = minBy(pagesArray, (page) => page.index);
+
+      return `https://en.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
     }
   },
 }
