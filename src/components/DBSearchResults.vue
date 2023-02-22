@@ -9,7 +9,7 @@
           </svg>
         </span>
         <div ref=popperWrapper>
-          <div ref="popper" id="search-help-popper" class="popper mx-2" role="tooltip">
+          <div ref="popper" id="search-help-popper" class="popper" role="tooltip">
             <div class="year help mb-1">
               <p class="title m-0 text-decoration-underline">Search by year</p>
               <p class="example my-0 px-3">year:1990</p>
@@ -64,13 +64,13 @@
     <p v-else class="fs-5 my-2 text-center">
       {{results.length}} out of {{$store.getters.allMoviesAsArray.length}} movies match your search.
     </p>
-    <div class="col-12 d-flex align-items-center">
-      <p class="col-11 fs-5 my-2 text-center">
+    <div class="data-and-charts col-12 mb-3 d-flex align-items-center">
+      <p class="col-10 m-0 d-flex justify-content-center align-items-center">
         They have an average rating of {{averageRating(results)}}
       </p>
-      <button class="col-1 d-flex justify-content-center align-items-center accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-bar-chart-line-fill" viewBox="0 0 16 16">
-          <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2z"/>
+      <button class="col-2 d-flex justify-content-center align-items-center accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-bar-chart-line" viewBox="0 0 16 16">
+          <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2zm1 12h2V2h-2v12zm-3 0V7H7v7h2zm-5 0v-3H2v3h2z"/>
         </svg>
       </button>
     </div>
@@ -268,6 +268,13 @@ export default {
             offset: [50, 8],
           },
         },
+        {
+          name: 'preventOverflow',
+          options: {
+            mainAxis: true,
+            padding: 12
+          },
+        }
       ],
     });
   },
@@ -633,11 +640,11 @@ export default {
 
         .help {
           .title {
-            font-size: 1.2rem;
+            font-size: 1rem;
           }
 
           .example {
-            font-size: 0.9rem;
+            font-size: 0.75rem;
           }
         }
 
@@ -663,6 +670,24 @@ export default {
       svg {
         height: 18px;
         width: 18px;
+      }
+    }
+
+    .data-and-charts {
+      font-size: 1rem;
+
+      > button {
+        border-radius: 5px;
+        border: 1px solid black;
+        background: black;
+        padding: 6px;
+        width: auto;
+
+        svg {
+          path {
+            color: white;
+          }
+        }
       }
     }
 
