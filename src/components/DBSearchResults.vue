@@ -1,7 +1,7 @@
 <template>
-  <div class="db-search-results p-3 pt-5">
-    <div class="search-bar">
-      <div class="input-group mb-3">
+  <div class="db-search-results p-3 pt-5 mx-auto">
+    <div class="search-bar mx-auto">
+      <div class="input-group mb-3 col-12 md-col-6">
         <span ref="target" class="search-help-icon input-group-text" @click="togglePopper" v-click-away="onClickAway">
           <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
@@ -36,20 +36,20 @@
         </div>
         <input class="form-control" type="text" autocapitalize="none" name="search" id="search" placeholder="search..." v-model="value">
       </div>
-      <div class="input-group mb-3">
+      <div class="input-group mb-3 col-12 md-col-6">
         <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
           <option value="rating" selected>Rating</option>
           <option value="watched">Watch Date</option>
           <option value="release">Release Date</option>
           <option value="title">Title</option>
         </select>
-        <label class="input-group-text" @click="sortDescending = !sortDescending">
-          <div v-if="sortDescending" class="descending">
+        <label class="input-group-text" @click="toggleSortOrder">
+          <div v-if="sortOrder !== 'ascending'" class="descending">
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-down-alt" viewBox="0 0 16 16">
               <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293V3.5zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
             </svg>
           </div>
-          <div v-if="!sortDescending" class="ascending">
+          <div v-if="sortOrder === 'ascending'" class="ascending">
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-up-alt" viewBox="0 0 16 16">
               <path d="M3.5 13.5a.5.5 0 0 1-1 0V4.707L1.354 5.854a.5.5 0 1 1-.708-.708l2-1.999.007-.007a.498.498 0 0 1 .7.006l2 2a.5.5 0 1 1-.707.708L3.5 4.707V13.5zm4-9.5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
             </svg>
@@ -64,10 +64,25 @@
     <p v-else class="fs-5 my-2 text-center">
       {{results.length}} out of {{$store.getters.allMoviesAsArray.length}} movies match your search.
     </p>
+    <div class="col-12 d-flex align-items-center">
+      <p class="col-11 fs-5 my-2 text-center">
+        They have an average rating of {{averageRating(results)}}
+      </p>
+      <button class="col-1 d-flex justify-content-center align-items-center accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-bar-chart-line-fill" viewBox="0 0 16 16">
+          <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2z"/>
+        </svg>
+      </button>
+    </div>
+    <div id="charts-accordion" class="accordion-collapse collapse" aria-labelledby="charts">
+      <div class="accordion-body">
+        <Charts :results="results" :sortOrder="sortOrder"/>
+      </div>
+    </div>
     <hr>
     <ul class="col-12 py-3 px-0 d-flex flex-wrap">
       <li
-        class="movie-result py-3 px-1 my-3 col-md-5 mx-md-auto d-flex flex-wrap align-items-center shadow-lg"
+        class="movie-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
         v-for="(result, index) in sortedResults"
         :key="index"
         @click="showInfo(`Info-${result.movie.id}`)"
@@ -190,12 +205,16 @@ import ordinal from "ordinal-js";
 import Fuse from 'fuse.js';
 import inRange from 'lodash/inRange';
 import searchQuery from 'search-query-parser';
+import Charts from "./Charts.vue";
 
 export default {
+  components: {
+    Charts
+  },
   data () {
     return {
       popperInstance: null,
-      sortDescending: true,
+      sortOrder: "ascending",
       sortValue: null,
       value: ""
     }
@@ -211,16 +230,28 @@ export default {
         this.sortValue = newVal;
       }
     },
+    DBSortOrder (newVal) {
+      if (newVal) {
+        this.sortOrder = newVal;
+      }
+    },
     value (newVal) {
       this.$emit('clearSearch');
     }
   },
   mounted () {
     this.value = this.DBSearchValue;
+
     if (this.DBSortValue) {
       this.sortValue = this.DBSortValue;
     } else {
       this.sortValue = "rating";
+    }
+
+    if (this.DBSortOrder) {
+      this.sortOrder = this.DBSortOrder;
+    } else {
+      this.sortOrder = "ascending";
     }
 
     this.popperInstance = createPopper(this.$refs.target, this.$refs.popper, {
@@ -243,6 +274,9 @@ export default {
     },
     DBSortValue () {
       return this.$store.state.DBSortValue;
+    },
+    DBSortOrder () {
+      return this.$store.state.DBSortOrder;
     },
     sortedResults () {
       const sorted = [...this.results];
@@ -357,6 +391,13 @@ export default {
         }
       })
     },
+    toggleSortOrder () {
+      if (this.sortOrder === "ascending") {
+        this.sortOrder = "descending";
+      } else {
+        this.sortOrder = "ascending";
+      }
+    },
     sortResults (a, b) {
       let sortValueA;
       let sortValueB;
@@ -382,14 +423,14 @@ export default {
       }
 
       if (sortValueA < sortValueB) {
-        if (this.sortDescending) {
+        if (this.sortOrder === "ascending") {
           return 1;
         } else {
           return -1;
         }
       }
       if (sortValueA > sortValueB) {
-        if (this.sortDescending) {
+        if (this.sortOrder === "ascending") {
           return -1;
         } else {
           return 1;
@@ -403,14 +444,14 @@ export default {
       const sortValueB = this.mostRecentRating(b).rating;
 
       if (sortValueA < sortValueB) {
-        if (this.sortDescending) {
+        if (this.sortOrder === "ascending") {
           return 1;
         } else {
           return -1;
         }
       }
       if (sortValueA > sortValueB) {
-        if (this.sortDescending) {
+        if (this.sortOrder === "ascending") {
           return -1;
         } else {
           return 1;
@@ -418,6 +459,11 @@ export default {
       }
 
       return 0;
+    },
+    averageRating (results) {
+      const ratings = results.map((result) => parseFloat(this.mostRecentRating(result).rating));
+      const total = ratings.reduce((a, b) => a + b, 0);
+      return (total / ratings.length).toFixed(2);
     },
     getRankById (id) {
       return this.sortedByRating.map((movie) => movie.movie.id).indexOf(id) + 1;
@@ -531,7 +577,11 @@ export default {
 
 <style lang="scss">
   .db-search-results {
+    max-width: 832px;
+
     .search-bar {
+      max-width: 416px;
+
       .search-help-icon {
         cursor: pointer;
       }

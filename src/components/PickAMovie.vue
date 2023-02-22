@@ -1,5 +1,5 @@
 <template>
-  <div class="pick-a-movie">
+  <div class="pick-a-movie mx-auto">
     <ul class="p-0 d-flex justify-content-around flex-wrap">
       <li class="card shadow border" v-for="movie in searchResults" :key="movie.id" @click="rateMovie(movie)">
         <img class="card-img-top" :src="`https://image.tmdb.org/t/p/original${movie.poster_path}`" align="center">
@@ -38,6 +38,8 @@ export default {
 
 <style lang="scss">
   .pick-a-movie {
+    max-width: 832px;
+
     ul {
       column-gap: 1rem;
       list-style: none;
@@ -48,10 +50,6 @@ export default {
         border-radius: 4px;
         cursor: pointer;
         width: calc((100% - 2rem) / 3);
-
-        @media screen and (min-width: 832px) {
-          width: calc((100% - 2rem) / 6);
-        }
 
         p {
           font-size: .75rem;

@@ -1,10 +1,10 @@
 <template>
-  <div class="home">
+  <div class="home mx-auto">
     <NewRatingSearch />
     <hr>
-    <SearchDatabase @dBSearch="dBSearch"/>
+    <SearchDatabase/>
     <hr>
-    <QuickSearch @dBSearch="dBSearch"/>
+    <QuickSearch/>
   </div>
 </template>
 
@@ -18,17 +18,18 @@ export default {
     NewRatingSearch,
     SearchDatabase,
     QuickSearch
-  },
-  methods: {
-    dBSearch (value, sortValue) {
-      this.$store.commit('setDBSearchValue', value);
-
-      if (sortValue) {
-        this.$store.commit('setDBSearchValue', sortValue);
-      }
-
-      this.$router.push('/db-search');
-    }
-  },
+  }
 }
 </script>
+
+<style lang="scss">
+  .home {
+    max-width: 640px;
+  }
+
+  hr {
+    border-top: 1px solid;
+    margin: 0 10%;
+    opacity: 0.3;
+  }
+</style>
