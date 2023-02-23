@@ -16,7 +16,7 @@
       <div class="tags p-3 border border-white mt-3">
         <ul class="col-12">
           <li class="tag mb-2 dflex align-items-center" v-for="(tag, index) in settings.tags" :key="index">
-            <span class="badge rounded-pill text-bg-light fs-6" @click="showRemoveButton($event)">
+            <span class="badge col-12 rounded-pill text-bg-light" @click="showRemoveButton($event)">
               {{ tag.title }}
               <span class="remove-button" @click.prevent="removeTag(index)">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-x-circle-fill text-light" viewBox="0 0 16 16">
@@ -284,6 +284,10 @@ export default {
     transition: all 0.5s ease;
     z-index: 1;
 
+    &>div {
+      max-width: 100%;
+    }
+
     &.closed {
       max-height: 0;
     }
@@ -307,10 +311,14 @@ export default {
         column-count: 2;
 
         .tag {
+          cursor: pointer;
           position: relative;
 
           .badge {
+            font-size: 0.75rem;
+            max-width: 85%;
             position: relative;
+            white-space: normal;
 
             &.show-remove-button {
               .remove-button {

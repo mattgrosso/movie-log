@@ -199,7 +199,7 @@ export default {
       }
     },
     lengthVsRatingData () {
-      const data = this.results.map((result) => {     
+      const data = this.results.map((result) => {
         return {
           x: result.movie.runtime,
           y: this.mostRecentRating(result).rating
@@ -336,11 +336,11 @@ export default {
           ],
           fill: true,
           backgroundColor: color,
-          borderColor: randomColor({hue: color}),
-          pointBackgroundColor: randomColor({hue: color}),
+          borderColor: randomColor({ hue: color }),
+          pointBackgroundColor: randomColor({ hue: color }),
           pointBorderColor: '#fff',
           pointHoverBackgroundColor: '#fff',
-          pointHoverBorderColor: randomColor({hue: color})
+          pointHoverBorderColor: randomColor({ hue: color })
         }
       });
 

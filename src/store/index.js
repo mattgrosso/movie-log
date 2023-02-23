@@ -100,21 +100,21 @@ export default createStore({
       if (database.data) {
         const db = database.data.movieLog ? database.data.movieLog : {};
         const settings = database.data.settings
-        ? database.data.settings
-        : {
-          posterLayout: { grid: true },
-          tags: [{ title: "default tag" }],
-          weights: [
-            { name: "direction", weight: 1.015 },
-            { name: "imagery", weight: 0.9 },
-            { name: "impression", weight: 1.9 },
-            { name: "love", weight: 2.985 },
-            { name: "overall", weight: 2.05 },
-            { name: "performance", weight: 0.65 },
-            { name: "soundtrack", weight: 0.2 },
-            { name: "story", weight: 1.25 }
-          ]
-        };
+          ? database.data.settings
+          : {
+              posterLayout: { grid: true },
+              tags: [{ title: "default tag" }],
+              weights: [
+                { name: "direction", weight: 1.015 },
+                { name: "imagery", weight: 0.9 },
+                { name: "impression", weight: 1.9 },
+                { name: "love", weight: 2.985 },
+                { name: "overall", weight: 2.05 },
+                { name: "performance", weight: 0.65 },
+                { name: "soundtrack", weight: 0.2 },
+                { name: "story", weight: 1.25 }
+              ]
+            };
         context.commit('setDatabase', db);
         context.commit('setSettings', settings);
       } else {
