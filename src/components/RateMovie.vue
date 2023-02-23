@@ -620,17 +620,17 @@ export default {
 
       const rating = {
         date: this.date,
-        direction: this.direction,
+        direction: this.direction ? this.direction : 5,
         id: this.id,
-        imagery: this.imagery,
-        impression: this.impression,
-        love: this.love,
-        medium: this.medium,
-        overall: this.overall,
-        performance: this.performance,
+        imagery: this.imagery ? this.imagery : 5,
+        impression: this.impression ? this.impression : 0,
+        love: this.love ? this.love : 5,
+        medium: this.medium ? this.medium : "Other",
+        overall: this.overall ? this.overall : 5,
+        performance: this.performance ? this.performance : 5,
         rating: this.rating,
-        soundtrack: this.soundtrack,
-        story: this.story,
+        soundtrack: this.soundtrack ? this.soundtrack : 5,
+        story: this.story ? this.story : 5,
         tags: this.tags,
         title: this.title,
         year: this.year
@@ -638,7 +638,6 @@ export default {
 
       ratings.push(rating);
 
-      // TODO: When I don't fill in a value, I need it to go with the defaults
       await addRating(ratings);
 
       this.$store.commit("setDBSortValue", "watched");
