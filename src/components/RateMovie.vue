@@ -371,11 +371,11 @@
 
       <hr>
 
-      <p class="rating col-12 my-3 fs-5 text-center" id="rating">
+      <p class="rating col-12 my-3 d-flex justify-content-center align-items-center" id="rating">
         Rating: {{rating}}
-        <span class="mx-3 fs-1">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{$store.getters.allMoviesAsArray.length}}
-        <span class="mx-3 fs-1">|</span>
+        <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
+        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{numberOfMoviesAfterRating}}
+        <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
         #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear)}} in {{movieYear(this.movieToRate)}}
       </p>
 
@@ -524,6 +524,13 @@ export default {
         ...this.movieToRate,
         ratings: [{ rating: this.rating }]
       };
+    },
+    numberOfMoviesAfterRating () {
+      if (this.previousEntry) {
+        return this.$store.getters.allMoviesAsArray.length;
+      } else {
+        return this.$store.getters.allMoviesAsArray.length + 1;
+      }
     },
     allMoviesRanked () {
       const movies = [...this.$store.getters.allMoviesAsArray];
