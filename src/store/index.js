@@ -1,6 +1,7 @@
 import { createStore } from "vuex"
 import axios from 'axios';
 import { decodeCredential } from 'vue3-google-login'
+import * as Sentry from "@sentry/vue";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -72,14 +73,17 @@ export default createStore({
   actions: {
     async login (context, resp) {
       const devMode = JSON.parse(window.localStorage.getItem('devMode'));
-      const userData = decodeCredential(resp.credential)
+      const userData = decodeCredential(resp.credential);
+
       context.commit('setGoogleLogin', userData);
 
       if (devMode) {
         context.commit('setDatabaseTopKey', 'testing-database');
-      } else {
+      } else if (userData) {
         const key = userData.email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
         context.commit('setDatabaseTopKey', key);
+      } else {
+        Sentry.captureMessage("Login attempted but the user data didn't work");
       }
 
       await context.dispatch('getDatabase');
@@ -95,14 +99,35 @@ export default createStore({
 
       if (database.data) {
         const db = database.data.movieLog ? database.data.movieLog : {};
+        const settings = database.data.settings
+        ? database.data.settings
+        : {
+          posterLayout: { grid: true },
+          tags: [{ title: "default tag" }],
+          weights: [
+            { name: "direction", weight: 1.015 },
+            { name: "imagery", weight: 0.9 },
+            { name: "impression", weight: 1.9 },
+            { name: "love", weight: 2.985 },
+            { name: "overall", weight: 2.05 },
+            { name: "performance", weight: 0.65 },
+            { name: "soundtrack", weight: 0.2 },
+            { name: "story", weight: 1.25 }
+          ]
+        };
         context.commit('setDatabase', db);
-        context.commit('setSettings', database.data.settings);
+        context.commit('setSettings', settings);
       } else {
         await context.dispatch('initiateNewDatabase');
       }
     },
     async initiateNewDatabase (context) {
+      if (!context.state.databaseTopKey) {
+        return;
+      }
+
       const newDB = {
+        movieLog: {},
         settings: {
           posterLayout: { grid: true },
           tags: [{ title: "default tag" }],
@@ -120,7 +145,7 @@ export default createStore({
       }
 
       await axios.put(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}.json`,
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${context.state.databaseTopKey}.json`,
         newDB
       );
 

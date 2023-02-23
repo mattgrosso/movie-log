@@ -30,7 +30,7 @@ export default {
   },
   methods: {
     async login (resp) {
-      // Can we store some value in localStorage so that we don't have to reauth everytime?
+      // Todo: Can we store some value in localStorage so that we don't have to reauth everytime?
       this.$store.dispatch('login', resp);
     }
   }
