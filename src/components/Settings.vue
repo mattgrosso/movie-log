@@ -249,6 +249,7 @@ export default {
         this.$store.commit('setDatabaseTopKey', this.$store.state.googleLogin);
       } else {
         window.localStorage.removeItem('databaseTopKey');
+        location.reload();
         return;
       }
 
