@@ -83,6 +83,8 @@ export default {
       movie.ratings.forEach((rating) => {
         if (rating.date && rating.date > mostRecentRating.date) {
           mostRecentRating = rating;
+        } else if (!mostRecentRating.date) {
+          mostRecentRating = rating;
         }
       })
 
