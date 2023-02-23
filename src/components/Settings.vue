@@ -246,11 +246,9 @@ export default {
       if (devMode) {
         this.$store.commit('setDatabaseTopKey', "testing-database");
       } else if (this.$store.state.googleLogin) {
-        const userData = this.$store.state.googleLogin;
-        const key = userData.email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
-        this.$store.commit('setDatabaseTopKey', key);
+        this.$store.commit('setDatabaseTopKey', this.$store.state.googleLogin);
       } else {
-        Sentry.captureMessage("devModeSwitched attempted but the user data didn't work");
+        window.localStorage.removeItem('databaseTopKey');
         return;
       }
 

@@ -1,11 +1,11 @@
 <template>
   <div class="movie-log">
-    <div v-show="!googleLogin" class="login">
+    <div v-if="!databaseTopKey" class="login">
       <h1 class="col-12 text-center">Welcome to Movie Log</h1>
       <h2 class="col-12 text-center fs-6 mb-5">Please sign in with Google</h2>
       <GoogleLogin :callback="login" prompt auto-login/>
     </div>
-    <div v-show="googleLogin" class="content">
+    <div v-if="databaseTopKey" class="content">
       <Header/>
       <router-view></router-view>
       <Footer/>
@@ -24,13 +24,20 @@ export default {
     Header
   },
   computed: {
-    googleLogin () {
-      return this.$store.state.googleLogin;
+    databaseTopKey () {
+      const databaseTopKeyFromLocalStorage = window.localStorage.getItem('databaseTopKey');
+
+      if (databaseTopKeyFromLocalStorage) {
+        this.$store.commit('setDatabaseTopKey', databaseTopKeyFromLocalStorage);
+        this.$store.dispatch('getDatabase');
+        return databaseTopKeyFromLocalStorage;
+      } else {
+        return this.$store.state.databaseTopKey;
+      }
     }
   },
   methods: {
     async login (resp) {
-      // Todo: Can we store some value in localStorage so that we don't have to reauth everytime?
       this.$store.dispatch('login', resp);
     }
   }
