@@ -72,7 +72,7 @@ export default {
   },
   methods: {
     toggleSettings () {
-      this.$el.querySelector(".settings").classList.toggle("rotated");
+      this.$el.querySelector(".settings-toggle").classList.toggle("rotated");
       this.showSettings = !this.showSettings;
     },
     setPosterLayout (value) {
