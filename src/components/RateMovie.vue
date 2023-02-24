@@ -647,14 +647,26 @@ export default {
 
       await addRating(ratings);
 
-      this.$store.commit("setDBSortValue", "watched");
+      const routeAfterRating = this.$store.state.settings.routeAfterRating.value;
 
       window.scroll({
         top: top,
         behavior: 'smooth'
       })
 
-      this.$router.push("/db-search");
+      if (routeAfterRating === "recentlyViewed") {
+        this.$store.commit("setDBSortValue", "watched");
+        this.$router.push("/db-search");
+      } else if (routeAfterRating === "allRatings") {
+        this.$store.commit("setDBSortValue", "rating");
+        this.$router.push("/db-search");
+      } else if (routeAfterRating === "home") {
+        this.$router.push("/");
+      } else if (routeAfterRating === "sameYear") {
+        this.$store.commit("setDBSearchValue", `y:${rating.year}`);
+        this.$store.commit("setDBSortValue", "rating");
+        this.$router.push("/db-search");
+      }
     }
   },
 }
