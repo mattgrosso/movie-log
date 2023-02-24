@@ -189,7 +189,7 @@ export default {
     async setRouteAfterRating (value) {
       await axios.patch(
         `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/routeAfterRating.json`,
-        {value: value}
+        { value: value }
       );
 
       this.getSettings();

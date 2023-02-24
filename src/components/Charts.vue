@@ -473,7 +473,7 @@ export default {
     percentToColor (percent) {
       let r = 0;
       let g = 0;
-      let b = 0;
+      const b = 0;
       if (percent < 50) {
         g = 255;
         r = Math.round(5.1 * percent);
