@@ -87,7 +87,6 @@
         :key="index"
         @click="showInfo(`Info-${result.movie.id}`)"
       >
-        <!-- It would be cool to have a little snippet of plot summary included here somewhere. Or at least a link to wikipedia -->
         <label class="number col-1 text-center">
           {{index + 1}}
         </label>
@@ -121,11 +120,15 @@
         <div :id="`Info-${result.movie.id}`" class="full-info ps-3 hidden">
           <hr class="my-4">
           <h3 class="mt-3 mb-2 fs-5">Full Rating</h3>
-          <p class="m-3">
-            Direction: {{mostRecentRating(result).direction}} | Imagery:
-            {{mostRecentRating(result).imagery}} | Story: {{mostRecentRating(result).story}} | Performance: {{mostRecentRating(result).performance}} |
-            Soundtrack: {{mostRecentRating(result).soundtrach}} | Impression: {{mostRecentRating(result).impression}} | Love: {{mostRecentRating(result).love}} |
-            Overall: {{mostRecentRating(result).overall}}
+          <p class="rating-categories m-3">
+            <span>Direction: {{mostRecentRating(result).direction}},&nbsp;</span>
+            <span>Imagery: {{mostRecentRating(result).imagery}},&nbsp;</span>
+            <span>Story: {{mostRecentRating(result).story}},&nbsp;</span>
+            <span>Performance: {{mostRecentRating(result).performance}},&nbsp;</span>
+            <span>Soundtrack: {{mostRecentRating(result).soundtrack}},&nbsp;</span>
+            <span>Impression: {{mostRecentRating(result).impression}},&nbsp;</span>
+            <span>Love: {{mostRecentRating(result).love}},&nbsp;</span>
+            <span>Overall: {{mostRecentRating(result).overall}}</span>
           </p>
 
           <hr>
@@ -736,6 +739,14 @@ export default {
           &.shown {
             max-height: 6000px;
             transition: max-height 0.5s ease-in-out;
+          }
+
+          .rating-categories {
+            display: flex;
+            flex-wrap: wrap;
+            span {
+              white-space: nowrap;
+            }
           }
 
           .actors {
