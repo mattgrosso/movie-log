@@ -4,7 +4,10 @@
     :class="{open: showSettings, closed: !showSettings}"
   >
     <div class="p-3">
-      <div class="header-settings p-3 border-white border">
+      <div class="p-1 border-white border">
+        <p class="m-0 text-center fs-5">:: {{$store.state.databaseTopKey}} ::</p>
+      </div>
+      <div class="header-settings p-3 border-white border mt-3">
         <div class="switch d-flex justify-content-center">
           <label class="form-check-label mx-2" for="posterLayout">Random Poster</label>
           <div class="form-check form-switch m-0">
