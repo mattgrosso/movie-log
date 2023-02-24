@@ -1,7 +1,9 @@
 <template>
   <div class="charts">
     <BarChart class="chart my-5" :chartData="allRatingsData" :options="allRatingsOptions"/>
-    <LineChart class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
+    <LineChart v-if="results.length > 9" class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
+    <BarChart v-if="results.length < 10" class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
+    <BarChart class="chart my-5" :chartData="yearsData" :options="yearsOptions"/>
     <DoughnutChart class="chart my-5" :chartData="genreChartData" :options="genreChartOptions"/>
     <ScatterChart class="chart my-5" :chartData="lengthVsRatingData" :options="lengthVsRatingOptions"/>
     <DoughnutChart class="chart my-5" :chartData="companyChartData" :options="companyChartOptions"/>
@@ -12,6 +14,7 @@
 <script>
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
 import { Chart, registerables } from "chart.js";
+import mean from 'lodash/mean';
 import randomColor from 'randomcolor';
 
 Chart.register(...registerables);
@@ -375,6 +378,61 @@ export default {
           }
         }
       };
+    },
+    yearsData () {
+      const yearsAndRatings = this.results.map((result) => {
+        return {
+          year: new Date(result.movie.release_date).getFullYear(),
+          rating: this.mostRecentRating(result).rating
+        }
+      });
+
+      const years = {};
+
+      yearsAndRatings.forEach((movie) => {
+        if (!years[movie.year]) {
+          years[movie.year] = [parseFloat(movie.rating)];
+        } else {
+          years[movie.year].push(parseFloat(movie.rating));
+        }
+      });
+
+      const labels = [];
+      const data = [];
+      const backgroundColors = [];
+
+      Object.keys(years).forEach((year) => {
+        labels.push(year);
+        data.push(years[year].length);
+        backgroundColors.push(this.percentToColor(parseFloat(mean(years[year]).toFixed()) * 10));
+      });
+
+      return {
+        labels: labels,
+        datasets: [
+          {
+            data: data,
+            backgroundColor: backgroundColors,
+          }
+        ]
+      }
+    },
+    yearsOptions () {
+      return {
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: "Years",
+          },
+          subtitle: {
+            display: true,
+            text: "(Warmer color means higher average rating)"
+          }
+        }
+      };
     }
   },
   methods: {
@@ -411,6 +469,20 @@ export default {
       })
 
       return mostRecentRating;
+    },
+    percentToColor (percent) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      if (percent < 50) {
+        g = 255;
+        r = Math.round(5.1 * percent);
+      } else {
+        r = 255;
+        g = Math.round(510 - 5.10 * percent);
+      }
+      const h = r * 0x10000 + g * 0x100 + b * 0x1;
+      return '#' + ('000000' + h.toString(16)).slice(-6);
     }
   }
 }
