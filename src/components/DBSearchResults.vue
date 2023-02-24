@@ -679,23 +679,23 @@ export default {
       > button {
         border-radius: 5px;
         border: 1px solid black;
-        background: white;
+        background: black;
         padding: 6px;
         width: auto;
 
         &.collapsed {
-          background: black;
+          background: white;
 
           svg {
             path {
-              color: white;
+              color: black;
             }
           }
         }
 
         svg {
           path {
-            color: black;
+            color: white;
           }
         }
       }
