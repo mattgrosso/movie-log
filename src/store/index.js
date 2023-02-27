@@ -103,7 +103,7 @@ export default createStore({
           ? database.data.settings
           : {
               posterLayout: { grid: true },
-              routeAfterRating: { value: "recentlyViewed"},
+              routeAfterRating: { value: "recentlyViewed" },
               tags: [{ title: "default tag" }],
               weights: [
                 { name: "direction", weight: 1.015 },
