@@ -371,11 +371,11 @@
 
       <hr>
 
-      <p class="rating col-12 my-3 fs-5 text-center" id="rating">
+      <p class="rating col-12 my-3 d-flex justify-content-center align-items-center" id="rating">
         Rating: {{rating}}
-        <span class="mx-3 fs-1">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{$store.getters.allMoviesAsArray.length}}
-        <span class="mx-3 fs-1">|</span>
+        <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
+        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{numberOfMoviesAfterRating}}
+        <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
         #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear)}} in {{movieYear(this.movieToRate)}}
       </p>
 
@@ -525,6 +525,13 @@ export default {
         ratings: [{ rating: this.rating }]
       };
     },
+    numberOfMoviesAfterRating () {
+      if (this.previousEntry) {
+        return this.$store.getters.allMoviesAsArray.length;
+      } else {
+        return this.$store.getters.allMoviesAsArray.length + 1;
+      }
+    },
     allMoviesRanked () {
       const movies = [...this.$store.getters.allMoviesAsArray];
       return movies.sort(this.sortByRating);
@@ -620,17 +627,17 @@ export default {
 
       const rating = {
         date: this.date,
-        direction: this.direction,
+        direction: this.direction ? this.direction : 5,
         id: this.id,
-        imagery: this.imagery,
-        impression: this.impression,
-        love: this.love,
-        medium: this.medium,
-        overall: this.overall,
-        performance: this.performance,
+        imagery: this.imagery ? this.imagery : 5,
+        impression: this.impression ? this.impression : 0,
+        love: this.love ? this.love : 5,
+        medium: this.medium ? this.medium : "Other",
+        overall: this.overall ? this.overall : 5,
+        performance: this.performance ? this.performance : 5,
         rating: this.rating,
-        soundtrack: this.soundtrack,
-        story: this.story,
+        soundtrack: this.soundtrack ? this.soundtrack : 5,
+        story: this.story ? this.story : 5,
         tags: this.tags,
         title: this.title,
         year: this.year
@@ -638,17 +645,28 @@ export default {
 
       ratings.push(rating);
 
-      // TODO: When I don't fill in a value, I need it to go with the defaults
       await addRating(ratings);
 
-      this.$store.commit("setDBSortValue", "watched");
+      const routeAfterRating = this.$store.state.settings.routeAfterRating.value;
 
       window.scroll({
         top: top,
         behavior: 'smooth'
       })
 
-      this.$router.push("/db-search");
+      if (routeAfterRating === "recentlyViewed") {
+        this.$store.commit("setDBSortValue", "watched");
+        this.$router.push("/db-search");
+      } else if (routeAfterRating === "allRatings") {
+        this.$store.commit("setDBSortValue", "rating");
+        this.$router.push("/db-search");
+      } else if (routeAfterRating === "home") {
+        this.$router.push("/");
+      } else if (routeAfterRating === "sameYear") {
+        this.$store.commit("setDBSearchValue", `y:${rating.year}`);
+        this.$store.commit("setDBSortValue", "rating");
+        this.$router.push("/db-search");
+      }
     }
   },
 }

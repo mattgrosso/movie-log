@@ -2,7 +2,18 @@
   <div class="pick-a-movie mx-auto">
     <ul class="p-0 d-flex justify-content-around flex-wrap">
       <li class="card shadow border" v-for="movie in searchResults" :key="movie.id" @click="rateMovie(movie)">
-        <img class="card-img-top" :src="`https://image.tmdb.org/t/p/original${movie.poster_path}`" align="center">
+        <img
+          v-if="movie.poster_path"
+          class="card-img-top"
+          :src="`https://image.tmdb.org/t/p/original${movie.poster_path}`"
+          align="center"
+        >
+        <img
+          v-else
+          class="card-img-top not-found"
+          src="../assets/images/Image_not_available.png"
+          align="center"
+        >
         <p class="my-3 mx-1 card-text text-center" :title="movie.title">
           {{truncate(movie.title)}}
           <br>
@@ -50,6 +61,10 @@ export default {
         border-radius: 4px;
         cursor: pointer;
         width: calc((100% - 2rem) / 3);
+
+        .not-found {
+          padding: 48px 0;
+        }
 
         p {
           font-size: .75rem;

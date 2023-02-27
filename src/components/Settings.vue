@@ -4,7 +4,10 @@
     :class="{open: showSettings, closed: !showSettings}"
   >
     <div class="p-3">
-      <div class="header-settings p-3 border-white border">
+      <div class="p-1 border-white border">
+        <p class="m-0 text-center fs-5">:: {{$store.state.databaseTopKey}} ::</p>
+      </div>
+      <div class="header-settings p-3 border-white border mt-3">
         <div class="switch d-flex justify-content-center">
           <label class="form-check-label mx-2" for="posterLayout">Random Poster</label>
           <div class="form-check form-switch m-0">
@@ -16,7 +19,7 @@
       <div class="tags p-3 border border-white mt-3">
         <ul class="col-12">
           <li class="tag mb-2 dflex align-items-center" v-for="(tag, index) in settings.tags" :key="index">
-            <span class="badge rounded-pill text-bg-light fs-6" @click="showRemoveButton($event)">
+            <span class="badge col-12 rounded-pill text-bg-light" @click="showRemoveButton($event)">
               {{ tag.title }}
               <span class="remove-button" @click.prevent="removeTag(index)">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-x-circle-fill text-light" viewBox="0 0 16 16">
@@ -77,6 +80,15 @@
           </tbody>
         </table>
       </div>
+      <div class="mt-3 p-3 border border-white">
+        <label class="form-label" for="routeAfterRating">After rating where would you like to go?</label>
+        <select class="form-select" name="routeAfterRating" id="routeAfterRating" v-model="routeAfterRating">
+          <option value="recentlyViewed">Recently viewed</option>
+          <option value="allRatings">All ratings</option>
+          <option value="home">Home screen</option>
+          <option value="sameYear">Ratings from the same year</option>
+        </select>
+      </div>
       <div class="uploader mt-3 p-3 border border-white">
         <ImportCsv
           :uploadPercentage="uploadPercentage"
@@ -99,7 +111,6 @@
 <script>
 import axios from 'axios';
 import ImportCsv from "./ImportCsv.vue";
-import * as Sentry from "@sentry/vue";
 
 export default {
   components: {
@@ -112,15 +123,18 @@ export default {
       default: false
     }
   },
-  mounted () {
+  async mounted () {
     this.devMode = JSON.parse(window.localStorage.getItem('devMode'));
+    await this.getSettings();
+    this.routeAfterRating = this.$store.state.settings.routeAfterRating.value;
   },
   data () {
     return {
       newTagTitle: null,
       posterLayout: true,
       devMode: false,
-      uploadPercentage: 0
+      uploadPercentage: 0,
+      routeAfterRating: "recentlyViewed"
     }
   },
   watch: {
@@ -133,6 +147,9 @@ export default {
     devMode (newVal) {
       window.localStorage.setItem('devMode', newVal);
       this.devModeSwitched(newVal);
+    },
+    routeAfterRating (newVal) {
+      this.setRouteAfterRating(newVal);
     }
   },
   computed: {
@@ -168,6 +185,14 @@ export default {
     calculateShare (weight) {
       const share = (weight / this.totalWeight) * 100;
       return share.toPrecision(4);
+    },
+    async setRouteAfterRating (value) {
+      await axios.patch(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/routeAfterRating.json`,
+        { value: value }
+      );
+
+      this.getSettings();
     },
     async posterLayoutSwitched (value) {
       const layoutSetting = { grid: value }
@@ -246,11 +271,10 @@ export default {
       if (devMode) {
         this.$store.commit('setDatabaseTopKey', "testing-database");
       } else if (this.$store.state.googleLogin) {
-        const userData = this.$store.state.googleLogin;
-        const key = userData.email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
-        this.$store.commit('setDatabaseTopKey', key);
+        this.$store.commit('setDatabaseTopKey', this.$store.state.googleLogin);
       } else {
-        Sentry.captureMessage("devModeSwitched attempted but the user data didn't work");
+        window.localStorage.removeItem('databaseTopKey');
+        location.reload();
         return;
       }
 
@@ -284,6 +308,10 @@ export default {
     transition: all 0.5s ease;
     z-index: 1;
 
+    &>div {
+      max-width: 100%;
+    }
+
     &.closed {
       max-height: 0;
     }
@@ -307,10 +335,14 @@ export default {
         column-count: 2;
 
         .tag {
+          cursor: pointer;
           position: relative;
 
           .badge {
+            font-size: 0.75rem;
+            max-width: 85%;
             position: relative;
+            white-space: normal;
 
             &.show-remove-button {
               .remove-button {

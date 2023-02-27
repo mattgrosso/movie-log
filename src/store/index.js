@@ -34,7 +34,6 @@ export default createStore({
     }
   },
   mutations: {
-    // TODO: Can we just set a value on state without going through these mutations?
     setDatabase (state, value) {
       state.database = value;
     },
@@ -45,7 +44,7 @@ export default createStore({
       state.googleLogin = value;
     },
     setDatabaseTopKey (state, value) {
-      state.databaseTopKey = value;
+      state.databaseTopKey = value.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
     },
     setNewEntrySearchResults (state, value) {
       const results = [...value];
@@ -75,13 +74,12 @@ export default createStore({
       const devMode = JSON.parse(window.localStorage.getItem('devMode'));
       const userData = decodeCredential(resp.credential);
 
-      context.commit('setGoogleLogin', userData);
+      context.commit('setGoogleLogin', userData.email);
 
       if (devMode) {
         context.commit('setDatabaseTopKey', 'testing-database');
-      } else if (userData) {
-        const key = userData.email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
-        context.commit('setDatabaseTopKey', key);
+      } else if (context.state.googleLogin) {
+        context.commit('setDatabaseTopKey', context.state.googleLogin);
       } else {
         Sentry.captureMessage("Login attempted but the user data didn't work");
       }
@@ -93,6 +91,8 @@ export default createStore({
         return;
       }
 
+      window.localStorage.setItem('databaseTopKey', context.state.databaseTopKey);
+
       const database = await axios.get(
         `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${context.state.databaseTopKey}.json`
       );
@@ -100,21 +100,21 @@ export default createStore({
       if (database.data) {
         const db = database.data.movieLog ? database.data.movieLog : {};
         const settings = database.data.settings
-        ? database.data.settings
-        : {
-          posterLayout: { grid: true },
-          tags: [{ title: "default tag" }],
-          weights: [
-            { name: "direction", weight: 1.015 },
-            { name: "imagery", weight: 0.9 },
-            { name: "impression", weight: 1.9 },
-            { name: "love", weight: 2.985 },
-            { name: "overall", weight: 2.05 },
-            { name: "performance", weight: 0.65 },
-            { name: "soundtrack", weight: 0.2 },
-            { name: "story", weight: 1.25 }
-          ]
-        };
+          ? database.data.settings
+          : {
+              posterLayout: { grid: true },
+              tags: [{ title: "default tag" }],
+              weights: [
+                { name: "direction", weight: 1.015 },
+                { name: "imagery", weight: 0.9 },
+                { name: "impression", weight: 1.9 },
+                { name: "love", weight: 2.985 },
+                { name: "overall", weight: 2.05 },
+                { name: "performance", weight: 0.65 },
+                { name: "soundtrack", weight: 0.2 },
+                { name: "story", weight: 1.25 }
+              ]
+            };
         context.commit('setDatabase', db);
         context.commit('setSettings', settings);
       } else {

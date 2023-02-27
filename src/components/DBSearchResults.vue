@@ -69,8 +69,8 @@
         They have an average rating of {{averageRating(results)}}
       </p>
       <button class="col-2 d-flex justify-content-center align-items-center accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-bar-chart-line" viewBox="0 0 16 16">
-          <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2zm1 12h2V2h-2v12zm-3 0V7H7v7h2zm-5 0v-3H2v3h2z"/>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-bar-chart-line-fill" viewBox="0 0 16 16">
+          <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2z"/>
         </svg>
       </button>
     </div>
@@ -87,7 +87,6 @@
         :key="index"
         @click="showInfo(`Info-${result.movie.id}`)"
       >
-        <!-- It would be cool to have a little snippet of plot summary included here somewhere. Or at least a link to wikipedia -->
         <label class="number col-1 text-center">
           {{index + 1}}
         </label>
@@ -121,11 +120,15 @@
         <div :id="`Info-${result.movie.id}`" class="full-info ps-3 hidden">
           <hr class="my-4">
           <h3 class="mt-3 mb-2 fs-5">Full Rating</h3>
-          <p class="m-3">
-            Direction: {{mostRecentRating(result).direction}} | Imagery:
-            {{mostRecentRating(result).imagery}} | Story: {{mostRecentRating(result).story}} | Performance: {{mostRecentRating(result).performance}} |
-            Soundtrack: {{mostRecentRating(result).soundtrach}} | Impression: {{mostRecentRating(result).impression}} | Love: {{mostRecentRating(result).love}} |
-            Overall: {{mostRecentRating(result).overall}}
+          <p class="rating-categories m-3">
+            <span>Direction: {{mostRecentRating(result).direction}},&nbsp;</span>
+            <span>Imagery: {{mostRecentRating(result).imagery}},&nbsp;</span>
+            <span>Story: {{mostRecentRating(result).story}},&nbsp;</span>
+            <span>Performance: {{mostRecentRating(result).performance}},&nbsp;</span>
+            <span>Soundtrack: {{mostRecentRating(result).soundtrack}},&nbsp;</span>
+            <span>Impression: {{mostRecentRating(result).impression}},&nbsp;</span>
+            <span>Love: {{mostRecentRating(result).love}},&nbsp;</span>
+            <span>Overall: {{mostRecentRating(result).overall}}</span>
           </p>
 
           <hr>
@@ -683,6 +686,16 @@ export default {
         padding: 6px;
         width: auto;
 
+        &.collapsed {
+          background: white;
+
+          svg {
+            path {
+              color: black;
+            }
+          }
+        }
+
         svg {
           path {
             color: white;
@@ -726,6 +739,14 @@ export default {
           &.shown {
             max-height: 6000px;
             transition: max-height 0.5s ease-in-out;
+          }
+
+          .rating-categories {
+            display: flex;
+            flex-wrap: wrap;
+            span {
+              white-space: nowrap;
+            }
           }
 
           .actors {

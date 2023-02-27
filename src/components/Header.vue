@@ -72,7 +72,7 @@ export default {
   },
   methods: {
     toggleSettings () {
-      this.$el.querySelector(".settings").classList.toggle("rotated");
+      this.$el.querySelector(".settings-toggle").classList.toggle("rotated");
       this.showSettings = !this.showSettings;
     },
     setPosterLayout (value) {
@@ -82,6 +82,8 @@ export default {
       let mostRecentRating = movie.ratings[0];
       movie.ratings.forEach((rating) => {
         if (rating.date && rating.date > mostRecentRating.date) {
+          mostRecentRating = rating;
+        } else if (!mostRecentRating.date) {
           mostRecentRating = rating;
         }
       })

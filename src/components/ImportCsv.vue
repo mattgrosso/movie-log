@@ -43,7 +43,6 @@ export default {
       }
 
       return this.parsedCsv.map((movie) => {
-        // TODO: Do we still need this check?
         if (!movie.viewings) {
           return [{
             direction: movie.direction,
