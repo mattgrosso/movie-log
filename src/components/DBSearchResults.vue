@@ -477,7 +477,8 @@ export default {
       return 0;
     },
     averageRating (results) {
-      const ratings = results.map((result) => parseFloat(this.mostRecentRating(result).rating));
+      const ratedMovies = results.filter((result) => this.mostRecentRating(result).rating);
+      const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).rating));
       const total = ratings.reduce((a, b) => a + b, 0);
       return (total / ratings.length).toFixed(2);
     },

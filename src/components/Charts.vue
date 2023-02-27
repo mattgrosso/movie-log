@@ -38,8 +38,11 @@ export default {
     RadarChart
   },
   computed: {
+    resultsWithRatings () {
+      return this.results.filter((result) => this.mostRecentRating(result).rating);
+    },
     allRatingsData () {
-      const resultsByRating = [...this.results].sort(this.sortByRating);
+      const resultsByRating = [...this.resultsWithRatings].sort(this.sortByRating);
       const labels = resultsByRating.map((result) => result.movie.title);
       const data = resultsByRating.map((result) => parseFloat(this.mostRecentRating(result).rating));
 
@@ -72,8 +75,14 @@ export default {
       }
     },
     ratingsCountData () {
-      const rounded = this.results.map((result) => {
-        return Math.round((parseFloat(this.mostRecentRating(result).rating)) * 2) / 2;
+      const rounded = this.resultsWithRatings.map((result) => {
+        const test = Math.round((parseFloat(this.mostRecentRating(result).rating)) * 2) / 2;
+        if (isNaN(test)) {
+          console.log('result: ', result);
+          return 0;
+        } else {
+          return test;
+        }
       });
 
       const counts = {
@@ -154,6 +163,10 @@ export default {
       const counts = {};
 
       genreArrays.forEach((array) => {
+        if (!array) {
+          return;
+        }
+
         array.forEach((genre) => {
           if (counts[genre.name]) {
             counts[genre.name]++;
@@ -202,7 +215,7 @@ export default {
       }
     },
     lengthVsRatingData () {
-      const data = this.results.map((result) => {
+      const data = this.resultsWithRatings.map((result) => {
         return {
           x: result.movie.runtime,
           y: this.mostRecentRating(result).rating
@@ -318,7 +331,7 @@ export default {
       }
     },
     radarRatingsData () {
-      const data = this.results.map((result) => {
+      const data = this.resultsWithRatings.map((result) => {
         const rating = this.mostRecentRating(result);
         const color = randomColor({
           format: 'rgba',
@@ -380,7 +393,7 @@ export default {
       };
     },
     yearsData () {
-      const yearsAndRatings = this.results.map((result) => {
+      const yearsAndRatings = this.resultsWithRatings.map((result) => {
         return {
           year: new Date(result.movie.release_date).getFullYear(),
           rating: this.mostRecentRating(result).rating
