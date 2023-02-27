@@ -99,6 +99,7 @@
 <script>
 import axios from 'axios';
 import ImportCsv from "./ImportCsv.vue";
+import * as Sentry from "@sentry/vue";
 
 export default {
   components: {
@@ -244,10 +245,13 @@ export default {
     async devModeSwitched (devMode) {
       if (devMode) {
         this.$store.commit('setDatabaseTopKey', "testing-database");
-      } else {
+      } else if (this.$store.state.googleLogin) {
         const userData = this.$store.state.googleLogin;
         const key = userData.email.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
         this.$store.commit('setDatabaseTopKey', key);
+      } else {
+        Sentry.captureMessage("devModeSwitched attempted but the user data didn't work");
+        return;
       }
 
       await this.$store.dispatch('getDatabase');
