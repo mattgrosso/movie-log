@@ -42,7 +42,7 @@ const loggedIn = () => {
 }
 
 const routes = [
-  { 
+  {
     path: '/',
     component: Home,
     meta: {
@@ -56,14 +56,14 @@ const routes = [
       }
     }
   },
-  { 
+  {
     path: '/login',
     component: Login,
     meta: {
       requiresLogin: false
     },
   },
-  { 
+  {
     path: '/db-search',
     component: DBSearchResults,
     meta: {
@@ -77,7 +77,7 @@ const routes = [
       }
     }
   },
-  { 
+  {
     path: '/rate-movie',
     component: RateMovie,
     meta: {
@@ -91,7 +91,7 @@ const routes = [
       }
     }
   },
-  { 
+  {
     path: '/pick-movie/:newEntrySearchResults',
     component: PickAMovie,
     meta: {
@@ -105,7 +105,7 @@ const routes = [
       }
     }
   },
-  { 
+  {
     path: '/share/:userDBKey/:shareKey',
     component: ShareDBResults,
     meta: {

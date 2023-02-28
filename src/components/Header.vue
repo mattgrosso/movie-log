@@ -121,9 +121,13 @@ export default {
     align-items: center;
     display: flex;
     flex-wrap: wrap;
-    height: 200px;
+    height: 150px;
     justify-content: end;
     position: relative;
+
+    @media screen and (min-width: 450px) {
+      height: 200px;
+    }
 
     .overflow-wrapper {
       height: 100%;
@@ -165,10 +169,10 @@ export default {
       }
 
       .twenty {
-        width: 5%;
+        width: 10%;
 
-        @media screen and (min-width: 832px) {
-          width: 2.5%;
+        @media screen and (min-width: 450px) {
+          width: 5%;
         }
 
         &:hover {
@@ -226,10 +230,14 @@ export default {
         bottom: 50%;
         left: 50%;
         transform: translate(-50%, 50%);
-        font-size: 2rem;
+        font-size: 1.5rem;
         border-radius: 100px;
         padding: 0 36px;
         border: 2px solid white;
+
+        @media screen and (min-width: 450px) {
+          font-size: 2rem;
+        }
       }
 
       span {
