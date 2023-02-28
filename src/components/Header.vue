@@ -117,6 +117,8 @@ export default {
 </script>
 
 <style lang="scss">
+  // Todo: I need to rethink how I display the poster grid. There's good stuff here but it's getting
+  // todo: messy and it's not perfect.
   .header {
     align-items: center;
     display: flex;
