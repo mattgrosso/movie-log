@@ -47,6 +47,8 @@ export default {
     }
   },
   async mounted () {
+    this.$store.commit("setShowHeader", false);
+
     const userDBKey = this.$route.params.userDBKey;
     const shareKey = this.$route.params.shareKey;
 
@@ -55,6 +57,9 @@ export default {
     );
 
     this.shareObject = shareObject.data;
+  },
+  beforeRouteLeave () {
+    this.$store.commit("setShowHeader", true);
   },
   computed: {
     filteredResults () {
@@ -101,9 +106,3 @@ export default {
   },
 }
 </script>
-
-<style lang="scss">
-  .header {
-    display: none;
-  }
-</style>

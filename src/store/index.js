@@ -24,7 +24,8 @@ export default createStore({
     movieToRate: {},
     DBSearchValue: null,
     DBSortValue: null,
-    DBSortOrder: null
+    DBSortOrder: null,
+    showHeader: true
   },
   getters: {
     allMoviesAsArray: (state) => {
@@ -67,6 +68,9 @@ export default createStore({
     },
     setDBSortOrder (state, value) {
       state.DBSortOrder = value;
+    },
+    setShowHeader (state, value) {
+      state.showHeader = value;
     }
   },
   actions: {

@@ -1,5 +1,5 @@
 <template>
-  <div class="header col-12">
+  <div class="header col-12" :class="{'d-none': !$store.state.showHeader}">
     <div class="overflow-wrapper">
       <div class="poster-grid">
         <img v-for="(image, index) in postersForHeader" :src="image" :key="index" :class="posterWidth">
