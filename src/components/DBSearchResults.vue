@@ -62,21 +62,29 @@
       </div>
     </div>
     <hr class="mt-4">
-    <p v-if="results.length === $store.getters.allMoviesAsArray.length" class="fs-5 my-2 text-center">
-      You've rated {{$store.getters.allMoviesAsArray.length}} movies.
-    </p>
-    <p v-else class="fs-5 my-2 text-center">
-      {{results.length}} out of {{$store.getters.allMoviesAsArray.length}} movies match your search.
-    </p>
-    <div class="data-and-charts col-12 mb-3 d-flex align-items-center">
-      <p class="col-10 m-0 d-flex justify-content-center align-items-center">
+    <div v-show="paginatedSortedResults.length" class="details">
+      <p v-if="results.length === $store.getters.allMoviesAsArray.length" class="fs-5 my-2 text-center">
+        You've rated {{$store.getters.allMoviesAsArray.length}} movies.
+      </p>
+      <p v-else class="fs-5 my-2 text-center">
+        {{results.length}} out of {{$store.getters.allMoviesAsArray.length}} movies match your search.
+      </p>
+      <p class="m-0 d-flex justify-content-center align-items-center">
         They have an average rating of {{averageRating(results)}}
       </p>
-      <button class="col-2 d-flex justify-content-center align-items-center accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-bar-chart-line-fill" viewBox="0 0 16 16">
-          <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2z"/>
-        </svg>
-      </button>
+      <div class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
+        <button class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
+          Charts
+        </button>
+        <button class="btn btn-secondary col-5" @click="shareResults">
+          <span v-if="!sharing">
+            Share Results
+          </span>
+          <div v-else class="spinner-border text-light" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </button>
+      </div>
     </div>
     <div id="charts-accordion" class="accordion-collapse collapse" aria-labelledby="charts">
       <div class="accordion-body">
@@ -237,12 +245,13 @@ export default {
       sortOrder: "ascending",
       sortValue: null,
       value: "",
-      numberOfResultsToShow: 50
+      numberOfResultsToShow: 50,
+      sharing: false
     }
   },
   watch: {
     DBSearchValue (newVal) {
-      if (newVal) {
+      if (newVal || newVal === "") {
         this.value = newVal;
       }
     },
@@ -292,6 +301,14 @@ export default {
         }
       ],
     });
+  },
+  beforeRouteLeave () {
+    this.sortOrder = "ascending";
+    this.sortValue = null;
+    this.value = "";
+    this.$store.commit("setDBSearchValue", this.value);
+    this.$store.commit("setDBSortValue", this.sortValue);
+    this.$store.commit("setDBSortOrder", this.sortOrder);
   },
   computed: {
     database () {
@@ -643,6 +660,27 @@ export default {
           behavior: 'smooth'
         })
       });
+    },
+    async shareResults () {
+      this.sharing = true;
+
+      const shareObject = {
+        results: this.sortedResults,
+        sortOrder: this.sortOrder,
+        sortValue: this.sortValue,
+        value: this.value
+      };
+
+      const resp = await axios.post(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.$store.state.databaseTopKey}/sharedDBSearches.json`,
+        shareObject
+      );
+
+      const dbKey = resp.data.name;
+
+      this.sharing = false;
+      this.value = "";
+      this.$router.push(`/share/${this.$store.state.databaseTopKey}/${dbKey}`);
     }
   },
 }
@@ -722,34 +760,6 @@ export default {
       }
     }
 
-    .data-and-charts {
-      font-size: 1rem;
-
-      > button {
-        border-radius: 5px;
-        border: 1px solid black;
-        background: black;
-        padding: 6px;
-        width: auto;
-
-        &.collapsed {
-          background: white;
-
-          svg {
-            path {
-              color: black;
-            }
-          }
-        }
-
-        svg {
-          path {
-            color: white;
-          }
-        }
-      }
-    }
-
     ul {
       list-style: none;
 
@@ -805,5 +815,11 @@ export default {
       }
     }
 
+    .btn {
+      .spinner-border {
+        height: 18px;
+        width: 18px;
+      }
+    }
   }
 </style>

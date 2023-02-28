@@ -1,10 +1,10 @@
 <template>
   <div class="charts">
-    <BarChart class="chart my-5" :chartData="allRatingsData" :options="allRatingsOptions"/>
-    <BarChart class="chart my-5" :chartData="highestRatingEachYearData" :options="highestRatingEachYearOptions"/>
     <LineChart v-if="results.length > 9" class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
+    <BarChart class="chart my-5" :chartData="allRatingsData" :options="allRatingsOptions"/>
     <BarChart v-if="results.length < 10" class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
     <BarChart class="chart my-5" :chartData="yearsData" :options="yearsOptions"/>
+    <BarChart class="chart my-5" :chartData="highestRatingEachYearData" :options="highestRatingEachYearOptions"/>
     <DoughnutChart class="chart my-5" :chartData="genreChartData" :options="genreChartOptions"/>
     <ScatterChart class="chart my-5" :chartData="lengthVsRatingData" :options="lengthVsRatingOptions"/>
     <DoughnutChart class="chart my-5" :chartData="companyChartData" :options="companyChartOptions"/>
@@ -461,9 +461,9 @@ export default {
 
       yearsAndRatings.forEach((movie) => {
         if (!years[movie.year]) {
-          years[movie.year] = [{rating: parseFloat(movie.rating), title: movie.title}];
+          years[movie.year] = [{ rating: parseFloat(movie.rating), title: movie.title }];
         } else {
-          years[movie.year].push({rating: parseFloat(movie.rating), title: movie.title});
+          years[movie.year].push({ rating: parseFloat(movie.rating), title: movie.title });
         }
       });
 

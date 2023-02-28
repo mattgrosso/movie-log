@@ -1,5 +1,5 @@
 <template>
-  <div class="header col-12 d-flex justify-content-end align-items-center flex-wrap">
+  <div class="header col-12">
     <div class="overflow-wrapper">
       <div class="poster-grid">
         <img v-for="(image, index) in postersForHeader" :src="image" :key="index" :class="posterWidth">
@@ -118,7 +118,11 @@ export default {
 
 <style lang="scss">
   .header {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
     height: 200px;
+    justify-content: end;
     position: relative;
 
     .overflow-wrapper {
