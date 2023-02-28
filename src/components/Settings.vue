@@ -126,7 +126,7 @@ export default {
   async mounted () {
     this.devMode = JSON.parse(window.localStorage.getItem('devMode'));
     await this.getSettings();
-    this.routeAfterRating = this.$store.state.settings.routeAfterRating.value;
+    this.routeAfterRating = this.$store.state.settings.routeAfterRating?.value;
   },
   data () {
     return {

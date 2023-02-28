@@ -80,10 +80,10 @@
       </div>
     </div>
     <hr>
-    <ul class="col-12 py-3 px-0 d-flex flex-wrap">
+    <ul class="col-12 py-3 px-0 m-0 d-flex flex-wrap">
       <li
         class="movie-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
-        v-for="(result, index) in sortedResults"
+        v-for="(result, index) in paginatedSortedResults"
         :key="index"
         @click="showInfo(`Info-${result.movie.id}`)"
       >
@@ -203,6 +203,13 @@
         </div>
       </li>
     </ul>
+    <button
+      v-if="sortedResults.length > numberOfResultsToShow"
+      class="btn btn-secondary mb-5 float-end"
+      @click="addMoreResults"
+    >
+      More...
+    </button>
   </div>
 </template>
 
@@ -225,7 +232,8 @@ export default {
       popperInstance: null,
       sortOrder: "ascending",
       sortValue: null,
-      value: ""
+      value: "",
+      numberOfResultsToShow: 50
     }
   },
   watch: {
@@ -339,6 +347,9 @@ export default {
       } else {
         return this.fuzzySearch();
       }
+    },
+    paginatedSortedResults () {
+      return this.sortedResults.slice(0, this.numberOfResultsToShow);
     }
   },
   methods: {
@@ -477,7 +488,8 @@ export default {
       return 0;
     },
     averageRating (results) {
-      const ratings = results.map((result) => parseFloat(this.mostRecentRating(result).rating));
+      const ratedMovies = results.filter((result) => this.mostRecentRating(result).rating);
+      const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).rating));
       const total = ratings.reduce((a, b) => a + b, 0);
       return (total / ratings.length).toFixed(2);
     },
@@ -597,6 +609,16 @@ export default {
       const bestMatch = minBy(pagesArray, (page) => page.index);
 
       return `https://en.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
+    },
+    addMoreResults () {
+      this.numberOfResultsToShow = this.numberOfResultsToShow + 50;
+
+      this.$nextTick(() => {
+        window.scrollBy({
+          top: 500,
+          behavior: 'smooth'
+        })
+      });
     }
   },
 }

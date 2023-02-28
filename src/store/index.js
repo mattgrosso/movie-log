@@ -35,7 +35,7 @@ export default createStore({
   },
   mutations: {
     setDatabase (state, value) {
-      state.database = value;
+      state.database = Object.freeze(value);
     },
     setSettings (state, value) {
       state.settings = value;
@@ -103,6 +103,7 @@ export default createStore({
           ? database.data.settings
           : {
               posterLayout: { grid: true },
+              routeAfterRating: { value: "recentlyViewed" },
               tags: [{ title: "default tag" }],
               weights: [
                 { name: "direction", weight: 1.015 },
