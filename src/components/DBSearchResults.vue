@@ -31,6 +31,10 @@
               <p class="example my-0 px-3">tag:[your tag]</p>
               <p class="example my-0 px-3">t:[your tag]</p>
             </div>
+            <div class="tag help mb-1">
+              <p class="title m-0 text-decoration-underline">Best from each year</p>
+              <p class="example my-0 px-3">annual</p>
+            </div>
             <div id="arrow" data-popper-arrow></div>
           </div>
         </div>
