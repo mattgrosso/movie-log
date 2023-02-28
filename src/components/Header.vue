@@ -121,18 +121,19 @@ export default {
     align-items: center;
     display: flex;
     flex-wrap: wrap;
-    height: 200px;
+    height: 45vw;
     justify-content: end;
     position: relative;
 
     .overflow-wrapper {
       height: 100%;
-      width: 100%;
-      position: relative;
       overflow: hidden;
+      position: relative;
+      width: 100%;
     }
 
     .poster-grid {
+      align-content: flex-start;
       bottom: 0;
       column-gap: 0;
       display: flex;
@@ -144,11 +145,12 @@ export default {
       top: 0;
 
       .single {
-        width: 100%;
+        height: 100%;
       }
 
       .ten {
-        width: 10%;
+        height: 15vw;
+        width: 10vw;
 
         &:hover {
           transform: scale(2);
@@ -165,10 +167,12 @@ export default {
       }
 
       .twenty {
-        width: 5%;
+        height: 7.5vw;
+        width: 5vw;
 
         @media screen and (min-width: 832px) {
-          width: 2.5%;
+          height: 3.75vw;
+          width: 2.5vw;
         }
 
         &:hover {
@@ -211,25 +215,25 @@ export default {
 
     .home-link,
     .home-link-inverted {
+      bottom: -40px;
       color: white;
       font-family: "Anton", sans-serif;
       font-size: 4rem;
+      left: 0px;
       margin: 0;
-      text-decoration: none;
       padding: 0 12px;
       position: absolute;
-      bottom: -40px;
-      left: 0px;
+      text-decoration: none;
 
       &.needs-contrast {
         background: rgba(0, 0, 0, 0.5);
-        bottom: 50%;
-        left: 50%;
-        transform: translate(-50%, 50%);
-        font-size: 2rem;
         border-radius: 100px;
-        padding: 0 36px;
         border: 2px solid white;
+        bottom: 50%;
+        font-size: 2rem;
+        left: 50%;
+        padding: 0 36px;
+        transform: translate(-50%, 50%);
       }
 
       span {

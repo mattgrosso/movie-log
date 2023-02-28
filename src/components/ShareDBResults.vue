@@ -1,8 +1,5 @@
 <template>
   <div class="share-db-results">
-    <div class="share-header bg-dark text-light p-3">
-      <h1>Movie Log</h1>
-    </div>
     <div v-if="shareObject" class="terms d-flex justify-content-start p-3">
       <span class="badge rounded-pill text-bg-dark mx-2">{{shareObject.value}}</span>
       <span class="badge rounded-pill text-bg-dark mx-2">{{shareObject.sortValue}}</span>
@@ -101,9 +98,3 @@ export default {
   },
 }
 </script>
-
-<style lang="scss">
-  .header {
-    display: none;
-  }
-</style>
