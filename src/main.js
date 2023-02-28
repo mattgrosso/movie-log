@@ -13,6 +13,7 @@ import Home from "./components/Home.vue";
 import DBSearchResults from "./components/DBSearchResults.vue";
 import PickAMovie from "./components/PickAMovie.vue";
 import RateMovie from "./components/RateMovie.vue";
+import ShareDBResults from "./components/ShareDBResults.vue";
 
 const app = createApp(App);
 
@@ -28,11 +29,14 @@ app.use(VueLazyLoad, {});
 
 // Router
 
+// TODO: We should use navigation guards to force login for some pages and not force login for others (like the db results share page)
+// todo: https://router.vuejs.org/guide/advanced/navigation-guards.html
 const routes = [
   { path: '/', component: Home },
   { path: '/db-search', component: DBSearchResults },
   { path: '/rate-movie', component: RateMovie },
-  { path: '/pick-movie/:newEntrySearchResults', component: PickAMovie }
+  { path: '/pick-movie/:newEntrySearchResults', component: PickAMovie },
+  { path: '/share/:userDBKey/:shareKey', component: ShareDBResults },
 ]
 
 const router = createRouter({

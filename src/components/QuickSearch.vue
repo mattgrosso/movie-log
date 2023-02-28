@@ -60,7 +60,7 @@
         </button>
       </li>
       <li class="col-3">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('', 'rating', 'ascending')">
           <span>All</span>
         </button>
       </li>
