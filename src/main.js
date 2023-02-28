@@ -10,6 +10,7 @@ import VueLazyLoad from 'vue3-lazyload';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
 import Home from "./components/Home.vue";
+import Login from "./components/Login.vue";
 import DBSearchResults from "./components/DBSearchResults.vue";
 import PickAMovie from "./components/PickAMovie.vue";
 import RateMovie from "./components/RateMovie.vue";
@@ -28,15 +29,89 @@ app.use(VueClickAway);
 app.use(VueLazyLoad, {});
 
 // Router
+const loggedIn = () => {
+  const databaseTopKeyFromLocalStorage = window.localStorage.getItem('databaseTopKey');
 
-// TODO: We should use navigation guards to force login for some pages and not force login for others (like the db results share page)
-// todo: https://router.vuejs.org/guide/advanced/navigation-guards.html
+  if (databaseTopKeyFromLocalStorage) {
+    store.commit('setDatabaseTopKey', databaseTopKeyFromLocalStorage);
+    store.dispatch('getDatabase');
+    return databaseTopKeyFromLocalStorage;
+  } else {
+    return store.getters.databaseTopKey;
+  }
+}
+
 const routes = [
-  { path: '/', component: Home },
-  { path: '/db-search', component: DBSearchResults },
-  { path: '/rate-movie', component: RateMovie },
-  { path: '/pick-movie/:newEntrySearchResults', component: PickAMovie },
-  { path: '/share/:userDBKey/:shareKey', component: ShareDBResults },
+  { 
+    path: '/',
+    component: Home,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  { 
+    path: '/login',
+    component: Login,
+    meta: {
+      requiresLogin: false
+    },
+  },
+  { 
+    path: '/db-search',
+    component: DBSearchResults,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  { 
+    path: '/rate-movie',
+    component: RateMovie,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  { 
+    path: '/pick-movie/:newEntrySearchResults',
+    component: PickAMovie,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  { 
+    path: '/share/:userDBKey/:shareKey',
+    component: ShareDBResults,
+    meta: {
+      requiresLogin: false
+    }
+  },
 ]
 
 const router = createRouter({
