@@ -54,14 +54,19 @@
         </button>
       </li>
       <li class="col-12"></li>
-      <li class="col-5">
+      <li class="col-3">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('annual', 'release', 'descending')">
+          <span>Winners</span>
+        </button>
+      </li>
+      <li class="col-3">
         <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('')">
           <span>All</span>
         </button>
       </li>
-      <li class="col-5">
+      <li class="col-3">
         <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('', 'watched', 'ascending')">
-          <span>Recently Watched</span>
+          <span>Recent</span>
         </button>
       </li>
     </ul>

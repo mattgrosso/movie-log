@@ -293,6 +293,9 @@ export default {
     database () {
       return this.$store.state.database;
     },
+    allMoviesAsArray () {
+      return this.$store.getters.allMoviesAsArray;
+    },
     DBSearchValue () {
       return this.$store.state.DBSearchValue;
     },
@@ -307,7 +310,7 @@ export default {
       return sorted.sort(this.sortResults);
     },
     sortedByRating () {
-      const sorted = [...this.$store.getters.allMoviesAsArray];
+      const sorted = [...this.allMoviesAsArray];
       return sorted.sort(this.sortByRating);
     },
     threshold () {
@@ -321,7 +324,7 @@ export default {
       const options = {
         alwaysArray: true,
         offsets: false,
-        keywords: ["p", "person", "g", "genre", "t", "tag"],
+        keywords: ["p", "person", "g", "genre", "t", "tag", "annual"],
         ranges: ["y", "year"]
       }
 
@@ -331,7 +334,7 @@ export default {
       cleanQuery = searchQuery.parse(cleanQuery, options);
 
       if (!this.value) {
-        return this.$store.getters.allMoviesAsArray;
+        return this.allMoviesAsArray;
       } else if (cleanQuery.y || cleanQuery.year) {
         const keys = ["y", "year"];
         return this.yearSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
@@ -344,6 +347,8 @@ export default {
       } else if (cleanQuery.t || cleanQuery.tag) {
         const keys = ["t", "tag"];
         return this.tagSearch(cleanQuery[keys.find((key) => cleanQuery[key])][0]);
+      } else if (cleanQuery === "annual") {
+        return this.bestMovieFromEachYear();
       } else {
         return this.fuzzySearch();
       }
@@ -375,7 +380,7 @@ export default {
         ]
       };
 
-      const fuse = new Fuse(this.$store.getters.allMoviesAsArray, options);
+      const fuse = new Fuse(this.allMoviesAsArray, options);
 
       const results = fuse.search(`"${this.value}"`);
 
@@ -383,17 +388,17 @@ export default {
     },
     yearSearch (range) {
       if (range.to) {
-        return this.$store.getters.allMoviesAsArray.filter((movie) => {
+        return this.allMoviesAsArray.filter((movie) => {
           return inRange(this.getYear(movie.movie.release_date), range.from, parseInt(range.to) + 1);
         });
       } else {
-        return this.$store.getters.allMoviesAsArray.filter((movie) => {
+        return this.allMoviesAsArray.filter((movie) => {
           return inRange(this.getYear(movie.movie.release_date), range.from, parseInt(range.from) + 1);
         });
       }
     },
     personSearch (names) {
-      return this.$store.getters.allMoviesAsArray.filter((movie) => {
+      return this.allMoviesAsArray.filter((movie) => {
         // this is a sort of crazy thing to do. It might be kind of slow.
         const everyone = `${JSON.stringify(movie.movie.crew)} ${JSON.stringify(movie.movie.cast)}`;
 
@@ -401,13 +406,13 @@ export default {
       })
     },
     genreSearch (genre) {
-      return this.$store.getters.allMoviesAsArray.filter((entry) => {
+      return this.allMoviesAsArray.filter((entry) => {
         const genres = entry.movie.genres.map((genre) => genre.name.toLowerCase());
         return genres.includes(genre);
       })
     },
     tagSearch (tag) {
-      return this.$store.getters.allMoviesAsArray.filter((entry) => {
+      return this.allMoviesAsArray.filter((entry) => {
         const tags = entry.ratings.map((rating) => rating.tags).filter((rating) => rating);
 
         if (tags.length) {
@@ -417,6 +422,21 @@ export default {
           return false;
         }
       })
+    },
+    bestMovieFromEachYear () {
+      const years = {};
+
+      this.allMoviesAsArray.forEach((result) => {
+        const year = new Date(result.movie.release_date).getFullYear();
+
+        if (!years[year]) {
+          years[year] = result;
+        } else if (this.mostRecentRating(result).rating > this.mostRecentRating(years[year]).rating) {
+          years[year] = result;
+        }
+      })
+
+      return Object.keys(years).map((year) => years[year]);
     },
     toggleSortOrder () {
       if (this.sortOrder === "ascending") {
