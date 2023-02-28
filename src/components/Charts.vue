@@ -1,6 +1,7 @@
 <template>
   <div class="charts">
     <BarChart class="chart my-5" :chartData="allRatingsData" :options="allRatingsOptions"/>
+    <BarChart class="chart my-5" :chartData="highestRatingEachYearData" :options="highestRatingEachYearOptions"/>
     <LineChart v-if="results.length > 9" class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
     <BarChart v-if="results.length < 10" class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
     <BarChart class="chart my-5" :chartData="yearsData" :options="yearsOptions"/>
@@ -15,6 +16,7 @@
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
 import { Chart, registerables } from "chart.js";
 import mean from 'lodash/mean';
+import maxBy from 'lodash/maxBy';
 import randomColor from 'randomcolor';
 
 Chart.register(...registerables);
@@ -78,7 +80,6 @@ export default {
       const rounded = this.resultsWithRatings.map((result) => {
         const test = Math.round((parseFloat(this.mostRecentRating(result).rating)) * 2) / 2;
         if (isNaN(test)) {
-          console.log('result: ', result);
           return 0;
         } else {
           return test;
@@ -443,6 +444,65 @@ export default {
           subtitle: {
             display: true,
             text: "(Warmer color means higher average rating)"
+          }
+        }
+      };
+    },
+    highestRatingEachYearData () {
+      const yearsAndRatings = this.resultsWithRatings.map((result) => {
+        return {
+          year: new Date(result.movie.release_date).getFullYear(),
+          rating: this.mostRecentRating(result).rating,
+          title: result.movie.title
+        }
+      });
+
+      const years = {};
+
+      yearsAndRatings.forEach((movie) => {
+        if (!years[movie.year]) {
+          years[movie.year] = [{rating: parseFloat(movie.rating), title: movie.title}];
+        } else {
+          years[movie.year].push({rating: parseFloat(movie.rating), title: movie.title});
+        }
+      });
+
+      const labels = [];
+      const data = [];
+      const backgroundColors = [];
+
+      Object.keys(years).forEach((year) => {
+        const highest = maxBy(years[year], (i) => i.rating);
+
+        labels.push(`${highest.title} (${year})`);
+        data.push(highest.rating);
+        backgroundColors.push(this.percentToColor(parseFloat(highest.rating.toFixed()) * 10));
+      });
+
+      return {
+        labels: labels,
+        datasets: [
+          {
+            data: data,
+            backgroundColor: backgroundColors
+          }
+        ]
+      }
+    },
+    highestRatingEachYearOptions () {
+      return {
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: "Best Movie Each Year",
+          }
+        },
+        scales: {
+          x: {
+            display: false
           }
         }
       };
