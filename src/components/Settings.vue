@@ -18,7 +18,7 @@
       </div>
       <div class="tags p-3 border border-white mt-3">
         <ul class="col-12">
-          <li class="tag mb-2 dflex align-items-center" v-for="(tag, index) in settings.tags" :key="index">
+          <li class="tag mb-2 dflex align-items-center" v-for="(tag, index) in tags" :key="index">
             <span class="badge col-12 rounded-pill text-bg-light" @click="showRemoveButton($event)">
               {{ tag.title }}
               <span class="remove-button" @click.prevent="removeTag(index)">
@@ -48,7 +48,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(weight, index) in settings.weights" :key="index">
+            <tr v-for="(weight, index) in weights" :key="index">
               <td>{{weight.name}}</td>
               <td class="d-flex align-items-center">
                 <span>
@@ -126,7 +126,13 @@ export default {
   async mounted () {
     this.devMode = JSON.parse(window.localStorage.getItem('devMode'));
     await this.getSettings();
-    this.routeAfterRating = this.$store.state.settings.routeAfterRating?.value;
+
+    const route = this.$store.state.settings?.routeAfterRating?.value;
+    if (route) {
+      this.routeAfterRating = route;
+    } else {
+      this.routeAfterRating = "recentlyViewed";
+    }
   },
   data () {
     return {
@@ -134,12 +140,12 @@ export default {
       posterLayout: true,
       devMode: false,
       uploadPercentage: 0,
-      routeAfterRating: "recentlyViewed"
+      routeAfterRating: ""
     }
   },
   watch: {
     settings () {
-      this.posterLayout = this.settings.posterLayout.grid;
+      this.posterLayout = this.settings?.posterLayout.grid;
     },
     posterLayout (newVal) {
       this.posterLayoutSwitched(newVal);
@@ -150,17 +156,37 @@ export default {
     },
     routeAfterRating (newVal) {
       this.setRouteAfterRating(newVal);
+    },
+    settingsRouteAfterRating (newVal) {
+      this.routeAfterRating = newVal;
     }
   },
   computed: {
     settings () {
       return this.$store.state.settings;
     },
+    settingsRouteAfterRating () {
+      return this.$store.state.settings?.routeAfterRating?.value;
+    },
     databaseTopKey () {
       return this.$store.state.databaseTopKey;
     },
+    tags () {
+      if (!this.settings) {
+        return [];
+      }
+
+      return this.settings.tags;
+    },
+    weights () {
+      if (!this.settings) {
+        return [];
+      }
+
+      return this.settings.weights;
+    },
     totalWeight () {
-      if (!this.settings.weights) {
+      if (!this.settings?.weights) {
         return 0;
       }
 
@@ -268,14 +294,17 @@ export default {
       this.$el.querySelectorAll('td.editing').forEach((el) => el.classList.remove("editing"));
     },
     async devModeSwitched (devMode) {
+      if (!this.$route.meta.requiresLogin) {
+        return;
+      }
+
       if (devMode) {
         this.$store.commit('setDatabaseTopKey', "testing-database");
       } else if (this.$store.state.googleLogin) {
         this.$store.commit('setDatabaseTopKey', this.$store.state.googleLogin);
       } else {
         window.localStorage.removeItem('databaseTopKey');
-        location.reload();
-        return;
+        this.$router.push('/login')
       }
 
       await this.$store.dispatch('getDatabase');

@@ -32,6 +32,9 @@ export default createStore({
       return Object.keys(state.database).map((key) => {
         return state.database[key];
       })
+    },
+    databaseTopKey (state) {
+      return state.databaseTopKey;
     }
   },
   mutations: {
