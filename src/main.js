@@ -32,12 +32,14 @@ app.use(VueLazyLoad, {});
 const loggedIn = () => {
   const databaseTopKeyFromLocalStorage = window.localStorage.getItem('databaseTopKey');
 
-  if (databaseTopKeyFromLocalStorage) {
+  if (store.getters.databaseTopKey) {
+    return true;
+  } else if (databaseTopKeyFromLocalStorage) {
     store.commit('setDatabaseTopKey', databaseTopKeyFromLocalStorage);
     store.dispatch('getDatabase');
-    return databaseTopKeyFromLocalStorage;
+    return true;
   } else {
-    return store.getters.databaseTopKey;
+    return false;
   }
 }
 

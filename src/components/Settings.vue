@@ -126,7 +126,13 @@ export default {
   async mounted () {
     this.devMode = JSON.parse(window.localStorage.getItem('devMode'));
     await this.getSettings();
-    this.routeAfterRating = this.$store.state.settings?.routeAfterRating?.value;
+
+    const route = this.$store.state.settings?.routeAfterRating?.value;
+    if (route) {
+      this.routeAfterRating = route;
+    } else {
+      this.routeAfterRating = "recentlyViewed";
+    }
   },
   data () {
     return {
@@ -134,7 +140,7 @@ export default {
       posterLayout: true,
       devMode: false,
       uploadPercentage: 0,
-      routeAfterRating: "recentlyViewed"
+      routeAfterRating: ""
     }
   },
   watch: {
@@ -150,11 +156,17 @@ export default {
     },
     routeAfterRating (newVal) {
       this.setRouteAfterRating(newVal);
+    },
+    settingsRouteAfterRating (newVal) {
+      this.routeAfterRating = newVal;
     }
   },
   computed: {
     settings () {
       return this.$store.state.settings;
+    },
+    settingsRouteAfterRating () {
+      return this.$store.state.settings?.routeAfterRating?.value;
     },
     databaseTopKey () {
       return this.$store.state.databaseTopKey;
