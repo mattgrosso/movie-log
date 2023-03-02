@@ -1,5 +1,6 @@
 <template>
   <div class="rate-movie mx-auto">
+    <!-- TODO: We should use the banner from the movie you're rating at the top of the rating screen -->
     <div class="p-4">
       <h1 class="mb-4">Rate Movie</h1>
 

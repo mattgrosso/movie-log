@@ -7,15 +7,6 @@
       <div class="p-1 border-white border">
         <p class="m-0 text-center fs-5">:: {{$store.state.databaseTopKey}} ::</p>
       </div>
-      <div class="header-settings p-3 border-white border mt-3">
-        <div class="switch d-flex justify-content-center">
-          <label class="form-check-label mx-2" for="posterLayout">Random Poster</label>
-          <div class="form-check form-switch m-0">
-            <input class="form-check-input" type="checkbox" role="switch" id="posterLayout" v-model="posterLayout">
-            <label class="form-check-label" for="posterLayout">Poster Grid</label>
-          </div>
-        </div>
-      </div>
       <div class="tags p-3 border border-white mt-3">
         <ul class="col-12">
           <li class="tag mb-2 dflex align-items-center" v-for="(tag, index) in tags" :key="index">
@@ -137,19 +128,12 @@ export default {
   data () {
     return {
       newTagTitle: null,
-      posterLayout: true,
       devMode: false,
       uploadPercentage: 0,
       routeAfterRating: ""
     }
   },
   watch: {
-    settings (newVal) {
-      this.posterLayout = newVal.posterLayout?.grid;
-    },
-    posterLayout (newVal) {
-      this.posterLayoutSwitched(newVal);
-    },
     devMode (newVal) {
       window.localStorage.setItem('devMode', newVal);
       this.devModeSwitched(newVal);
@@ -219,20 +203,6 @@ export default {
       );
 
       this.getSettings();
-    },
-    async posterLayoutSwitched (value) {
-      const layoutSetting = { grid: value }
-
-      if (this.databaseTopKey) {
-        await axios.patch(
-          `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/posterLayout.json`,
-          layoutSetting
-        );
-      }
-
-      this.getSettings();
-      this.$emit('setPosterLayout', value);
-      this.$emit('hideSettings');
     },
     async getSettings () {
       const settings = await axios.get(

@@ -142,7 +142,6 @@ export default createStore({
       const newDB = {
         movieLog: {},
         settings: {
-          posterLayout: { grid: true },
           tags: [{ title: "default tag" }],
           weights: [
             { name: "direction", weight: 1.015 },
