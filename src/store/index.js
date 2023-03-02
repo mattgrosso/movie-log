@@ -1,5 +1,7 @@
 import { createStore } from "vuex"
 import axios from 'axios';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, onValue } from "firebase/database";
 import { decodeCredential } from 'vue3-google-login'
 import * as Sentry from "@sentry/vue";
 
@@ -13,6 +15,13 @@ const sortByVoteCount = (a, b) => {
 
   return 0;
 }
+
+// Firebase
+const firebaseConfig = {
+  databaseURL: "https://movie-log-8c4d5-default-rtdb.firebaseio.com",
+};
+
+initializeApp(firebaseConfig);
 
 export default createStore({
   state: {
@@ -100,34 +109,30 @@ export default createStore({
 
       window.localStorage.setItem('databaseTopKey', context.state.databaseTopKey);
 
-      const database = await axios.get(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${context.state.databaseTopKey}.json`
-      );
+      const db = getDatabase();
 
-      if (database.data) {
-        const db = database.data.movieLog ? database.data.movieLog : {};
-        const settings = database.data.settings
-          ? database.data.settings
-          : {
-              posterLayout: { grid: true },
-              routeAfterRating: { value: "recentlyViewed" },
-              tags: [{ title: "default tag" }],
-              weights: [
-                { name: "direction", weight: 1.015 },
-                { name: "imagery", weight: 0.9 },
-                { name: "impression", weight: 1.9 },
-                { name: "love", weight: 2.985 },
-                { name: "overall", weight: 2.05 },
-                { name: "performance", weight: 0.65 },
-                { name: "soundtrack", weight: 0.2 },
-                { name: "story", weight: 1.25 }
-              ]
-            };
-        context.commit('setDatabase', db);
-        context.commit('setSettings', settings);
-      } else {
-        await context.dispatch('initiateNewDatabase');
-      }
+      const movieLog = ref(db, `${context.state.databaseTopKey}/movieLog`);
+
+      onValue(movieLog, (snapshot) => {
+        if (!snapshot.exists()) {
+          context.dispatch('initiateNewDatabase');
+        } else {
+          const data = snapshot.val();
+  
+          if (data) {
+            context.commit('setDatabase', data);
+          }
+        }
+      });
+
+      const settings = ref(db, `${context.state.databaseTopKey}/settings`);
+
+      onValue(settings, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          context.commit('setSettings', settings);
+        }
+      });
     },
     async initiateNewDatabase (context) {
       if (!context.state.databaseTopKey) {

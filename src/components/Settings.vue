@@ -144,8 +144,8 @@ export default {
     }
   },
   watch: {
-    settings () {
-      this.posterLayout = this.settings?.posterLayout.grid;
+    settings (newVal) {
+      this.posterLayout = newVal.posterLayout?.grid;
     },
     posterLayout (newVal) {
       this.posterLayoutSwitched(newVal);
