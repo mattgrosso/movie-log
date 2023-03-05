@@ -131,6 +131,7 @@ export default {
         text-decoration: none;
         top: 50%;
         transform: translate(-50%, -50%);
+        white-space: nowrap;
 
         &.single {
           background: none;
@@ -143,7 +144,7 @@ export default {
           transform: translate(0, -100%);
         }
 
-        @media screen and (min-width: 350px) {
+        @media screen and (min-width: 320px) {
           font-size: 2rem;
         }
       }
