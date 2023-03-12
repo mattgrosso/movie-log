@@ -385,7 +385,7 @@
       <div class="col-12 my-5 tags">
         <label class="form-label">Select Additional Tags</label>
         <div class="tag-list d-flex flex-wrap">
-          <div v-for="(tag, index) in settings.tags" :key="index" class='form-check mx-2 mb-2'>
+          <div v-for="(tag, index) in settingsTags" :key="index" class='form-check mx-2 mb-2'>
             <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleTag(tag)">
             <label class="form-check-label" :for="`tag-${index}`">
               {{tag.title}}
@@ -548,6 +548,13 @@ export default {
       return this.$store.getters.allMoviesAsArray.find((entry) => {
         return entry.movie.id === this.id;
       })
+    },
+    settingsTags () {
+      if (!this.settings) {
+        return [];
+      }
+
+      return this.settings.tags;
     }
   },
   methods: {
@@ -583,11 +590,11 @@ export default {
       return 0;
     },
     getWeight (weightName) {
-      const weightObj = this.settings.weights.find((weight) => {
+      const weightObj = this.settings?.weights?.find((weight) => {
         return weight.name === weightName;
       });
 
-      return weightObj.weight;
+      return weightObj ? weightObj.weight : 0;
     },
     getScore (scoreName) {
       const lowerCase = scoreName.toLowerCase();
@@ -596,6 +603,10 @@ export default {
       return parseFloat(property);
     },
     getRatingFor (category) {
+      if (!this.getWeight(category) || !this.getScore(category)) {
+        return 0;
+      }
+
       return this.getWeight(category) * this.getScore(category);
     },
     indexIfSortedIntoArray (movie, array) {
@@ -648,7 +659,7 @@ export default {
 
       await addRating(ratings);
 
-      const routeAfterRating = this.$store.state.settings.routeAfterRating.value;
+      const routeAfterRating = this.$store.state.settings?.routeAfterRating?.value;
 
       window.scroll({
         top: top,

@@ -109,30 +109,36 @@ export default createStore({
 
       window.localStorage.setItem('databaseTopKey', context.state.databaseTopKey);
 
-      const db = getDatabase();
+      const shallowDb = await axios.get(
+        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${context.state.databaseTopKey}.json?shallow=true`
+      );
 
-      const movieLog = ref(db, `${context.state.databaseTopKey}/movieLog`);
 
-      onValue(movieLog, (snapshot) => {
-        if (!snapshot.exists()) {
-          context.dispatch('initiateNewDatabase');
-        } else {
+      if (!shallowDb.data) {
+        context.dispatch('initiateNewDatabase');
+      } else {
+        const db = getDatabase();
+  
+        const movieLog = ref(db, `${context.state.databaseTopKey}/movieLog`);
+  
+        onValue(movieLog, (snapshot) => {
           const data = snapshot.val();
   
           if (data) {
             context.commit('setDatabase', data);
           }
-        }
-      });
-
-      const settings = ref(db, `${context.state.databaseTopKey}/settings`);
-
-      onValue(settings, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          context.commit('setSettings', settings);
-        }
-      });
+        });
+  
+        const settings = ref(db, `${context.state.databaseTopKey}/settings`);
+  
+        onValue(settings, (snapshot) => {
+          const data = snapshot.val();
+  
+          if (data) {
+            context.commit('setSettings', settings);
+          }
+        });
+      }
     },
     async initiateNewDatabase (context) {
       if (!context.state.databaseTopKey) {
