@@ -1,7 +1,7 @@
 <template>
   <div class="share-db-results">
     <div class="share-header bg-dark text-light p-3">
-      <!-- todo: This header should be a rondom banner from the list shown (or maybe the top result) -->
+      <!-- todo: This header should be a random banner from the list shown (or maybe the top result) -->
       <h1>Movie Log</h1>
     </div>
     <div v-if="shareObject" class="terms d-flex justify-content-start p-3">
