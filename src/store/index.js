@@ -1,3 +1,5 @@
+// TODO: Somewhere something is creating a "null" db. We should figure out where that's coming from.
+// TODO: It seems like the route after rating entries aren't working. Trace the path after new rating.
 import { createStore } from "vuex"
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
@@ -113,29 +115,28 @@ export default createStore({
         `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${context.state.databaseTopKey}.json?shallow=true`
       );
 
-
       if (!shallowDb.data) {
         context.dispatch('initiateNewDatabase');
       } else {
         const db = getDatabase();
-  
+
         const movieLog = ref(db, `${context.state.databaseTopKey}/movieLog`);
-  
+
         onValue(movieLog, (snapshot) => {
           const data = snapshot.val();
-  
+
           if (data) {
             context.commit('setDatabase', data);
           }
         });
-  
+
         const settings = ref(db, `${context.state.databaseTopKey}/settings`);
-  
+
         onValue(settings, (snapshot) => {
           const data = snapshot.val();
-  
+
           if (data) {
-            context.commit('setSettings', settings);
+            context.commit('setSettings', data);
           }
         });
       }
@@ -167,7 +168,7 @@ export default createStore({
         newDB
       );
 
-      await context.dispatch('getDatabase');
+      context.dispatch('getDatabase');
     }
   },
   modules: {
