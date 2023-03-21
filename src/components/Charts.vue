@@ -529,7 +529,7 @@ export default {
       const combine = {};
 
       // You can adjust the threshold here by changing the constant.
-      const threshold = directors.length / 150;
+      let threshold = directors.length / 150 > 2 ? directors.length / 150 : 2;
 
       directors.forEach((entry) => {
         if (count[entry.director] < threshold) {
