@@ -202,7 +202,7 @@ export default {
       await set(ref(
         getDatabase(),
         `${this.databaseTopKey}/settings/tags/${crypto.randomUUID()}`),
-        { title: this.newTagTitle }
+      { title: this.newTagTitle }
       );
 
       this.newTagTitle = null;
@@ -219,7 +219,7 @@ export default {
       await set(ref(
         getDatabase(),
         `${this.databaseTopKey}/settings/tags/${tagIndex}`),
-        null
+      null
       );
     },
     toggleEdit (event) {
@@ -244,7 +244,7 @@ export default {
       await set(ref(
         getDatabase(),
         `${this.databaseTopKey}/settings/weights/${payload.index}`),
-        payload.weight
+      payload.weight
       );
 
       this.$el.querySelectorAll('td.editing').forEach((el) => el.classList.remove("editing"));

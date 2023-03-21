@@ -166,7 +166,7 @@ export default createStore({
       set(ref(
         getDatabase(),
         `${context.state.databaseTopKey}`),
-        newDB
+      newDB
       );
 
       context.dispatch('getDatabase');

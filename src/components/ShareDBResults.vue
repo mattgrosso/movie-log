@@ -53,7 +53,6 @@ export default {
     const userDBKey = this.$route.params.userDBKey;
     const shareKey = this.$route.params.shareKey;
 
-
     const shareObject = await get(child(ref(getDatabase()), `${userDBKey}/sharedDBSearches/${shareKey}`));
     if (shareObject.exists()) {
       this.shareObject = shareObject.val();
