@@ -100,7 +100,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import { getDatabase, ref, set } from "firebase/database";
 import ImportCsv from "./ImportCsv.vue";
 
 export default {
@@ -116,7 +116,6 @@ export default {
   },
   async mounted () {
     this.devMode = JSON.parse(window.localStorage.getItem('devMode'));
-    await this.getSettings();
 
     const route = this.$store.state.settings?.routeAfterRating?.value;
     if (route) {
@@ -197,29 +196,16 @@ export default {
       return share.toPrecision(4);
     },
     async setRouteAfterRating (value) {
-      await axios.patch(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/routeAfterRating.json`,
-        { value: value }
-      );
-
-      this.getSettings();
-    },
-    async getSettings () {
-      const settings = await axios.get(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings.json`
-      );
-
-      this.$store.commit('setSettings', settings.data);
+      await set(ref(getDatabase(), `${this.databaseTopKey}/settings/routeAfterRating`), { value: value });
     },
     async addTag () {
-      await axios.post(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/tags.json`,
+      await set(ref(
+        getDatabase(),
+        `${this.databaseTopKey}/settings/tags/${crypto.randomUUID()}`),
         { title: this.newTagTitle }
       );
 
       this.newTagTitle = null;
-
-      this.getSettings();
     },
     showRemoveButton (event) {
       const all = Array.from(this.$el.querySelectorAll('.show-remove-button'));
@@ -230,11 +216,11 @@ export default {
       event.target.classList.toggle('show-remove-button');
     },
     async removeTag (tagIndex) {
-      await axios.delete(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/tags/${tagIndex}.json`
+      await set(ref(
+        getDatabase(),
+        `${this.databaseTopKey}/settings/tags/${tagIndex}`),
+        null
       );
-
-      this.getSettings();
     },
     toggleEdit (event) {
       this.calculateShare();
@@ -255,12 +241,12 @@ export default {
         }
       };
 
-      await axios.patch(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.databaseTopKey}/settings/weights/${payload.index}.json`,
+      await set(ref(
+        getDatabase(),
+        `${this.databaseTopKey}/settings/weights/${payload.index}`),
         payload.weight
       );
 
-      this.getSettings();
       this.$el.querySelectorAll('td.editing').forEach((el) => el.classList.remove("editing"));
     },
     async devModeSwitched (devMode) {
