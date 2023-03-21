@@ -9,6 +9,7 @@
     <ScatterChart class="chart my-5" :chartData="lengthVsRatingData" :options="lengthVsRatingOptions"/>
     <DoughnutChart class="chart my-5" :chartData="companyChartData" :options="companyChartOptions"/>
     <RadarChart v-if="results.length < 10" class="chart my-5" :chartData="radarRatingsData" :options="radarRatingsOptions"/>
+    <BarChart class="chart my-5" :chartData="directorsData" :options="directorsOptions"/>
   </div>
 </template>
 
@@ -78,11 +79,11 @@ export default {
     },
     ratingsCountData () {
       const rounded = this.resultsWithRatings.map((result) => {
-        const test = Math.round((parseFloat(this.mostRecentRating(result).rating)) * 2) / 2;
-        if (isNaN(test)) {
+        const rounded = Math.round((parseFloat(this.mostRecentRating(result).rating)) * 2) / 2;
+        if (isNaN(rounded)) {
           return 0;
         } else {
-          return test;
+          return rounded;
         }
       });
 
@@ -506,6 +507,82 @@ export default {
           }
         }
       };
+    },
+    directorsData () {
+      const directors = [...this.resultsWithRatings].map((result) => {
+        return {
+          director: result.movie.crew.find((crew) => crew.job === "Director").name,
+          rating: parseFloat(this.mostRecentRating(result).rating)
+        }
+      });
+
+      const count = {};
+
+      directors.forEach((each) => {
+        if (count[each.director]) {
+          count[each.director]++;
+        } else {
+          count[each.director] = 1;
+        }
+      })
+
+      const combine = {};
+
+      // You can adjust the threshold here by changing the constant.
+      const threshold = directors.length / 150;
+
+      directors.forEach((entry) => {
+        if (count[entry.director] < threshold) {
+          return;
+        }
+
+        if (!combine[entry.director]) {
+          combine[entry.director] = [entry.rating];
+        } else {
+          combine[entry.director].push(entry.rating);
+        }
+      })
+
+      const combineArray = Object.keys(combine).map((key) => {
+        return {
+          director: key,
+          count: combine[key].length,
+          average: combine[key].reduce((a, b) => a + b) / combine[key].length
+        }
+      })
+
+      combineArray.sort(this.sortByAverage);
+
+      const labels = combineArray.map((entry) => entry.director);
+      const data = combineArray.map((entry) => entry.average);
+
+      return {
+        labels: labels,
+        datasets: [
+          {
+            data: data,
+            backgroundColor: [randomColor(), randomColor(), randomColor(), randomColor()],
+          }
+        ]
+      }
+    },
+    directorsOptions () {
+      return {
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: "Top directors by average score",
+          },
+        },
+        scales: {
+          x: {
+            display: true
+          }
+        }
+      }
     }
   },
   methods: {
@@ -529,6 +606,28 @@ export default {
       }
 
       return 0;
+    },
+    sortByAverage (a, b) {
+      const sortValueA = a.average;
+      const sortValueB = b.average;
+
+      if (sortValueA < sortValueB) {
+        if (this.sortOrder === "ascending") {
+          return 1;
+        } else {
+          return -1;
+        }
+      }
+      if (sortValueA > sortValueB) {
+        if (this.sortOrder === "ascending") {
+          return -1;
+        } else {
+          return 1;
+        }
+      }
+
+      return 0;
+
     },
     mostRecentRating (movie) {
       let mostRecentRating = movie.ratings[0];

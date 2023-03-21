@@ -1,4 +1,5 @@
 <template>
+  <!-- TODO: The search params on this page should be stored in the URL as a query. That way you can refresh. -->
   <div class="db-search-results p-3 pt-5 mx-auto">
     <div class="search-bar mx-auto">
       <div class="input-group mb-3 col-12 md-col-6">
