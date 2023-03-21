@@ -1,9 +1,9 @@
 // TODO: Somewhere something is creating a "null" db. We should figure out where that's coming from.
-// TODO: It seems like the route after rating entries aren't working. Trace the path after new rating.
+// TODO: It seems like the route after rating entries aren't working on a new DB
 import { createStore } from "vuex"
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue } from "firebase/database";
+import { getDatabase, ref, onValue, set } from "firebase/database";
 import { decodeCredential } from 'vue3-google-login'
 import * as Sentry from "@sentry/vue";
 
@@ -163,8 +163,9 @@ export default createStore({
         }
       }
 
-      await axios.put(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${context.state.databaseTopKey}.json`,
+      set(ref(
+        getDatabase(),
+        `${context.state.databaseTopKey}`),
         newDB
       );
 
