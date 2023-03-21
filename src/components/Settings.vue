@@ -196,7 +196,9 @@ export default {
       return share.toPrecision(4);
     },
     async setRouteAfterRating (value) {
-      await set(ref(getDatabase(), `${this.databaseTopKey}/settings/routeAfterRating`), { value: value });
+      if (this.databaseTopKey) {
+        await set(ref(getDatabase(), `${this.databaseTopKey}/settings/routeAfterRating`), { value: value });
+      }
     },
     async addTag () {
       await set(ref(

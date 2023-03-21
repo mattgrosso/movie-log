@@ -672,12 +672,12 @@ export default {
       } else if (routeAfterRating === "allRatings") {
         this.$store.commit("setDBSortValue", "rating");
         this.$router.push("/db-search");
-      } else if (routeAfterRating === "home") {
-        this.$router.push("/");
       } else if (routeAfterRating === "sameYear") {
         this.$store.commit("setDBSearchValue", `y:${rating.year}`);
         this.$store.commit("setDBSortValue", "rating");
         this.$router.push("/db-search");
+      } else {
+        this.$router.push("/");
       }
     }
   },
