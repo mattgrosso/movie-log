@@ -1,8 +1,8 @@
 <template>
   <div class="share-db-results">
-    <div class="share-header bg-dark text-light p-3">
-      <!-- todo: This header should be a random banner from the list shown (or maybe the top result) -->
-      <h1>Movie Log</h1>
+    <div class="share-header">
+      <img v-if="shareBannerUrl" class="col-12" :src="shareBannerUrl">
+      <h1 class="text-light col-12 m-0 px-3 py-2">Movie Log</h1>
     </div>
     <div v-if="shareObject" class="terms d-flex justify-content-start p-3">
       <span class="badge rounded-pill text-bg-dark mx-2">{{shareObject.value}}</span>
@@ -64,6 +64,13 @@ export default {
     this.$store.commit("setShowHeader", true);
   },
   computed: {
+    shareBannerUrl () {
+      if (this.shareObject.results) {
+        return `https://image.tmdb.org/t/p/original${this.shareObject.results[0].movie.backdrop_path}`;
+      } else {
+        return false;
+      }
+    },
     filteredResults () {
       if (!this.shareObject.results) {
         return [];
@@ -108,3 +115,17 @@ export default {
   },
 }
 </script>
+
+<style lang="scss">
+  .share-db-results {
+    .share-header {
+      position: relative;
+
+      h1 {
+        background-color: #000000a3;
+        bottom: 0;
+        position: absolute;
+      }
+    }
+  }
+</style>

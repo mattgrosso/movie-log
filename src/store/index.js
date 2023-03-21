@@ -1,5 +1,3 @@
-// TODO: Somewhere something is creating a "null" db. We should figure out where that's coming from.
-// TODO: It seems like the route after rating entries aren't working on a new DB
 import { createStore } from "vuex"
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
