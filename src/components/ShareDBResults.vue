@@ -38,7 +38,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import { getDatabase, ref, child, get } from "firebase/database";
 
 export default {
   data () {
@@ -53,11 +53,13 @@ export default {
     const userDBKey = this.$route.params.userDBKey;
     const shareKey = this.$route.params.shareKey;
 
-    const shareObject = await axios.get(
-      `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${userDBKey}/sharedDBSearches/${shareKey}.json`
-    );
 
-    this.shareObject = shareObject.data;
+    const shareObject = await get(child(ref(getDatabase()), `${userDBKey}/sharedDBSearches/${shareKey}`));
+    if (shareObject.exists()) {
+      this.shareObject = shareObject.val();
+    } else {
+      console.error('No share data');
+    }
   },
   beforeRouteLeave () {
     this.$store.commit("setShowHeader", true);
