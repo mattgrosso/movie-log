@@ -1,16 +1,10 @@
 <template>
   <form class="new-rating-search my-5 mx-3" @submit.prevent="searchTMDB" target="_top" method="GET">
     <input type="hidden" name="action" value="entry">
-
-    <div class="search-inputs mb-3">
-      <label for="title" class="form-label">New Entry</label>
-      <input type="text" class="form-control" name="title" id="title" v-model="value">
+    <div class="search-inputs input-group mb-3">
+      <input v-model="value" type="text" class="form-control" placeholder="New Entry" aria-label="New Entry" aria-describedby="new-rating-button">
       <div ref="noResults" class="invalid-feedback">No results found</div>
-    </div>
-    <div class="col-12 d-flex justify-content-end">
-      <button type="submit" value="Enter" class="shadow-lg btn btn-primary col-4" :class="{disabled: !value}">
-        <span>Enter</span>
-      </button>
+      <button class="btn btn-primary" :disabled="!value" type="submit" id="new-rating-button">Search</button>
     </div>
   </form>
 </template>
