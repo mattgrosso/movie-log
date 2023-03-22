@@ -174,7 +174,7 @@ export default {
       }
 
       const weights = this.settings.weights.map((weight) => {
-        if (weight.name === "Impression") {
+        if (weight.name === "impression") {
           return weight.weight / 2;
         } else {
           return weight.weight;
