@@ -677,7 +677,7 @@ export default {
         top: top,
         behavior: 'smooth'
       })
-      
+
       this.$store.commit("setShowHeader", true);
       if (routeAfterRating === "recentlyViewed") {
         this.$store.commit("setDBSortValue", "watched");

@@ -685,7 +685,7 @@ export default {
       this.$router.push(`/share/${this.$store.state.databaseTopKey}/${dbKey}`);
     },
     updateUrl () {
-      this.$router.push({query: {search: encodeURIComponent(this.value)}});
+      this.$router.push({ query: { search: encodeURIComponent(this.value) } });
     }
   },
 }

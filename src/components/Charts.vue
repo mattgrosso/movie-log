@@ -529,7 +529,7 @@ export default {
       const combine = {};
 
       // You can adjust the threshold here by changing the constant.
-      let threshold = directors.length / 150 > 2 ? directors.length / 150 : 2;
+      const threshold = directors.length / 150 > 2 ? directors.length / 150 : 2;
 
       directors.forEach((entry) => {
         if (count[entry.director] < threshold) {
@@ -627,7 +627,6 @@ export default {
       }
 
       return 0;
-
     },
     mostRecentRating (movie) {
       let mostRecentRating = movie.ratings[0];
