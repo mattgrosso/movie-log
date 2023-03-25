@@ -376,9 +376,9 @@
       <p class="rating col-12 my-3 d-flex justify-content-center align-items-center" id="rating">
         Rating: {{rating}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked)}}/{{numberOfMoviesAfterRating}}
+        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked) + 1}}/{{numberOfMoviesAfterRating}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear)}} in {{movieYear(this.movieToRate)}}
+        #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear) + 1}} in {{movieYear(this.movieToRate)}}
       </p>
 
       <hr>
@@ -616,7 +616,7 @@ export default {
     },
     getRatingFor (category) {
       if (!this.getWeight(category) || !this.getScore(category)) {
-        return 0;
+        return;
       }
 
       return this.getWeight(category) * this.getScore(category);
