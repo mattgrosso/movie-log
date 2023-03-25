@@ -1,9 +1,10 @@
 <template>
   <div class="rate-movie mx-auto">
-    <!-- TODO: We should use the banner from the movie you're rating at the top of the rating screen -->
+    <div class="rate-movie-header">
+      <img v-if="rateBannerUrl" class="col-12" :src="rateBannerUrl">
+      <h1 class="text-light col-12 m-0 px-3 py-2">Rate {{title}}</h1>
+    </div>
     <div class="p-4">
-      <h1 class="mb-4">Rate Movie</h1>
-
       <div class="col-12 mb-4">
         <label class="form-label fs-4" for="title">Title</label>
         <input class="form-control" name="title" type="text" id="title" v-model="title">
@@ -492,9 +493,13 @@ export default {
     }
   },
   mounted () {
+    this.$store.commit("setShowHeader", false);
     this.title = this.movieToRate.title;
     this.year = new Date(this.movieToRate.release_date).getFullYear();
     this.id = this.movieToRate.id;
+  },
+  beforeRouteLeave () {
+    this.$store.commit("setShowHeader", true);
   },
   computed: {
     database () {
@@ -555,7 +560,14 @@ export default {
       }
 
       return this.settings.tags;
-    }
+    },
+    rateBannerUrl () {
+      if (this.movieToRate) {
+        return `https://image.tmdb.org/t/p/original${this.movieToRate.backdrop_path}`;
+      } else {
+        return false;
+      }
+    },
   },
   methods: {
     movieYear (movie) {
@@ -666,18 +678,19 @@ export default {
         behavior: 'smooth'
       })
 
+      this.$store.commit("setShowHeader", true);
       if (routeAfterRating === "recentlyViewed") {
         this.$store.commit("setDBSortValue", "watched");
         this.$router.push("/db-search");
       } else if (routeAfterRating === "allRatings") {
         this.$store.commit("setDBSortValue", "rating");
         this.$router.push("/db-search");
-      } else if (routeAfterRating === "home") {
-        this.$router.push("/");
       } else if (routeAfterRating === "sameYear") {
         this.$store.commit("setDBSearchValue", `y:${rating.year}`);
         this.$store.commit("setDBSortValue", "rating");
         this.$router.push("/db-search");
+      } else {
+        this.$router.push("/");
       }
     }
   },
@@ -687,6 +700,16 @@ export default {
 <style lang="scss">
   .rate-movie {
     max-width: 832px;
+
+    .rate-movie-header {
+      position: relative;
+
+      h1 {
+        background-color: #000000a3;
+        bottom: 0;
+        position: absolute;
+      }
+    }
 
     .year-medium-date {
       column-gap: 1rem;

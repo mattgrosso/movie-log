@@ -1,12 +1,22 @@
 <template>
   <form class="my-5 mx-3">
-    <div class="mb-3">
-      <label for="term" class="form-label">Search Database</label>
-      <input type="text" class="form-control" name="term" id="term" v-model="value">
-    </div>
-    <div class="col-12 d-flex justify-content-end">
-      <button @click.prevent="dBSearch" type="submit" value="Search" class="shadow-lg btn btn-primary col-4">
-        <span>Search</span>
+    <div class="search-inputs input-group mb-3">
+      <input
+        v-model="value"
+        type="text"
+        class="form-control"
+        placeholder="Search Database"
+        aria-label="Search Database"
+        aria-describedby="search-database-button"
+      >
+      <button
+        @click.prevent="dBSearch"
+        class="btn btn-primary"
+        type="submit"
+        id="search-database-button"
+      >
+        <span v-if="value">Search</span>
+        <span v-else>Go</span>
       </button>
     </div>
   </form>

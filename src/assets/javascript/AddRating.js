@@ -1,5 +1,6 @@
 import axios from 'axios';
 import cheerio from "cheerio";
+import { getDatabase, ref, set } from "firebase/database";
 import store from '../../store/index';
 
 const getTMDBData = async (id) => {
@@ -89,7 +90,7 @@ const addRating = async (ratings, batch) => {
     genres: tmdbData.genres,
     id: tmdbData.id,
     imdb_id: tmdbData.imdb_id,
-    ownership: ratings[0].ownership,
+    ownership: ratings[0].ownership || null,
     poster_path: tmdbData.poster_path,
     production_companies: tmdbData.production_companies,
     release_date: tmdbData.release_date,
@@ -111,19 +112,10 @@ const addRating = async (ratings, batch) => {
     ratings: ratingsWithoutOwnership
   };
 
-  const key = findKeyForMovieInDatabase(ratings[0].id);
+  const key = findKeyForMovieInDatabase(ratings[0].id) || crypto.randomUUID();
+  const db = getDatabase();
 
-  if (key) {
-    await axios.patch(
-      `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${store.state.databaseTopKey}/movieLog/${key}.json`,
-      movieWithRating
-    );
-  } else {
-    await axios.post(
-      `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${store.state.databaseTopKey}/movieLog.json`,
-      movieWithRating
-    );
-  }
+  set(ref(db, `${store.state.databaseTopKey}/movieLog/${key}`), movieWithRating);
 
   if (!batch) {
     await store.dispatch('getDatabase');

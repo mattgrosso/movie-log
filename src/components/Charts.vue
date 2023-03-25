@@ -9,6 +9,8 @@
     <ScatterChart class="chart my-5" :chartData="lengthVsRatingData" :options="lengthVsRatingOptions"/>
     <DoughnutChart class="chart my-5" :chartData="companyChartData" :options="companyChartOptions"/>
     <RadarChart v-if="results.length < 10" class="chart my-5" :chartData="radarRatingsData" :options="radarRatingsOptions"/>
+    <BarChart class="chart my-5" :chartData="directorsData" :options="directorsOptions"/>
+    <Streaks :resultsWithRatings="resultsWithRatings" :mostRecentRating="mostRecentRating"/>
   </div>
 </template>
 
@@ -17,7 +19,9 @@ import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vu
 import { Chart, registerables } from "chart.js";
 import mean from 'lodash/mean';
 import maxBy from 'lodash/maxBy';
+import sortBy from 'lodash/sortBy';
 import randomColor from 'randomcolor';
+import Streaks from "./Streaks.vue";
 
 Chart.register(...registerables);
 
@@ -37,14 +41,20 @@ export default {
     LineChart,
     DoughnutChart,
     ScatterChart,
-    RadarChart
+    RadarChart,
+    Streaks
+  },
+  data () {
+    return {
+      streakThreshold: 5
+    }
   },
   computed: {
     resultsWithRatings () {
       return this.results.filter((result) => this.mostRecentRating(result).rating);
     },
     allRatingsData () {
-      const resultsByRating = [...this.resultsWithRatings].sort(this.sortByRating);
+      const resultsByRating = sortBy(this.resultsWithRatings, (result) => this.mostRecentRating(result).rating);
       const labels = resultsByRating.map((result) => result.movie.title);
       const data = resultsByRating.map((result) => parseFloat(this.mostRecentRating(result).rating));
 
@@ -78,11 +88,11 @@ export default {
     },
     ratingsCountData () {
       const rounded = this.resultsWithRatings.map((result) => {
-        const test = Math.round((parseFloat(this.mostRecentRating(result).rating)) * 2) / 2;
-        if (isNaN(test)) {
+        const rounded = Math.round((parseFloat(this.mostRecentRating(result).rating)) * 2) / 2;
+        if (isNaN(rounded)) {
           return 0;
         } else {
-          return test;
+          return rounded;
         }
       });
 
@@ -506,30 +516,85 @@ export default {
           }
         }
       };
+    },
+    directorsData () {
+      const directors = [...this.resultsWithRatings].map((result) => {
+        return {
+          director: result.movie.crew.find((crew) => crew.job === "Director").name,
+          rating: parseFloat(this.mostRecentRating(result).rating)
+        }
+      });
+
+      const count = {};
+
+      directors.forEach((each) => {
+        if (count[each.director]) {
+          count[each.director]++;
+        } else {
+          count[each.director] = 1;
+        }
+      })
+
+      const combine = {};
+
+      // You can adjust the threshold here by changing the constant.
+      const threshold = directors.length / 150 > 2 ? directors.length / 150 : 2;
+
+      directors.forEach((entry) => {
+        if (count[entry.director] < threshold) {
+          return;
+        }
+
+        if (!combine[entry.director]) {
+          combine[entry.director] = [entry.rating];
+        } else {
+          combine[entry.director].push(entry.rating);
+        }
+      })
+
+      const combineArray = Object.keys(combine).map((key) => {
+        return {
+          director: key,
+          count: combine[key].length,
+          average: combine[key].reduce((a, b) => a + b) / combine[key].length
+        }
+      })
+
+      const sorted = sortBy(combineArray, (i) => i.average);
+
+      const labels = sorted.map((entry) => entry.director);
+      const data = sorted.map((entry) => entry.average);
+
+      return {
+        labels: labels,
+        datasets: [
+          {
+            data: data,
+            backgroundColor: [randomColor(), randomColor(), randomColor(), randomColor()],
+          }
+        ]
+      }
+    },
+    directorsOptions () {
+      return {
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: "Top directors by average score",
+          },
+        },
+        scales: {
+          x: {
+            display: true
+          }
+        }
+      }
     }
   },
   methods: {
-    sortByRating (a, b) {
-      const sortValueA = this.mostRecentRating(a).rating;
-      const sortValueB = this.mostRecentRating(b).rating;
-
-      if (sortValueA < sortValueB) {
-        if (this.sortOrder === "ascending") {
-          return 1;
-        } else {
-          return -1;
-        }
-      }
-      if (sortValueA > sortValueB) {
-        if (this.sortOrder === "ascending") {
-          return -1;
-        } else {
-          return 1;
-        }
-      }
-
-      return 0;
-    },
     mostRecentRating (movie) {
       let mostRecentRating = movie.ratings[0];
 
@@ -561,6 +626,6 @@ export default {
 }
 </script>
 
-<style>
+<style lang="scss">
 
 </style>

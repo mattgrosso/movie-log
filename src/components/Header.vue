@@ -108,7 +108,7 @@ export default {
     align-items: center;
     display: flex;
     flex-wrap: wrap;
-    justify-content: end;
+    justify-content: flex-end;
     position: relative;
 
     .overflow-wrapper {

@@ -227,6 +227,7 @@
 
 <script>
 import axios from 'axios';
+import { getDatabase, ref, set } from "firebase/database";
 import { createPopper } from '@popperjs/core';
 import ordinal from "ordinal-js";
 import Fuse from 'fuse.js';
@@ -266,11 +267,14 @@ export default {
       }
     },
     value (newVal) {
-      this.$emit('clearSearch');
+      this.updateUrl();
     }
   },
   mounted () {
     this.value = this.DBSearchValue;
+    if (this.$route.query.search) {
+      this.value = decodeURIComponent(this.$route.query.search);
+    }
 
     if (this.DBSortValue) {
       this.sortValue = this.DBSortValue;
@@ -671,16 +675,18 @@ export default {
         value: this.value
       };
 
-      const resp = await axios.post(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${this.$store.state.databaseTopKey}/sharedDBSearches.json`,
-        shareObject
-      );
+      const dbKey = crypto.randomUUID();
+      const db = getDatabase();
 
-      const dbKey = resp.data.name;
+      await set(ref(db, `${this.$store.state.databaseTopKey}/sharedDBSearches/${dbKey}`), shareObject);
 
       this.sharing = false;
       this.value = "";
       this.$router.push(`/share/${this.$store.state.databaseTopKey}/${dbKey}`);
+    },
+    updateUrl () {
+      const queryValue = this.value ? { search: encodeURIComponent(this.value) } : undefined;
+      this.$router.push({ query: queryValue });
     }
   },
 }

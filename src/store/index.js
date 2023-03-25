@@ -1,7 +1,7 @@
 import { createStore } from "vuex"
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue } from "firebase/database";
+import { getDatabase, ref, onValue, set } from "firebase/database";
 import { decodeCredential } from 'vue3-google-login'
 import * as Sentry from "@sentry/vue";
 
@@ -113,29 +113,28 @@ export default createStore({
         `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${context.state.databaseTopKey}.json?shallow=true`
       );
 
-
       if (!shallowDb.data) {
         context.dispatch('initiateNewDatabase');
       } else {
         const db = getDatabase();
-  
+
         const movieLog = ref(db, `${context.state.databaseTopKey}/movieLog`);
-  
+
         onValue(movieLog, (snapshot) => {
           const data = snapshot.val();
-  
+
           if (data) {
             context.commit('setDatabase', data);
           }
         });
-  
+
         const settings = ref(db, `${context.state.databaseTopKey}/settings`);
-  
+
         onValue(settings, (snapshot) => {
           const data = snapshot.val();
-  
+
           if (data) {
-            context.commit('setSettings', settings);
+            context.commit('setSettings', data);
           }
         });
       }
@@ -162,12 +161,13 @@ export default createStore({
         }
       }
 
-      await axios.put(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${context.state.databaseTopKey}.json`,
-        newDB
+      set(ref(
+        getDatabase(),
+        `${context.state.databaseTopKey}`),
+      newDB
       );
 
-      await context.dispatch('getDatabase');
+      context.dispatch('getDatabase');
     }
   },
   modules: {

@@ -106,6 +106,14 @@ export default {
       column-gap: 0.35rem;
       list-style: none;
       row-gap: 0.35rem;
+
+      li {
+        button {
+          span {
+            font-size: 0.75rem;
+          }
+        }
+      }
     }
   }
 </style>
