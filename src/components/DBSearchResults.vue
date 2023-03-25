@@ -38,6 +38,7 @@
             <div id="arrow" data-popper-arrow></div>
           </div>
         </div>
+        <!-- TODO: There should be a clear button on this input -->
         <input class="form-control" type="text" autocapitalize="none" name="search" id="search" placeholder="search..." v-model="value">
       </div>
       <div class="input-group mb-3 col-12 md-col-6">

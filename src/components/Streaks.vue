@@ -51,7 +51,7 @@ export default {
         return {
           title: result.movie.title,
           releaseDate: new Date(result.movie.release_date),
-          rating: this.mostRecentRating(result).rating
+          rating: parseFloat(this.mostRecentRating(result).rating)
         }
       });
 
@@ -61,7 +61,7 @@ export default {
       let scratch = {};
 
       sortedByDate.forEach((movie) => {
-        if (!scratch.titles) {
+        if (!scratch.titles && movie.rating > this.streakThreshold) {
           scratch.titles = [movie.title];
           scratch.startDate = movie.releaseDate;
         } else if (movie.rating > this.streakThreshold) {
