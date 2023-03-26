@@ -214,6 +214,7 @@
           <p class="m-3">
             <a :href="`https://www.imdb.com/title/${result.movie.imdb_id}/`" target="_blank">View on IMDb</a>
             <span> | </span>
+            <!-- TODO: Does rerate even work? -->
             <a class="link" @click.prevent="reRateMovie(result.movie)">
               Re-Rate ({{mostRecentRating(result).rating}})
             </a>
@@ -688,11 +689,14 @@ export default {
 
       this.sharing = false;
       this.value = "";
-      this.$router.push(`/share/${this.$store.state.databaseTopKey}/${dbKey}`);
+
+      this.$nextTick(() => {
+        this.$router.push(`/share/${this.$store.state.databaseTopKey}/${dbKey}`);
+      });
     },
     updateUrl () {
       const queryValue = this.value ? { search: encodeURIComponent(this.value) } : undefined;
-      this.$router.push({ query: queryValue });
+      this.$router.replace({ query: queryValue });
     }
   },
 }
@@ -845,6 +849,18 @@ export default {
       .spinner-border {
         height: 18px;
         width: 18px;
+      }
+    }
+  }
+
+  .bg-dark {
+    .db-search-results {
+      color: white;
+
+      ul {
+        .movie-result {
+          border-color: white;
+        }
       }
     }
   }

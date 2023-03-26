@@ -1,14 +1,14 @@
 <template>
   <div class="rate-movie mx-auto">
     <div class="rate-movie-header">
-      <router-link class="home-link" to="/">
+      <div class="home-link" @click="returnHome">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
           <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
         </svg>
         <span>
           Home
         </span>
-      </router-link>
+      </div>
       <img v-if="rateBannerUrl" class="col-12" :src="rateBannerUrl">
       <h1 class="text-light col-12 m-0 px-3 py-2">Rate {{title}}</h1>
     </div>
@@ -700,6 +700,9 @@ export default {
       } else {
         this.$router.push("/");
       }
+    },
+    returnHome () {
+      this.$router.push("/");
     }
   },
 }
@@ -717,6 +720,7 @@ export default {
         background: rgba(0, 0, 0, 0.5);
         border-radius: 4px;
         color: white;
+        cursor: pointer;
         display: flex;
         font-size: 1rem;
         left: 0;
@@ -773,6 +777,12 @@ export default {
           font-size: 0.6rem;
         }
       }
+    }
+  }
+
+  .bg-dark {
+    .rate-movie {
+      color: white;
     }
   }
 </style>

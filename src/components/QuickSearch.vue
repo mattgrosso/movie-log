@@ -116,4 +116,20 @@ export default {
       }
     }
   }
+
+  .bg-dark {
+    .quick-search {
+      ul {
+        li {
+          button {
+            background-color: lightgray;
+
+            span {
+              color: black;
+            }
+          }
+        }
+      }
+    }
+  }
 </style>

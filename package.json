@@ -12,6 +12,7 @@
     "@popperjs/core": "^2.11.6",
     "@sentry/tracing": "^7.36.0",
     "@sentry/vue": "^7.36.0",
+    "@vueuse/core": "^9.13.0",
     "axios": "^1.3.2",
     "bootstrap": "^5.2.3",
     "bootstrap-icons": "^1.10.3",
@@ -81,7 +82,8 @@
       "no-empty": "warn",
       "prefer-const": "warn",
       "no-multiple-empty-lines": "warn",
-      "no-useless-return": "off"
+      "no-useless-return": "off",
+      "no-debugger": "warn"
     }
   },
   "browserslist": [

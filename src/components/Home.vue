@@ -32,4 +32,8 @@ export default {
     margin: 0 10%;
     opacity: 0.3;
   }
+
+  .bg-dark hr {
+    border-color: white;
+  }
 </style>

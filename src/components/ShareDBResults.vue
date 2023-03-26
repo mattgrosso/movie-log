@@ -9,7 +9,11 @@
       <span class="badge rounded-pill text-bg-dark mx-2">{{shareObject.sortValue}}</span>
       <span class="badge rounded-pill text-bg-dark mx-2">{{shareObject.sortOrder}}</span>
     </div>
-    <table v-if="filteredResults.length" class="table table-light table-hover table-striped">
+    <table
+      v-if="filteredResults.length"
+      class="table table-hover table-striped"
+      :class="useDark ? 'table-dark' : 'table-light'"
+    >
       <thead>
         <tr>
           <th scope="col-1">#</th>
@@ -39,12 +43,14 @@
 
 <script>
 import { getDatabase, ref, child, get } from "firebase/database";
+import { useDark } from "@vueuse/core";
 
 export default {
   data () {
     return {
       shareObject: {},
-      numberOfResultsToShow: 50
+      numberOfResultsToShow: 50,
+      useDark: useDark()
     }
   },
   async mounted () {
