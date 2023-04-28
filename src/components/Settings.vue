@@ -8,8 +8,8 @@
         <p class="m-0 text-center fs-5">:: {{$store.state.databaseTopKey}} ::</p>
       </div>
       <div class="tags p-3 border border-white mt-3">
-        <ul class="col-12">
-          <li class="tag mb-2 dflex align-items-center" v-for="(tag, index) in tags" :key="index">
+        <ul class="col-12 p-2 border border-white">
+          <li class="tag mb-2 col-6 dflex align-items-center" v-for="(tag, index) in tags" :key="index">
             <span class="badge col-12 rounded-pill text-bg-light" @click="showRemoveButton($event)">
               {{ tag.title }}
               <span class="remove-button" @click.prevent="removeTag(index)">
@@ -22,7 +22,7 @@
         </ul>
         <div class="new-tag col-6 mt-4">
           <div class="input-group">
-            <input type="text" class="form-control" placeholder="new tag" v-model="newTagTitle">
+            <input type="text" class="form-control" placeholder="new tag" v-model="newTagTitle" @keyup.enter="addTag">
             <button class="btn btn-dark" type="button" @click="addTag">
               add
             </button>
@@ -320,6 +320,10 @@ export default {
 
       ul {
         column-count: 2;
+        display: flex;
+        flex-wrap: wrap;
+        height: 150px;
+        overflow: scroll;
 
         .tag {
           cursor: pointer;
