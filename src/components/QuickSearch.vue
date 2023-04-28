@@ -69,6 +69,12 @@
           <span>Recent</span>
         </button>
       </li>
+      <hr class="col-8 my-2">
+      <li  v-for="(tag, index) in tags" :key="index">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase(`tag:'${tag.title}'`, 'rating', 'ascending')">
+          <span>{{ tag.title }}</span>
+        </button>
+      </li>
     </ul>
   </div>
 </template>
@@ -78,7 +84,17 @@ export default {
   computed: {
     currentYear () {
       return new Date().getFullYear();
-    }
+    },
+    settings () {
+      return this.$store.state.settings;
+    },
+    tags () {
+      if (!this.settings) {
+        return [];
+      }
+
+      return this.settings.tags;
+    },
   },
   methods: {
     searchDatabase (searchTerm, sortValue, sortOrder) {
@@ -96,11 +112,17 @@ export default {
 
       this.$router.push('/db-search');
     }
-  },
+  }
 }
 </script>
 
 <style lang="scss">
+  hr {
+    border-top: 1px solid;
+    margin: 0 10%;
+    opacity: 0.3;
+  }
+
   .quick-search {
     ul {
       column-gap: 0.35rem;
