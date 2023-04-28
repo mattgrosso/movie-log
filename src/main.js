@@ -51,6 +51,8 @@ const routes = [
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
+      store.commit('setGoHome', false);
+
       if (!loggedIn()) {
         next('/login');
       } else {

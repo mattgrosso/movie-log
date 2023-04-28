@@ -34,7 +34,8 @@ export default createStore({
     DBSearchValue: null,
     DBSortValue: null,
     DBSortOrder: null,
-    showHeader: true
+    showHeader: true,
+    goHome: false
   },
   getters: {
     allMoviesAsArray: (state) => {
@@ -83,6 +84,9 @@ export default createStore({
     },
     setShowHeader (state, value) {
       state.showHeader = value;
+    },
+    setGoHome (state, value) {
+      state.goHome = value;
     }
   },
   actions: {

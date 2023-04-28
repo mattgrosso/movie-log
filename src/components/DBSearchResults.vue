@@ -695,8 +695,10 @@ export default {
       });
     },
     updateUrl () {
-      const queryValue = this.value ? { search: encodeURIComponent(this.value) } : undefined;
-      this.$router.replace({ query: queryValue });
+      if (!this.$store.state.goHome) {
+        const queryValue = this.value ? { search: encodeURIComponent(this.value) } : undefined;
+        this.$router.replace({ query: queryValue });
+      }
     }
   },
 }
