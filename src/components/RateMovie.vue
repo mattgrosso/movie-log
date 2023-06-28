@@ -391,7 +391,7 @@
 
       <hr>
 
-      <div class="col-12 my-5 tags">
+      <div class="col-12 my-5 viewing-tags">
         <label class="form-label">Tags for this viewing</label>
         <div class="tag-list d-flex flex-wrap">
           <div v-for="(tag, index) in viewingTags" :key="index" class='form-check mx-2 mb-2'>
@@ -412,11 +412,11 @@
 
       <hr>
 
-      <div class="col-12 my-5 ownership">
+      <div class="col-12 my-5 movie-tags">
         <label class="form-label">Tags for the movie itself</label>
         <div class="tag-list d-flex flex-wrap">
           <div v-for="(tag, index) in movieTags" :key="index" class='form-check mx-2 mb-2'>
-            <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleMovieTag(tag)">
+            <input class='form-check-input' :checked="movieTagChecked(tag)" type='checkbox' :id="`tag-${index}`" @click="toggleMovieTag(tag)">
             <label class="form-check-label" :for="`tag-${index}`">
               {{tag.title}}
             </label>
@@ -529,6 +529,8 @@ export default {
     this.title = this.movieToRate.title;
     this.year = new Date(this.movieToRate.release_date).getFullYear();
     this.id = this.movieToRate.id;
+
+    this.selectedMovieTags = this.previousEntry.movie.tags || [];
   },
   beforeRouteLeave () {
     this.$store.commit("setShowHeader", true);
@@ -610,6 +612,12 @@ export default {
     databaseTopKey () {
       return this.$store.state.databaseTopKey;
     },
+    selectedViewingTagNames () {
+      return this.selectedViewingTags.map((tag) => tag.title);
+    },
+    selectedMovieTagNames () {
+      return this.selectedMovieTags.map((tag) => tag.title);
+    }
   },
   methods: {
     movieYear (movie) {
@@ -690,14 +698,14 @@ export default {
       this.newMovieTagTitle = null;
     },
     toggleViewingTag (tag) {
-      if (this.selectedViewingTags.includes(tag)) {
+      if (this.viewingTagChecked(tag)) {
         this.selectedViewingTags.splice(this.selectedViewingTags.indexOf(tag), 1);
       } else {
         this.selectedViewingTags.push(tag);
       }
     },
     toggleMovieTag (tag) {
-      if (this.selectedMovieTags.includes(tag)) {
+      if (this.movieTagChecked(tag)) {
         this.selectedMovieTags.splice(this.selectedMovieTags.indexOf(tag), 1);
       } else {
         this.selectedMovieTags.push(tag);
@@ -734,7 +742,7 @@ export default {
 
       await addRating(ratings, false, this.selectedMovieTags);
 
-      const routeAfterRating = this.$store.state.settings?.routeAfterRating?.value;
+      const routeAfterRating = this.settings?.routeAfterRating?.value;
 
       window.scroll({
         top: top,
@@ -758,6 +766,20 @@ export default {
     },
     returnHome () {
       this.$router.push("/");
+    },
+    viewingTagChecked (tag) {
+      if (!this.selectedViewingTagNames) {
+        return false;
+      }
+
+      return this.selectedViewingTagNames.includes(tag.title);
+    },
+    movieTagChecked (tag) {
+      if (!this.selectedMovieTagNames) {
+        return false;
+      }
+
+      return this.selectedMovieTagNames.includes(tag.title);
     }
   },
 }
