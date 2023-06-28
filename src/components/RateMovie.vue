@@ -680,20 +680,24 @@ export default {
       return arr.indexOf(movie);
     },
     async addViewingTag () {
-      await set(ref(
-        getDatabase(),
-        `${this.databaseTopKey}/settings/tags/viewing-tags/${crypto.randomUUID()}`),
-      { title: this.newViewingTagTitle }
-      );
+      if (!this.settings.tags["viewing-tags"].find((tag) => tag.title === this.newViewingTagTitle)) {
+        await set(ref(
+          getDatabase(),
+          `${this.databaseTopKey}/settings/tags/viewing-tags/${crypto.randomUUID()}`),
+        { title: this.newViewingTagTitle }
+        );
+      }
 
       this.newViewingTagTitle = null;
     },
     async addMovieTag () {
-      await set(ref(
-        getDatabase(),
-        `${this.databaseTopKey}/settings/tags/movie-tags/${crypto.randomUUID()}`),
-      { title: this.newMovieTagTitle }
-      );
+      if (!this.settings.tags["movie-tags"].find((tag) => tag.title === this.newMovieTagTitle)) {
+        await set(ref(
+          getDatabase(),
+          `${this.databaseTopKey}/settings/tags/movie-tags/${crypto.randomUUID()}`),
+        { title: this.newMovieTagTitle }
+        );
+      }
 
       this.newMovieTagTitle = null;
     },
