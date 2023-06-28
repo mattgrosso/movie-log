@@ -395,7 +395,7 @@
         <label class="form-label">Tags for this viewing</label>
         <div class="tag-list d-flex flex-wrap">
           <div v-for="(tag, index) in viewingTags" :key="index" class='form-check mx-2 mb-2'>
-            <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleTag(tag)">
+            <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleViewingTag(tag)">
             <label class="form-check-label" :for="`tag-${index}`">
               {{tag.title}}
             </label>
@@ -416,7 +416,7 @@
         <label class="form-label">Tags for the movie itself</label>
         <div class="tag-list d-flex flex-wrap">
           <div v-for="(tag, index) in movieTags" :key="index" class='form-check mx-2 mb-2'>
-            <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleTag(tag)">
+            <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleMovieTag(tag)">
             <label class="form-check-label" :for="`tag-${index}`">
               {{tag.title}}
             </label>
@@ -518,7 +518,8 @@ export default {
       performance: null,
       soundtrack: null,
       story: null,
-      tags: [],
+      selectedViewingTags: [],
+      selectedMovieTags: [],
       title: null,
       year: null
     }
@@ -688,11 +689,18 @@ export default {
 
       this.newMovieTagTitle = null;
     },
-    toggleTag (tag) {
-      if (this.tags.includes(tag)) {
-        this.tags.splice(this.tags.indexOf(tag), 1);
+    toggleViewingTag (tag) {
+      if (this.selectedViewingTags.includes(tag)) {
+        this.selectedViewingTags.splice(this.selectedViewingTags.indexOf(tag), 1);
       } else {
-        this.tags.push(tag);
+        this.selectedViewingTags.push(tag);
+      }
+    },
+    toggleMovieTag (tag) {
+      if (this.selectedMovieTags.includes(tag)) {
+        this.selectedMovieTags.splice(this.selectedMovieTags.indexOf(tag), 1);
+      } else {
+        this.selectedMovieTags.push(tag);
       }
     },
     async addRating () {
@@ -717,14 +725,14 @@ export default {
         rating: this.rating,
         soundtrack: this.soundtrack ? this.soundtrack : 5,
         story: this.story ? this.story : 5,
-        tags: this.tags,
+        tags: this.selectedViewingTags,
         title: this.title,
         year: this.year
       };
 
       ratings.push(rating);
 
-      await addRating(ratings);
+      await addRating(ratings, false, this.selectedMovieTags);
 
       const routeAfterRating = this.$store.state.settings?.routeAfterRating?.value;
 

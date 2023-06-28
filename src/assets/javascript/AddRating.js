@@ -62,7 +62,7 @@ const findKeyForMovieInDatabase = (id) => {
   }
 }
 
-const addRating = async (ratings, batch) => {
+const addRating = async (ratings, batch, movieTags) => {
   if (!ratings[0].id) {
     return;
   }
@@ -95,7 +95,9 @@ const addRating = async (ratings, batch) => {
     production_companies: tmdbData.production_companies,
     release_date: tmdbData.release_date,
     runtime: tmdbData.runtime,
-    title: tmdbData.title
+    title: tmdbData.title,
+    awards: imdbData,
+    tags: movieTags || []
   };
 
   const ratingsWithoutOwnership = ratings.map((rating) => {
@@ -108,7 +110,6 @@ const addRating = async (ratings, batch) => {
 
   const movieWithRating = {
     movie: tmdbDataWeStore,
-    awards: imdbData,
     ratings: ratingsWithoutOwnership
   };
 
