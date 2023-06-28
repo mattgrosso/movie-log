@@ -151,7 +151,10 @@ export default createStore({
       const newDB = {
         movieLog: {},
         settings: {
-          tags: [{ title: "default tag" }],
+          tags: {
+            "viewing-tags": { title: "default viewing tag" },
+            "movie-tags": { title: "default movie tag" },
+          },
           weights: [
             { name: "direction", weight: 1.015 },
             { name: "imagery", weight: 0.9 },

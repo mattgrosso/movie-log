@@ -7,9 +7,9 @@
       <div class="p-1 border-white border">
         <p class="m-0 text-center fs-5">:: {{$store.state.databaseTopKey}} ::</p>
       </div>
-      <div class="tags p-3 border border-white mt-3">
+      <div class="tags movie-tags p-3 border border-white mt-3">
         <ul class="col-12 p-2 border border-white">
-          <li class="tag mb-2 col-6 dflex align-items-center" v-for="(tag, index) in tags" :key="index">
+          <li class="tag mb-2 col-6 dflex align-items-center" v-for="(tag, index) in viewingTags" :key="index">
             <span class="badge col-12 rounded-pill text-bg-light" @click="showRemoveButton($event)">
               {{ tag.title }}
               <span class="remove-button" @click.prevent="removeTag(index)">
@@ -22,8 +22,30 @@
         </ul>
         <div class="new-tag col-6 mt-4">
           <div class="input-group">
-            <input type="text" class="form-control" placeholder="new tag" v-model="newTagTitle" @keyup.enter="addTag">
-            <button class="btn btn-dark" type="button" @click="addTag">
+            <input type="text" class="form-control" placeholder="new tag" v-model="newViewingTagTitle" @keyup.enter="addViewingTag">
+            <button class="btn btn-dark" type="button" @click="addViewingTag">
+              add
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="tags viewing-tags p-3 border border-white mt-3">
+        <ul class="col-12 p-2 border border-white">
+          <li class="tag mb-2 col-6 dflex align-items-center" v-for="(tag, index) in movieTags" :key="index">
+            <span class="badge col-12 rounded-pill text-bg-light" @click="showRemoveButton($event)">
+              {{ tag.title }}
+              <span class="remove-button" @click.prevent="removeTag(index)">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-x-circle-fill text-light" viewBox="0 0 16 16">
+                  <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 4.646z"/>
+                </svg>
+              </span>
+            </span>
+          </li>
+        </ul>
+        <div class="new-tag col-6 mt-4">
+          <div class="input-group">
+            <input type="text" class="form-control" placeholder="new tag" v-model="newMovieTagTitle" @keyup.enter="addMovieTag">
+            <button class="btn btn-dark" type="button" @click="addMovieTag">
               add
             </button>
           </div>
@@ -126,7 +148,8 @@ export default {
   },
   data () {
     return {
-      newTagTitle: null,
+      newViewingTagTitle: null,
+      newMovieTagTitle: null,
       devMode: false,
       uploadPercentage: 0,
       routeAfterRating: ""
@@ -154,12 +177,19 @@ export default {
     databaseTopKey () {
       return this.$store.state.databaseTopKey;
     },
-    tags () {
-      if (!this.settings) {
+    viewingTags () {
+      if (!this.settings || !this.settings.tags) {
         return [];
       }
 
-      return this.settings.tags;
+      return this.settings.tags["viewing-tags"];
+    },
+    movieTags () {
+      if (!this.settings || !this.settings.tags) {
+        return [];
+      }
+
+      return this.settings.tags["movie-tags"];
     },
     weights () {
       if (!this.settings) {
@@ -200,14 +230,23 @@ export default {
         await set(ref(getDatabase(), `${this.databaseTopKey}/settings/routeAfterRating`), { value: value });
       }
     },
-    async addTag () {
+    async addViewingTag () {
       await set(ref(
         getDatabase(),
-        `${this.databaseTopKey}/settings/tags/${crypto.randomUUID()}`),
-      { title: this.newTagTitle }
+        `${this.databaseTopKey}/settings/tags/viewing-tags/${crypto.randomUUID()}`),
+      { title: this.newViewingTagTitle }
       );
 
-      this.newTagTitle = null;
+      this.newViewingTagTitle = null;
+    },
+    async addMovieTag () {
+      await set(ref(
+        getDatabase(),
+        `${this.databaseTopKey}/settings/tags/movie-tags/${crypto.randomUUID()}`),
+      { title: this.newMovieTagTitle }
+      );
+
+      this.newMovieTagTitle = null;
     },
     showRemoveButton (event) {
       const all = Array.from(this.$el.querySelectorAll('.show-remove-button'));

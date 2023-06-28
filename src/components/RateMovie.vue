@@ -392,9 +392,9 @@
       <hr>
 
       <div class="col-12 my-5 tags">
-        <label class="form-label">Select Additional Tags</label>
+        <label class="form-label">Tags for this viewing</label>
         <div class="tag-list d-flex flex-wrap">
-          <div v-for="(tag, index) in settingsTags" :key="index" class='form-check mx-2 mb-2'>
+          <div v-for="(tag, index) in viewingTags" :key="index" class='form-check mx-2 mb-2'>
             <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleTag(tag)">
             <label class="form-check-label" :for="`tag-${index}`">
               {{tag.title}}
@@ -403,8 +403,29 @@
         </div>
 
         <div class="input-group">
-          <input type="text" class="form-control" placeholder="new tag" v-model="newTagTitle" @keyup.enter.prevent>
-          <button class="btn btn-dark" type="button" @click.prevent="addTag">
+          <input type="text" class="form-control" placeholder="new tag" v-model="newViewingTagTitle" @keyup.enter.prevent>
+          <button class="btn btn-dark" type="button" @click.prevent="addViewingTag">
+            add
+          </button>
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="col-12 my-5 ownership">
+        <label class="form-label">Tags for the movie itself</label>
+        <div class="tag-list d-flex flex-wrap">
+          <div v-for="(tag, index) in movieTags" :key="index" class='form-check mx-2 mb-2'>
+            <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleTag(tag)">
+            <label class="form-check-label" :for="`tag-${index}`">
+              {{tag.title}}
+            </label>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <input type="text" class="form-control" placeholder="new tag" v-model="newMovieTagTitle" @keyup.enter.prevent>
+          <button class="btn btn-dark" type="button" @click.prevent="addMovieTag">
             add
           </button>
         </div>
@@ -477,6 +498,7 @@
 </template>
 
 <script>
+import { getDatabase, ref, set } from "firebase/database";
 import addRating from "../assets/javascript/AddRating.js";
 
 export default {
@@ -490,7 +512,8 @@ export default {
       loading: false,
       love: null,
       medium: "",
-      newTagTitle: null,
+      newViewingTagTitle: null,
+      newMovieTagTitle: null,
       overall: null,
       performance: null,
       soundtrack: null,
@@ -562,12 +585,19 @@ export default {
         return entry.movie.id === this.id;
       })
     },
-    settingsTags () {
-      if (!this.settings) {
+    viewingTags () {
+      if (!this.settings || !this.settings.tags) {
         return [];
       }
 
-      return this.settings.tags;
+      return this.settings.tags["viewing-tags"];
+    },
+    movieTags () {
+      if (!this.settings || !this.settings.tags) {
+        return [];
+      }
+
+      return this.settings.tags["movie-tags"];
     },
     rateBannerUrl () {
       if (this.movieToRate) {
@@ -575,6 +605,9 @@ export default {
       } else {
         return false;
       }
+    },
+    databaseTopKey () {
+      return this.$store.state.databaseTopKey;
     },
   },
   methods: {
@@ -637,9 +670,23 @@ export default {
 
       return arr.indexOf(movie);
     },
-    addTag () {
-      this.$emit("addNewTag", { title: this.newTagTitle });
-      this.newTagTitle = null;
+    async addViewingTag () {
+      await set(ref(
+        getDatabase(),
+        `${this.databaseTopKey}/settings/tags/viewing-tags/${crypto.randomUUID()}`),
+      { title: this.newViewingTagTitle }
+      );
+
+      this.newViewingTagTitle = null;
+    },
+    async addMovieTag () {
+      await set(ref(
+        getDatabase(),
+        `${this.databaseTopKey}/settings/tags/movie-tags/${crypto.randomUUID()}`),
+      { title: this.newMovieTagTitle }
+      );
+
+      this.newMovieTagTitle = null;
     },
     toggleTag (tag) {
       if (this.tags.includes(tag)) {
