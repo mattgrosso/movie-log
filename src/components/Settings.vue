@@ -124,6 +124,7 @@
 <script>
 import { getDatabase, ref, set } from "firebase/database";
 import ImportCsv from "./ImportCsv.vue";
+import addRating from "../assets/javascript/AddRating.js";
 
 export default {
   components: {
@@ -310,12 +311,15 @@ export default {
 
       await this.$store.dispatch('getDatabase');
     },
-    async uploadRatings (ratings) {
-      const total = ratings.length;
+    async uploadRatings (viewings) {
+      const total = viewings.length;
       let count = 0;
 
-      for (const rating of ratings) {
-        await this.addRating(rating, true);
+      for (const viewing of viewings) {
+        const movieTags = viewing[0].movieTags;
+        delete viewing[0].movieTags;
+
+        await addRating(viewing, true, movieTags);
         count = count + 1;
         this.uploadPercentage = count / total;
       }
@@ -347,7 +351,7 @@ export default {
     }
 
     &.open {
-      max-height: 1000px;
+      max-height: 2000px;
     }
 
     ul {
@@ -446,7 +450,7 @@ export default {
     }
 
     .uploader {
-      display: none;
+      // display: none;
     }
 
     .header-settings {

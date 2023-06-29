@@ -1,6 +1,6 @@
 <template>
   <div class="import-csv">
-    <button v-show="!showFileUploader && !parsing" class="btn btn-warning" @click="showFileUpload">Upload Ratings from CSV</button>
+    <button v-show="!showFileUploader && !parsing" class="btn btn-warning" @click="showFileUploader = true">Upload Ratings from CSV</button>
     <div v-show="showFileUploader && !parsing" class="input-group">
       <p class="fs-4 my-0">Choose your file from your computer.</p>
       <p class="fs-6 my-0">Be aware, once you choose the file it will begin the upload process.</p>
@@ -44,22 +44,7 @@ export default {
 
       return this.parsedCsv.map((movie) => {
         if (!movie.viewings) {
-          return [{
-            direction: movie.direction,
-            id: movie["tmdb id"],
-            imagery: movie.imagery,
-            impression: movie.impression,
-            love: movie.love,
-            overall: movie.overall,
-            performance: movie.performance,
-            rating: movie.rating,
-            soundtrack: movie.soundtrack,
-            story: movie.story,
-            tags: this.parseTags(movie.tag),
-            ownership: this.parseOwnership(movie.ownership),
-            title: movie.title,
-            year: movie.year
-          }];
+          return false;
         }
 
         // First we grab each viewing.
@@ -81,8 +66,8 @@ export default {
 
         // For each viewing, create a new rating
         // The ratings all share the same values but the dates and mediums might be different
-        return viewings.map((rating) => {
-          return {
+        return viewings.map((rating, index) => {
+          const temp = {
             date: rating ? rating.date : null,
             direction: movie.direction,
             id: movie["tmdb id"],
@@ -95,19 +80,21 @@ export default {
             rating: movie.rating,
             soundtrack: movie.soundtrack,
             story: movie.story,
-            tags: this.parseTags(movie.tag),
-            ownership: this.parseOwnership(movie.ownership),
             title: movie.title,
-            year: movie.year
+            year: movie.year,
+            tags: this.PJTheater(rating)
           };
+
+          if (index === 0) {
+            temp.movieTags = this.parseTags(movie.tag, movie.ownership);
+          }
+
+          return temp;
         })
-      })
+      }).filter((rating) => rating);
     }
   },
   methods: {
-    showFileUpload () {
-      this.showFileUploader = true;
-    },
     convertCsv (event) {
       this.parsing = true;
 
@@ -135,21 +122,30 @@ export default {
       console.log("Error in parsing");
       console.error(error);
     },
-    parseTags (string) {
-      if (!string) {
-        return [];
+    parseTags (tagsString, ownershipString) {
+      let tagsArray = [];
+      let ownershipArray = [];
+
+      if (tagsString) {
+        tagsArray = tagsString.split(" | ").map((tag) => {
+          return { title: tag.split(" |")[0] };
+        }).filter((tag) => tag.title);
       }
 
-      return string.split(" | ").map((tag) => {
-        return { title: tag.split(" |")[0] };
-      })
+      if (ownershipString) {
+        ownershipArray = ownershipString.split(", ").map((ownership) => {
+          return { title: ownership.split(" |")[0] };
+        }).filter((ownership) => ownership.title);
+      }
+
+      return [...tagsArray, ...ownershipArray];
     },
-    parseOwnership (string) {
-      if (!string) {
+    PJTheater (rating) {
+      if (rating.medium.includes("PJ")) {
+        return [{ title: "Pat Jason Theater" }];
+      } else {
         return [];
       }
-
-      return string.split(", ").filter((string) => string);
     }
   },
 }
