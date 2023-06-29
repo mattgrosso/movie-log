@@ -18,7 +18,7 @@
         <input class="form-control" name="title" type="text" id="title" v-model="title">
       </div>
 
-      <div class="year-medium-date col-12 my-5 d-flex justify-content-between">
+      <div class="year-medium-date col-12 my-4 d-flex justify-content-between">
         <div class="year col-2">
           <label class="form-label fs-4" for="year">Year</label>
           <input class="form-control" name="year" id="year" type="text" v-model="year">
@@ -51,6 +51,36 @@
           <input class="form-control" name="date" id="date" type="date" v-model="date">
         </div>
       </div>
+
+      <div class="col-12 mt-4 mb-3 movie-tags collapsed" ref="movieTagList">
+        <div class="movie-tags-toggle d-flex justify-content-between align-items-center" @click="toggleMovieTagList">
+          <label class="form-label">Tags for the movie itself
+            <span v-if="selectedMovieTagNames.length">({{ selectedMovieTagNames.length }})</span>
+          </label>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-right" viewBox="0 0 16 16">
+            <path d="M6 12.796V3.204L11.481 8 6 12.796zm.659.753 5.48-4.796a1 1 0 0 0 0-1.506L6.66 2.451C6.011 1.885 5 2.345 5 3.204v9.592a1 1 0 0 0 1.659.753z"/>
+          </svg>
+        </div>
+        <div class="movie-tags-content">
+          <div class="tag-list d-flex flex-wrap">
+            <div v-for="(tag, index) in movieTags" :key="index" class='form-check mx-2 mb-2'>
+              <input class='form-check-input' :checked="movieTagChecked(tag)" type='checkbox' :id="`tag-${index}`" @click="toggleMovieTag(tag)">
+              <label class="form-check-label" :for="`tag-${index}`">
+                {{tag.title}}
+              </label>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <input type="text" class="form-control" placeholder="new tag" v-model="newMovieTagTitle" @keyup.enter.prevent>
+            <button class="btn btn-dark" type="button" @click.prevent="addMovieTag">
+              add
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <hr>
 
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="direction">Direction</label>
@@ -412,27 +442,6 @@
 
       <hr>
 
-      <div class="col-12 my-5 movie-tags">
-        <label class="form-label">Tags for the movie itself</label>
-        <div class="tag-list d-flex flex-wrap">
-          <div v-for="(tag, index) in movieTags" :key="index" class='form-check mx-2 mb-2'>
-            <input class='form-check-input' :checked="movieTagChecked(tag)" type='checkbox' :id="`tag-${index}`" @click="toggleMovieTag(tag)">
-            <label class="form-check-label" :for="`tag-${index}`">
-              {{tag.title}}
-            </label>
-          </div>
-        </div>
-
-        <div class="input-group">
-          <input type="text" class="form-control" placeholder="new tag" v-model="newMovieTagTitle" @keyup.enter.prevent>
-          <button class="btn btn-dark" type="button" @click.prevent="addMovieTag">
-            add
-          </button>
-        </div>
-      </div>
-
-      <hr>
-
       <button
         class="submit-button btn btn-primary col-12 mt-5 mb-4"
         @click.prevent="addRating"
@@ -691,7 +700,10 @@ export default {
       this.newViewingTagTitle = null;
     },
     async addMovieTag () {
-      if (!this.settings.tags["movie-tags"].find((tag) => tag.title === this.newMovieTagTitle)) {
+      if (
+        !this.settings.tags["movie-tags"] ||
+        !this.settings.tags["movie-tags"].find((tag) => tag.title === this.newMovieTagTitle)
+      ) {
         await set(ref(
           getDatabase(),
           `${this.databaseTopKey}/settings/tags/movie-tags/${crypto.randomUUID()}`),
@@ -784,6 +796,9 @@ export default {
       }
 
       return this.selectedMovieTagNames.includes(tag.title);
+    },
+    toggleMovieTagList () {
+      this.$refs.movieTagList.classList.toggle("collapsed");
     }
   },
 }
@@ -821,6 +836,45 @@ export default {
 
     .year-medium-date {
       column-gap: 1rem;
+    }
+
+    .movie-tags {
+      .movie-tags-toggle {
+        align-items: center;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+
+        label {
+          cursor: pointer;
+          line-height: 16px;
+          margin: 0;
+        }
+
+        svg {
+          transform: rotate(90deg);
+          transition: all 0.3s ease;
+        }
+      }
+
+      .movie-tags-content {
+        max-height: 500px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+      }
+
+      &.collapsed {
+        .movie-tags-toggle {
+          svg {
+            transform: rotate(0deg);
+          }
+        }
+
+        .movie-tags-content {
+          max-height: 0;
+        }
+      }
     }
 
     .submit-button {
