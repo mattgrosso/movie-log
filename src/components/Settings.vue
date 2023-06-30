@@ -232,7 +232,13 @@ export default {
       }
     },
     async addViewingTag () {
-      if (!this.settings.tags["viewing-tags"].find((tag) => tag.title === this.newViewingTagTitle)) {
+      if (!this.settings.tags || !this.settings.tags["viewing-tags"]) {
+        return;
+      }
+
+      const viewingTagsArray = Object.keys(this.settings.tags["viewing-tags"]).map((key) => this.settings.tags["viewing-tags"][key]);
+
+      if (!viewingTagsArray.find((tag) => tag.title === this.newViewingTagTitle)) {
         await set(ref(
           getDatabase(),
           `${this.databaseTopKey}/settings/tags/viewing-tags/${crypto.randomUUID()}`),
@@ -243,7 +249,13 @@ export default {
       this.newViewingTagTitle = null;
     },
     async addMovieTag () {
-      if (!this.settings.tags["movie-tags"].find((tag) => tag.title === this.newMovieTagTitle)) {
+      if (!this.settings.tags || !this.settings.tags["movie-tags"]) {
+        return;
+      }
+
+      const movieTagsArray = Object.keys(this.settings.tags["movie-tags"]).map((key) => this.settings.tags["movie-tags"][key]);
+
+      if (!movieTagsArray.find((tag) => tag.title === this.newMovieTagTitle)) {
         await set(ref(
           getDatabase(),
           `${this.databaseTopKey}/settings/tags/movie-tags/${crypto.randomUUID()}`),
