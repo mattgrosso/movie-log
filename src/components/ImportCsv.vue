@@ -141,7 +141,7 @@ export default {
       return [...tagsArray, ...ownershipArray];
     },
     PJTheater (rating) {
-      if (rating.medium.includes("PJ")) {
+      if (rating && rating.medium.includes("PJ")) {
         return [{ title: "Pat Jason Theater" }];
       } else {
         return [];

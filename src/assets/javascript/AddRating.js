@@ -6,9 +6,16 @@ import store from '../../store/index';
 const getTMDBData = async (id) => {
   const apiKey = process.env.VUE_APP_TMDB_API_KEY;
 
-  const dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
+  let dataResp;
+  let creditsResp;
 
-  const creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
+  try {
+    dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
+    creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
+  } catch (error) {
+    console.log(error);
+    return; 
+  }
 
   return {
     ...dataResp.data,
@@ -17,7 +24,14 @@ const getTMDBData = async (id) => {
 }
 
 const getIMDBData = async (id) => {
-  const resp = await axios.get(`https://fast-refuge-34363.herokuapp.com/www.imdb.com/title/${id}/awards`);
+  let resp;
+
+  try {
+    resp = await axios.get(`https://fast-refuge-34363.herokuapp.com/www.imdb.com/title/${id}/awards`);
+  } catch (error) {
+    console.log(error);
+    return;
+  }
 
   const $ = cheerio.load(resp.data);
 
@@ -69,6 +83,10 @@ const addRating = async (ratings, batch, movieTags) => {
 
   const tmdbData = await getTMDBData(ratings[0].id);
   const imdbData = await getIMDBData(tmdbData.imdb_id);
+
+  if (!tmdbData || !imdbData) {
+    return;
+  }
 
   const crew = tmdbData.crew.map((person) => {
     return {
