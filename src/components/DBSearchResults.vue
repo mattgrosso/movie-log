@@ -206,7 +206,7 @@
             {{rating.medium}}
             <span v-if="rating.medium && rating.date">on</span>
             <span v-else-if="rating.date">On</span>
-            {{rating.date}}
+            {{formattedDate(rating.date)}}
           </p>
 
           <hr>
@@ -702,7 +702,10 @@ export default {
         const queryValue = this.value ? { search: encodeURIComponent(this.value) } : undefined;
         this.$router.replace({ query: queryValue });
       }
-    }
+    },
+    formattedDate (date) {
+      return new Date(date).toLocaleDateString();
+    },
   },
 }
 </script>

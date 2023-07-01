@@ -114,9 +114,6 @@
           <input class="form-check-input" type="checkbox" role="switch" id="devMode" v-model="devMode">
           <label class="form-check-label ml-3" for="devMode">Dev Mode</label>
         </div>
-        <div v-if="devMode" class="dev-mode-flag">
-          Dev Mode!
-        </div>
       </div>
     </div>
   </div>
@@ -321,7 +318,7 @@ export default {
       }
 
       if (devMode) {
-        this.$store.commit('setDatabaseTopKey', "testing-database");
+        this.$store.commit('setDatabaseTopKey', this.$store.state.devModeTopKey);
       } else if (this.$store.state.googleLogin) {
         this.$store.commit('setDatabaseTopKey', this.$store.state.googleLogin);
       } else {
@@ -474,19 +471,6 @@ export default {
         .form-check-label {
           margin: 0 12px;
         }
-      }
-
-      .dev-mode-flag {
-        background-color: #dc3545;
-        border: 2px solid white;
-        box-shadow: 0px 0px 9px 0px #424242;
-        font-size: 1rem;
-        left: 0;
-        padding: 6px 64px;
-        pointer-events: none;
-        position: fixed;
-        top: 0;
-        transform: rotate(-45deg) translate(-55px, -33px);
       }
     }
   }

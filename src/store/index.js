@@ -35,7 +35,8 @@ export default createStore({
     DBSortValue: null,
     DBSortOrder: null,
     showHeader: true,
-    goHome: false
+    goHome: false,
+    devModeTopKey: 'testing-database'
   },
   getters: {
     allMoviesAsArray: (state) => {
@@ -45,6 +46,9 @@ export default createStore({
     },
     databaseTopKey (state) {
       return state.databaseTopKey;
+    },
+    devMode (state) {
+      return state.databaseTopKey === state.devModeTopKey;
     }
   },
   mutations: {
@@ -97,7 +101,7 @@ export default createStore({
       context.commit('setGoogleLogin', userData.email);
 
       if (devMode) {
-        context.commit('setDatabaseTopKey', 'testing-database');
+        context.commit('setDatabaseTopKey', context.state.devModeTopKey);
       } else if (context.state.googleLogin) {
         context.commit('setDatabaseTopKey', context.state.googleLogin);
       } else {
