@@ -14,7 +14,7 @@ const getTMDBData = async (id) => {
     creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
   } catch (error) {
     console.log(error);
-    return; 
+    return;
   }
 
   return {

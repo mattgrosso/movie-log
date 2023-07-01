@@ -1,6 +1,6 @@
 <template>
   <div class="import-csv">
-    <button v-show="!showFileUploader && !parsing" class="btn btn-warning" @click="showFileUploader = true">Upload Ratings from CSV</button>
+    <button v-show="!showFileUploader && !parsing" class="btn btn-warning col-12" @click="showFileUploader = true">Upload Ratings from CSV</button>
     <div v-show="showFileUploader && !parsing" class="input-group">
       <p class="fs-4 my-0">Choose your file from your computer.</p>
       <p class="fs-6 my-0">Be aware, once you choose the file it will begin the upload process.</p>

@@ -12,6 +12,7 @@ import "bootstrap";
 import Home from "./components/Home.vue";
 import Login from "./components/Login.vue";
 import DBSearchResults from "./components/DBSearchResults.vue";
+import Settings from "./components/Settings.vue";
 import PickAMovie from "./components/PickAMovie.vue";
 import RateMovie from "./components/RateMovie.vue";
 import ShareDBResults from "./components/ShareDBResults.vue";
@@ -66,6 +67,21 @@ const routes = [
     meta: {
       requiresLogin: false
     },
+  },
+  {
+    name: 'Settings',
+    path: '/settings',
+    component: Settings,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
   },
   {
     path: '/db-search',

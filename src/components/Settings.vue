@@ -1,14 +1,14 @@
 <template>
   <div
     class="settings bg-secondary text-light"
-    :class="{open: showSettings, closed: !showSettings}"
   >
     <div class="p-3">
       <div class="p-1 border-white border">
         <p class="m-0 text-center fs-5">:: {{$store.state.databaseTopKey}} ::</p>
       </div>
       <div class="tags viewing-tags p-3 border border-white mt-3">
-        <ul class="col-12 p-2 border border-white">
+        <p class="col-12">Viewing Specific Tags</p>
+        <ul class="col-12">
           <li class="tag mb-2 col-6 dflex align-items-center" v-for="(tag, index) in viewingTags" :key="index">
             <span class="badge col-12 rounded-pill text-bg-light" @click="showRemoveButton($event)">
               {{ tag.title }}
@@ -30,7 +30,8 @@
         </div>
       </div>
       <div class="tags movie-tags p-3 border border-white mt-3">
-        <ul class="col-12 p-2 border border-white">
+        <p class="col-12">Movie Specific Tags</p>
+        <ul class="col-12">
           <li class="tag mb-2 col-6 dflex align-items-center" v-for="(tag, index) in movieTags" :key="index">
             <span class="badge col-12 rounded-pill text-bg-light" @click="showRemoveButton($event)">
               {{ tag.title }}
@@ -353,24 +354,12 @@ export default {
 
 <style lang="scss">
   .settings {
-    box-sizing: border-box;
     display: flex;
     flex-wrap: wrap;
-    overflow: hidden;
-    position: relative;
-    transition: all 0.5s ease;
-    z-index: 1;
+    padding-bottom: 50px;
 
     &>div {
       max-width: 100%;
-    }
-
-    &.closed {
-      max-height: 0;
-    }
-
-    &.open {
-      max-height: 2000px;
     }
 
     ul {
@@ -388,7 +377,6 @@ export default {
         column-count: 2;
         display: flex;
         flex-wrap: wrap;
-        height: 150px;
         overflow: scroll;
 
         .tag {
@@ -469,14 +457,7 @@ export default {
     }
 
     .uploader {
-      // display: none;
-    }
-
-    .header-settings {
-      .switch {
-        left: -20px;
-        position: relative;
-      }
+      display: none;
     }
 
     .dev-mode {
