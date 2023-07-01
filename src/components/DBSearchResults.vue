@@ -603,9 +603,12 @@ export default {
       let mostRecentRating = movie.ratings[0];
 
       movie.ratings.forEach((rating) => {
+        const ratingDate = rating.date ? new Date(rating.date).getTime() : 0;
+        const mostRecentRatingDate = mostRecentRating.date ? new Date(mostRecentRating.date).getTime() : 0;
+
         if (!mostRecentRating.date) {
           mostRecentRating = rating;
-        } else if (rating.date && rating.date > mostRecentRating.date) {
+        } else if (ratingDate && ratingDate > mostRecentRatingDate) {
           mostRecentRating = rating;
         }
       })
