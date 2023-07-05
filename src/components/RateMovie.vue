@@ -539,7 +539,7 @@ export default {
     this.year = new Date(this.movieToRate.release_date).getFullYear();
     this.id = this.movieToRate.id;
 
-    this.selectedMovieTags = this.previousEntry.movie.tags || [];
+    this.selectedMovieTags = this.previousEntry ? this.previousEntry.movie.tags || [] : [];
   },
   beforeRouteLeave () {
     this.$store.commit("setShowHeader", true);
