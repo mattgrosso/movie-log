@@ -190,7 +190,7 @@ export default {
         }
       }
 
-      &.twenty {
+      &.twenty-four {
         img {
           width: calc(100% / 12);
 
