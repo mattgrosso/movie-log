@@ -1,5 +1,6 @@
 import axios from 'axios';
 import cheerio from "cheerio";
+import * as Sentry from "@sentry/vue";
 import { getDatabase, ref, set } from "firebase/database";
 import store from '../../store/index';
 
@@ -84,36 +85,37 @@ const addRating = async (ratings, batch, movieTags) => {
   const tmdbData = await getTMDBData(ratings[0].id);
   const imdbData = await getIMDBData(tmdbData.imdb_id);
 
-  if (!tmdbData || !imdbData) {
-    return;
+  let crew;
+  let cast;
+
+  if (tmdbData) {
+    crew = tmdbData.crew.map((person) => {
+      return {
+        job: person.job,
+        name: person.name
+      }
+    })
+  
+    cast = tmdbData.cast.map((person) => {
+      return {
+        name: person.name
+      }
+    })
   }
 
-  const crew = tmdbData.crew.map((person) => {
-    return {
-      job: person.job,
-      name: person.name
-    }
-  })
-
-  const cast = tmdbData.cast.map((person) => {
-    return {
-      name: person.name
-    }
-  })
-
   const tmdbDataWeStore = {
-    backdrop_path: tmdbData.backdrop_path,
-    cast: cast,
-    crew: crew,
-    genres: tmdbData.genres,
-    id: tmdbData.id,
-    imdb_id: tmdbData.imdb_id,
+    backdrop_path: tmdbData ? tmdbData.backdrop_path : null,
+    cast: tmdbData ? cast : [],
+    crew: tmdbData ? crew : [],
+    genres: tmdbData ? tmdbData.genres : [],
+    id: tmdbData ? tmdbData.id : null,
+    imdb_id: tmdbData ? tmdbData.imdb_id : null,
     ownership: ratings[0].ownership || null,
-    poster_path: tmdbData.poster_path,
-    production_companies: tmdbData.production_companies,
-    release_date: tmdbData.release_date,
-    runtime: tmdbData.runtime,
-    title: tmdbData.title,
+    poster_path: tmdbData ? tmdbData.poster_path : null,
+    production_companies: tmdbData ? tmdbData.production_companies : [],
+    release_date: tmdbData ? tmdbData.release_date : null,
+    runtime: tmdbData ? tmdbData.runtime : null,
+    title: tmdbData ? tmdbData.title : null,
     awards: imdbData,
     tags: movieTags || []
   };
@@ -134,6 +136,8 @@ const addRating = async (ratings, batch, movieTags) => {
   const key = findKeyForMovieInDatabase(ratings[0].id) || crypto.randomUUID();
   const db = getDatabase();
 
+  console.error(`Adding rating for ${movieWithRating.title}`);
+  Sentry.captureMessage(`Adding rating for ${movieWithRating.title}`);
   set(ref(db, `${store.state.databaseTopKey}/movieLog/${key}`), movieWithRating);
 
   if (!batch) {
