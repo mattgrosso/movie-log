@@ -234,7 +234,6 @@
 
 <script>
 import axios from 'axios';
-import { getDatabase, ref, set } from "firebase/database";
 import { createPopper } from '@popperjs/core';
 import ordinal from "ordinal-js";
 import Fuse from 'fuse.js';
@@ -685,10 +684,14 @@ export default {
         value: this.value
       };
 
-      const dbKey = crypto.randomUUID();
-      const db = getDatabase();
+      const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
 
-      await set(ref(db, `${this.$store.state.databaseTopKey}/sharedDBSearches/${dbKey}`), shareObject);
+      const dbEntry = {
+        path: `sharedDBSearches/${dbKey}`,
+        value: shareObject
+      }
+
+      this.$store.dispatch('setDBValue', dbEntry);
 
       this.sharing = false;
       this.value = "";

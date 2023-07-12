@@ -1,7 +1,5 @@
 import axios from 'axios';
 import cheerio from "cheerio";
-import * as Sentry from "@sentry/vue";
-import { getDatabase, ref, set } from "firebase/database";
 import store from '../../store/index';
 
 const getTMDBData = async (id) => {
@@ -132,15 +130,13 @@ const addRating = async (ratings, batch, movieTags) => {
     movie: tmdbDataWeStore,
     ratings: ratingsWithoutOwnership
   };
-
   const key = findKeyForMovieInDatabase(ratings[0].id) || `${new Date().getTime()}-${crypto.randomUUID()}`;
-  const db = getDatabase();
 
-  Sentry.captureMessage(`${store.state.databaseTopKey} is adding a rating for ${movieWithRating.movie.title}. The path is ${store.state.databaseTopKey}/movieLog/${key}. The obect being sent is: ${JSON.stringify(movieWithRating)}`);
-  set(ref(db, `${store.state.databaseTopKey}/movieLog/${key}`), movieWithRating);
-
-  if (!batch) {
-    await store.dispatch('getDatabase');
+  const dbEntry = {
+    path: `movieLog/${key}`,
+    value: movieWithRating
   }
+
+  store.dispatch('setDBValue', dbEntry);
 }
 export default addRating;

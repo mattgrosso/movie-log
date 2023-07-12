@@ -23,6 +23,8 @@ const firebaseConfig = {
 
 initializeApp(firebaseConfig);
 
+const db = getDatabase();
+
 export default createStore({
   state: {
     database: {},
@@ -124,8 +126,6 @@ export default createStore({
       if (!shallowDb.data) {
         context.dispatch('initiateNewDatabase');
       } else {
-        const db = getDatabase();
-
         const movieLog = ref(db, `${context.state.databaseTopKey}/movieLog`);
 
         onValue(movieLog, (snapshot) => {
@@ -182,13 +182,18 @@ export default createStore({
         }
       }
 
-      set(ref(
-        getDatabase(),
-        `${context.state.databaseTopKey}`),
-      newDB
-      );
+      set(ref(db, `${context.state.databaseTopKey}`), newDB);
 
       context.dispatch('getDatabase');
+    },
+    async setDBValue (context, dbEntry) {
+      try {
+        await set(ref(db, `${context.state.databaseTopKey}/${dbEntry.path}`), dbEntry.value);
+      } catch (error) {
+        console.error(error);
+        Sentry.captureMessage(`${context.state.databaseTopKey} failed to add a value. The path was ${dbEntry.path} and the value was ${dbEntry.value}.`);
+        Sentry.captureException(error);
+      }
     }
   },
   modules: {

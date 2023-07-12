@@ -120,7 +120,6 @@
 </template>
 
 <script>
-import { getDatabase, ref, set } from "firebase/database";
 import ImportCsv from "./ImportCsv.vue";
 import addRating from "../assets/javascript/AddRating.js";
 
@@ -226,7 +225,12 @@ export default {
     },
     async setRouteAfterRating (value) {
       if (this.databaseTopKey) {
-        await set(ref(getDatabase(), `${this.databaseTopKey}/settings/routeAfterRating`), { value: value });
+        const dbEntry = {
+          path: "settings/routeAfterRating",
+          value: { value: value }
+        }
+
+        this.$store.dispatch('setDBValue', dbEntry);
       }
     },
     async addViewingTag () {
@@ -237,11 +241,14 @@ export default {
       const viewingTagsArray = Object.keys(this.settings.tags["viewing-tags"]).map((key) => this.settings.tags["viewing-tags"][key]);
 
       if (!viewingTagsArray.find((tag) => tag.title === this.newViewingTagTitle)) {
-        await set(ref(
-          getDatabase(),
-          `${this.databaseTopKey}/settings/tags/viewing-tags/${crypto.randomUUID()}`),
-        { title: this.newViewingTagTitle }
-        );
+        const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
+
+        const dbEntry = {
+          path: `settings/tags/viewing-tags/${dbKey}`,
+          value: { title: this.newViewingTagTitle }
+        }
+
+        this.$store.dispatch('setDBValue', dbEntry);
       }
 
       this.newViewingTagTitle = null;
@@ -254,11 +261,14 @@ export default {
       const movieTagsArray = Object.keys(this.settings.tags["movie-tags"]).map((key) => this.settings.tags["movie-tags"][key]);
 
       if (!movieTagsArray.find((tag) => tag.title === this.newMovieTagTitle)) {
-        await set(ref(
-          getDatabase(),
-          `${this.databaseTopKey}/settings/tags/movie-tags/${crypto.randomUUID()}`),
-        { title: this.newMovieTagTitle }
-        );
+        const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
+
+        const dbEntry = {
+          path: `settings/tags/movie-tags/${dbKey}`,
+          value: { title: this.newMovieTagTitle }
+        }
+
+        this.$store.dispatch('setDBValue', dbEntry);
       }
 
       this.newMovieTagTitle = null;
@@ -272,18 +282,20 @@ export default {
       event.target.classList.toggle('show-remove-button');
     },
     async removeViewingTag (tagIndex) {
-      await set(ref(
-        getDatabase(),
-        `${this.databaseTopKey}/settings/tags/viewing-tags/${tagIndex}`),
-      null
-      );
+      const dbEntry = {
+        path: `settings/tags/viewing-tags/${tagIndex}`,
+        value: null
+      }
+
+      this.$store.dispatch('setDBValue', dbEntry);
     },
     async removeMovieTag (tagIndex) {
-      await set(ref(
-        getDatabase(),
-        `${this.databaseTopKey}/settings/tags/movie-tags/${tagIndex}`),
-      null
-      );
+      const dbEntry = {
+        path: `settings/tags/movie-tags/${tagIndex}`,
+        value: null
+      }
+
+      this.$store.dispatch('setDBValue', dbEntry);
     },
     toggleEdit (event) {
       this.calculateShare();
@@ -304,11 +316,12 @@ export default {
         }
       };
 
-      await set(ref(
-        getDatabase(),
-        `${this.databaseTopKey}/settings/weights/${payload.index}`),
-      payload.weight
-      );
+      const dbEntry = {
+        path: `settings/weights/${payload.index}`,
+        value: payload.weight
+      }
+
+      this.$store.dispatch('setDBValue', dbEntry);
 
       this.$el.querySelectorAll('td.editing').forEach((el) => el.classList.remove("editing"));
     },

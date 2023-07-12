@@ -508,7 +508,6 @@
 </template>
 
 <script>
-import { getDatabase, ref, set } from "firebase/database";
 import addRating from "../assets/javascript/AddRating.js";
 
 export default {
@@ -697,11 +696,14 @@ export default {
       const viewingTagsArray = Object.keys(this.settings.tags["viewing-tags"]).map((key) => this.settings.tags["viewing-tags"][key]);
 
       if (!viewingTagsArray.find((tag) => tag.title === this.newViewingTagTitle)) {
-        await set(ref(
-          getDatabase(),
-          `${this.databaseTopKey}/settings/tags/viewing-tags/${crypto.randomUUID()}`),
-        { title: this.newViewingTagTitle }
-        );
+        const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
+
+        const dbEntry = {
+          path: `settings/tags/viewing-tags/${dbKey}`,
+          value: { title: this.newViewingTagTitle }
+        }
+
+        this.$store.dispatch('setDBValue', dbEntry);
       }
 
       this.newViewingTagTitle = null;
@@ -714,11 +716,14 @@ export default {
       const movieTagsArray = Object.keys(this.settings.tags["movie-tags"]).map((key) => this.settings.tags["movie-tags"][key]);
 
       if (!movieTagsArray.find((tag) => tag.title === this.newMovieTagTitle)) {
-        await set(ref(
-          getDatabase(),
-          `${this.databaseTopKey}/settings/tags/movie-tags/${crypto.randomUUID()}`),
-        { title: this.newMovieTagTitle }
-        );
+        const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
+
+        const dbEntry = {
+          path: `settings/tags/movie-tags/${dbKey}`,
+          value: { title: this.newMovieTagTitle }
+        }
+
+        this.$store.dispatch('setDBValue', dbEntry);
       }
 
       this.newMovieTagTitle = null;
