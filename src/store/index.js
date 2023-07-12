@@ -131,6 +131,16 @@ export default createStore({
         onValue(movieLog, (snapshot) => {
           const data = snapshot.val();
 
+          const oldLength = Object.keys(context.state.database).length;
+          const newLength = Object.keys(data).length;
+
+          if (oldLength > newLength) {
+            const deletedKeys = Object.keys(context.state.database).filter((key) => {
+              return !data[key];
+            });
+            Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length decreased from ${oldLength} to ${newLength}. The deleted keys are ${deletedKeys.join(', ')}. The value of the first deleted key is ${context.state.database[deletedKeys[0]]}.`);
+          }
+
           if (data) {
             context.commit('setDatabase', data);
           }
