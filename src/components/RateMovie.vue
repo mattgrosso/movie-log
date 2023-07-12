@@ -675,7 +675,7 @@ export default {
       return parseFloat(property);
     },
     getRatingFor (category) {
-      if (!this.getWeight(category) || !this.getScore(category)) {
+      if (!category || !this.getWeight(category) || !this.getScore(category)) {
         return;
       }
 

@@ -133,7 +133,7 @@ const addRating = async (ratings, batch, movieTags) => {
     ratings: ratingsWithoutOwnership
   };
 
-  const key = findKeyForMovieInDatabase(ratings[0].id) || crypto.randomUUID();
+  const key = findKeyForMovieInDatabase(ratings[0].id) || `${new Date().getTime()}-${crypto.randomUUID()}`;
   const db = getDatabase();
 
   Sentry.captureMessage(`${store.state.databaseTopKey} is adding a rating for ${movieWithRating.movie.title}. The path is ${store.state.databaseTopKey}/movieLog/${key}. The obect being sent is: ${JSON.stringify(movieWithRating)}`);
