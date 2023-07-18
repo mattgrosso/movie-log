@@ -1,5 +1,6 @@
 import axios from 'axios';
 import cheerio from "cheerio";
+import * as Sentry from "@sentry/vue";
 import store from '../../store/index';
 
 const getTMDBData = async (id) => {
@@ -130,6 +131,7 @@ const addRating = async (ratings, batch, movieTags) => {
     movie: tmdbDataWeStore,
     ratings: ratingsWithoutOwnership
   };
+
   const key = findKeyForMovieInDatabase(ratings[0].id) || `${new Date().getTime()}-${crypto.randomUUID()}`;
 
   const dbEntry = {
@@ -137,6 +139,11 @@ const addRating = async (ratings, batch, movieTags) => {
     value: movieWithRating
   }
 
+  Sentry.captureMessage(`${store.state.databaseTopKey} is adding a rating. The path is ${dbEntry.path}. The value is ${JSON.stringify(dbEntry.value)}`);
   store.dispatch('setDBValue', dbEntry);
+
+  if (!batch) {
+    await store.dispatch('getDatabase');
+  }
 }
 export default addRating;

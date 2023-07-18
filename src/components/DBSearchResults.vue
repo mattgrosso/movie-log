@@ -579,7 +579,7 @@ export default {
         return arr[0];
       }
     },
-    getCrewMember(crew, title, strict) {
+    getCrewMember (crew, title, strict) {
       if (!crew) {
         return "";
       }

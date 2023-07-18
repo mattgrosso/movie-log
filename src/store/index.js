@@ -1,6 +1,6 @@
 import { createStore } from "vuex"
-import axios from 'axios';
 import { initializeApp } from 'firebase/app';
+import { getAnalytics } from "firebase/analytics";
 import { getDatabase, ref, onValue, set } from "firebase/database";
 import { decodeCredential } from 'vue3-google-login'
 import * as Sentry from "@sentry/vue";
@@ -18,10 +18,18 @@ const sortByVoteCount = (a, b) => {
 
 // Firebase
 const firebaseConfig = {
+  apiKey: "AIzaSyDXKXw2fKjOXHFRQaFLOlx2J5SAUxco4rI",
+  authDomain: "movie-log-8c4d5.firebaseapp.com",
   databaseURL: "https://movie-log-8c4d5-default-rtdb.firebaseio.com",
+  projectId: "movie-log-8c4d5",
+  storageBucket: "movie-log-8c4d5.appspot.com",
+  messagingSenderId: "84563192115",
+  appId: "1:84563192115:web:121c681b37d284dcc93646",
+  measurementId: "G-4K1Y42HFSL",
 };
 
-initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
+getAnalytics(app);
 
 const db = getDatabase();
 
@@ -119,43 +127,37 @@ export default createStore({
 
       window.localStorage.setItem('databaseTopKey', context.state.databaseTopKey);
 
-      const shallowDb = await axios.get(
-        `https://movie-log-8c4d5-default-rtdb.firebaseio.com/${context.state.databaseTopKey}.json?shallow=true`
-      );
+      const movieLog = ref(db, `${context.state.databaseTopKey}/movieLog`);
 
-      if (!shallowDb.data) {
-        context.dispatch('initiateNewDatabase');
-      } else {
-        const movieLog = ref(db, `${context.state.databaseTopKey}/movieLog`);
+      onValue(movieLog, (snapshot) => {
+        const data = snapshot.val();
 
-        onValue(movieLog, (snapshot) => {
-          const data = snapshot.val();
+        const oldLength = Object.keys(context.state.database).length;
+        const newLength = Object.keys(data).length;
 
-          const oldLength = Object.keys(context.state.database).length;
-          const newLength = Object.keys(data).length;
+        if (oldLength > newLength) {
+          const deletedKeys = Object.keys(context.state.database).filter((key) => {
+            return !data[key];
+          });
+          Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length decreased from ${oldLength} to ${newLength}. The deleted keys are ${deletedKeys.join(', ')}. The value of the first deleted key is ${context.state.database[deletedKeys[0]]}.`);
+        } else if (oldLength && newLength > oldLength) {
+          Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length increased from ${oldLength} to ${newLength}.`);
+        }
 
-          if (oldLength > newLength) {
-            const deletedKeys = Object.keys(context.state.database).filter((key) => {
-              return !data[key];
-            });
-            Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length decreased from ${oldLength} to ${newLength}. The deleted keys are ${deletedKeys.join(', ')}. The value of the first deleted key is ${context.state.database[deletedKeys[0]]}.`);
-          }
+        if (data) {
+          context.commit('setDatabase', data);
+        }
+      });
 
-          if (data) {
-            context.commit('setDatabase', data);
-          }
-        });
+      const settings = ref(db, `${context.state.databaseTopKey}/settings`);
 
-        const settings = ref(db, `${context.state.databaseTopKey}/settings`);
+      onValue(settings, (snapshot) => {
+        const data = snapshot.val();
 
-        onValue(settings, (snapshot) => {
-          const data = snapshot.val();
-
-          if (data) {
-            context.commit('setSettings', data);
-          }
-        });
-      }
+        if (data) {
+          context.commit('setSettings', data);
+        }
+      });
     },
     async initiateNewDatabase (context) {
       if (!context.state.databaseTopKey) {
