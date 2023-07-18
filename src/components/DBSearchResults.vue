@@ -214,7 +214,6 @@
           <p class="m-3">
             <a :href="`https://www.imdb.com/title/${result.movie.imdb_id}/`" target="_blank">View on IMDb</a>
             <span> | </span>
-            <!-- TODO: Does rerate even work? -->
             <a class="link" @click.prevent="reRateMovie(result.movie)">
               Re-Rate ({{mostRecentRating(result).rating}})
             </a>
@@ -580,7 +579,11 @@ export default {
         return arr[0];
       }
     },
-    getCrewMember (crew, title, strict) {
+    getCrewMember(crew, title, strict) {
+      if (!crew) {
+        return "";
+      }
+
       let matches;
       if (strict) {
         matches = crew.filter((crew) => crew.job === title);
@@ -590,7 +593,7 @@ export default {
 
       const names = matches.map((match) => match.name);
 
-      if (!names) {
+      if (!names.length) {
         return "";
       } else if (names.length > 1) {
         return names.join(", ");
