@@ -128,10 +128,10 @@ export default createStore({
       if (!dataBaseHasData) {
         onValue(ref(db, `${context.state.databaseTopKey}/movieLog`), (snapshot) => {
           const data = snapshot.val();
-          
+
           const oldLength = context.state.database ? Object.keys(context.state.database).length : 0;
           const newLength = data ? Object.keys(data).length : 0;
-          
+
           if (oldLength > newLength) {
             const deletedKeys = Object.keys(context.state.database).filter((key) => {
               return !data[key];
@@ -140,8 +140,11 @@ export default createStore({
           } else if (oldLength && newLength > oldLength) {
             Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length increased from ${oldLength} to ${newLength}.`);
           }
-          
+
           if (data) {
+            if (context.state.databaseTopKey === "hopper-seth-gmail-com") {
+              Sentry.captureMessage(`Seth's DB has changed. It looks like this right now: ${JSON.stringify(data)}`);
+            }
             context.commit('setDatabase', data);
           }
         });
@@ -151,7 +154,7 @@ export default createStore({
       if (!settingsHasData) {
         onValue(ref(db, `${context.state.databaseTopKey}/settings`), (snapshot) => {
           const data = snapshot.val();
-  
+
           if (data) {
             context.commit('setSettings', data);
           }
