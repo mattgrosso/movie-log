@@ -34,10 +34,11 @@ const loggedIn = () => {
   const databaseTopKeyFromLocalStorage = window.localStorage.getItem('databaseTopKey');
 
   if (store.getters.databaseTopKey) {
+    store.dispatch('initializeDB');
     return true;
   } else if (databaseTopKeyFromLocalStorage) {
     store.commit('setDatabaseTopKey', databaseTopKeyFromLocalStorage);
-    store.dispatch('getDatabase');
+    store.dispatch('initializeDB');
     return true;
   } else {
     return false;

@@ -118,46 +118,54 @@ export default createStore({
         Sentry.captureMessage("Login attempted but the user data didn't work");
       }
 
-      await context.dispatch('getDatabase');
+      await context.dispatch('resetLocalDB');
     },
-    async getDatabase (context) {
+    async resetLocalDB (context) {
+      context.commit('setDatabase', {});
+      context.commit('setSettings', {});
+
+      await context.dispatch('initializeDB');
+    },
+    async initializeDB (context) {
       if (!context.state.databaseTopKey) {
         return;
       }
 
       window.localStorage.setItem('databaseTopKey', context.state.databaseTopKey);
 
-      const movieLog = ref(db, `${context.state.databaseTopKey}/movieLog`);
+      const dataBaseHasData = Boolean(Object.keys(context.state.database).length);
+      if (!dataBaseHasData) {
+        onValue(ref(db, `${context.state.databaseTopKey}/movieLog`), (snapshot) => {
+          const data = snapshot.val();
+          
+          const oldLength = context.state.database ? Object.keys(context.state.database).length : 0;
+          const newLength = data ? Object.keys(data).length : 0;
+          
+          if (oldLength > newLength) {
+            const deletedKeys = Object.keys(context.state.database).filter((key) => {
+              return !data[key];
+            });
+            Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length decreased from ${oldLength} to ${newLength}. The deleted keys are ${deletedKeys.join(', ')}. The value of the first deleted key is ${context.state.database[deletedKeys[0]]}.`);
+          } else if (oldLength && newLength > oldLength) {
+            Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length increased from ${oldLength} to ${newLength}.`);
+          }
+          
+          if (data) {
+            context.commit('setDatabase', data);
+          }
+        });
+      }
 
-      onValue(movieLog, (snapshot) => {
-        const data = snapshot.val();
-
-        const oldLength = Object.keys(context.state.database).length;
-        const newLength = Object.keys(data).length;
-
-        if (oldLength > newLength) {
-          const deletedKeys = Object.keys(context.state.database).filter((key) => {
-            return !data[key];
-          });
-          Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length decreased from ${oldLength} to ${newLength}. The deleted keys are ${deletedKeys.join(', ')}. The value of the first deleted key is ${context.state.database[deletedKeys[0]]}.`);
-        } else if (oldLength && newLength > oldLength) {
-          Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length increased from ${oldLength} to ${newLength}.`);
-        }
-
-        if (data) {
-          context.commit('setDatabase', data);
-        }
-      });
-
-      const settings = ref(db, `${context.state.databaseTopKey}/settings`);
-
-      onValue(settings, (snapshot) => {
-        const data = snapshot.val();
-
-        if (data) {
-          context.commit('setSettings', data);
-        }
-      });
+      const settingsHasData = Boolean(Object.keys(context.state.settings).length);
+      if (!settingsHasData) {
+        onValue(ref(db, `${context.state.databaseTopKey}/settings`), (snapshot) => {
+          const data = snapshot.val();
+  
+          if (data) {
+            context.commit('setSettings', data);
+          }
+        });
+      }
     },
     async initiateNewDatabase (context) {
       if (!context.state.databaseTopKey) {
@@ -186,7 +194,7 @@ export default createStore({
 
       set(ref(db, `${context.state.databaseTopKey}`), newDB);
 
-      context.dispatch('getDatabase');
+      context.dispatch('initializeDB');
     },
     async setDBValue (context, dbEntry) {
       try {

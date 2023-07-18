@@ -336,8 +336,7 @@ export default {
       return this.$store.state.DBSortOrder;
     },
     sortedResults () {
-      const sorted = [...this.results];
-      return sorted.sort(this.sortResults);
+      return [...this.results].sort(this.sortResults);
     },
     sortedByRating () {
       const sorted = [...this.allMoviesAsArray];

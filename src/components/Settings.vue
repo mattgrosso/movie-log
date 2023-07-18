@@ -6,6 +6,12 @@
       <div class="p-1 border-white border">
         <p class="m-0 text-center fs-5">:: {{$store.state.databaseTopKey}} ::</p>
       </div>
+      <div class="dev-mode mt-3 p-3 border border-white">
+        <div class="form-check form-switch m-0 d-flex justify-content-center">
+          <input class="form-check-input" type="checkbox" role="switch" id="devMode" v-model="devMode">
+          <label class="form-check-label ml-3" for="devMode">Dev Mode</label>
+        </div>
+      </div>
       <div class="tags viewing-tags p-3 border border-white mt-3">
         <p class="col-12">Viewing Specific Tags</p>
         <ul class="col-12">
@@ -103,30 +109,12 @@
           <option value="sameYear">Ratings from the same year</option>
         </select>
       </div>
-      <div class="uploader mt-3 p-3 border border-white">
-        <ImportCsv
-          :uploadPercentage="uploadPercentage"
-          @uploadRatings="uploadRatings"
-        />
-      </div>
-      <div class="dev-mode mt-3 p-3 border border-white">
-        <div class="form-check form-switch m-0 d-flex justify-content-center">
-          <input class="form-check-input" type="checkbox" role="switch" id="devMode" v-model="devMode">
-          <label class="form-check-label ml-3" for="devMode">Dev Mode</label>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <script>
-import ImportCsv from "./ImportCsv.vue";
-import addRating from "../assets/javascript/AddRating.js";
-
 export default {
-  components: {
-    ImportCsv
-  },
   props: {
     showSettings: {
       type: Boolean,
@@ -149,7 +137,6 @@ export default {
       newViewingTagTitle: null,
       newMovieTagTitle: null,
       devMode: false,
-      uploadPercentage: 0,
       routeAfterRating: ""
     }
   },
@@ -336,27 +323,10 @@ export default {
         this.$store.commit('setDatabaseTopKey', this.$store.state.googleLogin);
       } else {
         window.localStorage.removeItem('databaseTopKey');
-        this.$router.push('/login')
+        this.$router.push('/login');
       }
 
-      await this.$store.dispatch('getDatabase');
-    },
-    async uploadRatings (viewings) {
-      const total = viewings.length;
-      let count = 0;
-
-      for (const viewing of viewings) {
-        const movieTags = viewing[0].movieTags;
-        delete viewing[0].movieTags;
-
-        await addRating(viewing, true, movieTags);
-        count = count + 1;
-        this.uploadPercentage = count / total;
-      }
-
-      this.$store.dispatch('getDatabase');
-      this.$emit('hideSettings');
-      this.$router.push('/');
+      await this.$store.dispatch('initializeDB');
     }
   },
 }
@@ -464,10 +434,6 @@ export default {
           width: 0.6rem;
         }
       }
-    }
-
-    .uploader {
-      display: none;
     }
 
     .dev-mode {

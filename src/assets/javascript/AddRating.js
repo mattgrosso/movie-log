@@ -24,6 +24,10 @@ const getTMDBData = async (id) => {
 }
 
 const getIMDBData = async (id) => {
+  if (!id) {
+    return null;
+  }
+
   let resp;
 
   try {
@@ -115,7 +119,7 @@ const addRating = async (ratings, batch, movieTags) => {
     release_date: tmdbData ? tmdbData.release_date : null,
     runtime: tmdbData ? tmdbData.runtime : null,
     title: tmdbData ? tmdbData.title : null,
-    awards: imdbData,
+    awards: imdbData || null,
     tags: movieTags || []
   };
 
@@ -141,9 +145,5 @@ const addRating = async (ratings, batch, movieTags) => {
 
   Sentry.captureMessage(`${store.state.databaseTopKey} is adding a rating. The path is ${dbEntry.path}. The value is ${JSON.stringify(dbEntry.value)}`);
   store.dispatch('setDBValue', dbEntry);
-
-  if (!batch) {
-    await store.dispatch('getDatabase');
-  }
 }
 export default addRating;
