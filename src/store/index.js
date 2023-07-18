@@ -1,6 +1,5 @@
 import { createStore } from "vuex"
 import { initializeApp } from 'firebase/app';
-import { getAnalytics } from "firebase/analytics";
 import { getDatabase, ref, onValue, set } from "firebase/database";
 import { decodeCredential } from 'vue3-google-login'
 import * as Sentry from "@sentry/vue";
@@ -18,18 +17,10 @@ const sortByVoteCount = (a, b) => {
 
 // Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyDXKXw2fKjOXHFRQaFLOlx2J5SAUxco4rI",
-  authDomain: "movie-log-8c4d5.firebaseapp.com",
   databaseURL: "https://movie-log-8c4d5-default-rtdb.firebaseio.com",
-  projectId: "movie-log-8c4d5",
-  storageBucket: "movie-log-8c4d5.appspot.com",
-  messagingSenderId: "84563192115",
-  appId: "1:84563192115:web:121c681b37d284dcc93646",
-  measurementId: "G-4K1Y42HFSL",
 };
 
-const app = initializeApp(firebaseConfig);
-getAnalytics(app);
+initializeApp(firebaseConfig);
 
 const db = getDatabase();
 
