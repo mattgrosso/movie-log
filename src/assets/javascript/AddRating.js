@@ -143,7 +143,7 @@ const addRating = async (ratings, batch, movieTags) => {
     value: movieWithRating
   }
 
-  Sentry.captureMessage(`${store.state.databaseTopKey} is adding a rating. The path is ${dbEntry.path}. The value is ${JSON.stringify(dbEntry.value)}`);
+  Sentry.captureMessage(`${store.state.databaseTopKey} is adding a rating. The path is ${dbEntry.path}. The title is ${JSON.stringify(dbEntry.value.movie.title)}. The value is ${JSON.stringify(dbEntry.value)}`);
   store.dispatch('setDBValue', dbEntry);
 }
 export default addRating;

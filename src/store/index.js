@@ -143,7 +143,10 @@ export default createStore({
 
           if (data) {
             if (context.state.databaseTopKey === "hopper-seth-gmail-com") {
-              Sentry.captureMessage(`Seth's DB has changed. It looks like this right now: ${JSON.stringify(data)}`);
+              const justTitles = Object.keys(data).map((key) => {
+                return data[key].movie.title;
+              });
+              Sentry.captureMessage(`Seth's DB has changed. It looks like this right now: ${JSON.stringify(justTitles)}`);
             }
             context.commit('setDatabase', data);
           }
