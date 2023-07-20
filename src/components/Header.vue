@@ -13,9 +13,8 @@
         </svg>
       </div>
       <div class="home-link" :class="posterCount" @click="goHome">
-        <span>
-          Movie Log
-        </span>
+        <span v-if="currentLog === 'movieLog'">Movie Log</span>
+        <span v-if="currentLog === 'tvLog'">TV Log</span>
       </div>
     </div>
   </div>
@@ -30,7 +29,10 @@ export default {
   },
   computed: {
     database () {
-      return this.$store.state.database;
+      return this.$store.state.movieLog;
+    },
+    currentLog () {
+      return this.$store.state.currentLog;
     },
     allMoviePostersRanked () {
       const movies = [...this.$store.getters.allMoviesAsArray];

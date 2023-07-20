@@ -321,7 +321,7 @@ export default {
   },
   computed: {
     database () {
-      return this.$store.state.database;
+      return this.$store.state.movieLog;
     },
     allMoviesAsArray () {
       return this.$store.getters.allMoviesAsArray;

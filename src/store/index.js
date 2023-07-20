@@ -26,7 +26,9 @@ const db = getDatabase();
 
 export default createStore({
   state: {
-    database: {},
+    currentLog: 'movieLog',
+    movieLog: {},
+    tvLog: {},
     settings: {},
     googleLogin: null,
     databaseTopKey: null,
@@ -41,8 +43,13 @@ export default createStore({
   },
   getters: {
     allMoviesAsArray: (state) => {
-      return Object.keys(state.database).map((key) => {
-        return state.database[key];
+      return Object.keys(state.movieLog).map((key) => {
+        return state.movieLog[key];
+      })
+    },
+    allTVShowsAsArray: (state) => {
+      return Object.keys(state.tvLog).map((key) => {
+        return state.tvLog[key];
       })
     },
     databaseTopKey (state) {
@@ -53,8 +60,14 @@ export default createStore({
     }
   },
   mutations: {
-    setDatabase (state, value) {
-      state.database = Object.freeze(value);
+    setCurrentLog (state, value) {
+      state.currentLog = value;
+    },
+    setMovieLog (state, value) {
+      state.movieLog = Object.freeze(value);
+    },
+    setTVLog (state, value) {
+      state.tvLog = Object.freeze(value);
     },
     setSettings (state, value) {
       state.settings = value;
@@ -112,7 +125,8 @@ export default createStore({
       await context.dispatch('resetLocalDB');
     },
     async resetLocalDB (context) {
-      context.commit('setDatabase', {});
+      context.commit('setmovieLog', {});
+      context.commit('setTVLog', {});
       context.commit('setSettings', {});
 
       await context.dispatch('initializeDB');
@@ -124,19 +138,19 @@ export default createStore({
 
       window.localStorage.setItem('databaseTopKey', context.state.databaseTopKey);
 
-      const dataBaseHasData = Boolean(Object.keys(context.state.database).length);
-      if (!dataBaseHasData) {
+      const movieLogHasData = Boolean(Object.keys(context.state.movieLog).length);
+      if (!movieLogHasData) {
         onValue(ref(db, `${context.state.databaseTopKey}/movieLog`), (snapshot) => {
           const data = snapshot.val();
 
-          const oldLength = context.state.database ? Object.keys(context.state.database).length : 0;
+          const oldLength = context.state.movieLog ? Object.keys(context.state.movieLog).length : 0;
           const newLength = data ? Object.keys(data).length : 0;
 
           if (oldLength > newLength) {
-            const deletedKeys = Object.keys(context.state.database).filter((key) => {
+            const deletedKeys = Object.keys(context.state.movieLog).filter((key) => {
               return !data[key];
             });
-            Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length decreased from ${oldLength} to ${newLength}. The deleted keys are ${deletedKeys.join(', ')}. The value of the first deleted key is ${context.state.database[deletedKeys[0]]}.`);
+            Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length decreased from ${oldLength} to ${newLength}. The deleted keys are ${deletedKeys.join(', ')}. The value of the first deleted key is ${context.state.movieLog[deletedKeys[0]]}.`);
           } else if (oldLength && newLength > oldLength) {
             Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length increased from ${oldLength} to ${newLength}.`);
           }
@@ -148,7 +162,18 @@ export default createStore({
               });
               Sentry.captureMessage(`Seth's DB has changed. It looks like this right now: ${JSON.stringify(justTitles)}`);
             }
-            context.commit('setDatabase', data);
+            context.commit('setMovieLog', data);
+          }
+        });
+      }
+
+      const tvLogHasData = Boolean(Object.keys(context.state.tvLog).length);
+      if (!tvLogHasData) {
+        onValue(ref(db, `${context.state.databaseTopKey}/tvLog`), (snapshot) => {
+          const data = snapshot.val();
+
+          if (data) {
+            context.commit('setTVLog', data);
           }
         });
       }
@@ -164,6 +189,7 @@ export default createStore({
         });
       }
     },
+    // todo: should I delete this? Nothing is calling it but it seems like something I kind of need...
     async initiateNewDatabase (context) {
       if (!context.state.databaseTopKey) {
         return;
@@ -171,6 +197,7 @@ export default createStore({
 
       const newDB = {
         movieLog: {},
+        tvLog: {},
         settings: {
           tags: {
             "viewing-tags": { title: "default viewing tag" },
@@ -201,6 +228,15 @@ export default createStore({
         Sentry.captureMessage(`${context.state.databaseTopKey} failed to add a value. The path was ${dbEntry.path} and the value was ${dbEntry.value}.`);
         Sentry.captureException(error);
       }
+    },
+    toggleCurrentLog (context) {
+      if (this.state.currentLog === 'movieLog') {
+        this.commit('setCurrentLog', 'tvLog');
+      } else {
+        this.commit('setCurrentLog', 'movieLog');
+      }
+
+      window.localStorage.setItem('movieLogCurrentLog', context.state.currentLog);
     }
   },
   modules: {

@@ -546,7 +546,7 @@ export default {
   },
   computed: {
     database () {
-      return this.$store.state.database;
+      return this.$store.state.movieLog;
     },
     movieToRate () {
       return this.$store.state.movieToRate;

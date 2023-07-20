@@ -63,10 +63,10 @@ const parseScrapedAwards = (string) => {
 }
 
 const findKeyForMovieInDatabase = (id) => {
-  const keys = Object.keys(store.state.database);
+  const keys = Object.keys(store.state.movieLog);
   const movies = keys.map((key) => {
     return {
-      ...store.state.database[key],
+      ...store.state.movieLog[key],
       key
     }
   })

@@ -31,6 +31,12 @@ app.use(VueLazyLoad, {});
 
 // Router
 const loggedIn = () => {
+  const currentLogFromLocalStorage = window.localStorage.getItem('movieLogCurrentLog');
+
+  if (currentLogFromLocalStorage) {
+    store.commit('setCurrentLog', currentLogFromLocalStorage);
+  }
+
   const databaseTopKeyFromLocalStorage = window.localStorage.getItem('databaseTopKey');
 
   if (store.getters.databaseTopKey) {
