@@ -43,6 +43,17 @@ export default createStore({
     devModeTopKey: 'testing-database'
   },
   getters: {
+    allMediaAsArray: (state) => {
+      if (state.currentLog === 'tvLog') {
+        return Object.keys(state.tvLog).map((key) => {
+          return state.tvLog[key];
+        })
+      } else {
+        return Object.keys(state.movieLog).map((key) => {
+          return state.movieLog[key];
+        })
+      }
+    },
     allMoviesAsArray: (state) => {
       return Object.keys(state.movieLog).map((key) => {
         return state.movieLog[key];

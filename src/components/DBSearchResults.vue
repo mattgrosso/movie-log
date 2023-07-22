@@ -69,17 +69,17 @@
     </div>
     <hr class="mt-4">
     <div v-show="paginatedSortedResults.length" class="details">
-      <p v-if="results.length === $store.getters.allMoviesAsArray.length" class="fs-5 my-2 text-center">
-        You've rated {{$store.getters.allMoviesAsArray.length}} movies.
+      <p v-if="results.length === this.allMediaAsArray.length" class="fs-5 my-2 text-center">
+        You've rated {{this.allMediaAsArray.length}} {{movieOrTVShow}}s.
       </p>
       <p v-else class="fs-5 my-2 text-center">
-        {{results.length}} out of {{$store.getters.allMoviesAsArray.length}} movies match your search.
+        {{results.length}} out of {{this.allMediaAsArray.length}} {{movieOrTVShow}}s match your search.
       </p>
       <p class="m-0 d-flex justify-content-center align-items-center">
         They have an average rating of {{averageRating(results)}}
       </p>
       <div class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
-        <button class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
+        <button v-if="!currentLogIsTVLog" class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
           Charts
         </button>
         <button class="btn btn-secondary col-5" @click="shareResults">
@@ -92,7 +92,7 @@
         </button>
       </div>
     </div>
-    <div id="charts-accordion" class="accordion-collapse collapse" aria-labelledby="charts">
+    <div v-if="!currentLogIsTVLog" id="charts-accordion" class="accordion-collapse collapse" aria-labelledby="charts">
       <div class="accordion-body">
         <Charts :results="results" :sortOrder="sortOrder"/>
       </div>
@@ -100,10 +100,10 @@
     <hr>
     <ul class="col-12 py-3 px-0 m-0 d-flex flex-wrap">
       <li
-        class="movie-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
+        class="media-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
         v-for="(result, index) in paginatedSortedResults"
         :key="index"
-        @click="showInfo(`Info-${result.movie.id}`)"
+        @click="showInfo(`Info-${this.topStructure(result).id}`)"
       >
         <label class="number col-1 text-center">
           {{index + 1}}
@@ -111,31 +111,35 @@
         <div class="poster col-2">
           <img
             class="col-12"
-            @click.stop="goToWikipedia(result.movie.title)"
-            v-lazy="`https://image.tmdb.org/t/p/original${result.movie.poster_path}`"
+            @click.stop="goToWikipedia(result)"
+            v-lazy="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
           >
         </div>
         <div class="details px-4 col-7">
           <p class="title mb-1">
-            <span class="fs-4">
+            <span v-if="currentLogIsTVLog" class="fs-4">
+              {{result.tvShow.name}}
+            </span>
+            <span v-else class="fs-4">
               {{result.movie.title}}
             </span>
-            <a class="link mx-2" @click.stop="searchFor(`y:${getYear(result.movie.release_date)}`)">({{getYear(result.movie.release_date)}})</a>
+            <a class="link mx-2" @click.stop="searchFor(`y:${getYear(result)}`)">({{getYear(result)}})</a>
           </p>
           <p class="etc m-0 d-flex flex-wrap">
-            <span class="col-12">{{prettifyRuntime(result.movie.runtime)}}</span>
-            <span class="col-12">{{turnArrayIntoList(result.movie.genres, "name")}}</span>
+            <span class="col-12">{{prettifyRuntime(result)}}</span>
+            <span class="col-12">{{turnArrayIntoList(topStructure(result).genres, "name")}}</span>
             <span class="col-12">
-              <a class="link" @click.stop="searchFor(`p:\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
+              <a v-if="currentLogIsTVLog" class="link" @click.stop="searchFor(`p:\'${result.tvShow.created_by[0].name}\'`)">{{result.tvShow.created_by[0].name}}</a>
+              <a v-else class="link" @click.stop="searchFor(`p:\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
             </span>
           </p>
         </div>
         <div class="rating col-2 d-flex justify-content-center flex-wrap">
           <p class="col-12 m-0 fs-3 text-center">{{parseFloat(mostRecentRating(result).rating).toFixed(2)}}</p>
-          <p class="rank col-12 m-0 text-center">({{getOrdinal(getRankById(result.movie.id))}})</p>
+          <p class="rank col-12 m-0 text-center">({{getOrdinal(getRankById(result))}})</p>
         </div>
 
-        <div :id="`Info-${result.movie.id}`" class="full-info ps-3 hidden">
+        <div :id="`Info-${this.topStructure(result).id}`" class="full-info ps-3 hidden">
           <hr class="my-4">
           <h3 class="mt-3 mb-2 fs-5">Full Rating</h3>
           <p class="rating-categories m-3">
@@ -152,39 +156,39 @@
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Production Companies</h3>
-          <p class="m-3">{{turnArrayIntoList(result.movie.production_companies, "name")}}</p>
+          <p class="m-3">{{turnArrayIntoList(topStructure(result).production_companies, "name")}}</p>
 
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Producer(s)</h3>
-          <p class="m-3">{{getCrewMember(result.movie.crew, "Producer")}}</p>
+          <p class="m-3">{{getCrewMember(topStructure(result).crew, "Producer")}}</p>
 
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Writer(s)</h3>
-          <p class="m-3">{{getCrewMember(result.movie.crew, "Writer")}}</p>
+          <p class="m-3">{{getCrewMember(topStructure(result).crew, "Writer")}}</p>
 
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Actors</h3>
           <div class="actors">
-            <p class="m-3">{{turnArrayIntoList(result.movie.cast, "name")}}</p>
+            <p class="m-3">{{turnArrayIntoList(topStructure(result).cast, "name")}}</p>
           </div>
 
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Composer(s)</h3>
-          <p class="m-3">{{getCrewMember(result.movie.crew, "Composer")}}</p>
+          <p class="m-3">{{getCrewMember(topStructure(result).crew, "Composer")}}</p>
 
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Editor(s)</h3>
-          <p class="m-3">{{getCrewMember(result.movie.crew, "Editor", "strict")}}</p>
+          <p class="m-3">{{getCrewMember(topStructure(result).crew, "Editor", "strict")}}</p>
 
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Cinematographer(s)</h3>
-          <p class="m-3">{{getCrewMember(result.movie.crew, "Photo")}}</p>
+          <p class="m-3">{{getCrewMember(topStructure(result).crew, "Photo")}}</p>
 
           <hr>
 
@@ -207,16 +211,6 @@
             <span v-if="rating.medium && rating.date">on</span>
             <span v-else-if="rating.date">On</span>
             {{formattedDate(rating.date)}}
-          </p>
-
-          <hr>
-
-          <p class="m-3">
-            <a :href="`https://www.imdb.com/title/${result.movie.imdb_id}/`" target="_blank">View on IMDb</a>
-            <span> | </span>
-            <a class="link" @click.prevent="reRateMovie(result.movie)">
-              Re-Rate ({{mostRecentRating(result).rating}})
-            </a>
           </p>
         </div>
       </li>
@@ -320,11 +314,18 @@ export default {
     this.$store.commit("setDBSortOrder", this.sortOrder);
   },
   computed: {
-    database () {
-      return this.$store.state.movieLog;
+    currentLogIsTVLog () {
+      return this.$store.state.currentLog === "tvLog";
     },
-    allMoviesAsArray () {
-      return this.$store.getters.allMoviesAsArray;
+    movieOrTVShow () {
+      if (this.currentLogIsTVLog) {
+        return "TV show";
+      } else {
+        return "movie";
+      }
+    },
+    allMediaAsArray () {
+      return this.$store.getters.allMediaAsArray;
     },
     DBSearchValue () {
       return this.$store.state.DBSearchValue;
@@ -334,13 +335,6 @@ export default {
     },
     DBSortOrder () {
       return this.$store.state.DBSortOrder;
-    },
-    sortedResults () {
-      return [...this.results].sort(this.sortResults);
-    },
-    sortedByRating () {
-      const sorted = [...this.allMoviesAsArray];
-      return sorted.sort(this.sortByRating);
     },
     threshold () {
       if (this.value) {
@@ -363,7 +357,7 @@ export default {
       cleanQuery = searchQuery.parse(cleanQuery, options);
 
       if (!this.value) {
-        return this.allMoviesAsArray;
+        return this.allMediaAsArray;
       } else if (cleanQuery.y || cleanQuery.year) {
         const keys = ["y", "year"];
         return this.yearSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
@@ -382,6 +376,13 @@ export default {
         return this.fuzzySearch();
       }
     },
+    sortedResults () {
+      return [...this.results].sort(this.sortResults);
+    },
+    sortedByRating () {
+      const sorted = [...this.allMediaAsArray];
+      return sorted.sort(this.sortByRating);
+    },
     paginatedSortedResults () {
       return this.sortedResults.slice(0, this.numberOfResultsToShow);
     }
@@ -396,20 +397,20 @@ export default {
       })
     },
     fuzzySearch () {
+      let keys;
+
+      if (this.currentLogIsTVLog) {
+        keys = ["tvShow.name", "tvShow.first_air_date", "tvShow.id", "tvShow.original_name", "tvShow.overview"];
+      } else {
+        keys = ["movie.title", "movie.release_date", "movie.id", "movie.imdb_id", "movie.original_title", "movie.overview", "movie.tagline"];
+      }
+
       const options = {
         threshold: this.threshold,
-        keys: [
-          "movie.title",
-          "movie.release_date",
-          "movie.id",
-          "movie.imdb_id",
-          "movie.original_title",
-          "movie.overview",
-          "movie.tagline"
-        ]
+        keys: keys
       };
 
-      const fuse = new Fuse(this.allMoviesAsArray, options);
+      const fuse = new Fuse(this.allMediaAsArray, options);
 
       const results = fuse.search(`"${this.value}"`);
 
@@ -417,31 +418,35 @@ export default {
     },
     yearSearch (range) {
       if (range.to) {
-        return this.allMoviesAsArray.filter((movie) => {
-          return inRange(this.getYear(movie.movie.release_date), range.from, parseInt(range.to) + 1);
+        return this.allMediaAsArray.filter((media) => {
+          return inRange(this.getYear(media), range.from, parseInt(range.to) + 1);
         });
       } else {
-        return this.allMoviesAsArray.filter((movie) => {
-          return inRange(this.getYear(movie.movie.release_date), range.from, parseInt(range.from) + 1);
+        return this.allMediaAsArray.filter((media) => {
+          return inRange(this.getYear(media), range.from, parseInt(range.from) + 1);
         });
       }
     },
     personSearch (names) {
-      return this.allMoviesAsArray.filter((movie) => {
+      return this.allMediaAsArray.filter((media) => {
         // this is a sort of crazy thing to do. It might be kind of slow.
-        const everyone = `${JSON.stringify(movie.movie.crew)} ${JSON.stringify(movie.movie.cast)}`;
+        const crew = this.topStructure(media).crew;
+        const cast = this.topStructure(media).cast;
+
+        const everyone = `${JSON.stringify(crew)} ${JSON.stringify(cast)}`;
 
         return names.every((name) => everyone.toLowerCase().includes(name.toLowerCase()));
       })
     },
     genreSearch (genre) {
-      return this.allMoviesAsArray.filter((entry) => {
-        const genres = entry.movie.genres.map((genre) => genre.name.toLowerCase());
+      return this.allMediaAsArray.filter((entry) => {
+        const genres = this.topStructure(entry).genres.map((genre) => genre.name.toLowerCase());
+
         return genres.includes(genre);
       })
     },
     tagSearch (tag) {
-      return this.allMoviesAsArray.filter((entry) => {
+      return this.allMediaAsArray.filter((entry) => {
         const tags = entry.ratings.map((rating) => rating.tags).filter((rating) => rating);
 
         if (tags.length) {
@@ -455,8 +460,14 @@ export default {
     bestMovieFromEachYear () {
       const years = {};
 
-      this.allMoviesAsArray.forEach((result) => {
-        const year = new Date(result.movie.release_date).getFullYear();
+      this.allMediaAsArray.forEach((result) => {
+        let year;
+
+        if (this.currentLogIsTVLog) {
+          year = new Date(result.tvShow.first_air_date).getFullYear();
+        } else {
+          year = new Date(result.movie.release_date).getFullYear();
+        }
 
         if (!years[year]) {
           years[year] = result;
@@ -482,11 +493,21 @@ export default {
         sortValueA = this.mostRecentRating(a).rating;
         sortValueB = this.mostRecentRating(b).rating;
       } else if (this.sortValue === "release") {
-        sortValueA = new Date(b.movie.release_date);
-        sortValueB = new Date(a.movie.release_date);
+        if (this.currentLogIsTVLog) {
+          sortValueA = new Date(a.tvShow.first_air_date);
+          sortValueB = new Date(b.tvShow.first_air_date);
+        } else {
+          sortValueA = new Date(a.movie.release_date);
+          sortValueB = new Date(b.movie.release_date);
+        }
       } else if (this.sortValue === "title") {
-        sortValueA = b.movie.title;
-        sortValueB = a.movie.title;
+        if (this.currentLogIsTVLog) {
+          sortValueA = a.tvShow.name;
+          sortValueB = b.tvShow.name;
+        } else {
+          sortValueA = a.movie.title;
+          sortValueB = b.movie.title;
+        }
       } else if (this.sortValue === "watched") {
         const dateA = this.mostRecentRating(a).date || "3/22/1982";
         const dateB = this.mostRecentRating(b).date || "3/22/1982";
@@ -542,8 +563,8 @@ export default {
       const total = ratings.reduce((a, b) => a + b, 0);
       return (total / ratings.length).toFixed(2);
     },
-    getRankById (id) {
-      return this.sortedByRating.map((movie) => movie.movie.id).indexOf(id) + 1;
+    getRankById (result) {
+      return this.sortedByRating.map((media) => this.topStructure(media).id).indexOf(this.topStructure(result).id) + 1;
     },
     getOrdinal (number) {
       return ordinal.toOrdinal(number);
@@ -551,10 +572,23 @@ export default {
     setValue (value) {
       this.value = value;
     },
-    getYear (date) {
+    getYear (media) {
+      let date;
+      if (this.currentLogIsTVLog) {
+        date = media.tvShow.first_air_date;
+      } else {
+        date = media.movie.release_date;
+      }
+
       return new Date(date).getFullYear();
     },
-    prettifyRuntime (minutes) {
+    prettifyRuntime (result) {
+      let minutes;
+      if (this.currentLogIsTVLog) {
+        minutes = result.tvShow.episode_run_time[0];
+      } else {
+        minutes = result.movie.runtime;
+      }
       return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
     },
     turnArrayIntoList (array, key) {
@@ -600,24 +634,25 @@ export default {
         return names[0];
       }
     },
-    mostRecentRating (movie) {
-      let mostRecentRating = movie.ratings[0];
-
-      movie.ratings.forEach((rating) => {
-        const ratingDate = rating.date ? new Date(rating.date).getTime() : 0;
-        const mostRecentRatingDate = mostRecentRating.date ? new Date(mostRecentRating.date).getTime() : 0;
-
-        if (!mostRecentRating.date) {
-          mostRecentRating = rating;
-        } else if (ratingDate && ratingDate > mostRecentRatingDate) {
-          mostRecentRating = rating;
-        }
-      })
-
-      return mostRecentRating;
-    },
-    reRateMovie (movie) {
-      this.$emit('reRateMovie', movie);
+    mostRecentRating (media) {
+      if (this.currentLogIsTVLog) {
+        return media.ratings.tvShow;
+      } else {
+        let mostRecentRating = media.ratings[0];
+  
+        media.ratings.forEach((rating) => {
+          const ratingDate = rating.date ? new Date(rating.date).getTime() : 0;
+          const mostRecentRatingDate = mostRecentRating.date ? new Date(mostRecentRating.date).getTime() : 0;
+  
+          if (!mostRecentRating.date) {
+            mostRecentRating = rating;
+          } else if (ratingDate && ratingDate > mostRecentRatingDate) {
+            mostRecentRating = rating;
+          }
+        })
+  
+        return mostRecentRating;
+      }
     },
     showInfo (id) {
       const x = document.getElementById(id);
@@ -655,7 +690,14 @@ export default {
         this.popperInstance.update();
       }
     },
-    async goToWikipedia (title) {
+    async goToWikipedia (result) {
+      let title;
+      if (this.currentLogIsTVLog) {
+        title = result.tvShow.name;
+      } else {
+        title = result.movie.title;
+      }
+
       window.open(await this.wikiLinkFor(title));
     },
     async wikiLinkFor (title) {
@@ -711,6 +753,13 @@ export default {
     formattedDate (date) {
       return new Date(date).toLocaleDateString();
     },
+    topStructure (result) {
+      if (this.currentLogIsTVLog) {
+        return result.tvShow;
+      } else {
+        return result.movie;
+      }
+    }
   },
 }
 </script>
@@ -806,7 +855,7 @@ export default {
     ul {
       list-style: none;
 
-      .movie-result {
+      .media-result {
         border: 1px solid black;
         cursor: pointer;
         overflow: hidden;
@@ -871,7 +920,7 @@ export default {
       color: white;
 
       ul {
-        .movie-result {
+        .media-result {
           border-color: white;
         }
       }

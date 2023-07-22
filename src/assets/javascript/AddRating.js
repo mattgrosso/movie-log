@@ -70,17 +70,17 @@ const parseScrapedAwards = (string) => {
 
 const findKeyForTVShowInDatabase = (id) => {
   const keys = Object.keys(store.state.tvLog);
-  const tvShows = keys.map((key) => {
+  const entries = keys.map((key) => {
     return {
       ...store.state.tvLog[key],
       key
     }
   })
 
-  const tvShow = tvShows.find((tvShow) => tvShow.tvShow.id === id);
+  const entry = entries.find((entry) => entry.tvShow.id === id);
 
-  if (tvShow) {
-    return tvShow.key;
+  if (entry) {
+    return entry.key;
   } else {
     return false;
   }
@@ -112,10 +112,12 @@ const createTVShowRatingFromEpisodeRatings = (ratings) => {
   const keys = Object.keys(ratings[0]);
   const keysToRemove = ["date", "episode", "medium", "season", "tags", "title", "year"];
   const filteredKeys = keys.filter((key) => !keysToRemove.includes(key));
-  const averages = {};
+  const averages = {
+    date: new Date().getTime()
+  };
 
   filteredKeys.forEach((key) => {
-    const sum = ratings.reduce((total, rating) => total + rating[key], 0);
+    const sum = ratings.reduce((total, rating) => total + parseFloat(rating[key]), 0);
     const average = sum / ratings.length;
     averages[key] = parseFloat(average.toPrecision(2));
   });
@@ -153,6 +155,7 @@ const addTVShowRating = async (ratings, tvShowTags) => {
     cast: tmdbData ? cast : [],
     crew: tmdbData ? crew : [],
     created_by: tmdbData ? tmdbData.created_by : [],
+    episode_run_time: tmdbData ? tmdbData.episode_run_time : [],
     genres: tmdbData ? tmdbData.genres : [],
     id: tmdbData ? tmdbData.id : null,
     poster_path: tmdbData ? tmdbData.poster_path : null,
@@ -173,7 +176,7 @@ const addTVShowRating = async (ratings, tvShowTags) => {
     ratings: ratingsWithShowRating
   };
 
-  const key = findKeyForTVShowInDatabase(ratings.episodes[0].id) || `${new Date().getTime()}-${crypto.randomUUID()}`;
+  const key = findKeyForTVShowInDatabase(ratings.episodes[0].tvShowId) || `${new Date().getTime()}-${crypto.randomUUID()}`;
 
   return {
     path: `tvLog/${key}`,
