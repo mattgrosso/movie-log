@@ -714,6 +714,11 @@ export default {
         this.selectedMediaTags.push(tag);
       }
     },
+    previouslyRatedEpisode (episodes, episode) {
+      return episodes.findIndex((oldEpisode) => {
+        return oldEpisode.episode.id === episode.id;
+      })
+    },
     async addRating () {
       this.loading = true;
 
@@ -747,11 +752,13 @@ export default {
         ratings.episodes = [];
       }
 
-      ratings.episodes.push(rating);
+      if (this.previouslyRatedEpisode(ratings.episodes, rating.episode) > -1) {
+        ratings.episodes.splice(this.previouslyRatedEpisode(ratings.episodes, rating.episode), 1, rating);
+      } else {
+        ratings.episodes.push(rating);
+      }
 
       await addRating(ratings, this.selectedMediaTags);
-
-      this.loading = false;
 
       const routeAfterRating = this.settings?.routeAfterRating?.value;
 
