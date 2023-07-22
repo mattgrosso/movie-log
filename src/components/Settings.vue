@@ -13,7 +13,7 @@
         </div>
       </div>
       <div class="tv-log-switch mt-3 p-3 border border-white">
-        <button class="btn btn-primary col-12" @click="toggleMovieTV">Switch to 
+        <button class="btn btn-primary col-12" @click="toggleMovieTV">Switch to
           <span v-if="currentLog === 'tvLog'">Movie Log</span>
           <span v-if="currentLog === 'movieLog'">TV Log</span>
         </button>

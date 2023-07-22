@@ -18,13 +18,22 @@ export default {
       value: ""
     }
   },
+  computed: {
+    movieOrTV () {
+      if (this.$store.state.currentLog === "tvLog") {
+        return "tv";
+      } else {
+        return "movie";
+      }
+    }
+  },
   methods: {
     async searchTMDB () {
       if (!this.value) {
         return;
       }
 
-      const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
+      const resp = await axios.get(`https://api.themoviedb.org/3/search/${this.movieOrTV}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
 
       if (resp.data.results.length) {
         this.newEntrySearch(resp.data.results);
@@ -42,7 +51,7 @@ export default {
     newEntrySearch (results) {
       this.$store.commit('setNewEntrySearchResults', results)
 
-      this.$router.push(`/pick-movie/${this.value}`);
+      this.$router.push(`/pick-media/${this.value}`);
     },
   }
 }

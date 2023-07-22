@@ -34,6 +34,7 @@ export default createStore({
     databaseTopKey: null,
     newEntrySearchResults: [],
     movieToRate: {},
+    tvShowToRate: {},
     DBSearchValue: null,
     DBSortValue: null,
     DBSortOrder: null,
@@ -90,6 +91,9 @@ export default createStore({
     },
     setMovieToRate (state, movie) {
       state.movieToRate = movie;
+    },
+    setTVShowToRate (state, tvShow) {
+      state.tvShowToRate = tvShow;
     },
     setDBSearchValue (state, value) {
       state.DBSearchValue = value;
