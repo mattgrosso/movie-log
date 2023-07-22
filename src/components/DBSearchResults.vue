@@ -27,11 +27,6 @@
               <p class="example my-0 px-3">g:Drama</p>
             </div>
             <div class="tag help mb-1">
-              <p class="title m-0 text-decoration-underline">Search for a tag</p>
-              <p class="example my-0 px-3">tag:[your tag]</p>
-              <p class="example my-0 px-3">t:[your tag]</p>
-            </div>
-            <div class="tag help mb-1">
               <p class="title m-0 text-decoration-underline">Best from each year</p>
               <p class="example my-0 px-3">annual</p>
             </div>
@@ -367,9 +362,6 @@ export default {
       } else if (cleanQuery.g || cleanQuery.genre) {
         const keys = ["g", "genre"];
         return this.genreSearch(cleanQuery[keys.find((key) => cleanQuery[key])][0]);
-      } else if (cleanQuery.t || cleanQuery.tag) {
-        const keys = ["t", "tag"];
-        return this.tagSearch(cleanQuery[keys.find((key) => cleanQuery[key])][0]);
       } else if (cleanQuery === "annual") {
         return this.bestMovieFromEachYear();
       } else {
@@ -443,18 +435,6 @@ export default {
         const genres = this.topStructure(entry).genres.map((genre) => genre.name.toLowerCase());
 
         return genres.includes(genre);
-      })
-    },
-    tagSearch (tag) {
-      return this.allMediaAsArray.filter((entry) => {
-        const tags = entry.ratings.map((rating) => rating.tags).filter((rating) => rating);
-
-        if (tags.length) {
-          const tagString = tags[0].map((tag) => tag.title).toString().toLowerCase();
-          return tagString.includes(tag);
-        } else {
-          return false;
-        }
       })
     },
     bestMovieFromEachYear () {
