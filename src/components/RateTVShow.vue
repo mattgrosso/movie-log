@@ -35,39 +35,9 @@
         </div>
       </div>
 
-      <div class="year-medium-date col-12 my-4 d-flex justify-content-between">
-        <div class="year col-2">
-          <label class="form-label fs-4" for="year">Year</label>
-          <input class="form-control" name="year" id="year" type="text" v-model="year">
-        </div>
-        <div class="medium col-3">
-          <label class="form-label fs-4" for="medium">Medium</label>
-          <select class="form-select" name="medium" id="medium" v-model="medium">
-            <option value=""></option>
-            <option value="Theater">Theater</option>
-            <option value="Bluray">Bluray</option>
-            <option value="4K">4K</option>
-            <option value="DVD">DVD</option>
-            <option value="Netflix">Netflix</option>
-            <option value="Netflix">Youtube</option>
-            <option value="Vudu">Vudu</option>
-            <option value="HBO">HBO</option>
-            <option value="Hulu">Hulu</option>
-            <option value="Amazon Prime">Amazon Prime</option>
-            <option value="Disney+">Disney+</option>
-            <option value="Paramount+">Paramount+</option>
-            <option value="Kanopy">Kanopy</option>
-            <option value="Criterion">Criterion</option>
-            <option value="Apple+">Apple+</option>
-            <option value="Peacock">Peacock</option>
-            <option value="Download">Download</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="date col-5">
-          <label class="form-label fs-4" for="date">Date</label>
-          <input class="form-control" name="date" id="date" type="date" v-model="date">
-        </div>
+      <div class="date col-12 mb-4">
+        <label class="form-label fs-4" for="date">Watch Date</label>
+        <input class="form-control" name="date" id="date" type="date" v-model="date">
       </div>
 
       <div class="col-12 mt-4 mb-3 media-tags collapsed" ref="mediaTagList">
@@ -482,7 +452,7 @@ import addRating from "../assets/javascript/AddRating.js";
 export default {
   data () {
     return {
-      date: null,
+      date: new Date().toISOString().substr(0, 10),
       direction: null,
       tvShowId: null,
       imagery: null,
@@ -840,10 +810,6 @@ export default {
         bottom: 0;
         position: absolute;
       }
-    }
-
-    .year-medium-date {
-      column-gap: 1rem;
     }
 
     .media-tags {

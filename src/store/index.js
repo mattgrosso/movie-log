@@ -154,7 +154,7 @@ export default createStore({
       await context.dispatch('resetLocalDB');
     },
     async resetLocalDB (context) {
-      context.commit('setmovieLog', {});
+      context.commit('setMovieLog', {});
       context.commit('setTVLog', {});
       context.commit('setSettings', {});
 

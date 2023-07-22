@@ -121,11 +121,12 @@
             <a class="link mx-2" @click.stop="searchFor(`y:${getYear(result)}`)">({{getYear(result)}})</a>
           </p>
           <p class="etc m-0 d-flex flex-wrap">
-            <span class="col-12">{{prettifyRuntime(result)}}</span>
+            <span v-if="currentLogIsTVLog" class="col-12">{{tvNetwork(result)}}</span>
+            <span v-else class="col-12">{{prettifyRuntime(result)}}</span>
             <span class="col-12">{{turnArrayIntoList(topStructure(result).genres, "name")}}</span>
             <span class="col-12">
-              <a v-if="currentLogIsTVLog" class="link" @click.stop="searchFor(`p:\'${result.tvShow.created_by[0].name}\'`)">{{result.tvShow.created_by[0].name}}</a>
-              <a v-else class="link" @click.stop="searchFor(`p:\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
+              <a v-if="currentLogIsTVLog && result.tvShow.created_by" class="link" @click.stop="searchFor(`p:\'${result.tvShow.created_by[0].name}\'`)">{{result.tvShow.created_by[0].name}}</a>
+              <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor(`p:\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
             </span>
           </p>
         </div>
@@ -562,10 +563,21 @@ export default {
 
       return new Date(date).getFullYear();
     },
+    tvNetwork (result) {
+      const networkName = result.tvShow.networks ? result.tvShow.networks[0].name : false;
+
+      if (networkName) {
+        return networkName;
+      } else {
+        return "";
+      }
+    },
     prettifyRuntime (result) {
       let minutes;
-      if (this.currentLogIsTVLog) {
+      if (this.currentLogIsTVLog && result.tvShow.episode_run_time) {
         minutes = result.tvShow.episode_run_time[0];
+      } else if (this.currentLogIsTVLog) {
+        minutes = 0;
       } else {
         minutes = result.movie.runtime;
       }
