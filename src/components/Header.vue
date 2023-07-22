@@ -13,8 +13,8 @@
         </svg>
       </div>
       <div class="home-link" :class="posterCount" @click="goHome">
-        <span v-if="currentLog === 'movieLog'">Movie Log</span>
-        <span v-if="currentLog === 'tvLog'">TV Log</span>
+        <span v-if="currentLogIsTVLog">TV Log</span>
+        <span v-else>Movie Log</span>
       </div>
     </div>
   </div>
@@ -28,31 +28,28 @@ export default {
     }
   },
   computed: {
-    database () {
-      return this.$store.state.movieLog;
+    currentLogIsTVLog () {
+      return this.$store.state.currentLog === "tvLog";
     },
-    currentLog () {
-      return this.$store.state.currentLog;
-    },
-    allMoviePostersRanked () {
-      const movies = [...this.$store.getters.allMoviesAsArray];
-      return movies.sort(this.sortByRating).map((movie) => {
-        return `https://image.tmdb.org/t/p/w94_and_h141_bestv2${movie.movie.poster_path}`;
+    allPostersRanked () {
+      const media = [...this.$store.getters.allMediaAsArray];
+      return media.sort(this.sortByRating).map((media) => {
+        return `https://image.tmdb.org/t/p/w94_and_h141_bestv2${this.topStructure(media).poster_path}`;
       });
     },
     postersForHeader () {
-      if (this.$store.getters.allMoviesAsArray.length < 24) {
+      if (this.$store.getters.allMediaAsArray.length < 24) {
         return [this.randomBanner()];
-      } else if (this.$store.getters.allMoviesAsArray.length < 120) {
-        return this.allMoviePostersRanked.slice(0, 24);
+      } else if (this.$store.getters.allMediaAsArray.length < 120) {
+        return this.allPostersRanked.slice(0, 24);
       } else {
-        return this.allMoviePostersRanked.slice(0, 120);
+        return this.allPostersRanked.slice(0, 120);
       }
     },
     posterCount () {
-      if (this.$store.getters.allMoviesAsArray.length < 24) {
+      if (this.$store.getters.allMediaAsArray.length < 24) {
         return "single";
-      } else if (this.$store.getters.allMoviesAsArray.length < 120) {
+      } else if (this.$store.getters.allMediaAsArray.length < 120) {
         return "twenty-four";
       } else {
         return "one-twenty";
@@ -72,17 +69,22 @@ export default {
         this.$router.push("/settings");
       }
     },
-    mostRecentRating (movie) {
-      let mostRecentRating = movie.ratings[0];
-      movie.ratings.forEach((rating) => {
-        if (rating.date && rating.date > mostRecentRating.date) {
-          mostRecentRating = rating;
-        } else if (!mostRecentRating.date) {
-          mostRecentRating = rating;
-        }
-      })
+    mostRecentRating (media) {
+      if (this.currentLogIsTVLog) {
+        return media.ratings.tvShow;
+      } else {
+        let mostRecentRating = media.ratings[0];
 
-      return mostRecentRating;
+        media.ratings.forEach((rating) => {
+          if (rating.date && rating.date > mostRecentRating.date) {
+            mostRecentRating = rating;
+          } else if (!mostRecentRating.date) {
+            mostRecentRating = rating;
+          }
+        })
+  
+        return mostRecentRating;
+      }
     },
     sortByRating (a, b) {
       const aRating = this.mostRecentRating(a).rating;
@@ -98,10 +100,10 @@ export default {
       return 0;
     },
     randomBanner () {
-      const rand = Math.floor(Math.random() * this.$store.getters.allMoviesAsArray.length);
+      const rand = Math.floor(Math.random() * this.$store.getters.allMediaAsArray.length);
 
-      if (this.$store.getters.allMoviesAsArray[rand]) {
-        return `https://image.tmdb.org/t/p/original${this.$store.getters.allMoviesAsArray[rand].movie.backdrop_path}`;
+      if (this.$store.getters.allMediaAsArray[rand]) {
+        return `https://image.tmdb.org/t/p/original${this.topStructure(this.$store.getters.allMediaAsArray[rand]).backdrop_path}`;
       } else {
         return "https://image.tmdb.org/t/p/original/1TvNazsE9WvRIxxeZkvL7IVVgzD.jpg";
       }
@@ -109,6 +111,13 @@ export default {
     async goHome () {
       await this.$store.commit("setGoHome", true);
       this.$router.push("/");
+    },
+    topStructure (result) {
+      if (this.currentLogIsTVLog) {
+        return result.tvShow;
+      } else {
+        return result.movie;
+      }
     }
   }
 }
