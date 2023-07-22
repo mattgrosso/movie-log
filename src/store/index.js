@@ -21,6 +21,7 @@ const removeNaNAndUndefined = (obj) => {
       if (typeof obj[key] === "object" && obj[key] !== null) {
         removeNaNAndUndefined(obj[key]);
       } else if (Number.isNaN(obj[key]) || obj[key] === undefined) {
+        Sentry.captureMessage(`NaN or undefined value found in ${key}. The Object was ${JSON.stringify(obj)}`);
         delete obj[key];
       }
     }
@@ -142,25 +143,7 @@ export default createStore({
         onValue(ref(db, `${context.state.databaseTopKey}/movieLog`), (snapshot) => {
           const data = snapshot.val();
 
-          const oldLength = context.state.database ? Object.keys(context.state.database).length : 0;
-          const newLength = data ? Object.keys(data).length : 0;
-
-          if (oldLength > newLength) {
-            const deletedKeys = Object.keys(context.state.database).filter((key) => {
-              return !data[key];
-            });
-            Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length decreased from ${oldLength} to ${newLength}. The deleted keys are ${deletedKeys.join(', ')}. The value of the first deleted key is ${context.state.database[deletedKeys[0]]}.`);
-          } else if (oldLength && newLength > oldLength) {
-            Sentry.captureMessage(`${context.state.databaseTopKey}'s DB length increased from ${oldLength} to ${newLength}.`);
-          }
-
           if (data) {
-            if (context.state.databaseTopKey === "hopper-seth-gmail-com") {
-              const justTitles = Object.keys(data).map((key) => {
-                return data[key].movie.title;
-              });
-              Sentry.captureMessage(`Seth's DB has changed. It looks like this right now: ${JSON.stringify(justTitles)}`);
-            }
             context.commit('setDatabase', data);
           }
         });
