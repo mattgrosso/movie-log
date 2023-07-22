@@ -40,12 +40,15 @@ const db = getDatabase();
 
 export default createStore({
   state: {
-    database: {},
+    currentLog: 'movieLog',
+    movieLog: {},
+    tvLog: {},
     settings: {},
     googleLogin: null,
     databaseTopKey: null,
     newEntrySearchResults: [],
     movieToRate: {},
+    tvShowToRate: {},
     DBSearchValue: null,
     DBSortValue: null,
     DBSortOrder: null,
@@ -54,9 +57,25 @@ export default createStore({
     devModeTopKey: 'testing-database'
   },
   getters: {
+    allMediaAsArray: (state) => {
+      if (state.currentLog === 'tvLog') {
+        return Object.keys(state.tvLog).map((key) => {
+          return state.tvLog[key];
+        })
+      } else {
+        return Object.keys(state.movieLog).map((key) => {
+          return state.movieLog[key];
+        })
+      }
+    },
     allMoviesAsArray: (state) => {
-      return Object.keys(state.database).map((key) => {
-        return state.database[key];
+      return Object.keys(state.movieLog).map((key) => {
+        return state.movieLog[key];
+      })
+    },
+    allTVShowsAsArray: (state) => {
+      return Object.keys(state.tvLog).map((key) => {
+        return state.tvLog[key];
       })
     },
     databaseTopKey (state) {
@@ -67,8 +86,14 @@ export default createStore({
     }
   },
   mutations: {
-    setDatabase (state, value) {
-      state.database = Object.freeze(value);
+    setCurrentLog (state, value) {
+      state.currentLog = value;
+    },
+    setMovieLog (state, value) {
+      state.movieLog = Object.freeze(value);
+    },
+    setTVLog (state, value) {
+      state.tvLog = Object.freeze(value);
     },
     setSettings (state, value) {
       state.settings = value;
@@ -91,6 +116,9 @@ export default createStore({
     },
     setMovieToRate (state, movie) {
       state.movieToRate = movie;
+    },
+    setTVShowToRate (state, tvShow) {
+      state.tvShowToRate = tvShow;
     },
     setDBSearchValue (state, value) {
       state.DBSearchValue = value;
@@ -126,7 +154,8 @@ export default createStore({
       await context.dispatch('resetLocalDB');
     },
     async resetLocalDB (context) {
-      context.commit('setDatabase', {});
+      context.commit('setMovieLog', {});
+      context.commit('setTVLog', {});
       context.commit('setSettings', {});
 
       await context.dispatch('initializeDB');
@@ -138,13 +167,24 @@ export default createStore({
 
       window.localStorage.setItem('databaseTopKey', context.state.databaseTopKey);
 
-      const dataBaseHasData = Boolean(Object.keys(context.state.database).length);
-      if (!dataBaseHasData) {
+      const movieLogHasData = Boolean(Object.keys(context.state.movieLog).length);
+      if (!movieLogHasData) {
         onValue(ref(db, `${context.state.databaseTopKey}/movieLog`), (snapshot) => {
           const data = snapshot.val();
 
           if (data) {
-            context.commit('setDatabase', data);
+            context.commit('setMovieLog', data);
+          }
+        });
+      }
+
+      const tvLogHasData = Boolean(Object.keys(context.state.tvLog).length);
+      if (!tvLogHasData) {
+        onValue(ref(db, `${context.state.databaseTopKey}/tvLog`), (snapshot) => {
+          const data = snapshot.val();
+
+          if (data) {
+            context.commit('setTVLog', data);
           }
         });
       }
@@ -160,6 +200,7 @@ export default createStore({
         });
       }
     },
+    // todo: should I delete this? Nothing is calling it but it seems like something I kind of need...
     async initiateNewDatabase (context) {
       if (!context.state.databaseTopKey) {
         return;
@@ -167,6 +208,7 @@ export default createStore({
 
       const newDB = {
         movieLog: {},
+        tvLog: {},
         settings: {
           tags: {
             "viewing-tags": { title: "default viewing tag" },
@@ -200,6 +242,15 @@ export default createStore({
           console.error(error);
           Sentry.captureException(error);
         });
+    },
+    toggleCurrentLog (context) {
+      if (this.state.currentLog === 'movieLog') {
+        this.commit('setCurrentLog', 'tvLog');
+      } else {
+        this.commit('setCurrentLog', 'movieLog');
+      }
+
+      window.localStorage.setItem('movieLogCurrentLog', context.state.currentLog);
     }
   },
   modules: {

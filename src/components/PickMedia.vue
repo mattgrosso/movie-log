@@ -1,11 +1,11 @@
 <template>
-  <div class="pick-a-movie mx-auto">
+  <div class="pick-media mx-auto">
     <ul class="p-0 d-flex justify-content-around flex-wrap">
-      <li class="card shadow border" v-for="movie in searchResults" :key="movie.id" @click="rateMovie(movie)">
+      <li class="card shadow border" v-for="media in searchResults" :key="media.id" @click="rateMedia(media)">
         <img
-          v-if="movie.poster_path"
+          v-if="media.poster_path"
           class="card-img-top"
-          :src="`https://image.tmdb.org/t/p/original${movie.poster_path}`"
+          :src="`https://image.tmdb.org/t/p/original${media.poster_path}`"
           align="center"
         >
         <img
@@ -14,10 +14,10 @@
           src="../assets/images/Image_not_available.png"
           align="center"
         >
-        <p class="my-3 mx-1 card-text text-center" :title="movie.title">
-          {{truncate(movie.title)}}
+        <p class="my-3 mx-1 card-text text-center" :title="getTitle(media)">
+          {{truncate(getTitle(media))}}
           <br>
-          {{movie.release_date}}
+          {{getReleaseDate(media)}}
         </p>
       </li>
     </ul>
@@ -27,14 +27,36 @@
 <script>
 export default {
   computed: {
+    currentLogIsTVLog () {
+      return this.$store.state.currentLog === "tvLog";
+    },
     searchResults () {
       return this.$store.state.newEntrySearchResults;
     }
   },
   methods: {
-    rateMovie (movie) {
-      this.$store.commit('setMovieToRate', movie);
-      this.$router.push('/rate-movie');
+    rateMedia (media) {
+      if (this.currentLogIsTVLog) {
+        this.$store.commit('setTVShowToRate', media);
+        this.$router.push('/rate-tv-show');
+      } else {
+        this.$store.commit('setMovieToRate', media);
+        this.$router.push('/rate-movie');
+      }
+    },
+    getTitle (media) {
+      if (this.currentLogIsTVLog) {
+        return media.name;
+      } else {
+        return media.title;
+      }
+    },
+    getReleaseDate (media) {
+      if (this.currentLogIsTVLog) {
+        return media.first_air_date;
+      } else {
+        return media.release_date;
+      }
     },
     truncate (string) {
       if (string.length > 15) {
@@ -48,7 +70,7 @@ export default {
 </script>
 
 <style lang="scss">
-  .pick-a-movie {
+  .pick-media {
     max-width: 832px;
 
     ul {

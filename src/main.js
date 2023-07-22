@@ -13,8 +13,9 @@ import Home from "./components/Home.vue";
 import Login from "./components/Login.vue";
 import DBSearchResults from "./components/DBSearchResults.vue";
 import Settings from "./components/Settings.vue";
-import PickAMovie from "./components/PickAMovie.vue";
+import PickMedia from "./components/PickMedia.vue";
 import RateMovie from "./components/RateMovie.vue";
+import RateTVShow from "./components/RateTVShow.vue";
 import ShareDBResults from "./components/ShareDBResults.vue";
 
 const app = createApp(App);
@@ -31,6 +32,12 @@ app.use(VueLazyLoad, {});
 
 // Router
 const loggedIn = () => {
+  const currentLogFromLocalStorage = window.localStorage.getItem('movieLogCurrentLog');
+
+  if (currentLogFromLocalStorage) {
+    store.commit('setCurrentLog', currentLogFromLocalStorage);
+  }
+
   const databaseTopKeyFromLocalStorage = window.localStorage.getItem('databaseTopKey');
 
   if (store.getters.databaseTopKey) {
@@ -113,8 +120,22 @@ const routes = [
     }
   },
   {
-    path: '/pick-movie/:newEntrySearchResults',
-    component: PickAMovie,
+    path: '/rate-tv-show',
+    component: RateTVShow,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/pick-media/:newEntrySearchResults',
+    component: PickMedia,
     meta: {
       requiresLogin: true
     },
@@ -144,7 +165,7 @@ app.use(router);
 
 // Sentry
 
-const allowDevSentry = true;
+const allowDevSentry = false;
 
 if (allowDevSentry || process.env.NODE_ENV !== "development") {
   Sentry.init({

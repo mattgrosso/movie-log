@@ -69,17 +69,6 @@
           <span>Recent</span>
         </button>
       </li>
-      <hr class="col-8 my-2">
-      <li  v-for="(tag, index) in viewingTags" :key="index">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase(`tag:'${tag.title}'`, 'rating', 'ascending')">
-          <span>{{ tag.title }}</span>
-        </button>
-      </li>
-      <li  v-for="(tag, index) in movieTags" :key="index">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase(`tag:'${tag.title}'`, 'rating', 'ascending')">
-          <span>{{ tag.title }}</span>
-        </button>
-      </li>
     </ul>
   </div>
 </template>
@@ -92,20 +81,6 @@ export default {
     },
     settings () {
       return this.$store.state.settings;
-    },
-    viewingTags () {
-      if (!this.settings || !this.settings.tags) {
-        return [];
-      }
-
-      return this.settings.tags["viewing-tags"];
-    },
-    movieTags () {
-      if (!this.settings || !this.settings.tags) {
-        return [];
-      }
-
-      return this.settings.tags["movie-tags"];
     },
   },
   methods: {

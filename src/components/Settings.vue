@@ -12,6 +12,12 @@
           <label class="form-check-label ml-3" for="devMode">Dev Mode</label>
         </div>
       </div>
+      <div class="tv-log-switch mt-3 p-3 border border-white">
+        <button class="btn btn-primary col-12" @click="toggleMovieTV">Switch to
+          <span v-if="currentLog === 'tvLog'">Movie Log</span>
+          <span v-if="currentLog === 'movieLog'">TV Log</span>
+        </button>
+      </div>
       <div class="tags viewing-tags p-3 border border-white mt-3">
         <p class="col-12">Viewing Specific Tags</p>
         <ul class="col-12">
@@ -153,6 +159,9 @@ export default {
     }
   },
   computed: {
+    currentLog () {
+      return this.$store.state.currentLog;
+    },
     settings () {
       return this.$store.state.settings;
     },
@@ -327,6 +336,9 @@ export default {
       }
 
       await this.$store.dispatch('initializeDB');
+    },
+    toggleMovieTV () {
+      this.$store.dispatch('toggleCurrentLog');
     }
   },
 }

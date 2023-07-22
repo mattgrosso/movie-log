@@ -1,17 +1,22 @@
 import axios from 'axios';
 import cheerio from "cheerio";
-import * as Sentry from "@sentry/vue";
 import store from '../../store/index';
 
-const getTMDBData = async (id) => {
+const getTMDBData = async (rating) => {
   const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+  const id = rating.id || rating.tvShowId;
 
   let dataResp;
   let creditsResp;
 
   try {
-    dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
-    creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
+    if (store.state.currentLog === "tvLog") {
+      dataResp = await axios.get(`https://api.themoviedb.org/3/tv/${id}?api_key=${apiKey}`);
+      creditsResp = await axios.get(`https://api.themoviedb.org/3/tv/${id}/credits?api_key=${apiKey}`);
+    } else {
+      dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
+      creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
+    }
   } catch (error) {
     console.log(error);
     return;
@@ -62,11 +67,29 @@ const parseScrapedAwards = (string) => {
   return string.replace(/ {2}/g, "").split("\n").filter((str) => str);
 }
 
+const findKeyForTVShowInDatabase = (id) => {
+  const keys = Object.keys(store.state.tvLog);
+  const entries = keys.map((key) => {
+    return {
+      ...store.state.tvLog[key],
+      key
+    }
+  })
+
+  const entry = entries.find((entry) => entry.tvShow.id === id);
+
+  if (entry) {
+    return entry.key;
+  } else {
+    return false;
+  }
+}
+
 const findKeyForMovieInDatabase = (id) => {
-  const keys = Object.keys(store.state.database);
+  const keys = Object.keys(store.state.movieLog);
   const movies = keys.map((key) => {
     return {
-      ...store.state.database[key],
+      ...store.state.movieLog[key],
       key
     }
   })
@@ -80,12 +103,92 @@ const findKeyForMovieInDatabase = (id) => {
   }
 }
 
-const addRating = async (ratings, batch, movieTags) => {
+const createTVShowRatingFromEpisodeRatings = (ratings) => {
+  if (!ratings || ratings.length === 0) {
+    return {};
+  }
+
+  const keys = Object.keys(ratings[0]);
+  const keysToRemove = ["date", "episode", "medium", "season", "tags", "title", "year"];
+  const filteredKeys = keys.filter((key) => !keysToRemove.includes(key));
+  const averages = {
+    date: new Date().getTime()
+  };
+
+  filteredKeys.forEach((key) => {
+    const sum = ratings.reduce((total, rating) => total + parseFloat(rating[key]), 0);
+    const average = sum / ratings.length;
+    averages[key] = parseFloat(average.toPrecision(2));
+  });
+
+  return averages;
+};
+
+const addTVShowRating = async (ratings, tvShowTags) => {
+  if (!ratings.episodes[0].tvShowId) {
+    return;
+  }
+
+  const tmdbData = await getTMDBData(ratings.episodes[0]);
+
+  let crew;
+  let cast;
+
+  if (tmdbData) {
+    crew = tmdbData.crew.map((person) => {
+      return {
+        job: person.job,
+        name: person.name
+      }
+    })
+
+    cast = tmdbData.cast.map((person) => {
+      return {
+        name: person.name
+      }
+    })
+  }
+
+  const tmdbDataWeStore = {
+    backdrop_path: tmdbData ? tmdbData.backdrop_path : null,
+    cast: tmdbData ? cast : [],
+    crew: tmdbData ? crew : [],
+    created_by: tmdbData ? tmdbData.created_by : [],
+    episode_run_time: tmdbData ? tmdbData.episode_run_time : [],
+    genres: tmdbData ? tmdbData.genres : [],
+    id: tmdbData ? tmdbData.id : null,
+    poster_path: tmdbData ? tmdbData.poster_path : null,
+    production_companies: tmdbData ? tmdbData.production_companies : [],
+    first_air_date: tmdbData ? tmdbData.first_air_date : null,
+    last_air_date: tmdbData ? tmdbData.last_air_date : null,
+    networks: tmdbData ? tmdbData.networks : [],
+    number_of_episodes: tmdbData ? tmdbData.number_of_episodes : null,
+    number_of_seasons: tmdbData ? tmdbData.number_of_seasons : null,
+    name: tmdbData ? tmdbData.name : null,
+    tags: tvShowTags || []
+  };
+
+  const ratingsWithShowRating = { ...ratings, tvShow: createTVShowRatingFromEpisodeRatings(ratings.episodes) };
+
+  const tvShowWithRatings = {
+    tvShow: tmdbDataWeStore,
+    ratings: ratingsWithShowRating
+  };
+
+  const key = findKeyForTVShowInDatabase(ratings.episodes[0].tvShowId) || `${new Date().getTime()}-${crypto.randomUUID()}`;
+
+  return {
+    path: `tvLog/${key}`,
+    value: tvShowWithRatings
+  }
+}
+
+const addMovieRating = async (ratings, movieTags) => {
   if (!ratings[0].id) {
     return;
   }
 
-  const tmdbData = await getTMDBData(ratings[0].id);
+  const tmdbData = await getTMDBData(ratings[0]);
   const imdbData = await getIMDBData(tmdbData.imdb_id);
 
   let crew;
@@ -138,12 +241,22 @@ const addRating = async (ratings, batch, movieTags) => {
 
   const key = findKeyForMovieInDatabase(ratings[0].id) || `${new Date().getTime()}-${crypto.randomUUID()}`;
 
-  const dbEntry = {
+  return {
     path: `movieLog/${key}`,
     value: movieWithRating
   }
+}
 
-  Sentry.captureMessage(`${store.state.databaseTopKey} is adding a rating. The path is ${dbEntry.path}. The title is ${JSON.stringify(dbEntry.value.movie.title)}. The value is ${JSON.stringify(dbEntry.value)}`);
+const addRating = async (ratings, movieTags) => {
+  let dbEntry;
+
+  if (store.state.currentLog === "tvLog") {
+    dbEntry = await addTVShowRating(ratings, movieTags);
+  } else {
+    dbEntry = await addMovieRating(ratings, movieTags);
+  }
+
   store.dispatch('setDBValue', dbEntry);
 }
+
 export default addRating;

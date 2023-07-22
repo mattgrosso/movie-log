@@ -1,6 +1,6 @@
 <template>
-  <div class="rate-movie mx-auto">
-    <div class="rate-movie-header">
+  <div class="rate-tv-show mx-auto">
+    <div class="rate-tv-show-header">
       <div class="home-link" @click="returnHome">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
           <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
@@ -18,54 +18,41 @@
         <input class="form-control" name="title" type="text" id="title" v-model="title">
       </div>
 
-      <div class="year-medium-date col-12 my-4 d-flex justify-content-between">
-        <div class="year col-2">
-          <label class="form-label fs-4" for="year">Year</label>
-          <input class="form-control" name="year" id="year" type="text" v-model="year">
-        </div>
-        <div class="medium col-3">
-          <label class="form-label fs-4" for="medium">Medium</label>
-          <select class="form-select" name="medium" id="medium" v-model="medium">
-            <option value=""></option>
-            <option value="Theater">Theater</option>
-            <option value="Bluray">Bluray</option>
-            <option value="4K">4K</option>
-            <option value="DVD">DVD</option>
-            <option value="Netflix">Netflix</option>
-            <option value="Netflix">Youtube</option>
-            <option value="Vudu">Vudu</option>
-            <option value="HBO">HBO</option>
-            <option value="Hulu">Hulu</option>
-            <option value="Amazon Prime">Amazon Prime</option>
-            <option value="Disney+">Disney+</option>
-            <option value="Paramount+">Paramount+</option>
-            <option value="Kanopy">Kanopy</option>
-            <option value="Criterion">Criterion</option>
-            <option value="Apple+">Apple+</option>
-            <option value="Peacock">Peacock</option>
-            <option value="Download">Download</option>
-            <option value="Other">Other</option>
+      <div class="season-and-episode d-flex justify-content-between">
+        <div class="season col-4 my-4">
+          <label class="form-label fs-4" for="season">Season</label>
+          <select class="form-select" name="season" id="season" v-model="season" @change="selectSeason">
+            <option value="all_seasons">All Seasons</option>
+            <option v-for="(season, index) in seasons" :key="index" :value="season">{{season.name}}</option>
           </select>
         </div>
-        <div class="date col-5">
-          <label class="form-label fs-4" for="date">Date</label>
-          <input class="form-control" name="date" id="date" type="date" v-model="date">
+        <div class="episode col-7 my-4">
+          <label class="form-label fs-4" for="episode">Episode</label>
+          <select class="form-select" name="episode" id="episode" v-model="episode">
+            <option value="all_episodes">All Episodes</option>
+            <option v-for="(episode, index) in episodes" :key="index" :value="episode">{{episode.episode_number}} - {{episode.name}}</option>
+          </select>
         </div>
       </div>
 
-      <div class="col-12 mt-4 mb-3 movie-tags collapsed" ref="movieTagList">
-        <div class="movie-tags-toggle d-flex justify-content-between align-items-center" @click="toggleMovieTagList">
-          <label class="form-label">Tags for the movie itself
-            <span v-if="selectedMovieTagNames.length">({{ selectedMovieTagNames.length }})</span>
+      <div class="date col-12 mb-4">
+        <label class="form-label fs-4" for="date">Watch Date</label>
+        <input class="form-control" name="date" id="date" type="date" v-model="date">
+      </div>
+
+      <div class="col-12 mt-4 mb-3 media-tags collapsed" ref="mediaTagList">
+        <div class="media-tags-toggle d-flex justify-content-between align-items-center" @click="toggleTVShowTagList">
+          <label class="form-label">Tags for the show itself
+            <span v-if="selectedTVShowTagNames.length">({{ selectedTVShowTagNames.length }})</span>
           </label>
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-right" viewBox="0 0 16 16">
             <path d="M6 12.796V3.204L11.481 8 6 12.796zm.659.753 5.48-4.796a1 1 0 0 0 0-1.506L6.66 2.451C6.011 1.885 5 2.345 5 3.204v9.592a1 1 0 0 0 1.659.753z"/>
           </svg>
         </div>
-        <div class="movie-tags-content">
+        <div class="media-tags-content">
           <div class="tag-list d-flex flex-wrap">
-            <div v-for="(tag, index) in movieTags" :key="index" class='form-check mx-2 mb-2'>
-              <input class='form-check-input' :checked="movieTagChecked(tag)" type='checkbox' :id="`tag-${index}`" @click="toggleMovieTag(tag)">
+            <div v-for="(tag, index) in mediaTags" :key="index" class='form-check mx-2 mb-2'>
+              <input class='form-check-input' :checked="mediaTagChecked(tag)" type='checkbox' :id="`tag-${index}`" @click="toggleMediaTag(tag)">
               <label class="form-check-label" :for="`tag-${index}`">
                 {{tag.title}}
               </label>
@@ -73,8 +60,8 @@
           </div>
 
           <div class="input-group">
-            <input type="text" class="form-control" placeholder="new tag" v-model="newMovieTagTitle" @keyup.enter.prevent>
-            <button class="btn btn-dark" type="button" @click.prevent="addMovieTag">
+            <input type="text" class="form-control" placeholder="new tag" v-model="newMediaTagTitle" @keyup.enter.prevent>
+            <button class="btn btn-dark" type="button" @click.prevent="addMediaTag">
               add
             </button>
           </div>
@@ -85,7 +72,7 @@
 
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="direction">Direction</label>
-        <p class="fs-6 fst-italic">Rate the film's directing and editing.</p>
+        <p class="fs-6 fst-italic">Rate the {{episodeSeasonOrShow}}'s directing and editing.</p>
         <select class="form-select" name="direction" id="direction" v-model="direction">
           <option value=""></option>
           <option value="0">
@@ -127,7 +114,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="imagery">Imagery</label>
         <p class="fs-6 fst-italic">
-          Rate the film's cinematography, visual effects, production design,costume design, and/or animation.
+          Rate the {{episodeSeasonOrShow}}'s cinematography, visual effects, production design,costume design, and/or animation.
         </p>
         <select class="form-select" name="imagery" id="imagery" v-model="imagery">
           <option value=""></option>
@@ -170,7 +157,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="story">Story</label>
         <p class="fs-6 fst-italic">
-          Rate the film's story and screenplay.
+          Rate the {{episodeSeasonOrShow}}'s story and screenplay.
         </p>
         <select class="form-select" name="story" id="story" v-model="story">
           <option value=""></option>
@@ -213,7 +200,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="performance">Performance</label>
         <p class="fs-6 fst-italic">
-          Rate the performances in the film. In the case of documentaries, rate the interest of the subject matter.
+          Rate the performances in the {{episodeSeasonOrShow}}. In the case of documentaries, rate the interest of the subject matter.
         </p>
         <select class="form-select" name="performance" id="performance" v-model="performance">
           <option value=""></option>
@@ -256,7 +243,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="soundtrack">Soundtrack</label>
         <p class="fs-6 fst-italic">
-          Rate the film's score, songs, and sound design.
+          Rate the {{episodeSeasonOrShow}}'s score, songs, and sound design.
         </p>
         <select class="form-select" name="soundtrack" id="soundtrack" v-model="soundtrack">
           <option value=""></option>
@@ -299,7 +286,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="impression">Impression</label>
         <p class="fs-6 fst-italic">
-          Give your sense of the film's longevity or impact.
+          Give your sense of the {{episodeSeasonOrShow}}'s longevity or impact.
         </p>
         <select class="form-select" name="impression" id="impression" v-model="impression">
           <option value=""></option>
@@ -327,7 +314,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="love">Love</label>
         <p class="fs-6 fst-italic">
-          The intangible quality of a film that seems to speak to you specifically.
+          The intangible quality of a {{episodeSeasonOrShow}} that seems to speak to you specifically.
         </p>
         <select class="form-select" name="love" id="love" v-model="love">
           <option value=""></option>
@@ -370,7 +357,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="overall">Overall</label>
         <p class="fs-6 fst-italic">
-          Gut sense of the film's overall rating.
+          Gut sense of the {{episodeSeasonOrShow}}'s overall rating.
         </p>
         <select class="form-select" name="overall" id="overall" v-model="overall">
           <option value=""></option>
@@ -415,9 +402,9 @@
       <p class="rating col-12 my-3 d-flex justify-content-center align-items-center" id="rating">
         Rating: {{rating}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked) + 1}}/{{numberOfMoviesAfterRating}}
+        #{{indexIfSortedIntoArray(tvShowAsRatedOnPage, allTVShowsRanked) + 1}}/{{numberOfTVShowsAfterRating}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear) + 1}} in {{movieYear(this.movieToRate)}}
+        #{{indexIfSortedIntoArray(tvShowAsRatedOnPage, tvShowsRankedFromYear) + 1}} in {{tvShowYear(this.tvShowToRate)}}
       </p>
 
       <hr>
@@ -444,112 +431,74 @@
       <hr>
 
       <button
-        class="submit-button btn btn-primary col-12 mt-5 mb-4"
+        class="submit-button btn btn-primary col-12 mt-5"
         @click.prevent="addRating"
         type="submit"
         value="Submit"
         :disabled="loading"
       >
-        <span v-if="!loading">Submit</span>
+        <span v-if="!loading">Rate {{episodeSeasonOrShow}}</span>
         <span v-if="loading" class="disabled-show spinner-border spinner-border-sm mx-2" role="status" aria-hidden="true"></span>
         <span v-if="loading" class="disabled-show ">Submiting...</span>
       </button>
-    </div>
-
-    <hr>
-
-    <div v-if="previousEntry?.ratings" class="previous-ratings my-3 mb-5 px-4 pt-3 pb-5">
-      <label class="fs-4">Previous Viewings</label>
-      <div class="accordion" id="previous-ratings-accordion">
-        <div class="accordion-item" v-for="(rating, index) in previousEntry.ratings" :key="index">
-          <h2 class="accordion-header" :id="`heading-${index}`">
-            <button class="accordion-button px-5" type="button" data-bs-toggle="collapse" :data-bs-target="`#collapse-${index}`" aria-expanded="false" :aria-controls="`collapse-${index}`">
-              <div class="col-12 d-flex">
-                <p class="col-7 m-0 text-center border-end">
-                  <span v-if="rating.date">{{rating.date}}</span>
-                  <span v-else>-</span>
-                </p>
-                <p class="col-5 m-0 text-center border-start">{{rating.rating}}</p>
-              </div>
-            </button>
-          </h2>
-          <div :id="`collapse-${index}`" class="accordion-collapse collapse" :aria-labelledby="`heading-${index}`">
-            <div class="accordion-body">
-              <table class="table mb-0 col-12 table-striped-columns">
-                <thead>
-                  <th class="col-1"><span>dir</span></th>
-                  <th class="col-1"><span>img</span></th>
-                  <th class="col-1"><span>stry</span></th>
-                  <th class="col-1"><span>perf</span></th>
-                  <th class="col-1"><span>sndtk</span></th>
-                  <th class="col-1"><span>imp</span></th>
-                  <th class="col-1"><span>love</span></th>
-                  <th class="col-1"><span>ovral</span></th>
-                </thead>
-                <tbody>
-                  <tr class="table-secondary">
-                    <td class="col-1">{{rating.direction}}</td>
-                    <td class="col-1">{{rating.imagery}}</td>
-                    <td class="col-1">{{rating.story}}</td>
-                    <td class="col-1">{{rating.performance}}</td>
-                    <td class="col-1">{{rating.soundtrack}}</td>
-                    <td class="col-1">{{rating.impression}}</td>
-                    <td class="col-1">{{rating.love}}</td>
-                    <td class="col-1">{{rating.overall}}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <script>
+import axios from 'axios';
 import addRating from "../assets/javascript/AddRating.js";
 
 export default {
   data () {
     return {
-      date: null,
+      date: new Date().toISOString().substr(0, 10),
       direction: null,
-      id: null,
+      tvShowId: null,
       imagery: null,
       impression: null,
       loading: false,
       love: null,
       medium: "",
       newViewingTagTitle: null,
-      newMovieTagTitle: null,
+      newMediaTagTitle: null,
       overall: null,
       performance: null,
       soundtrack: null,
       story: null,
       selectedViewingTags: [],
-      selectedMovieTags: [],
+      selectedMediaTags: [],
       title: null,
-      year: null
+      year: null,
+      season: null,
+      seasons: [],
+      episode: null,
+      episodes: []
     }
   },
-  mounted () {
+  async mounted () {
     this.$store.commit("setShowHeader", false);
-    this.title = this.movieToRate.title;
-    this.year = new Date(this.movieToRate.release_date).getFullYear();
-    this.id = this.movieToRate.id;
+    this.title = this.tvShowToRate.name;
+    this.year = new Date(this.tvShowToRate.first_air_date).getFullYear();
+    this.tvShowId = this.tvShowToRate.id;
 
-    this.selectedMovieTags = this.previousEntry ? this.previousEntry.movie.tags || [] : [];
+    const seasons = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
+    this.seasons = seasons.data.seasons;
+
+    this.selectedMediaTags = this.previousEntry ? this.previousEntry.tvShow.tags || [] : [];
   },
   beforeRouteLeave () {
     this.$store.commit("setShowHeader", true);
   },
   computed: {
-    database () {
-      return this.$store.state.movieLog;
+    currentLogIsTVLog () {
+      return this.$store.state.currentLog === "tvLog";
     },
-    movieToRate () {
-      return this.$store.state.movieToRate;
+    database () {
+      return this.$store.state.tvLog;
+    },
+    tvShowToRate () {
+      return this.$store.state.tvShowToRate;
     },
     settings () {
       return this.$store.state.settings;
@@ -568,33 +517,42 @@ export default {
 
       return parseFloat(total / 10).toFixed(2);
     },
-    movieAsRatedOnPage () {
+    tvShowAsRatedOnPage () {
       return {
-        ...this.movieToRate,
+        ...this.tvShowToRate,
         ratings: [{ rating: this.rating }]
       };
     },
-    numberOfMoviesAfterRating () {
-      if (this.previousEntry) {
-        return this.$store.getters.allMoviesAsArray.length;
+    episodeSeasonOrShow () {
+      if (this.season === "all_seasons") {
+        return "show";
+      } else if (this.episode === "all_episodes") {
+        return "season";
       } else {
-        return this.$store.getters.allMoviesAsArray.length + 1;
+        return "episode";
       }
     },
-    allMoviesRanked () {
-      const movies = [...this.$store.getters.allMoviesAsArray];
-      return movies.sort(this.sortByRating);
+    numberOfTVShowsAfterRating () {
+      if (this.previousEntry) {
+        return this.$store.getters.allTVShowsAsArray.length;
+      } else {
+        return this.$store.getters.allTVShowsAsArray.length + 1;
+      }
     },
-    moviesRankedFromYear () {
-      const moviesFromYear = this.$store.getters.allMoviesAsArray.filter((movie) => {
-        return this.movieYear(movie.movie) === this.movieYear(this.movieToRate);
+    allTVShowsRanked () {
+      const tvShows = [...this.$store.getters.allTVShowsAsArray];
+      return tvShows.sort(this.sortByRating);
+    },
+    tvShowsRankedFromYear () {
+      const tvShowsFromYear = this.$store.getters.allTVShowsAsArray.filter((tvShow) => {
+        return this.tvShowYear(tvShow.tvShow) === this.tvShowYear(this.tvShowToRate);
       })
 
-      return moviesFromYear.sort(this.sortByRating);
+      return tvShowsFromYear.sort(this.sortByRating);
     },
     previousEntry () {
-      return this.$store.getters.allMoviesAsArray.find((entry) => {
-        return entry.movie.id === this.id;
+      return this.$store.getters.allTVShowsAsArray.find((entry) => {
+        return entry.tvShow.id === this.tvShowId;
       })
     },
     viewingTags () {
@@ -604,16 +562,16 @@ export default {
 
       return this.settings.tags["viewing-tags"];
     },
-    movieTags () {
+    mediaTags () {
       if (!this.settings || !this.settings.tags) {
         return [];
       }
 
-      return this.settings.tags["movie-tags"];
+      return this.settings.tags["media-tags"];
     },
     rateBannerUrl () {
-      if (this.movieToRate) {
-        return `https://image.tmdb.org/t/p/original${this.movieToRate.backdrop_path}`;
+      if (this.tvShowToRate) {
+        return `https://image.tmdb.org/t/p/original${this.tvShowToRate.backdrop_path}`;
       } else {
         return false;
       }
@@ -624,32 +582,25 @@ export default {
     selectedViewingTagNames () {
       return this.selectedViewingTags.map((tag) => tag.title);
     },
-    selectedMovieTagNames () {
-      return this.selectedMovieTags.map((tag) => tag.title);
+    selectedTVShowTagNames () {
+      return this.selectedMediaTags.map((tag) => tag.title);
     }
   },
   methods: {
-    movieYear (movie) {
-      return new Date(movie.release_date).getFullYear();
+    tvShowYear (tvShow) {
+      return new Date(tvShow.release_date).getFullYear();
     },
     previouslyRated (id) {
-      const ids = Object.keys(this.database).map((key) => this.database[key].movie.id);
+      const ids = Object.keys(this.database).map((key) => this.database[key].tvShow.id);
 
       return ids.includes(id);
     },
-    mostRecentRating (movie) {
-      let mostRecentRating = movie.ratings[0];
-      movie.ratings.forEach((rating) => {
-        if (rating.date && rating.date > mostRecentRating.date) {
-          mostRecentRating = rating;
-        }
-      })
-
-      return mostRecentRating;
+    mostRecentRating (tvShow) {
+      return tvShow.ratings.tvShow;
     },
     sortByRating (a, b) {
-      const aRating = this.mostRecentRating(a).rating;
-      const bRating = this.mostRecentRating(b).rating;
+      const aRating = this.mostRecentRating(a)?.rating;
+      const bRating = this.mostRecentRating(b)?.rating;
 
       if (aRating < bRating) {
         return 1;
@@ -680,13 +631,13 @@ export default {
 
       return this.getWeight(category) * this.getScore(category);
     },
-    indexIfSortedIntoArray (movie, array) {
+    indexIfSortedIntoArray (tvShow, array) {
       const arr = [...array];
-      arr.push(movie);
+      arr.push(tvShow);
 
       arr.sort(this.sortByRating);
 
-      return arr.indexOf(movie);
+      return arr.indexOf(tvShow);
     },
     async addViewingTag () {
       if (!this.settings.tags || !this.settings.tags["viewing-tags"]) {
@@ -708,25 +659,25 @@ export default {
 
       this.newViewingTagTitle = null;
     },
-    async addMovieTag () {
-      if (!this.settings.tags || !this.settings.tags["movie-tags"]) {
+    async addMediaTag () {
+      if (!this.settings.tags || !this.settings.tags["media-tags"]) {
         return;
       }
 
-      const movieTagsArray = Object.keys(this.settings.tags["movie-tags"]).map((key) => this.settings.tags["movie-tags"][key]);
+      const mediaTagsArray = Object.keys(this.settings.tags["media-tags"]).map((key) => this.settings.tags["media-tags"][key]);
 
-      if (!movieTagsArray.find((tag) => tag.title === this.newMovieTagTitle)) {
+      if (!mediaTagsArray.find((tag) => tag.title === this.newMediaTagTitle)) {
         const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
 
         const dbEntry = {
           path: `settings/tags/movie-tags/${dbKey}`,
-          value: { title: this.newMovieTagTitle }
+          value: { title: this.newMediaTagTitle }
         }
 
         this.$store.dispatch('setDBValue', dbEntry);
       }
 
-      this.newMovieTagTitle = null;
+      this.newMediaTagTitle = null;
     },
     toggleViewingTag (tag) {
       if (this.viewingTagChecked(tag)) {
@@ -735,26 +686,31 @@ export default {
         this.selectedViewingTags.push(tag);
       }
     },
-    toggleMovieTag (tag) {
-      if (this.movieTagChecked(tag)) {
-        this.selectedMovieTags.splice(this.selectedMovieTags.indexOf(tag), 1);
+    toggleMediaTag (tag) {
+      if (this.mediaTagChecked(tag)) {
+        this.selectedMediaTags.splice(this.selectedMediaTags.indexOf(tag), 1);
       } else {
-        this.selectedMovieTags.push(tag);
+        this.selectedMediaTags.push(tag);
       }
+    },
+    previouslyRatedEpisode (episodes, episode) {
+      return episodes.findIndex((oldEpisode) => {
+        return oldEpisode.episode.id === episode.id;
+      })
     },
     async addRating () {
       this.loading = true;
 
-      let ratings = [];
+      let ratings = {};
 
       if (this.previousEntry?.ratings) {
-        ratings = [...this.previousEntry.ratings];
+        ratings = { ...this.previousEntry.ratings };
       }
 
       const rating = {
         date: this.date ? this.date : new Date().getTime(),
         direction: this.direction ? this.direction : 5,
-        id: this.id,
+        tvShowId: this.tvShowId,
         imagery: this.imagery ? this.imagery : 5,
         impression: this.impression ? this.impression : 0,
         love: this.love ? this.love : 5,
@@ -766,12 +722,54 @@ export default {
         story: this.story ? this.story : 5,
         tags: this.selectedViewingTags,
         title: this.title,
-        year: this.year
+        year: this.year,
+        season: this.season,
+        episode: this.episode
       };
 
-      ratings.push(rating);
+      if (!ratings.episodes) {
+        ratings.episodes = [];
+      }
 
-      await addRating(ratings, this.selectedMovieTags);
+      if (this.season === "all_seasons") {
+        for (const season of this.seasons) {
+          const episodes = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}/season/${season.season_number}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
+
+          for (const episode of episodes.data.episodes) {
+            const loopRating = { ...rating, season: season, episode: episode };
+
+            if (this.previouslyRatedEpisode(ratings.episodes, loopRating.episode) > -1) {
+              ratings.episodes.splice(this.previouslyRatedEpisode(ratings.episodes, loopRating.episode), 1, loopRating);
+            } else {
+              ratings.episodes.push(loopRating);
+            }
+          }
+        }
+      } else if (this.episode === "all_episodes") {
+        const episodes = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}/season/${this.season.season_number}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
+
+        for (const episode of episodes.data.episodes) {
+          const loopRating = { ...rating, episode: episode };
+
+          if (this.previouslyRatedEpisode(ratings.episodes, loopRating.episode) > -1) {
+            ratings.episodes.splice(this.previouslyRatedEpisode(ratings.episodes, loopRating.episode), 1, loopRating);
+          } else {
+            ratings.episodes.push(loopRating);
+          }
+        }
+      } else if (this.previouslyRatedEpisode(ratings.episodes, rating.episode) > -1) {
+        ratings.episodes.splice(this.previouslyRatedEpisode(ratings.episodes, rating.episode), 1, rating);
+      } else {
+        ratings.episodes.push(rating);
+      }
+
+      if (this.previouslyRatedEpisode(ratings.episodes, rating.episode) > -1) {
+        ratings.episodes.splice(this.previouslyRatedEpisode(ratings.episodes, rating.episode), 1, rating);
+      } else {
+        ratings.episodes.push(rating);
+      }
+
+      await addRating(ratings, this.selectedMediaTags);
 
       const routeAfterRating = this.settings?.routeAfterRating?.value;
 
@@ -781,6 +779,7 @@ export default {
       })
 
       this.$store.commit("setShowHeader", true);
+
       if (routeAfterRating === "recentlyViewed") {
         this.$store.commit("setDBSortValue", "watched");
         this.$router.push("/db-search");
@@ -806,25 +805,33 @@ export default {
 
       return this.selectedViewingTagNames.includes(tag.title);
     },
-    movieTagChecked (tag) {
-      if (!this.selectedMovieTagNames) {
+    mediaTagChecked (tag) {
+      if (!this.selectedTVShowTagNames) {
         return false;
       }
 
-      return this.selectedMovieTagNames.includes(tag.title);
+      return this.selectedTVShowTagNames.includes(tag.title);
     },
-    toggleMovieTagList () {
-      this.$refs.movieTagList.classList.toggle("collapsed");
+    toggleTVShowTagList () {
+      this.$refs.mediaTagList.classList.toggle("collapsed");
+    },
+    async selectSeason () {
+      if (this.season === "all_seasons") {
+        this.episodes = [];
+      } else {
+        const episodes = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}/season/${this.season.season_number}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
+        this.episodes = episodes.data.episodes;
+      }
     }
   },
 }
 </script>
 
 <style lang="scss">
-  .rate-movie {
+  .rate-tv-show {
     max-width: 832px;
 
-    .rate-movie-header {
+    .rate-tv-show-header {
       position: relative;
 
       .home-link {
@@ -850,12 +857,8 @@ export default {
       }
     }
 
-    .year-medium-date {
-      column-gap: 1rem;
-    }
-
-    .movie-tags {
-      .movie-tags-toggle {
+    .media-tags {
+      .media-tags-toggle {
         align-items: center;
         cursor: pointer;
         display: flex;
@@ -874,26 +877,28 @@ export default {
         }
       }
 
-      .movie-tags-content {
+      .media-tags-content {
         max-height: 500px;
         overflow: hidden;
         transition: all 0.3s ease;
       }
 
       &.collapsed {
-        .movie-tags-toggle {
+        .media-tags-toggle {
           svg {
             transform: rotate(0deg);
           }
         }
 
-        .movie-tags-content {
+        .media-tags-content {
           max-height: 0;
         }
       }
     }
 
     .submit-button {
+      margin-bottom: 25vh;
+
       &[disabled] {
         .disabled-show {
           display: inline-block;
@@ -932,7 +937,7 @@ export default {
   }
 
   .bg-dark {
-    .rate-movie {
+    .rate-tv-show {
       color: white;
     }
   }
