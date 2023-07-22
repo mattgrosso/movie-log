@@ -22,14 +22,14 @@
         <div class="season col-4 my-4">
           <label class="form-label fs-4" for="season">Season</label>
           <select class="form-select" name="season" id="season" v-model="season" @change="selectSeason">
-            <option value=""></option>
+            <option value="all_seasons">All Seasons</option>
             <option v-for="(season, index) in seasons" :key="index" :value="season">{{season.name}}</option>
           </select>
         </div>
         <div class="episode col-7 my-4">
           <label class="form-label fs-4" for="episode">Episode</label>
-          <select class="form-select" name="episode" id="episode" v-model="episode" :disabled="!episodes.length">
-            <option value=""></option>
+          <select class="form-select" name="episode" id="episode" v-model="episode">
+            <option value="all_episodes">All Episodes</option>
             <option v-for="(episode, index) in episodes" :key="index" :value="episode">{{episode.episode_number}} - {{episode.name}}</option>
           </select>
         </div>
@@ -692,7 +692,7 @@ export default {
     async addRating () {
       this.loading = true;
 
-      let ratings = [];
+      let ratings = {};
 
       if (this.previousEntry?.ratings) {
         ratings = { ...this.previousEntry.ratings };
@@ -720,6 +720,38 @@ export default {
 
       if (!ratings.episodes) {
         ratings.episodes = [];
+      }
+
+      if (this.season === "all_seasons") {
+        for (const season of this.seasons) {
+          const episodes = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}/season/${season.season_number}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
+
+          for (const episode of episodes.data.episodes) {
+            const loopRating = { ...rating, season: season, episode: episode };
+
+            if (this.previouslyRatedEpisode(ratings.episodes, loopRating.episode) > -1) {
+              ratings.episodes.splice(this.previouslyRatedEpisode(ratings.episodes, loopRating.episode), 1, loopRating);
+            } else {
+              ratings.episodes.push(loopRating);
+            }
+          }
+        }
+      } else if (this.episode === "all_episodes") {
+        const episodes = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}/season/${this.season.season_number}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
+        
+        for (const episode of episodes.data.episodes) {
+          const loopRating = { ...rating, episode: episode };
+          
+          if (this.previouslyRatedEpisode(ratings.episodes, loopRating.episode) > -1) {
+            ratings.episodes.splice(this.previouslyRatedEpisode(ratings.episodes, loopRating.episode), 1, loopRating);
+          } else {
+            ratings.episodes.push(loopRating);
+          }
+        }
+      } else if (this.previouslyRatedEpisode(ratings.episodes, rating.episode) > -1) {
+        ratings.episodes.splice(this.previouslyRatedEpisode(ratings.episodes, rating.episode), 1, rating);
+      } else {
+        ratings.episodes.push(rating);
       }
 
       if (this.previouslyRatedEpisode(ratings.episodes, rating.episode) > -1) {
@@ -776,7 +808,11 @@ export default {
     },
     async selectSeason () {
       const episodes = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}/season/${this.season.season_number}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
-      this.episodes = episodes.data.episodes;
+      if (this.season === "all_seasons") {
+        this.episodes = [];
+      } else {
+        this.episodes = episodes.data.episodes;
+      }
     }
   },
 }
