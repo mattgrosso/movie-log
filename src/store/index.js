@@ -15,6 +15,19 @@ const sortByVoteCount = (a, b) => {
   return 0;
 }
 
+const removeNaNAndUndefined = (obj) => {
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      if (typeof obj[key] === "object" && obj[key] !== null) {
+        removeNaNAndUndefined(obj[key]);
+      } else if (Number.isNaN(obj[key]) || obj[key] === undefined) {
+        delete obj[key];
+      }
+    }
+  }
+  return obj;
+};
+
 // Firebase
 const firebaseConfig = {
   databaseURL: "https://movie-log-8c4d5-default-rtdb.firebaseio.com",
@@ -194,13 +207,16 @@ export default createStore({
       context.dispatch('initializeDB');
     },
     async setDBValue (context, dbEntry) {
-      try {
-        await set(ref(db, `${context.state.databaseTopKey}/${dbEntry.path}`), dbEntry.value);
-      } catch (error) {
-        console.error(error);
-        Sentry.captureMessage(`${context.state.databaseTopKey} failed to add a value. The path was ${dbEntry.path} and the value was ${dbEntry.value}.`);
-        Sentry.captureException(error);
-      }
+      const cleanedDBEntry = removeNaNAndUndefined(dbEntry.value);
+
+      set(ref(db, `${context.state.databaseTopKey}/${dbEntry.path}`), cleanedDBEntry)
+        .then(() => {
+          console.log('setDBValue success');
+        })
+        .catch((error) => {
+          console.error(error);
+          Sentry.captureException(error);
+        });
     }
   },
   modules: {
