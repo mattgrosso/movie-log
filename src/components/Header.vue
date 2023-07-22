@@ -82,7 +82,7 @@ export default {
             mostRecentRating = rating;
           }
         })
-  
+
         return mostRecentRating;
       }
     },

@@ -73,8 +73,8 @@
       <p class="m-0 d-flex justify-content-center align-items-center">
         They have an average rating of {{averageRating(results)}}
       </p>
-      <div class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
-        <button v-if="!currentLogIsTVLog" class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
+      <div v-if="!currentLogIsTVLog" class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
+        <button class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
           Charts
         </button>
         <button class="btn btn-secondary col-5" @click="shareResults">
@@ -92,7 +92,7 @@
         <Charts :results="results" :sortOrder="sortOrder"/>
       </div>
     </div>
-    <hr>
+    <hr :class="{'mt-3': currentLogIsTVLog}">
     <ul class="col-12 py-3 px-0 m-0 d-flex flex-wrap">
       <li
         class="media-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"

@@ -72,7 +72,7 @@
 
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="direction">Direction</label>
-        <p class="fs-6 fst-italic">Rate the episodes's directing and editing.</p>
+        <p class="fs-6 fst-italic">Rate the {{episodeSeasonOrShow}}'s directing and editing.</p>
         <select class="form-select" name="direction" id="direction" v-model="direction">
           <option value=""></option>
           <option value="0">
@@ -114,7 +114,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="imagery">Imagery</label>
         <p class="fs-6 fst-italic">
-          Rate the episode's cinematography, visual effects, production design,costume design, and/or animation.
+          Rate the {{episodeSeasonOrShow}}'s cinematography, visual effects, production design,costume design, and/or animation.
         </p>
         <select class="form-select" name="imagery" id="imagery" v-model="imagery">
           <option value=""></option>
@@ -157,7 +157,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="story">Story</label>
         <p class="fs-6 fst-italic">
-          Rate the episode's story and screenplay.
+          Rate the {{episodeSeasonOrShow}}'s story and screenplay.
         </p>
         <select class="form-select" name="story" id="story" v-model="story">
           <option value=""></option>
@@ -200,7 +200,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="performance">Performance</label>
         <p class="fs-6 fst-italic">
-          Rate the performances in the episode. In the case of documentaries, rate the interest of the subject matter.
+          Rate the performances in the {{episodeSeasonOrShow}}. In the case of documentaries, rate the interest of the subject matter.
         </p>
         <select class="form-select" name="performance" id="performance" v-model="performance">
           <option value=""></option>
@@ -243,7 +243,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="soundtrack">Soundtrack</label>
         <p class="fs-6 fst-italic">
-          Rate the episode's score, songs, and sound design.
+          Rate the {{episodeSeasonOrShow}}'s score, songs, and sound design.
         </p>
         <select class="form-select" name="soundtrack" id="soundtrack" v-model="soundtrack">
           <option value=""></option>
@@ -286,7 +286,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="impression">Impression</label>
         <p class="fs-6 fst-italic">
-          Give your sense of the episode's longevity or impact.
+          Give your sense of the {{episodeSeasonOrShow}}'s longevity or impact.
         </p>
         <select class="form-select" name="impression" id="impression" v-model="impression">
           <option value=""></option>
@@ -314,7 +314,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="love">Love</label>
         <p class="fs-6 fst-italic">
-          The intangible quality of a episode that seems to speak to you specifically.
+          The intangible quality of a {{episodeSeasonOrShow}} that seems to speak to you specifically.
         </p>
         <select class="form-select" name="love" id="love" v-model="love">
           <option value=""></option>
@@ -357,7 +357,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="overall">Overall</label>
         <p class="fs-6 fst-italic">
-          Gut sense of the episode's overall rating.
+          Gut sense of the {{episodeSeasonOrShow}}'s overall rating.
         </p>
         <select class="form-select" name="overall" id="overall" v-model="overall">
           <option value=""></option>
@@ -431,13 +431,13 @@
       <hr>
 
       <button
-        class="submit-button btn btn-primary col-12 mt-5 mb-4"
+        class="submit-button btn btn-primary col-12 mt-5"
         @click.prevent="addRating"
         type="submit"
         value="Submit"
         :disabled="loading"
       >
-        <span v-if="!loading">Submit</span>
+        <span v-if="!loading">Rate {{episodeSeasonOrShow}}</span>
         <span v-if="loading" class="disabled-show spinner-border spinner-border-sm mx-2" role="status" aria-hidden="true"></span>
         <span v-if="loading" class="disabled-show ">Submiting...</span>
       </button>
@@ -522,6 +522,15 @@ export default {
         ...this.tvShowToRate,
         ratings: [{ rating: this.rating }]
       };
+    },
+    episodeSeasonOrShow () {
+      if (this.season === "all_seasons") {
+        return "show";
+      } else if (this.episode === "all_episodes") {
+        return "season";
+      } else {
+        return "episode";
+      }
     },
     numberOfTVShowsAfterRating () {
       if (this.previousEntry) {
@@ -738,10 +747,10 @@ export default {
         }
       } else if (this.episode === "all_episodes") {
         const episodes = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}/season/${this.season.season_number}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
-        
+
         for (const episode of episodes.data.episodes) {
           const loopRating = { ...rating, episode: episode };
-          
+
           if (this.previouslyRatedEpisode(ratings.episodes, loopRating.episode) > -1) {
             ratings.episodes.splice(this.previouslyRatedEpisode(ratings.episodes, loopRating.episode), 1, loopRating);
           } else {
@@ -807,10 +816,10 @@ export default {
       this.$refs.mediaTagList.classList.toggle("collapsed");
     },
     async selectSeason () {
-      const episodes = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}/season/${this.season.season_number}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
       if (this.season === "all_seasons") {
         this.episodes = [];
       } else {
+        const episodes = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShowId}/season/${this.season.season_number}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
         this.episodes = episodes.data.episodes;
       }
     }
@@ -888,6 +897,8 @@ export default {
     }
 
     .submit-button {
+      margin-bottom: 25vh;
+
       &[disabled] {
         .disabled-show {
           display: inline-block;
