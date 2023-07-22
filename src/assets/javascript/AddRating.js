@@ -1,6 +1,5 @@
 import axios from 'axios';
 import cheerio from "cheerio";
-import * as Sentry from "@sentry/vue";
 import store from '../../store/index';
 
 const getTMDBData = async (rating) => {

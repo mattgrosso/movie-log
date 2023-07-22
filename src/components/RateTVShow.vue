@@ -720,7 +720,7 @@ export default {
       let ratings = [];
 
       if (this.previousEntry?.ratings) {
-        ratings = {...this.previousEntry.ratings};
+        ratings = { ...this.previousEntry.ratings };
       }
 
       const rating = {
