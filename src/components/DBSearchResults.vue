@@ -162,7 +162,10 @@
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Writer(s)</h3>
-          <p class="m-3">{{getCrewMember(topStructure(result).crew, "Writer")}}</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Writer").length'>{{getCrewMember(topStructure(result).crew, "Writer")}} (Writer)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Screenplay").length'>{{getCrewMember(topStructure(result).crew, "Screenplay")}} (Screenplay)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Story").length'>{{getCrewMember(topStructure(result).crew, "Story")}} (Story)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Novel").length'>{{getCrewMember(topStructure(result).crew, "Novel")}} (Novel)</p>
 
           <hr>
 
