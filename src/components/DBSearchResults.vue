@@ -162,10 +162,10 @@
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Writer(s)</h3>
-          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Writer").length'>{{getCrewMember(topStructure(result).crew, "Writer")}} (Writer)</p>
-          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Screenplay").length'>{{getCrewMember(topStructure(result).crew, "Screenplay")}} (Screenplay)</p>
-          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Story").length'>{{getCrewMember(topStructure(result).crew, "Story")}} (Story)</p>
-          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Novel").length'>{{getCrewMember(topStructure(result).crew, "Novel")}} (Novel)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Writer")'>{{getCrewMember(topStructure(result).crew, "Writer")}} (Writer)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Screenplay")'>{{getCrewMember(topStructure(result).crew, "Screenplay")}} (Screenplay)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Story")'>{{getCrewMember(topStructure(result).crew, "Story")}} (Story)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Novel")'>{{getCrewMember(topStructure(result).crew, "Novel")}} (Novel)</p>
 
           <hr>
 
@@ -192,7 +192,7 @@
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Tags</h3>
-          <p class="m-3">{{turnArrayIntoList(mostRecentRating(result).tags, "title")}}</p>
+          <p class="m-3">{{turnArrayIntoList(topStructure(result).tags, "title")}}</p>
 
           <hr v-if="turnArrayIntoList(result.awards?.oscarWins).length || turnArrayIntoList(result.awards?.oscarNoms).length">
 
@@ -210,6 +210,7 @@
             <span v-if="rating.medium && rating.date">on</span>
             <span v-else-if="rating.date">On</span>
             {{formattedDate(rating.date)}}
+            <span style="font-size: 12px; color: rgb(167, 167, 167);" v-if="rating.tags">&nbsp;&nbsp;{{ turnArrayIntoList(rating.tags, "title") }}</span>
           </p>
         </div>
       </li>
