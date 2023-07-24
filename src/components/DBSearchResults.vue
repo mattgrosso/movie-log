@@ -189,10 +189,10 @@
           <h3 class="mt-3 mb-2 fs-5">Cinematographer(s)</h3>
           <p class="m-3">{{getCrewMember(topStructure(result).crew, "Photo")}}</p>
 
-          <hr>
+          <hr v-if='turnArrayIntoList(topStructure(result).tags, "title")'>
 
-          <h3 class="mt-3 mb-2 fs-5">Tags</h3>
-          <p class="m-3">{{turnArrayIntoList(topStructure(result).tags, "title")}}</p>
+          <h3 class="mt-3 mb-2 fs-5" v-if='turnArrayIntoList(topStructure(result).tags, "title")'>Tags</h3>
+          <p class="m-3" v-if='turnArrayIntoList(topStructure(result).tags, "title")'>{{turnArrayIntoList(topStructure(result).tags, "title")}}</p>
 
           <hr v-if="turnArrayIntoList(result.awards?.oscarWins).length || turnArrayIntoList(result.awards?.oscarNoms).length">
 
@@ -210,7 +210,7 @@
             <span v-if="rating.medium && rating.date">on</span>
             <span v-else-if="rating.date">On</span>
             {{formattedDate(rating.date)}}
-            <span style="font-size: 12px; color: rgb(167, 167, 167);" v-if="rating.tags">&nbsp;&nbsp;{{ turnArrayIntoList(rating.tags, "title") }}</span>
+            <span class="ratings-tags" v-if="rating.tags">{{ turnArrayIntoList(rating.tags, "title") }}</span>
           </p>
         </div>
       </li>
@@ -461,24 +461,23 @@ export default {
     },
     tagSearch (tags) {
       return this.allMediaAsArray.filter((entry) => {
-        const ratings = entry.ratings;
-        const ratingTags = ratings.reduce((acc, rating) => {
-          if (rating.tags) {
-            Object.values(rating.tags).forEach(tag => {
-              if (tag.title) {
-                acc.push(tag.title.toLowerCase());
-              }
-            });
-          }
-          return acc;
-        }, []);
-
-        let allTags = ratingTags;
-        
+        let allTags = [];
+        if (!this.currentLogIsTVLog) {
+          let allTags = entry.ratings.reduce((acc, rating) => {
+            if (rating.tags) {
+              Object.values(rating.tags).forEach(tag => {
+                if (tag.title) {
+                  acc.push(tag.title.toLowerCase());
+                }
+              });
+            }
+            return acc;
+          }, []);
+        }
         if (this.topStructure(entry).tags) {
           const movieTags = this.topStructure(entry).tags;
           const tagNames = movieTags.map((movieTag) => movieTag.title.toLowerCase());
-          allTags = ratingTags.concat(tagNames);
+          allTags = allTags.concat(tagNames);
         }
 
         return tags.every((tag) => allTags.includes(tag));
@@ -933,6 +932,12 @@ export default {
             span {
               white-space: nowrap;
             }
+          }
+
+          .ratings-tags {
+            font-size: 0.75rem;
+            color: #a7a7a7;
+            padding-left: 3px;
           }
 
           .actors {
