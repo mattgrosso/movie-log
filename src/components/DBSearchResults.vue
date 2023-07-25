@@ -126,7 +126,7 @@
             <span class="col-12">{{turnArrayIntoList(topStructure(result).genres, "name")}}</span>
             <span class="col-12">
               <a v-if="currentLogIsTVLog && result.tvShow.created_by" class="link" @click.stop="searchFor(`p:\'${result.tvShow.created_by[0].name}\'`)">{{result.tvShow.created_by[0].name}}</a>
-              <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor(`p:\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
+              <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor(`d:\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
             </span>
           </p>
         </div>
@@ -162,7 +162,10 @@
           <hr>
 
           <h3 class="mt-3 mb-2 fs-5">Writer(s)</h3>
-          <p class="m-3">{{getCrewMember(topStructure(result).crew, "Writer")}}</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Writer")'>{{getCrewMember(topStructure(result).crew, "Writer")}} (Writer)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Screenplay")'>{{getCrewMember(topStructure(result).crew, "Screenplay")}} (Screenplay)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Story")'>{{getCrewMember(topStructure(result).crew, "Story")}} (Story)</p>
+          <p class="m-3" v-if='getCrewMember(topStructure(result).crew, "Novel")'>{{getCrewMember(topStructure(result).crew, "Novel")}} (Novel)</p>
 
           <hr>
 
@@ -186,10 +189,10 @@
           <h3 class="mt-3 mb-2 fs-5">Cinematographer(s)</h3>
           <p class="m-3">{{getCrewMember(topStructure(result).crew, "Photo")}}</p>
 
-          <hr>
+          <hr v-if='turnArrayIntoList(topStructure(result).tags, "title")'>
 
-          <h3 class="mt-3 mb-2 fs-5">Tags</h3>
-          <p class="m-3">{{turnArrayIntoList(mostRecentRating(result).tags, "title")}}</p>
+          <h3 class="mt-3 mb-2 fs-5" v-if='turnArrayIntoList(topStructure(result).tags, "title")'>Tags</h3>
+          <p class="m-3" v-if='turnArrayIntoList(topStructure(result).tags, "title")'>{{turnArrayIntoList(topStructure(result).tags, "title")}}</p>
 
           <hr v-if="turnArrayIntoList(result.awards?.oscarWins).length || turnArrayIntoList(result.awards?.oscarNoms).length">
 
@@ -207,6 +210,7 @@
             <span v-if="rating.medium && rating.date">on</span>
             <span v-else-if="rating.date">On</span>
             {{formattedDate(rating.date)}}
+            <span class="ratings-tags" v-if="rating.tags">{{ turnArrayIntoList(rating.tags, "title") }}</span>
           </p>
         </div>
       </li>
@@ -343,7 +347,7 @@ export default {
       const options = {
         alwaysArray: true,
         offsets: false,
-        keywords: ["p", "person", "g", "genre", "t", "tag", "annual"],
+        keywords: ["p", "person", "g", "genre", "t", "tag", "d", "director", "annual"],
         ranges: ["y", "year"]
       }
 
@@ -363,6 +367,12 @@ export default {
       } else if (cleanQuery.g || cleanQuery.genre) {
         const keys = ["g", "genre"];
         return this.genreSearch(cleanQuery[keys.find((key) => cleanQuery[key])][0]);
+      } else if (cleanQuery.d || cleanQuery.director) {
+        const keys = ["d", "director"];
+        return this.directorSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
+      } else if (cleanQuery.t || cleanQuery.tag) {
+        const keys = ["t", "tag"];
+        return this.tagSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
       } else if (cleanQuery === "annual") {
         return this.bestMovieFromEachYear();
       } else {
@@ -433,9 +443,44 @@ export default {
     },
     genreSearch (genre) {
       return this.allMediaAsArray.filter((entry) => {
-        const genres = this.topStructure(entry).genres.map((genre) => genre.name.toLowerCase());
+        const movieEntry = this.topStructure(entry);
+        if (movieEntry.genres) {
+          const genres = this.topStructure(entry).genres.map((genre) => genre.name.toLowerCase());
+          return genres.includes(genre);
+        }
+        return false;
+      })
+    },
+    directorSearch (directors) {
+      return this.allMediaAsArray.filter((entry) => {
+        const crew = this.topStructure(entry).crew;
+        const matches = crew.filter((crew) => crew.job === 'Director');
+        const names = matches.map((match) => match.name.toLowerCase());
+        return directors.every((director) => names.includes(director));
+      })
+    },
+    tagSearch (tags) {
+      return this.allMediaAsArray.filter((entry) => {
+        let allTags = [];
+        if (!this.currentLogIsTVLog) {
+          let allTags = entry.ratings.reduce((acc, rating) => {
+            if (rating.tags) {
+              Object.values(rating.tags).forEach(tag => {
+                if (tag.title) {
+                  acc.push(tag.title.toLowerCase());
+                }
+              });
+            }
+            return acc;
+          }, []);
+        }
+        if (this.topStructure(entry).tags) {
+          const movieTags = this.topStructure(entry).tags;
+          const tagNames = movieTags.map((movieTag) => movieTag.title.toLowerCase());
+          allTags = allTags.concat(tagNames);
+        }
 
-        return genres.includes(genre);
+        return tags.every((tag) => allTags.includes(tag));
       })
     },
     bestMovieFromEachYear () {
@@ -887,6 +932,12 @@ export default {
             span {
               white-space: nowrap;
             }
+          }
+
+          .ratings-tags {
+            font-size: 0.75rem;
+            color: #a7a7a7;
+            padding-left: 3px;
           }
 
           .actors {
