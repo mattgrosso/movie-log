@@ -967,21 +967,22 @@ export default {
           .rating-categories {
             display: flex;
             flex-wrap: wrap;
+
             span {
               white-space: nowrap;
             }
           }
 
           .ratings-tags {
-            font-size: 0.75rem;
             color: #a7a7a7;
+            font-size: 0.75rem;
             padding-left: 3px;
           }
 
           .actors {
             p {
-              overflow-y: scroll;
               max-height: 100px;
+              overflow-y: scroll;
             }
           }
         }
