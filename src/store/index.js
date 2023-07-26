@@ -243,6 +243,31 @@ export default createStore({
           Sentry.captureException(error);
         });
     },
+    // This action adds a TV show to the list of recently rated TV shows in the user's settings.
+    addToRecentlyRatedTVShows (context, tvShow) {
+      // Get the current list of recently rated TV shows from the user's settings.
+      const recentlyRatedTVShows = context.state.settings.recentlyRatedTVShows || [];
+
+      // If the TV show being added is already in the list, remove it from its current position.
+      if (recentlyRatedTVShows.find((show) => show.id === tvShow.id)) {
+        const index = recentlyRatedTVShows.findIndex((show) => show.id === tvShow.id);
+        recentlyRatedTVShows.splice(index, 1);
+      }
+
+      // If the list of recently rated TV shows is longer than 2, remove the oldest item(s) until it's only 2 items long.
+      if (recentlyRatedTVShows.length > 2) {
+        recentlyRatedTVShows.length = 2;
+      }
+
+      // Add the new TV show to the beginning of the list of recently rated TV shows.
+      recentlyRatedTVShows.unshift(tvShow);
+
+      // Update the user's settings in the database with the new list of recently rated TV shows.
+      context.dispatch('setDBValue', {
+        path: 'settings/recentlyRatedTVShows',
+        value: recentlyRatedTVShows
+      });
+    },
     toggleCurrentLog (context) {
       if (this.state.currentLog === 'movieLog') {
         this.commit('setCurrentLog', 'tvLog');

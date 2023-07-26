@@ -33,7 +33,13 @@ export default {
     opacity: 0.3;
   }
 
-  .bg-dark hr {
-    border-color: white;
+  .bg-dark {
+    hr {
+      border-color: white;
+    }
+
+    p {
+      color: white;
+    }
   }
 </style>

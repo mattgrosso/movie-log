@@ -109,10 +109,11 @@ const createTVShowRatingFromEpisodeRatings = (ratings) => {
   }
 
   const keys = Object.keys(ratings[0]);
-  const keysToRemove = ["date", "episode", "medium", "season", "tags", "title", "year"];
+  const keysToRemove = ["date", "episode", "medium", "season", "tags", "title", "year", "tvShowId"];
   const filteredKeys = keys.filter((key) => !keysToRemove.includes(key));
   const averages = {
-    date: new Date().getTime()
+    date: new Date().getTime(),
+    tvShowId: ratings[0].tvShowId
   };
 
   filteredKeys.forEach((key) => {
@@ -164,7 +165,7 @@ const addTVShowRating = async (ratings, tvShowTags) => {
     networks: tmdbData ? tmdbData.networks : [],
     number_of_episodes: tmdbData ? tmdbData.number_of_episodes : null,
     number_of_seasons: tmdbData ? tmdbData.number_of_seasons : null,
-    name: tmdbData ? tmdbData.name : null,
+    name: tmdbData ? tmdbData.name : "",
     tags: tvShowTags || []
   };
 
@@ -175,7 +176,8 @@ const addTVShowRating = async (ratings, tvShowTags) => {
     ratings: ratingsWithShowRating
   };
 
-  const key = findKeyForTVShowInDatabase(ratings.episodes[0].tvShowId) || `${new Date().getTime()}-${crypto.randomUUID()}`;
+  const safeName = tmdbDataWeStore.name.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
+  const key = findKeyForTVShowInDatabase(ratings.episodes[0].tvShowId) || `${new Date().getTime()}-${crypto.randomUUID()}-${safeName}`;
 
   return {
     path: `tvLog/${key}`,
@@ -221,7 +223,7 @@ const addMovieRating = async (ratings, movieTags) => {
     production_companies: tmdbData ? tmdbData.production_companies : [],
     release_date: tmdbData ? tmdbData.release_date : null,
     runtime: tmdbData ? tmdbData.runtime : null,
-    title: tmdbData ? tmdbData.title : null,
+    title: tmdbData ? tmdbData.title : "",
     awards: imdbData || null,
     tags: movieTags || []
   };
@@ -239,7 +241,8 @@ const addMovieRating = async (ratings, movieTags) => {
     ratings: ratingsWithoutOwnership
   };
 
-  const key = findKeyForMovieInDatabase(ratings[0].id) || `${new Date().getTime()}-${crypto.randomUUID()}`;
+  const safeTitle = tmdbDataWeStore.title.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
+  const key = findKeyForMovieInDatabase(ratings[0].id) || `${new Date().getTime()}-${crypto.randomUUID()}-${safeTitle}`;
 
   return {
     path: `movieLog/${key}`,
@@ -257,6 +260,7 @@ const addRating = async (ratings, movieTags) => {
   }
 
   store.dispatch('setDBValue', dbEntry);
+  return dbEntry;
 }
 
 export default addRating;
