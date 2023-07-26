@@ -769,7 +769,9 @@ export default {
         ratings.episodes.push(rating);
       }
 
-      await addRating(ratings, this.selectedMediaTags);
+      const dbEntry = await addRating(ratings, this.selectedMediaTags);
+
+      this.$store.dispatch("addToRecentlyRatedTVShows", dbEntry.value.tvShow);
 
       const routeAfterRating = this.settings?.routeAfterRating?.value;
 

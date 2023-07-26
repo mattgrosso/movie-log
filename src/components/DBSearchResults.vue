@@ -134,6 +134,11 @@
           <p class="col-12 m-0 fs-3 text-center">{{parseFloat(mostRecentRating(result).rating).toFixed(2)}}</p>
           <p class="rank col-12 m-0 text-center">({{getOrdinal(getRankById(result))}})</p>
         </div>
+        <div v-if="currentLogIsTVLog" @click.stop="rateTVShow(result.tvShow)" class="rerate-button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-square-fill shadow-sm" viewBox="0 0 16 16">
+            <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
+          </svg>
+        </div>
 
         <div :id="`Info-${this.topStructure(result).id}`" class="full-info ps-3 hidden">
           <hr class="my-4">
@@ -463,7 +468,7 @@ export default {
       return this.allMediaAsArray.filter((entry) => {
         let allTags = [];
         if (!this.currentLogIsTVLog) {
-          let allTags = entry.ratings.reduce((acc, rating) => {
+          allTags = entry.ratings.reduce((acc, rating) => {
             if (rating.tags) {
               Object.values(rating.tags).forEach(tag => {
                 if (tag.title) {
@@ -474,6 +479,7 @@ export default {
             return acc;
           }, []);
         }
+
         if (this.topStructure(entry).tags) {
           const movieTags = this.topStructure(entry).tags;
           const tagNames = movieTags.map((movieTag) => movieTag.title.toLowerCase());
@@ -796,6 +802,16 @@ export default {
       } else {
         return result.movie;
       }
+    },
+    rateTVShow (tvShow) {
+      this.$store.commit('setTVShowToRate', tvShow);
+
+      window.scroll({
+        top: top,
+        behavior: 'smooth'
+      })
+
+      this.$router.push('/rate-tv-show');
     }
   },
 }
@@ -896,6 +912,7 @@ export default {
         border: 1px solid black;
         cursor: pointer;
         overflow: hidden;
+        position: relative;
 
         .details {
           .etc {
@@ -910,6 +927,27 @@ export default {
         .rating {
           .rank {
             font-size: 0.65rem;
+          }
+        }
+
+        .rerate-button {
+          align-items: center;
+          display: flex;
+          height: 30px;
+          justify-content: center;
+          padding: 6px;
+          position: absolute;
+          right: 0;
+          top: 0;
+          width: 30px;
+
+          svg {
+            width: 18px;
+            height: 18px;
+
+            path {
+              fill: #316cf4;
+            }
           }
         }
 
@@ -929,21 +967,22 @@ export default {
           .rating-categories {
             display: flex;
             flex-wrap: wrap;
+
             span {
               white-space: nowrap;
             }
           }
 
           .ratings-tags {
-            font-size: 0.75rem;
             color: #a7a7a7;
+            font-size: 0.75rem;
             padding-left: 3px;
           }
 
           .actors {
             p {
-              overflow-y: scroll;
               max-height: 100px;
+              overflow-y: scroll;
             }
           }
         }
