@@ -339,6 +339,7 @@ export default {
     },
     toggleMovieTV () {
       this.$store.dispatch('toggleCurrentLog');
+      this.$router.push("/");
     }
   },
 }
