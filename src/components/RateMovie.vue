@@ -513,7 +513,7 @@ import addRating from "../assets/javascript/AddRating.js";
 export default {
   data () {
     return {
-      date: null,
+      date: new Date().toISOString().substr(0, 10),
       direction: null,
       id: null,
       imagery: null,
