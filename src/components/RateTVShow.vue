@@ -695,7 +695,7 @@ export default {
     },
     previouslyRatedEpisode (episodes, episode) {
       return episodes.findIndex((oldEpisode) => {
-        return oldEpisode.episode.id === episode.id;
+        return oldEpisode?.episode?.id === episode?.id;
       })
     },
     async addRating () {
