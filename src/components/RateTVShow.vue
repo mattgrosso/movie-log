@@ -470,9 +470,9 @@ export default {
       selectedMediaTags: [],
       title: null,
       year: null,
-      season: null,
+      season: "all_seasons",
       seasons: [],
-      episode: null,
+      episode: "all_episodes",
       episodes: []
     }
   },
