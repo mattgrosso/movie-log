@@ -21,10 +21,26 @@
               <p class="example my-0 px-3">person:"John Williams"</p>
               <p class="example my-0 px-3">p:"Natalie Portman"</p>
             </div>
+            <div class="director help mb-1">
+              <p class="title m-0 text-decoration-underline">Search for a director</p>
+              <p class="example my-0 px-3">director:"Greta Gerwig"</p>
+              <p class="example my-0 px-3">d:"Jordan Peele"</p>
+            </div>
             <div class="genre help mb-1">
               <p class="title m-0 text-decoration-underline">Search for a genre</p>
               <p class="example my-0 px-3">genre:Comedy</p>
               <p class="example my-0 px-3">g:Drama</p>
+            </div>
+            <div class="tag help mb-1">
+              <p class="title m-0 text-decoration-underline">Search for a tag</p>
+              <p class="example my-0 px-3">tag:"Courtroom"</p>
+              <p class="example my-0 px-3">t:"First Film"</p>
+            </div>
+            <div class="title help mb-1">
+              <p class="title m-0 text-decoration-underline">Search for a title</p>
+              <p class="example my-0 px-3">title:"Batman"</p>
+              <p class="example my-0 px-3">name:"The Matrix"</p>
+              <p class="example my-0 px-3">n:"Mission: Impossible"</p>
             </div>
             <div class="tag help mb-1">
               <p class="title m-0 text-decoration-underline">Best from each year</p>
@@ -352,7 +368,7 @@ export default {
       const options = {
         alwaysArray: true,
         offsets: false,
-        keywords: ["p", "person", "g", "genre", "t", "tag", "d", "director", "annual"],
+        keywords: ["p", "person", "g", "genre", "t", "tag", "d", "director", "n", "name", "title", "annual"],
         ranges: ["y", "year"]
       }
 
@@ -378,6 +394,9 @@ export default {
       } else if (cleanQuery.t || cleanQuery.tag) {
         const keys = ["t", "tag"];
         return this.tagSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
+      } else if (cleanQuery.n || cleanQuery.name || cleanQuery.title) {
+        const keys = ["n", "name", "title"];
+        return this.titleSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
       } else if (cleanQuery === "annual") {
         return this.bestMovieFromEachYear();
       } else {
@@ -487,6 +506,11 @@ export default {
         }
 
         return tags.every((tag) => allTags.includes(tag));
+      })
+    },
+    titleSearch (title) {
+      return this.allMediaAsArray.filter((entry) => {
+        return this.topStructure(entry).title.toLowerCase().includes(title);
       })
     },
     bestMovieFromEachYear () {
