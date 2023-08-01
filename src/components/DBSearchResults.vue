@@ -8,7 +8,7 @@
             <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
           </svg>
         </span>
-        <div ref=popperWrapper>
+        <div ref="popperWrapper">
           <div ref="popper" id="search-help-popper" class="popper" role="tooltip">
             <div class="year help mb-1">
               <p class="title m-0 text-decoration-underline">Search by year</p>
@@ -209,6 +209,11 @@
 
           <hr>
 
+          <h3 v-if="currentLogIsTVLog" class="mt-3 mb-2 fs-5">Ratings Chart</h3>
+          <EpisodeRatingsChart v-if="currentLogIsTVLog && openEpisodes.includes(`Info-${this.topStructure(result).id}`)" :tvShow="result"/>
+
+          <hr>
+
           <h3 class="mt-3 mb-2 fs-5">Viewings</h3>
           <p class="m-3" v-for="(rating, index) in result.ratings" :key="index">
             {{rating.medium}}
@@ -239,10 +244,12 @@ import inRange from 'lodash/inRange';
 import minBy from 'lodash/minBy';
 import searchQuery from 'search-query-parser';
 import Charts from "./Charts.vue";
+import EpisodeRatingsChart from './EpisodeRatingsChart.vue';
 
 export default {
   components: {
-    Charts
+    Charts,
+    EpisodeRatingsChart
   },
   data () {
     return {
@@ -251,7 +258,8 @@ export default {
       sortValue: null,
       value: "",
       numberOfResultsToShow: 50,
-      sharing: false
+      sharing: false,
+      openEpisodes: []
     }
   },
   watch: {
@@ -707,9 +715,11 @@ export default {
       if (x.classList.contains("hidden")) {
         x.classList.remove("hidden");
         x.classList.add("shown");
+        this.openEpisodes.push(id);
       } else {
         x.classList.add("hidden");
         x.classList.remove("shown");
+        this.openEpisodes = this.openEpisodes.filter((episode) => episode !== id);
       }
     },
     togglePopper () {

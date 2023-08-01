@@ -149,6 +149,7 @@ export default {
         top: 0;
         transform: rotate(-45deg) translate(-55px, -33px);
         color: white;
+        z-index: 1;
       }
 
       .home-link {
