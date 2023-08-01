@@ -115,7 +115,7 @@ const createTVShowRatingFromEpisodeRatings = (ratings) => {
   const previousIndex = store.getters.allMediaSortedByRating.findIndex((tvShow) => {
     return tvShow.tvShow.id === ratings.episodes[0].tvShowId;
   });
-  
+
   const averages = {
     date: new Date().getTime(),
     tvShowId: ratings.episodes[0].tvShowId,

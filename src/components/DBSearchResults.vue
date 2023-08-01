@@ -395,7 +395,7 @@ export default {
     sortedResults () {
       return [...this.results].sort(this.sortResults);
     },
-    sortedByRating() {
+    sortedByRating () {
       const allMediaSortedByRating = this.$store.getters.allMediaSortedByRating;
 
       if (this.sortOrder === 'ascending') {

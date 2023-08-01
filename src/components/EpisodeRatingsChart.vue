@@ -108,7 +108,7 @@ export default {
   methods: {
     async getSeasonsAndEpisodes () {
       const seasons = await axios.get(`https://api.themoviedb.org/3/tv/${this.tvShow.tvShow.id}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
-      
+
       return seasons.data.seasons.map((season) => {
         return {
           seasonName: season.name,
