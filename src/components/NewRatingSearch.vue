@@ -10,6 +10,7 @@
       <ul>
         <li v-for="(tvShow, index) in recentlyRatedTVShows" :key="index" class="col-3" @click="reRate(tvShow)">
           <img :src="`https://image.tmdb.org/t/p/original${tvShow.poster_path}`" :alt="`${tvShow.name} poster`">
+          <RatingChangeRibbon :tvShow="tvShow"/>
         </li>
       </ul>
     </div>
@@ -18,8 +19,12 @@
 
 <script>
 import axios from 'axios';
+import RatingChangeRibbon from './RatingChangeRibbon.vue';
 
 export default {
+  components: {
+    RatingChangeRibbon
+  },
   data () {
     return {
       value: ""
@@ -38,6 +43,9 @@ export default {
     },
     recentlyRatedTVShows () {
       return this.$store.state.settings.recentlyRatedTVShows || [];
+    },
+    tvLog () {
+      return this.$store.state.tvLog;
     }
   },
   methods: {
@@ -105,9 +113,17 @@ export default {
           cursor: pointer;
           margin: 0 12px;
           padding: 6px;
+          position: relative;
 
           img {
             width: 100%;
+          }
+
+          .rating-change {
+            right: 0;
+            position: absolute;
+            top: 100%;
+            transform: translate(22px, -22px);
           }
         }
       }

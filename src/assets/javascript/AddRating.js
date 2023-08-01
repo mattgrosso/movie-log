@@ -104,21 +104,27 @@ const findKeyForMovieInDatabase = (id) => {
 }
 
 const createTVShowRatingFromEpisodeRatings = (ratings) => {
-  if (!ratings || ratings.length === 0) {
+  if (!ratings.episodes || ratings.episodes.length === 0) {
     return {};
   }
 
-  const keys = Object.keys(ratings[0]);
+  const keys = Object.keys(ratings.episodes[0]);
   const keysToRemove = ["date", "episode", "medium", "season", "tags", "title", "year", "tvShowId"];
   const filteredKeys = keys.filter((key) => !keysToRemove.includes(key));
+
+  const previousIndex = store.getters.allMediaSortedByRating.findIndex((tvShow) => {
+    return tvShow.tvShow.id === ratings.episodes[0].tvShowId;
+  });
+  
   const averages = {
     date: new Date().getTime(),
-    tvShowId: ratings[0].tvShowId
+    tvShowId: ratings.episodes[0].tvShowId,
+    previousRanking: previousIndex + 1
   };
 
   filteredKeys.forEach((key) => {
-    const sum = ratings.reduce((total, rating) => total + parseFloat(rating[key]), 0);
-    const average = sum / ratings.length;
+    const sum = ratings.episodes.reduce((total, rating) => total + parseFloat(rating[key]), 0);
+    const average = sum / ratings.episodes.length;
     averages[key] = parseFloat(average.toPrecision(2));
   });
 
@@ -169,7 +175,7 @@ const addTVShowRating = async (ratings, tvShowTags) => {
     tags: tvShowTags || []
   };
 
-  const ratingsWithShowRating = { ...ratings, tvShow: createTVShowRatingFromEpisodeRatings(ratings.episodes) };
+  const ratingsWithShowRating = { ...ratings, tvShow: createTVShowRatingFromEpisodeRatings(ratings) };
 
   const tvShowWithRatings = {
     tvShow: tmdbDataWeStore,

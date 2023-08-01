@@ -395,9 +395,14 @@ export default {
     sortedResults () {
       return [...this.results].sort(this.sortResults);
     },
-    sortedByRating () {
-      const sorted = [...this.allMediaAsArray];
-      return sorted.sort(this.sortByRating);
+    sortedByRating() {
+      const allMediaSortedByRating = this.$store.getters.allMediaSortedByRating;
+
+      if (this.sortOrder === 'ascending') {
+        return allMediaSortedByRating;
+      } else {
+        return allMediaSortedByRating.slice().reverse();
+      }
     },
     paginatedSortedResults () {
       return this.sortedResults.slice(0, this.numberOfResultsToShow);
@@ -558,27 +563,6 @@ export default {
         sortValueA = 0;
         sortValueB = 0;
       }
-
-      if (sortValueA < sortValueB) {
-        if (this.sortOrder === "ascending") {
-          return 1;
-        } else {
-          return -1;
-        }
-      }
-      if (sortValueA > sortValueB) {
-        if (this.sortOrder === "ascending") {
-          return -1;
-        } else {
-          return 1;
-        }
-      }
-
-      return 0;
-    },
-    sortByRating (a, b) {
-      const sortValueA = this.mostRecentRating(a).rating;
-      const sortValueB = this.mostRecentRating(b).rating;
 
       if (sortValueA < sortValueB) {
         if (this.sortOrder === "ascending") {
