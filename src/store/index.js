@@ -15,6 +15,42 @@ const sortByVoteCount = (a, b) => {
   return 0;
 }
 
+const mostRecentRating = (media) => {
+  if (media.ratings.tvShow) {
+    return media.ratings.tvShow;
+  } else {
+    let mostRecentRating = media.ratings[0];
+
+    media.ratings.forEach((rating) => {
+      const ratingDate = rating.date ? new Date(rating.date).getTime() : 0;
+      const mostRecentRatingDate = mostRecentRating.date ? new Date(mostRecentRating.date).getTime() : 0;
+
+      if (!mostRecentRating.date) {
+        mostRecentRating = rating;
+      } else if (ratingDate && ratingDate > mostRecentRatingDate) {
+        mostRecentRating = rating;
+      }
+    })
+
+    return mostRecentRating;
+  }
+}
+
+const sortByRating = (a, b) => {
+  const sortValueA = mostRecentRating(a).rating;
+  const sortValueB = mostRecentRating(b).rating;
+
+  if (sortValueA < sortValueB) {
+    return 1;
+  }
+
+  if (sortValueA > sortValueB) {
+    return -1;
+  }
+
+  return 0;
+}
+
 const removeNaNAndUndefined = (obj) => {
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -77,6 +113,9 @@ export default createStore({
       return Object.keys(state.tvLog).map((key) => {
         return state.tvLog[key];
       })
+    },
+    allMediaSortedByRating: (state, getters) => {
+      return getters.allMediaAsArray.sort(sortByRating);
     },
     databaseTopKey (state) {
       return state.databaseTopKey;
