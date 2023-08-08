@@ -105,7 +105,7 @@ export default {
       if (this.$store.getters.allMediaAsArray[rand]) {
         return `https://image.tmdb.org/t/p/original${this.topStructure(this.$store.getters.allMediaAsArray[rand]).backdrop_path}`;
       } else {
-        return "https://image.tmdb.org/t/p/original/1TvNazsE9WvRIxxeZkvL7IVVgzD.jpg";
+        return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
       }
     },
     async goHome () {
