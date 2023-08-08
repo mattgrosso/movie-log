@@ -1,12 +1,12 @@
 <template>
-  <form class="new-rating-search mt-5 mx-3" @submit.prevent="searchTMDB" target="_top" method="GET">
+  <form class="new-rating-search mt-5 mb-4 mx-3" @submit.prevent="searchTMDB" target="_top" method="GET">
     <input type="hidden" name="action" value="entry">
     <div class="search-inputs input-group">
       <input v-model="value" type="text" class="form-control" placeholder="New Entry" aria-label="New Entry" aria-describedby="new-rating-button">
       <div ref="noResults" class="invalid-feedback">No results found</div>
       <button class="btn btn-primary" :disabled="!value" type="submit" id="new-rating-button">Search</button>
     </div>
-    <div v-if="currentLogIsTVLog && recentlyRatedTVShows.length" class="last-three-shows my-4">
+    <div v-if="currentLogIsTVLog && recentlyRatedTVShows.length" class="last-three-shows mt-4">
       <ul>
         <li v-for="(tvShow, index) in recentlyRatedTVShows" :key="index" class="col-3" @click="reRate(tvShow)">
           <img :src="`https://image.tmdb.org/t/p/original${tvShow.poster_path}`" :alt="`${tvShow.name} poster`">
