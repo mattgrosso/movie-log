@@ -147,10 +147,6 @@ export default createStore({
       const results = [...value];
       const sorted = results.sort(sortByVoteCount);
 
-      if (sorted.length > 9) {
-        sorted.length = 9;
-      }
-
       state.newEntrySearchResults = sorted;
     },
     setMovieToRate (state, movie) {
