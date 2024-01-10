@@ -417,7 +417,7 @@
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
         #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked) + 1}}/{{numberOfMoviesAfterRating}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear) + 1}} in {{movieYear(this.movieToRate)}}
+        #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear) + 1}} in {{movieYear(movieToRate)}}
       </p>
 
       <hr>

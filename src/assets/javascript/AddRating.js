@@ -8,6 +8,7 @@ const getTMDBData = async (rating) => {
 
   let dataResp;
   let creditsResp;
+  let keywordsResp;
 
   try {
     if (store.state.currentLog === "tvLog") {
@@ -16,6 +17,7 @@ const getTMDBData = async (rating) => {
     } else {
       dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
       creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
+      keywordsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/keywords?api_key=${apiKey}`);
     }
   } catch (error) {
     console.log(error);
@@ -24,7 +26,8 @@ const getTMDBData = async (rating) => {
 
   return {
     ...dataResp.data,
-    ...creditsResp.data
+    ...creditsResp.data,
+    ...keywordsResp.data
   }
 }
 
@@ -231,7 +234,8 @@ const addMovieRating = async (ratings, movieTags) => {
     runtime: tmdbData ? tmdbData.runtime : null,
     title: tmdbData ? tmdbData.title : "",
     awards: imdbData || null,
-    tags: movieTags || []
+    tags: movieTags || [],
+    keywords: tmdbData ? tmdbData.keywords : []
   };
 
   const ratingsWithoutOwnership = ratings.map((rating) => {
