@@ -96,11 +96,15 @@ export default createStore({
     allMediaAsArray: (state) => {
       if (state.currentLog === 'tvLog') {
         return Object.keys(state.tvLog).map((key) => {
-          return state.tvLog[key];
+          const tvShow = state.tvLog[key];
+          tvShow.dbKey = key;
+          return tvShow;
         })
       } else {
         return Object.keys(state.movieLog).map((key) => {
-          return state.movieLog[key];
+          const movie = state.movieLog[key];
+          movie.dbKey = key;
+          return movie;
         })
       }
     },
