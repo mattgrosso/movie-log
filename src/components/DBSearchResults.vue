@@ -2,54 +2,10 @@
   <div class="db-search-results p-3 pt-5 mx-auto">
     <div class="search-bar mx-auto">
       <div class="input-group mb-3 col-12 md-col-6">
-        <span ref="target" class="search-help-icon input-group-text" @click="togglePopper" v-click-away="onClickAway">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
-            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-            <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
-          </svg>
-        </span>
-        <div ref="popperWrapper">
-          <div ref="popper" id="search-help-popper" class="popper" role="tooltip">
-            <div class="year help mb-1">
-              <p class="title m-0 text-decoration-underline">Search by year</p>
-              <p class="example my-0 px-3">year:1990</p>
-              <p class="example my-0 px-3">y:2002</p>
-              <p class="example my-0 px-3">y:1990-1998</p>
-            </div>
-            <div class="person help mb-1">
-              <p class="title m-0 text-decoration-underline">Search for cast or crew</p>
-              <p class="example my-0 px-3">person:"John Williams"</p>
-              <p class="example my-0 px-3">p:"Natalie Portman"</p>
-            </div>
-            <div class="director help mb-1">
-              <p class="title m-0 text-decoration-underline">Search for a director</p>
-              <p class="example my-0 px-3">director:"Greta Gerwig"</p>
-              <p class="example my-0 px-3">d:"Jordan Peele"</p>
-            </div>
-            <div class="genre help mb-1">
-              <p class="title m-0 text-decoration-underline">Search for a genre</p>
-              <p class="example my-0 px-3">genre:Comedy</p>
-              <p class="example my-0 px-3">g:Drama</p>
-            </div>
-            <div class="tag help mb-1">
-              <p class="title m-0 text-decoration-underline">Search for a tag</p>
-              <p class="example my-0 px-3">tag:"Courtroom"</p>
-              <p class="example my-0 px-3">t:"First Film"</p>
-            </div>
-            <div class="title help mb-1">
-              <p class="title m-0 text-decoration-underline">Search for a title</p>
-              <p class="example my-0 px-3">title:"Batman"</p>
-              <p class="example my-0 px-3">name:"The Matrix"</p>
-              <p class="example my-0 px-3">n:"Mission: Impossible"</p>
-            </div>
-            <div class="tag help mb-1">
-              <p class="title m-0 text-decoration-underline">Best from each year</p>
-              <p class="example my-0 px-3">annual</p>
-            </div>
-            <div id="arrow" data-popper-arrow></div>
-          </div>
-        </div>
-        <input class="form-control" type="text" autocapitalize="none" name="search" id="search" placeholder="search..." v-model="value">
+        <input class="form-control" type="text" list="datalistOptions" autocapitalize="none" name="search" id="search" placeholder="keyword search..." v-model="value">
+        <datalist id="datalistOptions">
+          <option v-for="(keyword, index) in allKeywords" :key="index" :value="titleCase(keyword)"/>
+        </datalist>
         <span v-if="value" class="clear-button" @click.prevent="value = null">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle" viewBox="0 0 16 16">
             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
@@ -80,14 +36,14 @@
     </div>
     <hr class="mt-4">
     <div v-show="paginatedSortedResults.length" class="details">
-      <p v-if="results.length === allMediaAsArray.length" class="fs-5 my-2 text-center">
-        You've rated {{allMediaAsArray.length}} {{movieOrTVShow}}s.
+      <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
+        You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s.
       </p>
       <p v-else class="fs-5 my-2 text-center">
-        {{results.length}} out of {{allMediaAsArray.length}} {{movieOrTVShow}}s match your search.
+        {{filteredResults.length}} out of {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s match your search.
       </p>
       <p class="m-0 d-flex justify-content-center align-items-center">
-        They have an average rating of {{averageRating(results)}}
+        They have an average rating of {{averageRating(filteredResults)}}
       </p>
       <div v-if="!currentLogIsTVLog" class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
         <button class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
@@ -105,7 +61,7 @@
     </div>
     <div v-if="!currentLogIsTVLog" id="charts-accordion" class="accordion-collapse collapse" aria-labelledby="charts">
       <div class="accordion-body">
-        <Charts :results="results" :sortOrder="sortOrder"/>
+        <Charts :results="filteredResults" :sortOrder="sortOrder"/>
       </div>
     </div>
     <hr :class="{'mt-3': currentLogIsTVLog}">
@@ -129,10 +85,6 @@
 </template>
 
 <script>
-import { createPopper } from '@popperjs/core';
-import Fuse from 'fuse.js';
-import inRange from 'lodash/inRange';
-import searchQuery from 'search-query-parser';
 import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
 
@@ -188,24 +140,6 @@ export default {
     } else {
       this.sortOrder = "ascending";
     }
-
-    this.popperInstance = createPopper(this.$refs.target, this.$refs.popper, {
-      modifiers: [
-        {
-          name: 'offset',
-          options: {
-            offset: [50, 8],
-          },
-        },
-        {
-          name: 'preventOverflow',
-          options: {
-            mainAxis: true,
-            padding: 12
-          },
-        }
-      ],
-    });
   },
   beforeRouteLeave () {
     this.sortOrder = "ascending";
@@ -226,9 +160,6 @@ export default {
         return "movie";
       }
     },
-    allMediaAsArray () {
-      return this.$store.getters.allMediaAsArray;
-    },
     DBSearchValue () {
       return this.$store.state.DBSearchValue;
     },
@@ -238,54 +169,28 @@ export default {
     DBSortOrder () {
       return this.$store.state.DBSortOrder;
     },
-    threshold () {
-      if (this.value) {
-        return 0.6;
-      } else {
-        return 1;
-      }
+    allEntriesWithFlatKeywordsAdded () {
+      return this.$store.getters.allMediaAsArray.map((result) => {
+        return {
+          ...result,
+          movie: {
+            ...result.movie,
+            flatKeywords: result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : []
+          }
+        }
+      });
     },
-    results () {
-      const options = {
-        alwaysArray: true,
-        offsets: false,
-        keywords: ["p", "person", "g", "genre", "t", "tag", "d", "director", "n", "name", "title", "annual"],
-        ranges: ["y", "year"]
-      }
-
-      let cleanQuery = this.value ? this.value : "";
-      cleanQuery = cleanQuery ? cleanQuery.toLowerCase() : "";
-      cleanQuery = cleanQuery.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
-      cleanQuery = searchQuery.parse(cleanQuery, options);
-
-      if (!this.value) {
-        return this.allMediaAsArray;
-      } else if (cleanQuery.y || cleanQuery.year) {
-        const keys = ["y", "year"];
-        return this.yearSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
-      } else if (cleanQuery.p || cleanQuery.person) {
-        const keys = ["p", "person"];
-        return this.personSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
-      } else if (cleanQuery.g || cleanQuery.genre) {
-        const keys = ["g", "genre"];
-        return this.genreSearch(cleanQuery[keys.find((key) => cleanQuery[key])][0]);
-      } else if (cleanQuery.d || cleanQuery.director) {
-        const keys = ["d", "director"];
-        return this.directorSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
-      } else if (cleanQuery.t || cleanQuery.tag) {
-        const keys = ["t", "tag"];
-        return this.tagSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
-      } else if (cleanQuery.n || cleanQuery.name || cleanQuery.title) {
-        const keys = ["n", "name", "title"];
-        return this.titleSearch(cleanQuery[keys.find((key) => cleanQuery[key])]);
-      } else if (cleanQuery === "annual") {
-        return this.bestMovieFromEachYear();
+    filteredResults () {
+      if (!this.currentLogIsTVLog && this.value) {
+        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+          return media.movie.flatKeywords && media.movie.flatKeywords.includes(this.value.toLowerCase())
+        })
       } else {
-        return this.fuzzySearch();
+        return this.allEntriesWithFlatKeywordsAdded;
       }
     },
     sortedResults () {
-      return [...this.results].sort(this.sortResults);
+      return [...this.filteredResults].sort(this.sortResults);
     },
     sortedByRating () {
       const allMediaSortedByRating = this.$store.getters.allMediaSortedByRating;
@@ -298,120 +203,29 @@ export default {
     },
     paginatedSortedResults () {
       return this.sortedResults.slice(0, this.numberOfResultsToShow);
+    },
+    allKeywords () {
+      return Object.keys(this.countedKeywords);
+    },
+    countedKeywords () {
+      let counts = {};
+
+      this.sortedResults.forEach((result) => {
+        if (result.movie.flatKeywords) {
+          result.movie.flatKeywords.forEach((keyword) => {
+            if (counts[keyword]) {
+              counts[keyword]++;
+            } else {
+              counts[keyword] = 1;
+            }
+          })
+        }
+      })
+
+      return counts;
     }
   },
   methods: {
-    fuzzySearch () {
-      let keys;
-
-      if (this.currentLogIsTVLog) {
-        keys = ["tvShow.name", "tvShow.first_air_date", "tvShow.id", "tvShow.original_name", "tvShow.overview"];
-      } else {
-        keys = ["movie.title", "movie.release_date", "movie.id", "movie.imdb_id", "movie.original_title", "movie.overview", "movie.tagline"];
-      }
-
-      const options = {
-        threshold: this.threshold,
-        keys: keys
-      };
-
-      const fuse = new Fuse(this.allMediaAsArray, options);
-
-      const results = fuse.search(`"${this.value}"`);
-
-      return results.map((result) => result.item);
-    },
-    yearSearch (range) {
-      if (range.to) {
-        return this.allMediaAsArray.filter((media) => {
-          return inRange(this.getYear(media), range.from, parseInt(range.to) + 1);
-        });
-      } else {
-        return this.allMediaAsArray.filter((media) => {
-          return inRange(this.getYear(media), range.from, parseInt(range.from) + 1);
-        });
-      }
-    },
-    personSearch (names) {
-      return this.allMediaAsArray.filter((media) => {
-        // this is a sort of crazy thing to do. It might be kind of slow.
-        const crew = this.topStructure(media).crew;
-        const cast = this.topStructure(media).cast;
-
-        const everyone = `${JSON.stringify(crew)} ${JSON.stringify(cast)}`;
-
-        return names.every((name) => everyone.toLowerCase().includes(name.toLowerCase()));
-      })
-    },
-    genreSearch (genre) {
-      return this.allMediaAsArray.filter((entry) => {
-        const movieEntry = this.topStructure(entry);
-        if (movieEntry.genres) {
-          const genres = this.topStructure(entry).genres.map((genre) => genre.name.toLowerCase());
-          return genres.includes(genre);
-        }
-        return false;
-      })
-    },
-    directorSearch (directors) {
-      return this.allMediaAsArray.filter((entry) => {
-        const crew = this.topStructure(entry).crew;
-        const matches = crew.filter((crew) => crew.job === 'Director');
-        const names = matches.map((match) => match.name.toLowerCase());
-        return directors.every((director) => names.includes(director));
-      })
-    },
-    tagSearch (tags) {
-      return this.allMediaAsArray.filter((entry) => {
-        let allTags = [];
-        if (!this.currentLogIsTVLog) {
-          allTags = entry.ratings.reduce((acc, rating) => {
-            if (rating.tags) {
-              Object.values(rating.tags).forEach(tag => {
-                if (tag.title) {
-                  acc.push(tag.title.toLowerCase());
-                }
-              });
-            }
-            return acc;
-          }, []);
-        }
-
-        if (this.topStructure(entry).tags) {
-          const movieTags = this.topStructure(entry).tags;
-          const tagNames = movieTags.map((movieTag) => movieTag.title.toLowerCase());
-          allTags = allTags.concat(tagNames);
-        }
-
-        return tags.every((tag) => allTags.includes(tag));
-      })
-    },
-    titleSearch (title) {
-      return this.allMediaAsArray.filter((entry) => {
-        return this.topStructure(entry).title.toLowerCase().includes(title);
-      })
-    },
-    bestMovieFromEachYear () {
-      const years = {};
-
-      this.allMediaAsArray.forEach((result) => {
-        let year;
-
-        if (this.currentLogIsTVLog) {
-          year = new Date(result.tvShow.first_air_date).getFullYear();
-        } else {
-          year = new Date(result.movie.release_date).getFullYear();
-        }
-
-        if (!years[year]) {
-          years[year] = result;
-        } else if (this.mostRecentRating(result).rating > this.mostRecentRating(years[year]).rating) {
-          years[year] = result;
-        }
-      })
-
-      return Object.keys(years).map((year) => years[year]);
-    },
     toggleSortOrder () {
       if (this.sortOrder === "ascending") {
         this.sortOrder = "descending";
@@ -575,6 +389,14 @@ export default {
       } else {
         return result.movie;
       }
+    },
+    titleCase (string) {
+      return string.replace(
+        /\w\S*/g,
+        function(txt) {
+          return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+        }
+      );
     }
   },
 }
