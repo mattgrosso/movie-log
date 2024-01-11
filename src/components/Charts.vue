@@ -36,11 +36,9 @@
       />
       <div v-else class="d-flex flex-wrap">
         <div v-for="(keyword, index) in keywordsForCloud" :key="index">
-          <span
-            class="badge mx-1 text-bg-secondary"
-            @click="handleKeywordClick"
-          >
-            {{ keyword[0] }}
+          <span class="badge mx-1 text-bg-secondary">
+            <span @click="handleKeywordClick">{{ keyword[0] }}</span>
+            <span>&nbsp;({{ Math.floor((keyword[1] / this.results.length) * 100) }}%)</span>
           </span>
         </div>
       </div>
@@ -575,7 +573,7 @@ export default {
 
       const keywords = Object.keys(this.countedKeywords).map((keyword) => {
         return [keyword, this.countedKeywords[keyword]];
-      }).filter((keyword) => keyword[1] > percentofMedia);
+      }).filter((keyword) => keyword[1] > percentofMedia).sort((a, b) => b[1] - a[1]);
 
       return keywords;
     },
