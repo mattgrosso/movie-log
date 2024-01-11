@@ -14,7 +14,6 @@
         </span>
       </div>
       <div class="search-types d-flex flex-nowrap mb-3 col-12 md-col-6">
-        <p class="small my-0 p-1">Search type:</p>
         <div class="types d-flex align-items-center flex-wrap p-1">
           <span
             class="badge mx-1"
@@ -227,8 +226,59 @@ export default {
           return media.movie.flatKeywords && media.movie.flatKeywords.includes(this.value.toLowerCase());
         })
       } else if (this.searchType === "year") {
+        let parsedYears = [];
+
+        if (this.value.length === 2 && parseInt(this.value) < new Date().getFullYear() - 2000) {
+          parsedYears = [`20${this.value}`];
+        } else if (this.value.length === 2) {
+          parsedYears = [`19${this.value}`];
+        } else if (this.value.includes("-") && this.value.includes(" ")) {
+          parsedYears = this.value.split(" ").join("").split("-");
+
+          for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
+            parsedYears.push(i.toString());
+          }
+        } else if (this.value.includes("-")) {
+          parsedYears = this.value.split("-");
+
+          for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
+            parsedYears.push(i.toString());
+          }
+        } else if (this.value.length === 5 && this.value.includes("s")) {
+          parsedYears = this.value.split("s").filter((x) => x);
+
+          parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
+        } else if (this.value.length === 3 && this.value.includes("s")) {
+          parsedYears = this.value.split("s").filter((x) => x);
+
+          if (parseInt(this.value) < new Date().getFullYear() - 2000) {
+            parsedYears[0] = `20${parsedYears[0]}`;
+          } else {
+            parsedYears[0] = `19${parsedYears[0]}`;
+          }
+          parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
+          parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
+        } else {
+          parsedYears = [this.value];
+        }
+
         return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          return this.getYear(media) === parseInt(this.value);
+          return parsedYears.includes(`${this.getYear(media)}`);
         })
       } else if (this.searchType === "director") {
         return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
@@ -532,7 +582,7 @@ export default {
 
         .types {
           row-gap: 6px;
-          
+
           span {
             cursor: pointer;
           }

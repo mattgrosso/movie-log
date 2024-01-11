@@ -6,10 +6,4 @@ Better view for shared results. With images.
 
 Can I rework the design so there's only one screen where you search and see your db?
 
-Rework how search works.
-  - It needs refactoring.
-  - It should use keywords.
-  - Get rid of fuzzy search
-  - Director should work flawlessly
-
-What about a visualization of keywords?
+Genres should be clickable just like keywords
