@@ -92,9 +92,14 @@
         </button>
       </div>
     </div>
-    <div v-if="!currentLogIsTVLog" id="charts-accordion" class="accordion-collapse collapse" aria-labelledby="charts">
+    <div v-if="!currentLogIsTVLog" id="charts-accordion" ref="chartsAccordion" class="accordion-collapse collapse" aria-labelledby="charts">
       <div class="accordion-body">
-        <Charts :results="filteredResults" :sortOrder="sortOrder"/>
+        <Charts
+          :results="filteredResults"
+          :sortOrder="sortOrder"
+          :countedKeywords="countedKeywords"
+          @updateSearchValue="updateSearchValue"
+        />
       </div>
     </div>
     <hr :class="{'mt-3': currentLogIsTVLog}">
@@ -335,6 +340,7 @@ export default {
     updateSearchValue (searchObject) {
       this.searchType = searchObject.searchType;
       this.value = searchObject.value.replace(/'/g, '');
+      this.$refs.chartsAccordion.classList.remove("show");
     },
     toggleSortOrder () {
       if (this.sortOrder === "ascending") {
@@ -525,6 +531,8 @@ export default {
         }
 
         .types {
+          row-gap: 6px;
+          
           span {
             cursor: pointer;
           }
@@ -543,63 +551,6 @@ export default {
         transform: translateY(-50%);
         width: 18px;
         z-index: 5;
-      }
-
-      #search-help-popper {
-        background: #333;
-        border-radius: 4px;
-        color: white;
-        display: none;
-        padding: 1rem;
-        z-index: 1;
-
-        &[data-show] {
-          display: block;
-        }
-
-        &[data-popper-placement^='top'] > #arrow {
-          bottom: -4px;
-        }
-
-        &[data-popper-placement^='bottom'] > #arrow {
-          top: -4px;
-        }
-
-        &[data-popper-placement^='left'] > #arrow {
-          right: -4px;
-        }
-
-        &[data-popper-placement^='right'] > #arrow {
-          left: -4px;
-        }
-
-        .help {
-          .title {
-            font-size: 1rem;
-          }
-
-          .example {
-            font-size: 0.75rem;
-          }
-        }
-
-        #arrow,
-        #arrow::before {
-          background: inherit;
-          height: 8px;
-          position: absolute;
-          width: 8px;
-        }
-
-        #arrow {
-          visibility: hidden;
-        }
-
-        #arrow::before {
-          content: '';
-          transform: rotate(45deg);
-          visibility: visible;
-        }
       }
 
       svg {

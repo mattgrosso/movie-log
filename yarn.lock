@@ -7227,6 +7227,11 @@ vue@^3.2.13:
     "@vue/server-renderer" "3.2.47"
     "@vue/shared" "3.2.47"
 
+vuewordcloud@^19.0.0:
+  version "19.0.0"
+  resolved "https://registry.yarnpkg.com/vuewordcloud/-/vuewordcloud-19.0.0.tgz#11386518f30e60a5fb6d750ab0d7455c388c8126"
+  integrity sha512-DgvvtatvU+lp1Crb7s+KbjvO/ULJLc43jce/mUY31bHireqeIHKaZ9PeXRfAy0rMcZi8EURnGK0ZPWoJBDRUhw==
+
 vuex@^4.1.0:
   version "4.1.0"
   resolved "https://registry.yarnpkg.com/vuex/-/vuex-4.1.0.tgz#aa1b3ea5c7385812b074c86faeeec2217872e36c"

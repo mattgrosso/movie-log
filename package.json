@@ -32,6 +32,7 @@
     "vue3-click-away": "^1.2.4",
     "vue3-google-login": "^2.0.12",
     "vue3-lazyload": "^0.3.6",
+    "vuewordcloud": "^19.0.0",
     "vuex": "^4.1.0"
   },
   "devDependencies": {
@@ -84,7 +85,8 @@
       "prefer-const": "warn",
       "no-multiple-empty-lines": "warn",
       "no-useless-return": "off",
-      "no-debugger": "warn"
+      "no-debugger": "warn",
+      "vue/no-deprecated-slot-scope-attribute": "warn"
     }
   },
   "browserslist": [
