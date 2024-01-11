@@ -126,13 +126,27 @@
       <hr>
 
       <h3 class="mt-3 mb-2 fs-5">Viewings</h3>
-      <p class="m-3" v-for="(rating, index) in result.ratings" :key="index">
-        {{rating.medium}}
-        <span v-if="rating.medium && rating.date">on</span>
-        <span v-else-if="rating.date">On</span>
-        {{formattedDate(rating.date)}}
-        <span class="ratings-tags" v-if="rating.tags">{{ turnArrayIntoList(rating.tags, "title") }}</span>
-      </p>
+      <div
+        v-for="(rating, index) in result.ratings"
+        :key="index"
+        class="viewing-wrapper"
+      >
+        <p class="d-flex flex-wrap justify-content-between m-3">
+          <span class="medium-and-date col-10">
+            <span>{{rating.medium}}</span>
+            <span v-if="rating.medium && rating.date">&nbsp;on&nbsp;</span>
+            <span v-else-if="rating.date">&nbsp;On</span>
+            <span>{{formattedDate(rating.date)}}</span>
+          </span>
+          <span class="col-2">
+            <span>{{rating.rating}}</span>
+          </span>
+          <span class="col-12 mx-4">
+            <span class="ratings-tags" v-if="rating.tags">{{ turnArrayIntoList(rating.tags, "title") }}</span>
+          </span>
+        </p>
+        <hr v-if="index !== result.ratings.length - 1" >
+      </div>
     </div>
   </li>
 </template>
