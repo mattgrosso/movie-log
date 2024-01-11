@@ -26,7 +26,16 @@
       <p class="etc m-0 d-flex flex-wrap">
         <span v-if="currentLogIsTVLog" class="col-12">{{tvNetwork(result)}}</span>
         <span v-else class="col-12">{{prettifyRuntime(result)}}</span>
-        <span class="col-12">{{turnArrayIntoList(topStructure(result).genres, "name")}}</span>
+        <span class="col-12">
+          <a
+            v-for="(genre, index) in topStructure(result).genres"
+            :key="index"
+            class="link"
+            @click.stop="searchFor('genre', genre.name)"
+          >
+            {{genre.name}}<span v-if="index !== topStructure(result).genres.length - 1">&nbsp;</span>
+          </a>
+        </span>
         <span class="col-12">
           <a v-if="currentLogIsTVLog && result.tvShow.created_by" class="link" @click.stop="searchFor('cast/crew', `\'${result.tvShow.created_by[0].name}\'`)">{{result.tvShow.created_by[0].name}}</a>
           <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor('director', `\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>

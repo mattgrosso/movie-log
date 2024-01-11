@@ -24,6 +24,13 @@
           </span>
           <span
             class="badge mx-1"
+            :class="searchType === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="searchType = 'genre'"
+          >
+            Genre
+          </span>
+          <span
+            class="badge mx-1"
             :class="searchType === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
             @click="searchType = 'year'"
           >
@@ -222,79 +229,98 @@ export default {
       if (this.currentLogIsTVLog || !this.value) {
         return this.allEntriesWithFlatKeywordsAdded;
       } else if (this.searchType === "keyword") {
-        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          return media.movie.flatKeywords && media.movie.flatKeywords.includes(this.value.toLowerCase());
-        })
+        return this.keywordFilter;
+      } else if (this.searchType === "genre") {
+        return this.genreFilter;
       } else if (this.searchType === "year") {
-        let parsedYears = [];
-
-        if (this.value.length === 2 && parseInt(this.value) < new Date().getFullYear() - 2000) {
-          parsedYears = [`20${this.value}`];
-        } else if (this.value.length === 2) {
-          parsedYears = [`19${this.value}`];
-        } else if (this.value.includes("-") && this.value.includes(" ")) {
-          parsedYears = this.value.split(" ").join("").split("-");
-
-          for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
-            parsedYears.push(i.toString());
-          }
-        } else if (this.value.includes("-")) {
-          parsedYears = this.value.split("-");
-
-          for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
-            parsedYears.push(i.toString());
-          }
-        } else if (this.value.length === 5 && this.value.includes("s")) {
-          parsedYears = this.value.split("s").filter((x) => x);
-
-          parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
-        } else if (this.value.length === 3 && this.value.includes("s")) {
-          parsedYears = this.value.split("s").filter((x) => x);
-
-          if (parseInt(this.value) < new Date().getFullYear() - 2000) {
-            parsedYears[0] = `20${parsedYears[0]}`;
-          } else {
-            parsedYears[0] = `19${parsedYears[0]}`;
-          }
-          parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
-          parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
-        } else {
-          parsedYears = [this.value];
-        }
-
-        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          return parsedYears.includes(`${this.getYear(media)}`);
-        })
+        return this.yearFilter;
       } else if (this.searchType === "director") {
-        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          return media.movie.crew?.find((person) => person.job === "Director").name.toLowerCase() === this.value.toLowerCase();
-        })
+        return this.directorFilter;
       } else if (this.searchType === "cast/crew") {
-        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          const cast = media.movie.cast?.map((person, index) => index < 10 && person.name.toLowerCase()) || [];
-          const crew = media.movie.crew?.map((person, index) => index < 10 && person.name.toLowerCase()) || [];
-          const castCrewCombined = [...cast, ...crew];
-
-          return castCrewCombined.includes(this.value.toLowerCase());
-        })
+        return this.castCrewFilter;
       } else {
         return [];
       }
+    },
+    keywordFilter () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        return media.movie.flatKeywords?.includes(this.value.toLowerCase());
+      })
+    },
+    genreFilter () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        return media.movie.genres?.find((genre) => genre.name.toLowerCase() === this.value.toLowerCase());
+      })
+    },
+    yearFilter () {
+      let parsedYears = [];
+
+      if (this.value.length === 2 && parseInt(this.value) < new Date().getFullYear() - 2000) {
+        parsedYears = [`20${this.value}`];
+      } else if (this.value.length === 2) {
+        parsedYears = [`19${this.value}`];
+      } else if (this.value.includes("-") && this.value.includes(" ")) {
+        parsedYears = this.value.split(" ").join("").split("-");
+
+        for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
+          parsedYears.push(i.toString());
+        }
+      } else if (this.value.includes("-")) {
+        parsedYears = this.value.split("-");
+
+        for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
+          parsedYears.push(i.toString());
+        }
+      } else if (this.value.length === 5 && this.value.includes("s")) {
+        parsedYears = this.value.split("s").filter((x) => x);
+
+        parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
+      } else if (this.value.length === 3 && this.value.includes("s")) {
+        parsedYears = this.value.split("s").filter((x) => x);
+
+        if (parseInt(this.value) < new Date().getFullYear() - 2000) {
+          parsedYears[0] = `20${parsedYears[0]}`;
+        } else {
+          parsedYears[0] = `19${parsedYears[0]}`;
+        }
+        parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
+      } else {
+        parsedYears = [this.value];
+      }
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        return parsedYears.includes(`${this.getYear(media)}`);
+      })
+    },
+    directorFilter () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        return media.movie.crew?.find((person) => person.job === "Director").name.toLowerCase() === this.value.toLowerCase();
+      })
+    },
+    castCrewFilter () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        const cast = media.movie.cast?.map((person, index) => person.name.toLowerCase()) || [];
+        const crew = media.movie.crew?.map((person, index) => person.name.toLowerCase()) || [];
+        const castCrewCombined = [...cast, ...crew];
+
+        return castCrewCombined.includes(this.value.toLowerCase());
+      })
     },
     sortedResults () {
       return [...this.filteredResults].sort(this.sortResults);
@@ -314,6 +340,8 @@ export default {
     datalistForSearchType () {
       if (this.searchType === "keyword") {
         return this.allKeywords;
+      } else if (this.searchType === "genre") {
+        return this.allGenres;
       } else if (this.searchType === "year") {
         return this.allYears;
       } else if (this.searchType === "director") {
@@ -326,6 +354,19 @@ export default {
     },
     allKeywords () {
       return Object.keys(this.countedKeywords).map((keyword) => this.titleCase(keyword));
+    },
+    allGenres () {
+      const genres = [];
+
+      this.sortedResults.forEach((result) => {
+        result.movie.genres.forEach((genre) => {
+          if (!genres.includes(genre.name)) {
+            genres.push(genre.name);
+          }
+        })
+      })
+
+      return genres;
     },
     allYears () {
       const years = [];
