@@ -1,10 +1,10 @@
 <template>
   <div class="db-search-results p-3 pt-5 mx-auto">
     <div class="search-bar mx-auto">
-      <div class="input-group mb-3 col-12 md-col-6">
-        <input class="form-control" type="text" list="datalistOptions" autocapitalize="none" name="search" id="search" placeholder="keyword search..." v-model="value">
+      <div class="input-group mb-1 col-12 md-col-6">
+        <input class="form-control" type="text" list="datalistOptions" autocapitalize="none" name="search" id="search" :placeholder="`${searchType} search...`" v-model="value">
         <datalist id="datalistOptions">
-          <option v-for="(keyword, index) in allKeywords" :key="index" :value="titleCase(keyword)"/>
+          <option v-for="(value, index) in datalistForSearchType" :key="index" :value="value"/>
         </datalist>
         <span v-if="value" class="clear-button" @click.prevent="value = null">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle" viewBox="0 0 16 16">
@@ -12,6 +12,39 @@
             <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
           </svg>
         </span>
+      </div>
+      <div class="search-types d-flex flex-nowrap mb-3 col-12 md-col-6">
+        <p class="small my-0 p-1">Search type:</p>
+        <div class="types d-flex align-items-center flex-wrap p-1">
+          <span
+            class="badge mx-1"
+            :class="searchType === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="searchType = 'keyword'"
+          >
+            Keyword
+          </span>
+          <span
+            class="badge mx-1"
+            :class="searchType === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="searchType = 'year'"
+          >
+            Year
+          </span>
+          <span
+            class="badge mx-1"
+            :class="searchType === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="searchType = 'director'"
+          >
+            Director
+          </span>
+          <span
+            class="badge mx-1"
+            :class="searchType === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="searchType = 'cast/crew'"
+          >
+            Cast/Crew
+          </span>
+        </div>
       </div>
       <div class="input-group mb-3 col-12 md-col-6">
         <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
@@ -71,7 +104,7 @@
         :key="index"
         :result="result"
         :index="index"
-        @updateSearchValue="value = $event"
+        @updateSearchValue="updateSearchValue"
       />
     </ul>
     <button
@@ -100,7 +133,8 @@ export default {
       sortValue: null,
       value: "",
       numberOfResultsToShow: 50,
-      sharing: false
+      sharing: false,
+      searchType: "keyword"
     }
   },
   watch: {
@@ -181,12 +215,30 @@ export default {
       });
     },
     filteredResults () {
-      if (!this.currentLogIsTVLog && this.value) {
+      if (this.currentLogIsTVLog || !this.value) {
+        return this.allEntriesWithFlatKeywordsAdded;
+      } else if (this.searchType === "keyword") {
         return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          return media.movie.flatKeywords && media.movie.flatKeywords.includes(this.value.toLowerCase())
+          return media.movie.flatKeywords && media.movie.flatKeywords.includes(this.value.toLowerCase());
+        })
+      } else if (this.searchType === "year") {
+        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+          return this.getYear(media) === parseInt(this.value);
+        })
+      } else if (this.searchType === "director") {
+        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+          return media.movie.crew?.find((person) => person.job === "Director").name.toLowerCase() === this.value.toLowerCase();
+        })
+      } else if (this.searchType === "cast/crew") {
+        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+          const cast = media.movie.cast?.map((person, index) => index < 10 && person.name.toLowerCase()) || [];
+          const crew = media.movie.crew?.map((person, index) => index < 10 && person.name.toLowerCase()) || [];
+          const castCrewCombined = [...cast, ...crew];
+
+          return castCrewCombined.includes(this.value.toLowerCase());
         })
       } else {
-        return this.allEntriesWithFlatKeywordsAdded;
+        return [];
       }
     },
     sortedResults () {
@@ -204,11 +256,65 @@ export default {
     paginatedSortedResults () {
       return this.sortedResults.slice(0, this.numberOfResultsToShow);
     },
+    datalistForSearchType () {
+      if (this.searchType === "keyword") {
+        return this.allKeywords;
+      } else if (this.searchType === "year") {
+        return this.allYears;
+      } else if (this.searchType === "director") {
+        return this.allDirectors;
+      } else if (this.searchType === "cast/crew") {
+        return this.allCastCrew;
+      } else {
+        return [];
+      }
+    },
     allKeywords () {
-      return Object.keys(this.countedKeywords);
+      return Object.keys(this.countedKeywords).map((keyword) => this.titleCase(keyword));
+    },
+    allYears () {
+      const years = [];
+
+      this.sortedResults.forEach((result) => {
+        const year = this.getYear(result);
+        if (!years.includes(year)) {
+          years.push(year);
+        }
+      })
+
+      return years;
+    },
+    allDirectors () {
+      const directors = [];
+
+      this.sortedResults.forEach((result) => {
+        const director = result?.movie?.crew?.find((person) => person.job === "Director").name;
+        if (director && !directors.includes(director)) {
+          directors.push(director);
+        }
+      })
+
+      return directors;
+    },
+    allCastCrew () {
+      const castCrew = [];
+
+      this.sortedResults.forEach((result) => {
+        const cast = result?.movie?.cast?.map((person, index) => index < 10 && person.name) || [];
+        const crew = result?.movie?.crew?.map((person, index) => index < 10 && person.name) || [];
+        const castCrewCombined = [...cast, ...crew];
+
+        castCrewCombined.forEach((person) => {
+          if (!castCrew.includes(person)) {
+            castCrew.push(person);
+          }
+        })
+      })
+
+      return castCrew;
     },
     countedKeywords () {
-      let counts = {};
+      const counts = {};
 
       this.sortedResults.forEach((result) => {
         if (result.movie.flatKeywords) {
@@ -226,6 +332,10 @@ export default {
     }
   },
   methods: {
+    updateSearchValue (searchObject) {
+      this.searchType = searchObject.searchType;
+      this.value = searchObject.value.replace(/'/g, '');
+    },
     toggleSortOrder () {
       if (this.sortOrder === "ascending") {
         this.sortOrder = "descending";
@@ -393,7 +503,7 @@ export default {
     titleCase (string) {
       return string.replace(
         /\w\S*/g,
-        function(txt) {
+        function (txt) {
           return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
         }
       );
@@ -409,8 +519,16 @@ export default {
     .search-bar {
       max-width: 416px;
 
-      .search-help-icon {
-        cursor: pointer;
+      .search-types {
+        p {
+          white-space: nowrap;
+        }
+
+        .types {
+          span {
+            cursor: pointer;
+          }
+        }
       }
 
       .clear-button {

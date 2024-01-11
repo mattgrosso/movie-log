@@ -21,15 +21,15 @@
         <span v-else class="fs-4">
           {{result.movie.title}}
         </span>
-        <a class="link mx-2" @click.stop="searchFor(`y:${getYear(result)}`)">({{getYear(result)}})</a>
+        <a class="link mx-2" @click.stop="searchFor('year', `${getYear(result)}`)">({{getYear(result)}})</a>
       </p>
       <p class="etc m-0 d-flex flex-wrap">
         <span v-if="currentLogIsTVLog" class="col-12">{{tvNetwork(result)}}</span>
         <span v-else class="col-12">{{prettifyRuntime(result)}}</span>
         <span class="col-12">{{turnArrayIntoList(topStructure(result).genres, "name")}}</span>
         <span class="col-12">
-          <a v-if="currentLogIsTVLog && result.tvShow.created_by" class="link" @click.stop="searchFor(`p:\'${result.tvShow.created_by[0].name}\'`)">{{result.tvShow.created_by[0].name}}</a>
-          <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor(`d:\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
+          <a v-if="currentLogIsTVLog && result.tvShow.created_by" class="link" @click.stop="searchFor('cast/crew', `\'${result.tvShow.created_by[0].name}\'`)">{{result.tvShow.created_by[0].name}}</a>
+          <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor('director', `\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
         </span>
       </p>
     </div>
@@ -159,8 +159,8 @@ export default {
     }
   },
   methods: {
-    updateSearchValue (value) {
-      this.$emit('updateSearchValue', value);
+    updateSearchValue (searchType, value) {
+      this.$emit('updateSearchValue', {searchType: searchType, value});
     },
     topStructure (result) {
       if (this.currentLogIsTVLog) {
@@ -204,8 +204,8 @@ export default {
 
       return `https://en.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
     },
-    searchFor (term) {
-      this.updateSearchValue(term);
+    searchFor (searchType, term) {
+      this.updateSearchValue(searchType, term);
 
       window.scroll({
         top: top,
