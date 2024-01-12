@@ -257,22 +257,21 @@ export default {
       return this.$store.getters.allMediaAsArray.map((result) => {
         if (this.currentLogIsTVLog) {
           return {
-          ...result,
-          tvShow: {
-            ...this.topStructure(result),
-            flatKeywords: this.topStructure(result).keywords ? this.topStructure(result).keywords.map((keyword) => keyword.name) : []
+            ...result,
+            tvShow: {
+              ...this.topStructure(result),
+              flatKeywords: this.topStructure(result).keywords ? this.topStructure(result).keywords.map((keyword) => keyword.name) : []
+            }
           }
-        }
         } else {
           return {
-          ...result,
-          movie: {
-            ...this.topStructure(result),
-            flatKeywords: this.topStructure(result).keywords ? this.topStructure(result).keywords.map((keyword) => keyword.name) : []
+            ...result,
+            movie: {
+              ...this.topStructure(result),
+              flatKeywords: this.topStructure(result).keywords ? this.topStructure(result).keywords.map((keyword) => keyword.name) : []
+            }
           }
         }
-        }
-
       });
     },
     filteredResults () {
