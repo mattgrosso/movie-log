@@ -2,7 +2,17 @@
   <div class="db-search-results p-3 pt-5 mx-auto">
     <div class="search-bar mx-auto">
       <div class="input-group mb-1 col-12 md-col-6">
-        <input class="form-control" type="text" list="datalistOptions" autocapitalize="none" name="search" id="search" :placeholder="`${searchType} search...`" v-model="value">
+        <input
+          class="form-control"
+          :class="{'has-content': value}"
+          type="text"
+          list="datalistOptions"
+          autocapitalize="none"
+          name="search"
+          id="search"
+          :placeholder="`${searchType} search...`"
+          v-model="value"
+        >
         <datalist id="datalistOptions">
           <option v-for="(value, index) in datalistForSearchType" :key="index" :value="value"/>
         </datalist>
@@ -673,6 +683,15 @@ export default {
     .search-bar {
       max-width: 416px;
 
+      input#search {
+        border-bottom-right-radius: .375rem;
+        border-top-right-radius: .375rem;
+
+        &.has-content {
+          padding-left: 36px;
+        }
+      }
+
       .search-types {
         p {
           white-space: nowrap;
@@ -694,11 +713,17 @@ export default {
         height: 18px;
         justify-content: center;
         position: absolute;
-        right: 12px;
+        left: 12px;
         top: 50%;
         transform: translateY(-50%);
         width: 18px;
         z-index: 5;
+
+        svg {
+          path {
+            fill: black;
+          }
+        }
       }
 
       svg {
