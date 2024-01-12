@@ -314,6 +314,8 @@ export default {
         parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
+      } else if (this.value === "best") {
+        return this.bestMovieFromEachYear;
       } else {
         parsedYears = [this.value];
       }
@@ -335,6 +337,27 @@ export default {
 
         return castCrewCombined.includes(this.value.toLowerCase());
       })
+    },
+    bestMovieFromEachYear () {
+      const years = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        let year;
+
+        if (this.currentLogIsTVLog) {
+          year = new Date(result.tvShow.first_air_date).getFullYear();
+        } else {
+          year = new Date(result.movie.release_date).getFullYear();
+        }
+
+        if (!years[year]) {
+          years[year] = result;
+        } else if (this.mostRecentRating(result).rating > this.mostRecentRating(years[year]).rating) {
+          years[year] = result;
+        }
+      })
+
+      return Object.keys(years).map((year) => years[year]);
     },
     sortedResults () {
       return [...this.filteredResults].sort(this.sortResults);
