@@ -57,6 +57,13 @@
           >
             Cast/Crew
           </span>
+          <span
+            class="badge mx-1"
+            :class="searchType === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="searchType = 'annual'"
+          >
+            Annual Best
+          </span>
         </div>
       </div>
       <div class="input-group mb-3 col-12 md-col-6">
@@ -233,19 +240,29 @@ export default {
       });
     },
     filteredResults () {
-      if (this.currentLogIsTVLog || !this.value) {
+      if (!this.currentLogIsTVLog && this.searchType === "annual") {
+        this.$store.commit("setDBSortValue", "release");
+        return this.bestMovieFromEachYear;
+      } else if (this.currentLogIsTVLog || !this.value) {
+        this.$store.commit("setDBSortValue", "rating");
         return this.allEntriesWithFlatKeywordsAdded;
       } else if (this.searchType === "title") {
+        this.$store.commit("setDBSortValue", "rating");
         return this.titleFilter;
       } else if (this.searchType === "keyword") {
+        this.$store.commit("setDBSortValue", "rating");
         return this.keywordFilter;
       } else if (this.searchType === "genre") {
+        this.$store.commit("setDBSortValue", "rating");
         return this.genreFilter;
       } else if (this.searchType === "year") {
+        this.$store.commit("setDBSortValue", "release");
         return this.yearFilter;
       } else if (this.searchType === "director") {
+        this.$store.commit("setDBSortValue", "rating");
         return this.directorFilter;
       } else if (this.searchType === "cast/crew") {
+        this.$store.commit("setDBSortValue", "rating");
         return this.castCrewFilter;
       } else {
         return [];
@@ -314,8 +331,6 @@ export default {
         parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
-      } else if (this.value === "best") {
-        return this.bestMovieFromEachYear;
       } else {
         parsedYears = [this.value];
       }
