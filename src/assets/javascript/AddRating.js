@@ -14,6 +14,7 @@ const getTMDBData = async (rating) => {
     if (store.state.currentLog === "tvLog") {
       dataResp = await axios.get(`https://api.themoviedb.org/3/tv/${id}?api_key=${apiKey}`);
       creditsResp = await axios.get(`https://api.themoviedb.org/3/tv/${id}/credits?api_key=${apiKey}`);
+      keywordsResp = await axios.get(`https://api.themoviedb.org/3/tv/${id}/keywords?api_key=${apiKey}`);
     } else {
       dataResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
       creditsResp = await axios.get(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${apiKey}`);
@@ -175,7 +176,8 @@ const addTVShowRating = async (ratings, tvShowTags) => {
     number_of_episodes: tmdbData ? tmdbData.number_of_episodes : null,
     number_of_seasons: tmdbData ? tmdbData.number_of_seasons : null,
     name: tmdbData ? tmdbData.name : "",
-    tags: tvShowTags || []
+    tags: tvShowTags || [],
+    keywords: tmdbData ? tmdbData.keywords.results : []
   };
 
   const ratingsWithShowRating = { ...ratings, tvShow: createTVShowRatingFromEpisodeRatings(ratings) };

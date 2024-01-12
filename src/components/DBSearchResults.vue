@@ -255,20 +255,31 @@ export default {
     },
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
-        return {
+        if (this.currentLogIsTVLog) {
+          return {
           ...result,
-          movie: {
-            ...result.movie,
-            flatKeywords: result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : []
+          tvShow: {
+            ...this.topStructure(result),
+            flatKeywords: this.topStructure(result).keywords ? this.topStructure(result).keywords.map((keyword) => keyword.name) : []
           }
         }
+        } else {
+          return {
+          ...result,
+          movie: {
+            ...this.topStructure(result),
+            flatKeywords: this.topStructure(result).keywords ? this.topStructure(result).keywords.map((keyword) => keyword.name) : []
+          }
+        }
+        }
+
       });
     },
     filteredResults () {
-      if (!this.currentLogIsTVLog && this.searchType === "annual") {
+      if (this.searchType === "annual") {
         this.$store.commit("setDBSortValue", "release");
         return this.bestMovieFromEachYear;
-      } else if (this.currentLogIsTVLog || !this.value) {
+      } else if (!this.value) {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.allEntriesWithFlatKeywordsAdded;
       } else if (this.searchType === "title") {
@@ -295,17 +306,21 @@ export default {
     },
     titleFilter () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return media.movie.title.toLowerCase().includes(this.value.toLowerCase());
+        if (this.currentLogIsTVLog) {
+          return this.topStructure(media).name.toLowerCase().includes(this.value.toLowerCase());
+        } else {
+          return this.topStructure(media).title.toLowerCase().includes(this.value.toLowerCase());
+        }
       })
     },
     keywordFilter () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return media.movie.flatKeywords?.includes(this.value.toLowerCase());
+        return this.topStructure(media).flatKeywords?.includes(this.value.toLowerCase());
       })
     },
     genreFilter () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return media.movie.genres?.find((genre) => genre.name.toLowerCase() === this.value.toLowerCase());
+        return this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.value.toLowerCase());
       })
     },
     yearFilter () {
@@ -365,14 +380,20 @@ export default {
       })
     },
     directorFilter () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return media.movie.crew?.find((person) => person.job === "Director").name.toLowerCase() === this.value.toLowerCase();
-      })
+      if (this.currentLogIsTVLog) {
+        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+          return media.tvShow.created_by?.map((person) => person.name.toLowerCase()).join(" ").includes(this.value.toLowerCase());
+        })
+      } else {
+        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+          return media.movie.crew?.find((person) => person.job === "Director").name.toLowerCase() === this.value.toLowerCase();
+        })
+      }
     },
     castCrewFilter () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        const cast = media.movie.cast?.map((person, index) => person.name.toLowerCase()) || [];
-        const crew = media.movie.crew?.map((person, index) => person.name.toLowerCase()) || [];
+        const cast = this.topStructure(media).cast?.map((person, index) => person.name.toLowerCase()) || [];
+        const crew = this.topStructure(media).crew?.map((person, index) => person.name.toLowerCase()) || [];
         const castCrewCombined = [...cast, ...crew];
 
         return castCrewCombined.includes(this.value.toLowerCase());
@@ -432,7 +453,11 @@ export default {
       }
     },
     allTitles () {
-      return this.sortedResults.map((result) => result.movie.title);
+      if (this.currentLogIsTVLog) {
+        return this.sortedResults.map((result) => result.tvShow.name);
+      } else {
+        return this.sortedResults.map((result) => result.movie.title);
+      }
     },
     allKeywords () {
       return Object.keys(this.countedKeywords).map((keyword) => this.titleCase(keyword));
@@ -441,7 +466,7 @@ export default {
       const genres = [];
 
       this.sortedResults.forEach((result) => {
-        result.movie.genres.forEach((genre) => {
+        this.topStructure(result).genres.forEach((genre) => {
           if (!genres.includes(genre.name)) {
             genres.push(genre.name);
           }
@@ -466,7 +491,13 @@ export default {
       const directors = [];
 
       this.sortedResults.forEach((result) => {
-        const director = result?.movie?.crew?.find((person) => person.job === "Director").name;
+        let director;
+        if (this.currentLogIsTVLog) {
+          director = result?.tvShow?.created_by?.[0].name;
+        } else {
+          director = result?.movie?.crew?.find((person) => person.job === "Director").name;
+        }
+
         if (director && !directors.includes(director)) {
           directors.push(director);
         }
@@ -478,8 +509,8 @@ export default {
       const castCrew = [];
 
       this.sortedResults.forEach((result) => {
-        const cast = result?.movie?.cast?.map((person, index) => index < 10 && person.name) || [];
-        const crew = result?.movie?.crew?.map((person, index) => index < 10 && person.name) || [];
+        const cast = this.topStructure(result)?.cast?.map((person, index) => index < 10 && person.name) || [];
+        const crew = this.topStructure(result)?.crew?.map((person, index) => index < 10 && person.name) || [];
         const castCrewCombined = [...cast, ...crew];
 
         castCrewCombined.forEach((person) => {
@@ -495,8 +526,8 @@ export default {
       const counts = {};
 
       this.sortedResults.forEach((result) => {
-        if (result.movie.flatKeywords) {
-          result.movie.flatKeywords.forEach((keyword) => {
+        if (this.topStructure(result).flatKeywords) {
+          this.topStructure(result).flatKeywords.forEach((keyword) => {
             if (counts[keyword]) {
               counts[keyword]++;
             } else {
