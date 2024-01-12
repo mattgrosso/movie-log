@@ -24,11 +24,11 @@ const getTMDBData = async (rating) => {
     console.log(error);
     return;
   }
-
+  
   return {
     ...dataResp.data,
     ...creditsResp.data,
-    ...keywordsResp.data
+    keywords: keywordsResp.data.keywords || keywordsResp.data.results
   }
 }
 
