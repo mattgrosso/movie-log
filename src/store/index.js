@@ -86,6 +86,7 @@ export default createStore({
     movieToRate: {},
     tvShowToRate: {},
     DBSearchValue: null,
+    DBSearchType: null,
     DBSortValue: null,
     DBSortOrder: null,
     showHeader: true,
@@ -161,6 +162,9 @@ export default createStore({
     },
     setDBSearchValue (state, value) {
       state.DBSearchValue = value;
+    },
+    setDBSearchType (state, value) {
+      state.DBSearchType = value;
     },
     setDBSortValue (state, value) {
       state.DBSortValue = value;

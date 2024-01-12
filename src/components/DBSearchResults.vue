@@ -178,6 +178,11 @@ export default {
         this.value = newVal;
       }
     },
+    DBSearchType (newVal) {
+      if (newVal) {
+        this.searchType = newVal;
+      }
+    },
     DBSortValue (newVal) {
       if (newVal) {
         this.sortValue = newVal;
@@ -198,6 +203,12 @@ export default {
       this.value = decodeURIComponent(this.$route.query.search);
     }
 
+    if (this.DBSearchType) {
+      this.searchType = this.DBSearchType;
+    } else {
+      this.searchType = "title";
+    }
+
     if (this.DBSortValue) {
       this.sortValue = this.DBSortValue;
     } else {
@@ -215,6 +226,7 @@ export default {
     this.sortValue = null;
     this.value = "";
     this.$store.commit("setDBSearchValue", this.value);
+    this.$store.commit("setDBSearchType", this.searchType);
     this.$store.commit("setDBSortValue", this.sortValue);
     this.$store.commit("setDBSortOrder", this.sortOrder);
   },
@@ -231,6 +243,9 @@ export default {
     },
     DBSearchValue () {
       return this.$store.state.DBSearchValue;
+    },
+    DBSearchType () {
+      return this.$store.state.DBSearchType;
     },
     DBSortValue () {
       return this.$store.state.DBSortValue;
@@ -254,25 +269,25 @@ export default {
         this.$store.commit("setDBSortValue", "release");
         return this.bestMovieFromEachYear;
       } else if (this.currentLogIsTVLog || !this.value) {
-        this.$store.commit("setDBSortValue", "rating");
+        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.allEntriesWithFlatKeywordsAdded;
       } else if (this.searchType === "title") {
-        this.$store.commit("setDBSortValue", "rating");
+        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.titleFilter;
       } else if (this.searchType === "keyword") {
-        this.$store.commit("setDBSortValue", "rating");
+        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.keywordFilter;
       } else if (this.searchType === "genre") {
-        this.$store.commit("setDBSortValue", "rating");
+        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.genreFilter;
       } else if (this.searchType === "year") {
-        this.$store.commit("setDBSortValue", "release");
+        this.$store.commit("setDBSortValue", this.DBSortValue || "release");
         return this.yearFilter;
       } else if (this.searchType === "director") {
-        this.$store.commit("setDBSortValue", "rating");
+        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.directorFilter;
       } else if (this.searchType === "cast/crew") {
-        this.$store.commit("setDBSortValue", "rating");
+        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.castCrewFilter;
       } else {
         return [];

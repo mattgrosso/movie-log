@@ -3,69 +3,69 @@
     <label class="mb-3 text-center col-12">Quick Search</label>
     <ul class="p-0 d-flex justify-content-around flex-wrap">
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase(`y:${currentYear}`, 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: `${currentYear}`, searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>{{currentYear}}</span>
         </button>
       </li>
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase(`y:${currentYear - 1}`, 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: `${currentYear - 1}`, searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>{{currentYear - 1}}</span>
         </button>
       </li>
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase(`y:${currentYear - 2}`, 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: `${currentYear - 2}`, searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>{{currentYear - 2}}</span>
         </button>
       </li>
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase(`y:${currentYear - 3}`, 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: `${currentYear - 3}`, searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>{{currentYear - 3}}</span>
         </button>
       </li>
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase(`y:${currentYear - 4}`, 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: `${currentYear - 4}`, searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>{{currentYear - 4}}</span>
         </button>
       </li>
       <li class="col-12"></li>
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('y:1970-1979', 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: '70s', searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>1970s</span>
         </button>
       </li>
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('y:1980-1989', 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: '80s', searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>1980s</span>
         </button>
       </li>
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('y:1990-1999', 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: '90s', searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>1990s</span>
         </button>
       </li>
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('y:2000-2010', 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: '2000s', searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>2000s</span>
         </button>
       </li>
       <li class="col-2">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('y:2010-2020', 'rating')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: '2010s', searchType: 'year', sortValue: 'rating', sortOrder: null})">
           <span>2010s</span>
         </button>
       </li>
       <li class="col-12"></li>
       <li class="col-3">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('annual', 'release', 'descending')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: ' ', searchType: 'annual', sortValue: 'release', sortOrder: null})">
           <span>Winners</span>
         </button>
       </li>
       <li class="col-3">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('', 'rating', 'ascending')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: '', searchType: 'title', sortValue: 'rating', sortOrder: 'ascending'})">
           <span>All</span>
         </button>
       </li>
       <li class="col-3">
-        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase('', 'watched', 'ascending')">
+        <button class="shadow-lg btn btn-secondary col-12 d-flex justify-content-center" @click="searchDatabase({searchTerm: '', searchType: 'title', sortValue: 'watched', sortOrder: 'ascending'})">
           <span>Recent</span>
         </button>
       </li>
@@ -84,17 +84,25 @@ export default {
     },
   },
   methods: {
-    searchDatabase (searchTerm, sortValue, sortOrder) {
-      if (searchTerm) {
-        this.$store.commit('setDBSearchValue', searchTerm);
+    searchDatabase (config) {
+      if (!config.searchTerm) {
+        this.$store.commit('setDBSearchValue', '');
       }
 
-      if (sortValue) {
-        this.$store.commit('setDBSortValue', sortValue);
+      if (config.searchTerm) {
+        this.$store.commit('setDBSearchValue', config.searchTerm);
       }
 
-      if (sortOrder) {
-        this.$store.commit('setDBSortOrder', sortOrder);
+      if (config.searchType) {
+        this.$store.commit('setDBSearchType', config.searchType);
+      }
+
+      if (config.sortValue) {
+        this.$store.commit('setDBSortValue', config.sortValue);
+      }
+
+      if (config.sortOrder) {
+        this.$store.commit('setDBSortOrder', config.sortOrder);
       }
 
       this.$router.push('/db-search');
