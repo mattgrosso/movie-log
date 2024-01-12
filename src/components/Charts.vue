@@ -632,11 +632,13 @@ export default {
       return [0, 3 / 4][index];
     },
     wordCLoudColors (word) {
+      const brightness = document.querySelector("body").classList.contains("bg-light") ? "dark" : "light";
+      
       return [
-        randomColor({luminosity: 'dark'}), 
-        randomColor({luminosity: 'dark'}), 
-        randomColor({luminosity: 'dark'}), 
-        randomColor({luminosity: 'dark'})
+        randomColor({luminosity: brightness}), 
+        randomColor({luminosity: brightness}), 
+        randomColor({luminosity: brightness}), 
+        randomColor({luminosity: brightness})
       ];
     }
   }
