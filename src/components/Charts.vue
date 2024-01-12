@@ -14,7 +14,7 @@
     <ScatterChart class="chart my-5" :chartData="lengthVsRatingData" :options="lengthVsRatingOptions"/>
     <DoughnutChart class="chart my-5" :chartData="companyChartData" :options="companyChartOptions"/>
     <RadarChart v-if="results.length < 10" class="chart my-5" :chartData="radarRatingsData" :options="radarRatingsOptions"/>
-    <Streaks :resultsWithRatings="resultsWithRatings" :mostRecentRating="mostRecentRating"/>
+    <Streaks v-if="!currentLogIsTVLog" :resultsWithRatings="resultsWithRatings" :mostRecentRating="mostRecentRating"/>
   </div>
 </template>
 
@@ -61,12 +61,15 @@ export default {
     }
   },
   computed: {
+    currentLogIsTVLog () {
+      return this.$store.state.currentLog === "tvLog";
+    },
     resultsWithRatings () {
       return this.results.filter((result) => this.mostRecentRating(result).rating);
     },
     allRatingsData () {
       const resultsByRating = sortBy(this.resultsWithRatings, (result) => this.mostRecentRating(result).rating);
-      const labels = resultsByRating.map((result) => result.movie.title);
+      const labels = resultsByRating.map((result) => this.getMediaTitle(result));
       const data = resultsByRating.map((result) => parseFloat(this.mostRecentRating(result).rating));
 
       return {
@@ -180,7 +183,7 @@ export default {
       }
     },
     genreChartData () {
-      const genreArrays = this.results.map((result) => result.movie.genres);
+      const genreArrays = this.results.map((result) => this.topStructure(result).genres);
 
       const counts = {};
 
@@ -238,11 +241,21 @@ export default {
     },
     lengthVsRatingData () {
       const data = this.resultsWithRatings.map((result) => {
+        let runtime;
+
+        if (this.topStructure(result).runtime) {
+          runtime = this.topStructure(result).runtime;
+        } else if (this.topStructure(result).episode_run_time) {
+          runtime = this.topStructure(result).episode_run_time[0];
+        } else {
+          runtime = 0;
+        }
+
         return {
-          x: result.movie.runtime,
+          x: runtime,
           y: this.mostRecentRating(result).rating
         }
-      });
+      }).filter((result) => result.x && result.y);
 
       return {
         datasets: [{
@@ -284,7 +297,7 @@ export default {
       }
     },
     companyChartData () {
-      const companyArrays = this.results.map((result) => result.movie.production_companies);
+      const companyArrays = this.results.map((result) => this.topStructure(result).production_companies);
 
       const counts = {};
 
@@ -361,7 +374,7 @@ export default {
         });
 
         return {
-          label: result.movie.title,
+          label: this.getMediaTitle(result),
           data: [
             rating.direction,
             rating.imagery,
@@ -417,7 +430,7 @@ export default {
     yearsData () {
       const yearsAndRatings = this.resultsWithRatings.map((result) => {
         return {
-          year: new Date(result.movie.release_date).getFullYear(),
+          year: new Date(this.topStructure(result).release_date).getFullYear(),
           rating: this.mostRecentRating(result).rating
         }
       });
@@ -472,9 +485,9 @@ export default {
     highestRatingEachYearData () {
       const yearsAndRatings = this.resultsWithRatings.map((result) => {
         return {
-          year: new Date(result.movie.release_date).getFullYear(),
+          year: this.getYear(result),
           rating: this.mostRecentRating(result).rating,
-          title: result.movie.title
+          title: this.getMediaTitle(result)
         }
       });
 
@@ -530,18 +543,48 @@ export default {
     }
   },
   methods: {
-    mostRecentRating (movie) {
-      let mostRecentRating = movie.ratings[0];
+    getMediaTitle (media) {
+      if (this.currentLogIsTVLog) {
+        return media.tvShow.name;
+      } else {
+        return media.movie.title;
+        
+      }
+    },
+    topStructure (media) {
+      if (this.currentLogIsTVLog) {
+        return media.tvShow;
+      } else {
+        return media.movie;
+        
+      }
+    },
+    getYear (media) {
+      let date;
+      if (this.currentLogIsTVLog) {
+        date = media.tvShow.first_air_date;
+      } else {
+        date = media.movie.release_date;
+      }
 
-      movie.ratings.forEach((rating) => {
-        if (!mostRecentRating.date) {
-          mostRecentRating = rating;
-        } else if (rating.date && rating.date > mostRecentRating.date) {
-          mostRecentRating = rating;
-        }
-      })
-
-      return mostRecentRating;
+      return new Date(date).getFullYear();
+    },
+    mostRecentRating (media) {
+      if (this.currentLogIsTVLog) {
+        return media.ratings.tvShow;
+      } else {
+        let mostRecentRating = media.ratings[0];
+  
+        media.ratings.forEach((rating) => {
+          if (!mostRecentRating.date) {
+            mostRecentRating = rating;
+          } else if (rating.date && rating.date > mostRecentRating.date) {
+            mostRecentRating = rating;
+          }
+        })
+  
+        return mostRecentRating;
+      }
     },
     percentToColor (percent) {
       let r = 0;

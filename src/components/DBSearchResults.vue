@@ -110,7 +110,7 @@
       <p class="m-0 d-flex justify-content-center align-items-center">
         They have an average rating of {{averageRating(filteredResults)}}
       </p>
-      <div v-if="!currentLogIsTVLog" class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
+      <div class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
         <button class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
           Charts
         </button>
@@ -124,7 +124,7 @@
         </button>
       </div>
     </div>
-    <div v-if="!currentLogIsTVLog" id="charts-accordion" ref="chartsAccordion" class="accordion-collapse collapse" aria-labelledby="charts">
+    <div id="charts-accordion" ref="chartsAccordion" class="accordion-collapse collapse" aria-labelledby="charts">
       <div class="accordion-body">
         <Charts
           :results="filteredResults"
