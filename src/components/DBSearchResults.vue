@@ -17,6 +17,13 @@
         <div class="types d-flex align-items-center flex-wrap p-1">
           <span
             class="badge mx-1"
+            :class="searchType === 'title' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="searchType = 'title'"
+          >
+            Title
+          </span>
+          <span
+            class="badge mx-1"
             :class="searchType === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
             @click="searchType = 'keyword'"
           >
@@ -145,7 +152,7 @@ export default {
       value: "",
       numberOfResultsToShow: 50,
       sharing: false,
-      searchType: "keyword"
+      searchType: "title"
     }
   },
   watch: {
@@ -228,6 +235,8 @@ export default {
     filteredResults () {
       if (this.currentLogIsTVLog || !this.value) {
         return this.allEntriesWithFlatKeywordsAdded;
+      } else if (this.searchType === "title") {
+        return this.titleFilter;
       } else if (this.searchType === "keyword") {
         return this.keywordFilter;
       } else if (this.searchType === "genre") {
@@ -241,6 +250,11 @@ export default {
       } else {
         return [];
       }
+    },
+    titleFilter () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        return media.movie.title.toLowerCase().includes(this.value.toLowerCase());
+      })
     },
     keywordFilter () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
@@ -338,7 +352,9 @@ export default {
       return this.sortedResults.slice(0, this.numberOfResultsToShow);
     },
     datalistForSearchType () {
-      if (this.searchType === "keyword") {
+      if (this.searchType === "title") {
+        return this.allTitles;
+      } else if (this.searchType === "keyword") {
         return this.allKeywords;
       } else if (this.searchType === "genre") {
         return this.allGenres;
@@ -351,6 +367,9 @@ export default {
       } else {
         return [];
       }
+    },
+    allTitles () {
+      return this.sortedResults.map((result) => result.movie.title);
     },
     allKeywords () {
       return Object.keys(this.countedKeywords).map((keyword) => this.titleCase(keyword));
