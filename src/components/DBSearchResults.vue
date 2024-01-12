@@ -30,7 +30,8 @@
             :class="searchType === 'title' ? 'text-bg-success' : 'text-bg-secondary'"
             @click="searchType = 'title'"
           >
-            Title
+            <span v-if="currentLogIsTVLog">Name</span>
+            <span v-else>Title</span>
           </span>
           <span
             class="badge mx-1"
@@ -58,7 +59,8 @@
             :class="searchType === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
             @click="searchType = 'director'"
           >
-            Director
+            <span v-if="currentLogIsTVLog">Created By</span>
+            <span v-else>Director</span>
           </span>
           <span
             class="badge mx-1"
@@ -543,7 +545,7 @@ export default {
     updateSearchValue (searchObject) {
       this.searchType = searchObject.searchType;
       this.value = searchObject.value.replace(/'/g, '');
-      this.$refs.chartsAccordion.classList.remove("show");
+      this.$refs.chartsAccordion?.classList.remove("show");
     },
     toggleSortOrder () {
       if (this.sortOrder === "ascending") {
