@@ -183,7 +183,7 @@ export default {
   },
   methods: {
     updateSearchValue (searchType, value) {
-      this.$emit('updateSearchValue', {searchType: searchType, value});
+      this.$emit('updateSearchValue', { searchType: searchType, value });
     },
     topStructure (result) {
       if (this.currentLogIsTVLog) {
