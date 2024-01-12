@@ -37,8 +37,19 @@
           </a>
         </span>
         <span class="col-12">
-          <a v-if="currentLogIsTVLog && result.tvShow.created_by" class="link" @click.stop="searchFor('cast/crew', `\'${result.tvShow.created_by[0].name}\'`)">{{result.tvShow.created_by[0].name}}</a>
-          <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor('director', `\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">{{getCrewMember(result.movie.crew, 'Director', 'strict')}}</a>
+          <span v-if="currentLogIsTVLog && result.tvShow.created_by">
+            <a
+              v-for="(person, index) in result.tvShow.created_by"
+              :key="index"
+              class="link"
+              @click.stop="searchFor('cast/crew', `\'${person.name}\'`)"
+            >
+              {{person.name}}<span v-if="index !== result.tvShow.created_by.length - 1">&nbsp;</span>
+            </a>
+          </span>
+          <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor('director', `\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">
+            {{getCrewMember(result.movie.crew, 'Director', 'strict')}}
+          </a>
         </span>
       </p>
     </div>
