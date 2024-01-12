@@ -430,7 +430,7 @@ export default {
     yearsData () {
       const yearsAndRatings = this.resultsWithRatings.map((result) => {
         return {
-          year: new Date(this.topStructure(result).release_date).getFullYear(),
+          year: this.getYear(result),
           rating: this.mostRecentRating(result).rating
         }
       });
@@ -531,7 +531,7 @@ export default {
           },
           title: {
             display: true,
-            text: "Best Movie Each Year",
+            text: this.currentLogIsTVLog ? "Best Show Each Year" : "Best Movie Each Year",
           }
         },
         scales: {
@@ -548,7 +548,6 @@ export default {
         return media.tvShow.name;
       } else {
         return media.movie.title;
-        
       }
     },
     topStructure (media) {
@@ -556,7 +555,6 @@ export default {
         return media.tvShow;
       } else {
         return media.movie;
-        
       }
     },
     getYear (media) {
@@ -574,7 +572,7 @@ export default {
         return media.ratings.tvShow;
       } else {
         let mostRecentRating = media.ratings[0];
-  
+
         media.ratings.forEach((rating) => {
           if (!mostRecentRating.date) {
             mostRecentRating = rating;
@@ -582,7 +580,7 @@ export default {
             mostRecentRating = rating;
           }
         })
-  
+
         return mostRecentRating;
       }
     },
