@@ -24,7 +24,7 @@ const getTMDBData = async (rating) => {
     console.log(error);
     return;
   }
-  
+
   return {
     ...dataResp.data,
     ...creditsResp.data,
