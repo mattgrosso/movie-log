@@ -100,7 +100,11 @@ export default {
       })
     },
     updateSearchValue (searchType, value) {
-      this.$emit('updateSearchValue', { searchType: searchType, value });
+      const searchObject = {
+        searchType: searchType,
+        value: value
+      }
+      this.$emit('updateSearchValue', searchObject);
     },
     wordCLoudColors (word) {
       const brightness = document.querySelector("body").classList.contains("bg-light") ? "dark" : "light";

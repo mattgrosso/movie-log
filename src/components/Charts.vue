@@ -3,7 +3,7 @@
     <KeywordCloud
       :results="results"
       :countedKeywords="countedKeywords"
-      @updateSearchValue="$emit('updateSearchValue', value)"
+      @updateSearchValue="updateSearchValue"
     />
     <LineChart v-if="results.length > 9" class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
     <BarChart class="chart my-5" :chartData="allRatingsData" :options="allRatingsOptions"/>
@@ -597,6 +597,9 @@ export default {
       }
       const h = r * 0x10000 + g * 0x100 + b * 0x1;
       return '#' + ('000000' + h.toString(16)).slice(-6);
+    },
+    updateSearchValue (searchObject) {
+      this.$emit('updateSearchValue', searchObject);
     }
   }
 }
