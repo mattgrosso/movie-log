@@ -9,7 +9,6 @@ import { BrowserTracing } from "@sentry/tracing";
 import VueLazyLoad from 'vue3-lazyload';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
-import Home from "./components/Home.vue";
 import Login from "./components/Login.vue";
 import DBSearchResults from "./components/DBSearchResults.vue";
 import Settings from "./components/Settings.vue";
@@ -55,7 +54,7 @@ const loggedIn = () => {
 const routes = [
   {
     path: '/',
-    component: Home,
+    component: DBSearchResults,
     meta: {
       requiresLogin: true
     },
