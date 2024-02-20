@@ -1,10 +1,21 @@
 <template>
-  <form class="new-rating-search mt-5 mb-4 mx-3" @submit.prevent="searchTMDB" target="_top" method="GET">
-    <input type="hidden" name="action" value="entry">
-    <div class="search-inputs input-group">
-      <input v-model="value" type="text" class="form-control" placeholder="New Entry" aria-label="New Entry" aria-describedby="new-rating-button">
-      <div ref="noResults" class="invalid-feedback">No results found</div>
-      <button class="btn btn-primary" :disabled="!value" type="submit" id="new-rating-button">Search</button>
+  <div class="new-rating-search mt-3 mb-4 mx-3">
+    <div v-if="quickPickResults" class="quick-pick">
+      <p>Add rating for...</p>
+      <PickMedia :quickPick="true"/>
+      <div class="button-wrapper d-flex justify-content-end">
+        <button class="btn btn-primary" @click="searchTMDB(false)" id="new-rating-button">Show More Results</button>
+      </div>
+    </div>
+    <div v-else-if="noResults" ref="noResults">
+      <p>No results found in your Movie Log or on TMDB.</p>
+      <p>I'm pretty sure that movie doesn't exist.</p>
+      <p>Either you're from the future or maybe you just spelled it wrong.</p>
+    </div>
+    <div v-else class="d-flex justify-content-center my-5">
+      <div class="spinner-border" :class="useDark ? 'text-light' : 'text-dark'" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
     </div>
     <div v-if="currentLogIsTVLog && recentlyRatedTVShows.length" class="last-three-shows mt-4">
       <ul>
@@ -14,21 +25,37 @@
         </li>
       </ul>
     </div>
-  </form>
+  </div>
 </template>
 
 <script>
 import axios from 'axios';
+import { useDark } from "@vueuse/core";
 import RatingChangeRibbon from './RatingChangeRibbon.vue';
+import PickMedia from './PickMedia.vue';
 
 export default {
   components: {
-    RatingChangeRibbon
+    RatingChangeRibbon,
+    PickMedia
+  },
+  props: {
+    value: {
+      type: String,
+      required: true
+    }
   },
   data () {
     return {
-      value: ""
+      quickPickResults: null,
+      noResults: false,
+      useDark: useDark()
     }
+  },
+  mounted () {
+    setTimeout(() => {
+      this.searchTMDB(true);
+    }, 1000);
   },
   computed: {
     currentLogIsTVLog () {
@@ -49,25 +76,32 @@ export default {
     }
   },
   methods: {
-    async searchTMDB () {
+    async searchTMDB (quickPick) {
       if (!this.value) {
         return;
       }
 
       const resp = await axios.get(`https://api.themoviedb.org/3/search/${this.movieOrTV}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
 
-      if (resp.data.results.length) {
+      if (quickPick && resp.data.results.length) {
+        this.quickPickEntrySearch(resp.data.results);
+      } else if (resp.data.results.length) {
         this.newEntrySearch(resp.data.results);
       } else {
         this.showNoResultsMessage();
       }
     },
     showNoResultsMessage () {
-      this.$refs.noResults.classList.add("show-message");
+      this.noResults = true;
 
       setTimeout(() => {
-        this.$refs.noResults.classList.remove("show-message");
+        this.noResults = false;
+        this.$emit('clear-search-value');
       }, 3000);
+    },
+    quickPickEntrySearch (results) {
+      this.$store.commit('setNewEntrySearchResults', results);
+      this.quickPickResults = results;
     },
     newEntrySearch (results) {
       this.$store.commit('setNewEntrySearchResults', results)
@@ -86,15 +120,6 @@ export default {
   .new-rating-search {
     .search-inputs {
       position: relative;
-
-      .invalid-feedback {
-        &.show-message {
-          bottom: -24px;
-          display: block;
-          left: 12px;
-          position: absolute;
-        }
-      }
     }
 
     .last-three-shows {

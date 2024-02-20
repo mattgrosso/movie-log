@@ -23,7 +23,7 @@
           </svg>
         </span>
       </div>
-      <div class="search-types d-flex flex-nowrap mb-3 col-12 md-col-6">
+      <!-- <div class="search-types d-flex flex-nowrap mb-3 col-12 md-col-6">
         <div class="types d-flex align-items-center flex-wrap p-1">
           <span
             class="badge mx-1"
@@ -77,7 +77,9 @@
             Annual Best
           </span>
         </div>
-      </div>
+      </div> -->
+    </div>
+    <div v-if="paginatedSortedResults.length" class="results">
       <div class="input-group mb-3 col-12 md-col-6">
         <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
           <option value="rating" selected>Rating</option>
@@ -98,70 +100,75 @@
           </div>
         </label>
       </div>
-    </div>
-    <hr class="mt-4">
-    <div v-show="paginatedSortedResults.length" class="details">
-      <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
-        You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s.
-      </p>
-      <p v-else class="fs-5 my-2 text-center">
-        {{filteredResults.length}} out of {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s match your search.
-      </p>
-      <p class="m-0 d-flex justify-content-center align-items-center">
-        They have an average rating of {{averageRating(filteredResults)}}
-      </p>
-      <div class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
-        <button class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
-          Charts
-        </button>
-        <button class="btn btn-secondary col-5" @click="shareResults">
-          <span v-if="!sharing">
-            Share Results
-          </span>
-          <div v-else class="spinner-border text-light" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
-        </button>
+      <hr class="mt-4">
+      <div class="details">
+        <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
+          You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s.
+        </p>
+        <p v-else class="fs-5 my-2 text-center">
+          {{filteredResults.length}} out of {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s match your search.
+        </p>
+        <p class="m-0 d-flex justify-content-center align-items-center">
+          They have an average rating of {{averageRating(filteredResults)}}
+        </p>
+        <div class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
+          <button class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
+            Charts
+          </button>
+          <button class="btn btn-secondary col-5" @click="shareResults">
+            <span v-if="!sharing">
+              Share Results
+            </span>
+            <div v-else class="spinner-border text-light" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </button>
+        </div>
       </div>
-    </div>
-    <div id="charts-accordion" ref="chartsAccordion" class="accordion-collapse collapse" aria-labelledby="charts">
-      <div class="accordion-body">
-        <Charts
-          :results="filteredResults"
-          :sortOrder="sortOrder"
-          :countedKeywords="countedKeywords"
+      <div id="charts-accordion" ref="chartsAccordion" class="accordion-collapse collapse" aria-labelledby="charts">
+        <div class="accordion-body">
+          <Charts
+            :results="filteredResults"
+            :sortOrder="sortOrder"
+            :countedKeywords="countedKeywords"
+            @updateSearchValue="updateSearchValue"
+          />
+        </div>
+      </div>
+      <hr :class="{'mt-3': currentLogIsTVLog}">
+      <ul class="col-12 py-3 px-0 m-0 d-flex flex-wrap">
+        <DBSearchResult
+          v-for="(result, index) in paginatedSortedResults"
+          :key="index"
+          :result="result"
+          :index="index"
           @updateSearchValue="updateSearchValue"
         />
-      </div>
+      </ul>
+      <button
+        v-if="sortedResults.length > numberOfResultsToShow"
+        class="btn btn-secondary mb-5 float-end"
+        @click="addMoreResults"
+      >
+        More...
+      </button>
     </div>
-    <hr :class="{'mt-3': currentLogIsTVLog}">
-    <ul class="col-12 py-3 px-0 m-0 d-flex flex-wrap">
-      <DBSearchResult
-        v-for="(result, index) in paginatedSortedResults"
-        :key="index"
-        :result="result"
-        :index="index"
-        @updateSearchValue="updateSearchValue"
-      />
-    </ul>
-    <button
-      v-if="sortedResults.length > numberOfResultsToShow"
-      class="btn btn-secondary mb-5 float-end"
-      @click="addMoreResults"
-    >
-      More...
-    </button>
+    <div v-else class="new-rating">
+      <NewRatingSearch :value="value" @clear-search-value="value = ''"/>
+    </div>
   </div>
 </template>
 
 <script>
 import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
+import NewRatingSearch from "./NewRatingSearch.vue";
 
 export default {
   components: {
     Charts,
-    DBSearchResult
+    DBSearchResult,
+    NewRatingSearch
   },
   data () {
     return {
@@ -194,9 +201,6 @@ export default {
       if (newVal) {
         this.sortOrder = newVal;
       }
-    },
-    value (newVal) {
-      this.updateUrl();
     }
   },
   mounted () {
@@ -697,12 +701,6 @@ export default {
       this.$nextTick(() => {
         this.$router.push(`/share/${this.$store.state.databaseTopKey}/${dbKey}`);
       });
-    },
-    updateUrl () {
-      if (!this.$store.state.goHome) {
-        const queryValue = this.value ? { search: encodeURIComponent(this.value) } : undefined;
-        this.$router.replace({ query: queryValue });
-      }
     },
     topStructure (result) {
       if (this.currentLogIsTVLog) {

@@ -26,12 +26,23 @@
 
 <script>
 export default {
+  props: {
+    quickPick: {
+      type: Boolean,
+      required: false,
+      default: false
+    }
+  },
   computed: {
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
     searchResults () {
-      return this.$store.state.newEntrySearchResults;
+      if (this.quickPick) {
+        return this.$store.state.newEntrySearchResults.slice(0, 3);
+      } else {
+        return this.$store.state.newEntrySearchResults;
+      }
     }
   },
   methods: {
@@ -76,7 +87,7 @@ export default {
     ul {
       column-gap: 1rem;
       list-style: none;
-      margin: 1rem 1rem 5rem;
+      margin: 1rem 1rem 2rem;
       row-gap: 1rem;
 
       .card {
@@ -89,6 +100,7 @@ export default {
         }
 
         p {
+          color: black;
           font-size: .75rem;
         }
       }
