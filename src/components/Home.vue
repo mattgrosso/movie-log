@@ -1,5 +1,5 @@
 <template>
-  <div class="db-search-results p-3 pt-4 mx-auto">
+  <div class="home p-3 pt-4 mx-auto">
     <div class="search-bar mx-auto">
       <div class="input-group mb-1 col-12 md-col-6">
         <input
@@ -864,7 +864,7 @@ export default {
 </script>
 
 <style lang="scss">
-  .db-search-results {
+  .home {
     max-width: 832px;
 
     .search-bar {
@@ -994,7 +994,7 @@ export default {
   }
 
   .bg-dark {
-    .db-search-results {
+    .home {
       color: white;
 
       ul {

@@ -783,14 +783,14 @@ export default {
       this.$store.commit("setShowHeader", true);
       if (routeAfterRating === "recentlyViewed") {
         this.$store.commit("setDBSortValue", "watched");
-        this.$router.push("/db-search");
+        this.$router.push("/");
       } else if (routeAfterRating === "allRatings") {
         this.$store.commit("setDBSortValue", "rating");
-        this.$router.push("/db-search");
+        this.$router.push("/");
       } else if (routeAfterRating === "sameYear") {
         this.$store.commit("setDBSearchValue", `y:${rating.year}`);
         this.$store.commit("setDBSortValue", "rating");
-        this.$router.push("/db-search");
+        this.$router.push("/");
       } else {
         this.$router.push("/");
       }
