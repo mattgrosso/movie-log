@@ -6,16 +6,14 @@
           class="form-control"
           :class="{'has-content': value}"
           type="text"
-          list="datalistOptions"
           autocapitalize="none"
+          autocorrect="off"
+          autocomplete="off"
           name="search"
           id="search"
-          :placeholder="`${searchType} search...`"
+          :placeholder="placeholder"
           v-model="value"
         >
-        <datalist id="datalistOptions">
-          <option v-for="(value, index) in datalistForSearchType" :key="index" :value="value"/>
-        </datalist>
         <span v-if="value" class="clear-button" @click.prevent="value = null">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle" viewBox="0 0 16 16">
             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
@@ -23,82 +21,90 @@
           </svg>
         </span>
       </div>
-      <!-- <div class="search-types d-flex flex-nowrap mb-3 col-12 md-col-6">
-        <div class="types d-flex align-items-center flex-wrap p-1">
+      <div class="quick-links d-flex flex-wrap mb-3 col-12 md-col-6">
+        <div ref="quickLinkTypes" class="types d-flex align-items-center flex-wrap p-1">
           <span
             class="badge mx-1"
-            :class="searchType === 'title' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="searchType = 'title'"
+            :class="searchType === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="toggleAnnualBestFilter"
           >
-            <span v-if="currentLogIsTVLog">Name</span>
-            <span v-else>Title</span>
-          </span>
-          <span
-            class="badge mx-1"
-            :class="searchType === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="searchType = 'keyword'"
-          >
-            Keyword
+            Annual Best
           </span>
           <span
             class="badge mx-1"
             :class="searchType === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="searchType = 'genre'"
+            @click="toggleQuickLinksList('genre')"
           >
-            Genre
+            Genres
+          </span>
+          <span
+            class="badge mx-1"
+            :class="searchType === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="toggleQuickLinksList('keyword')"
+          >
+            Keywords
           </span>
           <span
             class="badge mx-1"
             :class="searchType === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="searchType = 'year'"
+            @click="toggleQuickLinksList('year')"
           >
-            Year
+            Years
           </span>
           <span
             class="badge mx-1"
             :class="searchType === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="searchType = 'director'"
+            @click="toggleQuickLinksList('director')"
           >
-            <span v-if="currentLogIsTVLog">Created By</span>
-            <span v-else>Director</span>
+            <span v-if="currentLogIsTVLog">Creators</span>
+            <span v-else>Directors</span>
           </span>
           <span
             class="badge mx-1"
             :class="searchType === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="searchType = 'cast/crew'"
+            @click="toggleQuickLinksList('cast/crew')"
           >
-            Cast/Crew
-          </span>
-          <span
-            class="badge mx-1"
-            :class="searchType === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="searchType = 'annual'"
-          >
-            Annual Best
+            Cast/Crew Members
           </span>
         </div>
-      </div> -->
+        <div id="quick-links-accordion" class="quick-links-list-wrapper col-12 mt-1 accordion-collapse collapse" ref="QuickLinksAccordion">
+          <div class="accordion-body col-12">
+            <button class="quick-links-list-sort" @click="toggleQuickLinksSort">{{quickLinksSortType}}</button>
+            <ul class="quick-link-list p-0 col-12">
+              <li v-for="(value, index) in sortedDataListForSearchType" :key="index" @click="updateFilterValue(value.name)">
+                <span class="badge mx-1 text-bg-light">
+                  {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
-    <div v-if="paginatedSortedResults.length" class="results">
-      <hr :class="{'mt-3': currentLogIsTVLog}">
-      <div class="results-actions col-12 md-col-6 d-flex justify-content-end flex-wrap">
-        <div class="pe-1 col-3">
-          <button class="btn btn-info btn-sm col-12 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
-            Insights
-          </button>
-        </div>
-        <div class="px-1 col-4">
-          <button class="btn btn-secondary btn-sm col-12" @click="shareResults">
-            <span v-if="!sharing">
-              Share Results
-            </span>
-            <div v-else class="spinner-border text-light" role="status">
-              <span class="visually-hidden">Loading...</span>
-            </div>
-          </button>
-        </div>
-        <div class="ps-1 col-5">
-          <div class="d-flex">
+    <div v-if="showResultsList" class="results">
+      <div v-if="paginatedSortedResults.length" class="results-exist">
+        <hr class="mt-3 mb-1">
+        <p v-if="filteredResults.length" class="results-count my-1 text-center">
+          {{filteredResults.length}} {{movieOrTVShow}}s match your search.
+        </p>
+        <hr class="mt-1 mb-3">
+        <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap">
+          <div class="pe-1 col-3">
+            <button class="btn btn-info btn-sm col-12 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
+              Insights
+            </button>
+          </div>
+          <div class="px-1 col-4">
+            <button class="btn btn-secondary btn-sm col-12" @click="shareResults">
+              <span v-if="!sharing">
+                Share Results
+              </span>
+              <div v-else class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </button>
+          </div>
+          <div class="ps-1 col-5 d-flex justify-content-end">
             <button class="btn btn-secondary btn-sm dropdown-toggle col-8" type="button" data-bs-toggle="dropdown" aria-expanded="false">
               {{sortValueDisplay || "Sort By"}}
             </button>
@@ -110,18 +116,18 @@
               </li>
               <li value="watched">
                 <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setSortValue('watched')">
-                Watch Date
+                  Watch Date
                 </button>
               </li>
               <li value="release">
                 <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setSortValue('release')">
                   Release Date
-                  </button>
+                </button>
               </li>
               <li value="title">
                 <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setSortValue('title')">
                   Title
-                  </button>
+                </button>
               </li>
             </ul>
             <button class="btn btn-outline-secondary btn-sm ms-1" @click="toggleSortOrder">
@@ -137,45 +143,46 @@
               </div>
             </button>
           </div>
-        </div>
-        <div id="charts-accordion" ref="chartsAccordion" class="accordion-collapse collapse" aria-labelledby="charts">
-          <div class="accordion-body col-12">
-            <div class="details">
-              <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
-                You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s.
-              </p>
-              <p v-else class="fs-5 my-2 text-center">
-                {{filteredResults.length}} out of {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s match your search.
-              </p>
-              <p class="m-0 d-flex justify-content-center align-items-center">
-                They have an average rating of {{averageRating(filteredResults)}}
-              </p>
+          <div id="insights-accordion" ref="insightsAccordion" class="accordion-collapse collapse" aria-labelledby="insights">
+            <div class="accordion-body col-12">
+              <div class="details">
+                <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
+                  You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s.
+                </p>
+                <p class="m-0 d-flex justify-content-center align-items-center">
+                  They have an average rating of {{averageRating(filteredResults)}}
+                </p>
+              </div>
+              <Charts
+                :results="filteredResults"
+                :sortOrder="sortOrder"
+                :countedKeywords="countedKeywords"
+                @updateSearchValue="updateSearchValue"
+              />
             </div>
-            <Charts
-              :results="filteredResults"
-              :sortOrder="sortOrder"
-              :countedKeywords="countedKeywords"
-              @updateSearchValue="updateSearchValue"
-            />
           </div>
         </div>
+        <ul class="col-12 px-0 m-0 d-flex flex-wrap">
+          <DBSearchResult
+            v-for="(result, index) in paginatedSortedResults"
+            :key="index"
+            :result="result"
+            :index="index"
+            @updateSearchValue="updateSearchValue"
+          />
+        </ul>
+        <button
+          v-if="sortedResults.length > numberOfResultsToShow"
+          class="btn btn-secondary mb-5 float-end"
+          @click="addMoreResults"
+        >
+          More...
+        </button>
       </div>
-      <ul class="col-12 px-0 m-0 d-flex flex-wrap">
-        <DBSearchResult
-          v-for="(result, index) in paginatedSortedResults"
-          :key="index"
-          :result="result"
-          :index="index"
-          @updateSearchValue="updateSearchValue"
-        />
-      </ul>
-      <button
-        v-if="sortedResults.length > numberOfResultsToShow"
-        class="btn btn-secondary mb-5 float-end"
-        @click="addMoreResults"
-      >
-        More...
-      </button>
+      <div class="no-results-but-search-type">
+        <p class="text-center">No {{movieOrTVShow}}s found for your search.</p>
+        <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
+      </div>
     </div>
     <div v-else class="new-rating">
       <NewRatingSearch :value="value" @clear-search-value="value = ''"/>
@@ -184,6 +191,7 @@
 </template>
 
 <script>
+import uniq from 'lodash/uniq';
 import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
@@ -199,7 +207,9 @@ export default {
       popperInstance: null,
       sortOrder: "ascending",
       sortValue: null,
+      filterValue: "",
       value: "",
+      quickLinksSortType: "a-z",
       numberOfResultsToShow: 50,
       sharing: false,
       searchType: "title"
@@ -235,8 +245,6 @@ export default {
 
     if (this.DBSearchType) {
       this.searchType = this.DBSearchType;
-    } else {
-      this.searchType = "title";
     }
 
     if (this.DBSortValue) {
@@ -318,74 +326,70 @@ export default {
       });
     },
     filteredResults () {
+      let searchTypeFiltered;
+
       if (this.searchType === "annual") {
         this.$store.commit("setDBSortValue", "release");
-        return this.bestMovieFromEachYear;
-      } else if (!this.value) {
+        searchTypeFiltered = this.bestMovieFromEachYear;
+      } else if (!this.filterValue) {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.allEntriesWithFlatKeywordsAdded;
-      } else if (this.searchType === "title") {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.titleFilter;
+        searchTypeFiltered = this.allEntriesWithFlatKeywordsAdded;
       } else if (this.searchType === "keyword") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.keywordFilter;
+        searchTypeFiltered = this.keywordFilter;
       } else if (this.searchType === "genre") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.genreFilter;
+        searchTypeFiltered = this.genreFilter;
       } else if (this.searchType === "year") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "release");
-        return this.yearFilter;
+        searchTypeFiltered = this.yearFilter;
       } else if (this.searchType === "director") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.directorFilter;
+        searchTypeFiltered = this.directorFilter;
       } else if (this.searchType === "cast/crew") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.castCrewFilter;
+        searchTypeFiltered = this.castCrewFilter;
       } else {
-        return [];
+        searchTypeFiltered = [];
       }
-    },
-    titleFilter () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        if (this.currentLogIsTVLog) {
-          return this.topStructure(media).name.toLowerCase().includes(this.value.toLowerCase());
-        } else {
-          return this.topStructure(media).title.toLowerCase().includes(this.value.toLowerCase());
-        }
-      })
+
+      if (!this.value) {
+        return searchTypeFiltered;
+      } else {
+        return this.inputValueFilter(searchTypeFiltered);
+      }
     },
     keywordFilter () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return this.topStructure(media).flatKeywords?.includes(this.value.toLowerCase());
+        return this.topStructure(media).flatKeywords?.includes(this.filterValue.toLowerCase());
       })
     },
     genreFilter () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.value.toLowerCase());
+        return this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.filterValue.toLowerCase());
       })
     },
     yearFilter () {
       let parsedYears = [];
 
-      if (this.value.length === 2 && parseInt(this.value) < new Date().getFullYear() - 2000) {
-        parsedYears = [`20${this.value}`];
-      } else if (this.value.length === 2) {
-        parsedYears = [`19${this.value}`];
-      } else if (this.value.includes("-") && this.value.includes(" ")) {
-        parsedYears = this.value.split(" ").join("").split("-");
+      if (this.filterValue.length === 2 && parseInt(this.filterValue) < new Date().getFullYear() - 2000) {
+        parsedYears = [`20${this.filterValue}`];
+      } else if (this.filterValue.length === 2) {
+        parsedYears = [`19${this.filterValue}`];
+      } else if (this.filterValue.includes("-") && this.filterValue.includes(" ")) {
+        parsedYears = this.filterValue.split(" ").join("").split("-");
 
         for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
           parsedYears.push(i.toString());
         }
-      } else if (this.value.includes("-")) {
-        parsedYears = this.value.split("-");
+      } else if (this.filterValue.includes("-")) {
+        parsedYears = this.filterValue.split("-");
 
         for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
           parsedYears.push(i.toString());
         }
-      } else if (this.value.length === 5 && this.value.includes("s")) {
-        parsedYears = this.value.split("s").filter((x) => x);
+      } else if (this.filterValue.length === 5 && this.filterValue.includes("s")) {
+        parsedYears = this.filterValue.split("s").filter((x) => x);
 
         parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
@@ -396,10 +400,10 @@ export default {
         parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
-      } else if (this.value.length === 3 && this.value.includes("s")) {
-        parsedYears = this.value.split("s").filter((x) => x);
+      } else if (this.filterValue.length === 3 && this.filterValue.includes("s")) {
+        parsedYears = this.filterValue.split("s").filter((x) => x);
 
-        if (parseInt(this.value) < new Date().getFullYear() - 2000) {
+        if (parseInt(this.filterValue) < new Date().getFullYear() - 2000) {
           parsedYears[0] = `20${parsedYears[0]}`;
         } else {
           parsedYears[0] = `19${parsedYears[0]}`;
@@ -414,7 +418,7 @@ export default {
         parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
       } else {
-        parsedYears = [this.value];
+        parsedYears = [this.filterValue];
       }
 
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
@@ -424,11 +428,11 @@ export default {
     directorFilter () {
       if (this.currentLogIsTVLog) {
         return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          return media.tvShow.created_by?.map((person) => person.name.toLowerCase()).join(" ").includes(this.value.toLowerCase());
+          return media.tvShow.created_by?.map((person) => person.name.toLowerCase()).join(" ").includes(this.filterValue.toLowerCase());
         })
       } else {
         return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          return media.movie.crew?.find((person) => person.job === "Director").name.toLowerCase() === this.value.toLowerCase();
+          return media.movie.crew?.find((person) => person.job === "Director").name.toLowerCase() === this.filterValue.toLowerCase();
         })
       }
     },
@@ -438,7 +442,7 @@ export default {
         const crew = this.topStructure(media).crew?.map((person, index) => person.name.toLowerCase()) || [];
         const castCrewCombined = [...cast, ...crew];
 
-        return castCrewCombined.includes(this.value.toLowerCase());
+        return castCrewCombined.includes(this.filterValue.toLowerCase());
       })
     },
     bestMovieFromEachYear () {
@@ -462,6 +466,9 @@ export default {
 
       return Object.keys(years).map((year) => years[year]);
     },
+    showResultsList () {
+      return Boolean(this.paginatedSortedResults.length) || this.searchType !== "title";
+    },
     sortedResults () {
       return [...this.filteredResults].sort(this.sortResults);
     },
@@ -478,9 +485,7 @@ export default {
       return this.sortedResults.slice(0, this.numberOfResultsToShow);
     },
     datalistForSearchType () {
-      if (this.searchType === "title") {
-        return this.allTitles;
-      } else if (this.searchType === "keyword") {
+      if (this.searchType === "keyword") {
         return this.allKeywords;
       } else if (this.searchType === "genre") {
         return this.allGenres;
@@ -494,6 +499,15 @@ export default {
         return [];
       }
     },
+    sortedDataListForSearchType () {
+      const data = [...this.datalistForSearchType];
+
+      if (this.quickLinksSortType === "a-z") {
+        return data.sort((a, b) => a.name.localeCompare(b.name));
+      } else {
+        return data.sort((a, b) => b.count - a.count);
+      }
+    },
     allTitles () {
       if (this.currentLogIsTVLog) {
         return this.sortedResults.map((result) => result.tvShow.name);
@@ -502,72 +516,49 @@ export default {
       }
     },
     allKeywords () {
-      return Object.keys(this.countedKeywords).map((keyword) => this.titleCase(keyword));
+      return Object.keys(this.countedKeywords).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countedKeywords[keyword]
+        }
+      });
     },
     allGenres () {
-      const genres = [];
-
-      this.sortedResults.forEach((result) => {
-        this.topStructure(result).genres.forEach((genre) => {
-          if (!genres.includes(genre.name)) {
-            genres.push(genre.name);
-          }
-        })
-      })
-
-      return genres;
+      return Object.keys(this.countedGenres).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countedGenres[keyword]
+        }
+      });
     },
     allYears () {
-      const years = [];
-
-      this.sortedResults.forEach((result) => {
-        const year = this.getYear(result);
-        if (!years.includes(year)) {
-          years.push(year);
+      return Object.keys(this.countedYears).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countedYears[keyword]
         }
-      })
-
-      return years;
+      });
     },
     allDirectors () {
-      const directors = [];
-
-      this.sortedResults.forEach((result) => {
-        let director;
-        if (this.currentLogIsTVLog) {
-          director = result?.tvShow?.created_by?.[0].name;
-        } else {
-          director = result?.movie?.crew?.find((person) => person.job === "Director").name;
+      return Object.keys(this.countDirectors).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countDirectors[keyword]
         }
-
-        if (director && !directors.includes(director)) {
-          directors.push(director);
-        }
-      })
-
-      return directors;
+      });
     },
     allCastCrew () {
-      const castCrew = [];
-
-      this.sortedResults.forEach((result) => {
-        const cast = this.topStructure(result)?.cast?.map((person, index) => index < 10 && person.name) || [];
-        const crew = this.topStructure(result)?.crew?.map((person, index) => index < 10 && person.name) || [];
-        const castCrewCombined = [...cast, ...crew];
-
-        castCrewCombined.forEach((person) => {
-          if (!castCrew.includes(person)) {
-            castCrew.push(person);
-          }
-        })
-      })
-
-      return castCrew;
+      return Object.keys(this.countCastCrew).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countCastCrew[keyword]
+        }
+      });
     },
     countedKeywords () {
       const counts = {};
 
-      this.sortedResults.forEach((result) => {
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
         if (this.topStructure(result).flatKeywords) {
           this.topStructure(result).flatKeywords.forEach((keyword) => {
             if (counts[keyword]) {
@@ -580,13 +571,137 @@ export default {
       })
 
       return counts;
+    },
+    countedGenres () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        if (this.topStructure(result).genres) {
+          this.topStructure(result).genres.forEach((genre) => {
+            if (counts[genre.name]) {
+              counts[genre.name]++;
+            } else {
+              counts[genre.name] = 1;
+            }
+          })
+        }
+      })
+
+      return counts;
+    },
+    countedYears () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const year = this.getYear(result);
+        if (counts[year]) {
+          counts[year]++;
+        } else {
+          counts[year] = 1;
+        }
+      })
+
+      return counts;
+    },
+    countDirectors () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        let director;
+        if (this.currentLogIsTVLog) {
+          director = result.tvShow.created_by?.[0].name;
+        } else {
+          director = result.movie.crew?.find((person) => person.job === "Director").name;
+        }
+
+        if (director) {
+          if (counts[director]) {
+            counts[director]++;
+          } else {
+            counts[director] = 1;
+          }
+        }
+      })
+
+      return counts;
+    },
+    countCastCrew () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const cast = this.topStructure(result).cast?.filter((person, index) => index < 10).map(person => person.name) || [];
+        const crew = this.topStructure(result).crew?.filter((person, index) => index < 10).map(person => person.name) || [];
+        const castCrewCombined = uniq([...cast, ...crew]);
+
+        castCrewCombined.forEach((person) => {
+          if (counts[person]) {
+            counts[person]++;
+          } else {
+            counts[person] = 1;
+          }
+        })
+      })
+
+      return counts;
+    },
+    placeholder () {
+      if (this.searchType && this.filterValue) {
+        return `Search within ${this.searchType}: ${this.filterValue}...`
+      } else if (this.searchType === 'annual') {
+        return "Search within the best of each year..."
+      } else if (this.searchType) {
+        return `Search within ${this.searchType}...`
+      } else {
+        return "Search..."
+      }
     }
   },
   methods: {
+    updateFilterValue (filterValue) {
+      this.filterValue = filterValue.toString();
+    },
+    updateSearchType (searchType) {
+      this.filterValue = "";
+      this.searchType = searchType;
+    },
     updateSearchValue (searchObject) {
       this.searchType = searchObject.searchType;
       this.value = searchObject.value.replace(/'/g, '');
-      this.$refs.chartsAccordion?.classList.remove("show");
+      this.$refs.insightsAccordion?.classList.remove("show");
+    },
+    toggleQuickLinksSort () {
+      if (this.quickLinksSortType === "a-z") {
+        this.quickLinksSortType = "count";
+      } else {
+        this.quickLinksSortType = "a-z";
+      }
+    },
+    toggleQuickLinksList (name) {
+      if (this.searchType === name || !name) {
+        this.updateSearchType('title');
+
+        this.$refs.QuickLinksAccordion?.classList.remove("show");
+      } else {
+        this.updateSearchType(name);
+
+        this.$refs.QuickLinksAccordion?.classList.add("show");
+      }
+    },
+    toggleAnnualBestFilter () {
+      if (this.searchType === "annual") {
+        this.updateSearchType('title');
+      } else {
+        this.updateSearchType('annual');
+      }
+    },
+    inputValueFilter (results) {
+      return results.filter((media) => {
+        if (this.currentLogIsTVLog) {
+          return this.topStructure(media).name.toLowerCase().includes(this.value.toLowerCase());
+        } else {
+          return this.topStructure(media).title.toLowerCase().includes(this.value.toLowerCase());
+        }
+      })
     },
     toggleSortOrder () {
       if (this.sortOrder === "ascending") {
@@ -777,7 +892,7 @@ export default {
         }
       }
 
-      .search-types {
+      .quick-links {
         p {
           white-space: nowrap;
         }
@@ -787,6 +902,47 @@ export default {
 
           span {
             cursor: pointer;
+            font-size: 0.65rem;
+          }
+        }
+
+        .quick-links-list-wrapper {
+          border: 1px solid #c0c2c3;
+          max-height: 100px;
+          overflow-y: scroll;
+          position: relative;
+
+          .quick-links-list-sort {
+            position: sticky;
+            top: 4px;
+            left: 100%;
+            border: 1px solid #c0c2c3;
+            border-bottom-left-radius: 2px;
+            padding: 2px 4px;
+            background: white;
+            font-size: 0.65rem;
+            margin: 4px 8px;
+          }
+
+          .quick-link-list {
+            column-count: 2;
+            column-gap: 0;
+            list-style: none;
+            margin-top: -20px;
+
+            li {
+              .badge {
+                align-items: center;
+                cursor: pointer;
+                display: flex;
+                text-align: start;
+                white-space: break-spaces;
+
+                span {
+                  font-size: 0.5rem;
+                }
+              }
+            }
           }
         }
       }
@@ -818,6 +974,10 @@ export default {
     }
 
     .results {
+      .results-count {
+        font-size: 1rem;
+      }
+
       .results-actions {
         .dropdown-item {
           &.active,
