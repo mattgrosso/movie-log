@@ -221,11 +221,6 @@ export default {
         this.value = newVal;
       }
     },
-    DBSearchType (newVal) {
-      if (newVal) {
-        this.searchType = newVal;
-      }
-    },
     DBSortValue (newVal) {
       if (newVal) {
         this.setSortValue(newVal)
@@ -241,10 +236,6 @@ export default {
     this.value = this.DBSearchValue;
     if (this.$route.query.search) {
       this.value = decodeURIComponent(this.$route.query.search);
-    }
-
-    if (this.DBSearchType) {
-      this.searchType = this.DBSearchType;
     }
 
     if (this.DBSortValue) {
@@ -264,7 +255,6 @@ export default {
     this.setSortValue(null);
     this.value = "";
     this.$store.commit("setDBSearchValue", this.value);
-    this.$store.commit("setDBSearchType", this.searchType);
     this.$store.commit("setDBSortValue", this.sortValue);
     this.$store.commit("setDBSortOrder", this.sortOrder);
   },
@@ -281,9 +271,6 @@ export default {
     },
     DBSearchValue () {
       return this.$store.state.DBSearchValue;
-    },
-    DBSearchType () {
-      return this.$store.state.DBSearchType;
     },
     DBSortValue () {
       return this.$store.state.DBSortValue;
