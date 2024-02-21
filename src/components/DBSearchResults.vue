@@ -80,27 +80,6 @@
       </div> -->
     </div>
     <div v-if="paginatedSortedResults.length" class="results">
-      <div class="input-group mb-3 col-12 md-col-6">
-        <select class="form-select" name="sortValue" id="sortValue" v-model="sortValue">
-          <option value="rating" selected>Rating</option>
-          <option value="watched">Watch Date</option>
-          <option value="release">Release Date</option>
-          <option value="title">Title</option>
-        </select>
-        <label class="input-group-text" @click="toggleSortOrder">
-          <div v-if="sortOrder !== 'ascending'" class="descending">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-down-alt" viewBox="0 0 16 16">
-              <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293V3.5zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
-            </svg>
-          </div>
-          <div v-if="sortOrder === 'ascending'" class="ascending">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-up-alt" viewBox="0 0 16 16">
-              <path d="M3.5 13.5a.5.5 0 0 1-1 0V4.707L1.354 5.854a.5.5 0 1 1-.708-.708l2-1.999.007-.007a.498.498 0 0 1 .7.006l2 2a.5.5 0 1 1-.707.708L3.5 4.707V13.5zm4-9.5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
-            </svg>
-          </div>
-        </label>
-      </div>
-      <hr class="mt-4">
       <div class="details">
         <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
           You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s.
@@ -136,7 +115,48 @@
         </div>
       </div>
       <hr :class="{'mt-3': currentLogIsTVLog}">
-      <ul class="col-12 py-3 px-0 m-0 d-flex flex-wrap">
+      <div class="sort-dropdown col-12 md-col-6 d-flex justify-content-end">
+        <div class="btn-group">
+          <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            {{sortValueDisplay || "Sort By"}}
+          </button>
+          <ul class="dropdown-menu">
+            <li value="rating">
+              <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setSortValue('rating')">
+                Rating
+              </button>
+            </li>
+            <li value="watched">
+              <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setSortValue('watched')">
+              Watch Date
+              </button>
+            </li>
+            <li value="release">
+              <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setSortValue('release')">
+                Release Date
+                </button>
+            </li>
+            <li value="title">
+              <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setSortValue('title')">
+                Title
+                </button>
+            </li>
+          </ul>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm mx-1" @click="toggleSortOrder">
+          <div v-if="sortOrder !== 'ascending'" class="descending">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-down-alt" viewBox="0 0 16 16">
+              <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293V3.5zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
+            </svg>
+          </div>
+          <div v-if="sortOrder === 'ascending'" class="ascending">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-up-alt" viewBox="0 0 16 16">
+              <path d="M3.5 13.5a.5.5 0 0 1-1 0V4.707L1.354 5.854a.5.5 0 1 1-.708-.708l2-1.999.007-.007a.498.498 0 0 1 .7.006l2 2a.5.5 0 1 1-.707.708L3.5 4.707V13.5zm4-9.5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
+            </svg>
+          </div>
+        </button>
+      </div>
+      <ul class="col-12 px-0 m-0 d-flex flex-wrap">
         <DBSearchResult
           v-for="(result, index) in paginatedSortedResults"
           :key="index"
@@ -194,7 +214,7 @@ export default {
     },
     DBSortValue (newVal) {
       if (newVal) {
-        this.sortValue = newVal;
+        this.setSortValue(newVal)
       }
     },
     DBSortOrder (newVal) {
@@ -216,9 +236,9 @@ export default {
     }
 
     if (this.DBSortValue) {
-      this.sortValue = this.DBSortValue;
+      this.setSortValue(this.DBSortValue)
     } else {
-      this.sortValue = "rating";
+      this.setSortValue("rating")
     }
 
     if (this.DBSortOrder) {
@@ -229,7 +249,7 @@ export default {
   },
   beforeRouteLeave () {
     this.sortOrder = "ascending";
-    this.sortValue = null;
+    this.setSortValue(null);
     this.value = "";
     this.$store.commit("setDBSearchValue", this.value);
     this.$store.commit("setDBSearchType", this.searchType);
@@ -258,6 +278,19 @@ export default {
     },
     DBSortOrder () {
       return this.$store.state.DBSortOrder;
+    },
+    sortValueDisplay () {
+      if (this.sortValue === "rating") {
+        return "Rating";
+      } else if (this.sortValue === "watched") {
+        return "Watch Date";
+      } else if (this.sortValue === "release") {
+        return "Release Date";
+      } else if (this.sortValue === "title") {
+        return "Title";
+      } else {
+        return "Sort By";
+      }
     },
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
@@ -558,6 +591,9 @@ export default {
         this.sortOrder = "ascending";
       }
     },
+    setSortValue (value) {
+      this.sortValue = value;
+    },
     sortResults (a, b) {
       let sortValueA;
       let sortValueB;
@@ -777,8 +813,25 @@ export default {
       }
     }
 
-    ul {
-      list-style: none;
+    .results {
+      .sort-dropdown {
+        .dropdown-item {
+          &.active,
+          &:active {
+            color: #1e2125;
+            background-color: #e9ecef;
+          }
+        }
+
+        svg {
+          height: 14px;
+          width: 14px;
+        }
+      }
+
+      ul {
+        list-style: none;
+      }
     }
 
     .btn {
