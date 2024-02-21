@@ -1,5 +1,5 @@
 <template>
-  <div class="db-search-results p-3 pt-5 mx-auto">
+  <div class="db-search-results p-3 pt-4 mx-auto">
     <div class="search-bar mx-auto">
       <div class="input-group mb-1 col-12 md-col-6">
         <input
@@ -80,21 +80,15 @@
       </div> -->
     </div>
     <div v-if="paginatedSortedResults.length" class="results">
-      <div class="details">
-        <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
-          You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s.
-        </p>
-        <p v-else class="fs-5 my-2 text-center">
-          {{filteredResults.length}} out of {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s match your search.
-        </p>
-        <p class="m-0 d-flex justify-content-center align-items-center">
-          They have an average rating of {{averageRating(filteredResults)}}
-        </p>
-        <div class="charts-and-share col-12 my-3 d-flex justify-content-around align-items-center">
-          <button class="btn btn-info col-5 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
-            Charts
+      <hr :class="{'mt-3': currentLogIsTVLog}">
+      <div class="results-actions col-12 md-col-6 d-flex justify-content-end flex-wrap">
+        <div class="pe-1 col-3">
+          <button class="btn btn-info btn-sm col-12 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#charts-accordion" aria-expanded="false" aria-controls="charts-accordion">
+            Insights
           </button>
-          <button class="btn btn-secondary col-5" @click="shareResults">
+        </div>
+        <div class="px-1 col-4">
+          <button class="btn btn-secondary btn-sm col-12" @click="shareResults">
             <span v-if="!sharing">
               Share Results
             </span>
@@ -103,58 +97,68 @@
             </div>
           </button>
         </div>
-      </div>
-      <div id="charts-accordion" ref="chartsAccordion" class="accordion-collapse collapse" aria-labelledby="charts">
-        <div class="accordion-body">
-          <Charts
-            :results="filteredResults"
-            :sortOrder="sortOrder"
-            :countedKeywords="countedKeywords"
-            @updateSearchValue="updateSearchValue"
-          />
-        </div>
-      </div>
-      <hr :class="{'mt-3': currentLogIsTVLog}">
-      <div class="sort-dropdown col-12 md-col-6 d-flex justify-content-end">
-        <div class="btn-group">
-          <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            {{sortValueDisplay || "Sort By"}}
-          </button>
-          <ul class="dropdown-menu">
-            <li value="rating">
-              <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setSortValue('rating')">
-                Rating
-              </button>
-            </li>
-            <li value="watched">
-              <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setSortValue('watched')">
-              Watch Date
-              </button>
-            </li>
-            <li value="release">
-              <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setSortValue('release')">
-                Release Date
+        <div class="ps-1 col-5">
+          <div class="d-flex">
+            <button class="btn btn-secondary btn-sm dropdown-toggle col-8" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              {{sortValueDisplay || "Sort By"}}
+            </button>
+            <ul class="dropdown-menu">
+              <li value="rating">
+                <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setSortValue('rating')">
+                  Rating
                 </button>
-            </li>
-            <li value="title">
-              <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setSortValue('title')">
-                Title
+              </li>
+              <li value="watched">
+                <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setSortValue('watched')">
+                Watch Date
                 </button>
-            </li>
-          </ul>
+              </li>
+              <li value="release">
+                <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setSortValue('release')">
+                  Release Date
+                  </button>
+              </li>
+              <li value="title">
+                <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setSortValue('title')">
+                  Title
+                  </button>
+              </li>
+            </ul>
+            <button class="btn btn-outline-secondary btn-sm ms-1" @click="toggleSortOrder">
+              <div v-if="sortOrder !== 'ascending'" class="descending">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-down-alt" viewBox="0 0 16 16">
+                  <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293V3.5zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
+                </svg>
+              </div>
+              <div v-if="sortOrder === 'ascending'" class="ascending">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-up-alt" viewBox="0 0 16 16">
+                  <path d="M3.5 13.5a.5.5 0 0 1-1 0V4.707L1.354 5.854a.5.5 0 1 1-.708-.708l2-1.999.007-.007a.498.498 0 0 1 .7.006l2 2a.5.5 0 1 1-.707.708L3.5 4.707V13.5zm4-9.5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
+                </svg>
+              </div>
+            </button>
+          </div>
         </div>
-        <button class="btn btn-outline-secondary btn-sm mx-1" @click="toggleSortOrder">
-          <div v-if="sortOrder !== 'ascending'" class="descending">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-down-alt" viewBox="0 0 16 16">
-              <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293V3.5zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
-            </svg>
+        <div id="charts-accordion" ref="chartsAccordion" class="accordion-collapse collapse" aria-labelledby="charts">
+          <div class="accordion-body col-12">
+            <div class="details">
+              <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
+                You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s.
+              </p>
+              <p v-else class="fs-5 my-2 text-center">
+                {{filteredResults.length}} out of {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s match your search.
+              </p>
+              <p class="m-0 d-flex justify-content-center align-items-center">
+                They have an average rating of {{averageRating(filteredResults)}}
+              </p>
+            </div>
+            <Charts
+              :results="filteredResults"
+              :sortOrder="sortOrder"
+              :countedKeywords="countedKeywords"
+              @updateSearchValue="updateSearchValue"
+            />
           </div>
-          <div v-if="sortOrder === 'ascending'" class="ascending">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-up-alt" viewBox="0 0 16 16">
-              <path d="M3.5 13.5a.5.5 0 0 1-1 0V4.707L1.354 5.854a.5.5 0 1 1-.708-.708l2-1.999.007-.007a.498.498 0 0 1 .7.006l2 2a.5.5 0 1 1-.707.708L3.5 4.707V13.5zm4-9.5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
-            </svg>
-          </div>
-        </button>
+        </div>
       </div>
       <ul class="col-12 px-0 m-0 d-flex flex-wrap">
         <DBSearchResult
@@ -283,9 +287,9 @@ export default {
       if (this.sortValue === "rating") {
         return "Rating";
       } else if (this.sortValue === "watched") {
-        return "Watch Date";
+        return "Watched";
       } else if (this.sortValue === "release") {
-        return "Release Date";
+        return "Released";
       } else if (this.sortValue === "title") {
         return "Title";
       } else {
@@ -814,7 +818,7 @@ export default {
     }
 
     .results {
-      .sort-dropdown {
+      .results-actions {
         .dropdown-item {
           &.active,
           &:active {
