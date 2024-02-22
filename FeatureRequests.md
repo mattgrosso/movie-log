@@ -5,3 +5,7 @@ Can I rework the design so there's only one screen where you search and see your
 Why is clicking on settings logging me out every time?
 
 I'd like some sort of view that shows my watches over time (like a calendar maybe)
+
+Let's get some h-indexes
+
+How can I implement stickiness ratings?

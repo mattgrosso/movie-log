@@ -9,9 +9,8 @@ import { BrowserTracing } from "@sentry/tracing";
 import VueLazyLoad from 'vue3-lazyload';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
-import Home from "./components/Home.vue";
 import Login from "./components/Login.vue";
-import DBSearchResults from "./components/DBSearchResults.vue";
+import Home from "./components/Home.vue";
 import Settings from "./components/Settings.vue";
 import PickMedia from "./components/PickMedia.vue";
 import RateMovie from "./components/RateMovie.vue";
@@ -80,20 +79,6 @@ const routes = [
     name: 'Settings',
     path: '/settings',
     component: Settings,
-    meta: {
-      requiresLogin: true
-    },
-    beforeEnter: (to, from, next) => {
-      if (!loggedIn()) {
-        next('/login');
-      } else {
-        next();
-      }
-    }
-  },
-  {
-    path: '/db-search',
-    component: DBSearchResults,
     meta: {
       requiresLogin: true
     },
