@@ -685,7 +685,7 @@ export default {
     },
     updateSearchValue (searchObject) {
       this.searchType = searchObject.searchType;
-      this.value = searchObject.value.replace(/'/g, '');
+      this.updateFilterValue(searchObject.value);
       this.$refs.insightsAccordion?.classList.remove("show");
     },
     toggleQuickLinksSort () {

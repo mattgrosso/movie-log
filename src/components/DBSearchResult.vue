@@ -47,7 +47,7 @@
               {{person.name}}<span v-if="index !== result.tvShow.created_by.length - 1">&nbsp;</span>
             </a>
           </span>
-          <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor('director', `\'${getCrewMember(result.movie.crew, 'Director', 'strict')}\'`)">
+          <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor('director', `${getCrewMember(result.movie.crew, 'Director', 'strict')}`)">
             {{getCrewMember(result.movie.crew, 'Director', 'strict')}}
           </a>
         </span>
