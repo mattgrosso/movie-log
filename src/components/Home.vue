@@ -4,7 +4,7 @@
       <div class="input-group mb-1 col-12 md-col-6">
         <input
           class="form-control"
-          :class="{'has-content': value}"
+          :class="{'has-content': value || searchType || filterValue}"
           ref="searchInput"
           type="text"
           autocapitalize="none"
@@ -15,7 +15,7 @@
           :placeholder="placeholder"
           v-model="value"
         >
-        <span v-if="value" class="clear-button" @click.prevent="clearValue">
+        <span v-if="value || searchType || filterValue" class="clear-button" @click.prevent="clearValueSearchTypeAndFilterValue">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle" viewBox="0 0 16 16">
             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
             <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
@@ -202,7 +202,7 @@
       </div>
     </div>
     <div v-else class="new-rating">
-      <NewRatingSearch :value="value" @clear-search-value="clearValue"/>
+      <NewRatingSearch :value="value" @clear-search-value="clearValueSearchTypeAndFilterValue"/>
     </div>
   </div>
 </template>
@@ -225,13 +225,13 @@ export default {
     return {
       popperInstance: null,
       sortOrder: "ascending",
-      sortValue: null,
-      filterValue: "",
       value: "",
+      searchType: "title",
+      filterValue: "",
+      sortValue: null,
       quickLinksSortType: "a-z",
       numberOfResultsToShow: 50,
       sharing: false,
-      searchType: "title",
       noResults: false,
       useDark: useDark()
     }
@@ -672,8 +672,10 @@ export default {
     }
   },
   methods: {
-    clearValue () {
+    clearValueSearchTypeAndFilterValue () {
       this.value = "";
+      this.searchType = "title";
+      this.filterValue = "";
       this.$refs.searchInput.focus();
     },
     updateFilterValue (filterValue) {
@@ -842,7 +844,7 @@ export default {
 
       setTimeout(() => {
         this.noResults = false;
-        this.clearValue();
+        this.clearValueSearchTypeAndFilterValue();
       }, 3000);
     },
     togglePopper () {
