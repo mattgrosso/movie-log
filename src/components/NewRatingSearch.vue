@@ -4,7 +4,7 @@
       <p>Add rating for...</p>
       <PickMedia :quickPick="true"/>
       <div class="button-wrapper d-flex justify-content-end">
-        <button class="btn btn-primary" @click="searchTMDB(false)" id="new-rating-button">Show More Results</button>
+        <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">Show More Results</button>
       </div>
     </div>
     <div v-else-if="noResults" ref="noResults">
@@ -31,6 +31,7 @@
 <script>
 import axios from 'axios';
 import { useDark } from "@vueuse/core";
+import debounce from 'lodash/debounce';
 import RatingChangeRibbon from './RatingChangeRibbon.vue';
 import PickMedia from './PickMedia.vue';
 
@@ -57,6 +58,11 @@ export default {
       this.searchTMDB(true);
     }, 1000);
   },
+  watch: {
+    value () {
+      this.searchTMDB(true);
+    }
+  },
   computed: {
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
@@ -76,7 +82,7 @@ export default {
     }
   },
   methods: {
-    async searchTMDB (quickPick) {
+    searchTMDB: debounce(async function(quickPick) {
       if (!this.value) {
         return;
       }
@@ -90,7 +96,7 @@ export default {
       } else {
         this.showNoResultsMessage();
       }
-    },
+    }, 500),
     showNoResultsMessage () {
       this.noResults = true;
 

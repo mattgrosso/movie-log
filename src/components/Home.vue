@@ -70,10 +70,16 @@
         </div>
         <div id="quick-links-accordion" class="quick-links-list-wrapper col-12 mt-1 accordion-collapse collapse" ref="QuickLinksAccordion">
           <div class="accordion-body col-12">
-            <button class="quick-links-list-sort" @click="toggleQuickLinksSort">{{quickLinksSortType}}</button>
+            <button 
+              class="quick-links-list-sort"
+              :class="{'text-bg-dark': useDark, 'text-bg-light': !useDark}"
+              @click="toggleQuickLinksSort"
+            >
+              {{quickLinksSortType}}
+            </button>
             <ul class="quick-link-list p-0 col-12">
               <li v-for="(value, index) in sortedDataListForSearchType" :key="index" @click="updateFilterValue(value.name)">
-                <span class="badge mx-1 text-bg-light">
+                <span class="badge mx-1" :class="{'text-bg-dark': useDark, 'text-bg-light': !useDark}">
                   {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
                 </span>
               </li>
@@ -86,7 +92,7 @@
       <div v-if="paginatedSortedResults.length" class="results-exist">
         <hr class="mt-3 mb-1">
         <p v-if="filteredResults.length" class="results-count my-1 text-center">
-          {{filteredResults.length}} {{movieOrTVShow}}s match your search.
+          {{filteredResults.length}} {{movieOrTVShowDisplay}}s match your search.
         </p>
         <hr class="mt-1 mb-3">
         <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap">
@@ -148,7 +154,7 @@
             <div class="accordion-body col-12">
               <div class="details">
                 <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
-                  You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShow}}s.
+                  You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShowDisplay}}s.
                 </p>
                 <p class="m-0 d-flex justify-content-center align-items-center">
                   They have an average rating of {{averageRating(filteredResults)}}
@@ -179,9 +185,19 @@
         >
           More...
         </button>
+        <div v-else>
+          <div v-if="noResults" ref="noResults">
+            <p>No results found in your Movie Log or on TMDB.</p>
+            <p>I'm pretty sure that movie doesn't exist.</p>
+            <p>Either you're from the future or maybe you just spelled it wrong.</p>
+          </div>
+          <div v-else class="button-wrapper d-flex justify-content-end">
+            <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">It's another {{movieOrTVShowDisplay}} called {{titleCase(value)}}</button>
+          </div>
+        </div>
       </div>
       <div v-else class="no-results-but-search-type">
-        <p class="text-center">No {{movieOrTVShow}}s found for your search.</p>
+        <p class="text-center">No {{movieOrTVShowDisplay}}s found for your search.</p>
         <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
       </div>
     </div>
@@ -192,7 +208,9 @@
 </template>
 
 <script>
+import axios from 'axios';
 import uniq from 'lodash/uniq';
+import { useDark } from "@vueuse/core";
 import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
@@ -213,7 +231,9 @@ export default {
       quickLinksSortType: "a-z",
       numberOfResultsToShow: 50,
       sharing: false,
-      searchType: "title"
+      searchType: "title",
+      noResults: false,
+      useDark: useDark()
     }
   },
   watch: {
@@ -263,9 +283,16 @@ export default {
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
-    movieOrTVShow () {
+    movieOrTVShowDisplay () {
       if (this.currentLogIsTVLog) {
         return "TV show";
+      } else {
+        return "movie";
+      }
+    },
+    movieOrTV () {
+      if (this.currentLogIsTVLog) {
+        return "tv";
       } else {
         return "movie";
       }
@@ -791,6 +818,32 @@ export default {
 
         return mostRecentRating;
       }
+    },
+    async searchTMDB() {
+      if (!this.value) {
+        return;
+      }
+
+      const resp = await axios.get(`https://api.themoviedb.org/3/search/${this.movieOrTV}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
+
+      if (resp.data.results.length) {
+        this.newEntrySearch(resp.data.results);
+      } else {
+        this.showNoResultsMessage();
+      }
+    },
+    newEntrySearch (results) {
+      this.$store.commit('setNewEntrySearchResults', results)
+
+      this.$router.push(`/pick-media/${this.value}`);
+    },
+    showNoResultsMessage () {
+      this.noResults = true;
+
+      setTimeout(() => {
+        this.noResults = false;
+        this.clearValue();
+      }, 3000);
     },
     togglePopper () {
       const popper = this.$refs.popper;
