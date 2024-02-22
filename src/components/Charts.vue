@@ -1,20 +1,151 @@
 <template>
   <div class="charts">
-    <KeywordCloud
-      :results="results"
-      :countedKeywords="countedKeywords"
-      @updateSearchValue="updateSearchValue"
-    />
-    <LineChart v-if="results.length > 9" class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
-    <BarChart class="chart my-5" :chartData="allRatingsData" :options="allRatingsOptions"/>
-    <BarChart v-if="results.length < 10" class="chart my-5" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
-    <BarChart class="chart my-5" :chartData="yearsData" :options="yearsOptions"/>
-    <BarChart class="chart my-5" :chartData="highestRatingEachYearData" :options="highestRatingEachYearOptions"/>
-    <DoughnutChart class="chart my-5" :chartData="genreChartData" :options="genreChartOptions"/>
-    <ScatterChart class="chart my-5" :chartData="lengthVsRatingData" :options="lengthVsRatingOptions"/>
-    <DoughnutChart class="chart my-5" :chartData="companyChartData" :options="companyChartOptions"/>
-    <RadarChart v-if="results.length < 10" class="chart my-5" :chartData="radarRatingsData" :options="radarRatingsOptions"/>
-    <Streaks v-if="!currentLogIsTVLog" :resultsWithRatings="resultsWithRatings" :mostRecentRating="mostRecentRating"/>
+    <div class="accordion" id="accordionPanelsStayOpenExample">
+
+      <div class="accordion-item" >
+        <h2 class="accordion-header" id="panelsStayOpen-headingOne">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseOne" aria-expanded="true" aria-controls="panelsStayOpen-collapseOne">
+            Keyword Cloud
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingOne">
+          <div class="accordion-body" :class="darkOrLight">
+            <KeywordCloud :results="results" :countedKeywords="countedKeywords" @updateSearchValue="updateSearchValue"/>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="results.length > 9" class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingTwo">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseTwo" aria-expanded="true" aria-controls="panelsStayOpen-collapseTwo">
+            Ratings Distribution
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseTwo" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingTwo">
+          <div class="accordion-body" :class="darkOrLight">
+            <LineChart class="chart" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingThree">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseThree" aria-expanded="true" aria-controls="panelsStayOpen-collapseThree">
+            All Ratings Bar Chart
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseThree" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingThree">
+          <div class="accordion-body" :class="darkOrLight">
+            <BarChart class="chart" :chartData="allRatingsData" :options="allRatingsOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="results.length < 10" class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingFour">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseFour" aria-expanded="true" aria-controls="panelsStayOpen-collapseFour">
+            Years Heat Chart
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseFour" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingFour">
+          <div class="accordion-body" :class="darkOrLight">
+            <BarChart class="chart" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingFive">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseFive" aria-expanded="true" aria-controls="panelsStayOpen-collapseFive">
+            Keyword Cloud
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseFive" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingFive">
+          <div class="accordion-body" :class="darkOrLight">
+            <BarChart class="chart" :chartData="yearsData" :options="yearsOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingSix">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseSix" aria-expanded="true" aria-controls="panelsStayOpen-collapseSix">
+            Best Movie from Each Year
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseSix" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingSix">
+          <div class="accordion-body" :class="darkOrLight">
+            <BarChart class="chart" :chartData="highestRatingEachYearData" :options="highestRatingEachYearOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingSeven">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseSeven" aria-expanded="true" aria-controls="panelsStayOpen-collapseSeven">
+            Genre Donut Chart
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseSeven" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingSeven">
+          <div class="accordion-body" :class="darkOrLight">
+            <DoughnutChart class="chart" :chartData="genreChartData" :options="genreChartOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingEight">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseEight" aria-expanded="true" aria-controls="panelsStayOpen-collapseEight">
+            Runtime vs Rating Scatter Chart
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseEight" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingEight">
+          <div class="accordion-body" :class="darkOrLight">
+            <ScatterChart class="chart" :chartData="lengthVsRatingData" :options="lengthVsRatingOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingNine">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseNine" aria-expanded="true" aria-controls="panelsStayOpen-collapseNine">
+            Production Companies Donut Chart
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseNine" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingNine">
+          <div class="accordion-body" :class="darkOrLight">
+            <DoughnutChart class="chart" :chartData="companyChartData" :options="companyChartOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="results.length < 10" class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingTen">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseTen" aria-expanded="true" aria-controls="panelsStayOpen-collapseTen">
+            Radar Comparison
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseTen" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingTen">
+          <div class="accordion-body" :class="darkOrLight">
+            <RadarChart class="chart" :chartData="radarRatingsData" :options="radarRatingsOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="!currentLogIsTVLog" class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingEleven">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseEleven" aria-expanded="true" aria-controls="panelsStayOpen-collapseEleven">
+            Streaks
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseEleven" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingEleven">
+          <div class="accordion-body" :class="darkOrLight">
+            <Streaks :resultsWithRatings="resultsWithRatings" :mostRecentRating="mostRecentRating"/>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
 </template>
 
@@ -25,6 +156,7 @@ import mean from 'lodash/mean';
 import maxBy from 'lodash/maxBy';
 import sortBy from 'lodash/sortBy';
 import randomColor from 'randomcolor';
+import { useDark } from "@vueuse/core";
 import Streaks from "./Streaks.vue";
 import KeywordCloud from "./KeywordCloud.vue";
 
@@ -57,10 +189,14 @@ export default {
   },
   data () {
     return {
-      streakThreshold: 5
+      streakThreshold: 5,
+      useDark: useDark()
     }
   },
   computed: {
+    darkOrLight () {
+      return {'text-bg-dark': useDark, 'text-bg-light': !useDark};
+    },
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
@@ -606,5 +742,22 @@ export default {
 </script>
 
 <style lang="scss">
+.charts {
+  .accordion {
+    .accordion-button {
+      &:focus {
+        border: none;
+        box-shadow: none;
+      }
 
+      &.text-bg-dark::after {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='white' viewBox='0 0 16 16'%3e%3cpath d='M4.646 7.646a.5.5 0 0 1 .708 0L8 10.293l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+      }
+
+      &.text-bg-light::after {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='black' viewBox='0 0 16 16'%3e%3cpath d='M4.646 7.646a.5.5 0 0 1 .708 0L8 10.293l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+      }
+    }
+  }
+}
 </style>

@@ -150,9 +150,9 @@
               </div>
             </button>
           </div>
-          <div id="insights-accordion" ref="insightsAccordion" class="accordion-collapse collapse" aria-labelledby="insights">
+          <div id="insights-accordion" ref="insightsAccordion" class="accordion-collapse collapse col-12" aria-labelledby="insights">
             <div class="accordion-body col-12">
-              <div class="details">
+              <div class="details py-3">
                 <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
                   You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShowDisplay}}s.
                 </p>
