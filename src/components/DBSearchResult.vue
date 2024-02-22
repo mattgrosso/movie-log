@@ -13,7 +13,7 @@
         v-lazy="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
       >
     </div>
-    <div class="details px-4 col-7">
+    <div class="details px-3 col-7">
       <p class="title mb-1">
         <span v-if="currentLogIsTVLog" class="fs-4">
           {{result.tvShow.name}}
@@ -55,6 +55,7 @@
     </div>
     <div class="rating col-2 d-flex justify-content-center flex-wrap">
       <p class="col-12 m-0 fs-3 text-center">{{parseFloat(mostRecentRating(result).rating).toFixed(2)}}</p>
+      <p v-if="resultsAreFiltered" class="overall-rank m-0">({{getOrdinal(overAllRank)}})</p>
     </div>
 
     <div :id="`Info-${topStructure(result).id}`" class="full-info ps-3 hidden">
@@ -177,6 +178,11 @@ export default {
     index: {
       type: Number,
       required: true
+    },
+    resultsAreFiltered: {
+      type: Boolean,
+      required: false,
+      default: false
     }
   },
   data () {
@@ -190,6 +196,11 @@ export default {
   computed: {
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
+    },
+    overAllRank () {
+      return this.$store.getters.allMediaSortedByRating.findIndex((media) => {
+        return this.topStructure(media).id === this.topStructure(this.result).id;
+      }) + 1;
     }
   },
   methods: {
@@ -378,8 +389,8 @@ export default {
     }
 
     .rating {
-      .rank {
-        font-size: 0.65rem;
+      .overall-rank {
+        font-size: 0.5rem;
       }
     }
 

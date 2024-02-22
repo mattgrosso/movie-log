@@ -175,6 +175,7 @@
             :key="index"
             :result="result"
             :index="index"
+            :resultsAreFiltered="resultsAreFiltered"
             @updateSearchValue="updateSearchValue"
           />
         </ul>
@@ -185,7 +186,7 @@
         >
           More...
         </button>
-        <div v-else>
+        <div v-else-if="value">
           <div v-if="noResults" ref="noResults">
             <p>No results found in your Movie Log or on TMDB.</p>
             <p>I'm pretty sure that movie doesn't exist.</p>
@@ -659,6 +660,9 @@ export default {
 
       return counts;
     },
+    resultsAreFiltered () {
+      return Boolean(this.value || this.filterValue);
+    },
     placeholder () {
       if (this.searchType && this.filterValue) {
         return `Search within ${this.searchType}: ${this.filterValue}...`
@@ -911,7 +915,8 @@ export default {
         return result.movie;
       }
     },
-    titleCase (string) {
+    titleCase (input) {
+      const string = input.toString();
       return string.replace(
         /\w\S*/g,
         function (txt) {
