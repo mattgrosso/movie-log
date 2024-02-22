@@ -56,15 +56,15 @@
     <div class="rating col-2 d-flex justify-content-center flex-wrap">
       <p class="col-12 m-0 fs-3 text-center">{{parseFloat(mostRecentRating(result).rating).toFixed(2)}}</p>
     </div>
-    <div v-if="currentLogIsTVLog" @click.stop="rateTVShow(result.tvShow)" class="rerate-button">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-square-fill shadow-sm" viewBox="0 0 16 16">
-        <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
-      </svg>
-    </div>
 
     <div :id="`Info-${topStructure(result).id}`" class="full-info ps-3 hidden">
       <hr class="my-4">
-      <h3 class="mt-3 mb-2 fs-5">Full Rating</h3>
+      <div class="wrapper-for-new-rating-button d-flex justify-content-between align-items-center mt-3 mb-2 pe-3">
+        <h3 class="fs-5 m-0">Full Rating</h3>
+        <div @click.stop="rateMedia(topStructure(result))" class="rerate-button btn btn-sm btn-primary">
+          <span>Add Rating</span>
+        </div>
+      </div>
       <p class="rating-categories m-3">
         <span>Direction: {{mostRecentRating(result).direction}},&nbsp;</span>
         <span>Imagery: {{mostRecentRating(result).imagery}},&nbsp;</span>
@@ -342,15 +342,16 @@ export default {
     getOrdinal (number) {
       return ordinal.toOrdinal(number);
     },
-    rateTVShow (tvShow) {
-      this.$store.commit('setTVShowToRate', tvShow);
-
-      window.scroll({
-        top: top,
-        behavior: 'smooth'
-      })
-
-      this.$router.push('/rate-tv-show');
+    rateMedia (media) {
+      if (this.currentLogIsTVLog) {
+        this.$store.commit('setTVShowToRate', media);
+        window.scroll({top: top, behavior: 'smooth'});
+        this.$router.push('/rate-tv-show');
+      } else {
+        this.$store.commit('setMovieToRate', media);
+        window.scroll({top: top, behavior: 'smooth'});
+        this.$router.push('/rate-movie');
+      }
     },
     formattedDate (date) {
       return new Date(date).toLocaleDateString();
@@ -382,29 +383,9 @@ export default {
       }
     }
 
-    .rerate-button {
-      align-items: center;
-      display: flex;
-      height: 30px;
-      justify-content: center;
-      padding: 6px;
-      position: absolute;
-      right: 0;
-      top: 0;
-      width: 30px;
-
-      svg {
-        width: 18px;
-        height: 18px;
-
-        path {
-          fill: #316cf4;
-        }
-      }
-    }
-
     .full-info {
       overflow: hidden;
+      position: relative;
 
       &.hidden {
         max-height: 0;
@@ -414,6 +395,10 @@ export default {
       &.shown {
         max-height: 6000px;
         transition: max-height 0.5s ease-in-out;
+      }
+
+      .rerate-button {
+        font-size: 0.65rem;
       }
 
       .rating-categories {
