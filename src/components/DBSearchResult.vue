@@ -356,11 +356,11 @@ export default {
     rateMedia (media) {
       if (this.currentLogIsTVLog) {
         this.$store.commit('setTVShowToRate', media);
-        window.scroll({top: top, behavior: 'smooth'});
+        window.scroll({ top: top, behavior: 'smooth' });
         this.$router.push('/rate-tv-show');
       } else {
         this.$store.commit('setMovieToRate', media);
-        window.scroll({top: top, behavior: 'smooth'});
+        window.scroll({ top: top, behavior: 'smooth' });
         this.$router.push('/rate-movie');
       }
     },

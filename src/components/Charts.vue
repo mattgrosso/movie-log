@@ -195,7 +195,7 @@ export default {
   },
   computed: {
     darkOrLight () {
-      return {'text-bg-dark': useDark, 'text-bg-light': !useDark};
+      return { 'text-bg-dark': useDark, 'text-bg-light': !useDark };
     },
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";

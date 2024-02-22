@@ -70,7 +70,7 @@
         </div>
         <div id="quick-links-accordion" class="quick-links-list-wrapper col-12 mt-1 accordion-collapse collapse" ref="QuickLinksAccordion">
           <div class="accordion-body col-12">
-            <button 
+            <button
               class="quick-links-list-sort"
               :class="{'text-bg-dark': useDark, 'text-bg-light': !useDark}"
               @click="toggleQuickLinksSort"
@@ -825,7 +825,7 @@ export default {
         return mostRecentRating;
       }
     },
-    async searchTMDB() {
+    async searchTMDB () {
       if (!this.value) {
         return;
       }

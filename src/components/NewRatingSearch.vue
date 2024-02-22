@@ -82,7 +82,7 @@ export default {
     }
   },
   methods: {
-    searchTMDB: debounce(async function(quickPick) {
+    searchTMDB: debounce(async function (quickPick) {
       if (!this.value) {
         return;
       }
