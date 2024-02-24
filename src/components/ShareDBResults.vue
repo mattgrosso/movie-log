@@ -58,7 +58,7 @@
     <table
       v-if="!gridView"
       class="table table-hover table-striped"
-      :class="useDark ? 'table-dark' : 'table-light'"
+      :class="inDarkMode ? 'table-dark' : 'table-light'"
     >
       <thead>
         <tr>
@@ -89,14 +89,12 @@
 
 <script>
 import { getDatabase, ref, child, get } from "firebase/database";
-import { useDark } from "@vueuse/core";
 
 export default {
   data () {
     return {
       shareObject: {},
       numberOfResultsToShow: 50,
-      useDark: useDark(),
       gridView: true
     }
   },
@@ -117,6 +115,9 @@ export default {
     this.$store.commit("setShowHeader", true);
   },
   computed: {
+    inDarkMode () {
+      return document.querySelector("body").classList.contains('bg-dark');
+    },
     shareBannerUrl () {
       if (this.shareObject.results) {
         return `https://image.tmdb.org/t/p/original${this.shareObject.results[0].movie.backdrop_path}`;

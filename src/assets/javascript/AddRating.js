@@ -107,6 +107,22 @@ const findKeyForMovieInDatabase = (id) => {
   }
 }
 
+const getDirectorsFilmography = async (director) => {
+  const filmography = await axios.get(`https://api.themoviedb.org/3/person/${director.id}/movie_credits?api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
+  const directingCredits = filmography.data.crew.filter((credit) => credit.job === "Director");
+
+  const minimizedCredits = directingCredits.map((credit) => {
+    return {
+      id: credit.id,
+      popularity: credit.popularity,
+      release_date: credit.release_date,
+      title: credit.title
+    }
+  });
+
+  return minimizedCredits;
+}
+
 const createTVShowRatingFromEpisodeRatings = (ratings) => {
   if (!ratings.episodes || ratings.episodes.length === 0) {
     return {};
@@ -148,14 +164,25 @@ const addTVShowRating = async (ratings, tvShowTags) => {
   if (tmdbData) {
     crew = tmdbData.crew.map((person) => {
       return {
+        department: person.department,
+        id: person.id,
         job: person.job,
-        name: person.name
+        known_for_department: person.known_for_department,
+        name: person.name,
+        popularity: person.popularity,
+        filmography: person.job === "Director" ? getDirectorsFilmography(person) : null
       }
     })
 
     cast = tmdbData.cast.map((person) => {
       return {
-        name: person.name
+        character: person.character,
+        id: person.id,
+        known_for_department: person.known_for_department,
+        name: person.name,
+        order: person.order,
+        popularity: person.popularity,
+        filmography: person.job === "Director" ? getDirectorsFilmography(person) : null
       }
     })
   }

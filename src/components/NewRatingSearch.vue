@@ -13,7 +13,7 @@
       <p>Either you're from the future or maybe you just spelled it wrong.</p>
     </div>
     <div v-else class="d-flex justify-content-center my-5">
-      <div class="spinner-border" :class="useDark ? 'text-light' : 'text-dark'" role="status">
+      <div class="spinner-border" :class="inDarkMode ? 'text-light' : 'text-dark'" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
     </div>
@@ -30,7 +30,6 @@
 
 <script>
 import axios from 'axios';
-import { useDark } from "@vueuse/core";
 import debounce from 'lodash/debounce';
 import RatingChangeRibbon from './RatingChangeRibbon.vue';
 import PickMedia from './PickMedia.vue';
@@ -49,8 +48,7 @@ export default {
   data () {
     return {
       quickPickResults: null,
-      noResults: false,
-      useDark: useDark()
+      noResults: false
     }
   },
   mounted () {
@@ -64,6 +62,9 @@ export default {
     }
   },
   computed: {
+    inDarkMode () {
+      return document.querySelector("body").classList.contains('bg-dark');
+    },
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },

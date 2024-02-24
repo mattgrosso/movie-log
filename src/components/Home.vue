@@ -67,19 +67,26 @@
           >
             Cast/Crew Members
           </span>
+          <span
+            class="badge mx-1"
+            :class="searchType === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="toggleQuickLinksList('studios')"
+          >
+            Studios
+          </span>
         </div>
         <div id="quick-links-accordion" class="quick-links-list-wrapper col-12 mt-1 accordion-collapse collapse" ref="QuickLinksAccordion">
           <div class="accordion-body col-12">
             <button
               class="quick-links-list-sort"
-              :class="{'text-bg-dark': useDark, 'text-bg-light': !useDark}"
+              :class="darkOrLight"
               @click="toggleQuickLinksSort"
             >
               {{quickLinksSortType}}
             </button>
             <ul class="quick-link-list p-0 col-12">
               <li v-for="(value, index) in sortedDataListForSearchType" :key="index" @click="updateFilterValue(value.name)">
-                <span class="badge mx-1" :class="{'text-bg-dark': useDark, 'text-bg-light': !useDark}">
+                <span class="badge mx-1" :class="darkOrLight">
                   {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
                 </span>
               </li>
@@ -163,7 +170,7 @@
               <Charts
                 :results="filteredResults"
                 :sortOrder="sortOrder"
-                :countedKeywords="countedKeywords"
+                :allCounts="allCounts"
                 @updateSearchValue="updateSearchValue"
               />
             </div>
@@ -211,7 +218,6 @@
 <script>
 import axios from 'axios';
 import uniq from 'lodash/uniq';
-import { useDark } from "@vueuse/core";
 import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
@@ -224,7 +230,6 @@ export default {
   },
   data () {
     return {
-      popperInstance: null,
       sortOrder: "ascending",
       value: "",
       searchType: "title",
@@ -233,8 +238,7 @@ export default {
       quickLinksSortType: "a-z",
       numberOfResultsToShow: 50,
       sharing: false,
-      noResults: false,
-      useDark: useDark()
+      noResults: false
     }
   },
   watch: {
@@ -281,6 +285,11 @@ export default {
     this.$store.commit("setDBSortOrder", this.sortOrder);
   },
   computed: {
+    darkOrLight () {
+      const inDarkMode = document.querySelector("body").classList.contains('bg-dark');
+
+      return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
+    },
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
@@ -365,6 +374,9 @@ export default {
       } else if (this.searchType === "cast/crew") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         searchTypeFiltered = this.castCrewFilter;
+      } else if (this.searchType === "studios") {
+        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
+        searchTypeFiltered = this.studioFilter;
       } else {
         searchTypeFiltered = [];
       }
@@ -461,6 +473,11 @@ export default {
         return castCrewCombined.includes(this.filterValue.toLowerCase());
       })
     },
+    studioFilter () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        return this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.filterValue.toLowerCase());
+      })
+    },
     bestMovieFromEachYear () {
       const years = {};
 
@@ -511,6 +528,8 @@ export default {
         return this.allDirectors;
       } else if (this.searchType === "cast/crew") {
         return this.allCastCrew;
+      } else if (this.searchType === "studios") {
+        return this.allStudios;
       } else {
         return [];
       }
@@ -557,9 +576,14 @@ export default {
     },
     allDirectors () {
       return Object.keys(this.countDirectors).map((keyword) => {
+        let filmography = this.allEntriesWithFlatKeywordsAdded.find((entry) => {
+          return entry.movie.crew.find((person) => person.job === "Director" && person.name === keyword);
+        }).movie.crew.find((person) => person.name === keyword && person.filmography)?.filmography;
+
         return {
           name: this.titleCase(keyword),
-          count: this.countDirectors[keyword]
+          count: this.countDirectors[keyword],
+          filmography: filmography ? filmography.filter((film) => new Date(film.release_date) < new Date() && film.popularity > 8.65) : []
         }
       });
     },
@@ -570,6 +594,25 @@ export default {
           count: this.countCastCrew[keyword]
         }
       });
+    },
+    allStudios () {
+      return Object.keys(this.countStudios).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countStudios[keyword]
+        }
+      });
+    },
+    allCounts () {
+      return {
+        keywords: this.countedKeywords,
+        genres: this.countedGenres,
+        years: this.countedYears,
+        directors: this.countDirectors,
+        castCrew: this.countCastCrew,
+        studios: this.countStudios,
+        filmographies: this.allDirectors
+      }
     },
     countedKeywords () {
       const counts = {};
@@ -660,6 +703,23 @@ export default {
 
       return counts;
     },
+    countStudios () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const productionCompanies = this.topStructure(result).production_companies?.map(company => company.name) || [];
+
+        productionCompanies.forEach((company) => {
+          if (counts[company]) {
+            counts[company]++;
+          } else {
+            counts[company] = 1;
+          }
+        })
+      })
+
+      return counts;
+    },
     resultsAreFiltered () {
       return Boolean(this.value || this.filterValue);
     },
@@ -676,6 +736,21 @@ export default {
     }
   },
   methods: {
+    async getDirectorsFilmography (director) {
+      const filmography = await axios.get(`https://api.themoviedb.org/3/person/${director.id}/movie_credits?api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
+      const directingCredits = filmography.data.crew.filter((credit) => credit.job === "Director");
+
+      const minimizedCredits = directingCredits.map((credit) => {
+        return {
+          id: credit.id,
+          popularity: credit.popularity,
+          release_date: credit.release_date,
+          title: credit.title
+        }
+      });
+
+      return minimizedCredits;
+    },
     clearValueSearchTypeAndFilterValue () {
       this.value = "";
       this.searchType = "title";
@@ -850,27 +925,6 @@ export default {
         this.noResults = false;
         this.clearValueSearchTypeAndFilterValue();
       }, 3000);
-    },
-    togglePopper () {
-      const popper = this.$refs.popper;
-      if (popper.hasAttribute('data-show', '')) {
-        popper.removeAttribute('data-show', '')
-      } else {
-        popper.setAttribute('data-show', '');
-      }
-
-      this.popperInstance.update();
-    },
-    onClickAway (event) {
-      const popperWrapper = this.$refs.popperWrapper;
-      const popper = this.$refs.popper;
-
-      if (popperWrapper.contains(event.target)) {
-        return;
-      } else if (popper.hasAttribute('data-show', '')) {
-        popper.removeAttribute('data-show', '')
-        this.popperInstance.update();
-      }
     },
     addMoreResults () {
       this.numberOfResultsToShow = this.numberOfResultsToShow + 50;

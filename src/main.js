@@ -9,6 +9,7 @@ import { BrowserTracing } from "@sentry/tracing";
 import VueLazyLoad from 'vue3-lazyload';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
+import 'bootstrap-icons/font/bootstrap-icons.css';
 import Login from "./components/Login.vue";
 import Home from "./components/Home.vue";
 import Settings from "./components/Settings.vue";
