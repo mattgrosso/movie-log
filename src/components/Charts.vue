@@ -97,7 +97,7 @@
             Director Percentages
           </button>
         </h2>
-        <div id="panelsStayOpen-collapseDirectorPercentages" class="accordion-collapse collapse show" aria-labelledby="panelsStayOpen-headingDirectorPercentages">
+        <div id="panelsStayOpen-collapseDirectorPercentages" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingDirectorPercentages">
           <div class="accordion-body" :class="darkOrLight">
             <table class="table" :class="darkOrLight">
               <tbody>
