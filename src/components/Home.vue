@@ -576,7 +576,7 @@ export default {
     },
     allDirectors () {
       return Object.keys(this.countDirectors).map((keyword) => {
-        let filmography = this.allEntriesWithFlatKeywordsAdded.find((entry) => {
+        const filmography = this.allEntriesWithFlatKeywordsAdded.find((entry) => {
           return entry.movie.crew.find((person) => person.job === "Director" && person.name === keyword);
         }).movie.crew.find((person) => person.name === keyword && person.filmography)?.filmography;
 

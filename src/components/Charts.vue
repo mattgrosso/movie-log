@@ -863,7 +863,7 @@ export default {
           percentageOfFilmography: director.filmography.length ? (director.count / director.filmography.length * 100).toFixed(0) : 0
         }
       })
-      
+
       const filtered = mapped.filter((director) => director.totalFilms > 2);
 
       const sortedAndTruncated = filtered.sort((a, b) => b.percentageOfFilmography - a.percentageOfFilmography).slice(0, 10);
@@ -975,10 +975,10 @@ export default {
             list-style: none;
             margin: 0;
             padding: 0;
-    
+
             li {
               margin-bottom: 5px;
-    
+
               &.watched {
                 text-decoration: line-through;
               }
@@ -1028,7 +1028,6 @@ export default {
       }
     }
   }
-
 
 }
 </style>
