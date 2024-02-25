@@ -1157,9 +1157,11 @@ export default {
           }
         }
 
-        svg {
-          height: 14px;
-          width: 14px;
+        button {
+          svg {
+            height: 14px;
+            width: 14px;
+          }
         }
       }
 

@@ -17,6 +17,7 @@ import PickMedia from "./components/PickMedia.vue";
 import RateMovie from "./components/RateMovie.vue";
 import RateTVShow from "./components/RateTVShow.vue";
 import ShareDBResults from "./components/ShareDBResults.vue";
+import VueCalendarHeatmap from 'vue3-calendar-heatmap';
 
 const app = createApp(App);
 
@@ -51,6 +52,8 @@ const loggedIn = () => {
     return false;
   }
 }
+
+app.use(VueCalendarHeatmap);
 
 const routes = [
   {

@@ -127,6 +127,19 @@
         </div>
       </div>
 
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingCalendarHeatMap">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseCalendarHeatMap" aria-expanded="true" aria-controls="panelsStayOpen-collapseCalendarHeatMap">
+            Calendar Heat Map
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseCalendarHeatMap" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingCalendarHeatMap">
+          <div class="accordion-body" :class="darkOrLight">
+            <CalendarHeatMap :results="results"/>
+          </div>
+        </div>
+      </div>
+
       <div v-if="results.length > 9" class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingDistribution">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseDistribution" aria-expanded="true" aria-controls="panelsStayOpen-collapseDistribution">
@@ -283,6 +296,7 @@ import sortBy from 'lodash/sortBy';
 import randomColor from 'randomcolor';
 import Streaks from "./Streaks.vue";
 import KeywordCloud from "./KeywordCloud.vue";
+import CalendarHeatMap from "./CalendarHeatMap.vue";
 
 Chart.register(...registerables);
 
@@ -308,7 +322,8 @@ export default {
     ScatterChart,
     RadarChart,
     Streaks,
-    KeywordCloud
+    KeywordCloud,
+    CalendarHeatMap
   },
   data () {
     return {
@@ -1034,6 +1049,14 @@ export default {
             }
           }
         }
+      }
+    }
+
+    #panelsStayOpen-collapseCalendarHeatMap {
+      overflow: hidden;
+
+      .accordion-body {
+        width: 120%;
       }
     }
   }
