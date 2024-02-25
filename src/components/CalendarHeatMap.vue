@@ -13,26 +13,6 @@ export default {
       required: true
     }
   },
-  data () {
-    return {
-      data: {}
-    }
-  },
-  mounted () {
-    let data = {};
-
-    for (let result of this.results) {
-      for (let rating of result.ratings) {
-        if (data[rating.date]) {
-          data[rating.date]++;
-        } else {
-          data[rating.date] = 1;
-        }
-      }
-    }
-
-    this.data = data;
-  },
   computed: {
     darkOrLight () {
       return document.querySelector("body").classList.contains('bg-dark');
@@ -40,11 +20,26 @@ export default {
     textColor () {
       return this.darkOrLight ? "#fff" : "#000";
     },
+    datesWithCounts () {
+      const datesWithCounts = {};
+
+      for (const result of this.results) {
+        for (const rating of result.ratings) {
+          if (datesWithCounts[rating.date]) {
+            datesWithCounts[rating.date]++;
+          } else {
+            datesWithCounts[rating.date] = 1;
+          }
+        }
+      }
+
+      return datesWithCounts;
+    },
     values () {
-      const cleanDates = Object.keys(this.data).filter((date) => date && this.data[date] && date !== 'undefined').map((date) => {
+      const cleanDates = Object.keys(this.datesWithCounts).filter((date) => date && this.datesWithCounts[date] && date !== 'undefined').map((date) => {
         return {
           date: new Date(date),
-          count: this.data[date]
+          count: this.datesWithCounts[date]
         }
       });
 
