@@ -1,6 +1,6 @@
 <template>
   <div class="calendar-heat-map">
-    <calendar-heatmap v-if="values.length" :values="values" :end-date="new Date()" :round="5" tooltip-unit="movies" vertical :range-color="['#23a1f6', '#23a1f6', '#96da52', '#ffeb00', '#fb8c00', '#f43b28', '#a42121']"/>
+    <calendar-heatmap v-if="values.length" :values="values" :end-date="new Date()" :round="5" tooltip-unit="movies" vertical :range-color="['#23a1f600', '#23a1f600', '#23a1f6', '#96da52', '#ffeb00', '#fb8c00', '#f43b28']"/>
   </div>
 </template>
 
