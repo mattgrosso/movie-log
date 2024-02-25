@@ -193,6 +193,19 @@
       </div>
 
       <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingMediumDonut">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseMediumDonut" aria-expanded="true" aria-controls="panelsStayOpen-collapseMediumDonut">
+            Medium Donut Chart
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseMediumDonut" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingMediumDonut">
+          <div class="accordion-body" :class="darkOrLight">
+            <DoughnutChart class="chart" :chartData="mediumChartData" :options="mediumChartOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingGenreDonut">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseGenreDonut" aria-expanded="true" aria-controls="panelsStayOpen-collapseGenreDonut">
             Genre Donut Chart
@@ -496,6 +509,38 @@ export default {
           title: {
             display: true,
             text: "Genres",
+          },
+        },
+        scales: {
+          x: {
+            display: false
+          }
+        }
+      }
+    },
+    mediumChartData () {
+      const data = this.allCounts.mediums.map((count) => count.count);
+      const labels = this.allCounts.mediums.map((count) => count.name);
+
+      return {
+        labels: labels,
+        datasets: [
+          {
+            data: data,
+            backgroundColor: [randomColor(), randomColor(), randomColor(), randomColor(), randomColor()],
+          }
+        ]
+      }
+    },
+    mediumChartOptions () {
+      return {
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: "Mediums",
           },
         },
         scales: {

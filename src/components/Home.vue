@@ -74,6 +74,13 @@
           >
             Studios
           </span>
+          <span
+            class="badge mx-1"
+            :class="searchType === 'mediums' ? 'text-bg-success' : 'text-bg-secondary'"
+            @click="toggleQuickLinksList('mediums')"
+          >
+            Mediums
+          </span>
         </div>
         <div id="quick-links-accordion" class="quick-links-list-wrapper col-12 mt-1 accordion-collapse collapse" ref="QuickLinksAccordion">
           <div class="accordion-body col-12">
@@ -380,6 +387,9 @@ export default {
       } else if (this.searchType === "studios") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         searchTypeFiltered = this.studioFilter;
+      } else if (this.searchType === "mediums") {
+        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
+        searchTypeFiltered = this.mediumFilter;
       } else {
         searchTypeFiltered = [];
       }
@@ -481,6 +491,17 @@ export default {
         return this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.filterValue.toLowerCase());
       })
     },
+    mediumFilter () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        return media.ratings.some((rating) => {
+          if (!rating.medium) {
+            return false;
+          } else {
+            return rating.medium.toLowerCase().includes(this.filterValue.toLowerCase())
+          }
+        });
+      });
+    },
     bestMovieFromEachYear () {
       const years = {};
 
@@ -533,6 +554,8 @@ export default {
         return this.allCastCrew;
       } else if (this.searchType === "studios") {
         return this.allStudios;
+      } else if (this.searchType === "mediums") {
+        return this.allMediums;
       } else {
         return [];
       }
@@ -606,6 +629,28 @@ export default {
         }
       });
     },
+    allMediums () {
+      const mediums = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        result.ratings.forEach((rating) => {
+          if (!rating.medium) {
+            return;
+          } else if (mediums[rating.medium]) {
+            mediums[rating.medium]++;
+          } else {
+            mediums[rating.medium] = 1;
+          }
+        })
+      })
+
+      return Object.keys(mediums).map((medium) => {
+        return {
+          name: this.titleCase(medium),
+          count: mediums[medium]
+        }
+      });
+    },
     allCounts () {
       return {
         keywords: this.countedKeywords,
@@ -614,6 +659,7 @@ export default {
         directors: this.countDirectors,
         castCrew: this.countCastCrew,
         studios: this.countStudios,
+        mediums: this.allMediums,
         filmographies: this.allDirectors
       }
     },
@@ -717,6 +763,21 @@ export default {
             counts[company]++;
           } else {
             counts[company] = 1;
+          }
+        })
+      })
+
+      return counts;
+    },
+    countMediums () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        result.ratings.forEach((rating) => {
+          if (counts[rating.medium]) {
+            counts[rating.medium]++;
+          } else {
+            counts[rating.medium] = 1;
           }
         })
       })
