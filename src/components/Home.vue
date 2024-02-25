@@ -95,6 +95,7 @@
         </div>
       </div>
     </div>
+    <StickinessModal v-if="allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
     <div v-if="showResultsList" class="results">
       <div v-if="paginatedSortedResults.length" class="results-exist">
         <hr class="mt-3 mb-1">
@@ -221,12 +222,14 @@ import uniq from 'lodash/uniq';
 import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
+import StickinessModal from "./StickinessModal.vue";
 
 export default {
   components: {
     Charts,
     DBSearchResult,
-    NewRatingSearch
+    NewRatingSearch,
+    StickinessModal
   },
   data () {
     return {

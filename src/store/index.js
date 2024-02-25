@@ -80,6 +80,17 @@ export default createStore({
     movieLog: {},
     tvLog: {},
     settings: {},
+    weights: [ // These values should all add up to 10 except that "impression" gets divided by 2 first
+      { name: "love", weight: 2.785 },
+      { name: "overall", weight: 1.95 },
+      { name: "story", weight: 1.15 },
+      { name: "direction", weight: 0.915 },
+      { name: "impression", weight: 1.7 },
+      { name: "imagery", weight: 0.8 },
+      { name: "stickiness", weight: 0.8 },
+      { name: "performance", weight: 0.55 },
+      { name: "soundtrack", weight: 0.2 },
+    ],
     googleLogin: null,
     databaseTopKey: null,
     newEntrySearchResults: [],
@@ -126,6 +137,11 @@ export default createStore({
     },
     devMode (state) {
       return state.databaseTopKey === state.devModeTopKey;
+    },
+    weight (state) {
+      return (name) => {
+        return state.weights.find((weight) => weight.name === name).weight;
+      }
     }
   },
   mutations: {
@@ -252,17 +268,7 @@ export default createStore({
           tags: {
             "viewing-tags": { title: "default viewing tag" },
             "movie-tags": { title: "default movie tag" },
-          },
-          weights: [
-            { name: "direction", weight: 1.015 },
-            { name: "imagery", weight: 0.9 },
-            { name: "impression", weight: 1.9 },
-            { name: "love", weight: 2.985 },
-            { name: "overall", weight: 2.05 },
-            { name: "performance", weight: 0.65 },
-            { name: "soundtrack", weight: 0.2 },
-            { name: "story", weight: 1.25 }
-          ]
+          }
         }
       }
 

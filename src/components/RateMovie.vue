@@ -32,7 +32,7 @@
             <option value="4K">4K</option>
             <option value="DVD">DVD</option>
             <option value="Netflix">Netflix</option>
-            <option value="Netflix">Youtube</option>
+            <option value="Youtube">Youtube</option>
             <option value="Vudu">Vudu</option>
             <option value="HBO">HBO</option>
             <option value="Hulu">Hulu</option>
@@ -513,22 +513,23 @@ import addRating from "../assets/javascript/AddRating.js";
 export default {
   data () {
     return {
-      date: new Date().toISOString().substr(0, 10),
       direction: null,
-      id: null,
       imagery: null,
       impression: null,
-      loading: false,
       love: null,
-      medium: "",
-      newViewingTagTitle: null,
-      newMovieTagTitle: null,
       overall: null,
       performance: null,
       soundtrack: null,
+      stickiness: null, // This value will be added by the user later but I wanted to include it here so I don't forget it exists
       story: null,
-      selectedViewingTags: [],
+      date: new Date().toISOString().substr(0, 10),
+      id: null,
+      loading: false,
+      medium: "",
+      newMovieTagTitle: null,
+      newViewingTagTitle: null,
       selectedMovieTags: [],
+      selectedViewingTags: [],
       title: null,
       year: null
     }
@@ -557,12 +558,12 @@ export default {
     rating () {
       const direction = this.getRatingFor("direction") >= 0 ? this.getRatingFor("direction") : 5;
       const imagery = this.getRatingFor("imagery") >= 0 ? this.getRatingFor("imagery") : 5;
-      const story = this.getRatingFor("story") >= 0 ? this.getRatingFor("story") : 5;
-      const performance = this.getRatingFor("performance") >= 0 ? this.getRatingFor("performance") : 5;
-      const soundtrack = this.getRatingFor("soundtrack") >= 0 ? this.getRatingFor("soundtrack") : 5;
       const impression = this.getRatingFor("impression") >= 0 ? this.getRatingFor("impression") : 0;
       const love = this.getRatingFor("love") >= 0 ? this.getRatingFor("love") : 5;
       const overall = this.getRatingFor("overall") >= 0 ? this.getRatingFor("overall") : 5;
+      const performance = this.getRatingFor("performance") >= 0 ? this.getRatingFor("performance") : 5;
+      const soundtrack = this.getRatingFor("soundtrack") >= 0 ? this.getRatingFor("soundtrack") : 5;
+      const story = this.getRatingFor("story") >= 0 ? this.getRatingFor("story") : 5;
 
       const total = direction + imagery + story + performance + soundtrack + impression + love + overall;
 
@@ -661,11 +662,7 @@ export default {
       return 0;
     },
     getWeight (weightName) {
-      const weightObj = this.settings?.weights?.find((weight) => {
-        return weight.name === weightName;
-      });
-
-      return weightObj ? weightObj.weight : 0;
+      return this.$store.getters.weight(weightName);
     },
     getScore (scoreName) {
       const lowerCase = scoreName.toLowerCase();

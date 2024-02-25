@@ -612,7 +612,7 @@ export default {
       return 0;
     },
     getWeight (weightName) {
-      const weightObj = this.settings?.weights?.find((weight) => {
+      const weightObj = this.$store.state.weights?.find((weight) => {
         return weight.name === weightName;
       });
 

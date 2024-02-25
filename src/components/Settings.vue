@@ -64,48 +64,6 @@
           </div>
         </div>
       </div>
-      <div class="weights col-12 p-3 border-white border mt-3">
-        <table class="table text-light">
-          <thead>
-            <tr>
-              <th>Category</th>
-              <th>Weight</th>
-              <th>Share</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(weight, index) in weights" :key="index">
-              <td>{{weight.name}}</td>
-              <td class="d-flex align-items-center">
-                <span>
-                  {{weight.weight}}
-                </span>
-                <div class="input-group">
-                  <input type="text" class="form-control" :value="weight.weight" @keyup.enter="clickSave(index)">
-                  <button :ref="`save${index}`" class="btn btn-dark" type="button" @click="updateWeight($event, index, weight)">
-                    save
-                  </button>
-                </div>
-                <svg @click="toggleEdit($event)" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
-                  <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
-                </svg>
-              </td>
-              <td>
-                {{calculateShare(weight.weight)}}%
-              </td>
-            </tr>
-            <tr>
-              <td>Total</td>
-              <td>
-                <span>
-                  {{totalWeight}}
-                </span>
-              </td>
-              <td></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
       <div class="mt-3 p-3 border border-white">
         <label class="form-label" for="routeAfterRating">After rating where would you like to go?</label>
         <select class="form-select" name="routeAfterRating" id="routeAfterRating" v-model="routeAfterRating">
@@ -184,41 +142,9 @@ export default {
       }
 
       return this.settings.tags["movie-tags"];
-    },
-    weights () {
-      if (!this.settings) {
-        return [];
-      }
-
-      return this.settings.weights;
-    },
-    totalWeight () {
-      if (!this.settings?.weights) {
-        return 0;
-      }
-
-      const weights = this.settings.weights.map((weight) => {
-        if (weight.name === "impression") {
-          return weight.weight / 2;
-        } else {
-          return weight.weight;
-        }
-      });
-
-      let totalWeight = 0;
-
-      weights.forEach((weight) => {
-        totalWeight = totalWeight + weight;
-      })
-
-      return totalWeight.toPrecision(4);
     }
   },
   methods: {
-    calculateShare (weight) {
-      const share = (weight / this.totalWeight) * 100;
-      return share.toPrecision(4);
-    },
     async setRouteAfterRating (value) {
       if (this.databaseTopKey) {
         const dbEntry = {
@@ -292,34 +218,6 @@ export default {
       }
 
       this.$store.dispatch('setDBValue', dbEntry);
-    },
-    toggleEdit (event) {
-      this.calculateShare();
-      this.$el.querySelectorAll('td.editing').forEach((el) => el.classList.remove("editing"));
-
-      event.target.parentElement.classList.add('editing');
-    },
-    clickSave (index) {
-      this.$refs[`save${index}`][0].click();
-    },
-    async updateWeight (event, index, weight) {
-      const value = event.target.previousElementSibling.value;
-      const payload = {
-        index: index,
-        weight: {
-          ...weight,
-          weight: parseFloat(value)
-        }
-      };
-
-      const dbEntry = {
-        path: `settings/weights/${payload.index}`,
-        value: payload.weight
-      }
-
-      this.$store.dispatch('setDBValue', dbEntry);
-
-      this.$el.querySelectorAll('td.editing').forEach((el) => el.classList.remove("editing"));
     },
     async devModeSwitched (devMode) {
       if (!this.$route.meta.requiresLogin) {
@@ -404,47 +302,6 @@ export default {
               }
             }
           }
-        }
-      }
-    }
-
-    .weights {
-      th {
-        font-size: 1.25rem;
-      }
-
-      td {
-        font-size: 0.85rem;
-
-        &.editing {
-          span {
-            display: none;
-          }
-
-          .input-group {
-            display: flex;
-            width: 75%;
-
-            input {
-              font-size: 0.85rem;
-              padding: 0 12px;
-            }
-
-            button {
-              font-size: 0.85rem;
-              padding: 0 6px;
-            }
-          }
-        }
-
-        .input-group {
-          display: none;
-        }
-
-        svg {
-          height: 0.6rem;
-          margin-left: 8px;
-          width: 0.6rem;
         }
       }
     }
