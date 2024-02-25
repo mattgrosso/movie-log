@@ -120,6 +120,9 @@
                 </tr>
               </tbody>
             </table>
+            <div class="more-directors-button d-flex justify-content-end">
+              <button class="btn btn-secondary btn-sm" @click="numberOfDirectors += 10">More...</button>
+            </div>
           </div>
         </div>
       </div>
@@ -314,7 +317,8 @@ export default {
         directorPercentage7: false,
         directorPercentage8: false,
         directorPercentage9: false
-      }
+      },
+      numberOfDirectors: 10
     }
   },
   computed: {
@@ -866,7 +870,7 @@ export default {
 
       const filtered = mapped.filter((director) => director.totalFilms > 2);
 
-      const sortedAndTruncated = filtered.sort((a, b) => b.percentageOfFilmography - a.percentageOfFilmography).slice(0, 10);
+      const sortedAndTruncated = filtered.sort((a, b) => b.percentageOfFilmography - a.percentageOfFilmography).slice(0, this.numberOfDirectors);
 
       return sortedAndTruncated;
     }
