@@ -1,7 +1,7 @@
 <template>
   <div v-if="resultsThatNeedStickiness.length" class="stickiness">
     <div class="stickiness-notice alert alert-info" role="alert">
-      You have {{ resultsThatNeedStickiness.length }} movies without stickiness ratings. 
+      You have {{ resultsThatNeedStickiness.length }} movies without stickiness ratings.
       <a class="alert-link" data-bs-toggle="modal" data-bs-target="#stickinessModal">Click to add stickiness.</a>
     </div>
     <div class="modal fade" id="stickinessModal" tabindex="-1" aria-labelledby="stickinessModalLabel" aria-hidden="true">
@@ -54,7 +54,7 @@ export default {
       required: true
     }
   },
-  data() {
+  data () {
     return {
       stickinessRating: ""
     };
@@ -80,7 +80,7 @@ export default {
         return dateB - dateA;
       });
     },
-    firstResult() {
+    firstResult () {
       return this.resultsThatNeedStickiness[0];
     },
     rating () {
@@ -123,7 +123,7 @@ export default {
     }
   },
   methods: {
-    addStickinessRating() {
+    addStickinessRating () {
       const movieWithRating = {
         ...this.firstResult,
         ratings: {
@@ -135,7 +135,7 @@ export default {
           }
         }
       };
-      
+
       const dbEntry = {
         path: `movieLog/${this.firstResult.dbKey}`,
         value: movieWithRating
