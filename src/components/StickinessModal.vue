@@ -1,5 +1,5 @@
 <template>
-  <div v-if="resultsThatNeedStickiness.length" class="stickiness">
+  <div v-if="hasResultsToRate" class="stickiness">
     <div class="stickiness-notice alert alert-info" role="alert">
       You have {{ resultsThatNeedStickiness.length }} movies without stickiness ratings.
       <a class="alert-link" data-bs-toggle="modal" data-bs-target="#stickinessModal">Click to add stickiness.</a>
@@ -54,12 +54,25 @@ export default {
       required: true
     }
   },
+  watch: {
+    hasResultsToRate (newVal) {
+      if (!newVal) {
+        document.querySelector("#stickinessModal").classList.remove("show");
+        document.querySelector(".modal-backdrop").remove();
+        document.querySelector("body").classList.remove("modal-open");
+        document.querySelector("body").style = "";
+      }
+    }
+  },
   data () {
     return {
       stickinessRating: ""
     };
   },
   computed: {
+    hasResultsToRate () {
+      return this.resultsThatNeedStickiness.length > 0;
+    },
     darkOrLight () {
       const inDarkMode = document.querySelector("body").classList.contains('bg-dark');
 
