@@ -91,6 +91,16 @@ export default createStore({
       { name: "performance", weight: 0.55 },
       { name: "soundtrack", weight: 0.2 },
     ],
+    preStickinessWeights: [ // These values should all add up to 10 except that "impression" gets divided by 2 first
+      { name: "love", weight: 2.885 },
+      { name: "overall", weight: 2.05 },
+      { name: "story", weight: 1.25 },
+      { name: "direction", weight: 1.015 },
+      { name: "impression", weight: 1.9 },
+      { name: "imagery", weight: 0.9 },
+      { name: "performance", weight: 0.65 },
+      { name: "soundtrack", weight: 0.3 },
+    ],
     googleLogin: null,
     databaseTopKey: null,
     newEntrySearchResults: [],
@@ -142,7 +152,12 @@ export default createStore({
       return (name) => {
         return state.weights.find((weight) => weight.name === name).weight;
       }
-    }
+    },
+    preStickinessWeight (state) {
+      return (name) => {
+        return state.preStickinessWeights.find((weight) => weight.name === name).weight;
+      }
+    },
   },
   mutations: {
     setCurrentLog (state, value) {

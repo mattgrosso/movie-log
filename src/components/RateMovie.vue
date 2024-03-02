@@ -662,7 +662,7 @@ export default {
       return 0;
     },
     getWeight (weightName) {
-      return this.$store.getters.weight(weightName);
+      return this.$store.getters.preStickinessWeight(weightName);
     },
     getScore (scoreName) {
       const lowerCase = scoreName.toLowerCase();
