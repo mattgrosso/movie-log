@@ -46,7 +46,6 @@
 </template>
 
 <script>
-import { get } from "firebase/database";
 import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
@@ -112,7 +111,7 @@ export default {
       }
 
       tempResult.ratings[this.mostRecentRatingIndex].stickiness = parseFloat(this.stickinessRating);
-      
+
       return getRating(tempResult).calculatedTotal;
     },
     mostRecentRatingIndex () {

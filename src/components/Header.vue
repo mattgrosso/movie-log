@@ -21,7 +21,6 @@
 </template>
 
 <script>
-import { get } from "firebase/database";
 import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {

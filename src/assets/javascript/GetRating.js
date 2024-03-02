@@ -57,7 +57,7 @@ export const getRating = (dbEntry) => {
   }
 
   const mostRecent = mostRecentRating(dbEntry);
-  
+
   if (mostRecent.stickiness) {
     return calculatePostStickyRatingFor(mostRecent);
   } else {
