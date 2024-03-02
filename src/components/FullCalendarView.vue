@@ -38,7 +38,7 @@ export default {
           center: '',
           right: 'prev,next'
         },
-        dayHeaderFormat: { weekday: 'short'},
+        dayHeaderFormat: { weekday: 'short' },
         height: 'auto',
         eventContent: (args) => {
           return args.event.title;
@@ -67,9 +67,9 @@ export default {
       return eventObjects;
     },
     datesWithCounts () {
-      let dateCounts = {};
+      const dateCounts = {};
       this.values.forEach(value => {
-        let date = new Date(value.end).toLocaleDateString();
+        const date = new Date(value.end).toLocaleDateString();
         if (date in dateCounts) {
           dateCounts[date]++;
         } else {
@@ -182,7 +182,7 @@ export default {
               text-decoration: none;
             }
           }
-  
+
           .fc-daygrid-day-events {
             .fc-event {
               color: black;
