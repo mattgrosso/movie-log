@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set } from "firebase/database";
 import { decodeCredential } from 'vue3-google-login'
 import * as Sentry from "@sentry/vue";
+import { getRating } from "../assets/javascript/GetRating";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -19,26 +20,13 @@ const mostRecentRating = (media) => {
   if (media.ratings.tvShow) {
     return media.ratings.tvShow;
   } else {
-    let mostRecentRating = media.ratings[0];
-
-    media.ratings.forEach((rating) => {
-      const ratingDate = rating.date ? new Date(rating.date).getTime() : 0;
-      const mostRecentRatingDate = mostRecentRating.date ? new Date(mostRecentRating.date).getTime() : 0;
-
-      if (!mostRecentRating.date) {
-        mostRecentRating = rating;
-      } else if (ratingDate && ratingDate > mostRecentRatingDate) {
-        mostRecentRating = rating;
-      }
-    })
-
-    return mostRecentRating;
+    return getRating(media);
   }
 }
 
 const sortByRating = (a, b) => {
-  const sortValueA = mostRecentRating(a).rating;
-  const sortValueB = mostRecentRating(b).rating;
+  const sortValueA = mostRecentRating(a).calculatedTotal;
+  const sortValueB = mostRecentRating(b).calculatedTotal;
 
   if (sortValueA < sortValueB) {
     return 1;

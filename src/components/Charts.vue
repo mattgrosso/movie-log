@@ -291,7 +291,7 @@
         </h2>
         <div id="panelsStayOpen-collapseStreaks" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingStreaks">
           <div class="accordion-body" :class="darkOrLight">
-            <Streaks :resultsWithRatings="resultsWithRatings" :mostRecentRating="mostRecentRating"/>
+            <Streaks :resultsWithRatings="resultsWithRatings"/>
           </div>
         </div>
       </div>
@@ -301,6 +301,7 @@
 </template>
 
 <script>
+import { getRating } from "../assets/javascript/GetRating.js";
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
 import { Chart, registerables } from "chart.js";
 import mean from 'lodash/mean';
@@ -375,12 +376,12 @@ export default {
       return this.$store.state.currentLog === "tvLog";
     },
     resultsWithRatings () {
-      return this.results.filter((result) => this.mostRecentRating(result).rating);
+      return this.results.filter((result) => getRating(result).calculatedTotal);
     },
     allRatingsData () {
-      const resultsByRating = sortBy(this.resultsWithRatings, (result) => this.mostRecentRating(result).rating);
-      const labels = resultsByRating.map((result) => this.getMediaTitle(result));
-      const data = resultsByRating.map((result) => parseFloat(this.mostRecentRating(result).rating));
+      const resultsByRating = sortBy(this.resultsWithRatings, (result) => getRating(result).calculatedTotal);
+      const labels = resultsByRating.map((result) => this.getMediaTitle(result).calculatedTotal);
+      const data = resultsByRating.map((result) => parseFloat(getRating(result).calculatedTotal));
 
       return {
         labels: labels,
@@ -412,7 +413,7 @@ export default {
     },
     ratingsCountData () {
       const rounded = this.resultsWithRatings.map((result) => {
-        const rounded = Math.round((parseFloat(this.mostRecentRating(result).rating)) * 2) / 2;
+        const rounded = Math.round((parseFloat(getRating(result).calculatedTotal)) * 2) / 2;
         if (isNaN(rounded)) {
           return 0;
         } else {
@@ -595,7 +596,7 @@ export default {
 
         return {
           x: runtime,
-          y: this.mostRecentRating(result).rating
+          y: getRating(result).calculatedTotal
         }
       }).filter((result) => result.x && result.y);
 
@@ -709,7 +710,7 @@ export default {
     },
     radarRatingsData () {
       const data = this.resultsWithRatings.map((result) => {
-        const rating = this.mostRecentRating(result);
+        const rating = getRating(result).calculatedTotal;
         const color = randomColor({
           format: 'rgba',
           alpha: 0.5
@@ -773,7 +774,7 @@ export default {
       const yearsAndRatings = this.resultsWithRatings.map((result) => {
         return {
           year: this.getYear(result),
-          rating: this.mostRecentRating(result).rating
+          rating: getRating(result).calculatedTotal
         }
       });
 
@@ -828,7 +829,7 @@ export default {
       const yearsAndRatings = this.resultsWithRatings.map((result) => {
         return {
           year: this.getYear(result),
-          rating: this.mostRecentRating(result).rating,
+          rating: getRating(result).calculatedTotal,
           title: this.getMediaTitle(result)
         }
       });
@@ -975,23 +976,6 @@ export default {
       }
 
       return new Date(date).getFullYear();
-    },
-    mostRecentRating (media) {
-      if (this.currentLogIsTVLog) {
-        return media.ratings.tvShow;
-      } else {
-        let mostRecentRating = media.ratings[0];
-
-        media.ratings.forEach((rating) => {
-          if (!mostRecentRating.date) {
-            mostRecentRating = rating;
-          } else if (rating.date && rating.date > mostRecentRating.date) {
-            mostRecentRating = rating;
-          }
-        })
-
-        return mostRecentRating;
-      }
     },
     percentToColor (percent) {
       let r = 0;

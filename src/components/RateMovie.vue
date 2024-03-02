@@ -413,7 +413,7 @@
       <hr>
 
       <p class="rating col-12 my-3 d-flex justify-content-center align-items-center" id="rating">
-        Rating: {{rating}}
+        Rating: {{rating.calculatedTotal}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
         #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked) + 1}}/{{numberOfMoviesAfterRating}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
@@ -458,10 +458,10 @@
 
     <hr>
 
-    <div v-if="previousEntry?.ratings" class="previous-ratings my-3 mb-5 px-4 pt-3 pb-5">
+    <div v-if="getAllRatings(previousEntry)" class="previous-ratings my-3 mb-5 px-4 pt-3 pb-5">
       <label class="fs-4">Previous Viewings</label>
       <div class="accordion" id="previous-ratings-accordion">
-        <div class="accordion-item" v-for="(rating, index) in previousEntry.ratings" :key="index">
+        <div class="accordion-item" v-for="(rating, index) in getAllRatings(previousEntry)" :key="index">
           <h2 class="accordion-header" :id="`heading-${index}`">
             <button class="accordion-button px-5" type="button" data-bs-toggle="collapse" :data-bs-target="`#collapse-${index}`" aria-expanded="false" :aria-controls="`collapse-${index}`">
               <div class="col-12 d-flex">
@@ -469,7 +469,7 @@
                   <span v-if="rating.date">{{rating.date}}</span>
                   <span v-else>-</span>
                 </p>
-                <p class="col-5 m-0 text-center border-start">{{rating.rating}}</p>
+                <p class="col-5 m-0 text-center border-start">{{rating.calculatedTotal}}</p>
               </div>
             </button>
           </h2>
@@ -509,6 +509,7 @@
 
 <script>
 import addRating from "../assets/javascript/AddRating.js";
+import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 
 export default {
   data () {
@@ -531,7 +532,8 @@ export default {
       selectedMovieTags: [],
       selectedViewingTags: [],
       title: null,
-      year: null
+      year: null,
+      getAllRatings: getAllRatings,
     }
   },
   mounted () {
@@ -556,18 +558,22 @@ export default {
       return this.$store.state.settings;
     },
     rating () {
-      const direction = this.getRatingFor("direction") >= 0 ? this.getRatingFor("direction") : 5;
-      const imagery = this.getRatingFor("imagery") >= 0 ? this.getRatingFor("imagery") : 5;
-      const impression = this.getRatingFor("impression") >= 0 ? this.getRatingFor("impression") : 0;
-      const love = this.getRatingFor("love") >= 0 ? this.getRatingFor("love") : 5;
-      const overall = this.getRatingFor("overall") >= 0 ? this.getRatingFor("overall") : 5;
-      const performance = this.getRatingFor("performance") >= 0 ? this.getRatingFor("performance") : 5;
-      const soundtrack = this.getRatingFor("soundtrack") >= 0 ? this.getRatingFor("soundtrack") : 5;
-      const story = this.getRatingFor("story") >= 0 ? this.getRatingFor("story") : 5;
-
-      const total = direction + imagery + story + performance + soundtrack + impression + love + overall;
-
-      return parseFloat(total / 10).toFixed(2);
+      const ratingOnPage = {
+        ratings: [
+          {
+            direction: this.direction ? parseFloat(this.direction) : 5,
+            imagery: this.imagery ? parseFloat(this.imagery) : 5,
+            impression: this.impression ? parseFloat(this.impression) : 0,
+            love: this.love ? parseFloat(this.love) : 5,
+            overall: this.overall ? parseFloat(this.overall) : 5,
+            performance: this.performance ? parseFloat(this.performance) : 5,
+            soundtrack: this.soundtrack ? parseFloat(this.soundtrack) : 5,
+            story: this.story ? parseFloat(this.story) : 5,
+            date: this.date
+          }
+        ]
+      }
+      return getRating(ratingOnPage);
     },
     movieAsRatedOnPage () {
       return {
@@ -649,8 +655,8 @@ export default {
       return mostRecentRating;
     },
     sortByRating (a, b) {
-      const aRating = this.mostRecentRating(a).rating;
-      const bRating = this.mostRecentRating(b).rating;
+      const aRating = this.mostRecentRating(a).calculatedTotal;
+      const bRating = this.mostRecentRating(b).calculatedTotal;
 
       if (aRating < bRating) {
         return 1;
@@ -660,22 +666,6 @@ export default {
       }
 
       return 0;
-    },
-    getWeight (weightName) {
-      return this.$store.getters.preStickinessWeight(weightName);
-    },
-    getScore (scoreName) {
-      const lowerCase = scoreName.toLowerCase();
-      const property = this[lowerCase];
-
-      return parseFloat(property);
-    },
-    getRatingFor (category) {
-      if (!category || !this.getWeight(category) || !this.getScore(category)) {
-        return;
-      }
-
-      return this.getWeight(category) * this.getScore(category);
     },
     indexIfSortedIntoArray (movie, array) {
       const arr = [...array];

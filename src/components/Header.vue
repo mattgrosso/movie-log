@@ -21,6 +21,9 @@
 </template>
 
 <script>
+import { get } from "firebase/database";
+import { getRating } from "../assets/javascript/GetRating.js";
+
 export default {
   data () {
     return {
@@ -73,22 +76,12 @@ export default {
       if (this.currentLogIsTVLog) {
         return media.ratings.tvShow;
       } else {
-        let mostRecentRating = media.ratings[0];
-
-        media.ratings.forEach((rating) => {
-          if (rating.date && rating.date > mostRecentRating.date) {
-            mostRecentRating = rating;
-          } else if (!mostRecentRating.date) {
-            mostRecentRating = rating;
-          }
-        })
-
-        return mostRecentRating;
+        return getRating(media);
       }
     },
     sortByRating (a, b) {
-      const aRating = this.mostRecentRating(a).rating;
-      const bRating = this.mostRecentRating(b).rating;
+      const aRating = this.mostRecentRating(a).calculatedTotal;
+      const bRating = this.mostRecentRating(b).calculatedTotal;
 
       if (aRating < bRating) {
         return 1;

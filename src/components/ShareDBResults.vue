@@ -50,7 +50,7 @@
               <path d="m8 0 1.669.864 1.858.282.842 1.68 1.337 1.32L13.4 6l.306 1.854-1.337 1.32-.842 1.68-1.858.282L8 12l-1.669-.864-1.858-.282-.842-1.68-1.337-1.32L2.6 6l-.306-1.854 1.337-1.32.842-1.68L6.331.864 8 0z"/>
               <path d="M4 11.794V16l4-1 4 1v-4.206l-2.018.306L8 13.126 6.018 12.1 4 11.794z"/>
             </svg>
-            <p class="poster-grid-item-rating">{{Math.round(parseFloat(mostRecentRating(result).rating))}}</p>
+            <p class="poster-grid-item-rating">{{Math.round(parseFloat(mostRecentRating(result).calculatedTotal))}}</p>
           </div>
         </a>
       </div>
@@ -73,7 +73,7 @@
           <th class="col-1" scope="row">{{index + 1}}</th>
           <td class="col-4">{{result.movie.title}}</td>
           <td class="col-4">{{result.movie.release_date}}</td>
-          <td class="col-2">{{parseFloat(mostRecentRating(result).rating).toFixed(2)}}</td>
+          <td class="col-2">{{parseFloat(mostRecentRating(result).calculatedTotal).toFixed(2)}}</td>
         </tr>
       </tbody>
     </table>
@@ -88,6 +88,7 @@
 </template>
 
 <script>
+import { getRating } from "@/assets/javascript/GetRating";
 import { getDatabase, ref, child, get } from "firebase/database";
 
 export default {
@@ -130,7 +131,7 @@ export default {
         return [];
       }
 
-      const filteredResults = this.shareObject.results.filter((result) => result.ratings[0]?.rating);
+      const filteredResults = this.shareObject.results.filter((result) => getRating(result));
 
       return filteredResults.slice(0, this.numberOfResultsToShow);
     },
@@ -144,17 +145,7 @@ export default {
   },
   methods: {
     mostRecentRating (movie) {
-      let mostRecentRating = movie.ratings[0];
-
-      movie.ratings.forEach((rating) => {
-        if (!mostRecentRating.date) {
-          mostRecentRating = rating;
-        } else if (rating.date && rating.date > mostRecentRating.date) {
-          mostRecentRating = rating;
-        }
-      })
-
-      return mostRecentRating;
+      return getRating(movie);
     },
     addMoreResults () {
       this.numberOfResultsToShow = this.numberOfResultsToShow + 50;

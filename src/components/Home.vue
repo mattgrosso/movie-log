@@ -230,6 +230,7 @@ import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
 import StickinessModal from "./StickinessModal.vue";
+import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
   components: {
@@ -516,7 +517,7 @@ export default {
 
         if (!years[year]) {
           years[year] = result;
-        } else if (this.mostRecentRating(result).rating > this.mostRecentRating(years[year]).rating) {
+        } else if (this.mostRecentRating(result).calculatedTotal > this.mostRecentRating(years[year]).calculatedTotal) {
           years[year] = result;
         }
       })
@@ -882,8 +883,8 @@ export default {
       let sortValueB;
 
       if (!this.sortValue || this.sortValue === "rating") {
-        sortValueA = this.mostRecentRating(a).rating;
-        sortValueB = this.mostRecentRating(b).rating;
+        sortValueA = this.mostRecentRating(a).calculatedTotal;
+        sortValueB = this.mostRecentRating(b).calculatedTotal;
       } else if (this.sortValue === "release") {
         if (this.currentLogIsTVLog) {
           sortValueA = new Date(a.tvShow.first_air_date);
@@ -929,8 +930,8 @@ export default {
       return 0;
     },
     averageRating (results) {
-      const ratedMovies = results.filter((result) => this.mostRecentRating(result).rating);
-      const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).rating));
+      const ratedMovies = results.filter((result) => this.mostRecentRating(result).calculatedTotal);
+      const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
       const total = ratings.reduce((a, b) => a + b, 0);
       return (total / ratings.length).toFixed(2);
     },
@@ -948,20 +949,7 @@ export default {
       if (this.currentLogIsTVLog) {
         return media.ratings.tvShow;
       } else {
-        let mostRecentRating = media.ratings[0];
-
-        media.ratings.forEach((rating) => {
-          const ratingDate = rating.date ? new Date(rating.date).getTime() : 0;
-          const mostRecentRatingDate = mostRecentRating.date ? new Date(mostRecentRating.date).getTime() : 0;
-
-          if (!mostRecentRating.date) {
-            mostRecentRating = rating;
-          } else if (ratingDate && ratingDate > mostRecentRatingDate) {
-            mostRecentRating = rating;
-          }
-        })
-
-        return mostRecentRating;
+        return getRating(media);
       }
     },
     async searchTMDB () {

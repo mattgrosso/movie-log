@@ -46,6 +46,9 @@
 </template>
 
 <script>
+import { get } from "firebase/database";
+import { getRating } from "../assets/javascript/GetRating.js";
+
 export default {
   name: "StickinessModal",
   props: {
@@ -98,22 +101,19 @@ export default {
     },
     rating () {
       if (!this.stickinessRating) {
-        return this.firstResult.ratings[this.mostRecentRatingIndex].rating;
+        return getRating(this.firstResult).calculatedTotal;
       }
 
-      const direction = parseFloat(this.firstResult.ratings[this.mostRecentRatingIndex].direction) * this.$store.getters.weight('direction');
-      const imagery = parseFloat(this.firstResult.ratings[this.mostRecentRatingIndex].imagery) * this.$store.getters.weight('imagery');
-      const impression = parseFloat(this.firstResult.ratings[this.mostRecentRatingIndex].impression) * this.$store.getters.weight('impression');
-      const love = parseFloat(this.firstResult.ratings[this.mostRecentRatingIndex].love) * this.$store.getters.weight('love');
-      const overall = parseFloat(this.firstResult.ratings[this.mostRecentRatingIndex].overall) * this.$store.getters.weight('overall');
-      const performance = parseFloat(this.firstResult.ratings[this.mostRecentRatingIndex].performance) * this.$store.getters.weight('performance');
-      const soundtrack = parseFloat(this.firstResult.ratings[this.mostRecentRatingIndex].soundtrack) * this.$store.getters.weight('soundtrack');
-      const story = parseFloat(this.firstResult.ratings[this.mostRecentRatingIndex].story) * this.$store.getters.weight('story');
-      const stickiness = parseFloat(this.stickinessRating) * this.$store.getters.weight('stickiness');
+      const tempResult = {
+        ...this.firstResult,
+        ratings: [
+          ...this.firstResult.ratings
+        ]
+      }
 
-      const total = direction + imagery + story + performance + soundtrack + impression + love + overall + stickiness;
-
-      return parseFloat(total / 10).toFixed(2);
+      tempResult.ratings[this.mostRecentRatingIndex].stickiness = parseFloat(this.stickinessRating);
+      
+      return getRating(tempResult).calculatedTotal;
     },
     mostRecentRatingIndex () {
       let mostRecentRating = this.firstResult.ratings[0];
@@ -144,7 +144,7 @@ export default {
           [this.mostRecentRatingIndex]: {
             ...this.firstResult.ratings[this.mostRecentRatingIndex],
             rating: this.rating,
-            stickiness: this.stickinessRating,
+            stickiness: parseFloat(this.stickinessRating),
           }
         }
       };
@@ -158,20 +158,7 @@ export default {
       this.stickinessRating = "";
     },
     mostRecentRating (media) {
-      let mostRecentRating = media.ratings[0];
-
-      media.ratings.forEach((rating) => {
-        const ratingDate = rating.date ? new Date(rating.date).getTime() : 0;
-        const mostRecentRatingDate = mostRecentRating.date ? new Date(mostRecentRating.date).getTime() : 0;
-
-        if (!mostRecentRating.date) {
-          mostRecentRating = rating;
-        } else if (ratingDate && ratingDate > mostRecentRatingDate) {
-          mostRecentRating = rating;
-        }
-      })
-
-      return mostRecentRating;
+      return getRating(media);
     }
   },
 };

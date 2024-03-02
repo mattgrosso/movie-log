@@ -26,6 +26,7 @@
 </template>
 
 <script>
+import { getRating } from "../assets/javascript/GetRating.js";
 import maxBy from 'lodash/maxBy';
 import sortBy from 'lodash/sortBy';
 
@@ -33,10 +34,6 @@ export default {
   props: {
     resultsWithRatings: {
       type: Array,
-      required: true
-    },
-    mostRecentRating: {
-      type: Function,
       required: true
     }
   },
@@ -51,7 +48,7 @@ export default {
         return {
           title: result.movie.title,
           releaseDate: new Date(result.movie.release_date),
-          rating: parseFloat(this.mostRecentRating(result).rating)
+          rating: parseFloat(getRating(result).calculatedTotal)
         }
       });
 

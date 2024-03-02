@@ -139,7 +139,7 @@
 
       <h3 class="mt-3 mb-2 fs-5">Viewings</h3>
       <div
-        v-for="(rating, index) in result.ratings"
+        v-for="(rating, index) in getAllRatings(result)"
         :key="index"
         class="viewing-wrapper"
       >
@@ -151,13 +151,13 @@
             <span>{{formattedDate(rating.date)}}</span>
           </span>
           <span class="col-2">
-            <span>{{rating.rating}}</span>
+            <span>{{rating.calculatedTotal}}</span>
           </span>
           <span class="col-12 mx-4">
             <span class="ratings-tags" v-if="rating.tags">{{ turnArrayIntoList(rating.tags, "title") }}</span>
           </span>
         </p>
-        <hr v-if="index !== result.ratings.length - 1" >
+        <hr v-if="index !== getAllRatings(result).length - 1" >
       </div>
     </div>
   </li>
@@ -168,6 +168,7 @@ import axios from 'axios';
 import ordinal from "ordinal-js";
 import minBy from 'lodash/minBy';
 import EpisodeRatingsChart from './EpisodeRatingsChart.vue';
+import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 
 export default {
   props: {
@@ -187,7 +188,8 @@ export default {
   },
   data () {
     return {
-      openEpisodes: []
+      openEpisodes: [],
+      getAllRatings: getAllRatings
     }
   },
   components: {
@@ -334,20 +336,7 @@ export default {
       if (this.currentLogIsTVLog) {
         return media.ratings.tvShow;
       } else {
-        let mostRecentRating = media.ratings[0];
-
-        media.ratings.forEach((rating) => {
-          const ratingDate = rating.date ? new Date(rating.date).getTime() : 0;
-          const mostRecentRatingDate = mostRecentRating.date ? new Date(mostRecentRating.date).getTime() : 0;
-
-          if (!mostRecentRating.date) {
-            mostRecentRating = rating;
-          } else if (ratingDate && ratingDate > mostRecentRatingDate) {
-            mostRecentRating = rating;
-          }
-        })
-
-        return mostRecentRating;
+        return getRating(media);
       }
     },
     getOrdinal (number) {
