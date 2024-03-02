@@ -25,10 +25,11 @@ export default {
 
       for (const result of this.results) {
         for (const rating of result.ratings) {
-          if (datesWithCounts[rating.date]) {
-            datesWithCounts[rating.date]++;
+          const datesWithCountsKey = new Date(rating.date).toLocaleDateString();
+          if (datesWithCounts[datesWithCountsKey]) {
+            datesWithCounts[datesWithCountsKey]++;
           } else {
-            datesWithCounts[rating.date] = 1;
+            datesWithCounts[datesWithCountsKey] = 1;
           }
         }
       }

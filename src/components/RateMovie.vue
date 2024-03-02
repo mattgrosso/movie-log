@@ -749,7 +749,7 @@ export default {
       }
 
       const rating = {
-        date: this.date ? this.date : new Date().getTime(),
+        date: this.date ? new Date(this.date).getTime() : new Date().getTime(),
         direction: this.direction ? this.direction : 5,
         id: this.id,
         imagery: this.imagery ? this.imagery : 5,

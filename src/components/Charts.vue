@@ -140,6 +140,19 @@
         </div>
       </div>
 
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingFullCalendar">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseFullCalendar" aria-expanded="true" aria-controls="panelsStayOpen-collapseFullCalendar" @click="fullCalendarAccordionOpen = !fullCalendarAccordionOpen">
+            Full Calendar
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseFullCalendar" ref="fullCalendar" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingFullCalendar">
+          <div class="accordion-body" :class="darkOrLight">
+            <FullCalendarView :results="results" :open="fullCalendarAccordionOpen" />
+          </div>
+        </div>
+      </div>
+
       <div v-if="results.length > 9" class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingDistribution">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseDistribution" aria-expanded="true" aria-controls="panelsStayOpen-collapseDistribution">
@@ -297,6 +310,7 @@ import randomColor from 'randomcolor';
 import Streaks from "./Streaks.vue";
 import KeywordCloud from "./KeywordCloud.vue";
 import CalendarHeatMap from "./CalendarHeatMap.vue";
+import FullCalendarView from "./FullCalendarView.vue";
 
 Chart.register(...registerables);
 
@@ -323,7 +337,8 @@ export default {
     RadarChart,
     Streaks,
     KeywordCloud,
-    CalendarHeatMap
+    CalendarHeatMap,
+    FullCalendarView
   },
   data () {
     return {
@@ -346,7 +361,8 @@ export default {
         directorPercentage8: false,
         directorPercentage9: false
       },
-      numberOfDirectors: 10
+      numberOfDirectors: 10,
+      fullCalendarAccordionOpen: false
     }
   },
   computed: {
