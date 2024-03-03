@@ -54,7 +54,7 @@
       </p>
     </div>
     <div class="rating col-2 d-flex justify-content-center flex-wrap">
-      <p class="col-12 m-0 fs-3 text-center">{{parseFloat(mostRecentRating(result).rating).toFixed(2)}}</p>
+      <p class="col-12 m-0 fs-3 text-center">{{parseFloat(mostRecentRating(result).calculatedTotal).toFixed(2)}}</p>
       <p v-if="resultsAreFiltered" class="overall-rank m-0">({{getOrdinal(overAllRank)}})</p>
     </div>
 
