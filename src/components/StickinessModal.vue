@@ -201,7 +201,7 @@ export default {
       font-size: 0.75rem;
       opacity: 0;
       transition: none;
-      
+
       &.visible {
         opacity: 1;
         transition: opacity 0.5s;
