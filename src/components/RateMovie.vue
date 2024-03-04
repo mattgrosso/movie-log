@@ -482,6 +482,7 @@
                   <th class="col-1"><span>stry</span></th>
                   <th class="col-1"><span>perf</span></th>
                   <th class="col-1"><span>sndtk</span></th>
+                  <th class="col-1"><span>stick</span></th>
                   <th class="col-1"><span>imp</span></th>
                   <th class="col-1"><span>love</span></th>
                   <th class="col-1"><span>ovral</span></th>
@@ -493,6 +494,7 @@
                     <td class="col-1">{{rating.story}}</td>
                     <td class="col-1">{{rating.performance}}</td>
                     <td class="col-1">{{rating.soundtrack}}</td>
+                    <td class="col-1">{{rating.stickiness}}</td>
                     <td class="col-1">{{rating.impression}}</td>
                     <td class="col-1">{{rating.love}}</td>
                     <td class="col-1">{{rating.overall}}</td>
@@ -521,7 +523,7 @@ export default {
       overall: null,
       performance: null,
       soundtrack: null,
-      stickiness: null, // This value will be added by the user later but I wanted to include it here so I don't forget it exists
+      stickiness: 1, // Defaults to 1 but will be updated later by user
       story: null,
       date: new Date().toISOString().substr(0, 10),
       id: null,
@@ -568,6 +570,7 @@ export default {
             overall: this.overall ? parseFloat(this.overall) : 5,
             performance: this.performance ? parseFloat(this.performance) : 5,
             soundtrack: this.soundtrack ? parseFloat(this.soundtrack) : 5,
+            stickiness: this.stickiness,
             story: this.story ? parseFloat(this.story) : 5,
             date: this.date
           }
@@ -750,6 +753,7 @@ export default {
         performance: this.performance ? this.performance : 5,
         rating: this.rating,
         soundtrack: this.soundtrack ? this.soundtrack : 5,
+        stickiness: this.stickiness,
         story: this.story ? this.story : 5,
         tags: this.selectedViewingTags,
         title: this.title,

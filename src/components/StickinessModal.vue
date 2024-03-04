@@ -17,27 +17,33 @@
               <select class="form-select" name="impression" id="impression" v-model="stickinessRating">
                 <option value="">Rate Stickiness</option>
                 <option value="0">
-                  1 - I forgot it immediately
+                  0 - I told people to avoid it
                 </option>
                 <option value="1">
-                  2 - I mentioned it to people
+                  1 - I forgot it immediately
                 </option>
                 <option value="2">
+                  2 - I mentioned it to people
+                </option>
+                <option value="3">
                   3 - I remember it often
                 </option>
                 <option value="4">
                   4 - I think about it all the time
                 </option>
-                <option value="10">
+                <option value="5">
                   5 - It changed the way I think
                 </option>
               </select>
             </div>
+            <p v-if="ratingChange || ratingChange === 0" class="rating-change col-12 text-center">
+              Your rating for {{firstResult.movie.title}} changed by <span :class="{negative: ratingChange < 0, positive: ratingChange >= 0}">{{ratingChange}}%</span>
+            </p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            <button v-if="resultsThatNeedStickiness[1]" type="button" class="btn btn-primary" :disabled="!stickinessRating" @click="addStickinessRating">Add Rating and Next</button>
-            <button v-else type="button" class="btn btn-primary" :disabled="!stickinessRating" @click="addStickinessRating">Add Rating</button>
+            <button v-if="resultsThatNeedStickiness[1]" type="button" class="btn btn-primary" :loading="submitting" :disabled="!stickinessRating" @click="addStickinessRating">Add Rating and Next</button>
+            <button v-else type="button" class="btn btn-primary" :loading="submitting" :disabled="!stickinessRating" @click="addStickinessRating">Add Rating</button>
           </div>
         </div>
       </div>
@@ -47,6 +53,7 @@
 
 <script>
 import { getRating } from "../assets/javascript/GetRating.js";
+import cloneDeep from 'lodash/cloneDeep';
 
 export default {
   name: "StickinessModal",
@@ -68,7 +75,9 @@ export default {
   },
   data () {
     return {
-      stickinessRating: ""
+      stickinessRating: "",
+      ratingChange: null,
+      submitting: false
     };
   },
   computed: {
@@ -82,9 +91,9 @@ export default {
     },
     resultsThatNeedStickiness () {
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        const doesntHaveStickiness = !this.mostRecentRating(result).stickiness;
+        const doesntHaveStickiness = !this.mostRecentRating(result).userAddedStickiness;
         const ratingDate = this.mostRecentRating(result).date || "1/1/2021";
-        const moreThanAWeekAgo = new Date(ratingDate).getTime() < new Date().getTime() - 604800000;
+        const moreThanAWeekAgo = new Date(ratingDate).getTime() < new Date().getTime() - (604800000);
 
         return doesntHaveStickiness && moreThanAWeekAgo;
       }).sort((a, b) => {
@@ -98,17 +107,19 @@ export default {
     firstResult () {
       return this.resultsThatNeedStickiness[0];
     },
-    rating () {
-      if (!this.stickinessRating) {
-        return getRating(this.firstResult).calculatedTotal;
+    ratingWithoutStickiness () {
+      const tempResult = cloneDeep(this.firstResult);
+
+      tempResult.ratings[this.mostRecentRatingIndex].stickiness = null;
+
+      return getRating(this.firstResult).calculatedTotal;
+    },
+    ratingWithStickiness () {
+      if (!this.stickinessRating && this.stickinessRating !== 0 && this.stickinessRating !== "0") {
+        return null;
       }
 
-      const tempResult = {
-        ...this.firstResult,
-        ratings: [
-          ...this.firstResult.ratings
-        ]
-      }
+      const tempResult = cloneDeep(this.firstResult);
 
       tempResult.ratings[this.mostRecentRatingIndex].stickiness = parseFloat(this.stickinessRating);
 
@@ -136,25 +147,34 @@ export default {
   },
   methods: {
     addStickinessRating () {
+      this.submitting = true;
+      this.ratingChange = ((this.ratingWithStickiness - this.ratingWithoutStickiness) / this.ratingWithoutStickiness * 100).toFixed(2);
+
       const movieWithRating = {
         ...this.firstResult,
         ratings: {
           ...this.firstResult.ratings,
           [this.mostRecentRatingIndex]: {
             ...this.firstResult.ratings[this.mostRecentRatingIndex],
-            rating: this.rating,
+            rating: this.ratingWithStickiness,
             stickiness: parseFloat(this.stickinessRating),
+            userAddedStickiness: true
           }
         }
       };
 
-      const dbEntry = {
-        path: `movieLog/${this.firstResult.dbKey}`,
-        value: movieWithRating
-      }
+      setTimeout(() => {
+        const dbEntry = {
+          path: `movieLog/${this.firstResult.dbKey}`,
+          value: movieWithRating
+        }
 
-      this.$store.dispatch('setDBValue', dbEntry);
-      this.stickinessRating = "";
+        this.$store.dispatch('setDBValue', dbEntry);
+
+        this.submitting = false;
+        this.stickinessRating = "";
+        this.ratingChange = null;
+      }, 1000);
     },
     mostRecentRating (media) {
       return getRating(media);
@@ -167,6 +187,24 @@ export default {
 .stickiness {
   .alert-link {
     cursor: pointer;
+  }
+
+  .modal {
+    .rating-change {
+      font-size: 0.75rem;
+
+      span {
+        font-size: 1rem;
+
+        &.negative {
+          color: red;
+        }
+  
+        &.positive {
+          color: green;
+        }
+      }
+    }
   }
 }
 </style>

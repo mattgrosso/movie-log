@@ -1,6 +1,6 @@
 <template>
   <div
-    class="rating-change"
+    class="rating-change-ribbon"
     :class="{positive: rankChange > 0, negative: rankChange < 0, neutral: rankChange == 0}"
   >
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-award-fill" viewBox="0 0 16 16">
@@ -36,7 +36,7 @@ export default {
 </script>
 
 <style lang="scss">
-  .rating-change {
+  .rating-change-ribbon {
     position: absolute;
 
     &.positive {
