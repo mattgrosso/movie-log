@@ -9,7 +9,7 @@ const calculatePostStickyRatingFor = (rating) => {
   const performance = store.getters.weight("performance") * parseFloat(rating.performance);
   const soundtrack = store.getters.weight("soundtrack") * parseFloat(rating.soundtrack);
   const story = store.getters.weight("story") * parseFloat(rating.story);
-  
+
   let cleanStickiness = rating.stickiness;
 
   if ((!cleanStickiness || cleanStickiness > 5) && cleanStickiness !== 0) {
@@ -44,7 +44,7 @@ export const getAllRatings = (dbEntry) => {
   if (!dbEntry?.ratings.length) {
     return null;
   }
-  
+
   return dbEntry.ratings.map((rating) => {
     return calculatePostStickyRatingFor(rating);
   })

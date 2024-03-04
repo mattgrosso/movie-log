@@ -36,14 +36,21 @@
                 </option>
               </select>
             </div>
-            <p v-if="ratingChange || ratingChange === 0" class="rating-change col-12 text-center">
+            <p class="rating-change col-12 text-center" :class="{visible: ratingChange || ratingChange === 0}">
               Your rating for {{firstResult.movie.title}} changed by <span :class="{negative: ratingChange < 0, positive: ratingChange >= 0}">{{ratingChange}}%</span>
             </p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            <button v-if="resultsThatNeedStickiness[1]" type="button" class="btn btn-primary" :loading="submitting" :disabled="!stickinessRating" @click="addStickinessRating">Add Rating and Next</button>
-            <button v-else type="button" class="btn btn-primary" :loading="submitting" :disabled="!stickinessRating" @click="addStickinessRating">Add Rating</button>
+            <button v-if="submitting" type="button" class="btn btn-primary" disabled>
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            </button>
+            <button v-else-if="resultsThatNeedStickiness[1]" type="button" class="btn btn-primary" :disabled="!stickinessRating" @click="addStickinessRating">
+              Add Rating and Next
+            </button>
+            <button v-else type="button" class="btn btn-primary" :disabled="!stickinessRating" @click="addStickinessRating">
+              Add Rating
+            </button>
           </div>
         </div>
       </div>
@@ -192,6 +199,13 @@ export default {
   .modal {
     .rating-change {
       font-size: 0.75rem;
+      opacity: 0;
+      transition: none;
+      
+      &.visible {
+        opacity: 1;
+        transition: opacity 0.5s;
+      }
 
       span {
         font-size: 1rem;
@@ -199,7 +213,7 @@ export default {
         &.negative {
           color: red;
         }
-  
+
         &.positive {
           color: green;
         }
