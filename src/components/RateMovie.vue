@@ -635,7 +635,7 @@ export default {
     weightedTotal () {
       let total = 0;
 
-      for (let key in this.ratingWithoutDate) {
+      for (const key in this.ratingWithoutDate) {
         total += this.ratingWithoutDate[key] * this.weights[key];
       }
 
