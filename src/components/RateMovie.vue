@@ -643,8 +643,8 @@ export default {
     },
     movieAsRatedOnPage () {
       return {
-        ...this.movieToRate,
-        ratings: [{ rating: this.rating }]
+        movie: this.movieToRate,
+        ratings: [this.rating]
       };
     },
     numberOfMoviesAfterRating () {
@@ -721,8 +721,8 @@ export default {
       return mostRecentRating;
     },
     sortByRating (a, b) {
-      const aRating = this.mostRecentRating(a).calculatedTotal;
-      const bRating = this.mostRecentRating(b).calculatedTotal;
+      const aRating = getRating(a).calculatedTotal;
+      const bRating = getRating(b).calculatedTotal;
 
       if (aRating < bRating) {
         return 1;
