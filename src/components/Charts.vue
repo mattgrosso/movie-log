@@ -1,6 +1,6 @@
 <template>
   <div class="charts">
-    <div class="accordion" id="accordionPanelsStayOpenExample">
+    <div class="accordion" id="chartsAccordion">
 
       <div class="accordion-item" >
         <h2 class="accordion-header" id="panelsStayOpen-headingKeywordCloud">

@@ -414,11 +414,51 @@
 
       <p class="rating col-12 my-3 d-flex justify-content-center align-items-center" id="rating">
         Rating: {{rating.calculatedTotal}}
+        <i class="bi bi-info-circle ms-2" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseRatingBreakdown" aria-expanded="true" aria-controls="panelsStayOpen-collapseRatingBreakdown"></i>
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
         #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked) + 1}}/{{numberOfMoviesAfterRating}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
         #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear) + 1}} in {{movieYear(movieToRate)}}
       </p>
+
+      <div class="rating-breakdown-accordion accordion" id="ratingBreakdownAccordion">
+        <div class="accordion-item" >
+          <div id="panelsStayOpen-collapseRatingBreakdown" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingRatingBreakdown">
+            <div class="accordion-body">
+              <table class="table table-striped table-bordered">
+                <tbody>
+                  <tr v-for="(value, key) in ratingWithoutDate" :key="key">
+                    <td>{{ key }}</td>
+                    <td>{{ value }}</td>
+                    <td>x</td>
+                    <td>{{ weights[key] }}</td>
+                    <td>=</td>
+                    <td>{{ weights[key] * value }}</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td>Total</td>
+                    <td></td>
+                    <td>{{weightedTotal}}</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td>Rating</td>
+                    <td></td>
+                    <td>{{rating.calculatedTotal}}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <hr>
 
@@ -576,7 +616,30 @@ export default {
           }
         ]
       }
+
       return getRating(ratingOnPage);
+    },
+    ratingWithoutDate () {
+      const { date, calculatedTotal, ...ratingWithoutDate } = this.rating;
+      return ratingWithoutDate;
+    },
+    weights () {
+      const weights = {};
+
+      this.$store.state.weights.forEach((weight) => {
+        weights[weight.name] = weight.weight;
+      })
+
+      return weights;
+    },
+    weightedTotal () {
+      let total = 0;
+
+      for (let key in this.ratingWithoutDate) {
+        total += this.ratingWithoutDate[key] * this.weights[key];
+      }
+
+      return total;
     },
     movieAsRatedOnPage () {
       return {
@@ -843,6 +906,28 @@ export default {
 
     .year-medium-date {
       column-gap: 1rem;
+    }
+
+    .rating {
+      i {
+        cursor: pointer;
+      }
+    }
+
+    .rating-breakdown-accordion {
+      table {
+        font-size: 0.75rem;
+
+        td:nth-child(1) {
+          text-align: right;
+        }
+
+        tfoot {
+          td {
+            font-weight: bold;
+          }
+        }
+      }
     }
 
     .movie-tags {

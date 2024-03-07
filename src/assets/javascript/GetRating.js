@@ -22,7 +22,7 @@ const calculatePostStickyRatingFor = (rating) => {
 
   return {
     ...rating,
-    calculatedTotal: parseFloat(total / 10).toFixed(2)
+    calculatedTotal: parseFloat((total / 10).toFixed(2))
   }
 }
 
