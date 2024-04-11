@@ -18,6 +18,7 @@ import RateMovie from "./components/RateMovie.vue";
 import RateTVShow from "./components/RateTVShow.vue";
 import ShareDBResults from "./components/ShareDBResults.vue";
 import VueCalendarHeatmap from 'vue3-calendar-heatmap';
+import './registerServiceWorker'
 
 const app = createApp(App);
 

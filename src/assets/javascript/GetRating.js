@@ -52,7 +52,7 @@ export const getAllRatings = (dbEntry) => {
 
 export const getRating = (dbEntry) => {
   if (!dbEntry?.ratings.length) {
-    console.error('1');
+
     return null;
   }
 

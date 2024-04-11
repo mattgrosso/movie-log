@@ -84,22 +84,16 @@ export default {
   },
   methods: {
     searchTMDB: debounce(async function (quickPick) {
-      console.error('1');
       if (!this.value) {
-        console.error('2');
         return;
       }
 
       const resp = await axios.get(`https://api.themoviedb.org/3/search/${this.movieOrTV}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
-      console.error('3');
       if (quickPick && resp.data.results.length) {
-        console.error('4');
         this.quickPickEntrySearch(resp.data.results);
       } else if (resp.data.results.length) {
-        console.error('5');
         this.newEntrySearch(resp.data.results);
       } else {
-        console.error('6');
         this.showNoResultsMessage();
       }
     }, 500),
