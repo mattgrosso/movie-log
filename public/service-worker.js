@@ -1,4 +1,8 @@
 // This is the "Offline copy of pages" service worker
+importScripts('https://storage.googleapis.com/workbox-cdn/releases/6.1.5/workbox-sw.js');
+if (self.__WB_MANIFEST) {
+  workbox.precaching.precacheAndRoute(self.__WB_MANIFEST);
+}
 
 const CACHE = "pwabuilder-offline";
 
@@ -29,7 +33,7 @@ self.addEventListener("fetch", (event) => {
       console.log("[PWA Builder] Network request Failed. Serving content from cache: " + error);
       const cache = await caches.open(CACHE);
       const matching = await cache.match(event.request);
-      let report = !matching || matching.status == 404 ? Promise.reject("no-match") : matching;
+      let report = !matching || matching.status === 404 ? Promise.reject(new Error("no-match")) : matching;
       return report;
     }
   })());
