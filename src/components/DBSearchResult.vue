@@ -162,6 +162,7 @@
       </div>
     </div>
   </li>
+  <insetBrowserModal :show="showModal" :url="insetBrowserUrl" @close="showModal = false" />
 </template>
 
 <script>
@@ -169,6 +170,7 @@ import axios from 'axios';
 import ordinal from "ordinal-js";
 import minBy from 'lodash/minBy';
 import EpisodeRatingsChart from './EpisodeRatingsChart.vue';
+import insetBrowserModal from './insetBrowserModal.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 
 export default {
@@ -190,11 +192,14 @@ export default {
   data () {
     return {
       openEpisodes: [],
-      getAllRatings: getAllRatings
+      getAllRatings: getAllRatings,
+      showModal: false,
+      insetBrowserUrl: ""
     }
   },
   components: {
-    EpisodeRatingsChart
+    EpisodeRatingsChart,
+    insetBrowserModal
   },
   computed: {
     currentLogIsTVLog () {
@@ -242,7 +247,8 @@ export default {
         title = result.movie.title;
       }
 
-      window.open(await this.wikiLinkFor(title));
+      this.insetBrowserUrl = await this.wikiLinkFor(title);
+      this.showModal = true;
     },
     async wikiLinkFor (title) {
       const wiki = await axios.get(`https://en.wikipedia.org/w/api.php?action=query&origin=*&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=%27${title}%27`);
@@ -250,7 +256,7 @@ export default {
       const pagesArray = Object.keys(pages).map((page) => pages[page]);
       const bestMatch = minBy(pagesArray, (page) => page.index);
 
-      return `https://en.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
+      return `https://en.m.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
     },
     searchFor (searchType, term) {
       this.updateSearchValue(searchType, term);
