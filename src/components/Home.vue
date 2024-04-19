@@ -1109,13 +1109,13 @@ export default {
         align-items: center;
         cursor: pointer;
         display: flex;
-        height: 18px;
+        height: 40px;
         justify-content: center;
+        left: 0px;
         position: absolute;
-        left: 12px;
         top: 50%;
         transform: translateY(-50%);
-        width: 18px;
+        width: 40px;
         z-index: 5;
 
         svg {
