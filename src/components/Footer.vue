@@ -3,6 +3,7 @@
     <span>
       &copy; {{new Date().getFullYear()}} - Matt Grosso
     </span>
+    <span>{{version}}</span>
     <div>
       <a href="mailto:mattgrosso+movielog@gmail.com">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-envelope" viewBox="0 0 16 16">
@@ -20,18 +21,20 @@
 
 <script>
 export default {
-
+  computed: {
+    version () {
+      return process.env.VUE_APP_VERSION;
+    }
+  },
 }
 </script>
 
 <style lang="scss">
   footer {
-    background: #0d6efd;
-    bottom: 0;
+    background: black;
     color: white;
     font-size: 0.6rem;
     padding: 6px 12px;
-    position: fixed;
 
     span,
     a {

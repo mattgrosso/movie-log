@@ -17,6 +17,7 @@
         <span v-else>Movie Log</span>
       </div>
     </div>
+    <span class="version">{{version}}</span>
   </div>
 </template>
 
@@ -30,6 +31,9 @@ export default {
     }
   },
   computed: {
+    version () {
+      return process.env.VUE_APP_VERSION;
+    },
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
@@ -255,6 +259,17 @@ export default {
         transition: transform 0.75s ease;
         width: 24px;
       }
+    }
+
+    .version {
+      background: black;
+      border-top-right-radius: 3px;
+      bottom: 0;
+      color: white;
+      font-size: 0.5rem;
+      left: 0;
+      padding: 1px 7px;
+      position: absolute;
     }
   }
 </style>

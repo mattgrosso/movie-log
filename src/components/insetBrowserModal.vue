@@ -20,7 +20,7 @@ export default {
     },
   },
   methods: {
-    close() {
+    close () {
       this.$emit('close');
     },
   },
@@ -44,7 +44,7 @@ export default {
     margin: 2.5% auto;
     padding: 12px;
     width: 95%;
-    
+
     .close {
       align-items: center;
       background: white;
