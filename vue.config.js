@@ -25,7 +25,8 @@ module.exports = defineConfig({
       ],
     },
     workboxOptions: {
-      // Configure Workbox (used for service worker) here
+      skipWaiting: true,
+      clientsClaim: true,
     },
   },
 })
