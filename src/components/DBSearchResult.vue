@@ -1,6 +1,6 @@
 <template>
   <li
-    class="media-result py-3 px-1 my-3 d-flex flex-wrap align-items-center shadow-lg"
+    class="media-result py-3 px-1 my-2 d-flex flex-wrap align-items-center shadow-lg"
     @click="showInfo(`Info-${this.topStructure(result).id}`)"
   >
     <label class="number col-1 text-center">
