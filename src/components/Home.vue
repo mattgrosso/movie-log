@@ -111,20 +111,28 @@
         </p>
         <hr class="mt-1 mb-3">
         <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap">
-          <div class="pe-1 col-3">
-            <button class="btn btn-info btn-sm col-12 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
-              Insights
-            </button>
-          </div>
-          <div class="px-1 col-4">
-            <button class="btn btn-secondary btn-sm col-12" @click="shareResults">
-              <span v-if="!sharing">
-                Share Results
-              </span>
-              <div v-else class="spinner-border text-light" role="status">
-                <span class="visually-hidden">Loading...</span>
-              </div>
-            </button>
+          <div class="right-hand-buttons d-flex">
+            <div class="pe-1">
+              <button class="btn btn-info btn-sm col-12 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
+                <i class="bi bi-lightbulb"/>
+              </button>
+            </div>
+            <div class="px-1">
+              <button class="btn btn-secondary btn-sm col-12" @click="shareResults">
+                <span v-if="!sharing">
+                  <i class="bi bi-share"/>
+                </span>
+                <div v-else class="spinner-border text-light" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </button>
+            </div>
+            <div class="ps-1">
+              <button class="btn btn-secondary btn-sm col-12" @click="gridLayout = !gridLayout">
+                <i v-if="gridLayout" class="bi bi-view-list"/>
+                <i v-else class="bi bi-grid-1x2"/>
+              </button>
+            </div>
           </div>
           <div class="ps-1 col-5 d-flex justify-content-end">
             <button class="btn btn-secondary btn-sm dropdown-toggle col-8" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -184,10 +192,20 @@
             </div>
           </div>
         </div>
-        <ul class="col-12 px-0 m-0 d-flex flex-wrap">
+        <ul v-if="gridLayout" class="grid-layout">
+          <DBGridLayoutSearchResult
+            v-for="(result, index) in paginatedSortedResults"
+            :key="result.movie.id"
+            :result="result"
+            :index="index"
+            :resultsAreFiltered="resultsAreFiltered"
+            @updateSearchValue="updateSearchValue"
+          />
+        </ul>
+        <ul v-else>
           <DBSearchResult
             v-for="(result, index) in paginatedSortedResults"
-            :key="index"
+            :key="result.movie.id"
             :result="result"
             :index="index"
             :resultsAreFiltered="resultsAreFiltered"
@@ -228,6 +246,7 @@ import axios from 'axios';
 import uniq from 'lodash/uniq';
 import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
+import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
 import StickinessModal from "./StickinessModal.vue";
 import { getRating } from "../assets/javascript/GetRating.js";
@@ -236,6 +255,7 @@ export default {
   components: {
     Charts,
     DBSearchResult,
+    DBGridLayoutSearchResult,
     NewRatingSearch,
     StickinessModal
   },
@@ -249,7 +269,8 @@ export default {
       quickLinksSortType: "a-z",
       numberOfResultsToShow: 50,
       sharing: false,
-      noResults: false
+      noResults: false,
+      gridLayout: true
     }
   },
   watch: {
@@ -1155,6 +1176,42 @@ export default {
 
       ul {
         list-style: none;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+
+        &.grid-layout {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          grid-gap: 0;
+          
+          li {
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            &:first-child {
+              grid-column: span 3;
+              grid-row: span 3;
+            }
+
+            &:nth-child(2) {
+              grid-column: span 2;
+              grid-row: span 2;
+            }
+
+            &:nth-child(n+2) {
+              grid-column-end: span 1;
+            }
+
+            img {
+              width: 100%;
+              height: auto;
+              object-fit: cover;
+            }
+          }
+        }
       }
     }
 
