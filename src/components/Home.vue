@@ -1293,7 +1293,7 @@ export default {
               }
             }
           }
-          
+
           &.count-more-than-4-remainder-1 {
             grid-template-columns: repeat(4, 1fr);
 
