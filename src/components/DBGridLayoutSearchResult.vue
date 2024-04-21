@@ -332,11 +332,6 @@ export default {
     cursor: pointer;
     position: relative;
 
-    &:hover {
-      transform: scale(1.1);
-      z-index: 1;
-    }
-
     .details {
       position: absolute;
       width: 100%;

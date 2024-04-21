@@ -192,7 +192,7 @@
             </div>
           </div>
         </div>
-        <ul v-if="gridLayout" class="grid-layout py-3">
+        <ul v-if="gridLayout" class="grid-layout py-3" :class="listCountClasses">
           <DBGridLayoutSearchResult
             v-for="(result, index) in paginatedSortedResults"
             :key="result.movie.id"
@@ -819,6 +819,20 @@ export default {
       } else {
         return "Search..."
       }
+    },
+    listCountClasses () {
+      const count = this.paginatedSortedResults.length;
+
+      return {
+        "count-is-1": count === 1,
+        "count-is-2": count === 2,
+        "count-is-3": count === 3,
+        "count-is-4": count === 4,
+        "count-more-than-4-remainder-0": count > 4 & count % 4 === 0,
+        "count-more-than-4-remainder-1": count > 4 & count % 4 === 1,
+        "count-more-than-4-remainder-2": count > 4 & count % 4 === 2,
+        "count-more-than-4-remainder-3": count > 4 & count % 4 === 3
+      }
     }
   },
   methods: {
@@ -1182,7 +1196,6 @@ export default {
 
         &.grid-layout {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
           grid-gap: 0;
 
           li {
@@ -1191,24 +1204,168 @@ export default {
             justify-content: center;
             align-items: center;
 
-            &:first-child {
-              grid-column: span 2;
-              grid-row: span 2;
-            }
-
-            &:nth-child(2) {
-              grid-column: span 1;
-              grid-row: span 1;
-            }
-
-            &:nth-child(n+2) {
-              grid-column-end: span 1;
-            }
-
             img {
               width: 100%;
               height: auto;
               object-fit: cover;
+            }
+          }
+
+          &.count-is-1 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              grid-column: span 4;
+              grid-row: span 2;
+            }
+          }
+
+          &.count-is-2 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              grid-column: span 2;
+              grid-row: span 2;
+            }
+          }
+
+          &.count-is-3 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 4;
+                grid-row: span 2;
+              }
+
+              &:nth-child(n+1) {
+                grid-column-end: span 2;
+              }
+            }
+          }
+
+          &.count-is-4 {
+            grid-template-columns: repeat(12, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 12;
+                grid-row: span 12;
+              }
+
+              &:nth-child(2),
+              &:nth-child(3),
+              &:nth-child(4) {
+                grid-column: span 4;
+                grid-row: span 4;
+
+                &:hover {
+                  transform: scale(1.1);
+                  z-index: 1;
+                }
+              }
+            }
+          }
+
+          &.count-more-than-4-remainder-0 {
+            grid-template-columns: repeat(12, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 12;
+                grid-row: span 12;
+              }
+
+              &:nth-child(2),
+              &:nth-child(3),
+              &:nth-child(4) {
+                grid-column: span 4;
+                grid-row: span 4;
+              }
+
+              &:nth-child(n+5) {
+                grid-column-end: span 3;
+
+                &:hover {
+                  transform: scale(1.1);
+                  z-index: 1;
+                }
+              }
+            }
+          }
+          
+          &.count-more-than-4-remainder-1 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 2;
+                grid-row: span 2;
+              }
+
+              &:nth-child(n+2) {
+                grid-column: span 1;
+                grid-row: span 1;
+              }
+
+              &:nth-child(n+6) {
+                &:hover {
+                  transform: scale(1.1);
+                  z-index: 1;
+                }
+              }
+            }
+          }
+
+          &.count-more-than-4-remainder-2 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 2;
+                grid-row: span 2;
+              }
+
+              &:nth-child(2) {
+                grid-column: span 2;
+                grid-row: span 2;
+              }
+
+              &:nth-child(n+2) {
+                grid-column-end: span 1;
+
+                &:hover {
+                  transform: scale(1.1);
+                  z-index: 1;
+                }
+              }
+            }
+          }
+
+          &.count-more-than-4-remainder-3 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 4;
+                grid-row: span 4;
+              }
+
+              &:nth-child(2),
+              &:nth-child(3) {
+                grid-column: span 2;
+                grid-row: span 2;
+              }
+
+              &:nth-child(n+4) {
+                grid-column: span 1;
+                grid-row: span 2;
+
+                &:hover {
+                  transform: scale(1.1);
+                  z-index: 1;
+                }
+              }
             }
           }
         }
