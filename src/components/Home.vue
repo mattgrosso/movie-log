@@ -192,7 +192,7 @@
             </div>
           </div>
         </div>
-        <ul v-if="gridLayout" class="grid-layout">
+        <ul v-if="gridLayout" class="grid-layout py-3">
           <DBGridLayoutSearchResult
             v-for="(result, index) in paginatedSortedResults"
             :key="result.movie.id"
@@ -267,7 +267,7 @@ export default {
       filterValue: "",
       sortValue: null,
       quickLinksSortType: "a-z",
-      numberOfResultsToShow: 50,
+      numberOfResultsToShow: 54,
       sharing: false,
       noResults: false,
       gridLayout: true
@@ -1182,7 +1182,7 @@ export default {
 
         &.grid-layout {
           display: grid;
-          grid-template-columns: repeat(5, 1fr);
+          grid-template-columns: repeat(4, 1fr);
           grid-gap: 0;
           
           li {
@@ -1192,13 +1192,13 @@ export default {
             align-items: center;
 
             &:first-child {
-              grid-column: span 3;
-              grid-row: span 3;
+              grid-column: span 2;
+              grid-row: span 2;
             }
 
             &:nth-child(2) {
-              grid-column: span 2;
-              grid-row: span 2;
+              grid-column: span 1;
+              grid-row: span 1;
             }
 
             &:nth-child(n+2) {

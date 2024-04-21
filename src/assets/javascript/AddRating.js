@@ -244,7 +244,8 @@ const addMovieRating = async (ratings, movieTags) => {
 
     cast = tmdbData.cast.map((person) => {
       return {
-        name: person.name
+        name: person.name,
+        character: person.character
       }
     })
   }
