@@ -26,8 +26,11 @@
       <div class="details-modal-body">
         <div class="runtime-and-date">
           <h3>{{prettifyRuntime(result)}}</h3>
-          <h3>{{getYear(result)}}</h3>
+          <h3>
+            <a class="link mx-2" @click.stop="searchFor('year', `${getYear(result)}`)">{{getYear(result)}}</a>
+          </h3>
         </div>
+
         <div v-if="getAllRatings(previousEntry)" class="previous-ratings mb-3">
           <h4>Previous Ratings</h4>
           <div class="accordion">
@@ -76,11 +79,25 @@
             </div>
           </div>
         </div>
+
         <h4>Director<span v-if="multipleEntries(getCrewMember('Director', true))">s</span></h4>
-        <p>{{getCrewMember("Director", true)}}</p>
+        <p>
+          <a class="link" @click.stop="searchFor('director', `${getCrewMember('Director', 'strict')}`)">
+            {{getCrewMember('Director', 'strict')}}
+          </a>
+        </p>
 
         <h4>Genre<span v-if="multipleEntries(turnArrayIntoList(topStructure(result).genres, 'name'))">s</span></h4>
-        <p>{{turnArrayIntoList(topStructure(result).genres, "name")}}</p>
+        <p>
+          <a
+            v-for="(genre, index) in topStructure(result).genres"
+            :key="index"
+            class="link me-2"
+            @click.stop="searchFor('genre', genre.name)"
+          >
+            {{genre.name}}
+          </a>
+        </p>
 
         <h4>Writer<span v-if="multipleEntries(getCrewMember('Writer', false))">s</span></h4>
         <p>{{getCrewMember("Writer", false)}}</p>
@@ -136,7 +153,7 @@ export default {
     return {
       openEpisodes: [],
       getAllRatings: getAllRatings,
-      showModal: false,
+      showDetailsModal: false,
       showInsetBrowserModal: false,
       insetBrowserUrl: ""
     }
@@ -200,7 +217,9 @@ export default {
       window.scroll({
         top: top,
         behavior: 'smooth'
-      })
+      });
+
+      this.showDetailsModal = false;
     },
     getYear (media) {
       let date;
@@ -334,6 +353,11 @@ export default {
   }
 
   .details-modal {
+    a {
+      color: black;
+      cursor: pointer;
+    }
+
     .modal-content {
       .modal-header {
         h2 {
@@ -346,7 +370,7 @@ export default {
           padding: 6px 12px;
           right: 0;
         }
-  
+
         img {
           width: 100%;
           height: 200px;
@@ -366,7 +390,7 @@ export default {
           font-size: 1rem;
           margin-bottom: 1rem;
         }
-        
+
         .runtime-and-date {
           display: flex;
           justify-content: space-between;
@@ -409,7 +433,7 @@ export default {
                   transform: rotate(60deg);
                 }
               }
-  
+
               td {
                 font-size: 0.6rem;
               }

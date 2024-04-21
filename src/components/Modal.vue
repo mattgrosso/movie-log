@@ -52,7 +52,7 @@ export default {
 
     .modal-header {
       position: relative;
-      
+
       .close {
         color: white;
         font-size: 1.5rem;

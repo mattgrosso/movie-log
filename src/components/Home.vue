@@ -851,7 +851,7 @@ export default {
       this.searchType = searchType;
     },
     updateSearchValue (searchObject) {
-      this.searchType = searchObject.searchType;
+      this.updateSearchType(searchObject.searchType);
       this.updateFilterValue(searchObject.value);
       this.$refs.insightsAccordion?.classList.remove("show");
     },
@@ -1184,7 +1184,7 @@ export default {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
           grid-gap: 0;
-          
+
           li {
             overflow: hidden;
             display: flex;
