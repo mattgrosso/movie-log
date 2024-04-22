@@ -17,14 +17,6 @@ export default {
     Header
   },
   async mounted () {
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.querySelector("body").classList.remove("bg-light");
-      document.querySelector("body").classList.add("bg-dark");
-    } else {
-      document.querySelector("body").classList.remove("bg-dark");
-      document.querySelector("body").classList.add("bg-light");
-    }
-
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible') {
         console.log('App is now in the foreground');

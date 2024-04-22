@@ -105,40 +105,30 @@
     <StickinessModal v-if="allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
     <div v-if="showResultsList" class="results">
       <div v-if="paginatedSortedResults.length" class="results-exist">
-        <hr class="mt-3 mb-1">
-        <p v-if="filteredResults.length" class="results-count my-1 text-center">
-          {{filteredResults.length}} {{movieOrTVShowDisplay}}s match your search.
-        </p>
         <hr class="mt-1 mb-3">
         <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap">
-          <div class="right-hand-buttons d-flex">
-            <div class="pe-1">
-              <button class="btn btn-secondary btn-sm col-12" @click="toggleSettings">
-                <i class="bi bi-gear"/>
-              </button>
-            </div>
-            <div class="pe-1">
-              <button class="btn btn-info btn-sm col-12 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
-                <i class="bi bi-lightbulb"/>
-              </button>
-            </div>
-            <div class="px-1">
-              <button class="btn btn-secondary btn-sm col-12" @click="shareResults">
-                <span v-if="!sharing">
-                  <i class="bi bi-share"/>
-                </span>
-                <div v-else class="spinner-border text-light" role="status">
-                  <span class="visually-hidden">Loading...</span>
-                </div>
-              </button>
-            </div>
-            <div class="ps-1">
-              <button class="btn btn-secondary btn-sm col-12" @click="gridLayout = !gridLayout">
-                <i v-if="gridLayout" class="bi bi-view-list"/>
-                <i v-else class="bi bi-grid-1x2"/>
-              </button>
-            </div>
+          <div class="btn-group" role="group" aria-label="Button group">
+            <button class="btn btn-secondary btn-sm" @click="toggleSettings">
+              <i class="bi bi-gear"/>
+            </button>
+            <button class="btn btn-info btn-sm collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
+              <i class="bi bi-lightbulb"/>
+            </button>
+            <button class="btn btn-warning btn-sm" @click="shareResults">
+              <span v-if="!sharing">
+                <i class="bi bi-share"/>
+              </span>
+              <div v-else class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </button>
+            <button class="btn btn-danger btn-sm" @click="gridLayout = !gridLayout">
+              <i v-if="gridLayout" class="bi bi-view-list"/>
+              <i v-else class="bi bi-grid-1x2"/>
+            </button>
+            <button class="btn btn-secondary btn-sm">{{filteredResults.length}}</button>
           </div>
+          <!-- <p class="m-0 d-flex align-items-center justify-content-center">{{filteredResults.length}}</p> -->
           <div class="ps-1 col-5 d-flex justify-content-end">
             <button class="btn btn-secondary btn-sm dropdown-toggle col-8" type="button" data-bs-toggle="dropdown" aria-expanded="false">
               {{sortValueDisplay || "Sort By"}}
@@ -1266,11 +1256,6 @@ export default {
               &:nth-child(4) {
                 grid-column: span 4;
                 grid-row: span 4;
-
-                &:hover {
-                  transform: scale(1.1);
-                  z-index: 1;
-                }
               }
             }
           }
@@ -1293,11 +1278,6 @@ export default {
 
               &:nth-child(n+5) {
                 grid-column-end: span 3;
-
-                &:hover {
-                  transform: scale(1.1);
-                  z-index: 1;
-                }
               }
             }
           }
@@ -1314,13 +1294,6 @@ export default {
               &:nth-child(n+2) {
                 grid-column: span 1;
                 grid-row: span 1;
-              }
-
-              &:nth-child(n+6) {
-                &:hover {
-                  transform: scale(1.1);
-                  z-index: 1;
-                }
               }
             }
           }
@@ -1341,11 +1314,6 @@ export default {
 
               &:nth-child(n+2) {
                 grid-column-end: span 1;
-
-                &:hover {
-                  transform: scale(1.1);
-                  z-index: 1;
-                }
               }
             }
           }
@@ -1368,11 +1336,6 @@ export default {
               &:nth-child(n+4) {
                 grid-column: span 1;
                 grid-row: span 2;
-
-                &:hover {
-                  transform: scale(1.1);
-                  z-index: 1;
-                }
               }
             }
           }
