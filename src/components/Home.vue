@@ -113,6 +113,11 @@
         <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap">
           <div class="right-hand-buttons d-flex">
             <div class="pe-1">
+              <button class="btn btn-secondary btn-sm col-12" @click="toggleSettings">
+                <i class="bi bi-gear"/>
+              </button>
+            </div>
+            <div class="pe-1">
               <button class="btn btn-info btn-sm col-12 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
                 <i class="bi bi-lightbulb"/>
               </button>
@@ -868,6 +873,9 @@ export default {
       this.updateSearchType(searchObject.searchType);
       this.updateFilterValue(searchObject.value);
       this.$refs.insightsAccordion?.classList.remove("show");
+    },
+    toggleSettings () {
+      this.$router.push("/settings");
     },
     toggleQuickLinksSort () {
       if (this.quickLinksSortType === "a-z") {
