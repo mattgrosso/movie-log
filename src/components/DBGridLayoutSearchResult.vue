@@ -36,7 +36,7 @@
         </div>
 
         <div v-if="getAllRatings(previousEntry)" class="previous-ratings mb-3">
-          <h4>Previous Ratings</h4>
+          <h4>Ratings</h4>
           <div class="accordion">
             <div class="accordion-item" v-for="(rating, index) in getAllRatings(previousEntry)" :key="index">
               <h2 class="accordion-header" :id="`heading-${index}`">
@@ -86,7 +86,7 @@
 
         <div class="directors">
           <h4>Director<span v-if="multipleEntries(getCrewMember('Director', true))">s</span></h4>
-          <p>
+          <p class="long-list">
             <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor('director', name)">
               {{name}}<span v-if="index !== getCrewMember('Director', 'strict').length - 1">, </span>
             </a>
@@ -95,7 +95,7 @@
 
         <div class="genres">
           <h4>Genre<span v-if="multipleEntries(turnArrayIntoList(topStructure(result).genres, 'name'))">s</span></h4>
-          <p>
+          <p class="long-list">
             <a
               v-for="(genre, index) in topStructure(result).genres"
               :key="index"
