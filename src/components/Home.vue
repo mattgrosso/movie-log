@@ -271,7 +271,8 @@ export default {
       numberOfResultsToShow: 54,
       sharing: false,
       noResults: false,
-      gridLayout: true
+      gridLayout: true,
+      hasCalledFindFilter: false,
     }
   },
   watch: {
@@ -289,14 +290,17 @@ export default {
       if (newVal) {
         this.sortOrder = newVal;
       }
-    }
+    },
+    paginatedSortedResults() {
+      this.checkResultsAndFindFilter();
+    },
   },
   mounted () {
     this.value = this.DBSearchValue;
     if (this.$route.query.search) {
       this.value = decodeURIComponent(this.$route.query.search);
     } else {
-      this.findRandomSearchTypeAndFilterValue();
+      this.checkResultsAndFindFilter();
     }
 
     if (this.DBSortValue) {
@@ -839,6 +843,12 @@ export default {
     }
   },
   methods: {
+    checkResultsAndFindFilter() {
+      if (this.paginatedSortedResults.length > 0 && !this.hasCalledFindFilter) {
+        this.findRandomSearchTypeAndFilterValue();
+        this.hasCalledFindFilter = true;
+      }
+    },
     findRandomSearchTypeAndFilterValue () {
       const searchTypes = ["keyword", "genre", "year", "director", "cast/crew", "studios", "mediums"];
       const randomSearchType = searchTypes[Math.floor(Math.random() * searchTypes.length)];
@@ -879,8 +889,10 @@ export default {
         safetyLimit--;
       } while (counts[randomFilterValue] <= 5 && safetyLimit > 0);
 
-      if (safetyLimit > 0) {
+      if (randomFilterValue && safetyLimit > 0) {
         this.updateFilterValue(randomFilterValue);
+      } else {
+        this.clearValueSearchTypeAndFilterValue();
       }
     },
     async getDirectorsFilmography (director) {
