@@ -13,8 +13,8 @@
           name="search"
           id="search"
           :placeholder="placeholder"
-          style="font-size: 0.75rem;" 
-          @focus="increaseFontSize" 
+          style="font-size: 0.75rem;"
+          @focus="increaseFontSize"
           @blur="decreaseFontSize"
           v-model="value"
         >
@@ -1172,10 +1172,10 @@ export default {
         }
       );
     },
-    increaseFontSize(event) {
+    increaseFontSize (event) {
       event.target.style.fontSize = '16px';
     },
-    decreaseFontSize(event) {
+    decreaseFontSize (event) {
       event.target.style.fontSize = '0.75rem';
     },
   },
