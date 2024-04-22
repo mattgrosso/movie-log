@@ -22,7 +22,7 @@
       <img :src="`https://image.tmdb.org/t/p/original${topStructure(result).backdrop_path}`" alt="Movie backdrop">
     </template>
     <template v-slot:body>
-      <div class="details-modal-body">
+      <div class="details-modal-body col-12">
         <div class="runtime-and-date">
           <h3>{{prettifyRuntime(result)}}</h3>
           <h3>
@@ -84,45 +84,91 @@
           </div>
         </div>
 
-        <h4>Director<span v-if="multipleEntries(getCrewMember('Director', true))">s</span></h4>
-        <p>
-          <a class="link" @click.stop="searchFor('director', `${getCrewMember('Director', 'strict')}`)">
-            {{getCrewMember('Director', 'strict')}}
-          </a>
-        </p>
+        <div class="directors">
+          <h4>Director<span v-if="multipleEntries(getCrewMember('Director', true))">s</span></h4>
+          <p>
+            <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor('director', name)">
+              {{name}}<span v-if="index !== getCrewMember('Director', 'strict').length - 1">, </span>
+            </a>
+          </p>
+        </div>
 
-        <h4>Genre<span v-if="multipleEntries(turnArrayIntoList(topStructure(result).genres, 'name'))">s</span></h4>
-        <p>
-          <a
-            v-for="(genre, index) in topStructure(result).genres"
-            :key="index"
-            class="link me-2"
-            @click.stop="searchFor('genre', genre.name)"
-          >
-            {{genre.name}}
-          </a>
-        </p>
+        <div class="genres">
+          <h4>Genre<span v-if="multipleEntries(turnArrayIntoList(topStructure(result).genres, 'name'))">s</span></h4>
+          <p>
+            <a
+              v-for="(genre, index) in topStructure(result).genres"
+              :key="index"
+              class="link me-2"
+              @click.stop="searchFor('genre', genre.name)"
+            >
+              {{genre.name}}
+            </a>
+          </p>
+        </div>
 
-        <h4>Writer<span v-if="multipleEntries(getCrewMember('Writer', false))">s</span></h4>
-        <p>{{getCrewMember("Writer", false)}}</p>
+        <div v-if="getCrewMember('Writer', false)" class="writers">
+          <h4>Writer<span v-if="multipleEntries(getCrewMember('Writer', false))">s</span></h4>
+          <p class="long-list">
+            <a v-for="(name, index) in getCrewMember('Writer', false)" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+              {{name}}<span v-if="index !== getCrewMember('Writer', false).length - 1">, </span>
+            </a>
+          </p>
+        </div>
 
-        <h4>Composer<span v-if="multipleEntries(getCrewMember('Composer'))">s</span></h4>
-        <p>{{getCrewMember("Composer")}}</p>
+        <div v-if="getCrewMember('Composer')" class="composers">
+          <h4>Composer<span v-if="multipleEntries(getCrewMember('Composer'))">s</span></h4>
+          <p class="long-list">
+            <a v-for="(name, index) in getCrewMember('Composer')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+              {{name}}<span v-if="index !== getCrewMember('Composer').length - 1">, </span>
+            </a>
+          </p>
+        </div>
 
-        <h4>Editor<span v-if="multipleEntries(getCrewMember('Editor', 'strict'))">s</span></h4>
-        <p>{{getCrewMember("Editor", "strict")}}</p>
+        <div v-if="getCrewMember('Editor').length" class="editors">
+          <h4>Editor<span v-if="multipleEntries(getCrewMember('Editor'))">s</span></h4>
+          <p class="long-list">
+            <a v-for="(name, index) in getCrewMember('Editor')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+              {{name}}<span v-if="index !== getCrewMember('Editor').length - 1">, </span>
+            </a>
+          </p>
+        </div>
 
-        <h4>Cinematographer<span v-if="multipleEntries(getCrewMember('Photo'))">s</span></h4>
-        <p>{{getCrewMember("Photo")}}</p>
+        <div v-if="getCrewMember('Photo').length" class="cinematographers">
+          <h4>Cinematographer<span v-if="multipleEntries(getCrewMember('Photo'))">s</span></h4>
+          <p class="long-list">
+            <a v-for="(name, index) in getCrewMember('Photo')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+              {{name}}<span v-if="index !== getCrewMember('Photo').length - 1">, </span>
+            </a>
+          </p>
+        </div>
 
-        <h4>Cast</h4>
-        <p class="long-list">{{turnArrayIntoList(topStructure(result).cast, "name")}}</p>
+        <div v-if="topStructure(result).cast.length" class="cast">
+          <h4>Cast</h4>
+          <p class="long-list">
+            <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor('cast/crew', castMember.name)">
+              {{castMember.name}}<span v-if="index !== topStructure(result).cast.length - 1">, </span>
+            </a>
+          </p>
+        </div>
 
-        <h4>Production <span v-if="multipleEntries(turnArrayIntoList(topStructure(result).production_companies, 'name'))">Companies</span><span v-else>Company</span></h4>
-        <p>{{turnArrayIntoList(topStructure(result).production_companies, "name")}}</p>
+        <div v-if="topStructure(result).production_companies.length" class="production-companies">
+          <h4>Production <span v-if="multipleEntries(turnArrayIntoList(topStructure(result).production_companies, 'name'))">Companies</span><span v-else>Company</span></h4>
+          <p class="long-list">
+            <a v-for="(productionCompany, index) in topStructure(result).production_companies" :key="index" class="link" @click.stop="searchFor('studios', productionCompany.name)">
+              {{productionCompany.name}}<span v-if="index !== topStructure(result).production_companies.length - 1">, </span>
+            </a>
+          </p>
+        </div>
 
-        <h4>Producer<span v-if="multipleEntries(getCrewMember('Producer'))">s</span></h4>
-        <p class="long-list">{{getCrewMember("Producer")}}</p>
+        <div v-if="getCrewMember('Producer').length" class="producers">
+          <h4>Producer<span v-if="multipleEntries(getCrewMember('Producer'))">s</span></h4>
+          <p class="long-list">
+            <a v-for="(name, index) in getCrewMember('Producer')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+              {{name}}<span v-if="index !== getCrewMember('Producer').length - 1">, </span>
+            </a>
+          </p>
+        </div>
       </div>
     </template>
   </Modal>
@@ -278,7 +324,7 @@ export default {
       }
     },
     multipleEntries (entry) {
-      return entry.split(", ").length > 1;
+      return entry.length > 1;
     },
     getCrewMember (title, strict) {
       if (!this.topStructure(this.result).crew) {
@@ -291,18 +337,26 @@ export default {
       if (strict) {
         matches = crew.filter((member) => member.job === title);
       } else {
-        matches = crew.filter((member) => member.job.includes(title));
+        let titles;
+        switch (title) {
+          case "Writer":
+            titles = ["Writer", "Story", "Screenplay", "Author", "Script"];
+            break;
+          case "Composer":
+            titles = ["Composer", "Music", "Score", "Soundtrack"];
+            break;
+          case "Photo":
+            titles = ["Photo", "Cinematographer", "Director of Photography", "Camera Operator"];
+            break;
+          default:
+            titles = [title];
+        }
+        matches = crew.filter((member) => titles.some(t => member.job.includes(t)));
       }
 
       const names = matches.map((match) => match.name);
 
-      if (!names.length) {
-        return "";
-      } else if (names.length > 1) {
-        return names.join(", ");
-      } else {
-        return names[0];
-      }
+      return names;
     },
     mostRecentRating (media) {
       if (this.currentLogIsTVLog) {
