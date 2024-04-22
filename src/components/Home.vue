@@ -81,6 +81,12 @@
           >
             Mediums
           </span>
+          <span
+            class="badge mx-1 text-bg-info"
+            @click="findRandomSearchTypeAndFilterValue"
+          >
+            Random
+          </span>
         </div>
         <div id="quick-links-accordion" class="quick-links-list-wrapper col-12 mt-1 accordion-collapse collapse" ref="QuickLinksAccordion">
           <div class="accordion-body col-12">
@@ -289,6 +295,8 @@ export default {
     this.value = this.DBSearchValue;
     if (this.$route.query.search) {
       this.value = decodeURIComponent(this.$route.query.search);
+    } else {
+      this.findRandomSearchTypeAndFilterValue();
     }
 
     if (this.DBSortValue) {
@@ -831,6 +839,50 @@ export default {
     }
   },
   methods: {
+    findRandomSearchTypeAndFilterValue () {
+      const searchTypes = ["keyword", "genre", "year", "director", "cast/crew", "studios", "mediums"];
+      const randomSearchType = searchTypes[Math.floor(Math.random() * searchTypes.length)];
+      this.updateSearchType(randomSearchType);
+
+      let counts;
+      switch (randomSearchType) {
+        case "keyword":
+          counts = this.countedKeywords;
+          break;
+        case "genre":
+          counts = this.countedGenres;
+          break;
+        case "year":
+          counts = this.countedYears;
+          break;
+        case "director":
+          counts = this.countDirectors;
+          break;
+        case "cast/crew":
+          counts = this.countCastCrew;
+          break;
+        case "studios":
+          counts = this.countStudios;
+          break;
+        case "mediums":
+          counts = this.countMediums;
+          break;
+      }
+
+      const filterValues = Object.keys(counts);
+      let randomFilterValue;
+      let safetyLimit = 100;
+
+      do {
+        const randomIndex = Math.floor(Math.random() * filterValues.length);
+        randomFilterValue = filterValues[randomIndex];
+        safetyLimit--;
+      } while (counts[randomFilterValue] <= 5 && safetyLimit > 0);
+
+      if (safetyLimit > 0) {
+        this.updateFilterValue(randomFilterValue);
+      }
+    },
     async getDirectorsFilmography (director) {
       const filmography = await axios.get(`https://api.themoviedb.org/3/person/${director.id}/movie_credits?api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
       const directingCredits = filmography.data.crew.filter((credit) => credit.job === "Director");
@@ -1077,6 +1129,7 @@ export default {
       input#search {
         border-bottom-right-radius: .375rem;
         border-top-right-radius: .375rem;
+        font-size: 0.75rem;
 
         &.has-content {
           padding-left: 36px;
