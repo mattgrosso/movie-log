@@ -13,13 +13,16 @@
           name="search"
           id="search"
           :placeholder="placeholder"
+          style="font-size: 0.75rem;" 
+          @focus="increaseFontSize" 
+          @blur="decreaseFontSize"
           v-model="value"
         >
-        <span v-if="value || searchType || filterValue" class="clear-button" @click.prevent="clearValueSearchTypeAndFilterValue">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle" viewBox="0 0 16 16">
-            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-          </svg>
+        <span v-if="value || (searchType && filterValue)" class="clear-button" @click.prevent="clearValueSearchTypeAndFilterValue">
+          <i class="bi bi-x-circle"/>
+        </span>
+        <span v-if="searchType && filterValue" class="more-info-button" @click.prevent="goToWikipedia">
+          <i class="bi bi-question-circle"/>
         </span>
       </div>
       <div class="quick-links d-flex flex-wrap mb-3 col-12 md-col-6">
@@ -239,17 +242,20 @@
     <div v-else class="new-rating">
       <NewRatingSearch :value="value" @clear-search-value="clearValueSearchTypeAndFilterValue"/>
     </div>
+    <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
   </div>
 </template>
 
 <script>
 import axios from 'axios';
 import uniq from 'lodash/uniq';
+import minBy from 'lodash/minBy';
 import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
 import StickinessModal from "./StickinessModal.vue";
+import InsetBrowserModal from './InsetBrowserModal.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
@@ -258,6 +264,7 @@ export default {
     DBSearchResult,
     DBGridLayoutSearchResult,
     NewRatingSearch,
+    InsetBrowserModal,
     StickinessModal
   },
   data () {
@@ -273,6 +280,8 @@ export default {
       noResults: false,
       gridLayout: true,
       hasCalledFindFilter: false,
+      showInsetBrowserModal: false,
+      insetBrowserUrl: ""
     }
   },
   watch: {
@@ -700,7 +709,7 @@ export default {
           this.topStructure(result).flatKeywords.forEach((keyword) => {
             if (counts[keyword]) {
               counts[keyword]++;
-            } else {
+            } else if (keyword) {
               counts[keyword] = 1;
             }
           })
@@ -717,7 +726,7 @@ export default {
           this.topStructure(result).genres.forEach((genre) => {
             if (counts[genre.name]) {
               counts[genre.name]++;
-            } else {
+            } else if (genre.name) {
               counts[genre.name] = 1;
             }
           })
@@ -733,7 +742,7 @@ export default {
         const year = this.getYear(result);
         if (counts[year]) {
           counts[year]++;
-        } else {
+        } else if (year) {
           counts[year] = 1;
         }
       })
@@ -754,7 +763,7 @@ export default {
         if (director) {
           if (counts[director]) {
             counts[director]++;
-          } else {
+          } else if (director) {
             counts[director] = 1;
           }
         }
@@ -773,7 +782,7 @@ export default {
         castCrewCombined.forEach((person) => {
           if (counts[person]) {
             counts[person]++;
-          } else {
+          } else if (person) {
             counts[person] = 1;
           }
         })
@@ -790,7 +799,7 @@ export default {
         productionCompanies.forEach((company) => {
           if (counts[company]) {
             counts[company]++;
-          } else {
+          } else if (company) {
             counts[company] = 1;
           }
         })
@@ -805,7 +814,7 @@ export default {
         result.ratings.forEach((rating) => {
           if (counts[rating.medium]) {
             counts[rating.medium]++;
-          } else {
+          } else if (rating.medium) {
             counts[rating.medium] = 1;
           }
         })
@@ -854,6 +863,8 @@ export default {
       const randomSearchType = searchTypes[Math.floor(Math.random() * searchTypes.length)];
       this.updateSearchType(randomSearchType);
 
+      const minimumCount = 3;
+
       let counts;
       switch (randomSearchType) {
         case "keyword":
@@ -887,13 +898,47 @@ export default {
         const randomIndex = Math.floor(Math.random() * filterValues.length);
         randomFilterValue = filterValues[randomIndex];
         safetyLimit--;
-      } while (counts[randomFilterValue] <= 5 && safetyLimit > 0);
+      } while (counts[randomFilterValue] <= minimumCount && safetyLimit > 0);
 
       if (randomFilterValue && safetyLimit > 0) {
         this.updateFilterValue(randomFilterValue);
       } else {
         this.clearValueSearchTypeAndFilterValue();
       }
+    },
+    async wikiLinkFor (searchValue) {
+      const wiki = await axios.get(`https://en.wikipedia.org/w/api.php?action=query&origin=*&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=%27${searchValue}%27`);
+      const pages = wiki.data.query.pages;
+      const pagesArray = Object.keys(pages).map((page) => pages[page]);
+      const bestMatch = minBy(pagesArray, (page) => page.index);
+
+      return `https://en.m.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
+    },
+    async goToWikipedia () {
+      let curatedSearchType;
+
+      if (this.searchType === "keyword") {
+        curatedSearchType = "";
+      } else if (this.searchType === "genre") {
+        curatedSearchType = "film genre";
+      } else if (this.searchType === "year") {
+        curatedSearchType = "film in";
+      } else if (this.searchType === "director") {
+        curatedSearchType = "";
+      } else if (this.searchType === "cast/crew") {
+        curatedSearchType = "";
+      } else if (this.searchType === "studios") {
+        curatedSearchType = "film studio";
+      } else if (this.searchType === "mediums") {
+        curatedSearchType = "";
+      } else {
+        curatedSearchType = "";
+      }
+
+      const searchValue = `${curatedSearchType} ${this.filterValue}`;
+
+      this.insetBrowserUrl = await this.wikiLinkFor(searchValue);
+      this.showInsetBrowserModal = true;
     },
     async getDirectorsFilmography (director) {
       const filmography = await axios.get(`https://api.themoviedb.org/3/person/${director.id}/movie_credits?api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
@@ -1126,7 +1171,13 @@ export default {
           return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
         }
       );
-    }
+    },
+    increaseFontSize(event) {
+      event.target.style.fontSize = '16px';
+    },
+    decreaseFontSize(event) {
+      event.target.style.fontSize = '0.75rem';
+    },
   },
 }
 </script>
@@ -1141,10 +1192,10 @@ export default {
       input#search {
         border-bottom-right-radius: .375rem;
         border-top-right-radius: .375rem;
-        font-size: 0.75rem;
 
         &.has-content {
           padding-left: 36px;
+          padding-right: 36px;
         }
       }
 
@@ -1205,6 +1256,7 @@ export default {
 
       .clear-button {
         align-items: center;
+        color: black;
         cursor: pointer;
         display: flex;
         height: 40px;
@@ -1215,12 +1267,21 @@ export default {
         transform: translateY(-50%);
         width: 40px;
         z-index: 5;
+      }
 
-        svg {
-          path {
-            fill: black;
-          }
-        }
+      .more-info-button {
+        align-items: center;
+        color: black;
+        cursor: pointer;
+        display: flex;
+        height: 40px;
+        justify-content: center;
+        right: 0px;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 40px;
+        z-index: 5;
       }
 
       svg {

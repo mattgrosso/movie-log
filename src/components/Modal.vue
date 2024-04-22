@@ -45,7 +45,7 @@ export default {
   background-color: rgba(0, 0, 0, 0.4);
 
   .modal-content {
-    background-color: white;
+    background-color: black;
     margin: 3%;
     width: 94%;
     height: 97vh;

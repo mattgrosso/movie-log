@@ -8,6 +8,7 @@
         Dev Mode!
       </div>
       <div class="home-link" :class="posterCount" @click="goHome">
+        <!-- <span>Cinemaroll</span> -->
         <span class="moviel-only">Movie L</span><span class="og-only">og</span>
         <span class="version">{{version}}</span>
       </div>

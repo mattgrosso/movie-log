@@ -16,7 +16,7 @@
       </span>
     </div>
   </li>
-  <insetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
+  <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
   <Modal class="details-modal" :show="showDetailsModal" @close="showDetailsModal = false">
     <template v-slot:header>
       <h2>{{topStructure(result).title}}</h2>
@@ -130,7 +130,7 @@ import ordinal from "ordinal-js";
 import minBy from 'lodash/minBy';
 import EpisodeRatingsChart from './EpisodeRatingsChart.vue';
 import Modal from './Modal.vue';
-import insetBrowserModal from './insetBrowserModal.vue';
+import InsetBrowserModal from './InsetBrowserModal.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 
 export default {
@@ -161,7 +161,7 @@ export default {
   components: {
     EpisodeRatingsChart,
     Modal,
-    insetBrowserModal
+    InsetBrowserModal
   },
   computed: {
     currentLogIsTVLog () {
@@ -349,7 +349,7 @@ export default {
 
   .details-modal {
     a {
-      color: black;
+      color: white;
       cursor: pointer;
     }
 
@@ -357,7 +357,7 @@ export default {
       .modal-header {
         h2 {
           position: absolute;
-          font-size: 1.6rem;
+          font-size: 2rem;
           margin: 0;
           bottom: 0;
           color: white;

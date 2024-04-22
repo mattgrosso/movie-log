@@ -162,7 +162,7 @@
       </div>
     </div>
   </li>
-  <insetBrowserModal :show="showModal" :url="insetBrowserUrl" @close="showModal = false" />
+  <InsetBrowserModal :show="showModal" :url="insetBrowserUrl" @close="showModal = false" />
 </template>
 
 <script>
@@ -170,7 +170,7 @@ import axios from 'axios';
 import ordinal from "ordinal-js";
 import minBy from 'lodash/minBy';
 import EpisodeRatingsChart from './EpisodeRatingsChart.vue';
-import insetBrowserModal from './insetBrowserModal.vue';
+import InsetBrowserModal from './InsetBrowserModal.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 
 export default {
@@ -199,7 +199,7 @@ export default {
   },
   components: {
     EpisodeRatingsChart,
-    insetBrowserModal
+    InsetBrowserModal
   },
   computed: {
     currentLogIsTVLog () {
