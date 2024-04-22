@@ -291,7 +291,7 @@ export default {
         this.sortOrder = newVal;
       }
     },
-    paginatedSortedResults() {
+    paginatedSortedResults () {
       this.checkResultsAndFindFilter();
     },
   },
@@ -843,7 +843,7 @@ export default {
     }
   },
   methods: {
-    checkResultsAndFindFilter() {
+    checkResultsAndFindFilter () {
       if (this.paginatedSortedResults.length > 0 && !this.hasCalledFindFilter) {
         this.findRandomSearchTypeAndFilterValue();
         this.hasCalledFindFilter = true;
