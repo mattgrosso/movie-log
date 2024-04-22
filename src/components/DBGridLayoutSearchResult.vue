@@ -16,7 +16,6 @@
       </span>
     </div>
   </li>
-  <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
   <Modal class="details-modal" :show="showDetailsModal" @close="showDetailsModal = false">
     <template v-slot:header>
       <h2>{{topStructure(result).title}}</h2>
@@ -29,6 +28,11 @@
           <h3>
             <a class="link mx-2" @click.stop="searchFor('year', `${getYear(result)}`)">{{getYear(result)}}</a>
           </h3>
+        </div>
+
+        <div class="details-actions">
+          <button class="btn btn-sm btn-success me-2" @click="rateMedia(topStructure(result))">Add New Rating</button>
+          <button class="btn btn-sm btn-info" @click="goToWikipedia(result)">Wikipedia</button>
         </div>
 
         <div v-if="getAllRatings(previousEntry)" class="previous-ratings mb-3">
@@ -122,6 +126,7 @@
       </div>
     </template>
   </Modal>
+  <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
 </template>
 
 <script>
@@ -389,6 +394,16 @@ export default {
         .runtime-and-date {
           display: flex;
           justify-content: space-between;
+          margin-bottom: 1rem;
+
+          h3 {
+            margin: 0;
+          }
+        }
+
+        .details-actions {
+          display: flex;
+          justify-content: flex-end;
           margin-bottom: 1rem;
         }
 
