@@ -25,98 +25,16 @@
           <i class="bi bi-question-circle"/>
         </span>
       </div>
-      <div class="quick-links d-flex flex-wrap mb-3 col-12 md-col-6">
-        <div ref="quickLinkTypes" class="types d-flex align-items-center flex-wrap p-1">
-          <span
-            class="badge mx-1"
-            :class="searchType === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="toggleAnnualBestFilter"
-          >
-            Annual Best
-          </span>
-          <span
-            class="badge mx-1"
-            :class="searchType === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="toggleQuickLinksList('genre')"
-          >
-            Genres
-          </span>
-          <span
-            class="badge mx-1"
-            :class="searchType === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="toggleQuickLinksList('keyword')"
-          >
-            Keywords
-          </span>
-          <span
-            class="badge mx-1"
-            :class="searchType === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="toggleQuickLinksList('year')"
-          >
-            Years
-          </span>
-          <span
-            class="badge mx-1"
-            :class="searchType === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="toggleQuickLinksList('director')"
-          >
-            <span v-if="currentLogIsTVLog">Creators</span>
-            <span v-else>Directors</span>
-          </span>
-          <span
-            class="badge mx-1"
-            :class="searchType === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="toggleQuickLinksList('cast/crew')"
-          >
-            Cast/Crew Members
-          </span>
-          <span
-            class="badge mx-1"
-            :class="searchType === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="toggleQuickLinksList('studios')"
-          >
-            Studios
-          </span>
-          <span
-            class="badge mx-1 text-bg-info"
-            @click="findRandomSearchTypeAndFilterValue"
-          >
-            Random
-          </span>
-        </div>
-        <div id="quick-links-accordion" class="quick-links-list-wrapper col-12 mt-1 accordion-collapse collapse" ref="QuickLinksAccordion">
-          <div class="accordion-body col-12">
-            <button
-              class="quick-links-list-sort"
-              :class="darkOrLight"
-              @click="toggleQuickLinksSort"
-            >
-              {{quickLinksSortType}}
-            </button>
-            <ul class="quick-link-list p-0 col-12">
-              <li v-for="(value, index) in sortedDataListForSearchType" :key="index" @click="updateFilterValue(value.name)">
-                <span class="badge mx-1" :class="darkOrLight">
-                  {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
-                </span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
     </div>
-    <StickinessModal v-if="allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
+    <!-- <StickinessModal v-if="allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" /> -->
     <div v-if="showResultsList" class="results">
       <div v-if="paginatedSortedResults.length" class="results-exist">
-        <hr class="mt-1 mb-3">
-        <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap">
-          <div class="btn-group" role="group" aria-label="Button group">
-            <button class="btn btn-secondary" @click="toggleSettings">
+        <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
+          <div class="btn-group col-12" role="group" aria-label="Button group">
+            <button class="results-actions-button btn btn-secondary" @click="toggleSettings">
               <i class="bi bi-gear"/>
             </button>
-            <button class="btn btn-info collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
-              <i class="bi bi-lightbulb"/>
-            </button>
-            <button class="btn btn-warning" @click="shareResults">
+            <button class="results-actions-button btn btn-warning" @click="shareResults">
               <span v-if="!sharing">
                 <i class="bi bi-share"/>
               </span>
@@ -124,57 +42,130 @@
                 <span class="visually-hidden">Loading...</span>
               </div>
             </button>
-            <button class="btn btn-danger" @click="gridLayout = !gridLayout">
+            <button class="results-actions-button btn btn-danger" @click="gridLayout = !gridLayout">
               <i v-if="gridLayout" class="bi bi-view-list"/>
               <i v-else class="bi bi-grid-1x2"/>
             </button>
-            <button class="filtered-count-display btn btn-secondary" @click="showAverage = !showAverage">
+            <button class="results-actions-button filtered-count-display btn btn-secondary" @click="showAverage = !showAverage">
               <span v-if="showAverage">
                 <span class="average-label">(avg)</span>
                 <span class="average-value">{{averageRating(filteredResults)}}</span>
               </span>
               <span v-else>{{filteredResults.length}}</span>
             </button>
+            <button class="results-actions-button btn btn-info collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
+              <i class="bi bi-lightbulb"/>
+            </button>
+            <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion">
+              <i class="bi bi-lightning-charge"/>
+            </button>
+            <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchTypeAndFilterValue">
+              <i class="bi bi-shuffle"/>
+            </button>
+            <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i v-if="sortValue === 'rating'" class="bi bi-123"/>
+              <i v-if="sortValue === 'watched'" class="bi bi-calendar3"/>
+              <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
+              <i v-if="sortValue === 'title'" class="bi bi-alphabet"></i>
+              <span class="order-arrow">
+                <i v-if="sortOrder !== 'ascending'" class="bi bi-arrow-down-short"/>
+                <i v-if="sortOrder === 'ascending'" class="bi bi-arrow-up-short"/>
+              </span>
+              <ul class="dropdown-menu">
+                <li value="rating">
+                  <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setSortValue('rating')">
+                    Rating
+                  </button>
+                </li>
+                <li value="watched">
+                  <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setSortValue('watched')">
+                    Watch Date
+                  </button>
+                </li>
+                <li value="release">
+                  <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setSortValue('release')">
+                    Release Date
+                  </button>
+                </li>
+                <li value="title">
+                  <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setSortValue('title')">
+                    Title
+                  </button>
+                </li>
+              </ul>
+            </button>
           </div>
-          <!-- <p class="m-0 d-flex align-items-center justify-content-center">{{filteredResults.length}}</p> -->
-          <div class="ps-1 col-4 d-flex justify-content-end">
-            <button class="btn btn-secondary dropdown-toggle col-8" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-              {{sortValueDisplay || "Sort By"}}
-            </button>
-            <ul class="dropdown-menu">
-              <li value="rating">
-                <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setSortValue('rating')">
-                  Rating
-                </button>
-              </li>
-              <li value="watched">
-                <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setSortValue('watched')">
-                  Watch Date
-                </button>
-              </li>
-              <li value="release">
-                <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setSortValue('release')">
-                  Release Date
-                </button>
-              </li>
-              <li value="title">
-                <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setSortValue('title')">
-                  Title
-                </button>
-              </li>
-            </ul>
-            <button class="btn btn-outline-secondary btn-sm ms-1" @click="toggleSortOrder">
-              <div v-if="sortOrder !== 'ascending'" class="descending">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-down-alt" viewBox="0 0 16 16">
-                  <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293V3.5zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
-                </svg>
-              </div>
-              <div v-if="sortOrder === 'ascending'" class="ascending">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-sort-up-alt" viewBox="0 0 16 16">
-                  <path d="M3.5 13.5a.5.5 0 0 1-1 0V4.707L1.354 5.854a.5.5 0 1 1-.708-.708l2-1.999.007-.007a.498.498 0 0 1 .7.006l2 2a.5.5 0 1 1-.707.708L3.5 4.707V13.5zm4-9.5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1h-1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1h-5zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5z"/>
-                </svg>
-              </div>
-            </button>
+          <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap">
+            <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
+              <span
+                class="badge mx-1"
+                :class="searchType === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
+                @click="toggleAnnualBestFilter"
+              >
+                Annual Best
+              </span>
+              <span
+                class="badge mx-1"
+                :class="searchType === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
+                @click="toggleQuickLinksList('genre')"
+              >
+                Genres
+              </span>
+              <span
+                class="badge mx-1"
+                :class="searchType === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
+                @click="toggleQuickLinksList('keyword')"
+              >
+                Keywords
+              </span>
+              <span
+                class="badge mx-1"
+                :class="searchType === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
+                @click="toggleQuickLinksList('year')"
+              >
+                Years
+              </span>
+              <span
+                class="badge mx-1"
+                :class="searchType === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
+                @click="toggleQuickLinksList('director')"
+              >
+                <span v-if="currentLogIsTVLog">Creators</span>
+                <span v-else>Directors</span>
+              </span>
+              <span
+                class="badge mx-1"
+                :class="searchType === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
+                @click="toggleQuickLinksList('cast/crew')"
+              >
+                Cast/Crew Members
+              </span>
+              <span
+                class="badge mx-1"
+                :class="searchType === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
+                @click="toggleQuickLinksList('studios')"
+              >
+                Studios
+              </span>
+            </div>
+          </div>
+          <div id="quick-links-types-accordion" class="quick-links-list-wrapper col-12 mt-1 accordion-collapse collapse" ref="QuickLinksAccordion">
+            <div class="accordion-body col-12">
+              <button
+                class="quick-links-list-sort"
+                :class="darkOrLight"
+                @click="toggleQuickLinksSort"
+              >
+                {{quickLinksSortType}}
+              </button>
+              <ul class="quick-link-list p-0 col-12">
+                <li v-for="(value, index) in sortedDataListForSearchType" :key="index" @click="updateFilterValue(value.name)">
+                  <span class="badge mx-1" :class="darkOrLight">
+                    {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
+                  </span>
+                </li>
+              </ul>
+            </div>
           </div>
           <div id="insights-accordion" ref="insightsAccordion" class="accordion-collapse collapse col-12" aria-labelledby="insights">
             <div class="accordion-body col-12">
@@ -195,7 +186,8 @@
             </div>
           </div>
         </div>
-        <ul v-if="gridLayout" class="grid-layout py-3" :class="listCountClasses">
+        <!-- <p class="m-0 d-flex align-items-center justify-content-center">{{filteredResults.length}}</p> -->
+        <ul v-if="gridLayout" class="grid-layout pb-3" :class="listCountClasses">
           <DBGridLayoutSearchResult
             v-for="(result, index) in paginatedSortedResults"
             :key="result.movie.id"
@@ -1018,7 +1010,11 @@ export default {
       }
     },
     setSortValue (value) {
-      this.sortValue = value;
+      if (this.sortValue === value) {
+        this.toggleSortOrder();
+      } else {
+        this.sortValue = value;
+      }
     },
     sortResults (a, b) {
       let sortValueA;
@@ -1199,61 +1195,6 @@ export default {
         }
       }
 
-      .quick-links {
-        p {
-          white-space: nowrap;
-        }
-
-        .types {
-          row-gap: 6px;
-
-          span {
-            cursor: pointer;
-            font-size: 0.75rem;
-          }
-        }
-
-        .quick-links-list-wrapper {
-          border: 1px solid #c0c2c3;
-          max-height: 100px;
-          overflow-y: scroll;
-          position: relative;
-
-          .quick-links-list-sort {
-            position: sticky;
-            top: 4px;
-            left: 100%;
-            border: 1px solid #c0c2c3;
-            border-bottom-left-radius: 2px;
-            padding: 2px 4px;
-            background: white;
-            font-size: 0.65rem;
-            margin: 4px 8px;
-          }
-
-          .quick-link-list {
-            column-count: 2;
-            column-gap: 0;
-            list-style: none;
-            margin-top: -20px;
-
-            li {
-              .badge {
-                align-items: center;
-                cursor: pointer;
-                display: flex;
-                text-align: start;
-                white-space: break-spaces;
-
-                span {
-                  font-size: 0.5rem;
-                }
-              }
-            }
-          }
-        }
-      }
-
       .clear-button {
         align-items: center;
         color: black;
@@ -1304,10 +1245,73 @@ export default {
           }
         }
 
+        .dropdown-toggle {
+          position: relative;
+
+          &::after {
+            display: none;
+          }
+
+          > i {
+            margin-right: 6px;
+          }
+
+          .order-arrow {
+            position: absolute;
+            right: 7px;
+            top: 49%;
+            transform: translateY(-49%);
+          }
+        }
+
         button {
           svg {
             height: 14px;
             width: 14px;
+          }
+
+          border: none;
+
+          &.results-actions-button {
+            &:nth-child(1) {
+              background-color: #E71D36; /* Red */
+              color: white;
+            }
+  
+            &:nth-child(2) {
+              background-color: #FF9F1C; /* Orange */
+              color: black;
+            }
+  
+            &:nth-child(3) {
+              background-color: #FFD700; /* Yellow */
+              color: black;
+            }
+  
+            &:nth-child(4) {
+              background-color: #2EC4B6; /* Green */
+              color: black;
+            }
+  
+            &:nth-child(5) {
+              background-color: #00FFFF; /* Cyan */
+              color: black;
+            }
+  
+            &:nth-child(6) {
+              background-color: #1D8BF1; /* Medium Blue */
+              color: white;
+            }
+  
+            &:nth-child(7) {
+              background-color: #5A189A; /* Indigo */
+              color: white;
+            }
+  
+            &:nth-child(8) {
+              background-color: #9D4EDD; /* Violet */
+              color: white;
+            }
           }
         }
 
@@ -1323,6 +1327,55 @@ export default {
           .average-value {
             position: relative;
             top: -4px;
+          }
+        }
+        
+        .quick-link-types {
+          row-gap: 6px;
+
+          span {
+            cursor: pointer;
+            font-size: 0.75rem;
+          }
+        }
+
+        .quick-links-list-wrapper {
+          border: 1px solid #c0c2c3;
+          max-height: 150px;
+          overflow-y: scroll;
+          position: relative;
+
+          .quick-links-list-sort {
+            position: sticky;
+            top: 4px;
+            left: 100%;
+            border: 1px solid #c0c2c3;
+            border-bottom-left-radius: 2px;
+            padding: 2px 4px;
+            background: white;
+            font-size: 0.65rem;
+            margin: 4px 8px;
+          }
+
+          .quick-link-list {
+            column-count: 2;
+            column-gap: 0;
+            list-style: none;
+            margin-top: -20px;
+
+            li {
+              .badge {
+                align-items: center;
+                cursor: pointer;
+                display: flex;
+                text-align: start;
+                white-space: break-spaces;
+
+                span {
+                  font-size: 0.5rem;
+                }
+              }
+            }
           }
         }
       }
