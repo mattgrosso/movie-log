@@ -194,6 +194,7 @@
             :result="result"
             :index="index"
             :resultsAreFiltered="resultsAreFiltered"
+            :sortValue="sortValue"
             @updateSearchValue="updateSearchValue"
           />
         </ul>

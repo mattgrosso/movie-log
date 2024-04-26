@@ -8,7 +8,13 @@
       v-lazy="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
     >
     <div class="details">
-      <span class="rank">
+      <span v-if="sortValue === 'watched'">
+        {{smallFormattedDate(mostRecentRating(result).date)}}
+      </span>
+      <span v-else-if="sortValue === 'release'">
+        {{smallFormattedDate(topStructure(result).release_date)}}
+      </span>
+      <span v-else class="rank">
         {{getOrdinal(overAllRank)}}
       </span>
       <span class="rating">
@@ -198,6 +204,11 @@ export default {
       type: Boolean,
       required: false,
       default: false
+    },
+    sortValue: {
+      type: String,
+      required: false,
+      default: ""
     }
   },
   data () {
@@ -381,6 +392,21 @@ export default {
     },
     formattedDate (date) {
       return new Date(date).toLocaleDateString();
+    },
+    smallFormattedDate (date) {
+      const now = new Date();
+      const inputDate = new Date(date);
+      const diffInDays = Math.floor((now - inputDate) / (1000 * 60 * 60 * 24));
+
+      if (diffInDays <= 6) {
+        return inputDate.toLocaleDateString('en-US', { weekday: 'long' });
+      } else {
+        if (now.getFullYear() === inputDate.getFullYear()) {
+          return inputDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else {
+          return inputDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+      }
     }
   }
 };
