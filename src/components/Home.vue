@@ -78,13 +78,6 @@
             Studios
           </span>
           <span
-            class="badge mx-1"
-            :class="searchType === 'mediums' ? 'text-bg-success' : 'text-bg-secondary'"
-            @click="toggleQuickLinksList('mediums')"
-          >
-            Mediums
-          </span>
-          <span
             class="badge mx-1 text-bg-info"
             @click="findRandomSearchTypeAndFilterValue"
           >
@@ -117,13 +110,13 @@
         <hr class="mt-1 mb-3">
         <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap">
           <div class="btn-group" role="group" aria-label="Button group">
-            <button class="btn btn-secondary btn-sm" @click="toggleSettings">
+            <button class="btn btn-secondary" @click="toggleSettings">
               <i class="bi bi-gear"/>
             </button>
-            <button class="btn btn-info btn-sm collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
+            <button class="btn btn-info collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
               <i class="bi bi-lightbulb"/>
             </button>
-            <button class="btn btn-warning btn-sm" @click="shareResults">
+            <button class="btn btn-warning" @click="shareResults">
               <span v-if="!sharing">
                 <i class="bi bi-share"/>
               </span>
@@ -131,15 +124,21 @@
                 <span class="visually-hidden">Loading...</span>
               </div>
             </button>
-            <button class="btn btn-danger btn-sm" @click="gridLayout = !gridLayout">
+            <button class="btn btn-danger" @click="gridLayout = !gridLayout">
               <i v-if="gridLayout" class="bi bi-view-list"/>
               <i v-else class="bi bi-grid-1x2"/>
             </button>
-            <button class="btn btn-secondary btn-sm">{{filteredResults.length}}</button>
+            <button class="filtered-count-display btn btn-secondary" @click="showAverage = !showAverage">
+              <span v-if="showAverage">
+                <span class="average-label">(avg)</span>
+                <span class="average-value">{{averageRating(filteredResults)}}</span>
+              </span>
+              <span v-else>{{filteredResults.length}}</span>
+            </button>
           </div>
           <!-- <p class="m-0 d-flex align-items-center justify-content-center">{{filteredResults.length}}</p> -->
-          <div class="ps-1 col-5 d-flex justify-content-end">
-            <button class="btn btn-secondary btn-sm dropdown-toggle col-8" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <div class="ps-1 col-4 d-flex justify-content-end">
+            <button class="btn btn-secondary dropdown-toggle col-8" type="button" data-bs-toggle="dropdown" aria-expanded="false">
               {{sortValueDisplay || "Sort By"}}
             </button>
             <ul class="dropdown-menu">
@@ -281,7 +280,8 @@ export default {
       gridLayout: true,
       hasCalledFindFilter: false,
       showInsetBrowserModal: false,
-      insetBrowserUrl: ""
+      insetBrowserUrl: "",
+      showAverage: false
     }
   },
   watch: {
@@ -366,11 +366,11 @@ export default {
     },
     sortValueDisplay () {
       if (this.sortValue === "rating") {
-        return "Rating";
+        return "Rank";
       } else if (this.sortValue === "watched") {
         return "Watched";
       } else if (this.sortValue === "release") {
-        return "Released";
+        return "Release";
       } else if (this.sortValue === "title") {
         return "Title";
       } else {
@@ -1209,7 +1209,7 @@ export default {
 
           span {
             cursor: pointer;
-            font-size: 0.65rem;
+            font-size: 0.75rem;
           }
         }
 
@@ -1308,6 +1308,21 @@ export default {
           svg {
             height: 14px;
             width: 14px;
+          }
+        }
+
+        .filtered-count-display {
+          .average-label {
+            font-size: 0.5rem;
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+          }
+
+          .average-value {
+            position: relative;
+            top: -4px;
           }
         }
       }

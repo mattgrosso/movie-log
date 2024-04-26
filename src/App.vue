@@ -1,5 +1,5 @@
 <template>
-  <div class="movie-log">
+  <div class="cinema-roll">
     <Header/>
     <router-view></router-view>
     <Footer/>
@@ -11,7 +11,7 @@ import Footer from "./components/Footer.vue";
 import Header from "./components/Header.vue";
 
 export default {
-  name: "Movie-Log",
+  name: "Cinema-Roll",
   components: {
     Footer,
     Header

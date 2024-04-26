@@ -1,5 +1,5 @@
 <template>
-  <div v-if="show" class="movie-log-modal">
+  <div v-if="show" class="cinema-roll-modal">
     <div class="modal-content">
       <div class="modal-header">
         <span class="close" @click="close">&times;</span>
@@ -34,7 +34,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.movie-log-modal {
+.cinema-roll-modal {
   position: fixed;
   z-index: 5;
   left: 0;

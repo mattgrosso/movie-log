@@ -1,5 +1,5 @@
-# movie-log
-[movie-log.surge.sh](https://movie-log.surge.sh/)
+# cinema roll
+[cinema-roll.surge.sh](https://cinema-roll.surge.sh/)
 
 ## Project setup
 ```

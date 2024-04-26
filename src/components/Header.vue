@@ -8,8 +8,7 @@
         Dev Mode!
       </div>
       <div class="home-link" :class="posterCount" @click="goHome">
-        <!-- <span>Cinemaroll</span> -->
-        <span class="moviel-only">Movie L</span><span class="og-only">og</span>
+        <span class="app-title">Cinema Roll</span>
         <span class="version">{{version}}</span>
       </div>
     </div>
@@ -138,19 +137,12 @@ export default {
         cursor: pointer;
         font-family: "Lobster", sans-serif;
         font-size: 3rem;
+        font-weight: 700;
         margin: 0;
-        padding: 0 6px 7px 16px;
+        padding: 0 10px 0 16px;
         position: absolute;
         right: 0;
         white-space: nowrap;
-
-        .moviel-only {
-          text-decoration: underline;
-        }
-
-        .og-only {
-          text-decoration: none;
-        }
 
         .version {
           bottom: 0;

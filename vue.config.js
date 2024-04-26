@@ -14,8 +14,8 @@ module.exports = defineConfig({
     ],
   },
   pwa: {
-    name: 'Movie Log',
-    themeColor: '#000000',
+    name: 'Cinema Roll',
+    themeColor: '#ffffff',
     msTileColor: '#ffffff',
     appleMobileWebAppCapable: 'yes',
     appleMobileWebAppStatusBarStyle: 'black',
