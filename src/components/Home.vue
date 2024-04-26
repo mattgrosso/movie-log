@@ -1278,37 +1278,37 @@ export default {
               background-color: #E71D36; /* Red */
               color: white;
             }
-  
+
             &:nth-child(2) {
               background-color: #FF9F1C; /* Orange */
               color: black;
             }
-  
+
             &:nth-child(3) {
               background-color: #FFD700; /* Yellow */
               color: black;
             }
-  
+
             &:nth-child(4) {
               background-color: #2EC4B6; /* Green */
               color: black;
             }
-  
+
             &:nth-child(5) {
               background-color: #00FFFF; /* Cyan */
               color: black;
             }
-  
+
             &:nth-child(6) {
               background-color: #1D8BF1; /* Medium Blue */
               color: white;
             }
-  
+
             &:nth-child(7) {
               background-color: #5A189A; /* Indigo */
               color: white;
             }
-  
+
             &:nth-child(8) {
               background-color: #9D4EDD; /* Violet */
               color: white;
@@ -1330,7 +1330,7 @@ export default {
             top: -4px;
           }
         }
-        
+
         .quick-link-types {
           row-gap: 6px;
 
