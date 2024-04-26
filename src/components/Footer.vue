@@ -29,24 +29,14 @@ export default {
 }
 </script>
 
-<style>
-  html, body {
-    height: 100%;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-  }
-
-  #app {
-    flex: 1 0 auto;
-  }
-
+<style lang="scss">
   footer {
-    flex-shrink: 0;
     background: black;
     color: white;
     font-size: 0.6rem;
     padding: 6px 12px;
+    position: fixed;
+    bottom: 0;
 
     span,
     a {
