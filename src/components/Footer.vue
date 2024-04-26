@@ -29,8 +29,20 @@ export default {
 }
 </script>
 
-<style lang="scss">
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #app {
+    flex: 1 0 auto;
+  }
+
   footer {
+    flex-shrink: 0;
     background: black;
     color: white;
     font-size: 0.6rem;
