@@ -12,7 +12,6 @@ import "bootstrap";
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import Login from "./components/Login.vue";
 import Home from "./components/Home.vue";
-import Settings from "./components/Settings.vue";
 import PickMedia from "./components/PickMedia.vue";
 import RateMovie from "./components/RateMovie.vue";
 import RateTVShow from "./components/RateTVShow.vue";
@@ -79,21 +78,6 @@ const routes = [
     meta: {
       requiresLogin: false
     },
-  },
-  {
-    name: 'Settings',
-    path: '/settings',
-    component: Settings,
-    meta: {
-      requiresLogin: true
-    },
-    beforeEnter: (to, from, next) => {
-      if (!loggedIn()) {
-        next('/login');
-      } else {
-        next();
-      }
-    }
   },
   {
     path: '/rate-movie',

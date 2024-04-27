@@ -30,8 +30,9 @@
       <div v-if="paginatedSortedResults.length" class="results-exist">
         <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
           <div class="btn-group col-12" role="group" aria-label="Button group">
-            <button class="results-actions-button btn btn-secondary" @click="toggleSettings">
-              <i class="bi bi-gear"/>
+            <button class="results-actions-button btn btn-secondary" @click="toggleMovieTV">
+              <i v-if="currentLogIsTVLog" class="bi bi-tv"/>
+              <i v-else class="bi bi-film"/>
             </button>
             <button class="results-actions-button btn btn-warning" @click="shareResults">
               <span v-if="!sharing">
@@ -854,6 +855,9 @@ export default {
     }
   },
   methods: {
+    toggleMovieTV () {
+      this.$store.dispatch('toggleCurrentLog');
+    },
     checkResultsAndFindFilter () {
       if (!this.$route.query.noRandom && this.paginatedSortedResults.length > 0 && !this.hasCalledFindFilter) {
         this.findRandomSearchTypeAndFilterValue();
@@ -1017,9 +1021,6 @@ export default {
       this.updateSearchType(searchObject.searchType);
       this.updateFilterValue(searchObject.value);
       this.$refs.insightsAccordion?.classList.remove("show");
-    },
-    toggleSettings () {
-      this.$router.push("/settings");
     },
     toggleQuickLinksSort () {
       if (this.quickLinksSortType === "a-z") {
