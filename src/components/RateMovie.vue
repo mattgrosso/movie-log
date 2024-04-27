@@ -852,7 +852,7 @@ export default {
     },
     returnHome () {
       this.$store.commit("setShowHeader", true);
-      this.$router.push({ path: '/', query: { noRandom: 'true', movieDbKey: this.dbEntry?.path?.split("movieLog/")[1]}});
+      this.$router.push({ path: '/', query: { noRandom: 'true', movieDbKey: this.dbEntry?.path?.split("movieLog/")[1] } });
     },
     viewingTagChecked (tag) {
       if (!this.selectedViewingTagNames) {

@@ -242,7 +242,7 @@ export default {
     },
   },
   methods: {
-    sanitizeId(id) {
+    sanitizeId (id) {
       return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
     updateSearchValue (searchType, value) {

@@ -898,7 +898,7 @@ export default {
         }, 0);
       });
     },
-    sanitizeId(id) {
+    sanitizeId (id) {
       return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
     findRandomSearchTypeAndFilterValue () {
