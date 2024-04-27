@@ -828,7 +828,6 @@ export default {
 
       const dbEntry = await addRating(ratings, this.selectedMovieTags);
       this.dbEntry = dbEntry;
-      const routeAfterRating = this.settings?.routeAfterRating?.value;
 
       window.scroll({
         top: top,
@@ -836,19 +835,7 @@ export default {
       })
 
       this.$store.commit("setShowHeader", true);
-      if (routeAfterRating === "recentlyViewed") {
-        this.$store.commit("setDBSortValue", "watched");
-        this.returnHome();
-      } else if (routeAfterRating === "allRatings") {
-        this.$store.commit("setDBSortValue", "rating");
-        this.returnHome();
-      } else if (routeAfterRating === "sameYear") {
-        this.$store.commit("setDBSearchValue", `y:${rating.year}`);
-        this.$store.commit("setDBSortValue", "rating");
-        this.returnHome();
-      } else {
-        this.returnHome();
-      }
+      this.returnHome();
     },
     returnHome () {
       this.$store.commit("setShowHeader", true);

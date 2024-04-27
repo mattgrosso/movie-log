@@ -773,28 +773,13 @@ export default {
 
       this.$store.dispatch("addToRecentlyRatedTVShows", dbEntry.value.tvShow);
 
-      const routeAfterRating = this.settings?.routeAfterRating?.value;
-
       window.scroll({
         top: top,
         behavior: 'smooth'
       })
 
       this.$store.commit("setShowHeader", true);
-
-      if (routeAfterRating === "recentlyViewed") {
-        this.$store.commit("setDBSortValue", "watched");
-        this.$router.push("/");
-      } else if (routeAfterRating === "allRatings") {
-        this.$store.commit("setDBSortValue", "rating");
-        this.$router.push("/");
-      } else if (routeAfterRating === "sameYear") {
-        this.$store.commit("setDBSearchValue", `y:${rating.year}`);
-        this.$store.commit("setDBSortValue", "rating");
-        this.$router.push("/");
-      } else {
-        this.$router.push("/");
-      }
+      this.returnHome();
     },
     returnHome () {
       this.$store.commit("setShowHeader", true);

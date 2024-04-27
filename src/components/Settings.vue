@@ -64,15 +64,6 @@
           </div>
         </div>
       </div>
-      <div class="mt-3 p-3 border border-white">
-        <label class="form-label" for="routeAfterRating">After rating where would you like to go?</label>
-        <select class="form-select" name="routeAfterRating" id="routeAfterRating" v-model="routeAfterRating">
-          <option value="recentlyViewed">Recently viewed</option>
-          <option value="allRatings">All ratings</option>
-          <option value="home">Home screen</option>
-          <option value="sameYear">Ratings from the same year</option>
-        </select>
-      </div>
     </div>
   </div>
 </template>
@@ -88,32 +79,18 @@ export default {
   },
   async mounted () {
     this.devMode = JSON.parse(window.localStorage.getItem('devMode'));
-
-    const route = this.$store.state.settings?.routeAfterRating?.value;
-    if (route) {
-      this.routeAfterRating = route;
-    } else {
-      this.routeAfterRating = "recentlyViewed";
-    }
   },
   data () {
     return {
       newViewingTagTitle: null,
       newMovieTagTitle: null,
-      devMode: false,
-      routeAfterRating: ""
+      devMode: false
     }
   },
   watch: {
     devMode (newVal) {
       window.localStorage.setItem('devMode', newVal);
       this.devModeSwitched(newVal);
-    },
-    routeAfterRating (newVal) {
-      this.setRouteAfterRating(newVal);
-    },
-    settingsRouteAfterRating (newVal) {
-      this.routeAfterRating = newVal;
     }
   },
   computed: {
@@ -122,9 +99,6 @@ export default {
     },
     settings () {
       return this.$store.state.settings;
-    },
-    settingsRouteAfterRating () {
-      return this.$store.state.settings?.routeAfterRating?.value;
     },
     databaseTopKey () {
       return this.$store.state.databaseTopKey;
@@ -145,16 +119,6 @@ export default {
     }
   },
   methods: {
-    async setRouteAfterRating (value) {
-      if (this.databaseTopKey) {
-        const dbEntry = {
-          path: "settings/routeAfterRating",
-          value: { value: value }
-        }
-
-        this.$store.dispatch('setDBValue', dbEntry);
-      }
-    },
     async addViewingTag () {
       if (!this.settings.tags || !this.settings.tags["viewing-tags"]) {
         return;
