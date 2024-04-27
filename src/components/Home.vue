@@ -893,6 +893,7 @@ export default {
             // Remove the highlight class after a delay
             setTimeout(() => {
               movieElement.classList.remove('highlight');
+              this.$router.push({ query: { ...this.$route.query, movieDbKey: undefined } });
             }, scrollTime + 2000);
           }
         }, 0);

@@ -120,11 +120,11 @@ export default createStore({
     allMediaSortedByRating: (state, getters) => {
       return getters.allMediaAsArray.sort(sortByRating);
     },
-    databaseTopKey (state) {
-      return state.databaseTopKey;
+    databaseTopKey (state, getters) {
+      return getters.devMode ? state.devModeTopKey : state.databaseTopKey;
     },
-    devMode (state) {
-      return state.databaseTopKey === state.devModeTopKey;
+    devMode () {
+      return localStorage.getItem('devMode') === 'true';
     },
     weight (state) {
       return (name) => {
@@ -181,15 +181,13 @@ export default createStore({
   },
   actions: {
     async login (context, resp) {
-      const devMode = JSON.parse(window.localStorage.getItem('devMode'));
       const userData = decodeCredential(resp.credential);
 
       context.commit('setGoogleLogin', userData.email);
 
-      if (devMode) {
-        context.commit('setDatabaseTopKey', context.state.devModeTopKey);
-      } else if (context.state.googleLogin) {
+      if (context.state.googleLogin) {
         context.commit('setDatabaseTopKey', context.state.googleLogin);
+        window.localStorage.setItem('databaseTopKey', context.state.googleLogin.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-"));
       } else {
         Sentry.captureMessage("Login attempted but the user data didn't work");
       }
@@ -204,15 +202,12 @@ export default createStore({
       await context.dispatch('initializeDB');
     },
     async initializeDB (context) {
-      if (!context.state.databaseTopKey) {
+      if (!context.getters.databaseTopKey) {
         return;
       }
-
-      window.localStorage.setItem('databaseTopKey', context.state.databaseTopKey);
-
       const movieLogHasData = Boolean(Object.keys(context.state.movieLog).length);
       if (!movieLogHasData) {
-        onValue(ref(db, `${context.state.databaseTopKey}/movieLog`), (snapshot) => {
+        onValue(ref(db, `${context.getters.databaseTopKey}/movieLog`), (snapshot) => {
           const data = snapshot.val();
 
           if (data) {
@@ -220,10 +215,9 @@ export default createStore({
           }
         });
       }
-
       const tvLogHasData = Boolean(Object.keys(context.state.tvLog).length);
       if (!tvLogHasData) {
-        onValue(ref(db, `${context.state.databaseTopKey}/tvLog`), (snapshot) => {
+        onValue(ref(db, `${context.getters.databaseTopKey}/tvLog`), (snapshot) => {
           const data = snapshot.val();
 
           if (data) {
@@ -231,10 +225,9 @@ export default createStore({
           }
         });
       }
-
       const settingsHasData = Boolean(Object.keys(context.state.settings).length);
       if (!settingsHasData) {
-        onValue(ref(db, `${context.state.databaseTopKey}/settings`), (snapshot) => {
+        onValue(ref(db, `${context.getters.databaseTopKey}/settings`), (snapshot) => {
           const data = snapshot.val();
 
           if (data) {
@@ -245,7 +238,7 @@ export default createStore({
     },
     // todo: should I delete this? Nothing is calling it but it seems like something I kind of need...
     async initiateNewDatabase (context) {
-      if (!context.state.databaseTopKey) {
+      if (!context.getters.databaseTopKey) {
         return;
       }
 
@@ -260,14 +253,14 @@ export default createStore({
         }
       }
 
-      set(ref(db, `${context.state.databaseTopKey}`), newDB);
+      set(ref(db, `${context.getters.databaseTopKey}`), newDB);
 
       context.dispatch('initializeDB');
     },
     async setDBValue (context, dbEntry) {
       const cleanedDBEntry = removeNaNAndUndefined(dbEntry.value);
 
-      set(ref(db, `${context.state.databaseTopKey}/${dbEntry.path}`), cleanedDBEntry)
+      set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedDBEntry)
         .then(() => {
           console.log('setDBValue success');
         })

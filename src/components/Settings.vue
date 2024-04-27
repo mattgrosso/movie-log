@@ -6,12 +6,6 @@
       <div class="p-1 border-white border">
         <p class="m-0 text-center fs-5">:: {{$store.state.databaseTopKey}} ::</p>
       </div>
-      <div class="dev-mode mt-3 p-3 border border-white">
-        <div class="form-check form-switch m-0 d-flex justify-content-center">
-          <input class="form-check-input" type="checkbox" role="switch" id="devMode" v-model="devMode">
-          <label class="form-check-label ml-3" for="devMode">Dev Mode</label>
-        </div>
-      </div>
       <div class="tv-log-switch mt-3 p-3 border border-white">
         <button class="btn btn-primary col-12" @click="toggleMovieTV">Switch to
           <span v-if="currentLog === 'tvLog'">Movie Log</span>
@@ -77,20 +71,10 @@ export default {
       default: false
     }
   },
-  async mounted () {
-    this.devMode = JSON.parse(window.localStorage.getItem('devMode'));
-  },
   data () {
     return {
       newViewingTagTitle: null,
       newMovieTagTitle: null,
-      devMode: false
-    }
-  },
-  watch: {
-    devMode (newVal) {
-      window.localStorage.setItem('devMode', newVal);
-      this.devModeSwitched(newVal);
     }
   },
   computed: {
@@ -183,22 +167,6 @@ export default {
 
       this.$store.dispatch('setDBValue', dbEntry);
     },
-    async devModeSwitched (devMode) {
-      if (!this.$route.meta.requiresLogin) {
-        return;
-      }
-
-      if (devMode) {
-        this.$store.commit('setDatabaseTopKey', this.$store.state.devModeTopKey);
-      } else if (this.$store.state.googleLogin) {
-        this.$store.commit('setDatabaseTopKey', this.$store.state.googleLogin);
-      } else {
-        window.localStorage.removeItem('databaseTopKey');
-        this.$router.push('/login');
-      }
-
-      await this.$store.dispatch('initializeDB');
-    },
     toggleMovieTV () {
       this.$store.dispatch('toggleCurrentLog');
       this.$router.push("/");
@@ -266,23 +234,6 @@ export default {
               }
             }
           }
-        }
-      }
-    }
-
-    .dev-mode {
-      .form-check {
-        .form-check-input {
-          cursor: pointer;
-
-          &:checked {
-            background-color: #198754;
-            border-color: #198754;
-          }
-        }
-
-        .form-check-label {
-          margin: 0 12px;
         }
       }
     }
