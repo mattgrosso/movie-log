@@ -214,7 +214,7 @@
         >
           More...
         </button>
-        <div v-else-if="value">
+        <div v-else-if="value" class="mb-5">
           <div v-if="noResults" ref="noResults">
             <p>No results found in your Movie Log or on TMDB.</p>
             <p>I'm pretty sure that movie doesn't exist.</p>
@@ -241,6 +241,7 @@
 import axios from 'axios';
 import uniq from 'lodash/uniq';
 import minBy from 'lodash/minBy';
+import debounce from 'lodash/debounce';
 import Charts from "./Charts.vue";
 import DBSearchResult from './DBSearchResult.vue';
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
@@ -277,6 +278,10 @@ export default {
     }
   },
   watch: {
+    value: debounce(function (newVal) {
+      this.updateFilterValue("");
+      this.updateSearchType("title");
+    }, 300),
     DBSearchValue (newVal) {
       if (newVal || newVal === "") {
         this.value = newVal;
@@ -298,6 +303,7 @@ export default {
   },
   mounted () {
     this.value = this.DBSearchValue;
+
     if (this.$route.query.search) {
       this.value = decodeURIComponent(this.$route.query.search);
     } else {
@@ -845,12 +851,13 @@ export default {
   },
   methods: {
     checkResultsAndFindFilter () {
-      if (this.paginatedSortedResults.length > 0 && !this.hasCalledFindFilter) {
+      if (!this.$route.query.noRandom && this.paginatedSortedResults.length > 0 && !this.hasCalledFindFilter) {
         this.findRandomSearchTypeAndFilterValue();
         this.hasCalledFindFilter = true;
       }
     },
     findRandomSearchTypeAndFilterValue () {
+      this.$router.push({ query: { ...this.$route.query, returnFromRating: undefined } });
       const searchTypes = ["keyword", "genre", "year", "director", "cast/crew", "studios", "mediums"];
       const randomSearchType = searchTypes[Math.floor(Math.random() * searchTypes.length)];
       this.updateSearchType(randomSearchType);

@@ -837,21 +837,21 @@ export default {
       this.$store.commit("setShowHeader", true);
       if (routeAfterRating === "recentlyViewed") {
         this.$store.commit("setDBSortValue", "watched");
-        this.$router.push("/");
+        this.returnHome();
       } else if (routeAfterRating === "allRatings") {
         this.$store.commit("setDBSortValue", "rating");
-        this.$router.push("/");
+        this.returnHome();
       } else if (routeAfterRating === "sameYear") {
         this.$store.commit("setDBSearchValue", `y:${rating.year}`);
         this.$store.commit("setDBSortValue", "rating");
-        this.$router.push("/");
+        this.returnHome();
       } else {
-        this.$router.push("/");
+        this.returnHome();
       }
     },
     returnHome () {
       this.$store.commit("setShowHeader", true);
-      this.$router.push("/");
+      this.$router.push({ path: '/', query: { noRandom: 'true' } });
     },
     viewingTagChecked (tag) {
       if (!this.selectedViewingTagNames) {
