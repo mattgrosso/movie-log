@@ -19,7 +19,7 @@
         {{getOrdinal(overAllRank)}}
       </span>
       <span class="rating">
-        {{parseFloat(mostRecentRating(result).calculatedTotal).toFixed(2)}}
+        {{parseFloat(ratingForMedia(result)).toFixed(2)}}
       </span>
     </div>
   </li>
@@ -372,6 +372,13 @@ export default {
       const names = matches.map((match) => match.name);
 
       return names;
+    },
+    ratingForMedia (result) {
+      if (this.currentLogIsTVLog) {
+        return result.ratings.tvShow.rating;
+      } else {
+        return mostRecentRating(result).calculatedTotal;
+      }
     },
     mostRecentRating (media) {
       if (this.currentLogIsTVLog) {

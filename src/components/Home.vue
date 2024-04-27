@@ -53,7 +53,7 @@
               </span>
               <span v-else>{{filteredResults.length}}</span>
             </button>
-            <button class="results-actions-button btn btn-info collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
+            <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
               <i class="bi bi-lightbulb"/>
             </button>
             <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion">
@@ -178,6 +178,7 @@
                 </p>
               </div>
               <Charts
+                v-if="!this.currentLogIsTVLog"
                 :results="filteredResults"
                 :sortOrder="sortOrder"
                 :allCounts="allCounts"
@@ -186,11 +187,11 @@
             </div>
           </div>
         </div>
-        <StickinessModal v-if="allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
+        <StickinessModal v-if="!currentLogIsTVLog && allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
         <ul v-if="gridLayout" class="grid-layout pb-3" :class="listCountClasses">
           <DBGridLayoutSearchResult
             v-for="(result, index) in paginatedSortedResults"
-            :key="result.movie.id"
+            :key="topStructure(result).id"
             :result="result"
             :index="index"
             :resultsAreFiltered="resultsAreFiltered"
@@ -201,7 +202,7 @@
         <ul v-else>
           <DBSearchResult
             v-for="(result, index) in paginatedSortedResults"
-            :key="result.movie.id"
+            :key="topStructure(result).id"
             :result="result"
             :index="index"
             :resultsAreFiltered="resultsAreFiltered"
@@ -642,6 +643,10 @@ export default {
       });
     },
     allDirectors () {
+      if (this.currentLogIsTVLog) {
+        return [];
+      }
+
       return Object.keys(this.countDirectors).map((keyword) => {
         const filmography = this.allEntriesWithFlatKeywordsAdded.find((entry) => {
           return entry.movie.crew.find((person) => person.job === "Director" && person.name === keyword);
@@ -674,15 +679,17 @@ export default {
       const mediums = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        result.ratings.forEach((rating) => {
-          if (!rating.medium) {
-            return;
-          } else if (mediums[rating.medium]) {
-            mediums[rating.medium]++;
-          } else {
-            mediums[rating.medium] = 1;
-          }
-        })
+        if (!this.currentLogIsTVLog) {
+          result.ratings.forEach((rating) => {
+            if (!rating.medium) {
+              return;
+            } else if (mediums[rating.medium]) {
+              mediums[rating.medium]++;
+            } else {
+              mediums[rating.medium] = 1;
+            }
+          })
+        }
       })
 
       return Object.keys(mediums).map((medium) => {
@@ -812,6 +819,10 @@ export default {
     },
     countMediums () {
       const counts = {};
+
+      if (this.currentLogIsTVLog) {
+        return counts;
+      }
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
         result.ratings.forEach((rating) => {
