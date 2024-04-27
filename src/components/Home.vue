@@ -26,7 +26,6 @@
         </span>
       </div>
     </div>
-    <!-- <StickinessModal v-if="allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" /> -->
     <div v-if="showResultsList" class="results">
       <div v-if="paginatedSortedResults.length" class="results-exist">
         <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
@@ -186,7 +185,7 @@
             </div>
           </div>
         </div>
-        <!-- <p class="m-0 d-flex align-items-center justify-content-center">{{filteredResults.length}}</p> -->
+        <StickinessModal v-if="allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
         <ul v-if="gridLayout" class="grid-layout pb-3" :class="listCountClasses">
           <DBGridLayoutSearchResult
             v-for="(result, index) in paginatedSortedResults"

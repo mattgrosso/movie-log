@@ -51,7 +51,7 @@ export const getAllRatings = (dbEntry) => {
 }
 
 export const getRating = (dbEntry) => {
-  if (!dbEntry?.ratings.length) {
+  if (!dbEntry?.ratings?.length) {
     return null;
   }
 

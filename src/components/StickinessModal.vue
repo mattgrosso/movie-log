@@ -1,6 +1,6 @@
 <template>
   <div v-if="hasResultsToRate" class="stickiness">
-    <div class="stickiness-notice alert alert-info" role="alert">
+    <div class="stickiness-notice alert alert-info my-2" role="alert">
       You have {{ resultsThatNeedStickiness.length }} movies without stickiness ratings.
       <a class="alert-link" data-bs-toggle="modal" data-bs-target="#stickinessModal">Click to add stickiness.</a>
     </div>
@@ -37,7 +37,20 @@
               </select>
             </div>
             <p class="rating-change col-12 text-center" :class="{visible: ratingChange || ratingChange === 0}">
-              Your rating for {{firstResult.movie.title}} changed by <span :class="{negative: ratingChange < 0, positive: ratingChange >= 0}">{{ratingChange}}%</span>
+              <span v-if="ratingWithoutStickiness === ratingWithStickiness">Your rating didn't change.</span>
+              <span>
+                Your rating went from
+                <span :class="ratingWithoutStickiness < ratingWithStickiness ? 'negative' : 'positive'">{{ratingWithoutStickiness}}</span>
+                to
+                <span :class="ratingWithStickiness < ratingWithoutStickiness ? 'negative' : 'positive'">{{ratingWithStickiness}}</span>
+              </span>
+              <br v-if="rankWithoutStickiness !== rankWithStickiness">
+              <span v-if="rankWithoutStickiness - rankWithStickiness > 0">
+                It went up {{ rankWithoutStickiness - rankWithStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
+              </span>
+              <span v-else-if="rankWithoutStickiness - rankWithStickiness < 0">
+                It went down {{ rankWithStickiness - rankWithoutStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
+              </span>
             </p>
           </div>
           <div class="modal-footer">
@@ -88,6 +101,10 @@ export default {
     };
   },
   computed: {
+    allMoviesRanked () {
+      const movies = [...this.$store.getters.allMoviesAsArray];
+      return movies.sort(this.sortByRating);
+    },
     hasResultsToRate () {
       return this.resultsThatNeedStickiness.length > 0;
     },
@@ -132,6 +149,21 @@ export default {
 
       return getRating(tempResult).calculatedTotal;
     },
+    rankWithoutStickiness () {
+      return this.allMoviesRanked.findIndex((movie) => movie.dbKey === this.firstResult.dbKey) + 1;
+    },
+    rankWithStickiness () {
+      const tempResult = cloneDeep(this.firstResult);
+
+      tempResult.ratings[this.mostRecentRatingIndex].stickiness = parseFloat(this.stickinessRating);
+
+      const movies = [...this.$store.getters.allMoviesAsArray];
+      const movieIndex = movies.findIndex((movie) => movie.dbKey === this.firstResult.dbKey);
+      movies[movieIndex] = tempResult;
+
+      const sortedMovies = movies.sort(this.sortByRating);
+      return sortedMovies.findIndex((movie) => movie.dbKey === tempResult.dbKey) + 1;
+    },
     mostRecentRatingIndex () {
       let mostRecentRating = this.firstResult.ratings[0];
       let mostRecentRatingIndex = 0;
@@ -153,6 +185,19 @@ export default {
     }
   },
   methods: {
+    sortByRating (a, b) {
+      const aRating = getRating(a)?.calculatedTotal;
+      const bRating = getRating(b)?.calculatedTotal;
+
+      if (aRating < bRating) {
+        return 1;
+      }
+      if (aRating > bRating) {
+        return -1;
+      }
+
+      return 0;
+    },
     addStickinessRating () {
       this.submitting = true;
       this.ratingChange = ((this.ratingWithStickiness - this.ratingWithoutStickiness) / this.ratingWithoutStickiness * 100).toFixed(2);
@@ -181,7 +226,7 @@ export default {
         this.submitting = false;
         this.stickinessRating = "";
         this.ratingChange = null;
-      }, 1000);
+      }, 2000);
     },
     mostRecentRating (media) {
       return getRating(media);
@@ -199,6 +244,7 @@ export default {
   .modal {
     .rating-change {
       font-size: 0.75rem;
+      min-height: 50px;
       opacity: 0;
       transition: none;
 
@@ -208,6 +254,7 @@ export default {
       }
 
       span {
+        color: white;
         font-size: 1rem;
 
         &.negative {
