@@ -25,7 +25,7 @@
 <script>
 export default {
   name: 'Footer',
-  data() {
+  data () {
     return {
       devMode: localStorage.getItem('devMode') === 'true',
     };

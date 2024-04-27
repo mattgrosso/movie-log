@@ -377,7 +377,7 @@ export default {
       if (this.currentLogIsTVLog) {
         return result.ratings.tvShow.rating;
       } else {
-        return mostRecentRating(result).calculatedTotal;
+        return this.mostRecentRating(result).calculatedTotal;
       }
     },
     mostRecentRating (media) {
