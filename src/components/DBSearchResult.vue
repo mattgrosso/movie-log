@@ -1,6 +1,7 @@
 <template>
   <li
     class="media-result py-3 px-1 my-2 d-flex flex-wrap align-items-center shadow-lg"
+    :id="sanitizeId(result.dbKey)"
     @click="showInfo(`Info-${this.topStructure(result).id}`)"
   >
     <label class="number col-1 text-center">
@@ -10,7 +11,7 @@
       <img
         class="col-12"
         @click.stop="goToWikipedia(result)"
-        v-lazy="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
+        :src="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
       >
     </div>
     <div class="details px-3 col-7">
@@ -212,6 +213,9 @@ export default {
     }
   },
   methods: {
+    sanitizeId(id) {
+      return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
+    },
     updateSearchValue (searchType, value) {
       this.$emit('updateSearchValue', { searchType: searchType, value });
     },

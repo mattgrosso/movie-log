@@ -310,6 +310,10 @@ export default {
       this.checkResultsAndFindFilter();
     }
 
+    if (this.$route.query.movieDbKey) {
+      this.scrollToMovie(this.$route.query.movieDbKey);
+    }
+
     if (this.DBSortValue) {
       this.setSortValue(this.DBSortValue)
     } else {
@@ -855,6 +859,47 @@ export default {
         this.findRandomSearchTypeAndFilterValue();
         this.hasCalledFindFilter = true;
       }
+    },
+    scrollToMovie (movieDbKey) {
+      // Find the index of the movie in sortedResults
+      const movieIndex = this.sortedResults.findIndex(movie => movie.dbKey === movieDbKey);
+
+      // If the movie is not currently being shown, adjust numberOfResultsToShow
+      if (movieIndex >= this.numberOfResultsToShow) {
+        this.numberOfResultsToShow = movieIndex + 20;
+      }
+
+      // Wait for Vue to update the DOM
+      this.$nextTick(() => {
+        // Use setTimeout to ensure that the DOM update is complete
+        setTimeout(() => {
+          // Find the movie element on the page
+          const movieElement = document.querySelector(`#${this.sanitizeId(movieDbKey)}`);
+
+          // If the movie element exists, scroll it into view
+          if (movieElement) {
+            movieElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Calculate the time it takes to scroll to the movie element
+            const distance = Math.abs(movieElement.getBoundingClientRect().top - window.scrollY);
+            const speed = 4000; // Adjust this value to match the speed of your smooth scrolling
+            const scrollTime = distance / speed * 1000;
+
+            // Add the highlight class after the scrolling is complete
+            setTimeout(() => {
+              movieElement.classList.add('highlight');
+            }, scrollTime);
+
+            // Remove the highlight class after a delay
+            setTimeout(() => {
+              movieElement.classList.remove('highlight');
+            }, scrollTime + 2000);
+          }
+        }, 0);
+      });
+    },
+    sanitizeId(id) {
+      return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
     findRandomSearchTypeAndFilterValue () {
       this.$router.push({ query: { ...this.$route.query, returnFromRating: undefined } });
@@ -1402,6 +1447,13 @@ export default {
             display: flex;
             justify-content: center;
             align-items: center;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+            &.highlight {
+              border: 2px solid #54b448;
+              transform: scale(1.2);
+              z-index: 1;
+            }
 
             img {
               width: 100%;

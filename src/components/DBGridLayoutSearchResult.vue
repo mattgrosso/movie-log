@@ -1,11 +1,12 @@
 <template>
   <li
     class="grid-layout-media-result"
+    :id="sanitizeId(result.dbKey)"
     @click="showDetails(`Info-${this.topStructure(result).id}`)"
   >
     <img
       class="poster"
-      v-lazy="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
+      :src="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
     >
     <div class="details">
       <span v-if="sortValue === 'watched'">
@@ -241,6 +242,9 @@ export default {
     },
   },
   methods: {
+    sanitizeId(id) {
+      return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
+    },
     updateSearchValue (searchType, value) {
       this.$emit('updateSearchValue', { searchType: searchType, value });
     },

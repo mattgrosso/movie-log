@@ -576,6 +576,7 @@ export default {
       title: null,
       year: null,
       getAllRatings: getAllRatings,
+      dbEntry: null
     }
   },
   mounted () {
@@ -825,8 +826,8 @@ export default {
 
       ratings.push(rating);
 
-      await addRating(ratings, this.selectedMovieTags);
-
+      const dbEntry = await addRating(ratings, this.selectedMovieTags);
+      this.dbEntry = dbEntry;
       const routeAfterRating = this.settings?.routeAfterRating?.value;
 
       window.scroll({
@@ -851,7 +852,7 @@ export default {
     },
     returnHome () {
       this.$store.commit("setShowHeader", true);
-      this.$router.push({ path: '/', query: { noRandom: 'true' } });
+      this.$router.push({ path: '/', query: { noRandom: 'true', movieDbKey: this.dbEntry?.path?.split("movieLog/")[1]}});
     },
     viewingTagChecked (tag) {
       if (!this.selectedViewingTagNames) {
