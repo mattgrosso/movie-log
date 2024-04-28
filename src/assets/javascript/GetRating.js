@@ -1,5 +1,9 @@
 import store from '../../store/index';
 
+const currentLogIsTVLog = () => {
+  return store.state.currentLog === "tvLog";
+}
+
 const calculatePostStickyRatingFor = (rating) => {
   const direction = store.getters.weight("direction") * parseFloat(rating.direction);
   const imagery = store.getters.weight("imagery") * parseFloat(rating.imagery);
@@ -27,35 +31,49 @@ const calculatePostStickyRatingFor = (rating) => {
 }
 
 const mostRecentRating = (media) => {
-  let mostRecentRating = media.ratings[0];
+  let mostRecentRating;
 
-  media.ratings.forEach((rating) => {
-    if (!mostRecentRating.date) {
-      mostRecentRating = rating;
-    } else if (rating.date && rating.date > mostRecentRating.date) {
-      mostRecentRating = rating;
+  if (currentLogIsTVLog()) {
+    if (!media?.ratings?.tvShow) {
+      return null;
     }
-  })
+    mostRecentRating = media.ratings.tvShow;
+  } else {
+    if (!media?.ratings?.length) {
+      return null;
+    }
+
+    mostRecentRating = media.ratings[0];
+  
+    media.ratings.forEach((rating) => {
+      if (!mostRecentRating.date) {
+        mostRecentRating = rating;
+      } else if (rating.date && rating.date > mostRecentRating.date) {
+        mostRecentRating = rating;
+      }
+    })
+  }
 
   return mostRecentRating;
 }
 
 export const getAllRatings = (dbEntry) => {
-  if (!dbEntry?.ratings.length) {
-    return null;
+  if (dbEntry.ratings.tvShow) {
+    return [dbEntry.ratings.tvShow].map((rating) => {
+      return calculatePostStickyRatingFor(rating);
+    })
+  } else {
+    if (!dbEntry?.ratings.length) {
+      return null;
+    }
+  
+    return dbEntry.ratings.map((rating) => {
+      return calculatePostStickyRatingFor(rating);
+    })
   }
-
-  return dbEntry.ratings.map((rating) => {
-    return calculatePostStickyRatingFor(rating);
-  })
 }
 
 export const getRating = (dbEntry) => {
-  if (!dbEntry?.ratings?.length) {
-    return null;
-  }
-
   const mostRecent = mostRecentRating(dbEntry);
-
   return calculatePostStickyRatingFor(mostRecent);
 }

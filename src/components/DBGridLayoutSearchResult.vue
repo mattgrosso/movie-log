@@ -13,7 +13,8 @@
         {{smallFormattedDate(mostRecentRating(result).date)}}
       </span>
       <span v-else-if="sortValue === 'release'">
-        {{smallFormattedDate(topStructure(result).release_date)}}
+        <span v-if="currentLogIsTVLog">{{smallFormattedDate(topStructure(result).first_air_date, topStructure(result).last_air_date)}}</span>
+        <span v-else>{{smallFormattedDate(topStructure(result).release_date)}}</span>
       </span>
       <span v-else class="rank">
         {{getOrdinal(overAllRank)}}
@@ -78,7 +79,7 @@
                         <td>{{rating.story}}</td>
                         <td>{{rating.performance}}</td>
                         <td>{{rating.soundtrack}}</td>
-                        <td>{{rating.stickiness}}</td>
+                        <td>{{rating.stickiness && rating.stickiness !== 0 ? rating.stickiness : 1}}</td>
                         <td>{{rating.impression}}</td>
                         <td>{{rating.love}}</td>
                         <td>{{rating.overall}}</td>
@@ -92,11 +93,25 @@
         </div>
 
         <div class="directors">
-          <h4>Director<span v-if="multipleEntries(getCrewMember('Director', true))">s</span></h4>
+          <h4>
+            <span v-if="currentLogIsTVLog">
+              Creator<span v-if="multipleEntries(topStructure(result).created_by)">s</span>
+            </span>
+            <span v-else>
+              Director<span v-if="multipleEntries(getCrewMember('Director', true))">s</span>
+            </span>
+          </h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor('director', name)">
-              {{name}}<span v-if="index !== getCrewMember('Director', 'strict').length - 1">, </span>
-            </a>
+            <span v-if="currentLogIsTVLog">
+              <a v-for="(creator, index) in topStructure(result).created_by" :key="index" class="link" @click.stop="searchFor('director', creator.name)">
+                {{creator.name}}<span v-if="index !== topStructure(result).created_by.length - 1">, </span>
+              </a>
+            </span>
+            <span v-else>
+              <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor('director', name)">
+                {{name}}<span v-if="index !== getCrewMember('Director', 'strict').length - 1">, </span>
+              </a>
+            </span>
           </p>
         </div>
 
@@ -232,12 +247,12 @@ export default {
     },
     overAllRank () {
       return this.$store.getters.allMediaSortedByRating.findIndex((media) => {
-        return this.topStructure(media).id === this.topStructure(this.result).id;
+        return media.dbKey === this.result.dbKey;
       }) + 1;
     },
     previousEntry () {
-      return this.$store.getters.allMoviesAsArray.find((entry) => {
-        return entry.movie.id === this.topStructure(this.result).id;
+      return this.$store.getters.allMediaAsArray.find((entry) => {
+        return entry.dbKey === this.result.dbKey;
       })
     },
   },
@@ -371,21 +386,13 @@ export default {
 
       const names = matches.map((match) => match.name);
 
-      return names;
+      return names.length ? names : "";
     },
     ratingForMedia (result) {
-      if (this.currentLogIsTVLog) {
-        return result.ratings.tvShow.rating;
-      } else {
-        return this.mostRecentRating(result).calculatedTotal;
-      }
+      return this.mostRecentRating(result).calculatedTotal;
     },
     mostRecentRating (media) {
-      if (this.currentLogIsTVLog) {
-        return media.ratings.tvShow;
-      } else {
-        return getRating(media);
-      }
+      return getRating(media);
     },
     getOrdinal (number) {
       return ordinal.toOrdinal(number);
@@ -404,9 +411,19 @@ export default {
     formattedDate (date) {
       return new Date(date).toLocaleDateString();
     },
-    smallFormattedDate (date) {
-      const now = new Date();
+    smallFormattedDate (date, endDate) {
       const inputDate = new Date(date);
+
+      if (endDate) {
+        const inputEndDate = new Date(endDate);
+        if (inputDate.getFullYear() === inputEndDate.getFullYear()) {
+          return `${inputDate.getFullYear()}`;
+        } else {
+          return `${inputDate.getFullYear()} - ${inputEndDate.getFullYear()}`;
+        }
+      }
+
+      const now = new Date();
       const diffInDays = Math.floor((now - inputDate) / (1000 * 60 * 60 * 24));
 
       if (diffInDays <= 6) {

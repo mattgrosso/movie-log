@@ -17,11 +17,7 @@ const sortByVoteCount = (a, b) => {
 }
 
 const mostRecentRating = (media) => {
-  if (media.ratings.tvShow) {
-    return media.ratings.tvShow;
-  } else {
-    return getRating(media);
-  }
+  return getRating(media);
 }
 
 const sortByRating = (a, b) => {

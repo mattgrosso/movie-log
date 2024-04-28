@@ -299,8 +299,10 @@ export default {
         this.sortOrder = newVal;
       }
     },
-    paginatedSortedResults () {
-      this.checkResultsAndFindFilter();
+    paginatedSortedResults (newVal, oldVal) {
+      if (!oldVal.length && newVal.length) {
+        this.checkResultsAndFindFilter();
+      }
     },
   },
   mounted () {
@@ -870,7 +872,12 @@ export default {
       this.$store.dispatch('toggleCurrentLog');
     },
     checkResultsAndFindFilter () {
-      if (!this.$route.query.noRandom && this.paginatedSortedResults.length > 0 && !this.hasCalledFindFilter) {
+      const allowRandom = !this.$route.query.noRandom;
+      const hasResults = this.paginatedSortedResults.length > 0;
+      const hasNotCalledFindFilter = !this.hasCalledFindFilter;
+      const isNotInTVMode = !this.currentLogIsTVLog;
+
+      if (allowRandom && hasResults && hasNotCalledFindFilter && isNotInTVMode) {
         this.findRandomSearchTypeAndFilterValue();
         this.hasCalledFindFilter = true;
       }
@@ -1149,11 +1156,7 @@ export default {
       return new Date(date).getFullYear();
     },
     mostRecentRating (media) {
-      if (this.currentLogIsTVLog) {
-        return media.ratings.tvShow;
-      } else {
-        return getRating(media);
-      }
+      return getRating(media);
     },
     async searchTMDB () {
       if (!this.value) {
