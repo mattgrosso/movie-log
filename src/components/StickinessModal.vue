@@ -9,10 +9,10 @@
         <div class="modal-content" :class="darkOrLight">
           <div class="modal-body">
             <div class="poster">
-              <img class="col-12" :src="`https://image.tmdb.org/t/p/original${firstResult.movie.backdrop_path}`" :alt="firstResult.movie.title">
+              <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(firstResult).backdrop_path}`" :alt="topStructure(firstResult).title">
             </div>
             <div class="col-12 my-3">
-              <label class="form-label fs-4 mb-0" for="impression">How sticky has {{firstResult.movie.title}} been?</label>
+              <label class="form-label fs-4 mb-0" for="impression">How sticky has {{topStructure(firstResult).title}} been?</label>
               <p>Rate how much you've been thinking and talking about the movie since you watched it.</p>
               <select class="form-select" name="impression" id="impression" v-model="stickinessRating">
                 <option value="">Rate Stickiness</option>
@@ -101,6 +101,9 @@ export default {
     };
   },
   computed: {
+    currentLogIsTVLog () {
+      return this.$store.state.currentLog === "tvLog";
+    },
     allMoviesRanked () {
       const movies = [...this.$store.getters.allMoviesAsArray];
       return movies.sort(this.sortByRating);
@@ -185,6 +188,13 @@ export default {
     }
   },
   methods: {
+    topStructure (result) {
+      if (this.currentLogIsTVLog) {
+        return result.tvShow;
+      } else {
+        return result.movie;
+      }
+    },
     sortByRating (a, b) {
       const aRating = getRating(a)?.calculatedTotal;
       const bRating = getRating(b)?.calculatedTotal;

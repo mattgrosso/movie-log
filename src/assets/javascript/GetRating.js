@@ -44,7 +44,7 @@ const mostRecentRating = (media) => {
     }
 
     mostRecentRating = media.ratings[0];
-  
+
     media.ratings.forEach((rating) => {
       if (!mostRecentRating.date) {
         mostRecentRating = rating;
@@ -58,19 +58,17 @@ const mostRecentRating = (media) => {
 }
 
 export const getAllRatings = (dbEntry) => {
-  if (dbEntry.ratings.tvShow) {
-    return [dbEntry.ratings.tvShow].map((rating) => {
-      return calculatePostStickyRatingFor(rating);
-    })
-  } else {
-    if (!dbEntry?.ratings.length) {
-      return null;
-    }
-  
-    return dbEntry.ratings.map((rating) => {
-      return calculatePostStickyRatingFor(rating);
-    })
+  if (!dbEntry || !dbEntry.ratings) {
+    return null;
   }
+
+  const ratings = dbEntry.ratings.tvShow ? [dbEntry.ratings.tvShow] : dbEntry.ratings;
+
+  if (!Array.isArray(ratings) || ratings.length === 0) {
+    return null;
+  }
+
+  return ratings.map(calculatePostStickyRatingFor);
 }
 
 export const getRating = (dbEntry) => {

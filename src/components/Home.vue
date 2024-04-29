@@ -97,74 +97,76 @@
           </div>
           <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap">
             <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
-              <span
-                class="badge mx-1"
-                :class="searchType === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
-                @click="toggleAnnualBestFilter"
-              >
-                Annual Best
-              </span>
-              <span
-                class="badge mx-1"
-                :class="searchType === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
-                @click="toggleQuickLinksList('genre')"
-              >
-                Genres
-              </span>
-              <span
-                class="badge mx-1"
-                :class="searchType === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
-                @click="toggleQuickLinksList('keyword')"
-              >
-                Keywords
-              </span>
-              <span
-                class="badge mx-1"
-                :class="searchType === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
-                @click="toggleQuickLinksList('year')"
-              >
-                Years
-              </span>
-              <span
-                class="badge mx-1"
-                :class="searchType === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
-                @click="toggleQuickLinksList('director')"
-              >
-                <span v-if="currentLogIsTVLog">Creators</span>
-                <span v-else>Directors</span>
-              </span>
-              <span
-                class="badge mx-1"
-                :class="searchType === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
-                @click="toggleQuickLinksList('cast/crew')"
-              >
-                Cast/Crew Members
-              </span>
-              <span
-                class="badge mx-1"
-                :class="searchType === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
-                @click="toggleQuickLinksList('studios')"
-              >
-                Studios
-              </span>
-            </div>
-          </div>
-          <div id="quick-links-types-accordion" class="quick-links-list-wrapper col-12 mt-1 accordion-collapse collapse" ref="QuickLinksAccordion">
-            <div class="accordion-body col-12">
-              <button
-                class="quick-links-list-sort"
-                :class="darkOrLight"
-                @click="toggleQuickLinksSort"
-              >
-                {{quickLinksSortType}}
-              </button>
-              <ul class="quick-link-list p-0 col-12">
-                <li v-for="(value, index) in sortedDataListForSearchType" :key="index" @click="updateFilterValue(value.name)">
-                  <span class="badge mx-1" :class="darkOrLight">
-                    {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
-                  </span>
-                </li>
-              </ul>
+              <div>
+                <span
+                  class="badge mx-1"
+                  :class="searchType === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleAnnualBestFilter"
+                >
+                  Annual Best
+                </span>
+                <span
+                  class="badge mx-1"
+                  :class="searchType === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleQuickLinksList('genre')"
+                >
+                  Genres
+                </span>
+                <span
+                  class="badge mx-1"
+                  :class="searchType === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleQuickLinksList('keyword')"
+                >
+                  Keywords
+                </span>
+                <span
+                  class="badge mx-1"
+                  :class="searchType === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleQuickLinksList('year')"
+                >
+                  Years
+                </span>
+                <span
+                  class="badge mx-1"
+                  :class="searchType === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleQuickLinksList('director')"
+                >
+                  <span v-if="currentLogIsTVLog">Creators</span>
+                  <span v-else>Directors</span>
+                </span>
+                <span
+                  class="badge mx-1"
+                  :class="searchType === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleQuickLinksList('cast/crew')"
+                >
+                  Cast/Crew Members
+                </span>
+                <span
+                  class="badge mx-1"
+                  :class="searchType === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleQuickLinksList('studios')"
+                >
+                  Studios
+                </span>
+              </div>
+              <div v-if="sortedDataListForSearchType.length" class="quick-links-list-wrapper mt-2">
+                <div class="accordion-body col-12">
+                  <button
+                    class="quick-links-list-sort"
+                    :class="darkOrLight"
+                    @click="toggleQuickLinksSort"
+                  >
+                    {{quickLinksSortType}}
+                  </button>
+                  <ul class="quick-link-list p-0 col-12">
+                    <li v-for="(value, index) in sortedDataListForSearchType" :key="index" @click="updateFilterValue(value.name)">
+                      <span class="badge mx-1" :class="darkOrLight">
+                        {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
           <div id="insights-accordion" ref="insightsAccordion" class="accordion-collapse collapse col-12" aria-labelledby="insights">
@@ -268,7 +270,7 @@ export default {
       searchType: "title",
       filterValue: "",
       sortValue: null,
-      quickLinksSortType: "a-z",
+      quickLinksSortType: "count",
       numberOfResultsToShow: 54,
       sharing: false,
       noResults: false,
@@ -1405,42 +1407,42 @@ export default {
             cursor: pointer;
             font-size: 0.75rem;
           }
-        }
 
-        .quick-links-list-wrapper {
-          border: 1px solid #c0c2c3;
-          max-height: 150px;
-          overflow-y: scroll;
-          position: relative;
-
-          .quick-links-list-sort {
-            position: sticky;
-            top: 4px;
-            left: 100%;
+          .quick-links-list-wrapper {
             border: 1px solid #c0c2c3;
-            border-bottom-left-radius: 2px;
-            padding: 2px 4px;
-            background: white;
-            font-size: 0.65rem;
-            margin: 4px 8px;
-          }
+            max-height: 150px;
+            overflow-y: scroll;
+            position: relative;
 
-          .quick-link-list {
-            column-count: 2;
-            column-gap: 0;
-            list-style: none;
-            margin-top: -20px;
+            .quick-links-list-sort {
+              position: sticky;
+              top: 4px;
+              left: 100%;
+              border: 1px solid #c0c2c3;
+              border-bottom-left-radius: 2px;
+              padding: 2px 4px;
+              background: white;
+              font-size: 0.65rem;
+              margin: 4px 8px;
+            }
 
-            li {
-              .badge {
-                align-items: center;
-                cursor: pointer;
-                display: flex;
-                text-align: start;
-                white-space: break-spaces;
+            .quick-link-list {
+              column-count: 2;
+              column-gap: 0;
+              list-style: none;
+              margin-top: -20px;
 
-                span {
-                  font-size: 0.5rem;
+              li {
+                .badge {
+                  align-items: center;
+                  cursor: pointer;
+                  display: flex;
+                  text-align: start;
+                  white-space: break-spaces;
+
+                  span {
+                    font-size: 0.5rem;
+                  }
                 }
               }
             }

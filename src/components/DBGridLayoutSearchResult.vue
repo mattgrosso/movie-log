@@ -330,7 +330,7 @@ export default {
       } else {
         minutes = result.movie.runtime;
       }
-      return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+      return minutes ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : "";
     },
     turnArrayIntoList (array, key) {
       if (!array) {
