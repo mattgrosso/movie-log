@@ -406,8 +406,6 @@ export default {
     },
     parseNamesToList (names) {
       try {
-        const namesList = "";
-
         if (names.length > 1) {
           return names.map((name) => name.name).join(", ");
         } else {
