@@ -45,7 +45,7 @@
 
         <div v-if="getAllRatings(previousEntry)" class="previous-ratings mb-3">
           <h4>Ratings</h4>
-          <div class="accordion">
+          <div class="accordion mt-2">
             <div class="accordion-item" v-for="(rating, index) in getAllRatings(previousEntry)" :key="index">
               <h2 class="accordion-header" :id="`heading-${index}`">
                 <button class="accordion-button col-12 d-flex" type="button" data-bs-toggle="collapse" :data-bs-target="`#collapse-${index}`" aria-expanded="false" :aria-controls="`collapse-${index}`">
@@ -127,6 +127,35 @@
               {{genre.name}}
             </a>
           </p>
+        </div>
+
+        <div class="awards">
+          <div class="academy-awards">
+            <h4 v-if="academyAwardWins.length">Academy Award Wins</h4>
+            <div v-if="academyAwardWins.length" class="winners">
+              <ul>
+                <li v-for="(award, index) in academyAwardWins" :key="award.id" class="col-12">
+                  <p>
+                    {{award.category}}
+                    <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
+                  </p>
+                  <span v-if="index !== academyAwardWins.length - 1" class="me-1">, </span>
+                </li>
+              </ul>
+            </div>
+            <h4 v-if="academyAwardNominations.length">Academy Award Nominations</h4>
+            <div v-if="academyAwardNominations.length" class="nominees">
+              <ul>
+                <li v-for="(award, index) in academyAwardNominations" :key="award.id" class="col-12">
+                  <p>
+                    {{award.category}}
+                    <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
+                  </p>
+                  <span v-if="index !== academyAwardNominations.length - 1" class="me-1">,&nbsp;</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         <div v-if="getCrewMember('Writer', false)" class="writers">
@@ -233,13 +262,21 @@ export default {
       getAllRatings: getAllRatings,
       showDetailsModal: false,
       showInsetBrowserModal: false,
-      insetBrowserUrl: ""
+      insetBrowserUrl: "",
+      awardsData: null
     }
   },
   components: {
     EpisodeRatingsChart,
     Modal,
     InsetBrowserModal
+  },
+  watch: {
+    showDetailsModal (val) {
+      if (val && !this.awardsData && !this.currentLogIsTVLog) {
+        this.awardsData = this.getAwardsData();
+      }
+    }
   },
   computed: {
     currentLogIsTVLog () {
@@ -255,8 +292,142 @@ export default {
         return entry.dbKey === this.result.dbKey;
       })
     },
+    academyAwardWins () {
+      if (!Array.isArray(this.awardsData)) {
+        return [];
+      }
+
+      const categoryOrder = [
+        "Best Picture",
+        "Best Director",
+        "Best Actress",
+        "Best Actor",
+        "Best Supporting Actor",
+        "Best Supporting Actress",
+        "Best Screenplay",
+        "Best Adapted Screenplay",
+        "Best Original Screenplay",
+        "Best Foreign Language Film",
+        "Best Documentary",
+        "Best Animated Feature",
+        "Best Cinematography",
+        "Best Original Score",
+        "Best Adapted Score",
+        "Best Original Song",
+        "Best Editing",
+        "Best Animated Short",
+        "Best Documentary Short",
+        "Best Live Action Short",
+        "Best Visual Effects",
+        "Best Assistant Director",
+        "Best Costume Design",
+        "Best Dance Direction",
+        "Best Makeup",
+        "Best Production Design",
+        "Best Sound Editing",
+        "Best Sound Mixing",
+        "Best Sound",
+        "Best Title Writing"
+      ];
+
+      return this.awardsData
+        .filter((award) => award.isWinner)
+        .sort((a, b) => {
+          const indexA = categoryOrder.map(c => c.toLowerCase()).indexOf(a.category.toLowerCase());
+          const indexB = categoryOrder.map(c => c.toLowerCase()).indexOf(b.category.toLowerCase());
+
+          if (indexA === -1) {
+            return 1;
+          }
+
+          if (indexB === -1) {
+            return -1;
+          }
+
+          return indexA - indexB;
+        });
+    },
+    academyAwardNominations () {
+      if (!Array.isArray(this.awardsData)) {
+        return [];
+      }
+
+      const categoryOrder = [
+        "Best Picture",
+        "Best Director",
+        "Best Actress",
+        "Best Actor",
+        "Best Supporting Actor",
+        "Best Supporting Actress",
+        "Best Screenplay",
+        "Best Adapted Screenplay",
+        "Best Original Screenplay",
+        "Best Foreign Language Film",
+        "Best Documentary",
+        "Best Animated Feature",
+        "Best Cinematography",
+        "Best Original Score",
+        "Best Adapted Score",
+        "Best Original Song",
+        "Best Editing",
+        "Best Animated Short",
+        "Best Documentary Short",
+        "Best Live Action Short",
+        "Best Visual Effects",
+        "Best Assistant Director",
+        "Best Costume Design",
+        "Best Dance Direction",
+        "Best Makeup",
+        "Best Production Design",
+        "Best Sound Editing",
+        "Best Sound Mixing",
+        "Best Sound",
+        "Best Title Writing"
+      ];
+
+      return this.awardsData
+        .filter((award) => !award.isWinner)
+        .sort((a, b) => {
+          const indexA = categoryOrder.map(c => c.toLowerCase()).indexOf(a.category.toLowerCase());
+          const indexB = categoryOrder.map(c => c.toLowerCase()).indexOf(b.category.toLowerCase());
+
+          if (indexA === -1) {
+            return 1;
+          }
+
+          if (indexB === -1) {
+            return -1;
+          }
+
+          return indexA - indexB;
+        });
+    }
   },
   methods: {
+    async getAwardsData () {
+      const response = await axios.get(`https://pacific-journey-63469-f4b691e852c6.herokuapp.com/awards/tmdb/${this.topStructure(this.result).id}`);
+      this.awardsData = response.data.map((item) => {
+        return {
+          ...item,
+          isActing: ['TRUE', '1', true].includes(item.isActing),
+          isWinner: ['TRUE', '1', true].includes(item.isWinner)
+        }
+      });
+    },
+    parseNamesToList (names) {
+      try {
+        const namesList = "";
+
+        if (names.length > 1) {
+          return names.map((name) => name.name).join(", ");
+        } else {
+          return names[0].name;
+        }
+      } catch (error) {
+        console.error('Failed to parse names:', error);
+        return null;
+      }
+    },
     sanitizeId (id) {
       return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
@@ -513,6 +684,25 @@ export default {
           display: flex;
           justify-content: flex-end;
           margin-bottom: 1rem;
+        }
+
+        .awards {
+          ul {
+            display: flex;
+            flex-wrap: wrap;
+            list-style: none;
+            margin-bottom: 1rem;
+            padding: 6px;
+            
+            li {
+              justify-content: flex-start;
+
+              p {
+                text-align: right;
+                margin: 0;
+              }
+            }
+          }
         }
 
         .long-list {
