@@ -40,7 +40,7 @@
 
         <div class="details-actions">
           <button class="btn btn-sm btn-success me-2" @click="rateMedia(topStructure(result))">Add New Rating</button>
-          <button class="btn btn-sm btn-info" @click="goToWikipedia(result)">Wikipedia</button>
+          <button class="btn btn-sm btn-info" @click="goToWikipedia()">Wikipedia</button>
         </div>
 
         <div v-if="getAllRatings(previousEntry)" class="previous-ratings mb-3">
@@ -133,27 +133,17 @@
           <div class="academy-awards">
             <h4 v-if="academyAwardWins.length">Academy Award Wins</h4>
             <div v-if="academyAwardWins.length" class="winners">
-              <ul>
-                <li v-for="(award, index) in academyAwardWins" :key="award.id" class="col-12">
-                  <p>
-                    {{award.category}}
-                    <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
-                  </p>
-                  <span v-if="index !== academyAwardWins.length - 1" class="me-1">, </span>
-                </li>
-              </ul>
+              <a v-for="award in academyAwardWins" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
+                {{award.category}}
+                <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
+              </a>
             </div>
             <h4 v-if="academyAwardNominations.length">Academy Award Nominations</h4>
             <div v-if="academyAwardNominations.length" class="nominees">
-              <ul>
-                <li v-for="(award, index) in academyAwardNominations" :key="award.id" class="col-12">
-                  <p>
-                    {{award.category}}
-                    <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
-                  </p>
-                  <span v-if="index !== academyAwardNominations.length - 1" class="me-1">,&nbsp;</span>
-                </li>
-              </ul>
+              <a v-for="award in academyAwardNominations" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
+                {{award.category}}
+                <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
+              </a>
             </div>
           </div>
         </div>
@@ -444,15 +434,18 @@ export default {
     showDetails () {
       this.showDetailsModal = true;
     },
-    async goToWikipedia (result) {
-      let title;
-      if (this.currentLogIsTVLog) {
-        title = result.tvShow.name;
+    async goToWikipedia (searchValue) {
+      let value;
+
+      if (searchValue) {
+        value = searchValue;
+      } else if (this.currentLogIsTVLog) {
+        value = this.result.tvShow.name;
       } else {
-        title = result.movie.title;
+        value = this.result.movie.title;
       }
 
-      this.insetBrowserUrl = await this.wikiLinkFor(title);
+      this.insetBrowserUrl = await this.wikiLinkFor(value);
       this.showInsetBrowserModal = true;
     },
     async wikiLinkFor (title) {
@@ -687,21 +680,12 @@ export default {
         }
 
         .awards {
-          ul {
+          .winners,
+          .nominees {
+            margin-bottom: 1rem;
             display: flex;
             flex-wrap: wrap;
-            list-style: none;
-            margin-bottom: 1rem;
             padding: 6px;
-            
-            li {
-              justify-content: flex-start;
-
-              p {
-                text-align: right;
-                margin: 0;
-              }
-            }
           }
         }
 
