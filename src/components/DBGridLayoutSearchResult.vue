@@ -395,14 +395,18 @@ export default {
   },
   methods: {
     async getAwardsData () {
-      const response = await axios.get(`https://pacific-journey-63469-f4b691e852c6.herokuapp.com/awards/tmdb/${this.topStructure(this.result).id}`);
-      this.awardsData = response.data.map((item) => {
-        return {
-          ...item,
-          isActing: ['TRUE', '1', true].includes(item.isActing),
-          isWinner: ['TRUE', '1', true].includes(item.isWinner)
-        }
-      });
+      try {
+        const response = await axios.get(`https://pacific-journey-63469-f4b691e852c6.herokuapp.com/awards/tmdb/${this.topStructure(this.result).id}`);
+        this.awardsData = response.data.map((item) => {
+          return {
+            ...item,
+            isActing: ['TRUE', '1', true].includes(item.isActing),
+            isWinner: ['TRUE', '1', true].includes(item.isWinner)
+          }
+        });
+      } catch (error) {
+        console.error('Failed to get awards data:', error);
+      }
     },
     parseNamesToList (names) {
       try {
