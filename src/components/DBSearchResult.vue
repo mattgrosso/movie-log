@@ -74,7 +74,6 @@
         <span>Performance: {{mostRecentRating(result).performance}},&nbsp;</span>
         <span>Soundtrack: {{mostRecentRating(result).soundtrack}},&nbsp;</span>
         <span>Stickiness: {{mostRecentRating(result).stickiness}},&nbsp;</span>
-        <span>Impression: {{mostRecentRating(result).impression}},&nbsp;</span>
         <span>Love: {{mostRecentRating(result).love}},&nbsp;</span>
         <span>Overall: {{mostRecentRating(result).overall}}</span>
       </p>

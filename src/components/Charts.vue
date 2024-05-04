@@ -724,7 +724,6 @@ export default {
             rating.story,
             rating.performance,
             rating.soundtrack,
-            rating.impression,
             rating.love,
             rating.overall
           ],
@@ -745,7 +744,6 @@ export default {
           "story",
           "performance",
           "soundtrack",
-          "impression",
           "love",
           "overall"
         ],

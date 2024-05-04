@@ -284,29 +284,29 @@
       </div>
 
       <div class="col-12 my-5">
-        <label class="form-label fs-4 mb-0" for="impression">Impression</label>
+        <label class="form-label fs-4 mb-0" for="stickiness">Stickiness</label>
         <p class="fs-6 fst-italic">
-          Give your sense of the {{episodeSeasonOrShow}}'s longevity or impact.
+          How much of a lasting impression do you think the {{episodeSeasonOrShow}} will have?
         </p>
-        <select class="form-select" name="impression" id="impression" v-model="impression">
+        <select class="form-select" name="stickiness" id="stickiness" v-model="stickiness">
           <option value=""></option>
           <option value="0">
-            0 - None
+            0 - If I think of it at all it will be to warn others away
           </option>
           <option value="1">
-            1 - Will be remembered
+            1 - I'm having a hard time remembering it already
           </option>
           <option value="2">
-            2 - Will be referenced
+            2 - I think I'll mention it to some people
           </option>
           <option value="3">
-            3 - Influenced me
+            3 - I'm going to think about it often
           </option>
           <option value="4">
-            4 - Important to me
+            4 - This is going to stay with me all the time
           </option>
           <option value="5">
-            5 - Central to my life
+            5 - This movie will change the way I think
           </option>
         </select>
       </div>
@@ -400,7 +400,7 @@
       <hr>
 
       <p class="rating col-12 my-3 d-flex justify-content-center align-items-center" id="rating">
-        Rating: {{rating}}
+        Rating: {{rating.calculatedTotal}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
         #{{indexIfSortedIntoArray(tvShowAsRatedOnPage, allTVShowsRanked) + 1}}/{{numberOfTVShowsAfterRating}}
         <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
@@ -448,6 +448,7 @@
 <script>
 import axios from 'axios';
 import addRating from "../assets/javascript/AddRating.js";
+import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
   data () {
@@ -456,7 +457,6 @@ export default {
       direction: null,
       tvShowId: null,
       imagery: null,
-      impression: null,
       loading: false,
       love: null,
       medium: "",
@@ -465,6 +465,7 @@ export default {
       overall: null,
       performance: null,
       soundtrack: null,
+      stickiness: null,
       story: null,
       selectedViewingTags: [],
       selectedMediaTags: [],
@@ -504,18 +505,23 @@ export default {
       return this.$store.state.settings;
     },
     rating () {
-      const direction = this.getRatingFor("direction") >= 0 ? this.getRatingFor("direction") : 5;
-      const imagery = this.getRatingFor("imagery") >= 0 ? this.getRatingFor("imagery") : 5;
-      const story = this.getRatingFor("story") >= 0 ? this.getRatingFor("story") : 5;
-      const performance = this.getRatingFor("performance") >= 0 ? this.getRatingFor("performance") : 5;
-      const soundtrack = this.getRatingFor("soundtrack") >= 0 ? this.getRatingFor("soundtrack") : 5;
-      const impression = this.getRatingFor("impression") >= 0 ? this.getRatingFor("impression") : 0;
-      const love = this.getRatingFor("love") >= 0 ? this.getRatingFor("love") : 5;
-      const overall = this.getRatingFor("overall") >= 0 ? this.getRatingFor("overall") : 5;
+      const ratingOnPage = {
+        ratings: [
+          {
+            direction: this.direction ? parseFloat(this.direction) : 5,
+            imagery: this.imagery ? parseFloat(this.imagery) : 5,
+            love: this.love ? parseFloat(this.love) : 5,
+            overall: this.overall ? parseFloat(this.overall) : 5,
+            performance: this.performance ? parseFloat(this.performance) : 5,
+            soundtrack: this.soundtrack ? parseFloat(this.soundtrack) : 5,
+            stickiness: this.stickiness,
+            story: this.story ? parseFloat(this.story) : 5,
+            date: this.date
+          }
+        ]
+      }
 
-      const total = direction + imagery + story + performance + soundtrack + impression + love + overall;
-
-      return parseFloat(total / 10).toFixed(2);
+      return getRating(ratingOnPage);
     },
     tvShowAsRatedOnPage () {
       return {
@@ -588,7 +594,8 @@ export default {
   },
   methods: {
     tvShowYear (tvShow) {
-      return new Date(tvShow.release_date).getFullYear();
+      const startDate = tvShow.release_date || tvShow.first_air_date;
+      return new Date(startDate).getFullYear();
     },
     previouslyRated (id) {
       const ids = Object.keys(this.database).map((key) => this.database[key].tvShow.id);
@@ -712,13 +719,13 @@ export default {
         direction: this.direction ? this.direction : 5,
         tvShowId: this.tvShowId,
         imagery: this.imagery ? this.imagery : 5,
-        impression: this.impression ? this.impression : 0,
         love: this.love ? this.love : 5,
         medium: this.medium ? this.medium : "Other",
         overall: this.overall ? this.overall : 5,
         performance: this.performance ? this.performance : 5,
         rating: this.rating,
         soundtrack: this.soundtrack ? this.soundtrack : 5,
+        stickiness: this.stickiness,
         story: this.story ? this.story : 5,
         tags: this.selectedViewingTags,
         title: this.title,

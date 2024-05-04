@@ -12,9 +12,9 @@
               <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(firstResult).backdrop_path}`" :alt="topStructure(firstResult).title">
             </div>
             <div class="col-12 my-3">
-              <label class="form-label fs-4 mb-0" for="impression">How sticky has {{topStructure(firstResult).title}} been?</label>
+              <label class="form-label fs-4 mb-0" for="stickiness">How sticky has {{topStructure(firstResult).title}} been?</label>
               <p>Rate how much you've been thinking and talking about the movie since you watched it.</p>
-              <select class="form-select" name="impression" id="impression" v-model="stickinessRating">
+              <select class="form-select" name="stickiness" id="stickiness" v-model="stickinessRating">
                 <option value="">Rate Stickiness</option>
                 <option value="0">
                   0 - I told people to avoid it
@@ -118,11 +118,11 @@ export default {
     },
     resultsThatNeedStickiness () {
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        const doesntHaveStickiness = !this.mostRecentRating(result).userAddedStickiness;
+        const hasntReratedStickiness = !this.mostRecentRating(result).userAddedStickiness;
         const ratingDate = this.mostRecentRating(result).date || "1/1/2021";
         const moreThanAWeekAgo = new Date(ratingDate).getTime() < new Date().getTime() - (604800000);
 
-        return doesntHaveStickiness && moreThanAWeekAgo;
+        return hasntReratedStickiness && moreThanAWeekAgo;
       }).sort((a, b) => {
         const ratingDateA = this.mostRecentRating(a).date || "1/1/2021";
         const ratingDateB = this.mostRecentRating(b).date || "1/1/2021";

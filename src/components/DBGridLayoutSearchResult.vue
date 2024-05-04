@@ -68,7 +68,6 @@
                       <th><span>perf</span></th>
                       <th><span>sndtk</span></th>
                       <th><span>stick</span></th>
-                      <th><span>imp</span></th>
                       <th><span>love</span></th>
                       <th><span>ovral</span></th>
                     </thead>
@@ -80,7 +79,6 @@
                         <td>{{rating.performance}}</td>
                         <td>{{rating.soundtrack}}</td>
                         <td>{{rating.stickiness && rating.stickiness !== 0 ? rating.stickiness : 1}}</td>
-                        <td>{{rating.impression}}</td>
                         <td>{{rating.love}}</td>
                         <td>{{rating.overall}}</td>
                       </tr>
@@ -567,10 +565,12 @@ export default {
       if (this.currentLogIsTVLog) {
         this.$store.commit('setTVShowToRate', media);
         window.scroll({ top: top, behavior: 'smooth' });
+        this.showDetailsModal = false;
         this.$router.push('/rate-tv-show');
       } else {
         this.$store.commit('setMovieToRate', media);
         window.scroll({ top: top, behavior: 'smooth' });
+        this.showDetailsModal = false;
         this.$router.push('/rate-movie');
       }
     },

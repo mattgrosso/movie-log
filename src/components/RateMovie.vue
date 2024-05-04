@@ -297,29 +297,29 @@
       </div>
 
       <div class="col-12 my-5">
-        <label class="form-label fs-4 mb-0" for="impression">Impression</label>
+        <label class="form-label fs-4 mb-0" for="stickiness">Stickiness</label>
         <p class="fs-6 fst-italic">
-          Give your sense of the film's longevity or impact.
+          How much of a lasting impression do you think the film will have?
         </p>
-        <select class="form-select" name="impression" id="impression" v-model="impression">
+        <select class="form-select" name="stickiness" id="stickiness" v-model="stickiness">
           <option value=""></option>
           <option value="0">
-            0 - None
+            0 - If I think of it at all it will be to warn others away
           </option>
           <option value="1">
-            1 - Will be remembered
+            1 - I'm having a hard time remembering it already
           </option>
           <option value="2">
-            2 - Will be referenced
+            2 - I think I'll mention it to some people
           </option>
           <option value="3">
-            3 - Influenced me
+            3 - I'm going to think about it often
           </option>
           <option value="4">
-            4 - Important to me
+            4 - This is going to stay with me all the time
           </option>
           <option value="5">
-            5 - Central to my life
+            5 - This movie will change the way I think
           </option>
         </select>
       </div>
@@ -523,7 +523,6 @@
                   <th class="col-1"><span>perf</span></th>
                   <th class="col-1"><span>sndtk</span></th>
                   <th class="col-1"><span>stick</span></th>
-                  <th class="col-1"><span>imp</span></th>
                   <th class="col-1"><span>love</span></th>
                   <th class="col-1"><span>ovral</span></th>
                 </thead>
@@ -535,7 +534,6 @@
                     <td class="col-1">{{rating.performance}}</td>
                     <td class="col-1">{{rating.soundtrack}}</td>
                     <td class="col-1">{{rating.stickiness}}</td>
-                    <td class="col-1">{{rating.impression}}</td>
                     <td class="col-1">{{rating.love}}</td>
                     <td class="col-1">{{rating.overall}}</td>
                   </tr>
@@ -558,12 +556,11 @@ export default {
     return {
       direction: null,
       imagery: null,
-      impression: null,
       love: null,
       overall: null,
       performance: null,
       soundtrack: null,
-      stickiness: 1, // Defaults to 1 but will be updated later by user
+      stickiness: null,
       story: null,
       date: new Date().toISOString().substr(0, 10),
       id: null,
@@ -606,7 +603,6 @@ export default {
           {
             direction: this.direction ? parseFloat(this.direction) : 5,
             imagery: this.imagery ? parseFloat(this.imagery) : 5,
-            impression: this.impression ? parseFloat(this.impression) : 0,
             love: this.love ? parseFloat(this.love) : 5,
             overall: this.overall ? parseFloat(this.overall) : 5,
             performance: this.performance ? parseFloat(this.performance) : 5,
@@ -810,7 +806,6 @@ export default {
         direction: this.direction ? this.direction : 5,
         id: this.id,
         imagery: this.imagery ? this.imagery : 5,
-        impression: this.impression ? this.impression : 0,
         love: this.love ? this.love : 5,
         medium: this.medium ? this.medium : "Other",
         overall: this.overall ? this.overall : 5,
