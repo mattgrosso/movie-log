@@ -845,13 +845,13 @@ export default {
     },
     placeholder () {
       if (this.searchType && this.filterValue) {
-        return `Search within ${this.searchType}: ${this.filterValue}...`
+        return `${this.toTitleCase(this.searchType)}: ${this.toTitleCase(this.filterValue)}`;
       } else if (this.searchType === 'annual') {
-        return "Search within the best of each year..."
+        return "The best of each year";
       } else if (this.searchType !== 'title') {
-        return `Search within ${this.searchType}...`
+        return `Search within ${this.searchType}...`;
       } else {
-        return "Search..."
+        return "Search...";
       }
     },
     listCountClasses () {
@@ -870,6 +870,11 @@ export default {
     }
   },
   methods: {
+    toTitleCase(str) {
+      return str.replace(/\w\S*/g, function(txt) {
+        return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+      });
+    },
     toggleMovieTV () {
       this.$store.dispatch('toggleCurrentLog');
     },
@@ -928,7 +933,7 @@ export default {
     },
     findRandomSearchTypeAndFilterValue () {
       this.$router.push({ query: { ...this.$route.query, returnFromRating: undefined } });
-      const searchTypes = ["keyword", "genre", "year", "director", "cast/crew", "studios", "mediums"];
+      const searchTypes = ["keyword", "genre", "year", "director", "cast/crew", "studios"];
       const randomSearchType = searchTypes[Math.floor(Math.random() * searchTypes.length)];
       this.updateSearchType(randomSearchType);
 
@@ -953,9 +958,6 @@ export default {
           break;
         case "studios":
           counts = this.countStudios;
-          break;
-        case "mediums":
-          counts = this.countMediums;
           break;
       }
 
