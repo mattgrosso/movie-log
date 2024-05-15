@@ -326,7 +326,7 @@ export default {
 
       return datesWithCounts;
     },
-    moviesWatchedThisWeek() {
+    moviesWatchedThisWeek () {
       let count = 0;
       for (let i = 0; i < 7; i++) {
         const day = new Date();
@@ -337,7 +337,7 @@ export default {
       }
       return count;
     },
-    moviesWatchedLastWeek() {
+    moviesWatchedLastWeek () {
       let count = 0;
       for (let i = 7; i < 14; i++) {
         const day = new Date();
@@ -348,7 +348,7 @@ export default {
       }
       return count;
     },
-    moviesWatchedThisMonth() {
+    moviesWatchedThisMonth () {
       const today = new Date();
       const month = today.getMonth() + 1;
       const year = today.getFullYear();
@@ -361,7 +361,7 @@ export default {
       });
       return count;
     },
-    moviesWatchedLastMonth() {
+    moviesWatchedLastMonth () {
       const today = new Date();
       today.setMonth(today.getMonth() - 1); // Get the same date but for last month
       const month = today.getMonth() + 1;
@@ -375,7 +375,7 @@ export default {
       });
       return count;
     },
-    moviesWatchedThisYear() {
+    moviesWatchedThisYear () {
       const year = new Date().getFullYear();
       let count = 0;
       Object.keys(this.datesWithCounts).forEach(date => {
@@ -386,7 +386,7 @@ export default {
       });
       return count;
     },
-    moviesWatchedLastYear() {
+    moviesWatchedLastYear () {
       const year = new Date().getFullYear() - 1; // Get last year
       let count = 0;
       Object.keys(this.datesWithCounts).forEach(date => {
