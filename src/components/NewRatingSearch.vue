@@ -12,12 +12,12 @@
       <p>I'm pretty sure that movie doesn't exist.</p>
       <p>Either you're from the future or maybe you just spelled it wrong.</p>
     </div>
-    <div v-else class="d-flex justify-content-center my-5">
+    <div v-else-if="!currentLogIsTVLog && !tvLogHasEntries" class="d-flex justify-content-center my-5">
       <div class="spinner-border" :class="inDarkMode ? 'text-light' : 'text-dark'" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
     </div>
-    <div v-if="currentLogIsTVLog && recentlyRatedTVShows.length" class="last-three-shows mt-4">
+    <div v-if="currentLogIsTVLog && recentlyRatedTVShows.length && tvLogHasEntries" class="last-three-shows mt-4">
       <ul>
         <li v-for="(tvShow, index) in recentlyRatedTVShows" :key="index" class="col-3" @click="reRate(tvShow)">
           <img :src="`https://image.tmdb.org/t/p/original${tvShow.poster_path}`" :alt="`${tvShow.name} poster`">
@@ -80,6 +80,9 @@ export default {
     },
     tvLog () {
       return this.$store.state.tvLog;
+    },
+    tvLogHasEntries () {
+      return Object.keys(this.tvLog).length > 0;
     }
   },
   methods: {

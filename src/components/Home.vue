@@ -31,8 +31,8 @@
         <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
           <div class="btn-group col-12" role="group" aria-label="Button group">
             <button class="results-actions-button btn btn-secondary" @click="toggleMovieTV">
-              <i v-if="currentLogIsTVLog" class="bi bi-tv"/>
-              <i v-else class="bi bi-film"/>
+              <i v-if="currentLogIsTVLog" class="bi bi-film"/>
+              <i v-else class="bi bi-tv"/>
             </button>
             <button class="results-actions-button btn btn-warning" @click="shareResults">
               <span v-if="!sharing">
@@ -236,6 +236,7 @@
       </div>
     </div>
     <div v-else class="new-rating">
+      <p class="mt-2 mx-auto">No TV Shows rated yet.<br>Search for a show or <a class="btn-link p-0" @click="toggleMovieTV">go back to movies.</a></p>
       <NewRatingSearch :value="value" @clear-search-value="clearValueSearchTypeAndFilterValue"/>
     </div>
     <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
@@ -1621,6 +1622,12 @@ export default {
       .spinner-border {
         height: 18px;
         width: 18px;
+      }
+    }
+
+    .new-rating {
+      a {
+        cursor: pointer;
       }
     }
   }
