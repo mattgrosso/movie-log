@@ -1,6 +1,18 @@
 <template>
   <div class="charts">
     <div class="accordion" id="chartsAccordion">
+      <div v-if="results.length > 9" class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingDistribution">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseDistribution" aria-expanded="true" aria-controls="panelsStayOpen-collapseDistribution">
+            Ratings Distribution
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseDistribution" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingDistribution">
+          <div class="accordion-body" :class="darkOrLight">
+            <LineChart class="chart" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
+          </div>
+        </div>
+      </div>
 
       <div class="accordion-item" >
         <h2 class="accordion-header" id="panelsStayOpen-headingKeywordCloud">
@@ -128,6 +140,21 @@
       </div>
 
       <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingViewingCounts">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseViewingCounts" aria-expanded="true" aria-controls="panelsStayOpen-collapseViewingCounts">
+            Viewing Counts
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseViewingCounts" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingViewingCounts">
+          <div class="accordion-body" :class="darkOrLight">
+            <p>This week you've watched {{ moviesWatchedThisWeek }} movies. Last week you watched {{ moviesWatchedLastWeek }}.</p>
+            <p>You've watched {{ moviesWatchedThisMonth }} movies in {{ moment().format('MMMM') }}. You watched {{ moviesWatchedLastMonth }} in {{ moment().subtract(1, 'months').format('MMMM') }}.</p>
+            <p>So far in {{ moment().format('YYYY') }} you've watched {{ moviesWatchedThisYear }}. Last year you watched a total of {{ moviesWatchedLastYear }}.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingCalendarHeatMap">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseCalendarHeatMap" aria-expanded="true" aria-controls="panelsStayOpen-collapseCalendarHeatMap">
             Calendar Heat Map
@@ -153,123 +180,6 @@
         </div>
       </div>
 
-      <div v-if="results.length > 9" class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingDistribution">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseDistribution" aria-expanded="true" aria-controls="panelsStayOpen-collapseDistribution">
-            Ratings Distribution
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseDistribution" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingDistribution">
-          <div class="accordion-body" :class="darkOrLight">
-            <LineChart class="chart" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
-          </div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingAllRatingsBar">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseAllRatingsBar" aria-expanded="true" aria-controls="panelsStayOpen-collapseAllRatingsBar">
-            All Ratings Bar Chart
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseAllRatingsBar" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingAllRatingsBar">
-          <div class="accordion-body" :class="darkOrLight">
-            <BarChart class="chart" :chartData="allRatingsData" :options="allRatingsOptions"/>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="results.length < 10" class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingRatingsCount">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseRatingsCount" aria-expanded="true" aria-controls="panelsStayOpen-collapseRatingsCount">
-            Ratings Count
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseRatingsCount" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingRatingsCount">
-          <div class="accordion-body" :class="darkOrLight">
-            <BarChart class="chart" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
-          </div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingYearsHeatChart">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseYearsHeatChart" aria-expanded="true" aria-controls="panelsStayOpen-collapseYearsHeatChart">
-            Years Heat Chart
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseYearsHeatChart" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingYearsHeatChart">
-          <div class="accordion-body" :class="darkOrLight">
-            <BarChart class="chart" :chartData="yearsData" :options="yearsOptions"/>
-          </div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingBestOfEachYear">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseBestOfEachYear" aria-expanded="true" aria-controls="panelsStayOpen-collapseBestOfEachYear">
-            Best Movie from Each Year
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseBestOfEachYear" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingBestOfEachYear">
-          <div class="accordion-body" :class="darkOrLight">
-            <BarChart class="chart" :chartData="highestRatingEachYearData" :options="highestRatingEachYearOptions"/>
-          </div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingMediumDonut">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseMediumDonut" aria-expanded="true" aria-controls="panelsStayOpen-collapseMediumDonut">
-            Medium Donut Chart
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseMediumDonut" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingMediumDonut">
-          <div class="accordion-body" :class="darkOrLight">
-            <DoughnutChart class="chart" :chartData="mediumChartData" :options="mediumChartOptions"/>
-          </div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingGenreDonut">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseGenreDonut" aria-expanded="true" aria-controls="panelsStayOpen-collapseGenreDonut">
-            Genre Donut Chart
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseGenreDonut" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingGenreDonut">
-          <div class="accordion-body" :class="darkOrLight">
-            <DoughnutChart class="chart" :chartData="genreChartData" :options="genreChartOptions"/>
-          </div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingRuntimeVsRating">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseRuntimeVsRating" aria-expanded="true" aria-controls="panelsStayOpen-collapseRuntimeVsRating">
-            Runtime vs Rating Scatter Chart
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseRuntimeVsRating" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingRuntimeVsRating">
-          <div class="accordion-body" :class="darkOrLight">
-            <ScatterChart class="chart" :chartData="lengthVsRatingData" :options="lengthVsRatingOptions"/>
-          </div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingProductionCompanyDonut">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseProductionCompanyDonut" aria-expanded="true" aria-controls="panelsStayOpen-collapseProductionCompanyDonut">
-            Production Companies Donut Chart
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseProductionCompanyDonut" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingProductionCompanyDonut">
-          <div class="accordion-body" :class="darkOrLight">
-            <DoughnutChart class="chart" :chartData="companyChartData" :options="companyChartOptions"/>
-          </div>
-        </div>
-      </div>
-
       <div v-if="results.length < 10" class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingRadarComparison">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseRadarComparison" aria-expanded="true" aria-controls="panelsStayOpen-collapseRadarComparison">
@@ -283,19 +193,6 @@
         </div>
       </div>
 
-      <div v-if="!currentLogIsTVLog" class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingStreaks">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseStreaks" aria-expanded="true" aria-controls="panelsStayOpen-collapseStreaks">
-            Streaks
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseStreaks" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingStreaks">
-          <div class="accordion-body" :class="darkOrLight">
-            <Streaks :resultsWithRatings="resultsWithRatings"/>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
 </template>
@@ -304,11 +201,9 @@
 import { getRating } from "../assets/javascript/GetRating.js";
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
 import { Chart, registerables } from "chart.js";
-import mean from 'lodash/mean';
-import maxBy from 'lodash/maxBy';
 import sortBy from 'lodash/sortBy';
 import randomColor from 'randomcolor';
-import Streaks from "./Streaks.vue";
+import moment from 'moment';
 import KeywordCloud from "./KeywordCloud.vue";
 import CalendarHeatMap from "./CalendarHeatMap.vue";
 import FullCalendarView from "./FullCalendarView.vue";
@@ -318,6 +213,10 @@ Chart.register(...registerables);
 export default {
   props: {
     results: {
+      type: Array,
+      required: true
+    },
+    allEntriesWithFlatKeywordsAdded: {
       type: Array,
       required: true
     },
@@ -336,7 +235,6 @@ export default {
     DoughnutChart,
     ScatterChart,
     RadarChart,
-    Streaks,
     KeywordCloud,
     CalendarHeatMap,
     FullCalendarView
@@ -363,7 +261,8 @@ export default {
         directorPercentage9: false
       },
       numberOfDirectors: 10,
-      fullCalendarAccordionOpen: false
+      fullCalendarAccordionOpen: false,
+      moment: moment
     }
   },
   computed: {
@@ -410,6 +309,93 @@ export default {
           }
         }
       }
+    },
+    datesWithCounts () {
+      const datesWithCounts = {};
+
+      for (const result of this.allEntriesWithFlatKeywordsAdded) {
+        for (const rating of result.ratings) {
+          const datesWithCountsKey = new Date(rating.date).toLocaleDateString();
+          if (datesWithCounts[datesWithCountsKey]) {
+            datesWithCounts[datesWithCountsKey]++;
+          } else {
+            datesWithCounts[datesWithCountsKey] = 1;
+          }
+        }
+      }
+
+      return datesWithCounts;
+    },
+    moviesWatchedThisWeek() {
+      let count = 0;
+      for (let i = 0; i < 7; i++) {
+        const day = new Date();
+        day.setDate(day.getDate() - i);
+        day.setHours(0, 0, 0, 0);
+        const dateString = `${day.getMonth() + 1}/${day.getDate()}/${day.getFullYear()}`;
+        count += this.datesWithCounts[dateString] || 0;
+      }
+      return count;
+    },
+    moviesWatchedLastWeek() {
+      let count = 0;
+      for (let i = 7; i < 14; i++) {
+        const day = new Date();
+        day.setDate(day.getDate() - i);
+        day.setHours(0, 0, 0, 0);
+        const dateString = `${day.getMonth() + 1}/${day.getDate()}/${day.getFullYear()}`;
+        count += this.datesWithCounts[dateString] || 0;
+      }
+      return count;
+    },
+    moviesWatchedThisMonth() {
+      const today = new Date();
+      const month = today.getMonth() + 1;
+      const year = today.getFullYear();
+      let count = 0;
+      Object.keys(this.datesWithCounts).forEach(date => {
+        const [dateMonth, , dateYear] = date.split('/');
+        if (+dateMonth === month && +dateYear === year) {
+          count += this.datesWithCounts[date];
+        }
+      });
+      return count;
+    },
+    moviesWatchedLastMonth() {
+      const today = new Date();
+      today.setMonth(today.getMonth() - 1); // Get the same date but for last month
+      const month = today.getMonth() + 1;
+      const year = today.getFullYear();
+      let count = 0;
+      Object.keys(this.datesWithCounts).forEach(date => {
+        const [dateMonth, , dateYear] = date.split('/');
+        if (+dateMonth === month && +dateYear === year) {
+          count += this.datesWithCounts[date];
+        }
+      });
+      return count;
+    },
+    moviesWatchedThisYear() {
+      const year = new Date().getFullYear();
+      let count = 0;
+      Object.keys(this.datesWithCounts).forEach(date => {
+        const dateYear = +date.split('/')[2];
+        if (dateYear === year) {
+          count += this.datesWithCounts[date];
+        }
+      });
+      return count;
+    },
+    moviesWatchedLastYear() {
+      const year = new Date().getFullYear() - 1; // Get last year
+      let count = 0;
+      Object.keys(this.datesWithCounts).forEach(date => {
+        const dateYear = +date.split('/')[2];
+        if (dateYear === year) {
+          count += this.datesWithCounts[date];
+        }
+      });
+      return count;
     },
     ratingsCountData () {
       const rounded = this.resultsWithRatings.map((result) => {
@@ -493,221 +479,6 @@ export default {
         }
       }
     },
-    genreChartData () {
-      const genreArrays = this.results.map((result) => this.topStructure(result).genres);
-
-      const counts = {};
-
-      genreArrays.forEach((array) => {
-        if (!array) {
-          return;
-        }
-
-        array.forEach((genre) => {
-          if (counts[genre.name]) {
-            counts[genre.name]++;
-          } else {
-            counts[genre.name] = 1;
-          }
-        })
-      })
-
-      const countsWithLabels = Object.keys(counts).map((val) => {
-        return {
-          label: val,
-          value: counts[val]
-        }
-      })
-
-      const data = countsWithLabels.map((count) => count.value);
-      const labels = countsWithLabels.map((count) => count.label);
-
-      return {
-        labels: labels,
-        datasets: [
-          {
-            data: data,
-            backgroundColor: [randomColor(), randomColor(), randomColor(), randomColor(), randomColor()],
-          }
-        ]
-      }
-    },
-    genreChartOptions () {
-      return {
-        plugins: {
-          legend: {
-            display: false
-          },
-          title: {
-            display: true,
-            text: "Genres",
-          },
-        },
-        scales: {
-          x: {
-            display: false
-          }
-        }
-      }
-    },
-    mediumChartData () {
-      const data = this.allCounts.mediums.map((count) => count.count);
-      const labels = this.allCounts.mediums.map((count) => count.name);
-
-      return {
-        labels: labels,
-        datasets: [
-          {
-            data: data,
-            backgroundColor: [randomColor(), randomColor(), randomColor(), randomColor(), randomColor()],
-          }
-        ]
-      }
-    },
-    mediumChartOptions () {
-      return {
-        plugins: {
-          legend: {
-            display: false
-          },
-          title: {
-            display: true,
-            text: "Mediums",
-          },
-        },
-        scales: {
-          x: {
-            display: false
-          }
-        }
-      }
-    },
-    lengthVsRatingData () {
-      const data = this.resultsWithRatings.map((result) => {
-        let runtime;
-
-        if (this.topStructure(result).runtime) {
-          runtime = this.topStructure(result).runtime;
-        } else if (this.topStructure(result).episode_run_time) {
-          runtime = this.topStructure(result).episode_run_time[0];
-        } else {
-          runtime = 0;
-        }
-
-        return {
-          x: runtime,
-          y: getRating(result).calculatedTotal
-        }
-      }).filter((result) => result.x && result.y);
-
-      return {
-        datasets: [{
-          label: '(minutes, rating)',
-          data: data,
-          backgroundColor: randomColor(),
-          pointBorderColor: randomColor()
-        }],
-      }
-    },
-    lengthVsRatingOptions () {
-      return {
-        plugins: {
-          legend: {
-            display: false
-          },
-          title: {
-            display: true,
-            text: 'Runtime vs Rating'
-          },
-        },
-        scales: {
-          y: {
-            title: {
-              display: true,
-              text: 'Rating'
-            },
-            type: 'linear'
-          },
-          x: {
-            title: {
-              display: true,
-              text: 'Minutes'
-            },
-            type: 'linear',
-            position: 'bottom'
-          }
-        }
-      }
-    },
-    companyChartData () {
-      const companyArrays = this.results.map((result) => this.topStructure(result).production_companies);
-
-      const counts = {};
-
-      companyArrays.forEach((array) => {
-        if (!array) {
-          return;
-        }
-        array.forEach((company) => {
-          if (counts[company.name]) {
-            counts[company.name]++;
-          } else {
-            counts[company.name] = 1;
-          }
-        })
-      })
-
-      let total = 0;
-      Object.keys(counts).forEach((count) => {
-        total = total + counts[count];
-      })
-
-      const countsWithLabels = Object.keys(counts).map((val) => {
-        if (counts[val] < total * 0.005) {
-          return null;
-        }
-
-        return {
-          label: val,
-          value: counts[val]
-        }
-      }).filter((count) => count);
-
-      const data = countsWithLabels.map((count) => count.value);
-      const labels = countsWithLabels.map((count) => count.label);
-
-      return {
-        labels: labels,
-        datasets: [
-          {
-            data: data,
-            backgroundColor: [randomColor(), randomColor(), randomColor(), randomColor(), randomColor()],
-          }
-        ]
-      }
-    },
-    companyChartOptions () {
-      return {
-        plugins: {
-          legend: {
-            display: false
-          },
-          title: {
-            display: true,
-            text: "Production Companies",
-          },
-          subtitle: {
-            display: true,
-            text: '(with >0.5% representation)'
-          }
-        },
-        scales: {
-          x: {
-            display: false
-          }
-        }
-      }
-    },
     radarRatingsData () {
       const data = this.resultsWithRatings.map((result) => {
         const rating = getRating(result).calculatedTotal;
@@ -764,120 +535,6 @@ export default {
         elements: {
           line: {
             borderWidth: 3
-          }
-        }
-      };
-    },
-    yearsData () {
-      const yearsAndRatings = this.resultsWithRatings.map((result) => {
-        return {
-          year: this.getYear(result),
-          rating: getRating(result).calculatedTotal
-        }
-      });
-
-      const years = {};
-
-      yearsAndRatings.forEach((movie) => {
-        if (!years[movie.year]) {
-          years[movie.year] = [parseFloat(movie.rating)];
-        } else {
-          years[movie.year].push(parseFloat(movie.rating));
-        }
-      });
-
-      const labels = [];
-      const data = [];
-      const backgroundColors = [];
-
-      Object.keys(years).forEach((year) => {
-        labels.push(year);
-        data.push(years[year].length);
-        backgroundColors.push(this.percentToColor(parseFloat(mean(years[year]).toFixed()) * 10));
-      });
-
-      return {
-        labels: labels,
-        datasets: [
-          {
-            data: data,
-            backgroundColor: backgroundColors,
-          }
-        ]
-      }
-    },
-    yearsOptions () {
-      return {
-        plugins: {
-          legend: {
-            display: false
-          },
-          title: {
-            display: true,
-            text: "Years",
-          },
-          subtitle: {
-            display: true,
-            text: "(Warmer color means higher average rating)"
-          }
-        }
-      };
-    },
-    highestRatingEachYearData () {
-      const yearsAndRatings = this.resultsWithRatings.map((result) => {
-        return {
-          year: this.getYear(result),
-          rating: getRating(result).calculatedTotal,
-          title: this.getMediaTitle(result)
-        }
-      });
-
-      const years = {};
-
-      yearsAndRatings.forEach((movie) => {
-        if (!years[movie.year]) {
-          years[movie.year] = [{ rating: parseFloat(movie.rating), title: movie.title }];
-        } else {
-          years[movie.year].push({ rating: parseFloat(movie.rating), title: movie.title });
-        }
-      });
-
-      const labels = [];
-      const data = [];
-      const backgroundColors = [];
-
-      Object.keys(years).forEach((year) => {
-        const highest = maxBy(years[year], (i) => i.rating);
-
-        labels.push(`${highest.title} (${year})`);
-        data.push(highest.rating);
-        backgroundColors.push(this.percentToColor(parseFloat(highest.rating.toFixed()) * 10));
-      });
-
-      return {
-        labels: labels,
-        datasets: [
-          {
-            data: data,
-            backgroundColor: backgroundColors
-          }
-        ]
-      }
-    },
-    highestRatingEachYearOptions () {
-      return {
-        plugins: {
-          legend: {
-            display: false
-          },
-          title: {
-            display: true,
-            text: this.currentLogIsTVLog ? "Best Show Each Year" : "Best Movie Each Year",
-          }
-        },
-        scales: {
-          x: {
-            display: false
           }
         }
       };

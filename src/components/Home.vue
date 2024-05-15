@@ -182,6 +182,7 @@
               <Charts
                 v-if="!this.currentLogIsTVLog"
                 :results="filteredResults"
+                :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
                 :sortOrder="sortOrder"
                 :allCounts="allCounts"
                 @updateSearchValue="updateSearchValue"
