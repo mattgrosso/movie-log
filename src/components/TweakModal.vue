@@ -41,11 +41,6 @@ import { getRating } from "../assets/javascript/GetRating.js";
 export default {
   name: "tweakModal",
   props: {
-    showTweakModal: {
-      type: Boolean,
-      required: false,
-      default: false
-    },
     allEntriesWithFlatKeywordsAdded: {
       type: Array,
       required: true
@@ -57,16 +52,6 @@ export default {
       ratingChange: null,
       submitting: false
     };
-  },
-  watch: {
-    showTweakModal (newVal) {
-      if (!newVal) {
-        document.querySelector("#tweakModal").classList.remove("show");
-        document.querySelector(".modal-backdrop").remove();
-        document.querySelector("body").classList.remove("modal-open");
-        document.querySelector("body").style = "";
-      }
-    }
   },
   computed: {
     currentLogIsTVLog () {

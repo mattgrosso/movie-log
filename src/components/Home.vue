@@ -190,7 +190,7 @@
             </div>
           </div>
         </div>
-        <StickinessModal v-if="!currentLogIsTVLog && allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
+        <StickinessModal v-if="showStickinessModal" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
         <TweakModal v-else-if="showTweakModal" :showTweakModal="showTweakModal" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"/>
         <ul v-if="gridLayout" class="grid-layout pb-3" :class="listCountClasses">
           <DBGridLayoutSearchResult
@@ -411,6 +411,24 @@ export default {
         }
       });
     },
+    resultsThatNeedStickiness () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const hasntReratedStickiness = !this.mostRecentRating(result).userAddedStickiness;
+        const ratingDate = this.mostRecentRating(result).date || "1/1/2021";
+        const moreThanAWeekAgo = new Date(ratingDate).getTime() < new Date().getTime() - (604800000);
+
+        return hasntReratedStickiness && moreThanAWeekAgo;
+      }).sort((a, b) => {
+        const ratingDateA = this.mostRecentRating(a).date || "1/1/2021";
+        const ratingDateB = this.mostRecentRating(b).date || "1/1/2021";
+        const dateA = new Date(ratingDateA);
+        const dateB = new Date(ratingDateB);
+        return dateB - dateA;
+      });
+    },
+    showStickinessModal () {
+      return Boolean(!this.currentLogIsTVLog && this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
+    },
     showTweakModal () {
       const firstTiedPairIndex = this.sortedByRating.findIndex((movie, index) => {
         const nextMovie = this.sortedByRating[index + 1];
@@ -427,8 +445,9 @@ export default {
       }
 
       const hasTiedResults = Boolean(this.sortedByRating[firstTiedPairIndex] && this.sortedByRating[firstTiedPairIndex + 1]);
+      const lastTweak = this.$store.state.settings.lastTweak || 0;
       const oneDay = 24 * 60 * 60 * 1000;
-      const noTieBreakYetToday = Date.now() - this.$store.state.settings.lastTweak > oneDay;
+      const noTieBreakYetToday = Date.now() - lastTweak > oneDay;
 
       return !this.currentLogIsTVLog && hasTiedResults && noTieBreakYetToday;
     },
