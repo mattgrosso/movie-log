@@ -179,7 +179,7 @@ export default {
         path: 'settings/lastTweak',
         value: Date.now()
       });
-      
+
       this.hideModalBackdrop();
       this.submitting = false;
     },
@@ -211,7 +211,7 @@ export default {
         path: 'settings/lastTweak',
         value: Date.now()
       });
-      
+
       this.hideModalBackdrop();
       this.submitting = false;
     },

@@ -6,7 +6,7 @@ const currentLogIsTVLog = () => {
 
 const calculatePostStickyRatingFor = (rating) => {
   const tweakValue = parseFloat(rating.tweakValue || 0);
-  
+
   const direction = store.getters.weight("direction") * parseFloat(rating.direction);
   const imagery = store.getters.weight("imagery") * parseFloat(rating.imagery);
   const love = store.getters.weight("love") * parseFloat(rating.love);
@@ -32,7 +32,7 @@ const calculatePostStickyRatingFor = (rating) => {
 
 const mostRecentRating = (media) => {
   let mostRecentRating;
-  
+
   if (currentLogIsTVLog()) {
     if (!media?.ratings?.tvShow && !media.ratings?.length) {
       return null;
