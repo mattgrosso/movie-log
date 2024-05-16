@@ -38,11 +38,11 @@
             </div>
             <p class="rating-change col-12 text-center" :class="{visible: ratingChange || ratingChange === 0}">
               <span v-if="ratingWithoutStickiness === ratingWithStickiness">Your rating didn't change.</span>
-              <span>
+              <span v-else>
                 Your rating went from
                 <span :class="ratingWithoutStickiness < ratingWithStickiness ? 'negative' : 'positive'">{{ratingWithoutStickiness}}</span>
                 to
-                <span :class="ratingWithStickiness < ratingWithoutStickiness ? 'negative' : 'positive'">{{ratingWithStickiness}}</span>
+                <span :class="ratingWithStickiness < ratingWithoutStickiness ? 'negative' : 'positive'">{{ratingWithStickiness}}</span>.
               </span>
               <br v-if="rankWithoutStickiness !== rankWithStickiness">
               <span v-if="rankWithoutStickiness - rankWithStickiness > 0">

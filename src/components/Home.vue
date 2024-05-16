@@ -236,7 +236,7 @@
       </div>
     </div>
     <div v-else class="new-rating">
-      <p class="mt-2 mx-auto">No TV Shows rated yet.<br>Search for a show or <a class="btn-link p-0" @click="toggleMovieTV">go back to movies.</a></p>
+      <p v-if="currentLogIsTVLog" class="mt-2 mx-auto">No TV Shows rated yet.<br>Search for a show or <a class="btn-link p-0" @click="toggleMovieTV">go back to movies.</a></p>
       <NewRatingSearch :value="value" @clear-search-value="clearValueSearchTypeAndFilterValue"/>
     </div>
     <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
