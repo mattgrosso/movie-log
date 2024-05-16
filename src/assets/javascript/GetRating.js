@@ -5,10 +5,12 @@ const currentLogIsTVLog = () => {
 }
 
 const calculatePostStickyRatingFor = (rating) => {
+  const tweakValue = parseFloat(rating.tweakValue || 0);
+  
   const direction = store.getters.weight("direction") * parseFloat(rating.direction);
   const imagery = store.getters.weight("imagery") * parseFloat(rating.imagery);
   const love = store.getters.weight("love") * parseFloat(rating.love);
-  const overall = store.getters.weight("overall") * parseFloat(rating.overall);
+  const overall = store.getters.weight("overall") * (parseFloat(rating.overall) + tweakValue);
   const performance = store.getters.weight("performance") * parseFloat(rating.performance);
   const soundtrack = store.getters.weight("soundtrack") * parseFloat(rating.soundtrack);
   const story = store.getters.weight("story") * parseFloat(rating.story);
@@ -30,7 +32,7 @@ const calculatePostStickyRatingFor = (rating) => {
 
 const mostRecentRating = (media) => {
   let mostRecentRating;
-
+  
   if (currentLogIsTVLog()) {
     if (!media?.ratings?.tvShow && !media.ratings?.length) {
       return null;

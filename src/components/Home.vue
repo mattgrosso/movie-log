@@ -191,6 +191,7 @@
           </div>
         </div>
         <StickinessModal v-if="!currentLogIsTVLog && allEntriesWithFlatKeywordsAdded.length" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
+        <TweakModal v-else-if="showTweakModal" :showTweakModal="showTweakModal" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"/>
         <ul v-if="gridLayout" class="grid-layout pb-3" :class="listCountClasses">
           <DBGridLayoutSearchResult
             v-for="(result, index) in paginatedSortedResults"
@@ -253,6 +254,7 @@ import DBSearchResult from './DBSearchResult.vue';
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
 import StickinessModal from "./StickinessModal.vue";
+import TweakModal from "./TweakModal.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 
@@ -263,7 +265,8 @@ export default {
     DBGridLayoutSearchResult,
     NewRatingSearch,
     InsetBrowserModal,
-    StickinessModal
+    StickinessModal,
+    TweakModal
   },
   data () {
     return {
@@ -407,6 +410,27 @@ export default {
           }
         }
       });
+    },
+    showTweakModal () {
+      const firstTiedPairIndex = this.sortedByRating.findIndex((movie, index) => {
+        const nextMovie = this.sortedByRating[index + 1];
+
+        if (!nextMovie) {
+          return false;
+        }
+
+        return getRating(movie).calculatedTotal === getRating(nextMovie).calculatedTotal;
+      });
+
+      if (firstTiedPairIndex === -1) {
+        return false;
+      }
+
+      const hasTiedResults = Boolean(this.sortedByRating[firstTiedPairIndex] && this.sortedByRating[firstTiedPairIndex + 1]);
+      const oneDay = 24 * 60 * 60 * 1000;
+      const noTieBreakYetToday = Date.now() - this.$store.state.settings.lastTweak > oneDay;
+
+      return !this.currentLogIsTVLog && hasTiedResults && noTieBreakYetToday;
     },
     filteredResults () {
       let searchTypeFiltered;
