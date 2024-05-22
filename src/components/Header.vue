@@ -16,10 +16,24 @@
 </template>
 
 <script>
+import axios from "axios";
 import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
   name: "Header",
+  data () {
+    return {
+      randomBannerUrl: '',
+    };
+  },
+  async mounted () {
+    this.randomBannerUrl = await this.randomBanner();
+  },
+  watch: {
+    async currentLogIsTVLog () {
+      this.randomBannerUrl = await this.randomBanner();
+    }
+  },
   computed: {
     version () {
       return process.env.VUE_APP_VERSION;
@@ -35,7 +49,7 @@ export default {
     },
     postersForHeader () {
       if (this.$store.getters.allMediaAsArray.length < 24) {
-        return [this.randomBanner()];
+        return [this.randomBannerUrl];
       } else if (this.$store.getters.allMediaAsArray.length < 80) {
         return this.allPostersRanked.slice(0, 24);
       } else {
@@ -63,7 +77,7 @@ export default {
         return getRating(media);
       }
     },
-    sortByRating (a, b) {
+    async sortByRating (a, b) {
       const aRating = this.mostRecentRating(a).calculatedTotal;
       const bRating = this.mostRecentRating(b).calculatedTotal;
 
@@ -76,13 +90,27 @@ export default {
 
       return 0;
     },
-    randomBanner () {
+    async fetchHighestVotedMedia (mediaType) {
+      try {
+        const recentMedia = await axios.get(`https://api.themoviedb.org/3/discover/${mediaType}?include_adult=false&include_video=false&year=2024&api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
+        const highestVotedMedia = recentMedia.data.results.reduce((highest, media) => {
+          return media.vote_count > highest.vote_count ? media : highest;
+        }, { vote_count: 0 });
+
+        return `https://image.tmdb.org/t/p/original${highestVotedMedia.backdrop_path}`;
+      } catch (error) {
+        console.error(error);
+        return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
+      }
+    },
+    async randomBanner () {
       const rand = Math.floor(Math.random() * this.$store.getters.allMediaAsArray.length);
 
       if (this.$store.getters.allMediaAsArray[rand]) {
         return `https://image.tmdb.org/t/p/original${this.topStructure(this.$store.getters.allMediaAsArray[rand]).backdrop_path}`;
       } else {
-        return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
+        const mediaType = this.currentLogIsTVLog ? 'tv' : 'movie';
+        return await this.fetchHighestVotedMedia(mediaType);
       }
     },
     async goHome () {
