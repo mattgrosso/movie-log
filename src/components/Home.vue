@@ -244,10 +244,7 @@
         <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
       </div>
     </div>
-    <div v-else class="new-rating">
-      <p v-if="currentLogIsTVLog" class="mt-2 mx-auto">No TV Shows rated yet.<br>Search for a show or <a class="btn-link p-0" @click="toggleMovieTV">go back to movies.</a></p>
-      <NewRatingSearch :value="value" @clear-search-value="clearValueSearchTypeAndFilterValue"/>
-    </div>
+    <NoResults v-else :value="value" @clearValueSearchTypeAndFilterValue="clearValueSearchTypeAndFilterValue"/>
     <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
   </div>
 </template>
@@ -263,6 +260,7 @@ import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
 import StickinessModal from "./StickinessModal.vue";
 import TweakModal from "./TweakModal.vue";
+import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 
@@ -274,7 +272,8 @@ export default {
     NewRatingSearch,
     InsetBrowserModal,
     StickinessModal,
-    TweakModal
+    TweakModal,
+    NoResults
   },
   data () {
     return {
@@ -933,6 +932,7 @@ export default {
       });
     },
     toggleMovieTV () {
+      this.clearValueSearchTypeAndFilterValue();
       this.$store.dispatch('toggleCurrentLog');
     },
     checkResultsAndFindFilter () {
