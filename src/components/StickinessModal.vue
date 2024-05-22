@@ -1,5 +1,5 @@
 <template>
-  <div class="stickiness">
+  <div v-if="showStickinessModal" class="stickiness">
     <div class="stickiness-notice alert alert-info my-2" role="alert">
       You have {{ resultsThatNeedStickiness.length }} movies without stickiness ratings.
       <a class="alert-link" data-bs-toggle="modal" data-bs-target="#stickinessModal">Click to add stickiness.</a>
@@ -80,6 +80,10 @@ export default {
   props: {
     allEntriesWithFlatKeywordsAdded: {
       type: Array,
+      required: true
+    },
+    showStickinessModal: {
+      type: Boolean,
       required: true
     }
   },

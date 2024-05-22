@@ -1,5 +1,5 @@
 <template>
-  <div class="tweak-modal">
+  <div v-if="showTweakModal" class="tweak-modal">
     <div class="stickiness-notice alert alert-info my-2" role="alert">
       You have a tie to deal with.
       <a class="alert-link" data-bs-toggle="modal" data-bs-target="#tweakModal">Click to break the tie.</a>
@@ -43,6 +43,10 @@ export default {
   props: {
     allEntriesWithFlatKeywordsAdded: {
       type: Array,
+      required: true
+    },
+    showTweakModal: {
+      type: Boolean,
       required: true
     }
   },

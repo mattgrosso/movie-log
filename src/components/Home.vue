@@ -190,8 +190,16 @@
             </div>
           </div>
         </div>
-        <StickinessModal v-if="showStickinessModal" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
-        <TweakModal v-else-if="showTweakModal" :showTweakModal="showTweakModal" :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"/>
+        <StickinessModal
+          v-if="showStickinessModal"
+          :showStickinessModal="showStickinessModal"
+          :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+        />
+        <TweakModal
+          v-else-if="showTweakModal"
+          :showTweakModal="showTweakModal"
+          :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+        />
         <ul v-if="gridLayout" class="grid-layout pb-3" :class="listCountClasses">
           <DBGridLayoutSearchResult
             v-for="(result, index) in paginatedSortedResults"
@@ -430,6 +438,10 @@ export default {
       return Boolean(!this.currentLogIsTVLog && this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
     },
     showTweakModal () {
+      if (this.showStickinessModal) {
+        return false;
+      }
+
       const firstTiedPairIndex = this.sortedByRating.findIndex((movie, index) => {
         const nextMovie = this.sortedByRating[index + 1];
 
@@ -445,7 +457,7 @@ export default {
       }
 
       const hasTiedResults = Boolean(this.sortedByRating[firstTiedPairIndex] && this.sortedByRating[firstTiedPairIndex + 1]);
-      const lastTweak = this.$store.state.settings.lastTweak || 0;
+      const lastTweak = this.$store.state.settings.lastTweak || Date.now();
       const oneDay = 24 * 60 * 60 * 1000;
       const noTieBreakYetToday = Date.now() - lastTweak > oneDay;
 
