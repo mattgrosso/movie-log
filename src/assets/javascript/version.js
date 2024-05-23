@@ -8,9 +8,14 @@ dotenv.config();
 let version = process.env.VUE_APP_VERSION;
 
 // Increment the version number
-version = version.split('.').map((num, index) => {
+version = version.split('.').map((num, index, arr) => {
   if (index === 2) {
-    return parseInt(num) + 1;
+    num = parseInt(num) + 1;
+    if (num >= 100) {
+      num = 0;
+      arr[1] = parseInt(arr[1]) + 1;
+    }
+    return num;
   }
   return num;
 }).join('.');
