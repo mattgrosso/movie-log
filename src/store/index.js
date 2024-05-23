@@ -84,7 +84,8 @@ export default createStore({
     DBSortOrder: null,
     showHeader: true,
     goHome: false,
-    devModeTopKey: 'testing-database'
+    devModeTopKey: 'testing-database',
+    dbLoaded: false
   },
   getters: {
     allMediaAsArray: (state) => {
@@ -172,6 +173,9 @@ export default createStore({
     },
     setGoHome (state, value) {
       state.goHome = value;
+    },
+    setDbLoaded (state, value) {
+      state.dbLoaded = value;
     }
   },
   actions: {
@@ -208,6 +212,7 @@ export default createStore({
           if (data) {
             context.commit('setMovieLog', data);
           }
+          context.commit('setDbLoaded', true);
         });
       }
       const tvLogHasData = Boolean(Object.keys(context.state.tvLog).length);
@@ -218,6 +223,7 @@ export default createStore({
           if (data) {
             context.commit('setTVLog', data);
           }
+          context.commit('setDbLoaded', true);
         });
       }
       const settingsHasData = Boolean(Object.keys(context.state.settings).length);

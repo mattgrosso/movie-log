@@ -54,7 +54,7 @@
             </p>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button ref="close" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             <button v-if="submitting" type="button" class="btn btn-primary" disabled>
               <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
             </button>
@@ -192,6 +192,9 @@ export default {
     }
   },
   methods: {
+    closeModal () {
+      this.$refs.close.click();
+    },
     topStructure (result) {
       if (this.currentLogIsTVLog) {
         return result.tvShow;
@@ -240,6 +243,10 @@ export default {
         this.submitting = false;
         this.stickinessRating = "";
         this.ratingChange = null;
+
+        if (!resultsThatNeedStickiness.length) {
+          this.closeModal();
+        }
       }, 2000);
     },
     mostRecentRating (media) {

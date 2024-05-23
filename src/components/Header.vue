@@ -91,16 +91,20 @@ export default {
       return 0;
     },
     async fetchHighestVotedMedia (mediaType) {
-      try {
-        const recentMedia = await axios.get(`https://api.themoviedb.org/3/discover/${mediaType}?include_adult=false&include_video=false&year=2024&api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
-        const highestVotedMedia = recentMedia.data.results.reduce((highest, media) => {
-          return media.vote_count > highest.vote_count ? media : highest;
-        }, { vote_count: 0 });
-
-        return `https://image.tmdb.org/t/p/original${highestVotedMedia.backdrop_path}`;
-      } catch (error) {
-        console.error(error);
+      if (!this.$store.state.dbLoaded) {
         return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
+      } else {
+        try {
+          const recentMedia = await axios.get(`https://api.themoviedb.org/3/discover/${mediaType}?include_adult=false&include_video=false&year=2024&api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
+          const highestVotedMedia = recentMedia.data.results.reduce((highest, media) => {
+            return media.vote_count > highest.vote_count ? media : highest;
+          }, { vote_count: 0 });
+  
+          return `https://image.tmdb.org/t/p/original${highestVotedMedia.backdrop_path}`;
+        } catch (error) {
+          console.error(error);
+          return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
+        }
       }
     },
     async randomBanner () {

@@ -244,7 +244,12 @@
         <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
       </div>
     </div>
-    <NoResults v-else :value="value" @clearValueSearchTypeAndFilterValue="clearValueSearchTypeAndFilterValue"/>
+    <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValueSearchTypeAndFilterValue="clearValueSearchTypeAndFilterValue"/>
+    <div v-else class="d-flex justify-content-center align-items-center my-5">
+      <div class="spinner-border text-light" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
     <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
   </div>
 </template>
