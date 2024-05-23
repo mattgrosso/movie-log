@@ -99,7 +99,7 @@ export default {
           const highestVotedMedia = recentMedia.data.results.reduce((highest, media) => {
             return media.vote_count > highest.vote_count ? media : highest;
           }, { vote_count: 0 });
-  
+
           return `https://image.tmdb.org/t/p/original${highestVotedMedia.backdrop_path}`;
         } catch (error) {
           console.error(error);

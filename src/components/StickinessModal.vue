@@ -244,7 +244,7 @@ export default {
         this.stickinessRating = "";
         this.ratingChange = null;
 
-        if (!resultsThatNeedStickiness.length) {
+        if (!this.resultsThatNeedStickiness.length) {
           this.closeModal();
         }
       }, 2000);
