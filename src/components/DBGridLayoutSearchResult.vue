@@ -632,8 +632,8 @@ export default {
       cursor: pointer;
     }
 
-    .modal-content {
-      .modal-header {
+    .cinemaroll-modal-content {
+      .cinemaroll-modal-header {
         h2 {
           position: absolute;
           font-size: 2rem;
@@ -653,7 +653,7 @@ export default {
       }
     }
 
-    .modal-body {
+    .cinemaroll-modal-body {
       .details-modal-body {
         h4 {
           font-size: 0.75rem;
