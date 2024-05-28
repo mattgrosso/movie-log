@@ -1,12 +1,15 @@
 <template>
-  <div v-if="show" class="cinema-roll-modal">
-    <div class="modal-content">
-      <div class="modal-header">
+  <div v-if="show" class="cinemaroll-modal">
+    <div class="cinemaroll-modal-content">
+      <div class="cinemaroll-modal-header">
         <span class="close" @click="close">&times;</span>
         <slot name="header"></slot>
       </div>
-      <div class="modal-body">
+      <div class="cinemaroll-modal-body">
         <slot name="body"></slot>
+      </div>
+      <div class="cinemaroll-modal-footer">
+        <slot name="footer"></slot>
       </div>
     </div>
   </div>
@@ -34,7 +37,9 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.cinema-roll-modal {
+.cinemaroll-modal {
+  $modal-footer-height: 60px;
+
   position: fixed;
   z-index: 5;
   left: 0;
@@ -44,13 +49,16 @@ export default {
   overflow: auto;
   background-color: rgba(0, 0, 0, 0.4);
 
-  .modal-content {
+  .cinemaroll-modal-content {
     background-color: black;
     margin: 3%;
     width: 94%;
-    height: 97vh;
+    max-height: 97vh;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
 
-    .modal-header {
+    .cinemaroll-modal-header {
       position: relative;
 
       .close {
@@ -68,12 +76,14 @@ export default {
       }
     }
 
-    .modal-body {
+    .cinemaroll-modal-body {
       padding: 1rem;
-      display: flex;
-      height: 100%;
-      margin-bottom: 36px;
+      flex: 1;
       overflow: auto;
+    }
+
+    .cinemaroll-modal-footer {
+      height: $modal-footer-height;
     }
   }
 }

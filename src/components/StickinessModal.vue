@@ -2,78 +2,79 @@
   <div v-if="resultsThatNeedStickiness.length && showStickinessModal" class="stickiness">
     <div class="stickiness-notice alert alert-info my-2" role="alert">
       You have {{ resultsThatNeedStickiness.length }} movies without stickiness ratings.
-      <a class="alert-link" data-bs-toggle="modal" data-bs-target="#stickinessModal">Click to add stickiness.</a>
+      <a class="alert-link" @click="openModal">Click to add stickiness.</a>
     </div>
-    <div class="modal fade" id="stickinessModal" tabindex="-1" aria-labelledby="stickinessModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content" :class="darkOrLight">
-          <div class="modal-body">
-            <div class="poster">
-              <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(firstResult).backdrop_path}`" :alt="topStructure(firstResult).title">
-            </div>
-            <div class="col-12 my-3">
-              <label class="form-label fs-4 mb-0" for="stickiness">How sticky has {{topStructure(firstResult).title}} been?</label>
-              <p>Rate how much you've been thinking and talking about the movie since you watched it.</p>
-              <select class="form-select" name="stickiness" id="stickiness" v-model="stickinessRating">
-                <option value="">Rate Stickiness</option>
-                <option value="0">
-                  0 - I told people to avoid it
-                </option>
-                <option value="1">
-                  1 - I forgot it immediately
-                </option>
-                <option value="2">
-                  2 - I mentioned it to people
-                </option>
-                <option value="3">
-                  3 - I remember it often
-                </option>
-                <option value="4">
-                  4 - I think about it all the time
-                </option>
-                <option value="5">
-                  5 - It changed the way I think
-                </option>
-              </select>
-            </div>
-            <p class="rating-change col-12 text-center" :class="{visible: ratingChange || ratingChange === 0}">
-              <span v-if="ratingWithoutStickiness === ratingWithStickiness">Your rating didn't change.</span>
-              <span v-else>
-                Your rating went from
-                <span :class="ratingWithoutStickiness < ratingWithStickiness ? 'negative' : 'positive'">{{ratingWithoutStickiness}}</span>
-                to
-                <span :class="ratingWithStickiness < ratingWithoutStickiness ? 'negative' : 'positive'">{{ratingWithStickiness}}</span>.
-              </span>
-              <br v-if="rankWithoutStickiness !== rankWithStickiness">
-              <span v-if="rankWithoutStickiness - rankWithStickiness > 0">
-                It went up {{ rankWithoutStickiness - rankWithStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
-              </span>
-              <span v-else-if="rankWithoutStickiness - rankWithStickiness < 0">
-                It went down {{ rankWithStickiness - rankWithoutStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
-              </span>
-            </p>
-          </div>
-          <div class="modal-footer">
-            <button ref="close" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            <button v-if="submitting" type="button" class="btn btn-primary" disabled>
-              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            </button>
-            <button v-else-if="resultsThatNeedStickiness[1]" type="button" class="btn btn-primary" :disabled="!stickinessRating" @click="addStickinessRating">
-              Add Rating and Next
-            </button>
-            <button v-else type="button" class="btn btn-primary" :disabled="!stickinessRating" @click="addStickinessRating">
-              Add Rating
-            </button>
-          </div>
+    <Modal :show="showModal" @close="closeModal">
+      <template v-slot:header>
+        <div class="poster">
+          <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(firstResult).backdrop_path}`" :alt="topStructure(firstResult).title">
         </div>
-      </div>
-    </div>
+      </template>
+      <template v-slot:body>
+        <div class="col-12 my-3">
+          <label class="form-label fs-4 mb-0" for="stickiness">How sticky has {{topStructure(firstResult).title}} been?</label>
+          <p>Rate how much you've been thinking and talking about the movie since you watched it.</p>
+          <select class="form-select" name="stickiness" id="stickiness" v-model="stickinessRating">
+            <option value="">Rate Stickiness</option>
+            <option value="0">
+              0 - I told people to avoid it
+            </option>
+            <option value="1">
+              1 - I forgot it immediately
+            </option>
+            <option value="2">
+              2 - I mentioned it to people
+            </option>
+            <option value="3">
+              3 - I remember it often
+            </option>
+            <option value="4">
+              4 - I think about it all the time
+            </option>
+            <option value="5">
+              5 - It changed the way I think
+            </option>
+          </select>
+        </div>
+        <p class="rating-change col-12 text-center" :class="{visible: ratingChange || ratingChange === 0}">
+          <span v-if="ratingWithoutStickiness === ratingWithStickiness">Your rating didn't change.</span>
+          <span v-else>
+            Your rating went from
+            <span :class="ratingWithoutStickiness < ratingWithStickiness ? 'negative' : 'positive'">{{ratingWithoutStickiness}}</span>
+            to
+            <span :class="ratingWithStickiness < ratingWithoutStickiness ? 'negative' : 'positive'">{{ratingWithStickiness}}</span>.
+          </span>
+          <br v-if="rankWithoutStickiness !== rankWithStickiness">
+          <span v-if="rankWithoutStickiness - rankWithStickiness > 0">
+            It went up {{ rankWithoutStickiness - rankWithStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
+          </span>
+          <span v-else-if="rankWithoutStickiness - rankWithStickiness < 0">
+            It went down {{ rankWithStickiness - rankWithoutStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
+          </span>
+        </p>
+      </template>
+      <template v-slot:footer>
+        <div class="stickiness-modal-footer d-flex justify-content-end">
+          <button ref="close" type="button" class="btn btn-secondary me-2" @click="closeModal">Close</button>
+          <button v-if="submitting" type="button" class="btn btn-primary" disabled>
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          </button>
+          <button v-else-if="resultsThatNeedStickiness[1]" type="button" class="btn btn-primary" :disabled="!stickinessRating" @click="addStickinessRating">
+            Add Rating and Next
+          </button>
+          <button v-else type="button" class="btn btn-primary" :disabled="!stickinessRating" @click="addStickinessRating">
+            Add Rating
+          </button>
+        </div>
+      </template>
+    </Modal>
   </div>
 </template>
 
 <script>
 import { getRating } from "../assets/javascript/GetRating.js";
 import cloneDeep from 'lodash/cloneDeep';
+import Modal from './Modal.vue';
 
 export default {
   name: "StickinessModal",
@@ -87,21 +88,15 @@ export default {
       required: true
     }
   },
-  watch: {
-    hasResultsToRate (newVal) {
-      if (!newVal) {
-        document.querySelector("#stickinessModal").classList.remove("show");
-        document.querySelector(".modal-backdrop").remove();
-        document.querySelector("body").classList.remove("modal-open");
-        document.querySelector("body").style = "";
-      }
-    }
+  components: {
+    Modal
   },
   data () {
     return {
+      showModal: false,
       stickinessRating: "",
       ratingChange: null,
-      submitting: false
+      submitting: false,
     };
   },
   computed: {
@@ -192,8 +187,11 @@ export default {
     }
   },
   methods: {
+    openModal () {
+      this.showModal = true;
+    },
     closeModal () {
-      this.$refs.close.click();
+      this.showModal = false;
     },
     topStructure (result) {
       if (this.currentLogIsTVLog) {
@@ -262,29 +260,27 @@ export default {
     cursor: pointer;
   }
 
-  .modal {
-    .rating-change {
-      font-size: 0.75rem;
-      min-height: 50px;
-      opacity: 0;
-      transition: none;
+  .rating-change {
+    font-size: 0.75rem;
+    min-height: 50px;
+    opacity: 0;
+    transition: none;
 
-      &.visible {
-        opacity: 1;
-        transition: opacity 0.5s;
+    &.visible {
+      opacity: 1;
+      transition: opacity 0.5s;
+    }
+
+    span {
+      color: white;
+      font-size: 1rem;
+
+      &.negative {
+        color: red;
       }
 
-      span {
-        color: white;
-        font-size: 1rem;
-
-        &.negative {
-          color: red;
-        }
-
-        &.positive {
-          color: green;
-        }
+      &.positive {
+        color: green;
       }
     }
   }

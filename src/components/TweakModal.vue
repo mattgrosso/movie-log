@@ -2,12 +2,11 @@
   <div v-if="firstTiedResults.length && showTweakModal" class="tweak-modal">
     <div class="stickiness-notice alert alert-info my-2" role="alert">
       You have a tie to deal with.
-      <a class="alert-link" data-bs-toggle="modal" data-bs-target="#tweakModal">Click to break the tie.</a>
+      <a class="alert-link" @click="openModal">Click to break the tie.</a>
     </div>
-    <div class="modal fade" id="tweakModal" tabindex="-1" aria-labelledby="tweakModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content" :class="darkOrLight">
-          <div class="modal-body row d-flex justify-content-center flex-wrap">
+    <Modal :show="showModal" @close="closeModal">
+      <template v-slot:body>
+        <div class="tweak-modal-body row d-flex justify-content-center flex-wrap">
             <div class="poster first-movie col">
               <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(firstResult).poster_path}`" :alt="topStructure(firstResult).title">
             </div>
@@ -15,28 +14,26 @@
               <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(secondResult).poster_path}`" :alt="topStructure(secondResult).title">
             </div>
           </div>
-          <div class="modal-footer row pt-3 pb-4">
-            <h5 class="modal-title mb-3 d-flex justify-content-center" id="tweakModalLabel">Break the Tie</h5>
-            <div class="col">
-              <button type="button" class="btn btn-primary w-100" @click="firstResultWins">
-                {{topStructure(firstResult).title}}
-              </button>
-            </div>
-            <div class="col-1 d-flex justify-content-center">or</div>
-            <div class="col">
-              <button type="button" class="btn btn-primary w-100" @click="secondResultWins">
-                {{topStructure(secondResult).title}}
-              </button>
-            </div>
-          </div>
+          <h5 class="modal-title my-3 d-flex justify-content-center" id="tweakModalLabel">Break the Tie</h5>
+      </template>
+      <template v-slot:footer>
+        <div class="tweak-modal-footer d-flex">
+          <button type="button" class="btn btn-primary w-100" @click="firstResultWins">
+            {{topStructure(firstResult).title}}
+          </button>
+          <span class="d-flex justify-content-center align-items-center col-1">or</span>
+          <button type="button" class="btn btn-secondary w-100" @click="secondResultWins">
+            {{topStructure(secondResult).title}}
+          </button>
         </div>
-      </div>
-    </div>
+      </template>
+    </Modal>
   </div>
 </template>
 
 <script>
 import { getRating } from "../assets/javascript/GetRating.js";
+import Modal from "./Modal.vue";
 
 export default {
   name: "tweakModal",
@@ -50,8 +47,12 @@ export default {
       required: true
     }
   },
+  components: {
+    Modal
+  },
   data () {
     return {
+      showModal: false,
       stickinessRating: "",
       ratingChange: null,
       submitting: false
@@ -101,6 +102,12 @@ export default {
     },
   },
   methods: {
+    openModal () {
+      this.showModal = true;
+    },
+    closeModal () {
+      this.showModal = false;
+    },
     topStructure (result) {
       if (this.currentLogIsTVLog) {
         return result.tvShow;
@@ -169,7 +176,6 @@ export default {
         value: Date.now()
       });
 
-      this.hideModalBackdrop();
       this.submitting = false;
     },
     secondResultWins () {
@@ -201,14 +207,7 @@ export default {
         value: Date.now()
       });
 
-      this.hideModalBackdrop();
       this.submitting = false;
-    },
-    hideModalBackdrop () {
-      document.querySelector("#tweakModal").classList.remove("show");
-      document.querySelector(".modal-backdrop").remove();
-      document.querySelector("body").classList.remove("modal-open");
-      document.querySelector("body").style = "";
     }
   },
 };
@@ -220,25 +219,21 @@ export default {
     cursor: pointer;
   }
 
-  .modal {
-    .modal-footer {
-      .col {
-        &:nth-child(2) {
-          .btn {
-            border: none;
-            background-color: #1D8BF1; /* Medium Blue */
-            color: white;
-          }
-        }
+  .tweak-modal-body {
+    padding-top: calc(44px - 1rem);
+  }
 
-        &:nth-child(4) {
-          .btn {
-            border: none;
-            background-color: #FFD700; /* Yellow */
-            color: black;
-          }
-        }
-      }
+  .tweak-modal-footer {
+    .btn-primary {
+      border: none;
+      background-color: #1D8BF1; /* Medium Blue */
+      color: white;
+    }
+
+    .btn-secondary {
+      border: none;
+      background-color: #FFD700; /* Yellow */
+      color: black;
     }
   }
 }
