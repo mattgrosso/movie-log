@@ -102,12 +102,12 @@
           <p class="long-list">
             <span v-if="currentLogIsTVLog">
               <a v-for="(creator, index) in topStructure(result).created_by" :key="index" class="link" @click.stop="searchFor('director', creator.name)">
-                {{creator.name}}<span v-if="index !== topStructure(result).created_by.length - 1">, </span>
+                {{creator.name}}<span v-if="index !== topStructure(result).created_by.length - 1">&nbsp;&nbsp;</span>
               </a>
             </span>
             <span v-else>
               <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor('director', name)">
-                {{name}}<span v-if="index !== getCrewMember('Director', 'strict').length - 1">, </span>
+                {{name}}<span v-if="index !== getCrewMember('Director', 'strict').length - 1">&nbsp;&nbsp;</span>
               </a>
             </span>
           </p>
@@ -146,11 +146,20 @@
           </div>
         </div>
 
+        <div v-if="topStructure(result).flatKeywords.length" class="keywords">
+          <h4>Keyword<span v-if="multipleEntries(topStructure(result).flatKeywords)">s</span></h4>
+          <p class="long-list">
+            <a v-for="(keyword, index) in sortedFlatKeywords" :key="index" class="link" @click.stop="searchFor('keyword', keyword)">
+              {{keyword}}&nbsp;({{ keywordCounts[keyword] }})<span v-if="index !== topStructure(result).flatKeywords.length - 1">&nbsp;&nbsp;</span>
+            </a>
+          </p>
+        </div>
+
         <div v-if="getCrewMember('Writer', false)" class="writers">
           <h4>Writer<span v-if="multipleEntries(getCrewMember('Writer', false))">s</span></h4>
           <p class="long-list">
             <a v-for="(name, index) in getCrewMember('Writer', false)" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
-              {{name}}<span v-if="index !== getCrewMember('Writer', false).length - 1">, </span>
+              {{name}}<span v-if="index !== getCrewMember('Writer', false).length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
         </div>
@@ -159,7 +168,7 @@
           <h4>Composer<span v-if="multipleEntries(getCrewMember('Composer'))">s</span></h4>
           <p class="long-list">
             <a v-for="(name, index) in getCrewMember('Composer')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
-              {{name}}<span v-if="index !== getCrewMember('Composer').length - 1">, </span>
+              {{name}}<span v-if="index !== getCrewMember('Composer').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
         </div>
@@ -168,7 +177,7 @@
           <h4>Editor<span v-if="multipleEntries(getCrewMember('Editor'))">s</span></h4>
           <p class="long-list">
             <a v-for="(name, index) in getCrewMember('Editor')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
-              {{name}}<span v-if="index !== getCrewMember('Editor').length - 1">, </span>
+              {{name}}<span v-if="index !== getCrewMember('Editor').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
         </div>
@@ -177,7 +186,7 @@
           <h4>Cinematographer<span v-if="multipleEntries(getCrewMember('Photo'))">s</span></h4>
           <p class="long-list">
             <a v-for="(name, index) in getCrewMember('Photo')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
-              {{name}}<span v-if="index !== getCrewMember('Photo').length - 1">, </span>
+              {{name}}<span v-if="index !== getCrewMember('Photo').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
         </div>
@@ -186,7 +195,7 @@
           <h4>Cast</h4>
           <p class="long-list">
             <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor('cast/crew', castMember.name)">
-              {{castMember.name}}<span v-if="index !== topStructure(result).cast.length - 1">, </span>
+              {{castMember.name}}<span v-if="index !== topStructure(result).cast.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
         </div>
@@ -195,7 +204,7 @@
           <h4>Production <span v-if="multipleEntries(turnArrayIntoList(topStructure(result).production_companies, 'name'))">Companies</span><span v-else>Company</span></h4>
           <p class="long-list">
             <a v-for="(productionCompany, index) in topStructure(result).production_companies" :key="index" class="link" @click.stop="searchFor('studios', productionCompany.name)">
-              {{productionCompany.name}}<span v-if="index !== topStructure(result).production_companies.length - 1">, </span>
+              {{productionCompany.name}}<span v-if="index !== topStructure(result).production_companies.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
         </div>
@@ -204,7 +213,7 @@
           <h4>Producer<span v-if="multipleEntries(getCrewMember('Producer'))">s</span></h4>
           <p class="long-list">
             <a v-for="(name, index) in getCrewMember('Producer')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
-              {{name}}<span v-if="index !== getCrewMember('Producer').length - 1">, </span>
+              {{name}}<span v-if="index !== getCrewMember('Producer').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
         </div>
@@ -228,6 +237,10 @@ export default {
     result: {
       type: Object,
       required: true
+    },
+    keywordCounts: {
+      type: Object,
+      required: false
     },
     index: {
       type: Number,
@@ -389,6 +402,11 @@ export default {
 
           return indexA - indexB;
         });
+    },
+    sortedFlatKeywords () {
+      return this.topStructure(this.result).flatKeywords.sort((a, b) => {
+        return this.keywordCounts[b] - this.keywordCounts[a];
+      });
     }
   },
   methods: {
@@ -696,6 +714,15 @@ export default {
           overflow-y: auto;
           padding: 6px;
           box-shadow: inset 0 0 5px -2px rgb(0 0 0 / 50%);
+
+          a {
+            white-space: nowrap;
+
+            span {
+              display: inline-block;
+              text-decoration: none;
+            }
+          }
         }
 
         .previous-ratings {

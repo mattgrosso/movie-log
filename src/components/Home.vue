@@ -205,6 +205,7 @@
             v-for="(result, index) in paginatedSortedResults"
             :key="topStructure(result).id"
             :result="result"
+            :keywordCounts="allCounts.keywords"
             :index="index"
             :resultsAreFiltered="resultsAreFiltered"
             :sortValue="sortValue"
