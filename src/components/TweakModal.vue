@@ -176,6 +176,7 @@ export default {
         value: Date.now()
       });
 
+      this.closeModal();
       this.submitting = false;
     },
     secondResultWins () {
@@ -207,6 +208,7 @@ export default {
         value: Date.now()
       });
 
+      this.closeModal();
       this.submitting = false;
     }
   },
