@@ -14,7 +14,7 @@
               <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(secondResult).poster_path}`" :alt="topStructure(secondResult).title">
             </div>
           </div>
-          <h5 class="modal-title my-3 d-flex justify-content-center" id="tweakModalLabel">Break the Tie</h5>
+          <h5 class="modal-title mt-3 d-flex justify-content-center" id="tweakModalLabel">Break the Tie</h5>
       </template>
       <template v-slot:footer>
         <div class="tweak-modal-footer d-flex">

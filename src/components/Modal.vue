@@ -38,8 +38,6 @@ export default {
 
 <style lang="scss" scoped>
 .cinemaroll-modal {
-  $modal-footer-height: 60px;
-
   position: fixed;
   z-index: 5;
   left: 0;
@@ -83,7 +81,7 @@ export default {
     }
 
     .cinemaroll-modal-footer {
-      height: $modal-footer-height;
+      padding: 0 1rem 1rem;
     }
   }
 }
