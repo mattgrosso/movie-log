@@ -536,7 +536,7 @@ export default {
       }
     },
     multipleEntries (entry) {
-      return entry.length > 1;
+      return entry && entry.length > 1;
     },
     getCrewMember (title, strict) {
       if (!this.topStructure(this.result).crew) {

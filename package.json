@@ -105,7 +105,8 @@
       "vue/no-deprecated-slot-scope-attribute": "warn",
       "space-infix-ops": "warn",
       "space-before-blocks": "warn",
-      "no-unreachable": "warn"
+      "no-unreachable": "warn",
+      "no-constant-condition": "warn"
     }
   },
   "browserslist": [
