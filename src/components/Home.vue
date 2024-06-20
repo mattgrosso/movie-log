@@ -943,6 +943,7 @@ export default {
   methods: {
     async getChatGPTFactForFilteredResults () {
       this.chatGPTFact = '';
+      // eslint-disable-next-line
       if (true || !this.filterValue || !this.filteredTitles.length) {
         return;
       }

@@ -460,6 +460,24 @@
         </div>
       </div>
 
+      <div class="neighbors">
+        <div v-if="neighborTwoAhead" class="neighbor-two-ahead">
+          <img :src="posterUrl(neighborTwoAhead.movie)" :alt="`${neighborTwoAhead.movie.title} poster`">
+        </div>
+        <div v-if="neighborAhead" class="neighbor-ahead">
+          <img :src="posterUrl(neighborAhead.movie)" :alt="`${neighborAhead.movie.title} poster`">
+        </div>
+        <div v-if="movieToRate" class="current-movie">
+          <img :src="posterUrl(movieToRate)" :alt="`${movieToRate.title} poster`">
+        </div>
+        <div v-if="neighborBehind" class="neighbor-behind">
+          <img :src="posterUrl(neighborBehind.movie)" :alt="`${neighborBehind.movie.title} poster`">
+        </div>
+        <div v-if="neighborTwoBehind" class="neighbor-two-behind">
+          <img :src="posterUrl(neighborTwoBehind.movie)" :alt="`${neighborTwoBehind.movie.title} poster`">
+        </div>
+      </div>
+
       <hr>
 
       <div class="col-12 my-5 viewing-tags">
@@ -651,6 +669,25 @@ export default {
         return this.$store.getters.allMoviesAsArray.length + 1;
       }
     },
+    movieIndex () {
+      return this.indexIfSortedIntoArray(this.movieAsRatedOnPage, this.allMoviesRanked);
+    },
+    neighborAhead () {
+      const index = this.movieIndex - 1;
+      return index >= 0 ? this.allMoviesRanked[index] : undefined;
+    },
+    neighborTwoAhead () {
+      const index = this.movieIndex - 2;
+      return index >= 0 ? this.allMoviesRanked[index] : undefined;
+    },
+    neighborBehind () {
+      const index = this.movieIndex + 1;
+      return index < this.allMoviesRanked.length ? this.allMoviesRanked[index] : undefined;
+    },
+    neighborTwoBehind () {
+      const index = this.movieIndex + 2;
+      return index < this.allMoviesRanked.length ? this.allMoviesRanked[index] : undefined;
+    },
     allMoviesRanked () {
       const movies = [...this.$store.getters.allMoviesAsArray];
       return movies.sort(this.sortByRating);
@@ -792,6 +829,9 @@ export default {
         this.selectedMovieTags.push(tag);
       }
     },
+    posterUrl (movie) {
+      return `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+    },
     async addRating () {
       this.loading = true;
 
@@ -897,7 +937,51 @@ export default {
       }
     }
 
+    .neighbors {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+
+      .neighbor-two-ahead {
+        width: 18%;
+        padding: 0 2px;
+      }
+
+      .neighbor-ahead {
+        width: 18%;
+        padding: 0 2px;
+      }
+
+      .current-movie {
+        width: 28%;
+        padding: 0 2px;
+      }
+
+      .neighbor-behind {
+        width: 18%;
+        padding: 0 2px;
+      }
+
+      .neighbor-two-behind {
+        width: 18%;
+        padding: 0 2px;
+      }
+
+      img {
+        max-width: 100%;
+      }
+    }
+
     .rating-breakdown-accordion {
+      .accordion-item {
+        border: 0;
+
+        .accordion-collapse.show {
+          margin-bottom: 1rem;
+        }
+      }
+
       table {
         font-size: 0.75rem;
 
