@@ -1,9 +1,10 @@
 import { createStore } from "vuex"
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set } from "firebase/database";
-import { decodeCredential } from 'vue3-google-login'
+import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import * as Sentry from "@sentry/vue";
 import { getRating } from "../assets/javascript/GetRating";
+import router from '@/router';
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -51,7 +52,14 @@ const removeNaNAndUndefined = (obj) => {
 
 // Firebase
 const firebaseConfig = {
+  apiKey: "AIzaSyDXKXw2fKjOXHFRQaFLOlx2J5SAUxco4rI",
+  authDomain: "movie-log-8c4d5.firebaseapp.com",
   databaseURL: "https://movie-log-8c4d5-default-rtdb.firebaseio.com",
+  projectId: "movie-log-8c4d5",
+  storageBucket: "movie-log-8c4d5.appspot.com",
+  messagingSenderId: "84563192115",
+  appId: "1:84563192115:web:121c681b37d284dcc93646",
+  measurementId: "G-4K1Y42HFSL"
 };
 
 initializeApp(firebaseConfig);
@@ -74,7 +82,7 @@ export default createStore({
       { name: "performance", weight: 0.7 },
       { name: "soundtrack", weight: 0.3 },
     ],
-    googleLogin: null,
+    userEmail: null,
     databaseTopKey: null,
     newEntrySearchResults: [],
     movieToRate: {},
@@ -141,8 +149,8 @@ export default createStore({
     setSettings (state, value) {
       state.settings = value;
     },
-    setGoogleLogin (state, value) {
-      state.googleLogin = value;
+    setUserEmail (state, value) {
+      state.userEmail = value;
     },
     setDatabaseTopKey (state, value) {
       state.databaseTopKey = value.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
@@ -179,19 +187,33 @@ export default createStore({
     }
   },
   actions: {
-    async login (context, resp) {
-      const userData = decodeCredential(resp.credential);
+    async login (context) {
+      const auth = getAuth();
+      const provider = new GoogleAuthProvider();
 
-      context.commit('setGoogleLogin', userData.email);
+      try {
+        const result = await signInWithPopup(auth, provider);
+        // const token = result.user.stsTokenManager.accessToken; // This is the Google API access token.
+        // const user = result.user; // The signed-in user info.
 
-      if (context.state.googleLogin) {
-        context.commit('setDatabaseTopKey', context.state.googleLogin);
-        window.localStorage.setItem('databaseTopKey', context.state.googleLogin.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-"));
-      } else {
-        Sentry.captureMessage("Login attempted but the user data didn't work");
+        // Handle the result.
+        if (result) {
+          const userData = result.user;
+
+          context.commit('setUserEmail', userData.email);
+
+          if (context.state.userEmail) {
+            context.dispatch('setDatabaseTopKey', context.state.userEmail);
+            window.localStorage.setItem('databaseTopKey', context.state.userEmail.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-"));
+            context.dispatch('initializeDB');
+            router.push('/');
+          } else {
+            console.error("Login attempted but the user data didn't work");
+          }
+        }
+      } catch (error) {
+        console.error(error);
       }
-
-      await context.dispatch('resetLocalDB');
     },
     async resetLocalDB (context) {
       context.commit('setMovieLog', {});
