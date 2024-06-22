@@ -1601,6 +1601,11 @@ export default {
             li {
               grid-column: span 4;
               grid-row: span 2;
+
+              @media screen and (min-width: 832px) {
+                grid-column: 2 / span 2;
+                grid-row: span 2;
+              }
             }
           }
 
@@ -1616,6 +1621,10 @@ export default {
           &.count-is-3 {
             grid-template-columns: repeat(4, 1fr);
 
+            @media screen and (min-width: 832px) {
+              grid-template-columns: repeat(3, 1fr);
+            }
+
             li {
               &:first-child {
                 grid-column: span 4;
@@ -1624,6 +1633,17 @@ export default {
 
               &:nth-child(n+1) {
                 grid-column-end: span 2;
+              }
+
+              @media screen and (min-width: 832px) {
+                /* Override the first-child settings for larger screens */
+                &:first-child {
+                  grid-column: span 1; /* Corrected to span only 1 column */
+                }
+                /* Ensure each li takes up 1/3 of the width */
+                &:nth-child(n+1) {
+                  grid-column-end: span 1;
+                }
               }
             }
           }
@@ -1642,6 +1662,16 @@ export default {
               &:nth-child(4) {
                 grid-column: span 4;
                 grid-row: span 4;
+              }
+
+              @media screen and (min-width: 832px) {
+                &:first-child,
+                &:nth-child(2),
+                &:nth-child(3),
+                &:nth-child(4) {
+                  grid-column: span 3;
+                  grid-row: span 4;
+                }
               }
             }
           }
@@ -1664,6 +1694,17 @@ export default {
 
               &:nth-child(n+5) {
                 grid-column-end: span 3;
+              }
+
+              @media screen and (min-width: 832px) {
+                &:first-child,
+                &:nth-child(2),
+                &:nth-child(3),
+                &:nth-child(4),
+                &:nth-child(n+5) {
+                  grid-column: span 3;
+                  grid-row: span 4;
+                }
               }
             }
           }
@@ -1707,6 +1748,10 @@ export default {
           &.count-more-than-4-remainder-3 {
             grid-template-columns: repeat(4, 1fr);
 
+            @media screen and (min-width: 832px) {
+              grid-template-columns: repeat(12, 1fr);
+            }
+
             li {
               &:first-child {
                 grid-column: span 4;
@@ -1722,6 +1767,20 @@ export default {
               &:nth-child(n+4) {
                 grid-column: span 1;
                 grid-row: span 2;
+              }
+
+              @media screen and (min-width: 832px) {
+                &:first-child,
+                &:nth-child(2),
+                &:nth-child(3) {
+                  grid-column: span 4;
+                  grid-row: span 2;
+                }
+
+                &:nth-child(n+4) {
+                  grid-column: span 3;
+                  grid-row: span 2;
+                }
               }
             }
           }
