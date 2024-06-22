@@ -7,7 +7,7 @@
     "serve": "nodemon --watch .env --exec \"vue-cli-service serve\"",
     "build": "yarn update-version && vue-cli-service build",
     "lint": "vue-cli-service lint",
-    "deploy": "yarn build && surge dist/"
+    "deploy": "yarn build && aws s3 sync dist/ s3://cinemaroll && aws cloudfront create-invalidation --distribution-id ETF4I2E64GQSC --paths '/*'"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.11",
