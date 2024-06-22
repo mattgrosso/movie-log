@@ -46,15 +46,23 @@ export default {
   height: 100%;
   overflow: auto;
   background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
 
   .cinemaroll-modal-content {
     background-color: black;
-    margin: 3%;
-    width: 94%;
-    max-height: 97vh;
-    overflow: auto;
     display: flex;
     flex-direction: column;
+    margin: 3%;
+    max-height: 97vh;
+    overflow: auto;
+    width: 94%;
+
+    @media screen and (min-width: 832px) {
+      height: 600px;
+      max-height: 80vh;
+      max-width: 400px;
+    }
 
     .cinemaroll-modal-header {
       position: relative;

@@ -95,7 +95,7 @@
               </ul>
             </button>
           </div>
-          <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap">
+          <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap col-md-12">
             <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
               <div>
                 <span

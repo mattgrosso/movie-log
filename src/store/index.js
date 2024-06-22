@@ -97,18 +97,22 @@ export default createStore({
   },
   getters: {
     allMediaAsArray: (state) => {
+      if (!state.dbLoaded) {
+        return [];
+      }
+
       if (state.currentLog === 'tvLog') {
         return Object.keys(state.tvLog).map((key) => {
           const tvShow = state.tvLog[key];
           tvShow.dbKey = key;
           return tvShow;
-        })
+        });
       } else {
         return Object.keys(state.movieLog).map((key) => {
           const movie = state.movieLog[key];
           movie.dbKey = key;
           return movie;
-        })
+        });
       }
     },
     allMoviesAsArray: (state) => {
