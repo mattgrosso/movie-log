@@ -940,7 +940,7 @@ export default {
     async getChatGPTFactForFilteredResults () {
       this.chatGPTFact = '';
 
-      if (!this.filterValue || !this.filteredTitles.length) {
+      if (!this.filterValue || !this.filteredTitles.length || this.filteredTitles.length > 20) {
         return;
       }
 

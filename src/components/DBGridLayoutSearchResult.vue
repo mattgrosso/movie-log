@@ -470,12 +470,12 @@ export default {
       try {
         const apiKey = process.env.VUE_APP_chatGPTAPIKey;
         const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
-        const JSONresult = JSON.stringify(this.topStructure(this.result));
-        const prompt = `Tell me an interesting fact about this movie. 
-        Here is some data about it: ${JSONresult}.
-        This data includes some info from TMDB as well as my own ratings and tags.
-        Ideally you'd tell me something about the movie that isn't already in the data.
-        Perhaps an interesting fact from the production of the film or a fun piece of trivia.`;
+        const title = this.topStructure(this.result).title;
+        const date = this.getYear(this.result) || "";
+        const prompt = `Tell me an interesting fact about the movie ${title} from ${date}.
+        Perhaps an interesting fact from the production of the film or a fun piece of trivia.
+        Don't start with "One interesting fact about..." or "did you know...". Just tell me the fact.
+        Be conversational and engaging.`;
 
         const response = await axios.post(
           apiEndpoint,
