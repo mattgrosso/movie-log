@@ -438,7 +438,7 @@ export default {
       // const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
       // const JSONresult = JSON.stringify({title: "Inception", year: 2010}); // Example data
 
-      // const prompt = `Tell me an interesting fact about this movie. 
+      // const prompt = `Tell me an interesting fact about this movie.
       // Here is some data about it: ${JSONresult}.
       // This data includes some info from TMDB as well as my own ratings and tags.
       // Ideally you'd tell me something about the movie that isn't already in the data.
@@ -494,7 +494,7 @@ export default {
               'Content-Type': 'application/json'
             }
           });
-        
+
         // console.log('response.data.choices[0].message.content: ', response.data.choices[0].message.content);
         return response.data.choices[0].message.content;
       } catch (error) {
