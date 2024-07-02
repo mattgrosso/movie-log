@@ -107,6 +107,13 @@
                 </span>
                 <span
                   class="badge mx-1"
+                  :class="searchType === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleBestPicturesFilter"
+                >
+                  Best Picture
+                </span>
+                <span
+                  class="badge mx-1"
                   :class="searchType === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleQuickLinksList('genre')"
                 >
@@ -472,6 +479,9 @@ export default {
       if (this.searchType === "annual") {
         this.$store.commit("setDBSortValue", "release");
         searchTypeFiltered = this.bestMovieFromEachYear;
+      } else if (this.searchType === "bestPicture") {
+        this.$store.commit("setDBSortValue", "release");
+        searchTypeFiltered = this.bestPictures;
       } else if (!this.filterValue) {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         searchTypeFiltered = this.allEntriesWithFlatKeywordsAdded;
@@ -628,6 +638,19 @@ export default {
       })
 
       return Object.keys(years).map((year) => years[year]);
+    },
+    bestPictures () {
+      if (this.currentLogIsTVLog) {
+        return [];
+      }
+
+      const bestPictureWinnersIds = this.$store.state.academyAwardWinners.bestPicture.map((movie) => parseInt(movie.tmdb));
+
+      const bestPictureWinnersWithRatings = this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        return bestPictureWinnersIds.includes(this.topStructure(result).id);
+      });
+
+      return bestPictureWinnersWithRatings;
     },
     showResultsList () {
       return Boolean(this.paginatedSortedResults.length) || this.searchType !== "title";
@@ -915,6 +938,8 @@ export default {
         return `${this.toTitleCase(this.searchType)}: ${this.toTitleCase(this.filterValue)}`;
       } else if (this.searchType === 'annual') {
         return "The best of each year";
+      } else if (this.searchType === 'bestPicture') {
+        return "The Best Picture winners";
       } else if (this.searchType !== 'title') {
         return `Search within ${this.searchType}...`;
       } else {
@@ -940,7 +965,12 @@ export default {
     async getChatGPTFactForFilteredResults () {
       this.chatGPTFact = '';
 
-      if (!this.filterValue || !this.filteredTitles.length || this.filteredTitles.length > 20) {
+      const noFilterValue = !this.filterValue;
+      const noFilteredTitles = !this.filteredTitles.length;
+      const tooManyFilteredTitles = this.filteredTitles.length > 20;
+      const onDevMode = this.$store.getters.devMode;
+
+      if (noFilterValue || noFilteredTitles || tooManyFilteredTitles || onDevMode) {
         return;
       }
 
@@ -1139,18 +1169,22 @@ export default {
       this.value = "";
       this.searchType = "title";
       this.filterValue = "";
+      this.chatGPTFact = "";
     },
     updateFilterValue (filterValue) {
       this.filterValue = filterValue.toString();
+      this.chatGPTFact = "";
     },
     updateSearchType (searchType) {
       this.filterValue = "";
       this.searchType = searchType;
+      this.chatGPTFact = "";
     },
     updateSearchValue (searchObject) {
       this.updateSearchType(searchObject.searchType);
       this.updateFilterValue(searchObject.value);
       this.$refs.insightsAccordion?.classList.remove("show");
+      this.chatGPTFact = "";
     },
     toggleQuickLinksSort () {
       if (this.quickLinksSortType === "a-z") {
@@ -1175,6 +1209,13 @@ export default {
         this.updateSearchType('title');
       } else {
         this.updateSearchType('annual');
+      }
+    },
+    toggleBestPicturesFilter () {
+      if (this.searchType === "bestPicture") {
+        this.updateSearchType('title');
+      } else {
+        this.updateSearchType('bestPicture');
       }
     },
     inputValueFilter (results) {

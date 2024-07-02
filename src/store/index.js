@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { createStore } from "vuex"
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set } from "firebase/database";
@@ -82,6 +83,7 @@ export default createStore({
       { name: "performance", weight: 0.7 },
       { name: "soundtrack", weight: 0.3 },
     ],
+    academyAwardWinners: {},
     userEmail: null,
     databaseTopKey: null,
     newEntrySearchResults: [],
@@ -153,6 +155,9 @@ export default createStore({
     setSettings (state, value) {
       state.settings = value;
     },
+    setAcademyAwardWinners (state, value) {
+      state.academyAwardWinners = value
+    },
     setUserEmail (state, value) {
       state.userEmail = value;
     },
@@ -223,6 +228,7 @@ export default createStore({
       context.commit('setMovieLog', {});
       context.commit('setTVLog', {});
       context.commit('setSettings', {});
+      context.commit('setAcademyAwardWinners', {});
 
       await context.dispatch('initializeDB');
     },
@@ -261,6 +267,21 @@ export default createStore({
             context.commit('setSettings', data);
           }
         });
+      }
+      const academyAwardWinnersHasData = Boolean(Object.keys(context.state.academyAwardWinners).length);
+      if (!academyAwardWinnersHasData) {
+        try {
+          const response = await axios.get(`https://pacific-journey-63469-f4b691e852c6.herokuapp.com/awards?category=Best%20Picture`);
+          const data = response.data.map((item) => {
+            return {
+              ...item,
+              isWinner: ['TRUE', '1', true].includes(item.isWinner)
+            }
+          }).filter((item) => item.isWinner);
+          context.commit('setAcademyAwardWinners', {bestPicture: data});
+        } catch (error) {
+          console.error('Failed to get awards data:', error);
+        }
       }
     },
     // todo: should I delete this? Nothing is calling it but it seems like something I kind of need...
