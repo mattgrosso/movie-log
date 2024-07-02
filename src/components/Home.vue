@@ -1779,6 +1779,10 @@ export default {
               }
             }
           }
+
+          .cinemaroll-modal-content {
+            max-height: 97vh !important;
+          }
         }
       }
     }

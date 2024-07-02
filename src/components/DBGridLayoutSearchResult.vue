@@ -474,6 +474,7 @@ export default {
         const date = this.getYear(this.result) || "";
         const prompt = `Tell me an interesting fact about the movie ${title} from ${date}.
         Perhaps an interesting fact from the production of the film or a fun piece of trivia.
+        Try to reach for something obscure or not widely known.
         Don't start with "One interesting fact about..." or "did you know...". Just tell me the fact.
         Be conversational and engaging.`;
 
