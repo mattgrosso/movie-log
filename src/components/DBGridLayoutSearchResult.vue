@@ -90,6 +90,10 @@
           </div>
         </div>
 
+        <div class="chatgpt-fact">
+          <p class="long-list">{{ chatGPTFact }}</p>
+        </div>
+
         <div class="directors">
           <h4>
             <span v-if="currentLogIsTVLog">
@@ -264,7 +268,8 @@ export default {
       showDetailsModal: false,
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
-      awardsData: null
+      awardsData: null,
+      chatGPTFact: ""
     }
   },
   components: {
@@ -273,9 +278,13 @@ export default {
     InsetBrowserModal
   },
   watch: {
-    showDetailsModal (val) {
+    async showDetailsModal (val) {
       if (val && !this.awardsData && !this.currentLogIsTVLog) {
         this.awardsData = this.getAwardsData();
+      }
+
+      if (val && !this.currentLogIsTVLog) {
+        this.chatGPTFact = await this.getChatGPTFact();
       }
     }
   },
@@ -422,6 +431,75 @@ export default {
         });
       } catch (error) {
         console.error('Failed to get awards data:', error);
+      }
+    },
+    async getChatGPTFact () {
+      // const apiKey = process.env.VUE_APP_chatGPTAPIKey;
+      // const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
+      // const JSONresult = JSON.stringify({title: "Inception", year: 2010}); // Example data
+
+      // const prompt = `Tell me an interesting fact about this movie. 
+      // Here is some data about it: ${JSONresult}.
+      // This data includes some info from TMDB as well as my own ratings and tags.
+      // Ideally you'd tell me something about the movie that isn't already in the data.
+      // Perhaps an interesting fact from the production of the film or a fun piece of trivia.`;
+
+      // try {
+      //   const response = await axios.post(
+      //     apiEndpoint,
+      //     {
+      //       model: 'gpt-3.5-turbo', // or 'gpt-4' if you have access
+      //       messages: [
+      //         {
+      //           role: "user",
+      //           content: prompt
+      //         }
+      //       ]
+      //     },
+      //     {
+      //       headers: {
+      //         Authorization: `Bearer ${apiKey}`,
+      //         'Content-Type': 'application/json'
+      //       }
+      //     }
+      //   );
+      //   console.log(response.data);
+      // } catch (error) {
+      //   console.error('Error fetching chat completion:', error.response ? error.response.data : error.message);
+      // }
+      try {
+        const apiKey = process.env.VUE_APP_chatGPTAPIKey;
+        const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
+        const JSONresult = JSON.stringify(this.topStructure(this.result));
+        const prompt = `Tell me an interesting fact about this movie. 
+        Here is some data about it: ${JSONresult}.
+        This data includes some info from TMDB as well as my own ratings and tags.
+        Ideally you'd tell me something about the movie that isn't already in the data.
+        Perhaps an interesting fact from the production of the film or a fun piece of trivia.`;
+
+        const response = await axios.post(
+          apiEndpoint,
+          {
+            model: 'gpt-3.5-turbo',
+            messages: [
+              {
+                role: "user",
+                content: prompt
+              }
+            ]
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        
+        // console.log('response.data.choices[0].message.content: ', response.data.choices[0].message.content);
+        return response.data.choices[0].message.content;
+      } catch (error) {
+        console.error('chatGPT fact didnt work');
+        console.error(error);
       }
     },
     parseNamesToList (names) {

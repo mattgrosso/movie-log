@@ -28,9 +28,13 @@ export default {
       document.body.style.overflow = value ? 'hidden' : '';
     }
   },
+  unmounted () {
+    document.body.style.overflow = '';
+  },
   methods: {
     close () {
       this.$emit('close');
+      document.body.style.overflow = '';
     },
   }
 };
@@ -54,7 +58,7 @@ export default {
     display: flex;
     flex-direction: column;
     margin: 3%;
-    max-height: 97vh;
+    max-height: 75vh;
     overflow: auto;
     width: 94%;
 

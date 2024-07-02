@@ -229,7 +229,7 @@
         >
           More...
         </button>
-        <p>{{chatGPTFact}}</p>
+        <p class="mb-5">{{chatGPTFact}}</p>
         <div v-if="!(sortedResults.length > numberOfResultsToShow) && value" class="mb-5">
           <div v-if="noResults" ref="noResults">
             <p>No results found in your Movie Log or on TMDB.</p>
@@ -334,10 +334,6 @@ export default {
       this.value = decodeURIComponent(this.$route.query.search);
     } else {
       this.checkResultsAndFindFilter();
-    }
-
-    if (this.$route.query.movieDbKey) {
-      this.scrollToMovie(this.$route.query.movieDbKey);
     }
 
     if (this.DBSortValue) {
@@ -943,8 +939,8 @@ export default {
   methods: {
     async getChatGPTFactForFilteredResults () {
       this.chatGPTFact = '';
-      // eslint-disable-next-line
-      if (true || !this.filterValue || !this.filteredTitles.length) {
+
+      if (!this.filterValue || !this.filteredTitles.length) {
         return;
       }
 
@@ -960,7 +956,7 @@ export default {
         const response = await axios.post(
           apiEndpoint,
           {
-            model: 'gpt-4',
+            model: 'gpt-3.5-turbo',
             messages: [
               {
                 role: "user",
@@ -1143,7 +1139,6 @@ export default {
       this.value = "";
       this.searchType = "title";
       this.filterValue = "";
-      this.$refs.searchInput.focus();
     },
     updateFilterValue (filterValue) {
       this.filterValue = filterValue.toString();
@@ -1385,7 +1380,7 @@ export default {
         color: black;
         cursor: pointer;
         display: flex;
-        height: 40px;
+        height: 60px;
         justify-content: center;
         left: 0px;
         position: absolute;
