@@ -434,39 +434,6 @@ export default {
       }
     },
     async getChatGPTFact () {
-      // const apiKey = process.env.VUE_APP_chatGPTAPIKey;
-      // const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
-      // const JSONresult = JSON.stringify({title: "Inception", year: 2010}); // Example data
-
-      // const prompt = `Tell me an interesting fact about this movie.
-      // Here is some data about it: ${JSONresult}.
-      // This data includes some info from TMDB as well as my own ratings and tags.
-      // Ideally you'd tell me something about the movie that isn't already in the data.
-      // Perhaps an interesting fact from the production of the film or a fun piece of trivia.`;
-
-      // try {
-      //   const response = await axios.post(
-      //     apiEndpoint,
-      //     {
-      //       model: 'gpt-3.5-turbo', // or 'gpt-4' if you have access
-      //       messages: [
-      //         {
-      //           role: "user",
-      //           content: prompt
-      //         }
-      //       ]
-      //     },
-      //     {
-      //       headers: {
-      //         Authorization: `Bearer ${apiKey}`,
-      //         'Content-Type': 'application/json'
-      //       }
-      //     }
-      //   );
-      //   console.log(response.data);
-      // } catch (error) {
-      //   console.error('Error fetching chat completion:', error.response ? error.response.data : error.message);
-      // }
       try {
         const apiKey = process.env.VUE_APP_chatGPTAPIKey;
         const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
@@ -481,7 +448,7 @@ export default {
         const response = await axios.post(
           apiEndpoint,
           {
-            model: 'gpt-3.5-turbo',
+            model: 'gpt-4o',
             messages: [
               {
                 role: "user",
