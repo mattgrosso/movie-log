@@ -10,7 +10,10 @@
       :src="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
     >
     <div class="details">
-      <span v-if="sortValue === 'watched'">
+      <span v-if="searchType === 'bestPicture'">
+        {{topStructure(result).academyAwardsYear}}
+      </span>
+      <span v-else-if="sortValue === 'watched'">
         {{smallFormattedDate(mostRecentRating(result).date)}}
       </span>
       <span v-else-if="sortValue === 'release'">
@@ -20,7 +23,7 @@
       <span v-else class="rank">
         {{getOrdinal(overAllRank)}}
       </span>
-      <span class="rating">
+      <span v-if="!result.falseEntry" class="rating">
         {{parseFloat(ratingForMedia(result)).toFixed(2)}}
       </span>
     </div>
@@ -257,6 +260,11 @@ export default {
       default: false
     },
     sortValue: {
+      type: String,
+      required: false,
+      default: ""
+    },
+    searchType: {
       type: String,
       required: false,
       default: ""

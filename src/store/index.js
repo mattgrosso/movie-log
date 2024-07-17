@@ -284,7 +284,10 @@ export default createStore({
           for (const movieEntry of data) {
             try {
               const movieResponse = await axios.get(`https://api.themoviedb.org/3/movie/${movieEntry.tmdb}?api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
-              bestPictureWinners.push(movieResponse.data);
+              bestPictureWinners.push({
+                ...movieResponse.data,
+                academyAwardsYear: movieEntry.year
+              });
             } catch (error) {
               console.error(error);
             }

@@ -217,6 +217,7 @@
             :index="index"
             :resultsAreFiltered="resultsAreFiltered"
             :sortValue="sortValue"
+            :searchType="searchType"
             @updateSearchValue="updateSearchValue"
           />
         </ul>
@@ -661,7 +662,13 @@ export default {
       bestPictureWinners.forEach((movie) => {
         if (allEntryIds.includes(movie.id)) {
           bestPictureWinnersWithRatingStatus.push({
-            ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id)
+            ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id),
+            ...{
+              movie: {
+                ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id).movie,
+                academyAwardsYear: movie.academyAwardsYear
+              }
+            }
           });
         } else {
           bestPictureWinnersWithRatingStatus.push({
