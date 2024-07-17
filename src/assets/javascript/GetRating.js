@@ -5,6 +5,12 @@ const currentLogIsTVLog = () => {
 }
 
 const calculatePostStickyRatingFor = (rating) => {
+  if (!rating) {
+    return {
+      calculatedTotal: 0
+    };
+  }
+
   const tweakValue = parseFloat(rating.tweakValue || 0);
 
   const direction = store.getters.weight("direction") * parseFloat(rating.direction);

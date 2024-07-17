@@ -278,7 +278,19 @@ export default createStore({
               isWinner: ['TRUE', '1', true].includes(item.isWinner)
             }
           }).filter((item) => item.isWinner);
-          context.commit('setAcademyAwardWinners', {bestPicture: data});
+
+          const bestPictureWinners = [];
+
+          for (const movieEntry of data) {
+            try {
+              const movieResponse = await axios.get(`https://api.themoviedb.org/3/movie/${movieEntry.tmdb}?api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
+              bestPictureWinners.push(movieResponse.data);
+            } catch (error) {
+              console.error(error);
+            }
+          }
+
+          context.commit('setAcademyAwardWinners', { bestPicture: bestPictureWinners });
         } catch (error) {
           console.error('Failed to get awards data:', error);
         }

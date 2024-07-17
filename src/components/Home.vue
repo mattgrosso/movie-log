@@ -51,6 +51,7 @@
                 <span class="average-label">(avg)</span>
                 <span class="average-value">{{averageRating(filteredResults)}}</span>
               </span>
+              <span v-else-if="searchType === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
               <span v-else>{{filteredResults.length}}</span>
             </button>
             <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
@@ -349,6 +350,11 @@ export default {
       this.setSortValue("rating")
     }
 
+    if (this.$route.query.movieDbKey) {
+      this.$store.commit("setDBSortValue", "watched");
+      window.scrollTo(0, 0);
+    }
+
     if (this.DBSortOrder) {
       this.sortOrder = this.DBSortOrder;
     } else {
@@ -644,13 +650,49 @@ export default {
         return [];
       }
 
-      const bestPictureWinnersIds = this.$store.state.academyAwardWinners.bestPicture.map((movie) => parseInt(movie.tmdb));
+      const bestPictureWinners = this.$store.state.academyAwardWinners.bestPicture;
 
-      const bestPictureWinnersWithRatings = this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        return bestPictureWinnersIds.includes(this.topStructure(result).id);
+      const allEntryIds = this.allEntriesWithFlatKeywordsAdded.map((result) => {
+        return this.topStructure(result).id;
       });
 
-      return bestPictureWinnersWithRatings;
+      const bestPictureWinnersWithRatingStatus = [];
+
+      bestPictureWinners.forEach((movie) => {
+        if (allEntryIds.includes(movie.id)) {
+          bestPictureWinnersWithRatingStatus.push({
+            ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id)
+          });
+        } else {
+          bestPictureWinnersWithRatingStatus.push({
+            falseEntry: true,
+            movie: movie,
+            ratings: [
+              {
+                date: Date.now(),
+                direction: 0,
+                id: movie.id,
+                imagery: 0,
+                impression: 0,
+                love: 0,
+                medium: "",
+                overall: 0,
+                performance: 0,
+                soundtrack: 0,
+                stickiness: 0,
+                story: 0,
+                title: movie.title,
+                year: new Date(movie.release_date).getFullYear()
+              }
+            ]
+          });
+        }
+      });
+
+      return bestPictureWinnersWithRatingStatus;
+    },
+    bestPicturesWithRatings () {
+      return this.bestPictures.filter((result) => !result.falseEntry);
     },
     showResultsList () {
       return Boolean(this.paginatedSortedResults.length) || this.searchType !== "title";
@@ -1067,6 +1109,8 @@ export default {
       });
     },
     sanitizeId (id) {
+      id = id || crypto.randomUUID();
+
       return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
     findRandomSearchTypeAndFilterValue () {

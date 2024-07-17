@@ -1,6 +1,7 @@
 <template>
   <li
     class="grid-layout-media-result"
+    :class="{'not-rated': result.falseEntry}"
     :id="sanitizeId(result.dbKey)"
     @click="showDetails(`Info-${this.topStructure(result).id}`)"
   >
@@ -483,6 +484,8 @@ export default {
       }
     },
     sanitizeId (id) {
+      id = id || crypto.randomUUID();
+
       return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
     updateSearchValue (searchType, value) {
@@ -496,6 +499,11 @@ export default {
       }
     },
     showDetails () {
+      if (this.result.falseEntry) {
+        this.goToWikipedia(this.result.movie.title);
+        return;
+      }
+
       this.showDetailsModal = true;
     },
     async goToWikipedia (searchValue) {
@@ -674,6 +682,10 @@ export default {
   .grid-layout-media-result {
     cursor: pointer;
     position: relative;
+
+    &.not-rated {
+      filter: sepia(1);
+    }
 
     .details {
       position: absolute;
