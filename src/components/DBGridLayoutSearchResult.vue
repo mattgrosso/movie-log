@@ -292,7 +292,7 @@ export default {
         this.awardsData = this.getAwardsData();
       }
 
-      if (val && !this.currentLogIsTVLog) {
+      if (val && !this.currentLogIsTVLog && !this.chatGPTFact) {
         this.chatGPTFact = await this.getChatGPTFact();
       }
     }
@@ -448,8 +448,27 @@ export default {
         const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
         const title = this.topStructure(this.result).title;
         const date = this.getYear(this.result) || "";
+        const randomPrompts = [
+          "Maybe something about special effects?",
+          "Maybe something about a crew member who isn't an actor?",
+          "Maybe something about the music?",
+          "Maybe something about the writing?",
+          "Maybe something about the cinematography?",
+          "Maybe something about the editing?",
+          "Maybe something about the production design?",
+          "Maybe something about where it was filmed?",
+          "Maybe something about the costumes?",
+          "Maybe something about the public reaction to the film?",
+          "Maybe something about the box office performance?",
+          "Maybe something about the critical reception?",
+          "Maybe something about the film's legacy?",
+          "Maybe something about how the film is viewed today from a modern perspective?"
+        ]
+        const randomPrompt = randomPrompts[Math.floor(Math.random() * randomPrompts.length)];
+
         const prompt = `Tell me an interesting fact about the movie ${title} from ${date}.
         Perhaps an interesting fact from the production of the film or a fun piece of trivia.
+        ${randomPrompt}
         Try to reach for something obscure or not widely known.
         Don't start with "One interesting fact about..." or "did you know...". Just tell me the fact.
         Be conversational and engaging.`;
