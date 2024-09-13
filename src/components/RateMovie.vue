@@ -681,11 +681,11 @@ export default {
       return index >= 0 ? this.allMoviesRanked[index] : undefined;
     },
     neighborBehind () {
-      const index = this.movieIndex + 1;
+      const index = this.movieIndex;
       return index < this.allMoviesRanked.length ? this.allMoviesRanked[index] : undefined;
     },
     neighborTwoBehind () {
-      const index = this.movieIndex + 2;
+      const index = this.movieIndex + 1;
       return index < this.allMoviesRanked.length ? this.allMoviesRanked[index] : undefined;
     },
     allMoviesRanked () {
