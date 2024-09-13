@@ -53,7 +53,7 @@ const removeNaNAndUndefined = (obj) => {
 
 // Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyDXKXw2fKjOXHFRQaFLOlx2J5SAUxco4rI",
+  apiKey: process.env.VUE_APP_GOOGLE_API_KEY,
   authDomain: "movie-log-8c4d5.firebaseapp.com",
   databaseURL: "https://movie-log-8c4d5-default-rtdb.firebaseio.com",
   projectId: "movie-log-8c4d5",
