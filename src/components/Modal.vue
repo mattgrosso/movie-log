@@ -58,7 +58,7 @@ export default {
     display: flex;
     flex-direction: column;
     margin: 3%;
-    max-height: 85vh;
+    max-height: calc(100vh);
     overflow: auto;
     width: 94%;
 

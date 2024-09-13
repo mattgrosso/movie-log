@@ -7,14 +7,20 @@
     <Modal :show="showModal" @close="closeModal">
       <template v-slot:body>
         <div class="tweak-modal-body row d-flex justify-content-center flex-wrap">
-            <div class="poster first-movie col">
-              <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(firstResult).poster_path}`" :alt="topStructure(firstResult).title">
+          <h5 class="modal-title mb-3 d-flex justify-content-center" id="tweakModalLabel">Break the Tie</h5>
+          <div class="posters">
+            <div class="poster first-movie" @click="firstResultWins">
+              <div class="mat">
+                <img :src="`https://image.tmdb.org/t/p/original${topStructure(firstResult).poster_path}`" :alt="topStructure(firstResult).title">
+              </div>
             </div>
-            <div class="poster second-movie col">
-              <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(secondResult).poster_path}`" :alt="topStructure(secondResult).title">
+            <div class="poster second-movie" @click="secondResultWins">
+              <div class="mat">
+                <img :src="`https://image.tmdb.org/t/p/original${topStructure(secondResult).poster_path}`" :alt="topStructure(secondResult).title">
+              </div>
             </div>
           </div>
-          <h5 class="modal-title mt-3 d-flex justify-content-center" id="tweakModalLabel">Break the Tie</h5>
+        </div>
       </template>
       <template v-slot:footer>
         <div class="tweak-modal-footer d-flex">
@@ -216,25 +222,74 @@ export default {
 </script>
 
 <style lang="scss">
+$blue: #1d63a0;
+$green: #578d2a;
+
 .tweak-modal {
   .alert-link {
     cursor: pointer;
   }
 
   .tweak-modal-body {
+    height: 80vh;
     padding-top: calc(44px - 1rem);
+
+    @media screen and (min-width: 832px) {
+      height: 100%;
+    }
+
+    .posters {
+      align-items: center;
+      display: flex;
+      flex-direction: column;
+      height: calc(100% - 30px - 80px);
+      justify-content: center;
+      padding: 24px;
+      row-gap: 16px;
+
+      @media screen and (min-width: 832px) {
+        column-gap: 16px;
+        flex-direction: row;
+      }
+
+      .poster {
+        cursor: pointer;
+        height: 50%;
+
+        @media screen and (min-width: 832px) {
+          height: 80%;
+        }
+
+        &.first-movie {
+          border: 6px solid $blue;
+        }
+
+        &.second-movie {
+          border: 6px solid $green;
+        }
+
+        .mat {
+          border: 12px solid white;
+          height: 100%;
+
+          img {
+            height: 100%;
+          }
+        }
+      }
+    }
   }
 
   .tweak-modal-footer {
     .btn-primary {
+      background-color: $blue;
       border: none;
-      background-color: #1D8BF1; /* Medium Blue */
       color: white;
     }
 
     .btn-secondary {
+      background-color: $green;
       border: none;
-      background-color: #FFD700; /* Yellow */
       color: black;
     }
   }

@@ -460,7 +460,7 @@
         </div>
       </div>
 
-      <div class="neighbors">
+      <div v-if="movieToRate" ref="neighbors" class="neighbors">
         <div v-if="neighborTwoAhead" class="neighbor-two-ahead">
           <img :src="posterUrl(neighborTwoAhead.movie)" :alt="`${neighborTwoAhead.movie.title} poster`">
         </div>
@@ -574,12 +574,12 @@ export default {
     return {
       direction: null,
       imagery: null,
-      love: null,
-      overall: null,
+      story: null,
       performance: null,
       soundtrack: null,
       stickiness: null,
-      story: null,
+      love: null,
+      overall: null,
       date: new Date().toISOString().substr(0, 10),
       id: null,
       loading: false,
@@ -938,10 +938,16 @@ export default {
     }
 
     .neighbors {
+      align-items: center;
+      background: #212529;
+      border-bottom: 1px solid white;
+      border-top: 1px solid white;
+      bottom: 27px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
+      margin: 0 -24px;
+      padding: 6px;
+      position: sticky;
 
       .neighbor-two-ahead {
         width: 18%;
