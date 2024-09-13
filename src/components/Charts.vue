@@ -399,11 +399,11 @@ export default {
     },
     ratingsCountData () {
       const rounded = this.resultsWithRatings.map((result) => {
-        const rounded = Math.round((parseFloat(getRating(result).calculatedTotal)) * 2) / 2;
-        if (isNaN(rounded)) {
+        const roundedValue = Math.round((parseFloat(getRating(result).calculatedTotal)) * 2) / 2;
+        if (isNaN(roundedValue)) {
           return 0;
         } else {
-          return rounded;
+          return roundedValue;
         }
       });
 

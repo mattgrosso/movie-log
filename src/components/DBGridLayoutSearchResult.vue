@@ -88,6 +88,16 @@
                       </tr>
                     </tbody>
                   </table>
+                  <div class="d-flex justify-content-end mt-2">
+                    <div :id="`delete-button-${previousEntry.dbKey}-${index}`" class="delete-button btn btn-sm btn-warning" @click="showConfimDeleteButton(previousEntry.dbKey, index)">Delete Rating</div>
+                    <div :id="`confirm-delete-button-${previousEntry.dbKey}-${index}`" class="confirm-delete-button d-none col-12 d-flex justify-content-between align-items-center">
+                      <p class="m-0">Are you sure?</p>
+                      <div>
+                        <div class="btn btn-sm btn-info me-1" @click="showDeleteButton(previousEntry.dbKey, index)">Nevermind</div>
+                        <div class="btn btn-sm btn-danger" @click="deleteRating(previousEntry, index)">Yes, Delete</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -700,6 +710,37 @@ export default {
           return inputDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         }
       }
+    },
+    showConfimDeleteButton (previousEntry, index) {
+      const deleteButton = document.getElementById(`delete-button-${previousEntry}-${index}`);
+      const confirmDeleteButton = document.getElementById(`confirm-delete-button-${previousEntry}-${index}`);
+
+      deleteButton.classList.add('d-none');
+      confirmDeleteButton.classList.remove('d-none');
+    },
+    showDeleteButton (previousEntry, index) {
+      const deleteButton = document.getElementById(`delete-button-${previousEntry}-${index}`);
+      const confirmDeleteButton = document.getElementById(`confirm-delete-button-${previousEntry}-${index}`);
+
+      deleteButton.classList.remove('d-none');
+      confirmDeleteButton.classList.add('d-none');
+    },
+    deleteRating (previousEntry, index) {
+      let scratch = { ...previousEntry };
+      scratch.ratings.splice(index, 1);
+
+      if (!scratch.ratings.length) {
+        scratch = null;
+      }
+
+      const dbEntry = {
+        path: `movieLog/${previousEntry.dbKey}`,
+        value: scratch
+      }
+
+      this.$store.dispatch('setDBValue', dbEntry);
+      document.querySelectorAll('.confirm-delete-button').forEach((button) => button.classList.add('d-none'));
+      document.querySelectorAll('.delete-button').forEach((button) => button.classList.remove('d-none'));
     }
   }
 };

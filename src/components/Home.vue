@@ -338,6 +338,11 @@ export default {
   },
   mounted () {
     this.value = this.DBSearchValue;
+    window.scroll({
+      top: 0,
+      left: 0,
+      behavior: 'instant'
+    });
 
     if (this.$route.query.search) {
       this.value = decodeURIComponent(this.$route.query.search);
@@ -353,7 +358,6 @@ export default {
 
     if (this.$route.query.movieDbKey) {
       this.$store.commit("setDBSortValue", "watched");
-      window.scrollTo(0, 0);
     }
 
     if (this.DBSortOrder) {
@@ -1075,45 +1079,6 @@ export default {
         this.findRandomSearchTypeAndFilterValue();
         this.hasCalledFindFilter = true;
       }
-    },
-    scrollToMovie (movieDbKey) {
-      // Find the index of the movie in sortedResults
-      const movieIndex = this.sortedResults.findIndex(movie => movie.dbKey === movieDbKey);
-
-      // If the movie is not currently being shown, adjust numberOfResultsToShow
-      if (movieIndex >= this.numberOfResultsToShow) {
-        this.numberOfResultsToShow = movieIndex + 20;
-      }
-
-      // Wait for Vue to update the DOM
-      this.$nextTick(() => {
-        // Use setTimeout to ensure that the DOM update is complete
-        setTimeout(() => {
-          // Find the movie element on the page
-          const movieElement = document.querySelector(`#${this.sanitizeId(movieDbKey)}`);
-
-          // If the movie element exists, scroll it into view
-          if (movieElement) {
-            movieElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // Calculate the time it takes to scroll to the movie element
-            const distance = Math.abs(movieElement.getBoundingClientRect().top - window.scrollY);
-            const speed = 4000; // Adjust this value to match the speed of your smooth scrolling
-            const scrollTime = distance / speed * 1000;
-
-            // Add the highlight class after the scrolling is complete
-            setTimeout(() => {
-              movieElement.classList.add('highlight');
-            }, scrollTime);
-
-            // Remove the highlight class after a delay
-            setTimeout(() => {
-              movieElement.classList.remove('highlight');
-              this.$router.push({ query: { ...this.$route.query, movieDbKey: undefined } });
-            }, scrollTime + 2000);
-          }
-        }, 0);
-      });
     },
     sanitizeId (id) {
       id = id || crypto.randomUUID();
