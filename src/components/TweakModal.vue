@@ -1,8 +1,8 @@
 <template>
   <div v-if="firstTiedResults.length && showTweakModal" class="tweak-modal">
-    <div class="stickiness-notice alert alert-info my-2" role="alert">
+    <div class="stickiness-notice alert alert-info my-2" role="alert" @click="openModal">
       You have a tie to deal with.
-      <a class="alert-link" @click="openModal">Click to break the tie.</a>
+      <a class="alert-link" @click.stop="openModal">Click to break the tie.</a>
     </div>
     <Modal :show="showModal" @close="closeModal">
       <template v-slot:body>

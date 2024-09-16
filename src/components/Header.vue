@@ -1,13 +1,13 @@
 <template>
   <div class="header col-12" :class="{'d-none': !$store.state.showHeader}">
     <div class="overflow-wrapper">
-      <div class="poster-grid" :class="posterCount">
-        <img v-for="(image, index) in postersForHeader" :src="image" :key="index">
+      <div class="random-banner">
+        <img :src="randomBannerUrl" :key="index">
       </div>
       <div v-if="devMode" class="dev-mode-flag">
         Dev Mode!
       </div>
-      <div class="home-link" :class="posterCount" @click="goHome">
+      <div class="home-link" @click="goHome">
         <span class="app-title">Cinema Roll</span>
         <span class="version">{{version}}</span>
       </div>
@@ -16,24 +16,10 @@
 </template>
 
 <script>
-import axios from "axios";
 import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
   name: "Header",
-  data () {
-    return {
-      randomBannerUrl: '',
-    };
-  },
-  async mounted () {
-    this.randomBannerUrl = await this.randomBanner();
-  },
-  watch: {
-    async currentLogIsTVLog () {
-      this.randomBannerUrl = await this.randomBanner();
-    }
-  },
   computed: {
     version () {
       return process.env.VUE_APP_VERSION;
@@ -41,33 +27,21 @@ export default {
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
-    allPostersRanked () {
-      const media = [...this.$store.getters.allMediaAsArray];
-      return media.sort(this.sortByRating).map((media) => {
-        return `https://image.tmdb.org/t/p/w94_and_h141_bestv2${this.topStructure(media).poster_path}`;
-      });
-    },
-    postersForHeader () {
-      if (this.$store.getters.allMediaAsArray.length < 24) {
-        return [this.randomBannerUrl];
-      } else if (this.$store.getters.allMediaAsArray.length < 80) {
-        return this.allPostersRanked.slice(0, 24);
-      } else {
-        return this.allPostersRanked.slice(0, 80);
-      }
-    },
-    posterCount () {
-      if (this.$store.getters.allMediaAsArray.length < 24) {
-        return "single";
-      } else if (this.$store.getters.allMediaAsArray.length < 80) {
-        return "twenty-four";
-      } else {
-        return "eighty";
-      }
-    },
     devMode () {
       return this.$store.getters.devMode;
-    }
+    },
+    randomBannerUrl() {
+      const mediaArray = this.$store.getters.allMediaAsArray;
+      if (mediaArray.length === 0) return null; // Handle empty array case
+      const randomIndex = Math.floor(Math.random() * mediaArray.length);
+      const randomMedia = mediaArray[randomIndex];
+
+      if (randomMedia) {
+        return `https://image.tmdb.org/t/p/original${this.topStructure(randomMedia).backdrop_path}`;
+      } else {
+        return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
+      }
+    },
   },
   methods: {
     mostRecentRating (media) {
@@ -89,33 +63,6 @@ export default {
       }
 
       return 0;
-    },
-    async fetchHighestVotedMedia (mediaType) {
-      if (!this.$store.state.dbLoaded) {
-        return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
-      } else {
-        try {
-          const recentMedia = await axios.get(`https://api.themoviedb.org/3/discover/${mediaType}?include_adult=false&include_video=false&year=2024&api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
-          const highestVotedMedia = recentMedia.data.results.reduce((highest, media) => {
-            return media.vote_count > highest.vote_count ? media : highest;
-          }, { vote_count: 0 });
-
-          return `https://image.tmdb.org/t/p/original${highestVotedMedia.backdrop_path}`;
-        } catch (error) {
-          console.error(error);
-          return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
-        }
-      }
-    },
-    async randomBanner () {
-      const rand = Math.floor(Math.random() * this.$store.getters.allMediaAsArray.length);
-
-      if (this.$store.getters.allMediaAsArray[rand]) {
-        return `https://image.tmdb.org/t/p/original${this.topStructure(this.$store.getters.allMediaAsArray[rand]).backdrop_path}`;
-      } else {
-        const mediaType = this.currentLogIsTVLog ? 'tv' : 'movie';
-        return await this.fetchHighestVotedMedia(mediaType);
-      }
     },
     async goHome () {
       await this.$store.commit("setGoHome", true);
@@ -186,56 +133,16 @@ export default {
       }
     }
 
-    .poster-grid {
+    .random-banner {
       column-gap: 0;
       display: flex;
       flex-wrap: wrap;
       position: relative;
       row-gap: 0;
-
-      &.single {
-        align-content: center;
-        max-height: 150px;
-
-        img {
-          width: 100%;
-        }
-      }
-
-      &.twenty-four {
-        img {
-          width: calc(100% / 12);
-
-          @media screen and (min-width: 1024px) {
-            width: calc(100% / 24 );
-          }
-
-          &:hover {
-            transform: scale(2);
-          }
-        }
-      }
-
-      &.eighty {
-        img {
-          width: 5%;
-
-          @media screen and (min-width: 640px) {
-            width: calc(100% / 30);
-          }
-
-          @media screen and (min-width: 1024px) {
-            width: calc(100% / 40);
-          }
-
-          @media screen and (min-width: 2000px) {
-            width: calc(100% / 60);
-          }
-
-          &:hover {
-            transform: scale(2);
-          }
-        }
+      align-content: center;
+      
+      img {
+        width: 100%;
       }
     }
   }

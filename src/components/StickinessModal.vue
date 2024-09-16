@@ -1,8 +1,8 @@
 <template>
   <div v-if="resultsThatNeedStickiness.length && showStickinessModal" class="stickiness">
-    <div class="stickiness-notice alert alert-info my-2" role="alert">
-      You have {{ resultsThatNeedStickiness.length }} movies without stickiness ratings.
-      <a class="alert-link" @click="openModal">Click to add stickiness.</a>
+    <div class="stickiness-notice alert alert-info my-2" role="alert" @click="openModal">
+      You have {{ resultsThatNeedStickiness.length }} movies that need stickiness updates.
+      <a class="alert-link" @click.stop="openModal">Click to add stickiness.</a>
     </div>
     <Modal :show="showModal" @close="closeModal">
       <template v-slot:header>
