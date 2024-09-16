@@ -238,7 +238,6 @@
         >
           More...
         </button>
-        <p class="mb-5">{{chatGPTFact}}</p>
         <div v-if="!(sortedResults.length > numberOfResultsToShow) && value" class="mb-5">
           <div v-if="noResults" ref="noResults">
             <p>No results found in your Movie Log or on TMDB.</p>
@@ -306,8 +305,7 @@ export default {
       hasCalledFindFilter: false,
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
-      showAverage: false,
-      chatGPTFact: ""
+      showAverage: false
     }
   },
   watch: {
@@ -1017,51 +1015,6 @@ export default {
     }
   },
   methods: {
-    async getChatGPTFactForFilteredResults () {
-      this.chatGPTFact = '';
-
-      const noFilterValue = !this.filterValue;
-      const noFilteredTitles = !this.filteredTitles.length;
-      const tooManyFilteredTitles = this.filteredTitles.length > 20;
-      const onDevMode = this.$store.getters.devMode;
-
-      if (noFilterValue || noFilteredTitles || tooManyFilteredTitles || onDevMode) {
-        return;
-      }
-
-      try {
-        const apiKey = process.env.VUE_APP_chatGPTAPIKey;
-        const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
-        const listOfFilms = this.filteredTitles.join(', ');
-        const prompt = `Tell me something interesting about this group of films: ${listOfFilms}. 
-        Don't just list one fact per film, I want to know something interesting about the group as a whole or at least an interesting connection between 2 or more of the films. 
-        Also worth noting that these films were collected because of a common theme (in this case the theme was ${this.toTitleCase(this.searchType)}: ${this.toTitleCase(this.filterValue)}) so you don't need to mention that and don't use it as the interesting thing. 
-        Try to be concise and keep your response to one reasonable sentence.`;
-
-        const response = await axios.post(
-          apiEndpoint,
-          {
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: "user",
-                content: prompt
-              }
-            ]
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              'Content-Type': 'application/json'
-            }
-          });
-
-        this.chatGPTFact = response.data.choices[0].message.content;
-      } catch (error) {
-        console.error('chatGPT fact didnt work');
-        console.error(error);
-      }
-    },
     toTitleCase (str) {
       return str.replace(/\w\S*/g, function (txt) {
         return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
@@ -1129,7 +1082,6 @@ export default {
 
       if (randomFilterValue && safetyLimit > 0) {
         this.updateFilterValue(randomFilterValue);
-        this.getChatGPTFactForFilteredResults();
       } else {
         this.clearValueSearchTypeAndFilterValue();
       }
@@ -1187,22 +1139,18 @@ export default {
       this.value = "";
       this.searchType = "title";
       this.filterValue = "";
-      this.chatGPTFact = "";
     },
     updateFilterValue (filterValue) {
       this.filterValue = filterValue.toString();
-      this.chatGPTFact = "";
     },
     updateSearchType (searchType) {
       this.filterValue = "";
       this.searchType = searchType;
-      this.chatGPTFact = "";
     },
     updateSearchValue (searchObject) {
       this.updateSearchType(searchObject.searchType);
       this.updateFilterValue(searchObject.value);
       this.$refs.insightsAccordion?.classList.remove("show");
-      this.chatGPTFact = "";
     },
     toggleQuickLinksSort () {
       if (this.quickLinksSortType === "a-z") {

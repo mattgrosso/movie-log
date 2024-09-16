@@ -459,6 +459,7 @@ export default {
         const title = this.topStructure(this.result).title;
         const date = this.getYear(this.result) || "";
         const randomPrompts = [
+          "Perhaps an interesting fact from the production of the film or a fun piece of trivia.",
           "Maybe something about special effects?",
           "Maybe something about a crew member who isn't an actor?",
           "Maybe something about the music?",
@@ -472,12 +473,24 @@ export default {
           "Maybe something about the box office performance?",
           "Maybe something about the critical reception?",
           "Maybe something about the film's legacy?",
-          "Maybe something about how the film is viewed today from a modern perspective?"
+          "Maybe something about how the film is viewed today from a modern perspective?",
+          "Maybe something about the film's influence on other films?",
+          "Was this the first film for any notable actors or crew members?",
+          "Was this the last film for any notable actors or crew members?",
+          "Was this film based on a true story?",
+          "Has this film been mentioned as a favorite by any notable people?",
+          "Has this film been referenced in other films or TV shows?",
+          "Has this film been parodied in other films or TV shows?",
+          "Maybe something about the film's marketing?",
+          "Maybe something about what other films were released around the same time?",
+          "What did Roger Ebert think of this film?",
+          "What did Leonard Maltin think of this film?",
+          "What did Pauline Kael think of this film?",
+          "What did Vincent Canby think of this film?"
         ]
         const randomPrompt = randomPrompts[Math.floor(Math.random() * randomPrompts.length)];
 
         const prompt = `Tell me an interesting fact about the movie ${title} from ${date}.
-        Perhaps an interesting fact from the production of the film or a fun piece of trivia.
         ${randomPrompt}
         Try to reach for something obscure or not widely known.
         Don't start with "One interesting fact about..." or "did you know...". Just tell me the fact.
