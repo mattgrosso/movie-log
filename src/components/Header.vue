@@ -4,6 +4,9 @@
       <div class="random-banner">
         <img :src="randomBannerUrl" :key="index">
       </div>
+      <div class="top-posters">
+        <img v-for="(poster, index) in topTenPosters" :src="poster" :key="index">
+      </div>
       <div v-if="devMode" class="dev-mode-flag">
         Dev Mode!
       </div>
@@ -27,6 +30,12 @@ export default {
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
+    allPostersRanked () {
+      const media = [...this.$store.getters.allMediaAsArray];
+      return media.sort(this.sortByRating).map((media) => {
+        return `https://image.tmdb.org/t/p/w94_and_h141_bestv2${this.topStructure(media).poster_path}`;
+      });
+    },
     devMode () {
       return this.$store.getters.devMode;
     },
@@ -42,6 +51,9 @@ export default {
         return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
       }
     },
+    topTenPosters () {
+      return this.allPostersRanked.slice(0, 10);
+    }
   },
   methods: {
     mostRecentRating (media) {
@@ -143,6 +155,22 @@ export default {
       
       img {
         width: 100%;
+      }
+
+      @media screen and (min-width: 600px) {
+        display: none;
+      }
+    }
+
+    .top-posters {
+      display: none;
+      
+      @media screen and (min-width: 600px) {
+        display: flex;
+        
+        img {
+          width: 10%;
+        }
       }
     }
   }
