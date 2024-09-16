@@ -39,7 +39,7 @@ export default {
     devMode () {
       return this.$store.getters.devMode;
     },
-    randomBannerUrl() {
+    randomBannerUrl () {
       const mediaArray = this.$store.getters.allMediaAsArray;
       if (mediaArray.length === 0) return null; // Handle empty array case
       const randomIndex = Math.floor(Math.random() * mediaArray.length);
@@ -152,7 +152,7 @@ export default {
       position: relative;
       row-gap: 0;
       align-content: center;
-      
+
       img {
         width: 100%;
       }
@@ -164,10 +164,10 @@ export default {
 
     .top-posters {
       display: none;
-      
+
       @media screen and (min-width: 600px) {
         display: flex;
-        
+
         img {
           width: 10%;
         }
