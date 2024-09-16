@@ -16,7 +16,21 @@
             <span v-if="showSixMonthMessage">It's been six months now.<br></span>
             <span>How sticky has {{topStructure(firstResult).title}} <span v-if="showSixMonthMessage">really</span> been?</span>
           </label>
-          <p>Rate how much you've been thinking and talking about the movie since you watched it.</p>
+          <p v-if="!showSixMonthMessage">Rate how much you've been thinking and talking about the movie since you watched it.</p>
+          <p class="rating-change col-12 text-center" :class="{visible: ratingChange || ratingChange === 0}">
+            <span v-if="ratingWithoutStickiness === ratingWithStickiness">Your rating didn't change.</span>
+            <span v-else>
+              Your rating went from
+              <span>{{ratingWithoutStickiness}} to {{ratingWithStickiness}}.</span>
+            </span>
+            <br v-if="rankWithoutStickiness !== rankWithStickiness">
+            <span v-if="rankWithoutStickiness - rankWithStickiness > 0" class="positive">
+              It went up {{ rankWithoutStickiness - rankWithStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
+            </span>
+            <span v-else-if="rankWithoutStickiness - rankWithStickiness < 0" class="negative">
+              It went down {{ rankWithStickiness - rankWithoutStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
+            </span>
+          </p>
           <select class="form-select" name="stickiness" id="stickiness" v-model="stickinessRating">
             <option value="">Rate Stickiness</option>
             <option value="0">
@@ -45,20 +59,6 @@
             </option>
           </select>
         </div>
-        <p class="rating-change col-12 text-center" :class="{visible: ratingChange || ratingChange === 0}">
-          <span v-if="ratingWithoutStickiness === ratingWithStickiness">Your rating didn't change.</span>
-          <span v-else>
-            Your rating went from
-            <span>{{ratingWithoutStickiness}} to {{ratingWithStickiness}}.</span>
-          </span>
-          <br v-if="rankWithoutStickiness !== rankWithStickiness">
-          <span v-if="rankWithoutStickiness - rankWithStickiness > 0" class="positive">
-            It went up {{ rankWithoutStickiness - rankWithStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
-          </span>
-          <span v-else-if="rankWithoutStickiness - rankWithStickiness < 0" class="negative">
-            It went down {{ rankWithStickiness - rankWithoutStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
-          </span>
-        </p>
       </template>
       <template v-slot:footer>
         <div class="stickiness-modal-footer d-flex justify-content-end">
@@ -289,10 +289,22 @@ export default {
     cursor: pointer;
   }
 
+  .cinemaroll-modal {
+    .cinemaroll-modal-content {
+      height: fit-content;
+
+      @media screen and (min-width: 832px) {
+        height: fit-content;
+        max-height: 100vh;
+      }
+    }
+  }
+
   .rating-change {
     font-size: 0.75rem;
-    min-height: 50px;
+    min-height: 100px;
     opacity: 0;
+    padding: 12px;
     transition: none;
 
     &.visible {
