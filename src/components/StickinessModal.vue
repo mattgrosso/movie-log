@@ -12,27 +12,36 @@
       </template>
       <template v-slot:body>
         <div class="col-12 my-3">
-          <label class="form-label fs-4 mb-0" for="stickiness">How sticky has {{topStructure(firstResult).title}} been?</label>
+          <label class="form-label fs-4 mb-0" for="stickiness">
+            <span v-if="showSixMonthMessage">It's been six months now.<br></span>
+            <span>How sticky has {{topStructure(firstResult).title}} <span v-if="showSixMonthMessage">really</span> been?</span>
+          </label>
           <p>Rate how much you've been thinking and talking about the movie since you watched it.</p>
           <select class="form-select" name="stickiness" id="stickiness" v-model="stickinessRating">
             <option value="">Rate Stickiness</option>
             <option value="0">
-              0 - I told people to avoid it
+              <span v-if="showSixMonthMessage">0 - Are you sure I watched that?</span>
+              <span v-else>0 - I told people to avoid it</span>
             </option>
             <option value="1">
-              1 - I forgot it immediately
+              <span v-if="showSixMonthMessage">1 - I basically forgot about this movie</span>
+              <span v-else>1 - I forgot it immediately</span>
             </option>
             <option value="2">
-              2 - I mentioned it to people
+              <span v-if="showSixMonthMessage">2 - I remember it</span>
+              <span v-else>2 - I mentioned it to people</span>
             </option>
             <option value="3">
-              3 - I remember it often
+              <span v-if="showSixMonthMessage">3 - I think about it often</span>
+              <span v-else>3 - I remember it often</span>
             </option>
             <option value="4">
-              4 - I think about it all the time
+              <span v-if="showSixMonthMessage">4 - I reference it and think about it a lot</span>
+              <span v-else>4 - I think about it all the time</span>
             </option>
             <option value="5">
-              5 - It changed the way I think
+              <span v-if="showSixMonthMessage">5 - It changed the way I think</span>
+              <span v-else>5 - It changed the way I think</span>
             </option>
           </select>
         </div>
@@ -40,15 +49,13 @@
           <span v-if="ratingWithoutStickiness === ratingWithStickiness">Your rating didn't change.</span>
           <span v-else>
             Your rating went from
-            <span :class="ratingWithoutStickiness < ratingWithStickiness ? 'negative' : 'positive'">{{ratingWithoutStickiness}}</span>
-            to
-            <span :class="ratingWithStickiness < ratingWithoutStickiness ? 'negative' : 'positive'">{{ratingWithStickiness}}</span>.
+            <span>{{ratingWithoutStickiness}} to {{ratingWithStickiness}}.</span>
           </span>
           <br v-if="rankWithoutStickiness !== rankWithStickiness">
-          <span v-if="rankWithoutStickiness - rankWithStickiness > 0">
+          <span v-if="rankWithoutStickiness - rankWithStickiness > 0" class="positive">
             It went up {{ rankWithoutStickiness - rankWithStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
           </span>
-          <span v-else-if="rankWithoutStickiness - rankWithStickiness < 0">
+          <span v-else-if="rankWithoutStickiness - rankWithStickiness < 0" class="negative">
             It went down {{ rankWithStickiness - rankWithoutStickiness }} spots. From {{ rankWithoutStickiness }} to {{ rankWithStickiness }}.
           </span>
         </p>
@@ -117,11 +124,13 @@ export default {
     },
     resultsThatNeedStickiness () {
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        const hasntReratedStickiness = !this.mostRecentRating(result).userAddedStickiness;
+        const hasntReratedStickinessOneWeek = !this.mostRecentRating(result).userAddedStickiness;
+        const hasntReratedStickinessSixMonths = !this.mostRecentRating(result).userAddedSixMonthStickiness;
         const ratingDate = this.mostRecentRating(result).date || "1/1/2021";
         const moreThanAWeekAgo = new Date(ratingDate).getTime() < new Date().getTime() - (604800000);
+        const moreThanSixMonthsAgo = new Date(ratingDate).getTime() < new Date().getTime() - (15778476000);
 
-        return hasntReratedStickiness && moreThanAWeekAgo;
+        return (hasntReratedStickinessOneWeek && moreThanAWeekAgo) || (hasntReratedStickinessSixMonths && moreThanSixMonthsAgo);
       }).sort((a, b) => {
         const ratingDateA = this.mostRecentRating(a).date || "1/1/2021";
         const ratingDateB = this.mostRecentRating(b).date || "1/1/2021";
@@ -184,6 +193,9 @@ export default {
       })
 
       return mostRecentRatingIndex;
+    },
+    showSixMonthMessage () {
+      return this.mostRecentRating(this.firstResult).userAddedStickiness;
     }
   },
   methods: {
@@ -217,18 +229,35 @@ export default {
       this.submitting = true;
       this.ratingChange = ((this.ratingWithStickiness - this.ratingWithoutStickiness) / this.ratingWithoutStickiness * 100).toFixed(2);
 
-      const movieWithRating = {
-        ...this.firstResult,
-        ratings: {
-          ...this.firstResult.ratings,
-          [this.mostRecentRatingIndex]: {
-            ...this.firstResult.ratings[this.mostRecentRatingIndex],
-            rating: this.ratingWithStickiness,
-            stickiness: parseFloat(this.stickinessRating),
-            userAddedStickiness: true
+      let movieWithRating;
+
+      if (!this.firstResult.ratings[this.mostRecentRatingIndex].userAddedStickiness) {
+        movieWithRating = {
+          ...this.firstResult,
+          ratings: {
+            ...this.firstResult.ratings,
+            [this.mostRecentRatingIndex]: {
+              ...this.firstResult.ratings[this.mostRecentRatingIndex],
+              rating: this.ratingWithStickiness,
+              stickiness: parseFloat(this.stickinessRating),
+              userAddedStickiness: true
+            }
           }
-        }
-      };
+        };
+      } else {
+        movieWithRating = {
+          ...this.firstResult,
+          ratings: {
+            ...this.firstResult.ratings,
+            [this.mostRecentRatingIndex]: {
+              ...this.firstResult.ratings[this.mostRecentRatingIndex],
+              rating: this.ratingWithStickiness,
+              stickiness: parseFloat(this.stickinessRating),
+              userAddedSixMonthStickiness: true
+            }
+          }
+        };
+      }
 
       setTimeout(() => {
         const dbEntry = {

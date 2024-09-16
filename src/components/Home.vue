@@ -442,11 +442,13 @@ export default {
     },
     resultsThatNeedStickiness () {
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        const hasntReratedStickiness = !this.mostRecentRating(result).userAddedStickiness;
+        const hasntReratedStickinessOneWeek = !this.mostRecentRating(result).userAddedStickiness;
+        const hasntReratedStickinessSixMonths = !this.mostRecentRating(result).userAddedSixMonthStickiness;
         const ratingDate = this.mostRecentRating(result).date || "1/1/2021";
         const moreThanAWeekAgo = new Date(ratingDate).getTime() < new Date().getTime() - (604800000);
+        const moreThanSixMonthsAgo = new Date(ratingDate).getTime() < new Date().getTime() - (15778476000);
 
-        return hasntReratedStickiness && moreThanAWeekAgo;
+        return (hasntReratedStickinessOneWeek && moreThanAWeekAgo) || (hasntReratedStickinessSixMonths && moreThanSixMonthsAgo);
       }).sort((a, b) => {
         const ratingDateA = this.mostRecentRating(a).date || "1/1/2021";
         const ratingDateB = this.mostRecentRating(b).date || "1/1/2021";
