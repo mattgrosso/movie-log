@@ -566,6 +566,7 @@
 </template>
 
 <script>
+import axios from "axios";
 import addRating from "../assets/javascript/AddRating.js";
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 
@@ -591,7 +592,8 @@ export default {
       title: null,
       year: null,
       getAllRatings: getAllRatings,
-      dbEntry: null
+      dbEntry: null,
+      chatGPTKeywords: []
     }
   },
   mounted () {
@@ -601,6 +603,7 @@ export default {
     this.id = this.movieToRate.id;
 
     this.selectedMovieTags = this.previousEntry ? this.previousEntry.movie.tags || [] : [];
+    this.getChatGPTKeywords();
   },
   beforeRouteLeave () {
     this.$store.commit("setShowHeader", true);
@@ -842,6 +845,7 @@ export default {
       }
 
       const rating = {
+        chatGPTKeywords: this.chatGPTKeywords,
         date: this.date ? new Date(this.date).getTime() : new Date().getTime(),
         direction: this.direction ? this.direction : 5,
         id: this.id,
@@ -892,7 +896,43 @@ export default {
     },
     toggleMovieTagList () {
       this.$refs.movieTagList.classList.toggle("collapsed");
-    }
+    },
+    async getChatGPTKeywords () {
+      try {
+        const apiKey = process.env.VUE_APP_chatGPTAPIKey;
+        const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
+        const title = this.movieToRate.title;
+        const date = new Date(this.movieToRate.release_date).getFullYear() || "";
+        const prompt = `Please give me a list of keywords for the movie ${title} from ${date} as a JSON array. 
+        Make sure the array is under the key "keywords".`;
+
+        const response = await axios.post(
+          apiEndpoint,
+          {
+            model: 'gpt-4o',
+            messages: [
+              {
+                role: "user",
+                content: prompt
+              }
+            ],
+            response_format: { type: "json_object" }
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+        const parsedResponse = JSON.parse(response.data.choices[0].message.content);
+
+        this.chatGPTKeywords = parsedResponse.keywords.map(keyword => keyword.toLowerCase());
+      } catch (error) {
+        console.error('chatGPT fact didnt work');
+        console.error(error);
+      }
+    },
   },
 }
 </script>

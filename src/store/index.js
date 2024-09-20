@@ -95,6 +95,9 @@ export default createStore({
     showHeader: true,
     goHome: false,
     devModeTopKey: 'testing-database',
+    // devModeTopKey: 'natalierosegrosso-gmail-com',
+    // devModeTopKey: 'carrieseltzer-gmail-com',
+    // devModeTopKey: 'hopper-seth-gmail-com',
     dbLoaded: false
   },
   getters: {

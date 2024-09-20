@@ -428,11 +428,14 @@ export default {
             }
           }
         } else {
+          const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
+          const flatChatGPTKeywords = this.topStructure(result).chatGPTKeywords || [];
+          const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
           return {
             ...result,
             movie: {
               ...this.topStructure(result),
-              flatKeywords: this.topStructure(result).keywords ? this.topStructure(result).keywords.map((keyword) => keyword.name) : []
+              flatKeywords: flatKeywords || []
             }
           }
         }

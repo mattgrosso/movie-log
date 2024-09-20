@@ -228,6 +228,17 @@ const addMovieRating = async (ratings, movieTags) => {
     return;
   }
 
+  const chatGPTKeywords = [];
+  ratings.forEach((rating) => {
+    if (rating.chatGPTKeywords) {
+      rating.chatGPTKeywords.forEach((keyword) => {
+        if (!chatGPTKeywords.includes(keyword)) {
+          chatGPTKeywords.push(keyword);
+        }
+      });
+    }
+  });
+
   const tmdbData = await getTMDBData(ratings[0]);
   const imdbData = await getIMDBData(tmdbData.imdb_id);
 
@@ -265,7 +276,8 @@ const addMovieRating = async (ratings, movieTags) => {
     title: tmdbData ? tmdbData.title : "",
     awards: imdbData || null,
     tags: movieTags || [],
-    keywords: tmdbData ? tmdbData.keywords : []
+    keywords: tmdbData ? tmdbData.keywords : [],
+    chatGPTKeywords: chatGPTKeywords
   };
 
   const ratingsWithoutOwnership = ratings.map((rating) => {

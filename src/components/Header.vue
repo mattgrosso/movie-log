@@ -40,8 +40,17 @@ export default {
       return this.$store.getters.devMode;
     },
     randomBannerUrl () {
-      const mediaArray = this.$store.getters.allMediaAsArray;
+      let mediaArray = this.$store.getters.allMediaAsArray;
       if (mediaArray.length === 0) return null; // Handle empty array case
+
+      const onlyRatedOverSix = mediaArray.filter((media) => {
+        return this.mostRecentRating(media).calculatedTotal > 6;
+      });
+
+      if (onlyRatedOverSix.length > 0) {
+        mediaArray = onlyRatedOverSix;
+      }
+
       const randomIndex = Math.floor(Math.random() * mediaArray.length);
       const randomMedia = mediaArray[randomIndex];
 
