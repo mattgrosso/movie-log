@@ -54,7 +54,7 @@ const mostRecentRating = (media) => {
     media.ratings.forEach((rating) => {
       if (!mostRecentRating.date) {
         mostRecentRating = rating;
-      } else if (rating.date && rating.date > mostRecentRating.date) {
+      } else if (rating.date && new Date(rating.date).getTime() > new Date(mostRecentRating.date).getTime()) {
         mostRecentRating = rating;
       }
     })
