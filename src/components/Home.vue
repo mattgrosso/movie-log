@@ -22,7 +22,7 @@
           <i class="bi bi-x-circle"/>
         </span>
         <span v-if="searchType && filterValue" class="more-info-button" @click.prevent="goToWikipedia">
-          <i class="bi bi-question-circle"/>
+          <i class="bi bi-wikipedia"/>
         </span>
       </div>
     </div>
@@ -1364,12 +1364,15 @@ export default {
       );
     },
     increaseFontSize (event) {
+      console.log('event.target.classList: ', event.target.classList);
+      event.target.classList.add('font-size-increased');
       event.target.style.fontSize = '16px';
-      event.target.style.margin = '-6px 0 0';
+      // event.target.style.margin = '-6px 0 0';
     },
     decreaseFontSize (event) {
+      event.target.classList.remove('font-size-increased');
       event.target.style.fontSize = '12px';
-      event.target.style.margin = '0';
+      // event.target.style.margin = '0';
     },
   },
 }
@@ -1389,6 +1392,18 @@ export default {
         &.has-content {
           padding-left: 36px;
           padding-right: 36px;
+        }
+
+        &.font-size-increased {
+          margin: -6px 0 0;
+
+          & + .clear-button {
+            transform: translateY(calc(-50% - 3px));
+          }
+
+          & + .clear-button + .more-info-button {
+            transform: translateY(calc(-50% - 3px));
+          }
         }
       }
 
