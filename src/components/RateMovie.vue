@@ -461,6 +461,10 @@
       </div>
 
       <div v-if="movieToRate" ref="neighbors" class="neighbors">
+        <div class="hide-neighbors" @click="toggleNeighbors">
+          <i class="bi bi-arrow-bar-down"/>
+          <i class="bi bi-arrow-bar-up"/>
+        </div>
         <div v-if="neighborTwoAhead" class="neighbor-two-ahead">
           <img :src="posterUrl(neighborTwoAhead.movie)" :alt="`${neighborTwoAhead.movie.title} poster`">
         </div>
@@ -933,6 +937,9 @@ export default {
         console.error(error);
       }
     },
+    toggleNeighbors () {
+      this.$refs.neighbors.classList.toggle("unstuck");
+    }
   },
 }
 </script>
@@ -988,6 +995,34 @@ export default {
       margin: 0 -24px;
       padding: 6px;
       position: sticky;
+
+      &.unstuck {
+        bottom: 0;
+        position: relative;
+
+        .bi-arrow-bar-down {
+          display: none;
+        }
+
+        .bi-arrow-bar-up {
+          display: block;
+        }
+      }
+
+      .bi-arrow-bar-up {
+        display: none;
+      }
+
+      .bi-arrow-bar-down {
+        display: block;
+      }
+
+      .hide-neighbors {
+        cursor: pointer;
+        position: absolute;
+        right: 10px;
+        top: 3px;
+      }
 
       .neighbor-two-ahead {
         width: 18%;
