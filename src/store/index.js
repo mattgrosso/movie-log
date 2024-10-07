@@ -98,7 +98,8 @@ export default createStore({
     // devModeTopKey: 'natalierosegrosso-gmail-com',
     // devModeTopKey: 'carrieseltzer-gmail-com',
     // devModeTopKey: 'hopper-seth-gmail-com',
-    dbLoaded: false
+    dbLoaded: false,
+    filteredResults: [],
   },
   getters: {
     allMediaAsArray: (state) => {
@@ -196,6 +197,10 @@ export default createStore({
     },
     setDbLoaded (state, value) {
       state.dbLoaded = value;
+    },
+    setFilteredResults (state, value) {
+      console.error('This is a flag that the filtered results are being set');
+      state.filteredResults = value;
     }
   },
   actions: {

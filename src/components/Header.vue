@@ -40,7 +40,8 @@ export default {
       return this.$store.getters.devMode;
     },
     randomBannerUrl () {
-      let mediaArray = this.$store.getters.allMediaAsArray;
+      const filteredResults = this.$store.state.filteredResults;
+      let mediaArray = filteredResults.length ? filteredResults : this.$store.getters.allMediaAsArray;
       if (mediaArray.length === 0) return null; // Handle empty array case
 
       const onlyRatedOverSix = mediaArray.filter((media) => {
