@@ -199,7 +199,6 @@ export default createStore({
       state.dbLoaded = value;
     },
     setFilteredResults (state, value) {
-      console.error('This is a flag that the filtered results are being set');
       state.filteredResults = value;
     }
   },

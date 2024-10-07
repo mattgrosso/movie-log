@@ -1365,9 +1365,11 @@ export default {
     },
     increaseFontSize (event) {
       event.target.style.fontSize = '16px';
+      event.target.style.margin = '-6px 0 0';
     },
     decreaseFontSize (event) {
-      event.target.style.fontSize = '0.75rem';
+      event.target.style.fontSize = '12px';
+      event.target.style.margin = '0';
     },
   },
 }
