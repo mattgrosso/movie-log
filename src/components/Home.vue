@@ -510,8 +510,7 @@ export default {
         return this.bestPictures;
       } else if (!this.filterValue) {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        // return this.allEntriesWithFlatKeywordsAdded;
-        return this.titleAndKeywordFilter;
+        return this.fuzzyFilter;
       } else if (this.searchType === "keyword") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.keywordFilter;
@@ -520,7 +519,7 @@ export default {
         return this.genreFilter;
       } else if (this.searchType === "year") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "release");
-        return this.yearFilter;
+        return this.fuzzyFilter;
       } else if (this.searchType === "director") {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.directorFilter;
@@ -537,13 +536,22 @@ export default {
         return [];
       }
     },
-    titleAndKeywordFilter  () {
+    fuzzyFilter  () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
         if (!this.value) {
           return true;
         }
+
+        const cast = this.topStructure(media).cast?.map((person, index) => person.name.toLowerCase()) || [];
+        const crew = this.topStructure(media).crew?.map((person, index) => person.name.toLowerCase()) || [];
+
         return this.topStructure(media).title.toLowerCase().includes(this.value.toLowerCase()) ||
-        this.topStructure(media).flatKeywords?.includes(this.value.toLowerCase());
+        this.topStructure(media).flatKeywords?.includes(this.value.toLowerCase()) ||
+        this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.value.toLowerCase()) ||
+        cast.includes(this.value.toLowerCase()) ||
+        crew.includes(this.value.toLowerCase()) ||
+        this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.value.toLowerCase()) ||
+        (this.yearFilter.length && this.yearFilter.includes(`${this.getYear(media)}`));
       })
     },
     keywordFilter () {
@@ -559,24 +567,24 @@ export default {
     yearFilter () {
       let parsedYears = [];
 
-      if (this.filterValue.length === 2 && parseInt(this.filterValue) < new Date().getFullYear() - 2000) {
-        parsedYears = [`20${this.filterValue}`];
-      } else if (this.filterValue.length === 2) {
-        parsedYears = [`19${this.filterValue}`];
-      } else if (this.filterValue.includes("-") && this.filterValue.includes(" ")) {
-        parsedYears = this.filterValue.split(" ").join("").split("-");
+      if (this.value.length === 2 && parseInt(this.value) < new Date().getFullYear() - 2000) {
+        parsedYears = [`20${this.value}`];
+      } else if (this.value.length === 2) {
+        parsedYears = [`19${this.value}`];
+      } else if (this.value.includes("-") && this.value.includes(" ")) {
+        parsedYears = this.value.split(" ").join("").split("-");
 
         for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
           parsedYears.push(i.toString());
         }
-      } else if (this.filterValue.includes("-")) {
-        parsedYears = this.filterValue.split("-");
+      } else if (this.value.includes("-")) {
+        parsedYears = this.value.split("-");
 
         for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
           parsedYears.push(i.toString());
         }
-      } else if (this.filterValue.length === 5 && this.filterValue.includes("s")) {
-        parsedYears = this.filterValue.split("s").filter((x) => x);
+      } else if (this.value.length === 5 && this.value.includes("s")) {
+        parsedYears = this.value.split("s").filter((x) => x);
 
         parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
@@ -587,10 +595,10 @@ export default {
         parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
-      } else if (this.filterValue.length === 3 && this.filterValue.includes("s")) {
-        parsedYears = this.filterValue.split("s").filter((x) => x);
+      } else if (this.value.length === 3 && this.value.includes("s")) {
+        parsedYears = this.value.split("s").filter((x) => x);
 
-        if (parseInt(this.filterValue) < new Date().getFullYear() - 2000) {
+        if (parseInt(this.value) < new Date().getFullYear() - 2000) {
           parsedYears[0] = `20${parsedYears[0]}`;
         } else {
           parsedYears[0] = `19${parsedYears[0]}`;
@@ -604,13 +612,11 @@ export default {
         parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
         parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
-      } else {
-        parsedYears = [this.filterValue];
+      } else if (this.value.length === 4 && parseInt(this.value)) {
+        parsedYears = [this.value];
       }
 
-      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return parsedYears.includes(`${this.getYear(media)}`);
-      })
+      return parsedYears;
     },
     directorFilter () {
       if (this.currentLogIsTVLog) {
@@ -1395,7 +1401,6 @@ export default {
       );
     },
     increaseFontSize (event) {
-      console.log('event.target.classList: ', event.target.classList);
       event.target.classList.add('font-size-increased');
       event.target.style.fontSize = '16px';
       // event.target.style.margin = '-6px 0 0';
