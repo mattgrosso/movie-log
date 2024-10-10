@@ -20,6 +20,9 @@
         <span v-if="currentLogIsTVLog">{{smallFormattedDate(topStructure(result).first_air_date, topStructure(result).last_air_date)}}</span>
         <span v-else>{{smallFormattedDate(topStructure(result).release_date)}}</span>
       </span>
+      <span v-else-if="sortValue === 'views'">
+        {{result.ratings.length}} view<span v-if="result.ratings.length > 1" >s</span>
+      </span>
       <span v-else class="rank">
         {{getOrdinal(overAllRank)}}
       </span>

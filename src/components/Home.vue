@@ -46,10 +46,14 @@
               <i v-if="gridLayout" class="bi bi-view-list"/>
               <i v-else class="bi bi-grid-1x2"/>
             </button>
-            <button class="results-actions-button filtered-count-display btn btn-secondary" @click="showAverage = !showAverage">
+            <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage">
               <span v-if="showAverage">
                 <span class="average-label">(avg)</span>
                 <span class="average-value">{{averageRating(filteredResults)}}</span>
+              </span>
+              <span v-else-if="showViewCount">
+                <span class="average-label">(views)</span>
+                <span class="average-value">{{viewsCount(filteredResults)}}</span>
               </span>
               <span v-else-if="searchType === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
               <span v-else>{{filteredResults.length}}</span>
@@ -68,6 +72,7 @@
               <i v-if="sortValue === 'watched'" class="bi bi-calendar3"/>
               <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
               <i v-if="sortValue === 'title'" class="bi bi-alphabet"></i>
+              <i v-if="sortValue === 'views'" class="bi bi-eye"></i>
               <span class="order-arrow">
                 <i v-if="sortOrder !== 'ascending'" class="bi bi-arrow-down-short"/>
                 <i v-if="sortOrder === 'ascending'" class="bi bi-arrow-up-short"/>
@@ -91,6 +96,11 @@
                 <li value="title">
                   <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setSortValue('title')">
                     Title
+                  </button>
+                </li>
+                <li value="views">
+                  <button class="dropdown-item" :class="{active: sortValue === 'views'}" @click="setSortValue('views')">
+                    Views
                   </button>
                 </li>
               </ul>
@@ -305,7 +315,8 @@ export default {
       hasCalledFindFilter: false,
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
-      showAverage: false
+      showAverage: false,
+      showViewCount: false
     }
   },
   watch: {
@@ -1244,6 +1255,9 @@ export default {
 
         sortValueA = new Date(dateA);
         sortValueB = new Date(dateB);
+      } else if (this.sortValue === "views") {
+        sortValueA = a.ratings.length;
+        sortValueB = b.ratings.length;
       } else {
         sortValueA = 0;
         sortValueB = 0;
@@ -1266,11 +1280,28 @@ export default {
 
       return 0;
     },
+    toggleCountViewsAverage () {
+      if (this.showAverage) {
+        this.showAverage = false;
+        this.showViewCount = true;
+      } else if (this.showViewCount) {
+        this.showAverage = false;
+        this.showViewCount = false;
+      } else {
+        this.showAverage = true;
+        this.showViewCount = false;
+      }
+    },
     averageRating (results) {
       const ratedMovies = results.filter((result) => this.mostRecentRating(result).calculatedTotal);
       const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
       const total = ratings.reduce((a, b) => a + b, 0);
       return (total / ratings.length).toFixed(2);
+    },
+    viewsCount(results) {
+      return results.reduce((total, result) => {
+        return total + (result.ratings ? result.ratings.length : 0);
+      }, 0);
     },
     getYear (media) {
       let date;
