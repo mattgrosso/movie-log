@@ -1199,7 +1199,7 @@ export default {
       const total = ratings.reduce((a, b) => a + b, 0);
       return (total / ratings.length).toFixed(2);
     },
-    viewsCount(results) {
+    viewsCount (results) {
       return results.reduce((total, result) => {
         return total + (result.ratings ? result.ratings.length : 0);
       }, 0);
