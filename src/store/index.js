@@ -209,9 +209,6 @@ export default createStore({
 
       try {
         const result = await signInWithPopup(auth, provider);
-        // const token = result.user.stsTokenManager.accessToken; // This is the Google API access token.
-        // const user = result.user; // The signed-in user info.
-
         // Handle the result.
         if (result) {
           const userData = result.user;

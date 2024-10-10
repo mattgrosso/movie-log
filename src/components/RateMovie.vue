@@ -907,7 +907,8 @@ export default {
         const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
         const title = this.movieToRate.title;
         const date = new Date(this.movieToRate.release_date).getFullYear() || "";
-        const prompt = `Please give me a list of keywords for the movie ${title} from ${date} as a JSON array. 
+        const prompt = `Please give me a list of keywords for the movie ${title} from ${date} as a JSON array.
+        Please try to include keywords for the location or locations where the movie takes place.
         Make sure the array is under the key "keywords".`;
 
         const response = await axios.post(
@@ -931,7 +932,7 @@ export default {
 
         const parsedResponse = JSON.parse(response.data.choices[0].message.content);
 
-        this.chatGPTKeywords = parsedResponse.keywords.map(keyword => keyword.toLowerCase());
+        this.chatGPTKeywords = parsedResponse.keywords?.map(keyword => keyword.toLowerCase());
       } catch (error) {
         console.error('chatGPT fact didnt work');
         console.error(error);
