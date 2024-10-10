@@ -22,7 +22,7 @@
         <span v-else class="fs-4">
           {{result.movie.title}}
         </span>
-        <a class="link mx-2" @click.stop="searchFor('year', `${getYear(result)}`)">({{getYear(result)}})</a>
+        <a class="link mx-2" @click.stop="searchFor(`${getYear(result)}`)">({{getYear(result)}})</a>
       </p>
       <p class="etc m-0 d-flex flex-wrap">
         <span v-if="currentLogIsTVLog" class="col-12">{{tvNetwork(result)}}</span>
@@ -32,7 +32,7 @@
             v-for="(genre, index) in topStructure(result).genres"
             :key="index"
             class="link"
-            @click.stop="searchFor('genre', genre.name)"
+            @click.stop="searchFor(genre.name)"
           >
             {{genre.name}}<span v-if="index !== topStructure(result).genres.length - 1">&nbsp;</span>
           </a>
@@ -43,12 +43,12 @@
               v-for="(person, index) in result.tvShow.created_by"
               :key="index"
               class="link"
-              @click.stop="searchFor('cast/crew', `\'${person.name}\'`)"
+              @click.stop="searchFor(`\'${person.name}\'`)"
             >
               {{person.name}}<span v-if="index !== result.tvShow.created_by.length - 1">&nbsp;</span>
             </a>
           </span>
-          <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor('director', `${getCrewMember(result.movie.crew, 'Director', 'strict')}`)">
+          <a v-if="!currentLogIsTVLog" class="link" @click.stop="searchFor(`${getCrewMember(result.movie.crew, 'Director', 'strict')}`)">
             {{getCrewMember(result.movie.crew, 'Director', 'strict')}}
           </a>
         </span>
@@ -215,8 +215,8 @@ export default {
     sanitizeId (id) {
       return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
-    updateSearchValue (searchType, value) {
-      this.$emit('updateSearchValue', { searchType: searchType, value });
+    updateSearchValue (value) {
+      this.$emit('updateSearchValue', value);
     },
     topStructure (result) {
       if (this.currentLogIsTVLog) {
@@ -261,8 +261,8 @@ export default {
 
       return `https://en.m.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
     },
-    searchFor (searchType, term) {
-      this.updateSearchValue(searchType, term);
+    searchFor (term) {
+      this.updateSearchValue(term);
 
       window.scroll({
         top: top,

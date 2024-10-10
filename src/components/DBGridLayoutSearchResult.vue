@@ -10,7 +10,7 @@
       :src="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
     >
     <div class="details">
-      <span v-if="searchType === 'bestPicture'">
+      <span v-if="activeQuickLinkList === 'bestPicture'">
         {{topStructure(result).academyAwardsYear}}
       </span>
       <span v-else-if="sortValue === 'watched'">
@@ -41,7 +41,7 @@
         <div class="runtime-and-date">
           <h3>{{prettifyRuntime(result)}}</h3>
           <h3>
-            <a class="link mx-2" @click.stop="searchFor('year', `${getYear(result)}`)">{{getYear(result)}}</a>
+            <a class="link mx-2" @click.stop="searchFor(`${getYear(result)}`)">{{getYear(result)}}</a>
           </h3>
         </div>
 
@@ -122,12 +122,12 @@
           </h4>
           <p class="long-list">
             <span v-if="currentLogIsTVLog">
-              <a v-for="(creator, index) in topStructure(result).created_by" :key="index" class="link" @click.stop="searchFor('director', creator.name)">
+              <a v-for="(creator, index) in topStructure(result).created_by" :key="index" class="link" @click.stop="searchFor(creator.name)">
                 {{creator.name}}<span v-if="index !== topStructure(result).created_by.length - 1">&nbsp;&nbsp;</span>
               </a>
             </span>
             <span v-else>
-              <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor('director', name)">
+              <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor(name)">
                 {{name}}<span v-if="index !== getCrewMember('Director', 'strict').length - 1">&nbsp;&nbsp;</span>
               </a>
             </span>
@@ -141,7 +141,7 @@
               v-for="(genre, index) in topStructure(result).genres"
               :key="index"
               class="link me-2"
-              @click.stop="searchFor('genre', genre.name)"
+              @click.stop="searchFor(genre.name)"
             >
               {{genre.name}}
             </a>
@@ -170,7 +170,7 @@
         <div v-if="topStructure(result).flatKeywords.length" class="keywords">
           <h4>Keyword<span v-if="multipleEntries(topStructure(result).flatKeywords)">s</span></h4>
           <p class="long-list">
-            <a v-for="(keyword, index) in sortedFlatKeywords" :key="index" class="link" @click.stop="searchFor('keyword', keyword)">
+            <a v-for="(keyword, index) in sortedFlatKeywords" :key="index" class="link" @click.stop="searchFor(keyword)">
               {{keyword}}&nbsp;({{ keywordCounts[keyword] }})<span v-if="index !== topStructure(result).flatKeywords.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -179,7 +179,7 @@
         <div v-if="getCrewMember('Writer', false)" class="writers">
           <h4>Writer<span v-if="multipleEntries(getCrewMember('Writer', false))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Writer', false)" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+            <a v-for="(name, index) in getCrewMember('Writer', false)" :key="index" class="link" @click.stop="searchFor(name)">
               {{name}}<span v-if="index !== getCrewMember('Writer', false).length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -188,7 +188,7 @@
         <div v-if="getCrewMember('Composer')" class="composers">
           <h4>Composer<span v-if="multipleEntries(getCrewMember('Composer'))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Composer')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+            <a v-for="(name, index) in getCrewMember('Composer')" :key="index" class="link" @click.stop="searchFor(name)">
               {{name}}<span v-if="index !== getCrewMember('Composer').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -197,7 +197,7 @@
         <div v-if="getCrewMember('Editor').length" class="editors">
           <h4>Editor<span v-if="multipleEntries(getCrewMember('Editor'))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Editor')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+            <a v-for="(name, index) in getCrewMember('Editor')" :key="index" class="link" @click.stop="searchFor(name)">
               {{name}}<span v-if="index !== getCrewMember('Editor').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -206,7 +206,7 @@
         <div v-if="getCrewMember('Photo').length" class="cinematographers">
           <h4>Cinematographer<span v-if="multipleEntries(getCrewMember('Photo'))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Photo')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+            <a v-for="(name, index) in getCrewMember('Photo')" :key="index" class="link" @click.stop="searchFor(name)">
               {{name}}<span v-if="index !== getCrewMember('Photo').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -215,7 +215,7 @@
         <div v-if="topStructure(result).cast.length" class="cast">
           <h4>Cast</h4>
           <p class="long-list">
-            <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor('cast/crew', castMember.name)">
+            <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor(castMember.name)">
               {{castMember.name}}<span v-if="index !== topStructure(result).cast.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -224,7 +224,7 @@
         <div v-if="topStructure(result).production_companies.length" class="production-companies">
           <h4>Production <span v-if="multipleEntries(turnArrayIntoList(topStructure(result).production_companies, 'name'))">Companies</span><span v-else>Company</span></h4>
           <p class="long-list">
-            <a v-for="(productionCompany, index) in topStructure(result).production_companies" :key="index" class="link" @click.stop="searchFor('studios', productionCompany.name)">
+            <a v-for="(productionCompany, index) in topStructure(result).production_companies" :key="index" class="link" @click.stop="searchFor(productionCompany.name)">
               {{productionCompany.name}}<span v-if="index !== topStructure(result).production_companies.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -233,7 +233,7 @@
         <div v-if="getCrewMember('Producer').length" class="producers">
           <h4>Producer<span v-if="multipleEntries(getCrewMember('Producer'))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Producer')" :key="index" class="link" @click.stop="searchFor('cast/crew', name)">
+            <a v-for="(name, index) in getCrewMember('Producer')" :key="index" class="link" @click.stop="searchFor(name)">
               {{name}}<span v-if="index !== getCrewMember('Producer').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -277,7 +277,7 @@ export default {
       required: false,
       default: ""
     },
-    searchType: {
+    activeQuickLinkList: {
       type: String,
       required: false,
       default: ""
@@ -541,8 +541,8 @@ export default {
 
       return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
-    updateSearchValue (searchType, value) {
-      this.$emit('updateSearchValue', { searchType: searchType, value });
+    updateSearchValue (value) {
+      this.$emit('updateSearchValue', value);
     },
     topStructure (result) {
       if (this.currentLogIsTVLog) {
@@ -581,8 +581,8 @@ export default {
 
       return `https://en.m.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
     },
-    searchFor (searchType, term) {
-      this.updateSearchValue(searchType, term);
+    searchFor (term) {
+      this.updateSearchValue(term);
 
       window.scroll({
         top: top,

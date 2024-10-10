@@ -678,8 +678,8 @@ export default {
       const h = r * 0x10000 + g * 0x100 + b * 0x1;
       return '#' + ('000000' + h.toString(16)).slice(-6);
     },
-    updateSearchValue (searchObject) {
-      this.$emit('updateSearchValue', searchObject);
+    updateSearchValue (value) {
+      this.$emit('updateSearchValue', value);
     },
     toggleTooltip (type) {
       this.tooltips[type] = !this.tooltips[type];

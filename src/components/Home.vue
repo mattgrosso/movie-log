@@ -4,7 +4,7 @@
       <div class="input-group mb-1 col-12 md-col-6">
         <input
           class="form-control"
-          :class="{'has-content': value || searchType || filterValue}"
+          :class="{'has-content': value}"
           ref="searchInput"
           type="text"
           autocapitalize="none"
@@ -18,10 +18,10 @@
           @blur="decreaseFontSize"
           v-model="value"
         >
-        <span v-if="value || (searchType && filterValue)" class="clear-button" @click.prevent="clearValueSearchTypeAndFilterValue">
+        <span v-if="value" class="clear-button" @click.prevent="clearValue">
           <i class="bi bi-x-circle"/>
         </span>
-        <span v-if="searchType && filterValue" class="more-info-button" @click.prevent="goToWikipedia">
+        <span v-if="value" class="more-info-button" @click.prevent="goToWikipedia">
           <i class="bi bi-wikipedia"/>
         </span>
       </div>
@@ -55,7 +55,7 @@
                 <span class="average-label">(views)</span>
                 <span class="average-value">{{viewsCount(filteredResults)}}</span>
               </span>
-              <span v-else-if="searchType === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
+              <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
               <span v-else>{{filteredResults.length}}</span>
             </button>
             <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
@@ -64,7 +64,7 @@
             <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion">
               <i class="bi bi-lightning-charge"/>
             </button>
-            <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchTypeAndFilterValue">
+            <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchValue">
               <i class="bi bi-shuffle"/>
             </button>
             <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -111,42 +111,42 @@
               <div>
                 <span
                   class="badge mx-1"
-                  :class="searchType === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
+                  :class="activeQuickLinkList === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleAnnualBestFilter"
                 >
                   Annual Best
                 </span>
                 <span
                   class="badge mx-1"
-                  :class="searchType === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
+                  :class="activeQuickLinkList === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleBestPicturesFilter"
                 >
                   Best Picture
                 </span>
                 <span
                   class="badge mx-1"
-                  :class="searchType === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
+                  :class="activeQuickLinkList === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleQuickLinksList('genre')"
                 >
                   Genres
                 </span>
                 <span
                   class="badge mx-1"
-                  :class="searchType === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
+                  :class="activeQuickLinkList === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleQuickLinksList('keyword')"
                 >
                   Keywords
                 </span>
                 <span
                   class="badge mx-1"
-                  :class="searchType === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
+                  :class="activeQuickLinkList === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleQuickLinksList('year')"
                 >
                   Years
                 </span>
                 <span
                   class="badge mx-1"
-                  :class="searchType === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
+                  :class="activeQuickLinkList === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleQuickLinksList('director')"
                 >
                   <span v-if="currentLogIsTVLog">Creators</span>
@@ -154,20 +154,20 @@
                 </span>
                 <span
                   class="badge mx-1"
-                  :class="searchType === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
+                  :class="activeQuickLinkList === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleQuickLinksList('cast/crew')"
                 >
                   Cast/Crew Members
                 </span>
                 <span
                   class="badge mx-1"
-                  :class="searchType === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
+                  :class="activeQuickLinkList === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleQuickLinksList('studios')"
                 >
                   Studios
                 </span>
               </div>
-              <div v-if="sortedDataListForSearchType.length" class="quick-links-list-wrapper mt-2">
+              <div v-if="sortedDataForActiveQuickLinkList.length" class="quick-links-list-wrapper mt-2">
                 <div class="accordion-body col-12">
                   <button
                     class="quick-links-list-sort"
@@ -177,7 +177,7 @@
                     {{quickLinksSortType}}
                   </button>
                   <ul class="quick-link-list p-0 col-12">
-                    <li v-for="(value, index) in sortedDataListForSearchType" :key="index" @click="updateFilterValue(value.name)">
+                    <li v-for="(value, index) in sortedDataForActiveQuickLinkList" :key="index" @click="updateSearchValue(value.name)">
                       <span class="badge mx-1" :class="darkOrLight">
                         {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
                       </span>
@@ -227,7 +227,7 @@
             :index="index"
             :resultsAreFiltered="resultsAreFiltered"
             :sortValue="sortValue"
-            :searchType="searchType"
+            :activeQuickLinkList="activeQuickLinkList"
             @updateSearchValue="updateSearchValue"
           />
         </ul>
@@ -264,7 +264,7 @@
         <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
       </div>
     </div>
-    <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValueSearchTypeAndFilterValue="clearValueSearchTypeAndFilterValue"/>
+    <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValue="clearValue"/>
     <div v-else class="d-flex justify-content-center align-items-center my-5">
       <div class="spinner-border text-light" role="status">
         <span class="visually-hidden">Loading...</span>
@@ -304,8 +304,7 @@ export default {
     return {
       sortOrder: "ascending",
       value: "",
-      searchType: "title",
-      filterValue: "",
+      activeQuickLinkList: "title",
       sortValue: null,
       quickLinksSortType: "count",
       numberOfResultsToShow: 54,
@@ -320,10 +319,6 @@ export default {
     }
   },
   watch: {
-    value: debounce(function (newVal) {
-      this.updateFilterValue("");
-      this.updateSearchType("title");
-    }, 300),
     DBSearchValue (newVal) {
       if (newVal || newVal === "") {
         this.value = newVal;
@@ -502,38 +497,17 @@ export default {
       return !this.currentLogIsTVLog && hasTiedResults && noTieBreakYetToday;
     },
     filteredResults () {
-      if (this.searchType === "annual") {
+      if (this.activeQuickLinkList === "annual") {
         this.$store.commit("setDBSortValue", "release");
         return this.bestMovieFromEachYear;
-      } else if (this.searchType === "bestPicture") {
+      } else if (this.activeQuickLinkList === "bestPicture") {
         this.$store.commit("setDBSortValue", "release");
         return this.bestPictures;
-      } else if (!this.filterValue) {
+      } else if (this.value) {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.fuzzyFilter;
-      } else if (this.searchType === "keyword") {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.keywordFilter;
-      } else if (this.searchType === "genre") {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.genreFilter;
-      } else if (this.searchType === "year") {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "release");
-        return this.fuzzyFilter;
-      } else if (this.searchType === "director") {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.directorFilter;
-      } else if (this.searchType === "cast/crew") {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.castCrewFilter;
-      } else if (this.searchType === "studios") {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.studioFilter;
-      } else if (this.searchType === "mediums") {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.mediumFilter;
       } else {
-        return [];
+        return this.allEntriesWithFlatKeywordsAdded;
       }
     },
     fuzzyFilter  () {
@@ -552,16 +526,6 @@ export default {
         crew.includes(this.value.toLowerCase()) ||
         this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.value.toLowerCase()) ||
         (this.yearFilter.length && this.yearFilter.includes(`${this.getYear(media)}`));
-      })
-    },
-    keywordFilter () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return this.topStructure(media).flatKeywords?.includes(this.filterValue.toLowerCase());
-      })
-    },
-    genreFilter () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.filterValue.toLowerCase());
       })
     },
     yearFilter () {
@@ -617,42 +581,6 @@ export default {
       }
 
       return parsedYears;
-    },
-    directorFilter () {
-      if (this.currentLogIsTVLog) {
-        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          return media.tvShow.created_by?.map((person) => person.name.toLowerCase()).join(" ").includes(this.filterValue.toLowerCase());
-        })
-      } else {
-        return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-          return media.movie.crew?.find((person) => person.job === "Director").name.toLowerCase() === this.filterValue.toLowerCase();
-        })
-      }
-    },
-    castCrewFilter () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        const cast = this.topStructure(media).cast?.map((person, index) => person.name.toLowerCase()) || [];
-        const crew = this.topStructure(media).crew?.map((person, index) => person.name.toLowerCase()) || [];
-        const castCrewCombined = [...cast, ...crew];
-
-        return castCrewCombined.includes(this.filterValue.toLowerCase());
-      })
-    },
-    studioFilter () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.filterValue.toLowerCase());
-      })
-    },
-    mediumFilter () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        return media.ratings.some((rating) => {
-          if (!rating.medium) {
-            return false;
-          } else {
-            return rating.medium.toLowerCase().includes(this.filterValue.toLowerCase())
-          }
-        });
-      });
     },
     bestMovieFromEachYear () {
       const years = {};
@@ -731,7 +659,7 @@ export default {
       return this.bestPictures.filter((result) => !result.falseEntry);
     },
     showResultsList () {
-      return Boolean(this.paginatedSortedResults.length) || this.searchType !== "title";
+      return Boolean(this.paginatedSortedResults.length) || this.activeQuickLinkList !== "title";
     },
     sortedResults () {
       return [...this.filteredResults].sort(this.sortResults);
@@ -748,27 +676,27 @@ export default {
     paginatedSortedResults () {
       return this.sortedResults.slice(0, this.numberOfResultsToShow);
     },
-    datalistForSearchType () {
-      if (this.searchType === "keyword") {
+    datalistForActiveQuickLink () {
+      if (this.activeQuickLinkList === "keyword") {
         return this.allKeywords;
-      } else if (this.searchType === "genre") {
+      } else if (this.activeQuickLinkList === "genre") {
         return this.allGenres;
-      } else if (this.searchType === "year") {
+      } else if (this.activeQuickLinkList === "year") {
         return this.allYears;
-      } else if (this.searchType === "director") {
+      } else if (this.activeQuickLinkList === "director") {
         return this.allDirectors;
-      } else if (this.searchType === "cast/crew") {
+      } else if (this.activeQuickLinkList === "cast/crew") {
         return this.allCastCrew;
-      } else if (this.searchType === "studios") {
+      } else if (this.activeQuickLinkList === "studios") {
         return this.allStudios;
-      } else if (this.searchType === "mediums") {
+      } else if (this.activeQuickLinkList === "mediums") {
         return this.allMediums;
       } else {
         return [];
       }
     },
-    sortedDataListForSearchType () {
-      const data = [...this.datalistForSearchType];
+    sortedDataForActiveQuickLinkList () {
+      const data = [...this.datalistForActiveQuickLink];
 
       if (this.quickLinksSortType === "a-z") {
         return data.sort((a, b) => a.name.localeCompare(b.name));
@@ -1009,17 +937,13 @@ export default {
       return counts;
     },
     resultsAreFiltered () {
-      return Boolean(this.value || this.filterValue);
+      return Boolean(this.value);
     },
     placeholder () {
-      if (this.searchType && this.filterValue) {
-        return `${this.toTitleCase(this.searchType)}: ${this.toTitleCase(this.filterValue)}`;
-      } else if (this.searchType === 'annual') {
+      if (this.activeQuickLinkList === 'annual') {
         return "The best of each year";
-      } else if (this.searchType === 'bestPicture') {
+      } else if (this.activeQuickLinkList === 'bestPicture') {
         return "The Best Picture winners";
-      } else if (this.searchType !== 'title') {
-        return `Search within ${this.searchType}...`;
       } else {
         return "Search...";
       }
@@ -1046,7 +970,7 @@ export default {
       });
     },
     toggleMovieTV () {
-      this.clearValueSearchTypeAndFilterValue();
+      this.clearValue();
       this.$store.dispatch('toggleCurrentLog');
     },
     checkResultsAndFindFilter () {
@@ -1056,7 +980,7 @@ export default {
       const isNotInTVMode = !this.currentLogIsTVLog;
 
       if (allowRandom && hasResults && hasNotCalledFindFilter && isNotInTVMode) {
-        this.findRandomSearchTypeAndFilterValue();
+        this.findRandomSearchValue();
         this.hasCalledFindFilter = true;
       }
     },
@@ -1065,16 +989,15 @@ export default {
 
       return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
-    findRandomSearchTypeAndFilterValue () {
+    findRandomSearchValue () {
       this.$router.push({ query: { ...this.$route.query, returnFromRating: undefined } });
-      const searchTypes = ["keyword", "genre", "year", "director", "cast/crew", "studios"];
-      const randomSearchType = searchTypes[Math.floor(Math.random() * searchTypes.length)];
-      this.updateSearchType(randomSearchType);
+      const countedLists = ["keyword", "genre", "year", "director", "cast/crew", "studios"];
+      const randomList = countedLists[Math.floor(Math.random() * countedLists.length)];
 
       const minimumCount = 3;
 
       let counts;
-      switch (randomSearchType) {
+      switch (randomList) {
         case "keyword":
           counts = this.countedKeywords;
           break;
@@ -1095,20 +1018,20 @@ export default {
           break;
       }
 
-      const filterValues = Object.keys(counts);
-      let randomFilterValue;
+      const valuesFromRandomCountedList = Object.keys(counts);
+      let randomValue;
       let safetyLimit = 100;
 
       do {
-        const randomIndex = Math.floor(Math.random() * filterValues.length);
-        randomFilterValue = filterValues[randomIndex];
+        const randomIndex = Math.floor(Math.random() * valuesFromRandomCountedList.length);
+        randomValue = valuesFromRandomCountedList[randomIndex];
         safetyLimit--;
-      } while (counts[randomFilterValue] <= minimumCount && safetyLimit > 0);
+      } while (counts[randomValue] <= minimumCount && safetyLimit > 0);
 
-      if (randomFilterValue && safetyLimit > 0) {
-        this.updateFilterValue(randomFilterValue);
+      if (randomValue && safetyLimit > 0) {
+        this.updateSearchValue(randomValue);
       } else {
-        this.clearValueSearchTypeAndFilterValue();
+        this.clearValue();
       }
     },
     async wikiLinkFor (searchValue) {
@@ -1120,29 +1043,7 @@ export default {
       return `https://en.m.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
     },
     async goToWikipedia () {
-      let curatedSearchType;
-
-      if (this.searchType === "keyword") {
-        curatedSearchType = "";
-      } else if (this.searchType === "genre") {
-        curatedSearchType = "film genre";
-      } else if (this.searchType === "year") {
-        curatedSearchType = "film in";
-      } else if (this.searchType === "director") {
-        curatedSearchType = "";
-      } else if (this.searchType === "cast/crew") {
-        curatedSearchType = "";
-      } else if (this.searchType === "studios") {
-        curatedSearchType = "film studio";
-      } else if (this.searchType === "mediums") {
-        curatedSearchType = "";
-      } else {
-        curatedSearchType = "";
-      }
-
-      const searchValue = `${curatedSearchType} ${this.filterValue}`;
-
-      this.insetBrowserUrl = await this.wikiLinkFor(searchValue);
+      this.insetBrowserUrl = await this.wikiLinkFor(this.value);
       this.showInsetBrowserModal = true;
     },
     async getDirectorsFilmography (director) {
@@ -1160,21 +1061,12 @@ export default {
 
       return minimizedCredits;
     },
-    clearValueSearchTypeAndFilterValue () {
+    clearValue () {
       this.value = "";
-      this.searchType = "title";
-      this.filterValue = "";
     },
-    updateFilterValue (filterValue) {
-      this.filterValue = filterValue.toString();
-    },
-    updateSearchType (searchType) {
-      this.filterValue = "";
-      this.searchType = searchType;
-    },
-    updateSearchValue (searchObject) {
-      this.updateSearchType(searchObject.searchType);
-      this.updateFilterValue(searchObject.value);
+    updateSearchValue (value) {
+      this.value = value;
+
       this.$refs.insightsAccordion?.classList.remove("show");
     },
     toggleQuickLinksSort () {
@@ -1185,28 +1077,28 @@ export default {
       }
     },
     toggleQuickLinksList (name) {
-      if (this.searchType === name || !name) {
-        this.updateSearchType('title');
+      if (this.activeQuickLinkList === name || !name) {
+        this.activeQuickLinkList = "title";
 
         this.$refs.QuickLinksAccordion?.classList.remove("show");
       } else {
-        this.updateSearchType(name);
+        this.activeQuickLinkList = name;
 
         this.$refs.QuickLinksAccordion?.classList.add("show");
       }
     },
     toggleAnnualBestFilter () {
-      if (this.searchType === "annual") {
-        this.updateSearchType('title');
+      if (this.activeQuickLinkList === "annual") {
+        this.activeQuickLinkList = "title";
       } else {
-        this.updateSearchType('annual');
+        this.activeQuickLinkList = "annual";
       }
     },
     toggleBestPicturesFilter () {
-      if (this.searchType === "bestPicture") {
-        this.updateSearchType('title');
+      if (this.activeQuickLinkList === "bestPicture") {
+        this.activeQuickLinkList = "title";
       } else {
-        this.updateSearchType('bestPicture');
+        this.activeQuickLinkList = "bestPicture";
       }
     },
     inputValueFilter (results) {
@@ -1345,7 +1237,7 @@ export default {
 
       setTimeout(() => {
         this.noResults = false;
-        this.clearValueSearchTypeAndFilterValue();
+        this.clearValue();
       }, 3000);
     },
     addMoreResults () {

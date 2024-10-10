@@ -63,22 +63,18 @@ export default {
   },
   methods: {
     handleKeywordClick (event) {
-      this.searchFor('keyword', event.target.innerText);
+      this.searchFor(event.target.innerText);
     },
-    searchFor (searchType, term) {
-      this.updateSearchValue(searchType, term);
+    searchFor (term) {
+      this.updateSearchValue(term);
 
       window.scroll({
         top: top,
         behavior: 'smooth'
       })
     },
-    updateSearchValue (searchType, value) {
-      const searchObject = {
-        searchType: searchType,
-        value: value
-      }
-      this.$emit('updateSearchValue', searchObject);
+    updateSearchValue (value) {
+      this.$emit('updateSearchValue', value);
     },
     wordCLoudColors (word) {
       const brightness = document.querySelector("body").classList.contains("bg-light") ? "dark" : "light";
