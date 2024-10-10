@@ -516,14 +516,17 @@ export default {
           return true;
         }
 
-        const cast = this.topStructure(media).cast?.map((person, index) => person.name.toLowerCase()) || [];
-        const crew = this.topStructure(media).crew?.map((person, index) => person.name.toLowerCase()) || [];
-
         return this.topStructure(media).title.toLowerCase().includes(this.value.toLowerCase()) ||
         this.topStructure(media).flatKeywords?.includes(this.value.toLowerCase()) ||
         this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.value.toLowerCase()) ||
-        cast.includes(this.value.toLowerCase()) ||
-        crew.includes(this.value.toLowerCase()) ||
+        this.topStructure(media).cast?.flatMap((person) => {
+          const names = person.name.toLowerCase().split(' ');
+          return [person.name.toLowerCase(), ...names];
+        }).includes(this.value.toLowerCase()) ||
+        this.topStructure(media).crew?.flatMap((person) => {
+          const names = person.name.toLowerCase().split(' ');
+          return [person.name.toLowerCase(), ...names];
+        }).includes(this.value.toLowerCase()) ||
         this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.value.toLowerCase()) ||
         (this.yearFilter.length && this.yearFilter.includes(`${this.getYear(media)}`));
       })
