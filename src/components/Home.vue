@@ -73,6 +73,12 @@
               <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
               <i v-if="sortValue === 'title'" class="bi bi-alphabet"></i>
               <i v-if="sortValue === 'views'" class="bi bi-eye"></i>
+              <i v-if="sortValue === 'direction'" class="bi bi-dpad"></i>
+              <i v-if="sortValue === 'imagery'" class="bi bi-image"></i>
+              <i v-if="sortValue === 'story'" class="bi bi-book"></i>
+              <i v-if="sortValue === 'performance'" class="bi bi-speedometer"></i>
+              <i v-if="sortValue === 'soundtrack'" class="bi bi-music-note-beamed"></i>
+              <i v-if="sortValue === 'stickiness'" class="bi bi-sticky"></i>
               <span class="order-arrow">
                 <i v-if="sortOrder !== 'ascending'" class="bi bi-arrow-down-short"/>
                 <i v-if="sortOrder === 'ascending'" class="bi bi-arrow-up-short"/>
@@ -101,6 +107,36 @@
                 <li value="views">
                   <button class="dropdown-item" :class="{active: sortValue === 'views'}" @click="setSortValue('views')">
                     Views
+                  </button>
+                </li>
+                <li value="direction">
+                  <button class="dropdown-item" :class="{active: sortValue === 'direction'}" @click="setSortValue('direction')">
+                    Direction
+                  </button>
+                </li>
+                <li value="imagery">
+                  <button class="dropdown-item" :class="{active: sortValue === 'imagery'}" @click="setSortValue('imagery')">
+                    Imagery
+                  </button>
+                </li>
+                <li value="story">
+                  <button class="dropdown-item" :class="{active: sortValue === 'story'}" @click="setSortValue('story')">
+                    Story
+                  </button>
+                </li>
+                <li value="performance">
+                  <button class="dropdown-item" :class="{active: sortValue === 'performance'}" @click="setSortValue('performance')">
+                    Performance
+                  </button>
+                </li>
+                <li value="soundtrack">
+                  <button class="dropdown-item" :class="{active: sortValue === 'soundtrack'}" @click="setSortValue('soundtrack')">
+                    Soundtrack
+                  </button>
+                </li>
+                <li value="stickiness">
+                  <button class="dropdown-item" :class="{active: sortValue === 'stickiness'}" @click="setSortValue('stickiness')">
+                    Stickiness
                   </button>
                 </li>
               </ul>
@@ -201,7 +237,6 @@
                 v-if="!this.currentLogIsTVLog"
                 :results="filteredResults"
                 :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-                :sortOrder="sortOrder"
                 :allCounts="allCounts"
                 @updateSearchValue="updateSearchValue"
               />
@@ -255,7 +290,7 @@
             <p>Either you're from the future or maybe you just spelled it wrong.</p>
           </div>
           <div v-else class="button-wrapper d-flex justify-content-end">
-            <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">It's another {{movieOrTVShowDisplay}} called {{titleCase(value)}}</button>
+            <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">Search TMDB for {{titleCase(value)}}</button>
           </div>
         </div>
       </div>
@@ -302,7 +337,7 @@ export default {
   },
   data () {
     return {
-      sortOrder: "ascending",
+      sortOrder: "descending",
       value: "",
       activeQuickLinkList: "title",
       sortValue: null,
@@ -327,11 +362,6 @@ export default {
     DBSortValue (newVal) {
       if (newVal) {
         this.setSortValue(newVal)
-      }
-    },
-    DBSortOrder (newVal) {
-      if (newVal) {
-        this.sortOrder = newVal;
       }
     },
     paginatedSortedResults (newVal, oldVal) {
@@ -365,21 +395,15 @@ export default {
 
     if (this.$route.query.movieDbKey) {
       this.$store.commit("setDBSortValue", "watched");
-    }
-
-    if (this.DBSortOrder) {
-      this.sortOrder = this.DBSortOrder;
-    } else {
       this.sortOrder = "ascending";
     }
   },
   beforeRouteLeave () {
-    this.sortOrder = "ascending";
+    this.sortOrder = "descending";
     this.setSortValue(null);
     this.value = "";
     this.$store.commit("setDBSearchValue", this.value);
     this.$store.commit("setDBSortValue", this.sortValue);
-    this.$store.commit("setDBSortOrder", this.sortOrder);
   },
   computed: {
     darkOrLight () {
@@ -409,22 +433,6 @@ export default {
     },
     DBSortValue () {
       return this.$store.state.DBSortValue;
-    },
-    DBSortOrder () {
-      return this.$store.state.DBSortOrder;
-    },
-    sortValueDisplay () {
-      if (this.sortValue === "rating") {
-        return "Rank";
-      } else if (this.sortValue === "watched") {
-        return "Watched";
-      } else if (this.sortValue === "release") {
-        return "Release";
-      } else if (this.sortValue === "title") {
-        return "Title";
-      } else {
-        return "Sort By";
-      }
     },
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
@@ -1127,56 +1135,50 @@ export default {
         this.sortValue = value;
       }
     },
-    sortResults (a, b) {
-      let sortValueA;
-      let sortValueB;
-
-      if (!this.sortValue || this.sortValue === "rating") {
-        sortValueA = this.mostRecentRating(a).calculatedTotal;
-        sortValueB = this.mostRecentRating(b).calculatedTotal;
-      } else if (this.sortValue === "release") {
-        if (this.currentLogIsTVLog) {
-          sortValueA = new Date(a.tvShow.first_air_date);
-          sortValueB = new Date(b.tvShow.first_air_date);
-        } else {
-          sortValueA = new Date(a.movie.release_date);
-          sortValueB = new Date(b.movie.release_date);
-        }
-      } else if (this.sortValue === "title") {
-        if (this.currentLogIsTVLog) {
-          sortValueA = a.tvShow.name;
-          sortValueB = b.tvShow.name;
-        } else {
-          sortValueA = a.movie.title;
-          sortValueB = b.movie.title;
-        }
-      } else if (this.sortValue === "watched") {
-        const dateA = this.mostRecentRating(a).date || "3/22/1982";
-        const dateB = this.mostRecentRating(b).date || "3/22/1982";
-
-        sortValueA = new Date(dateA);
-        sortValueB = new Date(dateB);
-      } else if (this.sortValue === "views") {
-        sortValueA = a.ratings.length;
-        sortValueB = b.ratings.length;
+    getSortValue (item, key) {
+      if (key === "rating") {
+        return this.mostRecentRating(item).calculatedTotal;
+      } else if (key === "release") {
+        return new Date(this.currentLogIsTVLog ? item.tvShow.first_air_date : item.movie.release_date);
+      } else if (key === "title") {
+        return this.currentLogIsTVLog ? item.tvShow.name : item.movie.title;
+      } else if (key === "watched") {
+        const date = this.mostRecentRating(item).date || "3/22/1982";
+        return new Date(date);
+      } else if (key === "views") {
+        return item.ratings.length;
       } else {
-        sortValueA = 0;
-        sortValueB = 0;
+        const keyScore = parseInt(this.mostRecentRating(item)[key]);
+        const keysToCompare = ["direction", "imagery", "impression", "love", "performance", "soundtrack", "stickiness", "story"];
+        const isKeyScoreHighestScore = keysToCompare.some((keyToCompare) => {
+          const keyToCompareScore = parseInt(this.mostRecentRating(item)[keyToCompare]);
+          return keyToCompareScore >= keyScore;
+        });
+        return isKeyScoreHighestScore ? keyScore : 0;
+      }
+    },
+    sortResults (a, b) {
+      const sortValueA = this.getSortValue(a, this.sortValue || "rating");
+      const sortValueB = this.getSortValue(b, this.sortValue || "rating");
+
+      if (sortValueA === sortValueB) {
+        const secondarySortValueA = this.mostRecentRating(a).calculatedTotal;
+        const secondarySortValueB = this.mostRecentRating(b).calculatedTotal;
+
+        if (secondarySortValueA < secondarySortValueB) {
+          return this.sortOrder === "ascending" ? 1 : -1;
+        }
+        if (secondarySortValueA > secondarySortValueB) {
+          return this.sortOrder === "ascending" ? -1 : 1;
+        }
+        return 0;
       }
 
       if (sortValueA < sortValueB) {
-        if (this.sortOrder === "ascending") {
-          return 1;
-        } else {
-          return -1;
-        }
+        return this.sortOrder === "ascending" ? 1 : -1;
       }
       if (sortValueA > sortValueB) {
-        if (this.sortOrder === "ascending") {
-          return -1;
-        } else {
-          return 1;
-        }
+        return this.sortOrder === "ascending" ? -1 : 1;
       }
 
       return 0;

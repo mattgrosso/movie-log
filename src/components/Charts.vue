@@ -222,10 +222,6 @@ export default {
       type: Array,
       required: true
     },
-    sortOrder: {
-      type: String,
-      required: true
-    },
     allCounts: {
       type: Object,
       required: true
