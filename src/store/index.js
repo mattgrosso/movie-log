@@ -134,6 +134,11 @@ export default createStore({
     allMediaSortedByRating: (state, getters) => {
       return getters.allMediaAsArray.sort(sortByRating);
     },
+    allMediaRatingsArray: (state, getters) => {
+      return getters.allMediaAsArray.map((media) => {
+        return mostRecentRating(media).calculatedTotal;
+      });
+    },
     databaseTopKey (state, getters) {
       return getters.devMode ? state.devModeTopKey : state.databaseTopKey;
     },

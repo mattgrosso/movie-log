@@ -1,5 +1,8 @@
 import store from '../../store/index';
 
+let allRatings = store.getters.allMediaRatingsArray;
+console.log('first allRatings: ', allRatings);
+
 const currentLogIsTVLog = () => {
   return store.state.currentLog === "tvLog";
 }
@@ -30,9 +33,29 @@ const calculatePostStickyRatingFor = (rating) => {
   const stickiness = store.getters.weight("stickiness") * parseFloat(cleanStickiness);
 
   const total = direction + imagery + story + performance + soundtrack + love + overall + stickiness;
+  const calculatedTotal = parseFloat((total / 10).toFixed(2));
+
+  if (!allRatings.length) {
+    allRatings = store.getters.allMediaRatingsArray;
+  }
+
+  let normalizedRating;
+
+  if (allRatings.length) {
+    const minRating = Math.min(...allRatings);
+    const maxRating = Math.max(...allRatings);
+
+    normalizedRating = ((calculatedTotal - minRating) / (maxRating - minRating)) * 10;
+
+    // Ensure the normalized rating is an integer
+    const normalizedRatingInt = Math.round(normalizedRating);
+    normalizedRating = normalizedRatingInt;
+  }
+
   return {
     ...rating,
-    calculatedTotal: parseFloat((total / 10).toFixed(2))
+    calculatedTotal: calculatedTotal,
+    normalizedRating: normalizedRating
   }
 }
 

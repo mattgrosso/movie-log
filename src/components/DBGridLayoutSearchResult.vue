@@ -38,11 +38,17 @@
     </template>
     <template v-slot:body>
       <div class="details-modal-body col-12">
-        <div class="runtime-and-date">
-          <h3>{{prettifyRuntime(result)}}</h3>
-          <h3>
-            <a class="link mx-2" @click.stop="searchFor(`${getYear(result)}`)">{{getYear(result)}}</a>
-          </h3>
+
+        <div class="rating-runtime-and-date">
+          <div class="line-one">
+            <h3>
+              <a class="link" @click.stop="searchFor(`${getYear(result)}`)">{{getYear(result)}}</a>
+            </h3>
+            <ToggleableRating :rating="ratingForMedia(result)" :normalizedRating="normalizedRatingForMedia(result)"/>
+          </div>
+          <div class="line-two">
+            <h3>{{prettifyRuntime(result)}}</h3>
+          </div>
         </div>
 
         <div class="details-actions">
@@ -251,6 +257,7 @@ import minBy from 'lodash/minBy';
 import EpisodeRatingsChart from './EpisodeRatingsChart.vue';
 import Modal from './Modal.vue';
 import InsetBrowserModal from './InsetBrowserModal.vue';
+import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 
 export default {
@@ -297,7 +304,8 @@ export default {
   components: {
     EpisodeRatingsChart,
     Modal,
-    InsetBrowserModal
+    InsetBrowserModal,
+    ToggleableRating
   },
   watch: {
     async showDetailsModal (val) {
@@ -680,6 +688,9 @@ export default {
     ratingForMedia (result) {
       return this.mostRecentRating(result).calculatedTotal;
     },
+    normalizedRatingForMedia (result) {
+      return this.mostRecentRating(result).normalizedRating;
+    },
     mostRecentRating (media) {
       return getRating(media);
     },
@@ -825,13 +836,16 @@ export default {
           margin-bottom: 1rem;
         }
 
-        .runtime-and-date {
-          display: flex;
-          justify-content: space-between;
+        .rating-runtime-and-date {
           margin-bottom: 1rem;
 
-          h3 {
-            margin: 0;
+          .line-one {
+            display: flex;
+            justify-content: space-between;
+
+            h3 {
+              margin: 0;
+            }
           }
         }
 
