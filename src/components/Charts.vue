@@ -157,19 +157,6 @@
       </div>
 
       <div class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingCalendarHeatMap">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseCalendarHeatMap" aria-expanded="true" aria-controls="panelsStayOpen-collapseCalendarHeatMap">
-            Calendar Heat Map
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseCalendarHeatMap" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingCalendarHeatMap">
-          <div class="accordion-body" :class="darkOrLight">
-            <CalendarHeatMap :results="results"/>
-          </div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingFullCalendar">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseFullCalendar" aria-expanded="true" aria-controls="panelsStayOpen-collapseFullCalendar" @click="fullCalendarAccordionOpen = !fullCalendarAccordionOpen">
             Full Calendar
@@ -207,7 +194,6 @@ import sortBy from 'lodash/sortBy';
 import randomColor from 'randomcolor';
 import moment from 'moment';
 import KeywordCloud from "./KeywordCloud.vue";
-import CalendarHeatMap from "./CalendarHeatMap.vue";
 import FullCalendarView from "./FullCalendarView.vue";
 
 Chart.register(...registerables);
@@ -234,7 +220,6 @@ export default {
     ScatterChart,
     RadarChart,
     KeywordCloud,
-    CalendarHeatMap,
     FullCalendarView
   },
   data () {
@@ -732,14 +717,6 @@ export default {
             }
           }
         }
-      }
-    }
-
-    #panelsStayOpen-collapseCalendarHeatMap {
-      overflow: hidden;
-
-      .accordion-body {
-        width: 120%;
       }
     }
   }

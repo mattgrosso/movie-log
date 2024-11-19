@@ -14,8 +14,8 @@
           id="search"
           :placeholder="placeholder"
           style="font-size: 0.75rem;"
-          @focus="increaseFontSize"
-          @blur="decreaseFontSize"
+          @focus="focusOnSearchBar"
+          @blur="blurSearchBar"
           v-model="value"
         >
         <span v-if="value" class="clear-button" @click.prevent="clearValue">
@@ -259,6 +259,7 @@
             :key="topStructure(result).id"
             :result="result"
             :keywordCounts="allCounts.keywords"
+            :allCounts="allCounts"
             :index="index"
             :resultsAreFiltered="resultsAreFiltered"
             :sortValue="sortValue"
@@ -1297,15 +1298,18 @@ export default {
         }
       );
     },
-    increaseFontSize (event) {
+    focusOnSearchBar (event) {
       event.target.classList.add('font-size-increased');
       event.target.style.fontSize = '16px';
-      // event.target.style.margin = '-6px 0 0';
+
+      // Select the text if there is any text in the input
+      if (event.target.value) {
+        event.target.select();
+      }
     },
-    decreaseFontSize (event) {
+    blurSearchBar (event) {
       event.target.classList.remove('font-size-increased');
       event.target.style.fontSize = '12px';
-      // event.target.style.margin = '0';
     },
   },
 }
@@ -1347,7 +1351,7 @@ export default {
         display: flex;
         height: 60px;
         justify-content: center;
-        left: 0px;
+        right: 0px;
         position: absolute;
         top: 50%;
         transform: translateY(-50%);
@@ -1362,7 +1366,7 @@ export default {
         display: flex;
         height: 40px;
         justify-content: center;
-        right: 0px;
+        left: 0px;
         position: absolute;
         top: 50%;
         transform: translateY(-50%);
