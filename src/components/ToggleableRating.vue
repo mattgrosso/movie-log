@@ -5,7 +5,7 @@
     </div>
     <div v-else-if="visibleRatingType === 'normalizedRating'" class="normalized-rating">
       <h3 class="m-0">{{ normalizedRating }}</h3>
-      <label>(normalized rating)</label>
+      <label @click.stop="cycleVisibleRatingType">(normalized rating)</label>
     </div>
     <div v-else-if="visibleRatingType === 'stars'" class="stars">
       <div v-if="hasAnyStars" class="has-stars">
@@ -40,7 +40,7 @@ export default {
   },
   computed: {
     starCount () {
-      return this.rating / 2;
+      return this.normalizedRating / 2;
     },
     fullStars () {
       return Math.floor(this.starCount);
@@ -76,6 +76,8 @@ export default {
     display: flex;
     font-size: 1.25rem;
     height: 36px;
+    justify-content: flex-end;
+    min-width: 100px;
     position: relative;
 
     .stars {
@@ -99,6 +101,7 @@ export default {
 
       label {
         align-items: center;
+        cursor: pointer;
         display: flex;
         font-size: 0.5rem;
         margin-left: 0.25rem;
