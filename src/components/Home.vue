@@ -202,6 +202,15 @@
                 >
                   Studios
                 </span>
+                <span
+                  v-for="(tag, index) in tags"
+                  :key="index"
+                  class="badge mx-1"
+                  :class="value === tag ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleQuickLinksList(tag)"
+                >
+                  {{tag}}
+                </span>
               </div>
               <div v-if="sortedDataForActiveQuickLinkList.length" class="quick-links-list-wrapper mt-2">
                 <div class="accordion-body col-12">
@@ -412,6 +421,13 @@ export default {
 
       return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
     },
+    tags() {
+      if (this.$store.state?.settings?.tags?.['viewing-tags']) {
+        return Object.values(this.$store.state.settings.tags['viewing-tags']).map(tag => tag.title);
+      } else {
+        return [];
+      }
+    },
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
@@ -512,6 +528,9 @@ export default {
       } else if (this.activeQuickLinkList === "bestPicture") {
         this.$store.commit("setDBSortValue", "release");
         return this.bestPictures;
+      } else if (this.tags.includes(this.activeQuickLinkList)) {
+        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
+        return this.matchingTags;
       } else if (this.value) {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.fuzzyFilter;
@@ -666,6 +685,11 @@ export default {
       });
 
       return bestPictureWinnersWithRatingStatus;
+    },
+    matchingTags () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        return result.ratings.map((rating) => rating.tags || []).flat().map((tag) => tag.title).includes(this.activeQuickLinkList);
+      });
     },
     bestPicturesWithRatings () {
       return this.bestPictures.filter((result) => !result.falseEntry);
@@ -1088,13 +1112,18 @@ export default {
         this.quickLinksSortType = "a-z";
       }
     },
-    toggleQuickLinksList (name) {
-      if (this.activeQuickLinkList === name || !name) {
+    toggleQuickLinksList (value) {
+      if (this.activeQuickLinkList === value || !value) {
         this.activeQuickLinkList = "title";
-
+        this.updateSearchValue("");
         this.$refs.QuickLinksAccordion?.classList.remove("show");
+      } else if (this.tags && this.tags.includes(value)) {
+        this.activeQuickLinkList = value;
+        this.sortOrder = "ascending";
+
+        this.updateSearchValue(value);
       } else {
-        this.activeQuickLinkList = name;
+        this.activeQuickLinkList = value;
 
         this.$refs.QuickLinksAccordion?.classList.add("show");
       }
