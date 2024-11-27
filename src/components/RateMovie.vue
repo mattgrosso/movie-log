@@ -585,7 +585,7 @@ export default {
       stickiness: null,
       love: null,
       overall: null,
-      date: new Date().toISOString().substr(0, 10),
+      date: new Date().toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'),
       id: null,
       loading: false,
       medium: "",

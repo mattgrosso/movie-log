@@ -7,7 +7,7 @@
   >
     <img
       class="poster"
-      :src="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
+      v-lazy="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
     >
     <div class="details">
       <span v-if="activeQuickLinkList === 'bestPicture'">

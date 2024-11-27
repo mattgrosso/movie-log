@@ -1,6 +1,6 @@
 <template>
   <div class="home p-3 pt-4 mx-auto">
-    <div class="search-bar mx-auto">
+    <div v-if="$store.state.dbLoaded" class="search-bar mx-auto">
       <div class="input-group mb-1 col-12 md-col-6">
         <input
           class="form-control"
@@ -18,7 +18,7 @@
           @blur="blurSearchBar"
           v-model="value"
         >
-        <span v-if="value" class="clear-button" @click.prevent="clearValue">
+        <span v-if="value" class="clear-button" @click.prevent="clearValue" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
           <i class="bi bi-x-circle"/>
         </span>
         <span v-if="value" class="more-info-button" @click.prevent="goToWikipedia">
@@ -301,7 +301,7 @@
       </div>
     </div>
     <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValue="clearValue"/>
-    <div v-else class="d-flex justify-content-center align-items-center my-5">
+    <div v-else class="loading-screen d-flex justify-content-center align-items-center my-5">
       <div class="spinner-border text-light" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
@@ -1311,6 +1311,12 @@ export default {
       event.target.classList.remove('font-size-increased');
       event.target.style.fontSize = '12px';
     },
+    handleTouchStart (event) {
+      event.target.classList.add('touch-active');
+    },
+    handleTouchEnd (event) {
+      event.target.classList.remove('touch-active');
+    },
   },
 }
 </script>
@@ -1357,6 +1363,31 @@ export default {
         transform: translateY(-50%);
         width: 40px;
         z-index: 5;
+        overflow: hidden;
+      }
+
+      .clear-button::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 200%;
+        height: 200%;
+        background-color: rgba(0, 0, 0, 0.1);
+        transform: translate(-50%, -50%) scale(0);
+        transition: transform 0.5s ease-out;
+        border-radius: 50%;
+      }
+
+      .clear-button:active::before {
+        transform: translate(-50%, -50%) scale(1);
+      }
+
+      .clear-button:hover,
+      .clear-button:focus,
+      .clear-button.touch-active {
+        background-color: rgba(0, 0, 0, 0.1);
+        height: 30px;
       }
 
       .more-info-button {
@@ -1754,6 +1785,10 @@ export default {
           }
         }
       }
+    }
+
+    .loading-screen {
+      height: 75vh;
     }
 
     .btn {
