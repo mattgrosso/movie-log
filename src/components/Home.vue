@@ -198,7 +198,7 @@
                 >
                   Studios
                 </span>
-                <hr>
+                <hr class="m-0 mt-1">
                 <span
                   v-for="(tag, index) in tags"
                   :key="index"
