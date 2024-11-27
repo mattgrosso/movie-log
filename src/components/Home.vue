@@ -42,10 +42,6 @@
                 <span class="visually-hidden">Loading...</span>
               </div>
             </button>
-            <button class="results-actions-button btn btn-danger" @click="gridLayout = !gridLayout">
-              <i v-if="gridLayout" class="bi bi-view-list"/>
-              <i v-else class="bi bi-grid-1x2"/>
-            </button>
             <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage">
               <span v-if="showAverage">
                 <span class="average-label">(avg)</span>
@@ -262,7 +258,7 @@
           :showTweakModal="showTweakModal"
           :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
         />
-        <ul v-if="gridLayout" class="grid-layout pb-3" :class="listCountClasses">
+        <ul class="grid-layout pb-3" :class="listCountClasses">
           <DBGridLayoutSearchResult
             v-for="(result, index) in paginatedSortedResults"
             :key="topStructure(result).id"
@@ -273,16 +269,6 @@
             :resultsAreFiltered="resultsAreFiltered"
             :sortValue="sortValue"
             :activeQuickLinkList="activeQuickLinkList"
-            @updateSearchValue="updateSearchValue"
-          />
-        </ul>
-        <ul v-else>
-          <DBSearchResult
-            v-for="(result, index) in paginatedSortedResults"
-            :key="topStructure(result).id"
-            :result="result"
-            :index="index"
-            :resultsAreFiltered="resultsAreFiltered"
             @updateSearchValue="updateSearchValue"
           />
         </ul>
@@ -325,7 +311,6 @@ import uniq from 'lodash/uniq';
 import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
 import Charts from "./Charts.vue";
-import DBSearchResult from './DBSearchResult.vue';
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
 import StickinessModal from "./StickinessModal.vue";
@@ -337,7 +322,6 @@ import { getRating } from "../assets/javascript/GetRating.js";
 export default {
   components: {
     Charts,
-    DBSearchResult,
     DBGridLayoutSearchResult,
     NewRatingSearch,
     InsetBrowserModal,
@@ -347,7 +331,7 @@ export default {
   },
   data () {
     return {
-      sortOrder: "descending",
+      sortOrder: "ascending",
       value: "",
       activeQuickLinkList: "title",
       sortValue: null,
@@ -355,7 +339,6 @@ export default {
       numberOfResultsToShow: 54,
       sharing: false,
       noResults: false,
-      gridLayout: true,
       hasCalledFindFilter: false,
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
@@ -1498,27 +1481,27 @@ export default {
             }
 
             &:nth-child(4) {
-              background-color: #2EC4B6; /* Green */
+              background-color: #24d776; /* Green */
               color: black;
             }
 
             &:nth-child(5) {
-              background-color: #00FFFF; /* Cyan */
+              background-color: #1D8BF1; /* Blue */
               color: black;
             }
-
+            
             &:nth-child(6) {
-              background-color: #1D8BF1; /* Medium Blue */
-              color: white;
-            }
-
-            &:nth-child(7) {
               background-color: #5A189A; /* Indigo */
               color: white;
             }
-
+            
+            &:nth-child(7) {
+              background-color: #cd7fe8; /* Violet */
+              color: white;
+            }
+            
             &:nth-child(8) {
-              background-color: #9D4EDD; /* Violet */
+              background-color: #00FFFF; /* Cyan */
               color: white;
             }
           }
