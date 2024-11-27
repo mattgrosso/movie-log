@@ -57,7 +57,7 @@
             <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
               <i class="bi bi-lightbulb"/>
             </button>
-            <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion">
+            <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion">
               <i class="bi bi-lightning-charge"/>
             </button>
             <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchValue">
@@ -198,6 +198,7 @@
                 >
                   Studios
                 </span>
+                <hr>
                 <span
                   v-for="(tag, index) in tags"
                   :key="index"
@@ -331,7 +332,7 @@ export default {
   },
   data () {
     return {
-      sortOrder: "ascending",
+      sortOrder: "descending",
       value: "",
       activeQuickLinkList: "title",
       sortValue: null,
@@ -1095,12 +1096,18 @@ export default {
         this.quickLinksSortType = "a-z";
       }
     },
+    toggleQuickLinksAccordion (event) {
+      if (event.delegateTarget.classList.contains("collapsed")) {
+        this.updateSearchValue(null);
+        this.activeQuickLinkList = "title";
+      }
+    },
     toggleQuickLinksList (value) {
       if (this.activeQuickLinkList === value || !value) {
         this.activeQuickLinkList = "title";
         this.updateSearchValue("");
         this.$refs.QuickLinksAccordion?.classList.remove("show");
-      } else if (this.tags && this.tags.includes(value)) {
+      } else if (this.tags?.includes(value)) {
         this.activeQuickLinkList = value;
         this.sortOrder = "ascending";
 
