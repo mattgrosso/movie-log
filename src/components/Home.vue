@@ -404,7 +404,7 @@ export default {
 
       return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
     },
-    tags() {
+    tags () {
       if (this.$store.state?.settings?.tags?.['viewing-tags']) {
         return Object.values(this.$store.state.settings.tags['viewing-tags']).map(tag => tag.title);
       } else {
@@ -1489,17 +1489,17 @@ export default {
               background-color: #1D8BF1; /* Blue */
               color: black;
             }
-            
+
             &:nth-child(6) {
               background-color: #5A189A; /* Indigo */
               color: white;
             }
-            
+
             &:nth-child(7) {
               background-color: #cd7fe8; /* Violet */
               color: white;
             }
-            
+
             &:nth-child(8) {
               background-color: #00FFFF; /* Cyan */
               color: white;
