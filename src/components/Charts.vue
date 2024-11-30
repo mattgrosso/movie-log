@@ -1,6 +1,36 @@
 <template>
   <div class="charts">
     <div class="accordion" id="chartsAccordion">
+      <div v-if="results.length > 50"  class="accordion-item" >
+        <h2 class="accordion-header" id="panelsStayOpen-outlliers">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseOutlliers" aria-expanded="true" aria-controls="panelsStayOpen-collapseOutlliers">
+            Outliers
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseOutlliers" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-outlliers">
+          <div class="accordion-body" :class="darkOrLight">
+            <Outliers class="chart" :resultsWithRatings="resultsWithRatings" :allCounts="allCounts" @updateSearchValue="updateSearchValue"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="panelsStayOpen-headingViewingCounts">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseViewingCounts" aria-expanded="true" aria-controls="panelsStayOpen-collapseViewingCounts">
+            Viewing Counts
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseViewingCounts" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingViewingCounts">
+          <div class="accordion-body" :class="darkOrLight">
+            <p>This week you've watched {{ moviesWatchedThisWeek }} movies. Last week you watched {{ moviesWatchedLastWeek }}.</p>
+            <p>You've watched {{ moviesWatchedThisMonth }} movies in {{ moment().format('MMMM') }}. You watched {{ moviesWatchedLastMonth }} in {{ moment().subtract(1, 'months').format('MMMM') }}.</p>
+            <p>So far in {{ moment().format('YYYY') }} you've watched {{ moviesWatchedThisYear }}.</p>
+            <p>You're on track to watch {{ estimatedMoviesThisYear }} this year.</p>
+            <p>Last year you watched a total of {{ moviesWatchedLastYear }}.</p>
+          </div>
+        </div>
+      </div>
+
       <div v-if="results.length > 9" class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingDistribution">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseDistribution" aria-expanded="true" aria-controls="panelsStayOpen-collapseDistribution">
@@ -10,6 +40,19 @@
         <div id="panelsStayOpen-collapseDistribution" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingDistribution">
           <div class="accordion-body" :class="darkOrLight">
             <LineChart class="chart" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item" >
+        <h2 class="accordion-header" id="panelsStayOpen-yearlyAverage">
+          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseYearlyAverage" aria-expanded="true" aria-controls="panelsStayOpen-collapseYearlyAverage">
+            Yearly Averages
+          </button>
+        </h2>
+        <div id="panelsStayOpen-collapseYearlyAverage" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-yearlyAverage">
+          <div class="accordion-body" :class="darkOrLight">
+            <YearlyAverage class="chart" :resultsWithRatings="resultsWithRatings"/>
           </div>
         </div>
       </div>
@@ -140,23 +183,6 @@
       </div>
 
       <div class="accordion-item">
-        <h2 class="accordion-header" id="panelsStayOpen-headingViewingCounts">
-          <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseViewingCounts" aria-expanded="true" aria-controls="panelsStayOpen-collapseViewingCounts">
-            Viewing Counts
-          </button>
-        </h2>
-        <div id="panelsStayOpen-collapseViewingCounts" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingViewingCounts">
-          <div class="accordion-body" :class="darkOrLight">
-            <p>This week you've watched {{ moviesWatchedThisWeek }} movies. Last week you watched {{ moviesWatchedLastWeek }}.</p>
-            <p>You've watched {{ moviesWatchedThisMonth }} movies in {{ moment().format('MMMM') }}. You watched {{ moviesWatchedLastMonth }} in {{ moment().subtract(1, 'months').format('MMMM') }}.</p>
-            <p>So far in {{ moment().format('YYYY') }} you've watched {{ moviesWatchedThisYear }}.</p>
-            <p>You're on track to watch {{ estimatedMoviesThisYear }} this year.</p>
-            <p>Last year you watched a total of {{ moviesWatchedLastYear }}.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingFullCalendar">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseFullCalendar" aria-expanded="true" aria-controls="panelsStayOpen-collapseFullCalendar" @click="fullCalendarAccordionOpen = !fullCalendarAccordionOpen">
             Full Calendar
@@ -193,6 +219,8 @@ import { Chart, registerables } from "chart.js";
 import sortBy from 'lodash/sortBy';
 import randomColor from 'randomcolor';
 import moment from 'moment';
+import YearlyAverage from "./YearlyAverage.vue";
+import Outliers from "./Outliers.vue";
 import KeywordCloud from "./KeywordCloud.vue";
 import FullCalendarView from "./FullCalendarView.vue";
 
@@ -219,6 +247,8 @@ export default {
     DoughnutChart,
     ScatterChart,
     RadarChart,
+    YearlyAverage,
+    Outliers,
     KeywordCloud,
     FullCalendarView
   },

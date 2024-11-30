@@ -1087,6 +1087,12 @@ export default {
     updateSearchValue (value) {
       this.value = value;
 
+      window.scroll({
+        top: 0,
+        left: 0,
+        behavior: 'instant'
+      });
+
       this.$refs.insightsAccordion?.classList.remove("show");
     },
     toggleQuickLinksSort () {

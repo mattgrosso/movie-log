@@ -1,7 +1,6 @@
 import store from '../../store/index';
 
 let allRatings = store.getters.allMediaRatingsArray;
-console.log('first allRatings: ', allRatings);
 
 const currentLogIsTVLog = () => {
   return store.state.currentLog === "tvLog";
