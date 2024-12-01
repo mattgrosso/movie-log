@@ -10,7 +10,8 @@
           <span v-if="outlier.type !== 'Crewmember'">{{ outlier.type }}&nbsp;</span>
           <span v-if="outlier.type === 'Keyword'">"</span>{{ outlier.name }}<span v-if="outlier.type === 'Keyword'">"</span>
         </span>
-        <span class="badge bg-primary rounded-pill">{{ outlier.average.toFixed(2) }}</span>
+        <span v-if="outlier.average.toFixed(2) > 6" class="badge bg-success rounded-pill">{{ outlier.average.toFixed(2) }}</span>
+        <span v-if="outlier.average.toFixed(2) <= 6" class="badge bg-danger rounded-pill">{{ outlier.average.toFixed(2) }}</span>
       </li>
     </ul>
   </div>
