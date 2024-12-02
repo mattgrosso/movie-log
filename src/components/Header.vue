@@ -45,7 +45,8 @@ export default {
       if (mediaArray.length === 0) return null; // Handle empty array case
 
       const onlyRatedOverSix = mediaArray.filter((media) => {
-        return this.mostRecentRating(media).calculatedTotal > 6;
+        const mostRecentRating = this.mostRecentRating(media);
+        return mostRecentRating && mostRecentRating.calculatedTotal > 6;
       });
 
       if (onlyRatedOverSix.length > 0) {
