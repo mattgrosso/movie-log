@@ -157,6 +157,34 @@
                 </span>
                 <span
                   class="badge mx-1"
+                  :class="activeQuickLinkList === 'thisYear' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleThisYearFilter"
+                >
+                  This Year
+                </span>
+                <span
+                  class="badge mx-1"
+                  :class="activeQuickLinkList === 'lastYear' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleLastYearFilter"
+                >
+                  Last Year
+                </span>
+                <span
+                  class="badge mx-1"
+                  :class="activeQuickLinkList === 'thisMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleThisMonthFilter"
+                >
+                  This Month
+                </span>
+                <span
+                  class="badge mx-1"
+                  :class="activeQuickLinkList === 'lastMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleLastMonthFilter"
+                >
+                  Last Month
+                </span>
+                <span
+                  class="badge mx-1"
                   :class="activeQuickLinkList === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
                   @click="toggleQuickLinksList('genre')"
                 >
@@ -198,16 +226,24 @@
                 >
                   Studios
                 </span>
-                <hr class="m-0 mt-1">
-                <span
-                  v-for="(tag, index) in tags"
-                  :key="index"
-                  class="badge mx-1"
-                  :class="value === tag ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleQuickLinksList(tag)"
-                >
-                  {{tag}}
-                </span>
+                <hr>
+                <div class="tags-quicklinks">
+                  <p data-bs-toggle="collapse" data-bs-target="#tagsCollapse" aria-expanded="false" aria-controls="tagsCollapse">
+                    Tags
+                    <i class="bi bi-caret-right-fill"/>
+                  </p>
+                  <div class="collapse" id="tagsCollapse">
+                    <span
+                      v-for="(tag, index) in tags"
+                      :key="index"
+                      class="badge mx-1"
+                      :class="value === tag ? 'text-bg-success' : 'text-bg-secondary'"
+                      @click="toggleQuickLinksList(tag)"
+                    >
+                      {{tag}}
+                    </span>
+                  </div>
+                </div>
               </div>
               <div v-if="sortedDataForActiveQuickLinkList.length" class="quick-links-list-wrapper mt-2">
                 <div class="accordion-body col-12">
@@ -337,7 +373,7 @@ export default {
       activeQuickLinkList: "title",
       sortValue: null,
       quickLinksSortType: "count",
-      numberOfResultsToShow: 54,
+      numberOfResultsToShow: 25,
       sharing: false,
       noResults: false,
       hasCalledFindFilter: false,
@@ -512,6 +548,18 @@ export default {
       } else if (this.activeQuickLinkList === "bestPicture") {
         this.$store.commit("setDBSortValue", "release");
         return this.bestPictures;
+      } else if (this.activeQuickLinkList === "thisYear") {
+        this.$store.commit("setDBSortValue", "rating");
+        return this.thisYearsMovies;
+      } else if (this.activeQuickLinkList === "lastYear") {
+        this.$store.commit("setDBSortValue", "rating");
+        return this.lastYearsMovies;
+      } else if (this.activeQuickLinkList === "thisMonth") {
+        this.$store.commit("setDBSortValue", "rating");
+        return this.thisMonthsMovies;
+      } else if (this.activeQuickLinkList === "lastMonth") {
+        this.$store.commit("setDBSortValue", "rating");
+        return this.lastMonthsMovies;
       } else if (this.tags.includes(this.activeQuickLinkList)) {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         return this.matchingTags;
@@ -669,6 +717,66 @@ export default {
       });
 
       return bestPictureWinnersWithRatingStatus;
+    },
+    thisYearsMovies () {
+      const currentYear = new Date().getFullYear();
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingYear === currentYear;
+        }
+
+        return false;
+      });
+    },
+    lastYearsMovies () {
+      const lastYear = new Date().getFullYear() - 1;
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingYear === lastYear;
+        }
+
+        return false;
+      });
+    },
+    thisMonthsMovies () {
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingMonth = new Date(parseInt(mostRecentRating.date)).getMonth();
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingMonth === currentMonth && ratingYear === currentYear;
+        }
+
+        return false;
+      });
+    },
+    lastMonthsMovies () {
+      const lastMonth = new Date().getMonth() - 1;
+      const currentYear = new Date().getFullYear();
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingMonth = new Date(parseInt(mostRecentRating.date)).getMonth();
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingMonth === lastMonth && ratingYear === currentYear;
+        }
+
+        return false;
+      });
     },
     matchingTags () {
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
@@ -1050,6 +1158,7 @@ export default {
 
       if (randomValue && safetyLimit > 0) {
         this.updateSearchValue(randomValue);
+        this.sortOrder = "ascending";
       } else {
         this.clearValue();
       }
@@ -1125,6 +1234,8 @@ export default {
       }
     },
     toggleAnnualBestFilter () {
+      this.clearValue();
+
       if (this.activeQuickLinkList === "annual") {
         this.activeQuickLinkList = "title";
       } else {
@@ -1132,10 +1243,48 @@ export default {
       }
     },
     toggleBestPicturesFilter () {
+      this.clearValue();
+
       if (this.activeQuickLinkList === "bestPicture") {
         this.activeQuickLinkList = "title";
       } else {
         this.activeQuickLinkList = "bestPicture";
+      }
+    },
+    toggleThisYearFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "thisYear") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "thisYear";
+      }
+    },
+    toggleLastYearFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "lastYear") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "lastYear";
+      }
+    },
+    toggleThisMonthFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "thisMonth") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "thisMonth";
+      }
+    },
+    toggleLastMonthFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "lastMonth") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "lastMonth";
       }
     },
     inputValueFilter (results) {
@@ -1541,6 +1690,34 @@ export default {
           span {
             cursor: pointer;
             font-size: 0.75rem;
+          }
+
+          hr {
+            margin: 14px 0 10px;
+          }
+
+          .tags-quicklinks {
+            position: relative;
+
+            p {
+              background: #212529;
+              cursor: pointer;
+              font-size: 0.75rem;
+              padding: 0 10px 0 7px;
+              position: absolute;
+              right: 0;
+              top: -22px;
+
+              &[aria-expanded="true"] {
+                .bi-caret-right-fill::before {
+                  transform: rotate(90deg);
+                }
+              }
+
+              .bi-caret-right-fill::before {
+                transition: transform .5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+              }
+            }
           }
 
           .quick-links-list-wrapper {
