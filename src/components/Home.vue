@@ -76,8 +76,8 @@
               <i v-if="sortValue === 'soundtrack'" class="bi bi-music-note-beamed"></i>
               <i v-if="sortValue === 'stickiness'" class="bi bi-sticky"></i>
               <span class="order-arrow">
-                <i v-if="sortOrder !== 'ascending'" class="bi bi-arrow-down-short"/>
-                <i v-if="sortOrder === 'ascending'" class="bi bi-arrow-up-short"/>
+                <i v-if="sortOrder !== 'bestOrNewestOnTop'" class="bi bi-arrow-down-short"/>
+                <i v-if="sortOrder === 'bestOrNewestOnTop'" class="bi bi-arrow-up-short"/>
               </span>
               <ul class="dropdown-menu">
                 <li value="rating">
@@ -368,7 +368,7 @@ export default {
   },
   data () {
     return {
-      sortOrder: "descending",
+      sortOrder: "bestOrNewestOnTop",
       value: "",
       activeQuickLinkList: "title",
       sortValue: null,
@@ -425,11 +425,11 @@ export default {
 
     if (this.$route.query.movieDbKey) {
       this.$store.commit("setDBSortValue", "watched");
-      this.sortOrder = "ascending";
+      this.sortOrder = "bestOrNewestOnTop";
     }
   },
   beforeRouteLeave () {
-    this.sortOrder = "descending";
+    this.sortOrder = "bestOrNewestOnTop";
     this.setSortValue(null);
     this.value = "";
     this.$store.commit("setDBSearchValue", this.value);
@@ -795,7 +795,7 @@ export default {
     sortedByRating () {
       const allMediaSortedByRating = this.$store.getters.allMediaSortedByRating;
 
-      if (this.sortOrder === 'ascending') {
+      if (this.sortOrder === 'bestOrNewestOnTop') {
         return allMediaSortedByRating;
       } else {
         return allMediaSortedByRating.slice().reverse();
@@ -1158,7 +1158,7 @@ export default {
 
       if (randomValue && safetyLimit > 0) {
         this.updateSearchValue(randomValue);
-        this.sortOrder = "ascending";
+        this.sortOrder = "bestOrNewestOnTop";
       } else {
         this.clearValue();
       }
@@ -1224,7 +1224,7 @@ export default {
         this.$refs.QuickLinksAccordion?.classList.remove("show");
       } else if (this.tags?.includes(value)) {
         this.activeQuickLinkList = value;
-        this.sortOrder = "ascending";
+        this.sortOrder = "bestOrNewestOnTop";
 
         this.updateSearchValue(value);
       } else {
@@ -1297,10 +1297,10 @@ export default {
       })
     },
     toggleSortOrder () {
-      if (this.sortOrder === "ascending") {
-        this.sortOrder = "descending";
+      if (this.sortOrder === "bestOrNewestOnTop") {
+        this.sortOrder = "worstOrOldestOnTop";
       } else {
-        this.sortOrder = "ascending";
+        this.sortOrder = "bestOrNewestOnTop";
       }
     },
     setSortValue (value) {
@@ -1341,19 +1341,19 @@ export default {
         const secondarySortValueB = this.mostRecentRating(b).calculatedTotal;
 
         if (secondarySortValueA < secondarySortValueB) {
-          return this.sortOrder === "ascending" ? 1 : -1;
+          return this.sortOrder === "bestOrNewestOnTop" ? 1 : -1;
         }
         if (secondarySortValueA > secondarySortValueB) {
-          return this.sortOrder === "ascending" ? -1 : 1;
+          return this.sortOrder === "bestOrNewestOnTop" ? -1 : 1;
         }
         return 0;
       }
 
       if (sortValueA < sortValueB) {
-        return this.sortOrder === "ascending" ? 1 : -1;
+        return this.sortOrder === "bestOrNewestOnTop" ? 1 : -1;
       }
       if (sortValueA > sortValueB) {
-        return this.sortOrder === "ascending" ? -1 : 1;
+        return this.sortOrder === "bestOrNewestOnTop" ? -1 : 1;
       }
 
       return 0;
