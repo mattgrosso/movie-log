@@ -40,4 +40,12 @@ module.exports = defineConfig({
       clientsClaim: true,
     },
   },
+  css: {
+    loaderOptions: {
+      sass: {
+        // Use the new API
+        implementation: require('sass'),
+      },
+    },
+  },
 })
