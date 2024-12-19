@@ -1,5 +1,4 @@
 import axios from 'axios';
-import cheerio from "cheerio";
 import store from '../../store/index';
 
 const getTMDBData = async (rating) => {
@@ -30,41 +29,6 @@ const getTMDBData = async (rating) => {
     ...creditsResp.data,
     keywords: keywordsResp.data.keywords || keywordsResp.data.results
   }
-}
-
-const getIMDBData = async (id) => {
-  if (!id) {
-    return null;
-  }
-
-  let resp;
-
-  try {
-    resp = await axios.get(`https://fast-refuge-34363.herokuapp.com/www.imdb.com/title/${id}/awards`);
-  } catch (error) {
-    console.log(error);
-    return;
-  }
-
-  const $ = cheerio.load(resp.data);
-
-  const oscarWins = $("h3:contains('Oscar [Winner]')").parent().next().text();
-  const oscarNoms = $("h3:contains('Oscar [Nominee]')").parent().next().text();
-
-  const BAFTAWins = $("h3:contains('BAFTA Film Award [Winner]')").parent().next().text();
-  const BAFTANoms = $("h3:contains('BAFTA Film Award [Nominee]')").parent().next().text();
-
-  const GoldGlobeWins = $("h3:contains('Golden Globe [Winner]')").parent().next().text();
-  const GoldGlobeNoms = $("h3:contains('Golden Globe [Nominee]')").parent().next().text();
-
-  return {
-    oscarWins: parseScrapedAwards(oscarWins),
-    oscarNoms: parseScrapedAwards(oscarNoms),
-    BAFTAWins: parseScrapedAwards(BAFTAWins),
-    BAFTANoms: parseScrapedAwards(BAFTANoms),
-    GoldGlobeWins: parseScrapedAwards(GoldGlobeWins),
-    GoldGlobeNoms: parseScrapedAwards(GoldGlobeNoms)
-  };
 }
 
 const parseScrapedAwards = (string) => {
@@ -240,7 +204,6 @@ const addMovieRating = async (ratings, movieTags) => {
   });
 
   const tmdbData = await getTMDBData(ratings[0]);
-  const imdbData = await getIMDBData(tmdbData.imdb_id);
 
   let crew;
   let cast;
@@ -274,7 +237,6 @@ const addMovieRating = async (ratings, movieTags) => {
     release_date: tmdbData ? tmdbData.release_date : null,
     runtime: tmdbData ? tmdbData.runtime : null,
     title: tmdbData ? tmdbData.title : "",
-    awards: imdbData || null,
     tags: movieTags || [],
     keywords: tmdbData ? tmdbData.keywords : [],
     chatGPTKeywords: chatGPTKeywords
