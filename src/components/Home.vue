@@ -81,57 +81,57 @@
               </span>
               <ul class="dropdown-menu">
                 <li value="rating">
-                  <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setSortValue('rating')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setOrToggleSortValue('rating')">
                     Rating
                   </button>
                 </li>
                 <li value="watched">
-                  <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setSortValue('watched')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setOrToggleSortValue('watched')">
                     Watch Date
                   </button>
                 </li>
                 <li value="release">
-                  <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setSortValue('release')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setOrToggleSortValue('release')">
                     Release Date
                   </button>
                 </li>
                 <li value="title">
-                  <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setSortValue('title')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setOrToggleSortValue('title')">
                     Title
                   </button>
                 </li>
                 <li value="views">
-                  <button class="dropdown-item" :class="{active: sortValue === 'views'}" @click="setSortValue('views')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'views'}" @click="setOrToggleSortValue('views')">
                     Views
                   </button>
                 </li>
                 <li value="direction">
-                  <button class="dropdown-item" :class="{active: sortValue === 'direction'}" @click="setSortValue('direction')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'direction'}" @click="setOrToggleSortValue('direction')">
                     Direction
                   </button>
                 </li>
                 <li value="imagery">
-                  <button class="dropdown-item" :class="{active: sortValue === 'imagery'}" @click="setSortValue('imagery')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'imagery'}" @click="setOrToggleSortValue('imagery')">
                     Imagery
                   </button>
                 </li>
                 <li value="story">
-                  <button class="dropdown-item" :class="{active: sortValue === 'story'}" @click="setSortValue('story')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'story'}" @click="setOrToggleSortValue('story')">
                     Story
                   </button>
                 </li>
                 <li value="performance">
-                  <button class="dropdown-item" :class="{active: sortValue === 'performance'}" @click="setSortValue('performance')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'performance'}" @click="setOrToggleSortValue('performance')">
                     Performance
                   </button>
                 </li>
                 <li value="soundtrack">
-                  <button class="dropdown-item" :class="{active: sortValue === 'soundtrack'}" @click="setSortValue('soundtrack')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'soundtrack'}" @click="setOrToggleSortValue('soundtrack')">
                     Soundtrack
                   </button>
                 </li>
                 <li value="stickiness">
-                  <button class="dropdown-item" :class="{active: sortValue === 'stickiness'}" @click="setSortValue('stickiness')">
+                  <button class="dropdown-item" :class="{active: sortValue === 'stickiness'}" @click="setOrToggleSortValue('stickiness')">
                     Stickiness
                   </button>
                 </li>
@@ -436,6 +436,9 @@ export default {
     this.$store.commit("setDBSortValue", this.sortValue);
   },
   computed: {
+    isMatt () {
+      return this.$store.state.databaseTopKey === "mattgrosso-gmail-com";
+    },
     darkOrLight () {
       const inDarkMode = document.querySelector("body").classList.contains('bg-dark');
 
@@ -1298,16 +1301,23 @@ export default {
     },
     toggleSortOrder () {
       if (this.sortOrder === "bestOrNewestOnTop") {
-        this.sortOrder = "worstOrOldestOnTop";
+        this.setSortOrder("worstOrOldestOnTop");
       } else {
-        this.sortOrder = "bestOrNewestOnTop";
+        this.setSortOrder("bestOrNewestOnTop");
       }
     },
+    setSortOrder (order) {
+      this.sortOrder = order;
+    },
     setSortValue (value) {
+      this.sortValue = value;
+    },
+    setOrToggleSortValue (value) {
       if (this.sortValue === value) {
         this.toggleSortOrder();
       } else {
-        this.sortValue = value;
+        this.setSortValue(value);
+        this.setSortOrder("bestOrNewestOnTop");
       }
     },
     getSortValue (item, key) {
