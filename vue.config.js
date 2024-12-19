@@ -48,4 +48,5 @@ module.exports = defineConfig({
       },
     },
   },
+  lintOnSave: false, // Disable linting on save
 })
