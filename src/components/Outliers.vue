@@ -89,20 +89,20 @@ export default {
     },
     outlierDirectors () {
       const averages = this.directorsAverages.map(director => director.average);
-    
+
       if (averages.length === 0) {
         return [];
       }
-    
+
       const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
       const stdDev = Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length);
-    
+
       // Define a threshold for outliers (e.g., 2 standard deviations from the mean)
       const threshold = this.threshold * stdDev;
-    
+
       // Filter for the directors that are considered outliers
       const outliers = this.directorsAverages.filter(director => Math.abs(director.average - mean) > threshold);
-    
+
       return outliers.sort((a, b) => b.average - a.average);
     },
     castCrewAverages () {
