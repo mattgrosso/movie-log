@@ -5,7 +5,7 @@
         <img
           v-if="media.poster_path"
           class="card-img-top"
-          :src="`https://image.tmdb.org/t/p/original${media.poster_path}`"
+          :src="`https://image.tmdb.org/t/p/w500${media.poster_path}`"
           align="center"
         >
         <img

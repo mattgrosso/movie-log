@@ -20,7 +20,7 @@
     <div v-if="currentLogIsTVLog && recentlyRatedTVShows.length && tvLogHasEntries" class="last-three-shows mt-4">
       <ul>
         <li v-for="(tvShow, index) in recentlyRatedTVShows" :key="index" class="col-3" @click="reRate(tvShow)">
-          <img :src="`https://image.tmdb.org/t/p/original${tvShow.poster_path}`" :alt="`${tvShow.name} poster`">
+          <img :src="`https://image.tmdb.org/t/p/w500${tvShow.poster_path}`" :alt="`${tvShow.name} poster`">
           <RatingChangeRibbon :tvShow="tvShow"/>
         </li>
       </ul>

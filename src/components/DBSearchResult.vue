@@ -11,7 +11,7 @@
       <img
         class="col-12"
         @click.stop="goToWikipedia(result)"
-        :src="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
+        :src="`https://image.tmdb.org/t/p/w500${topStructure(result).poster_path}`"
       >
     </div>
     <div class="details px-3 col-7">

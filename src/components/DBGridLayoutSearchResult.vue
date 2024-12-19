@@ -8,7 +8,7 @@
     <img
       class="poster"
       v-lazy="{
-        src: `https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`,
+        src: `https://image.tmdb.org/t/p/w500${topStructure(result).poster_path}`,
         loading: placeholderImage
       }"
     >
@@ -37,7 +37,7 @@
   <Modal class="details-modal" :show="showDetailsModal" @close="showDetailsModal = false">
     <template v-slot:header>
       <h2>{{topStructure(result).title}}</h2>
-      <img :src="`https://image.tmdb.org/t/p/original${topStructure(result).backdrop_path}`" alt="Movie backdrop">
+      <img :src="`https://image.tmdb.org/t/p/w500${topStructure(result).backdrop_path}`" alt="Movie backdrop">
     </template>
     <template v-slot:body>
       <div class="details-modal-body col-12">

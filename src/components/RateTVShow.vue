@@ -577,7 +577,7 @@ export default {
     },
     rateBannerUrl () {
       if (this.tvShowToRate) {
-        return `https://image.tmdb.org/t/p/original${this.tvShowToRate.backdrop_path}`;
+        return `https://image.tmdb.org/t/p/w500${this.tvShowToRate.backdrop_path}`;
       } else {
         return false;
       }

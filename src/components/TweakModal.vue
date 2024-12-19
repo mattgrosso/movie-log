@@ -11,12 +11,12 @@
           <div class="posters">
             <div class="poster first-movie" @click="firstResultWins">
               <div class="mat">
-                <img :src="`https://image.tmdb.org/t/p/original${topStructure(firstResult).poster_path}`" :alt="topStructure(firstResult).title">
+                <img :src="`https://image.tmdb.org/t/p/w500${topStructure(firstResult).poster_path}`" :alt="topStructure(firstResult).title">
               </div>
             </div>
             <div class="poster second-movie" @click="secondResultWins">
               <div class="mat">
-                <img :src="`https://image.tmdb.org/t/p/original${topStructure(secondResult).poster_path}`" :alt="topStructure(secondResult).title">
+                <img :src="`https://image.tmdb.org/t/p/w500${topStructure(secondResult).poster_path}`" :alt="topStructure(secondResult).title">
               </div>
             </div>
           </div>

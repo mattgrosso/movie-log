@@ -58,7 +58,7 @@ export default {
 
       const topStructure = this.topStructure(randomMedia);
       if (topStructure && topStructure.backdrop_path) {
-        return `https://image.tmdb.org/t/p/original${topStructure.backdrop_path}`;
+        return `https://image.tmdb.org/t/p/w500${topStructure.backdrop_path}`;
       } else {
         return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
       }

@@ -121,7 +121,7 @@ export default {
     },
     shareBannerUrl () {
       if (this.shareObject.results) {
-        return `https://image.tmdb.org/t/p/original${this.shareObject.results[0].movie.backdrop_path}`;
+        return `https://image.tmdb.org/t/p/w500${this.shareObject.results[0].movie.backdrop_path}`;
       } else {
         return false;
       }

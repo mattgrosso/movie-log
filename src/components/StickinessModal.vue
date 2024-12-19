@@ -7,7 +7,7 @@
     <Modal :show="showModal" @close="closeModal">
       <template v-slot:header>
         <div class="poster">
-          <img class="col-12" :src="`https://image.tmdb.org/t/p/original${topStructure(firstResult).backdrop_path}`" :alt="topStructure(firstResult).title">
+          <img class="col-12" :src="`https://image.tmdb.org/t/p/w500${topStructure(firstResult).backdrop_path}`" :alt="topStructure(firstResult).title">
         </div>
       </template>
       <template v-slot:body>

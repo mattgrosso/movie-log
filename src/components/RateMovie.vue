@@ -729,7 +729,7 @@ export default {
     },
     rateBannerUrl () {
       if (this.movieToRate) {
-        return `https://image.tmdb.org/t/p/original${this.movieToRate.backdrop_path}`;
+        return `https://image.tmdb.org/t/p/w500${this.movieToRate.backdrop_path}`;
       } else {
         return false;
       }
