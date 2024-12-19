@@ -507,6 +507,7 @@ export default {
         const randomPrompt = randomPrompts[Math.floor(Math.random() * randomPrompts.length)];
 
         const prompt = `Tell me an interesting fact about the movie ${title} from ${date}.
+        If the movie came out after your data, tell me that but also make a brief guess about what the movie might be about.
         ${randomPrompt}
         Try to reach for something obscure or not widely known.
         Don't start with "One interesting fact about..." or "did you know...". Just tell me the fact.

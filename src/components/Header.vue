@@ -49,15 +49,16 @@ export default {
         return mostRecentRating && mostRecentRating.calculatedTotal > 6;
       });
 
-      if (onlyRatedOverSix.length > 0) {
+      if (onlyRatedOverSix && onlyRatedOverSix.length > 0) {
         mediaArray = onlyRatedOverSix;
       }
 
       const randomIndex = Math.floor(Math.random() * mediaArray.length);
       const randomMedia = mediaArray[randomIndex];
 
-      if (randomMedia) {
-        return `https://image.tmdb.org/t/p/original${this.topStructure(randomMedia).backdrop_path}`;
+      const topStructure = this.topStructure(randomMedia);
+      if (topStructure && topStructure.backdrop_path) {
+        return `https://image.tmdb.org/t/p/original${topStructure.backdrop_path}`;
       } else {
         return "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
       }
