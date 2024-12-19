@@ -7,7 +7,10 @@
   >
     <img
       class="poster"
-      v-lazy="`https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`"
+      v-lazy="{
+        src: `https://image.tmdb.org/t/p/original${topStructure(result).poster_path}`,
+        loading: placeholderImage
+      }"
     >
     <div class="details">
       <span v-if="activeQuickLinkList === 'bestPicture'">
@@ -262,6 +265,7 @@ import Modal from './Modal.vue';
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
+import placeholderImage from '../assets/images/sheen.jpg';
 
 export default {
   props: {
@@ -305,7 +309,8 @@ export default {
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
       awardsData: null,
-      chatGPTFact: ""
+      chatGPTFact: "",
+      placeholderImage
     }
   },
   components: {
