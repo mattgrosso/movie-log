@@ -539,14 +539,16 @@
             <div class="accordion-body">
               <table class="table mb-0 col-12 table-striped-columns">
                 <thead>
-                  <th class="col-1"><span>dir</span></th>
-                  <th class="col-1"><span>img</span></th>
-                  <th class="col-1"><span>stry</span></th>
-                  <th class="col-1"><span>perf</span></th>
-                  <th class="col-1"><span>sndtk</span></th>
-                  <th class="col-1"><span>stick</span></th>
-                  <th class="col-1"><span>love</span></th>
-                  <th class="col-1"><span>ovral</span></th>
+                  <tr>
+                    <th class="col-1"><span>dir</span></th>
+                    <th class="col-1"><span>img</span></th>
+                    <th class="col-1"><span>stry</span></th>
+                    <th class="col-1"><span>perf</span></th>
+                    <th class="col-1"><span>sndtk</span></th>
+                    <th class="col-1"><span>stick</span></th>
+                    <th class="col-1"><span>love</span></th>
+                    <th class="col-1"><span>ovral</span></th>
+                  </tr>
                 </thead>
                 <tbody>
                   <tr class="table-secondary">

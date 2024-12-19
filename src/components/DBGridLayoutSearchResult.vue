@@ -75,14 +75,16 @@
                 <div class="accordion-body">
                   <table class="table mb-0 table-striped-columns">
                     <thead>
-                      <th><span>dir</span></th>
-                      <th><span>img</span></th>
-                      <th><span>stry</span></th>
-                      <th><span>perf</span></th>
-                      <th><span>sndtk</span></th>
-                      <th><span>stick</span></th>
-                      <th><span>love</span></th>
-                      <th><span>ovral</span></th>
+                      <tr>
+                        <th><span>dir</span></th>
+                        <th><span>img</span></th>
+                        <th><span>stry</span></th>
+                        <th><span>perf</span></th>
+                        <th><span>sndtk</span></th>
+                        <th><span>stick</span></th>
+                        <th><span>love</span></th>
+                        <th><span>ovral</span></th>
+                      </tr>
                     </thead>
                     <tbody>
                       <tr class="table-secondary">
