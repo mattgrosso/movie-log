@@ -31,10 +31,6 @@ const getTMDBData = async (rating) => {
   }
 }
 
-const parseScrapedAwards = (string) => {
-  return string.replace(/ {2}/g, "").split("\n").filter((str) => str);
-}
-
 const findKeyForTVShowInDatabase = (id) => {
   const keys = Object.keys(store.state.tvLog);
   const entries = keys.map((key) => {
