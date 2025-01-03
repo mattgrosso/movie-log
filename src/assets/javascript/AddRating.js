@@ -251,7 +251,7 @@ const addMovieRating = async (ratings, movieTags) => {
     ratings: ratingsWithoutOwnership
   };
 
-  const safeTitle = tmdbDataWeStore.title.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
+  const safeTitle = tmdbDataWeStore.title.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./#]/g, "-");
   const key = findKeyForMovieInDatabase(ratings[0].id) || `${new Date().getTime()}-${crypto.randomUUID()}-${safeTitle}`;
 
   return {
