@@ -178,7 +178,7 @@
           </div>
         </div>
 
-        <div v-if="topStructure(result).flatKeywords.length" class="keywords">
+        <div v-if="topStructure(result).flatKeywords && topStructure(result).flatKeywords.length" class="keywords">
           <h4>Keyword<span v-if="multipleEntries(topStructure(result).flatKeywords)">s</span></h4>
           <p class="long-list">
             <a v-for="(keyword, index) in sortedFlatKeywords" :key="index" class="link" @click.stop="searchFor(keyword)">
@@ -224,7 +224,7 @@
           </p>
         </div>
 
-        <div v-if="topStructure(result).cast.length" class="cast">
+        <div v-if="topStructure(result).cast && topStructure(result).cast.length" class="cast">
           <h4>Cast</h4>
           <p class="long-list">
             <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor(castMember.name)">
@@ -233,7 +233,7 @@
           </p>
         </div>
 
-        <div v-if="topStructure(result).production_companies.length" class="production-companies">
+        <div v-if="topStructure(result).production_companies && topStructure(result).production_companies.length" class="production-companies">
           <h4>Production <span v-if="multipleEntries(turnArrayIntoList(topStructure(result).production_companies, 'name'))">Companies</span><span v-else>Company</span></h4>
           <p class="long-list">
             <a v-for="(productionCompany, index) in topStructure(result).production_companies" :key="index" class="link" @click.stop="searchFor(productionCompany.name)">
