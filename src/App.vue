@@ -37,5 +37,9 @@ export default {
 <style lang="scss">
   body {
     font-family: "Roboto Condensed", sans-serif;
+
+    &.no-scroll {
+      overflow: hidden;
+    }
   }
 </style>

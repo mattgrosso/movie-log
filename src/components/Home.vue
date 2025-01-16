@@ -282,6 +282,10 @@
                 :allCounts="allCounts"
                 @updateSearchValue="updateSearchValue"
               />
+              <BulkTagEditor
+                v-if="isMatt"
+                :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+              />
             </div>
           </div>
         </div>
@@ -354,6 +358,7 @@ import StickinessModal from "./StickinessModal.vue";
 import TweakModal from "./TweakModal.vue";
 import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
+import BulkTagEditor from './BulkTagEditor.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
@@ -364,7 +369,8 @@ export default {
     InsetBrowserModal,
     StickinessModal,
     TweakModal,
-    NoResults
+    NoResults,
+    BulkTagEditor
   },
   data () {
     return {
@@ -437,7 +443,7 @@ export default {
   },
   computed: {
     isMatt () {
-      return this.$store.state.databaseTopKey === "mattgrosso-gmail-com";
+      return this.$store.state.databaseTopKey === "mattgrosso-gmail-com" || !this.$store.state.databaseTopKey;
     },
     darkOrLight () {
       const inDarkMode = document.querySelector("body").classList.contains('bg-dark');

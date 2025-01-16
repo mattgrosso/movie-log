@@ -25,16 +25,20 @@ export default {
   },
   watch: {
     show (value) {
-      document.body.style.overflow = value ? 'hidden' : '';
+      if (value) {
+        document.body.classList.add('no-scroll');
+      } else {
+        document.body.classList.remove('no-scroll');
+      }
     }
   },
   unmounted () {
-    document.body.style.overflow = '';
+    document.body.classList.remove('no-scroll');
   },
   methods: {
     close () {
       this.$emit('close');
-      document.body.style.overflow = '';
+      document.body.classList.remove('no-scroll');
     },
   }
 };
@@ -96,5 +100,10 @@ export default {
       padding: 0 1rem 1rem;
     }
   }
+}
+
+/* Add this to the global styles (e.g., in App.vue or a global stylesheet) */
+.no-scroll {
+  overflow: hidden;
 }
 </style>
