@@ -766,18 +766,24 @@ export default {
       });
     },
     lastMonthsMovies () {
-      const lastMonth = new Date().getMonth() - 1;
-      const currentYear = new Date().getFullYear();
-
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+    
+      // Adjust for January
+      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
         const mostRecentRating = this.mostRecentRating(result);
-
+    
         if (mostRecentRating && mostRecentRating.date) {
-          const ratingMonth = new Date(parseInt(mostRecentRating.date)).getMonth();
-          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
-          return ratingMonth === lastMonth && ratingYear === currentYear;
+          const ratingDate = new Date(parseInt(mostRecentRating.date));
+          const ratingMonth = ratingDate.getMonth();
+          const ratingYear = ratingDate.getFullYear();
+          return ratingMonth === lastMonth && ratingYear === lastMonthYear;
         }
-
+    
         return false;
       });
     },
