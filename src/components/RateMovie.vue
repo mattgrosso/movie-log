@@ -49,7 +49,7 @@
         </div>
         <div class="date col-5">
           <label class="form-label fs-4" for="date">Date</label>
-          <input class="form-control" name="date" id="date" type="date" v-model="date">
+          <input class="form-control" name="date" id="date" type="datetime-local" v-model="date">
         </div>
       </div>
 
@@ -527,8 +527,8 @@
           <h2 class="accordion-header" :id="`heading-${index}`">
             <button class="accordion-button px-5" type="button" data-bs-toggle="collapse" :data-bs-target="`#collapse-${index}`" aria-expanded="false" :aria-controls="`collapse-${index}`">
               <div class="col-12 d-flex">
-                <p class="col-7 m-0 text-center border-end">
-                  <span v-if="rating.date">{{rating.date}}</span>
+                <p class="col-7 m-0 text-start border-end">
+                  <span v-if="rating.date">{{ new Date(rating.date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) }}</span>
                   <span v-else>-</span>
                 </p>
                 <p class="col-5 m-0 text-center border-start">{{rating.calculatedTotal}}</p>
@@ -587,7 +587,7 @@ export default {
       stickiness: null,
       love: null,
       overall: null,
-      date: new Date().toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'),
+      date: new Date().toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16),
       id: null,
       loading: false,
       medium: "",
