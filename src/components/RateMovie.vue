@@ -28,21 +28,8 @@
           <select class="form-select" name="medium" id="medium" v-model="medium">
             <option value=""></option>
             <option value="Theater">Theater</option>
-            <option value="Bluray">Bluray</option>
-            <option value="4K">4K</option>
-            <option value="DVD">DVD</option>
-            <option value="Netflix">Netflix</option>
-            <option value="Youtube">Youtube</option>
-            <option value="Vudu">Vudu</option>
-            <option value="HBO">HBO</option>
-            <option value="Hulu">Hulu</option>
-            <option value="Amazon Prime">Amazon Prime</option>
-            <option value="Disney+">Disney+</option>
-            <option value="Paramount+">Paramount+</option>
-            <option value="Kanopy">Kanopy</option>
-            <option value="Criterion">Criterion</option>
-            <option value="Apple+">Apple+</option>
-            <option value="Peacock">Peacock</option>
+            <option value="Physical Media">Physical Media</option>
+            <option value="Streaming">Streaming</option>
             <option value="Download">Download</option>
             <option value="Other">Other</option>
           </select>
