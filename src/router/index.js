@@ -1,11 +1,12 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import store from "../store";
-import Login from "../components/Login.vue";
-import Home from "../components/Home.vue";
-import PickMedia from "../components/PickMedia.vue";
-import RateMovie from "../components/RateMovie.vue";
-import RateTVShow from "../components/RateTVShow.vue";
-import ShareDBResults from "../components/ShareDBResults.vue";
+
+const Home = () => import(/* webpackChunkName: "home" */ "../components/Home.vue");
+const Login = () => import(/* webpackChunkName: "login" */ "../components/Login.vue");
+const PickMedia = () => import(/* webpackChunkName: "pick-media" */ "../components/PickMedia.vue");
+const RateMovie = () => import(/* webpackChunkName: "rate-movie" */ "../components/RateMovie.vue");
+const RateTVShow = () => import(/* webpackChunkName: "rate-tv-show" */ "../components/RateTVShow.vue");
+const ShareDBResults = () => import(/* webpackChunkName: "share-db-results" */ "../components/ShareDBResults.vue");
 
 // Router
 const loggedIn = () => {
