@@ -773,17 +773,40 @@ export default {
     },
     async addViewingTag () {
       if (!this.settings.tags || !this.settings.tags["viewing-tags"]) {
-        return;
+        const dbEntry = {
+          path: `settings`,
+          value: {
+            tags: {
+              "viewing-tags": { title: "default viewing tag" },
+              "movie-tags": { title: "default movie tag" },
+            }
+          }
+        }
+
+        await this.$store.dispatch('setDBValue', dbEntry);
       }
-
       const viewingTagsArray = Object.keys(this.settings.tags["viewing-tags"]).map((key) => this.settings.tags["viewing-tags"][key]);
-
       if (!viewingTagsArray.find((tag) => tag.title === this.newViewingTagTitle)) {
         const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
 
-        const dbEntry = {
-          path: `settings/tags/viewing-tags/${dbKey}`,
-          value: { title: this.newViewingTagTitle }
+        let dbEntry;
+        if (this.settings.tags["viewing-tags"].title === "default viewing tag") {
+          dbEntry = {
+            path: `settings`,
+            value: {
+              tags: {
+                "viewing-tags": {
+                  [dbKey]: { title: this.newViewingTagTitle }
+                },
+                "movie-tags": { title: "default movie tag" }
+              }
+            }
+          }
+        } else {
+          dbEntry = {
+            path: `settings/tags/viewing-tags/${dbKey}`,
+            value: { title: this.newViewingTagTitle }
+          }
         }
 
         this.$store.dispatch('setDBValue', dbEntry);

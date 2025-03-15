@@ -44,10 +44,8 @@ const calculatePostStickyRatingFor = (rating) => {
     const minRating = Math.min(...allRatings);
     const maxRating = Math.max(...allRatings);
 
-    // Adjustment factor to tweak the normalization
-    // This adjustment factor can be modified to tweak the normalization to match the desired distribution
-    // To begin with I've tweaked it to draw the line between which movies my gut says are 10s and which are not.
-    const adjustmentFactor = 0.25;
+    // Fetch the normalization tweak value from the store
+    const adjustmentFactor = store.state.settings.normalizationTweak || 0.25;
 
     if (maxRating !== minRating) {
       normalizedRating = ((calculatedTotal - minRating) / (maxRating - minRating)) * 10;

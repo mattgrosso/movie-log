@@ -282,6 +282,7 @@
                 :allCounts="allCounts"
                 @updateSearchValue="updateSearchValue"
               />
+              <Settings/>
               <BulkTagEditor
                 v-if="isMatt"
                 :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
@@ -352,6 +353,7 @@ import uniq from 'lodash/uniq';
 import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
 import Charts from "./Charts.vue";
+import Settings from "./Settings.vue";
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import NewRatingSearch from "./NewRatingSearch.vue";
 import StickinessModal from "./StickinessModal.vue";
@@ -364,6 +366,7 @@ import { getRating } from "../assets/javascript/GetRating.js";
 export default {
   components: {
     Charts,
+    Settings,
     DBGridLayoutSearchResult,
     NewRatingSearch,
     InsetBrowserModal,
