@@ -61,6 +61,9 @@ const calculatePostStickyRatingFor = (rating) => {
     }
   }
 
+  // Clamp the normalized rating between 0 and 10
+  normalizedRating = Math.max(0, Math.min(10, normalizedRating));
+
   return {
     ...rating,
     calculatedTotal: calculatedTotal,
