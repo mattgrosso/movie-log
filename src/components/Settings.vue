@@ -8,7 +8,7 @@
           </button>
         </h2>
         <div id="panelsStayOpen-collapseSettings" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingSettings">
-          <div v-if="hasNormalizationTweak" class="accordion-body" :class="darkOrLight">
+          <div class="accordion-body" :class="darkOrLight">
             <p>This number tweaks the normalized ratings according to your preference.<br>I suggest finding the lowest rated movie you have that you think is a ten out of ten and then adjust this number until the ratings match your expectations.</p>
             <div class="input-group mb-3">
               <input type="number" class="form-control" v-model="normalizationTweak" />
@@ -37,9 +37,6 @@ export default {
     },
     databaseTopKey() {
       return this.$store.getters.databaseTopKey;
-    },
-    hasNormalizationTweak() {
-      return this.normalizationTweak !== null;
     }
   },
   methods: {

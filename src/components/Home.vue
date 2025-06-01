@@ -18,6 +18,9 @@
           @blur="blurSearchBar"
           v-model="value"
         >
+        <span v-if="value && !showCompareInput" class="compare-button" @click.prevent="showCompareInput = true" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
+          <img src="../assets/images/balance.png" alt="scales">
+        </span>
         <span v-if="value" class="clear-button" @click.prevent="clearValue" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
           <i class="bi bi-x-circle"/>
         </span>
@@ -25,8 +28,32 @@
           <i class="bi bi-wikipedia"/>
         </span>
       </div>
+      <div v-if="showCompareInput" class="input-group mb-1 col-12 md-col-6">
+        <input
+          class="form-control"
+          :class="{'has-content': value}"
+          ref="searchInput"
+          type="text"
+          autocapitalize="none"
+          autocorrect="off"
+          autocomplete="off"
+          name="search"
+          id="search"
+          :placeholder="placeholder"
+          style="font-size: 0.75rem;"
+          v-model="compareValue"
+        >
+        <span v-if="value" class="clear-button clear-compare-button" @click.prevent="clearCompare" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
+          <i class="bi bi-ban"/>
+          <img src="../assets/images/balance.png" alt="scales">
+        </span>
+      </div>
     </div>
-    <div v-if="showResultsList" class="results">
+    <div v-if="resultsOfCompare" class="results-of-compare">
+      <p>{{ this.value }}: {{ resultsOfCompare.firstListBayesianAverage }}</p>
+      <p>{{ this.compareValue }}: {{ resultsOfCompare.secondListBayesianAverage }}</p>
+    </div>
+    <div v-else-if="showResultsList" class="results">
       <div v-if="paginatedSortedResults.length" class="results-exist">
         <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
           <div class="btn-group col-12" role="group" aria-label="Button group">
@@ -379,6 +406,7 @@ export default {
     return {
       sortOrder: "bestOrNewestOnTop",
       value: "",
+      compareValue: "",
       activeQuickLinkList: "title",
       sortValue: null,
       quickLinksSortType: "count",
@@ -389,7 +417,8 @@ export default {
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
       showAverage: false,
-      showViewCount: false
+      showViewCount: false,
+      showCompareInput: false,
     }
   },
   watch: {
@@ -600,6 +629,27 @@ export default {
           return [person.name.toLowerCase(), ...names];
         }).includes(this.value.toLowerCase()) ||
         this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.value.toLowerCase()) ||
+        (this.yearFilter.length && this.yearFilter.includes(`${this.getYear(media)}`));
+      })
+    },
+    fuzzyFilterForCompare () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        if (!this.compareValue) {
+          return true;
+        }
+
+        return this.topStructure(media).title.toLowerCase().includes(this.compareValue.toLowerCase()) ||
+        this.topStructure(media).flatKeywords?.includes(this.compareValue.toLowerCase()) ||
+        this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.compareValue.toLowerCase()) ||
+        this.topStructure(media).cast?.flatMap((person) => {
+          const names = person.name.toLowerCase().split(' ');
+          return [person.name.toLowerCase(), ...names];
+        }).includes(this.compareValue.toLowerCase()) ||
+        this.topStructure(media).crew?.flatMap((person) => {
+          const names = person.name.toLowerCase().split(' ');
+          return [person.name.toLowerCase(), ...names];
+        }).includes(this.compareValue.toLowerCase()) ||
+        this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.compareValue.toLowerCase()) ||
         (this.yearFilter.length && this.yearFilter.includes(`${this.getYear(media)}`));
       })
     },
@@ -1107,6 +1157,25 @@ export default {
         "count-more-than-4-remainder-2": count > 4 & count % 4 === 2,
         "count-more-than-4-remainder-3": count > 4 & count % 4 === 3
       }
+    },
+    resultsOfCompare () {
+      if (!this.compareValue) {
+        return undefined;
+      }
+
+      const numberOfMoviesInFirstList = this.sortedResults.length;
+      const confidenceNumber = 3;
+      const averageRatingForFirstList = this.averageRating(this.sortedResults);
+      const averageRatingForAllMovies = this.averageRating(this.allEntriesWithFlatKeywordsAdded);
+      const firstListBayesianAverage  = (numberOfMoviesInFirstList  / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForFirstList  + (confidenceNumber / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForAllMovies));
+      const numberOfMoviesInSecondList = this.fuzzyFilterForCompare.length;
+      const averageRatingForSecondList = this.averageRating(this.fuzzyFilterForCompare);
+      const secondListBayesianAverage = (numberOfMoviesInSecondList / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForSecondList + (confidenceNumber / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForAllMovies));
+
+      return {
+        firstListBayesianAverage: firstListBayesianAverage,
+        secondListBayesianAverage: secondListBayesianAverage
+      };
     }
   },
   methods: {
@@ -1516,6 +1585,10 @@ export default {
     handleTouchEnd (event) {
       event.target.classList.remove('touch-active');
     },
+    clearCompare () {
+      this.showCompareInput = false;
+      this.compareValue = "";
+    },
   },
 }
 </script>
@@ -1546,6 +1619,51 @@ export default {
           & + .clear-button + .more-info-button {
             transform: translateY(calc(-50% - 3px));
           }
+        }
+      }
+
+      .compare-button {
+        align-items: center;
+        color: black;
+        cursor: pointer;
+        display: flex;
+        height: 18px;
+        justify-content: center;
+        right: 40px;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        z-index: 5;
+
+        img {
+          height: 18px;
+          width: 18px;
+        }
+      }
+
+      .clear-compare-button {
+        align-items: center;
+        color: black;
+        cursor: pointer;
+        display: flex;
+        height: 18px;
+        justify-content: center;
+        right: 0px;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        z-index: 5;
+
+        img {
+          height: 18px;
+          width: 18px;
+        }
+
+        i {
+          font-size: 1.5rem;
+          position: absolute;
         }
       }
 
@@ -1607,6 +1725,20 @@ export default {
       svg {
         height: 18px;
         width: 18px;
+      }
+    }
+
+    .results-of-compare {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-top: 20px;
+
+      .p {
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin-bottom: 10px;
       }
     }
 
