@@ -81,7 +81,7 @@
               <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
               <span v-else>{{filteredResults.length}}</span>
             </button>
-            <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#insights-accordion" aria-expanded="false" aria-controls="insights-accordion">
+            <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info" type="button" @click="goToInsights">
               <i class="bi bi-lightbulb"/>
             </button>
             <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion">
@@ -292,30 +292,6 @@
               </div>
             </div>
           </div>
-          <div id="insights-accordion" ref="insightsAccordion" class="accordion-collapse collapse col-12" aria-labelledby="insights">
-            <div class="accordion-body col-12">
-              <div class="details py-3">
-                <p v-if="filteredResults.length === allEntriesWithFlatKeywordsAdded.length" class="fs-5 my-2 text-center">
-                  You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShowDisplay}}s.
-                </p>
-                <p class="m-0 d-flex justify-content-center align-items-center">
-                  They have an average rating of {{averageRating(filteredResults)}}
-                </p>
-              </div>
-              <Charts
-                v-if="!this.currentLogIsTVLog"
-                :results="filteredResults"
-                :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-                :allCounts="allCounts"
-                @updateSearchValue="updateSearchValue"
-              />
-              <Settings/>
-              <BulkTagEditor
-                v-if="isMatt"
-                :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-              />
-            </div>
-          </div>
         </div>
         <StickinessModal
           v-if="showStickinessModal"
@@ -382,7 +358,6 @@ import debounce from 'lodash/debounce';
 import Charts from "./Charts.vue";
 import Settings from "./Settings.vue";
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
-import NewRatingSearch from "./NewRatingSearch.vue";
 import StickinessModal from "./StickinessModal.vue";
 import TweakModal from "./TweakModal.vue";
 import NoResults from "./NoResults.vue";
@@ -395,7 +370,6 @@ export default {
     Charts,
     Settings,
     DBGridLayoutSearchResult,
-    NewRatingSearch,
     InsetBrowserModal,
     StickinessModal,
     TweakModal,
@@ -900,20 +874,6 @@ export default {
         return data.sort((a, b) => b.count - a.count);
       }
     },
-    allTitles () {
-      if (this.currentLogIsTVLog) {
-        return this.sortedResults.map((result) => result.tvShow.name);
-      } else {
-        return this.sortedResults.map((result) => result.movie.title);
-      }
-    },
-    filteredTitles () {
-      if (this.currentLogIsTVLog) {
-        return this.filteredResults.map((result) => result.tvShow.name);
-      } else {
-        return this.filteredResults.map((result) => result.movie.title);
-      }
-    },
     allKeywords () {
       return Object.keys(this.countedKeywords).map((keyword) => {
         return {
@@ -1179,11 +1139,6 @@ export default {
     }
   },
   methods: {
-    toTitleCase (str) {
-      return str.replace(/\w\S*/g, function (txt) {
-        return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
-      });
-    },
     toggleMovieTV () {
       this.clearValue();
       this.$store.dispatch('toggleCurrentLog');
@@ -1198,11 +1153,6 @@ export default {
         this.findRandomSearchValue();
         this.hasCalledFindFilter = true;
       }
-    },
-    sanitizeId (id) {
-      id = id || crypto.randomUUID();
-
-      return `movie-${id.replace(/[^a-z0-9\-_:.]/gi, '_')}`;
     },
     findRandomSearchValue () {
       this.$router.push({ query: { ...this.$route.query, returnFromRating: undefined } });
@@ -1261,21 +1211,6 @@ export default {
     async goToWikipedia () {
       this.insetBrowserUrl = await this.wikiLinkFor(this.value);
       this.showInsetBrowserModal = true;
-    },
-    async getDirectorsFilmography (director) {
-      const filmography = await axios.get(`https://api.themoviedb.org/3/person/${director.id}/movie_credits?api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
-      const directingCredits = filmography.data.crew.filter((credit) => credit.job === "Director");
-
-      const minimizedCredits = directingCredits.map((credit) => {
-        return {
-          id: credit.id,
-          popularity: credit.popularity,
-          release_date: credit.release_date,
-          title: credit.title
-        }
-      });
-
-      return minimizedCredits;
     },
     clearValue () {
       this.value = "";
@@ -1373,15 +1308,6 @@ export default {
       } else {
         this.activeQuickLinkList = "lastMonth";
       }
-    },
-    inputValueFilter (results) {
-      return results.filter((media) => {
-        if (this.currentLogIsTVLog) {
-          return this.topStructure(media).name.toLowerCase().includes(this.value.toLowerCase());
-        } else {
-          return this.topStructure(media).title.toLowerCase().includes(this.value.toLowerCase());
-        }
-      })
     },
     toggleSortOrder () {
       if (this.sortOrder === "bestOrNewestOnTop") {
@@ -1588,6 +1514,9 @@ export default {
     clearCompare () {
       this.showCompareInput = false;
       this.compareValue = "";
+    },
+    goToInsights () {
+      this.$router.push('/insights');
     },
   },
 }

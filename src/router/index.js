@@ -6,6 +6,7 @@ const Login = () => import(/* webpackChunkName: "login" */ "../components/Login.
 const PickMedia = () => import(/* webpackChunkName: "pick-media" */ "../components/PickMedia.vue");
 const RateMovie = () => import(/* webpackChunkName: "rate-movie" */ "../components/RateMovie.vue");
 const RateTVShow = () => import(/* webpackChunkName: "rate-tv-show" */ "../components/RateTVShow.vue");
+const Insights = () => import(/* webpackChunkName: "insights" */ "../components/Insights.vue");
 const ShareDBResults = () => import(/* webpackChunkName: "share-db-results" */ "../components/ShareDBResults.vue");
 
 // Router
@@ -71,6 +72,20 @@ const routes = [
   {
     path: '/rate-tv-show',
     component: RateTVShow,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/insights',
+    component: Insights,
     meta: {
       requiresLogin: true
     },
