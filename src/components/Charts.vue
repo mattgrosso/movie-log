@@ -14,7 +14,7 @@
         </div>
       </div>
 
-      <div class="accordion-item">
+      <!-- <div class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingViewingCounts">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseViewingCounts" aria-expanded="true" aria-controls="panelsStayOpen-collapseViewingCounts">
             Viewing Counts
@@ -29,9 +29,9 @@
             <p>Last year you watched a total of {{ moviesWatchedLastYear }}.</p>
           </div>
         </div>
-      </div>
+      </div> -->
 
-      <div v-if="results.length > 9" class="accordion-item">
+      <!-- <div v-if="results.length > 9" class="accordion-item">
         <h2 class="accordion-header" id="panelsStayOpen-headingDistribution">
           <button class="accordion-button" :class="darkOrLight" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseDistribution" aria-expanded="true" aria-controls="panelsStayOpen-collapseDistribution">
             Ratings Distribution
@@ -42,7 +42,7 @@
             <LineChart class="chart" :chartData="ratingsCountData" :options="ratingsCountOptions"/>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <div class="accordion-item" >
         <h2 class="accordion-header" id="panelsStayOpen-yearlyAverage">
