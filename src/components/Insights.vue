@@ -2,55 +2,6 @@
   <div class="insights">
     <InsightsPane>
       <div class="insights-pane-header">
-        <p>Favorite Actresses</p>
-      </div>
-      <FavoriteActresses :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
-    </InsightsPane>
-
-    <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Favorite Actors</p>
-      </div>
-      <FavoriteActors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
-    </InsightsPane>
-
-    <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Favorite Directors</p>
-      </div>
-      <FavoriteDirectors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
-    </InsightsPane>
-
-    <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Favorite Editors</p>
-      </div>
-      <FavoriteEditors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
-    </InsightsPane>
-
-    <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Favorite Cinematographers</p>
-      </div>
-      <FavoriteCinematographers :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
-    </InsightsPane>
-
-    <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Full Calendar</p>
-      </div>
-      <FullCalendarView :results="allEntriesWithFlatKeywordsAdded" :open="true" />
-    </InsightsPane>
-
-    <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Yearly Averages</p>
-      </div>
-      <YearlyAverage :resultsWithRatings="resultsWithRatings"/>
-    </InsightsPane>
-
-    <InsightsPane>
-      <div class="insights-pane-header">
         <p>Totals</p>
       </div>
       <div class="insights-pane-item-wrapper col-6">
@@ -139,15 +90,83 @@
         </div>
       </div>
     </InsightsPane>
+    
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Directors</p>
+      </div>
+      <FavoriteDirectors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
 
-    <!-- <InsightsPane>
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Actresses</p>
+      </div>
+      <FavoriteActresses :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Actors</p>
+      </div>
+      <FavoriteActors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Writers</p>
+      </div>
+      <FavoriteWriters :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Cinematographers</p>
+      </div>
+      <FavoriteCinematographers :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Editors</p>
+      </div>
+      <FavoriteEditors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Composers</p>
+      </div>
+      <FavoriteComposers :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Producers</p>
+      </div>
+      <FavoriteProducers :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Full Calendar</p>
+      </div>
+      <FullCalendarView :results="allEntriesWithFlatKeywordsAdded" :open="true" />
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Yearly Averages</p>
+      </div>
+      <YearlyAverage :resultsWithRatings="resultsWithRatings"/>
+    </InsightsPane>
+
+    <InsightsPane>
       <div class="insights-pane-header">
         <p>Outliers</p>
       </div>
       <Outliers :resultsWithRatings="resultsWithRatings" :allCounts="allCounts" @updateSearchValue="updateSearchValue"/>
-    </InsightsPane> -->
-
-
+    </InsightsPane>
 
     <!-- <Settings/>
     <BulkTagEditor
@@ -166,8 +185,11 @@ import Favorites from "./Favorites.vue";
 import FavoriteActresses from "./FavoriteActresses.vue";
 import FavoriteActors from "./FavoriteActors.vue";
 import FavoriteDirectors from "./FavoriteDirectors.vue";
+import FavoriteWriters from "./FavoriteWriters.vue";
 import FavoriteEditors from "./FavoriteEditors.vue";
 import FavoriteCinematographers from "./FavoriteCinematographers.vue";
+import FavoriteComposers from "./FavoriteComposers.vue";
+import FavoriteProducers from "./FavoriteProducers.vue";
 import { getRating } from "../assets/javascript/GetRating.js";
 
 import { Chart, registerables } from "chart.js";
@@ -190,8 +212,11 @@ export default {
     FavoriteActresses,
     FavoriteActors,
     FavoriteDirectors,
+    FavoriteWriters,
     FavoriteEditors,
     FavoriteCinematographers,
+    FavoriteComposers,
+    FavoriteProducers,
   },
   computed: {
     currentLogIsTVLog () {

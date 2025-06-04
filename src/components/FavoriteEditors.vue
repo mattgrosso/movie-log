@@ -194,14 +194,22 @@ export default {
             const knownForIds = details.known_for.map(m => m.id);
             const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
             if (ratedKnownFor.length) {
-              const avgKnownFor = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).reduce((a, b) => a + b, 0) / ratedKnownFor.length;
-              knownForBonus = avgKnownFor * this.knownForWeight;
+              const ratings = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).filter(r => !isNaN(r));
+              if (ratings.length) {
+                const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+                knownForBonus = avgKnownFor * this.knownForWeight;
+              } else {
+                knownForBonus = 0;
+              }
+            } else {
+              knownForBonus = 0;
             }
           }
           // Manual boost
           const manualBoost = this.manualBoosts[name] || 1;
-          // Final score: bayesian * (1 + countWeight * log(count)) * manualBoost + knownForBonus
-          const finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
+          // Final score: bayesian * (1 + countWeight * Math.log(count)) * manualBoost + knownForBonus
+          let finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
+          if (isNaN(finalScore)) finalScore = 0;
           return {
             name,
             entries,

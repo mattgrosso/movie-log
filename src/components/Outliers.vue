@@ -74,7 +74,7 @@ export default {
           });
 
           const ratings = filmography.map((result) => getRating(result).calculatedTotal);
-          const average = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+          const average = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
 
           directorsWithAverages.push({
             name: director,
@@ -94,8 +94,8 @@ export default {
         return [];
       }
 
-      const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
-      const stdDev = Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length);
+      const mean = averages.length ? averages.reduce((a, b) => a + b, 0) / averages.length : 0;
+      const stdDev = averages.length ? Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / averages.length) : 0;
 
       // Define a threshold for outliers (e.g., 2 standard deviations from the mean)
       const threshold = this.threshold * stdDev;
@@ -116,7 +116,7 @@ export default {
           });
 
           const ratings = filmography.map((result) => getRating(result).calculatedTotal);
-          const average = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+          const average = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
 
           castCrewWithAverages.push({
             name: person,
@@ -132,8 +132,8 @@ export default {
     outlierCastCrew () {
       const averages = this.castCrewAverages.map(person => person.average);
       if (!averages.length) return [];
-      const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
-      const stdDev = Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / averages.length);
+      const mean = averages.length ? averages.reduce((a, b) => a + b, 0) / averages.length : 0;
+      const stdDev = averages.length ? Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / averages.length) : 0;
 
       // Define a threshold for outliers (e.g., 2 standard deviations from the mean)
       const threshold = this.threshold * stdDev;
@@ -154,7 +154,7 @@ export default {
           });
 
           const ratings = filmography.map((result) => getRating(result).calculatedTotal);
-          const average = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+          const average = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
 
           genresWithAverages.push({
             name: genre,
@@ -169,8 +169,8 @@ export default {
     },
     outlierGenres () {
       const averages = this.genresAverages.map(genre => genre.average);
-      const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
-      const stdDev = Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length);
+      const mean = averages.length ? averages.reduce((a, b) => a + b, 0) / averages.length : 0;
+      const stdDev = averages.length ? Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length) : 0;
 
       // Define a threshold for outliers (e.g., 2 standard deviations from the mean)
       const threshold = this.threshold * stdDev;
@@ -191,7 +191,7 @@ export default {
           });
 
           const ratings = filmography.map((result) => getRating(result).calculatedTotal);
-          const average = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+          const average = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
 
           keywordsWithAverages.push({
             name: keyword,
@@ -206,8 +206,8 @@ export default {
     },
     outlierKeywords () {
       const averages = this.keywordAverages.map(keyword => keyword.average);
-      const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
-      const stdDev = Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length);
+      const mean = averages.length ? averages.reduce((a, b) => a + b, 0) / averages.length : 0;
+      const stdDev = averages.length ? Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length) : 0;
 
       // Define a threshold for outliers (e.g., 2 standard deviations from the mean)
       const threshold = this.threshold * stdDev;
@@ -228,7 +228,7 @@ export default {
           });
 
           const ratings = filmography.map((result) => getRating(result).calculatedTotal);
-          const average = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+          const average = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
 
           studiosWithAverages.push({
             name: studio,
@@ -243,8 +243,8 @@ export default {
     },
     outlierStudios () {
       const averages = this.studioAverages.map(studio => studio.average);
-      const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
-      const stdDev = Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length);
+      const mean = averages.length ? averages.reduce((a, b) => a + b, 0) / averages.length : 0;
+      const stdDev = averages.length ? Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length) : 0;
 
       // Define a threshold for outliers (e.g., 2 standard deviations from the mean)
       const threshold = this.threshold * stdDev;
@@ -265,7 +265,7 @@ export default {
           });
 
           const ratings = filmography.map((result) => getRating(result).calculatedTotal);
-          const average = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+          const average = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
 
           yearsWithAverages.push({
             name: year,
@@ -280,8 +280,8 @@ export default {
     },
     outlierYears () {
       const averages = this.yearsAverages.map(year => year.average);
-      const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
-      const stdDev = Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length);
+      const mean = averages.length ? averages.reduce((a, b) => a + b, 0) / averages.length : 0;
+      const stdDev = averages.length ? Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length) : 0;
 
       // Define a threshold for outliers (e.g., 2 standard deviations from the mean)
       const threshold = this.threshold * stdDev;

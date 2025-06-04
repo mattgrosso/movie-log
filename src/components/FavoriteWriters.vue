@@ -1,5 +1,5 @@
 <template>
-  <div class="favorite-cinematographers">
+  <div class="favorite-writers">
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="updateSearchValue(entry.name)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -34,34 +34,34 @@ export default {
     return {
       topTenList: [],
       minEntries: 5,
-      // minEntries: Minimum number of movies you must have seen from a cinematographer for them to be considered.
-      //   Increase: Only cinematographers you've seen more movies from will appear (list is more exclusive).
-      //   Decrease: cinematographers with fewer movies seen can appear (list is more inclusive).
+      // minEntries: Minimum number of movies you must have seen from a writer for them to be considered.
+      //   Increase: Only writers you've seen more movies from will appear (list is more exclusive).
+      //   Decrease: Writers with fewer movies seen can appear (list is more inclusive).
       confidenceNumber: 1,
       // confidenceNumber: Controls how much the global average rating influences the Bayesian average.
       //   Increase: Scores are pulled more toward the global average (less sensitive to outliers, more conservative).
-      //   Decrease: Scores reflect your ratings more strongly (more sensitive to high/low averages for cinematographers with few movies).
+      //   Decrease: Scores reflect your ratings more strongly (more sensitive to high/low averages for writers with few movies).
       countWeight: 0.25,
-      // countWeight: Controls how much the number of movies seen from a cinematographer boosts their score.
-      //   Increase: cinematographers you've seen more often are favored, even if their average is lower.
+      // countWeight: Controls how much the number of movies seen from a writer boosts their score.
+      //   Increase: Writers you've seen more often are favored, even if their average is lower.
       //   Decrease: Number of movies seen matters less; average rating dominates.
       knownForWeight: 0.2,
-      // knownForWeight: Controls the bonus for rating a cinematographer's 'known_for' movies highly.
-      //   Increase: cinematographers whose most famous movies you rate highly get a bigger boost.
+      // knownForWeight: Controls the bonus for rating a writer's 'known_for' movies highly.
+      //   Increase: Writers whose most famous movies you rate highly get a bigger boost.
       //   Decrease: 'Known_for' bonus has less effect; overall average matters more.
       manualBoosts: {
-        // Example: 'Steven Spielberg': 1.2, 'Wes Anderson': 0.8
+        // Example: 'Charlie Kaufman': 1.2, 'Aaron Sorkin': 0.8
       },
-      // manualBoosts: Lets you manually adjust a cinematographer's score (by name).
-      //   >1: Boosts the cinematographer's score (e.g. 1.2 = 20% higher).
-      //   <1: Reduces the cinematographer's score (e.g. 0.8 = 20% lower).
-      imageryWeight: 0.5, // adjust as desired
-      // This gives the imagery rating more weight in the final score
+      // manualBoosts: Lets you manually adjust a writer's score (by name).
+      //   >1: Boosts the writer's score (e.g. 1.2 = 20% higher).
+      //   <1: Reduces the writer's score (e.g. 0.8 = 20% lower).
+      storyWeight: 0.7, // adjust as desired
+      // This gives the story rating more weight in the final score
     }
   },
   computed: {
     overallWeight() {
-      return 1 - this.imageryWeight;
+      return 1 - this.storyWeight;
     }
   },
   async mounted () {
@@ -80,19 +80,19 @@ export default {
       this.$emit('updateSearchValue', value);
     },
     averageRating(results, weights = null) {
-      // For cinematographers, blend overall and imagery ratings
+      // For writers, blend overall and story ratings
       const getBlendedRating = (result) => {
         const mostRecent = this.mostRecentRating(result);
         const overall = parseFloat(mostRecent.calculatedTotal);
-        const imagery = typeof mostRecent.imagery === 'number' && !isNaN(mostRecent.imagery)
-          ? parseFloat(mostRecent.imagery)
+        const story = typeof mostRecent.story === 'number' && !isNaN(mostRecent.story)
+          ? parseFloat(mostRecent.story)
           : null;
-        if (!isNaN(overall) && imagery !== null) {
-          return (this.overallWeight * overall) + (this.imageryWeight * imagery);
+        if (!isNaN(overall) && story !== null) {
+          return (this.overallWeight * overall) + (this.storyWeight * story);
         } else if (!isNaN(overall)) {
           return overall;
-        } else if (imagery !== null) {
-          return imagery;
+        } else if (story !== null) {
+          return story;
         }
         return NaN;
       };
@@ -118,7 +118,7 @@ export default {
       }
     },
     bayesianAverage(list, weights = null) {
-      // Weighted Bayesian average using blended imagery/overall rating for cinematographers
+      // Weighted Bayesian average using blended story/overall rating for writers
       const n = weights ? weights.reduce((a, b) => a + b, 0) : list.length;
       const c = this.confidenceNumber;
       const avg = parseFloat(this.averageRating(list, weights));
@@ -182,13 +182,21 @@ export default {
     async buildTopTwelveList() {
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
+      // List of job titles considered as 'writer'
+      const writerJobs = [
+        'Screenplay',
+        'Writer',
+        'Story',
+        'Additional Writing',
+        'Novel'
+      ];
 
       allEntries.forEach(entry => {
         const movie = entry.movie;
         const crew = movie.crew;
         if (!crew || !Array.isArray(crew)) return;
         crew.forEach((person) => {
-          if ((person.job === 'Director of Photography' || person.job === 'Cinematographer') && person.name) {
+          if (writerJobs.includes(person.job) && person.name) {
             if (!valueToMovies[person.name]) valueToMovies[person.name] = [];
             valueToMovies[person.name].push({ entry, billing: 0 });
           }
@@ -207,7 +215,7 @@ export default {
             return a.billing - b.billing;
           });
           const entries = sortedAppearances.map(a => a.entry);
-          const weights = sortedAppearances.map(a => 1); // All weights 1 for cinematographers
+          const weights = sortedAppearances.map(a => 1); // All weights 1 for writers
           const bayesian = this.bayesianAverage(entries, weights);
           const count = entries.length;
           // Fetch TMDB details for known_for, popularity, etc.
@@ -219,14 +227,22 @@ export default {
             const knownForIds = details.known_for.map(m => m.id);
             const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
             if (ratedKnownFor.length) {
-              const avgKnownFor = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).reduce((a, b) => a + b, 0) / ratedKnownFor.length;
-              knownForBonus = avgKnownFor * this.knownForWeight;
+              const ratings = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).filter(r => !isNaN(r));
+              if (ratings.length) {
+                const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+                knownForBonus = avgKnownFor * this.knownForWeight;
+              } else {
+                knownForBonus = 0;
+              }
+            } else {
+              knownForBonus = 0;
             }
           }
           // Manual boost
           const manualBoost = this.manualBoosts[name] || 1;
           // Final score: bayesian * (1 + countWeight * log(count)) * manualBoost + knownForBonus
-          const finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
+          let finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
+          if (isNaN(finalScore)) finalScore = 0;
           return {
             name,
             entries,
@@ -250,7 +266,7 @@ export default {
 </script>
 
 <style lang="scss">
-.favorite-cinematographers {
+.favorite-writers {
   color: #fff;
   display: flex;
   justify-content: center;

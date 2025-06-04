@@ -33,7 +33,7 @@ export default {
   data () {
     return {
       topTenList: [],
-      minEntries: 5,
+      minEntries: 4,
       // minEntries: Minimum number of movies you must have seen from a director for them to be considered.
       //   Increase: Only directors you've seen more movies from will appear (list is more exclusive).
       //   Decrease: Directors with fewer movies seen can appear (list is more inclusive).
@@ -41,7 +41,7 @@ export default {
       // confidenceNumber: Controls how much the global average rating influences the Bayesian average.
       //   Increase: Scores are pulled more toward the global average (less sensitive to outliers, more conservative).
       //   Decrease: Scores reflect your ratings more strongly (more sensitive to high/low averages for directors with few movies).
-      countWeight: 0.25,
+      countWeight: 0.5,
       // countWeight: Controls how much the number of movies seen from a director boosts their score.
       //   Increase: Directors you've seen more often are favored, even if their average is lower.
       //   Decrease: Number of movies seen matters less; average rating dominates.
@@ -55,6 +55,13 @@ export default {
       // manualBoosts: Lets you manually adjust a director's score (by name).
       //   >1: Boosts the director's score (e.g. 1.2 = 20% higher).
       //   <1: Reduces the director's score (e.g. 0.8 = 20% lower).
+      directionWeight: 0.5, // adjust as desired
+      // This gives the direction rating more weight in the final score.
+    }
+  },
+  computed: {
+    overallWeight() {
+      return 1 - this.directionWeight;
     }
   },
   async mounted () {
@@ -73,21 +80,39 @@ export default {
       this.$emit('updateSearchValue', value);
     },
     averageRating(results, weights = null) {
-      // If weights are provided, use weighted average
-      const ratedMovies = results.filter((result, idx) => this.mostRecentRating(result).calculatedTotal && (!weights || weights[idx] > 0));
+      // For directors, blend overall and direction ratings
+      const getBlendedRating = (result) => {
+        const mostRecent = this.mostRecentRating(result);
+        const overall = parseFloat(mostRecent.calculatedTotal);
+        const direction = typeof mostRecent.direction === 'number' && !isNaN(mostRecent.direction)
+          ? parseFloat(mostRecent.direction)
+          : null;
+        if (!isNaN(overall) && direction !== null) {
+          return (this.overallWeight * overall) + (this.directionWeight * direction);
+        } else if (!isNaN(overall)) {
+          return overall;
+        } else if (direction !== null) {
+          return direction;
+        }
+        return NaN;
+      };
+      const ratedMovies = results.filter((result, idx) => {
+        const r = getBlendedRating(result);
+        return !isNaN(r) && (!weights || weights[idx] > 0);
+      });
       if (ratedMovies.length === 0) return 0;
       if (weights) {
         let weightedSum = 0;
         let totalWeight = 0;
         ratedMovies.forEach((result, idx) => {
-          const rating = parseFloat(this.mostRecentRating(result).calculatedTotal);
+          const rating = getBlendedRating(result);
           const weight = weights[idx];
           weightedSum += rating * weight;
           totalWeight += weight;
         });
         return (weightedSum / totalWeight).toFixed(2);
       } else {
-        const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
+        const ratings = ratedMovies.map(getBlendedRating);
         const total = ratings.reduce((a, b) => a + b, 0);
         return (total / ratings.length).toFixed(2);
       }
@@ -174,34 +199,66 @@ export default {
       const listObjs = await Promise.all(Object.entries(valueToMovies)
         .filter(([, appearances]) => appearances.length >= this.minEntries)
         .map(async ([name, appearances]) => {
+          // DETERMINISTIC SORT: sort by movie title, then billing
           const sortedAppearances = appearances.slice().sort((a, b) => {
-            const titleA = a.entry.movie.title || '';
-            const titleB = b.entry.movie.title || '';
+            // Normalize titles for comparison
+            const titleA = (a.entry.movie.title || '').trim().toLowerCase();
+            const titleB = (b.entry.movie.title || '').trim().toLowerCase();
             if (titleA < titleB) return -1;
             if (titleA > titleB) return 1;
-            return a.billing - b.billing;
+            // Billing is always 0 for directors, but keep for future-proofing
+            if (a.billing !== b.billing) return a.billing - b.billing;
+            // Tiebreaker: movie ID (should be unique and stable)
+            const idA = a.entry.movie.id || 0;
+            const idB = b.entry.movie.id || 0;
+            return idA - idB;
           });
           const entries = sortedAppearances.map(a => a.entry);
           const weights = sortedAppearances.map(a => 1); // All weights 1 for directors
+
           const bayesian = this.bayesianAverage(entries, weights);
           const count = entries.length;
           // Fetch TMDB details for known_for, popularity, etc.
           const details = await this.getDetailsForCastMember(name);
-          // Known_for bonus: average rating of known_for movies you have rated
+          // Known_for bonus: average blended rating of known_for movies you have rated
           let knownForBonus = 0;
           if (details && Array.isArray(details.known_for) && details.known_for.length) {
             // Find your ratings for these movies
             const knownForIds = details.known_for.map(m => m.id);
             const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
             if (ratedKnownFor.length) {
-              const avgKnownFor = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).reduce((a, b) => a + b, 0) / ratedKnownFor.length;
-              knownForBonus = avgKnownFor * this.knownForWeight;
+              // Use blended rating for bonus as well
+              const ratings = ratedKnownFor.map(e => {
+                const mostRecent = this.mostRecentRating(e);
+                const overall = parseFloat(mostRecent.calculatedTotal);
+                const direction = typeof mostRecent.direction === 'number' && !isNaN(mostRecent.direction)
+                  ? parseFloat(mostRecent.direction)
+                  : null;
+                if (!isNaN(overall) && direction !== null) {
+                  return (this.overallWeight * overall) + (this.directionWeight * direction);
+                } else if (!isNaN(overall)) {
+                  return overall;
+                } else if (direction !== null) {
+                  return direction;
+                }
+                return NaN;
+              }).filter(r => !isNaN(r));
+              if (ratings.length) {
+                const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+                knownForBonus = avgKnownFor * this.knownForWeight;
+              } else {
+                knownForBonus = 0;
+              }
+            } else {
+              knownForBonus = 0;
             }
           }
           // Manual boost
           const manualBoost = this.manualBoosts[name] || 1;
           // Final score: bayesian * (1 + countWeight * log(count)) * manualBoost + knownForBonus
-          const finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
+          let finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
+          if (isNaN(finalScore)) finalScore = 0;
+
           return {
             name,
             entries,

@@ -32,7 +32,14 @@ export default {
       topTenList: [],
       minEntries: 3, // Minimum number of entries for an actor to be included
       confidenceNumber: 2, // This is the confidence number used in Bayesian average calculations
-      billingExponent: 4 // Exponent for billing weight calculation
+      billingExponent: 4, // Exponent for billing weight calculation
+      performanceWeight: 0.7, // adjust as desired
+      // This gives the performance rating more weight in the final score
+    }
+  },
+  computed: {
+    overallWeight() {
+      return 1 - this.performanceWeight;
     }
   },
   async mounted () {
@@ -51,27 +58,45 @@ export default {
       this.$emit('updateSearchValue', value);
     },
     averageRating(results, weights = null) {
-      // If weights are provided, use weighted average
-      const ratedMovies = results.filter((result, idx) => this.mostRecentRating(result).calculatedTotal && (!weights || weights[idx] > 0));
+      // For actresses, blend overall and performance ratings
+      const getBlendedRating = (result) => {
+        const mostRecent = this.mostRecentRating(result);
+        const overall = parseFloat(mostRecent.calculatedTotal);
+        const performance = typeof mostRecent.performance === 'number' && !isNaN(mostRecent.performance)
+          ? parseFloat(mostRecent.performance)
+          : null;
+        if (!isNaN(overall) && performance !== null) {
+          return (this.overallWeight * overall) + (this.performanceWeight * performance);
+        } else if (!isNaN(overall)) {
+          return overall;
+        } else if (performance !== null) {
+          return performance;
+        }
+        return NaN;
+      };
+      const ratedMovies = results.filter((result, idx) => {
+        const r = getBlendedRating(result);
+        return !isNaN(r) && (!weights || weights[idx] > 0);
+      });
       if (ratedMovies.length === 0) return 0;
       if (weights) {
         let weightedSum = 0;
         let totalWeight = 0;
         ratedMovies.forEach((result, idx) => {
-          const rating = parseFloat(this.mostRecentRating(result).calculatedTotal);
+          const rating = getBlendedRating(result);
           const weight = weights[idx];
           weightedSum += rating * weight;
           totalWeight += weight;
         });
         return (weightedSum / totalWeight).toFixed(2);
       } else {
-        const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
+        const ratings = ratedMovies.map(getBlendedRating);
         const total = ratings.reduce((a, b) => a + b, 0);
         return (total / ratings.length).toFixed(2);
       }
     },
     bayesianAverage(list, weights = null) {
-      // Weighted Bayesian average
+      // Weighted Bayesian average using blended performance/overall rating for actresses
       const n = weights ? weights.reduce((a, b) => a + b, 0) : list.length;
       const c = this.confidenceNumber;
       const avg = parseFloat(this.averageRating(list, weights));
