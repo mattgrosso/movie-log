@@ -1,5 +1,13 @@
 <template>
   <div class="insights">
+    <div class="home-link" @click="returnHome">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
+        <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
+      </svg>
+      <span>
+        Home
+      </span>
+    </div>
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Totals</p>
@@ -686,6 +694,10 @@ export default {
     },
   },
   methods: {
+    returnHome () {
+      this.$store.commit("setShowHeader", true);
+      this.$router.push({ path: '/', query: { noRandom: 'true', movieDbKey: this.dbEntry?.path?.split("movieLog/")[1] } });
+    },
     updateSearchValue (value) {
       // Navigate to Home and set the search value as a query parameter
       this.$router.push({ name: 'Home', query: { search: encodeURIComponent(value) } });
@@ -737,5 +749,15 @@ export default {
   .insights {
     color: white;
     padding: 18px;
+
+    .home-link {
+      align-items: center;
+      column-gap: 4px;
+      cursor: pointer;
+      display: flex;
+      left: 6px;
+      position: absolute;
+      top: 6px;
+    }
   }
 </style>
