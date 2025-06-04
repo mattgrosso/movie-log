@@ -749,6 +749,8 @@ export default {
   .insights {
     color: white;
     padding: 18px;
+    max-width: 600px;
+    margin: 0 auto;
 
     .home-link {
       align-items: center;

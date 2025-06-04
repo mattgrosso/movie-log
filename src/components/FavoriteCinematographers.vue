@@ -359,7 +359,7 @@ export default {
         border-bottom-right-radius: 6px;
         bottom: 4px;
         color: #fff;
-        font-size: 0.45rem;
+        font-size: 0.5rem;
         left: 4px;
         padding: 2px 4px;
         position: absolute;
