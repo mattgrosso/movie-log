@@ -23,6 +23,20 @@
 
     <InsightsPane>
       <div class="insights-pane-header">
+        <p>Favorite Editors</p>
+      </div>
+      <FavoriteEditors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Cinematographers</p>
+      </div>
+      <FavoriteCinematographers :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
         <p>Full Calendar</p>
       </div>
       <FullCalendarView :results="allEntriesWithFlatKeywordsAdded" :open="true" />
@@ -152,6 +166,8 @@ import Favorites from "./Favorites.vue";
 import FavoriteActresses from "./FavoriteActresses.vue";
 import FavoriteActors from "./FavoriteActors.vue";
 import FavoriteDirectors from "./FavoriteDirectors.vue";
+import FavoriteEditors from "./FavoriteEditors.vue";
+import FavoriteCinematographers from "./FavoriteCinematographers.vue";
 import { getRating } from "../assets/javascript/GetRating.js";
 
 import { Chart, registerables } from "chart.js";
@@ -174,6 +190,8 @@ export default {
     FavoriteActresses,
     FavoriteActors,
     FavoriteDirectors,
+    FavoriteEditors,
+    FavoriteCinematographers,
   },
   computed: {
     currentLogIsTVLog () {

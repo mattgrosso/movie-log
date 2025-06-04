@@ -1,5 +1,5 @@
 <template>
-  <div class="favorite-actors">
+  <div class="favorite-editors">
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="updateSearchValue(entry.name)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -10,7 +10,11 @@
           />
         </div>
         <div class="portrait-wrapper" v-else>
-          <div class="portrait placeholder"></div>
+          <img
+            src="../assets/images/Image_not_available.png"
+            :alt="entry.name"
+            class="portrait"
+          />
         </div>
         <span class="name">{{ entry.name }}</span>
       </li>
@@ -28,11 +32,29 @@ export default {
   },
   data () {
     return {
-      count: 0, // Counter for debugging
       topTenList: [],
-      minEntries: 3, // Minimum number of entries for an actor to be included
-      confidenceNumber: 2, // This is the confidence number used in Bayesian average calculations
-      billingExponent: 4 // Exponent for billing weight calculation
+      minEntries: 5,
+      // minEntries: Minimum number of movies you must have seen from a editor for them to be considered.
+      //   Increase: Only editors you've seen more movies from will appear (list is more exclusive).
+      //   Decrease: editors with fewer movies seen can appear (list is more inclusive).
+      confidenceNumber: 1,
+      // confidenceNumber: Controls how much the global average rating influences the Bayesian average.
+      //   Increase: Scores are pulled more toward the global average (less sensitive to outliers, more conservative).
+      //   Decrease: Scores reflect your ratings more strongly (more sensitive to high/low averages for editors with few movies).
+      countWeight: 0.25,
+      // countWeight: Controls how much the number of movies seen from a editor boosts their score.
+      //   Increase: editors you've seen more often are favored, even if their average is lower.
+      //   Decrease: Number of movies seen matters less; average rating dominates.
+      knownForWeight: 0.2,
+      // knownForWeight: Controls the bonus for rating a editor's 'known_for' movies highly.
+      //   Increase: editors whose most famous movies you rate highly get a bigger boost.
+      //   Decrease: 'Known_for' bonus has less effect; overall average matters more.
+      manualBoosts: {
+        // Example: 'Steven Spielberg': 1.2, 'Wes Anderson': 0.8
+      },
+      // manualBoosts: Lets you manually adjust a editor's score (by name).
+      //   >1: Boosts the editor's score (e.g. 1.2 = 20% higher).
+      //   <1: Reduces the editor's score (e.g. 0.8 = 20% lower).
     }
   },
   async mounted () {
@@ -135,26 +157,23 @@ export default {
     async buildTopTwelveList() {
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
+
       allEntries.forEach(entry => {
         const movie = entry.movie;
-        const value = movie.cast;
-        if (!value) return;
-        if (Array.isArray(value)) {
-          value.forEach((val, idx) => {
-            const name = val.name || val;
-            if (!valueToMovies[name]) valueToMovies[name] = [];
-            valueToMovies[name].push({ entry, billing: idx });
-          });
-        } else {
-          const name = value.name || value;
-          if (!valueToMovies[name]) valueToMovies[name] = [];
-          valueToMovies[name].push({ entry, billing: 0 });
-        }
+        const crew = movie.crew;
+        if (!crew || !Array.isArray(crew)) return;
+        crew.forEach((person) => {
+          if (person.job === 'Editor' && person.name) {
+            if (!valueToMovies[person.name]) valueToMovies[person.name] = [];
+            valueToMovies[person.name].push({ entry, billing: 0 });
+          }
+        });
       });
-      const listObjs = Object.entries(valueToMovies)
+
+      // Filter by minimum entries and build list objects
+      const listObjs = await Promise.all(Object.entries(valueToMovies)
         .filter(([, appearances]) => appearances.length >= this.minEntries)
-        .map(([name, appearances]) => {
-          // Sort appearances by movie title, then billing for deterministic order
+        .map(async ([name, appearances]) => {
           const sortedAppearances = appearances.slice().sort((a, b) => {
             const titleA = a.entry.movie.title || '';
             const titleB = b.entry.movie.title || '';
@@ -163,34 +182,50 @@ export default {
             return a.billing - b.billing;
           });
           const entries = sortedAppearances.map(a => a.entry);
-          const weights = sortedAppearances.map(a => 1 / Math.pow(a.billing + 1, this.billingExponent));
+          const weights = sortedAppearances.map(a => 1); // All weights 1 for editors
+          const bayesian = this.bayesianAverage(entries, weights);
+          const count = entries.length;
+          // Fetch TMDB details for known_for, popularity, etc.
+          const details = await this.getDetailsForCastMember(name);
+          // Known_for bonus: average rating of known_for movies you have rated
+          let knownForBonus = 0;
+          if (details && Array.isArray(details.known_for) && details.known_for.length) {
+            // Find your ratings for these movies
+            const knownForIds = details.known_for.map(m => m.id);
+            const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
+            if (ratedKnownFor.length) {
+              const avgKnownFor = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).reduce((a, b) => a + b, 0) / ratedKnownFor.length;
+              knownForBonus = avgKnownFor * this.knownForWeight;
+            }
+          }
+          // Manual boost
+          const manualBoost = this.manualBoosts[name] || 1;
+          // Final score: bayesian * (1 + countWeight * log(count)) * manualBoost + knownForBonus
+          const finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
           return {
             name,
             entries,
             weights,
-            bayesian: this.bayesianAverage(entries, weights),
-            count: entries.length
+            bayesian,
+            count,
+            details,
+            finalScore,
+            knownForBonus,
           };
-        });
-      listObjs.sort((a, b) => b.bayesian - a.bayesian);
-      const topTenActors = [];
-      for (let i = 0; i < listObjs.length; i++) {
-        if (topTenActors.length >= 12) break;
-        const entry = listObjs[i];
-        const details = await this.getDetailsForCastMember(entry.name);
-        if (!details || typeof details.gender !== 'number') continue;
-        if (details.gender === 2 && topTenActors.length < 12) {
-          topTenActors.push({ ...entry, details });
-        }
-      }
-      this.topTenList = topTenActors;
+        })
+      );
+
+      // Sort using finalScore
+      listObjs.sort((a, b) => b.finalScore - a.finalScore);
+
+      this.topTenList = listObjs.slice(0, 12);
     }
   }
 };
 </script>
 
 <style lang="scss">
-.favorite-actors {
+.favorite-editors {
   color: #fff;
   display: flex;
   justify-content: center;
@@ -219,7 +254,6 @@ export default {
         width: 100%;
   
         .portrait {
-          background: #eee;
           border-radius: 6px;
           height: auto;
           object-fit: cover;

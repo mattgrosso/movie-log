@@ -28,6 +28,7 @@ export default {
   },
   data () {
     return {
+      count: 0, // Counter for debugging
       topTenList: [],
       minEntries: 3, // Minimum number of entries for an actor to be included
       confidenceNumber: 2, // This is the confidence number used in Bayesian average calculations
@@ -35,9 +36,17 @@ export default {
     }
   },
   async mounted () {
-    await this.buildTopTwelveList();
+    this.waitForDataAndBuildList();
   },
   methods: {
+    async waitForDataAndBuildList() {
+      // Wait until allEntriesWithFlatKeywordsAdded is populated, then build the list
+      if (Array.isArray(this.allEntriesWithFlatKeywordsAdded) && this.allEntriesWithFlatKeywordsAdded.length > 0) {
+        await this.buildTopTwelveList();
+      } else {
+        setTimeout(this.waitForDataAndBuildList, 100);
+      }
+    },
     updateSearchValue (value) {
       this.$emit('updateSearchValue', value);
     },
@@ -126,7 +135,6 @@ export default {
     async buildTopTwelveList() {
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
-
       allEntries.forEach(entry => {
         const movie = entry.movie;
         const value = movie.cast;
@@ -143,14 +151,19 @@ export default {
           valueToMovies[name].push({ entry, billing: 0 });
         }
       });
-
-      // Filter by minimum entries and build list objects
       const listObjs = Object.entries(valueToMovies)
         .filter(([, appearances]) => appearances.length >= this.minEntries)
         .map(([name, appearances]) => {
-          const entries = appearances.map(a => a.entry);
-          // Extreme weight for higher billing: 1/(billing+1)^this.billingExponent
-          const weights = appearances.map(a => 1 / Math.pow(a.billing + 1, this.billingExponent));
+          // Sort appearances by movie title, then billing for deterministic order
+          const sortedAppearances = appearances.slice().sort((a, b) => {
+            const titleA = a.entry.movie.title || '';
+            const titleB = b.entry.movie.title || '';
+            if (titleA < titleB) return -1;
+            if (titleA > titleB) return 1;
+            return a.billing - b.billing;
+          });
+          const entries = sortedAppearances.map(a => a.entry);
+          const weights = sortedAppearances.map(a => 1 / Math.pow(a.billing + 1, this.billingExponent));
           return {
             name,
             entries,
@@ -159,10 +172,7 @@ export default {
             count: entries.length
           };
         });
-
-      // Sort using bayesian average
       listObjs.sort((a, b) => b.bayesian - a.bayesian);
-
       const topTenActresses = [];
       for (let i = 0; i < listObjs.length; i++) {
         if (topTenActresses.length >= 12) break;

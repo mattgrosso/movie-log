@@ -33,14 +33,42 @@ export default {
   data () {
     return {
       topTenList: [],
-      minEntries: 3, // Minimum number of entries for an actor to be included
-      confidenceNumber: 5, // This is the confidence number used in Bayesian average calculations
+      minEntries: 5,
+      // minEntries: Minimum number of movies you must have seen from a director for them to be considered.
+      //   Increase: Only directors you've seen more movies from will appear (list is more exclusive).
+      //   Decrease: Directors with fewer movies seen can appear (list is more inclusive).
+      confidenceNumber: 1,
+      // confidenceNumber: Controls how much the global average rating influences the Bayesian average.
+      //   Increase: Scores are pulled more toward the global average (less sensitive to outliers, more conservative).
+      //   Decrease: Scores reflect your ratings more strongly (more sensitive to high/low averages for directors with few movies).
+      countWeight: 0.25,
+      // countWeight: Controls how much the number of movies seen from a director boosts their score.
+      //   Increase: Directors you've seen more often are favored, even if their average is lower.
+      //   Decrease: Number of movies seen matters less; average rating dominates.
+      knownForWeight: 0.2,
+      // knownForWeight: Controls the bonus for rating a director's 'known_for' movies highly.
+      //   Increase: Directors whose most famous movies you rate highly get a bigger boost.
+      //   Decrease: 'Known_for' bonus has less effect; overall average matters more.
+      manualBoosts: {
+        // Example: 'Steven Spielberg': 1.2, 'Wes Anderson': 0.8
+      },
+      // manualBoosts: Lets you manually adjust a director's score (by name).
+      //   >1: Boosts the director's score (e.g. 1.2 = 20% higher).
+      //   <1: Reduces the director's score (e.g. 0.8 = 20% lower).
     }
   },
   async mounted () {
-    await this.buildTopTwelveList();
+    this.waitForDataAndBuildList();
   },
   methods: {
+    async waitForDataAndBuildList() {
+      // Wait until allEntriesWithFlatKeywordsAdded is populated, then build the list
+      if (Array.isArray(this.allEntriesWithFlatKeywordsAdded) && this.allEntriesWithFlatKeywordsAdded.length > 0) {
+        await this.buildTopTwelveList();
+      } else {
+        setTimeout(this.waitForDataAndBuildList, 100);
+      }
+    },
     updateSearchValue (value) {
       this.$emit('updateSearchValue', value);
     },
@@ -137,39 +165,60 @@ export default {
         crew.forEach((person) => {
           if (person.job === 'Director' && person.name) {
             if (!valueToMovies[person.name]) valueToMovies[person.name] = [];
-            // Billing is not relevant for directors, so just use 0
             valueToMovies[person.name].push({ entry, billing: 0 });
           }
         });
       });
 
       // Filter by minimum entries and build list objects
-      const listObjs = Object.entries(valueToMovies)
+      const listObjs = await Promise.all(Object.entries(valueToMovies)
         .filter(([, appearances]) => appearances.length >= this.minEntries)
-        .map(([name, appearances]) => {
-          const entries = appearances.map(a => a.entry);
-          const weights = appearances.map(a => 1); // All weights 1 for directors
+        .map(async ([name, appearances]) => {
+          const sortedAppearances = appearances.slice().sort((a, b) => {
+            const titleA = a.entry.movie.title || '';
+            const titleB = b.entry.movie.title || '';
+            if (titleA < titleB) return -1;
+            if (titleA > titleB) return 1;
+            return a.billing - b.billing;
+          });
+          const entries = sortedAppearances.map(a => a.entry);
+          const weights = sortedAppearances.map(a => 1); // All weights 1 for directors
+          const bayesian = this.bayesianAverage(entries, weights);
+          const count = entries.length;
+          // Fetch TMDB details for known_for, popularity, etc.
+          const details = await this.getDetailsForCastMember(name);
+          // Known_for bonus: average rating of known_for movies you have rated
+          let knownForBonus = 0;
+          if (details && Array.isArray(details.known_for) && details.known_for.length) {
+            // Find your ratings for these movies
+            const knownForIds = details.known_for.map(m => m.id);
+            const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
+            if (ratedKnownFor.length) {
+              const avgKnownFor = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).reduce((a, b) => a + b, 0) / ratedKnownFor.length;
+              knownForBonus = avgKnownFor * this.knownForWeight;
+            }
+          }
+          // Manual boost
+          const manualBoost = this.manualBoosts[name] || 1;
+          // Final score: bayesian * (1 + countWeight * log(count)) * manualBoost + knownForBonus
+          const finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
           return {
             name,
             entries,
             weights,
-            bayesian: this.bayesianAverage(entries, weights),
-            count: entries.length
+            bayesian,
+            count,
+            details,
+            finalScore,
+            knownForBonus,
           };
-        });
+        })
+      );
 
-      // Sort using bayesian average
-      listObjs.sort((a, b) => b.bayesian - a.bayesian);
+      // Sort using finalScore
+      listObjs.sort((a, b) => b.finalScore - a.finalScore);
 
-      const topTenDirectors = [];
-      for (let i = 0; i < listObjs.length; i++) {
-        if (topTenDirectors.length >= 12) break;
-        const entry = listObjs[i];
-        const details = await this.getDetailsForCastMember(entry.name);
-        // For directors, gender is not a filter, so just add
-        topTenDirectors.push({ ...entry, details });
-      }
-      this.topTenList = topTenDirectors;
+      this.topTenList = listObjs.slice(0, 12);
     }
   }
 };
