@@ -1,7 +1,7 @@
 <template>
   <div class="favorite-editors">
     <ul>
-      <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="updateSearchValue(entry.name)">
+      <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="openEditorModal(entry)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
           <img
             :src="`https://image.tmdb.org/t/p/w92${entry.details.profile_path}`"
@@ -19,10 +19,44 @@
         <span class="name">{{ entry.name }}</span>
       </li>
     </ul>
+    <div v-if="showModal && selectedEditor" class="editor-modal-overlay">
+      <div class="editor-modal">
+        <button class="close-btn" @click="closeEditorModal">&times;</button>
+        <h2>{{ selectedEditor.name }}</h2>
+        <div class="portrait-wrapper" v-if="selectedEditor.details && selectedEditor.details.profile_path">
+          <img
+            :src="`https://image.tmdb.org/t/p/w185${selectedEditor.details.profile_path}`"
+            :alt="selectedEditor.name"
+            class="portrait"
+            style="margin-bottom: 1rem; width: 120px; height: auto; display: block; margin-left: auto; margin-right: auto;"
+          />
+        </div>
+        <div class="portrait-wrapper" v-else>
+          <img
+            src="../assets/images/Image_not_available.png"
+            :alt="selectedEditor.name"
+            class="portrait"
+            style="margin-bottom: 1rem; width: 120px; height: auto; display: block; margin-left: auto; margin-right: auto;"
+          />
+        </div>
+        <div class="modal-section">
+          <h3>Rated Films</h3>
+          <ul class="films-list">
+            <li v-for="film in selectedEditor.entries" :key="film.movie.id">
+              <strong>{{ film.movie.title }}</strong>
+              <span v-if="!isNaN(parseFloat(getRating(film).calculatedTotal))"> - Rated: {{ parseFloat(getRating(film).calculatedTotal).toFixed(2) }}</span>
+              <span v-else> - Not rated</span>
+            </li>
+          </ul>
+        </div>
+        <button class="search-btn" @click="searchForEditor">Search for this editor</button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
+import { getRating } from "../assets/javascript/GetRating.js";
 export default {
   props: {
     allEntriesWithFlatKeywordsAdded: {
@@ -55,6 +89,8 @@ export default {
       // manualBoosts: Lets you manually adjust a editor's score (by name).
       //   >1: Boosts the editor's score (e.g. 1.2 = 20% higher).
       //   <1: Reduces the editor's score (e.g. 0.8 = 20% lower).
+      showModal: false,
+      selectedEditor: null,
     }
   },
   async mounted () {
@@ -227,7 +263,32 @@ export default {
       listObjs.sort((a, b) => b.finalScore - a.finalScore);
 
       this.topTenList = listObjs.slice(0, 12);
-    }
+    },
+    openEditorModal(entry) {
+      this.selectedEditor = entry;
+      this.showModal = true;
+      document.body.classList.add('no-scroll');
+    },
+    closeEditorModal() {
+      this.showModal = false;
+      this.selectedEditor = null;
+      document.body.classList.remove('no-scroll');
+    },
+    getEditorBreakdown(entry) {
+      if (!entry) return null;
+      const breakdown = [];
+      breakdown.push({ label: 'Final Score', value: entry.finalScore?.toFixed(2) });
+      breakdown.push({ label: 'Bayesian Average', value: entry.bayesian?.toFixed(2) });
+      breakdown.push({ label: 'Film Count', value: entry.count });
+      breakdown.push({ label: 'Known For Bonus', value: entry.knownForBonus?.toFixed(2) });
+      return breakdown;
+    },
+    getRating,
+    searchForEditor() {
+      const name = this.selectedEditor?.name;
+      this.closeEditorModal();
+      if (name) this.updateSearchValue(name);
+    },
   }
 };
 </script>
@@ -290,5 +351,99 @@ export default {
     }
   }
 
+  .editor-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+
+    .editor-modal {
+      background: #222;
+      color: #fff;
+      border-radius: 10px;
+      padding: 2rem;
+      min-width: 320px;
+      max-width: 90vw;
+      box-shadow: 0 2px 16px #000a;
+      position: relative;
+
+      .close-btn {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: none;
+        border: none;
+        color: #fff;
+        font-size: 2rem;
+        cursor: pointer;
+      }
+
+      .modal-section {
+        margin-bottom: 1.5rem;
+      }
+
+      .search-btn {
+        background: #1976d2;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 0.5rem 1.5rem;
+        font-size: 1rem;
+        cursor: pointer;
+        margin-top: 1rem;
+      }
+
+      .breakdown-list {
+        padding-left: 0;
+        list-style: none;
+        margin-bottom: 1rem;
+
+        li {
+          display: block;
+          margin-bottom: 0.25rem;
+          word-break: break-word;
+          width: 100%;
+        }
+      }
+
+      .films-list {
+        padding-left: 0;
+        list-style: none;
+        max-height: 250px;
+        overflow-y: auto;
+        margin-bottom: 1rem;
+        position: relative;
+
+        &::after {
+          content: "";
+          display: block;
+          position: sticky;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 32px;
+          pointer-events: none;
+          background: linear-gradient(to bottom, rgba(34,34,34,0), rgba(34,34,34,0.95) 90%);
+          z-index: 2;
+        }
+
+        li {
+          display: block;
+          margin-bottom: 0.25rem;
+          word-break: break-word;
+        }
+      }
+    }
+  }
+}
+
+body.no-scroll {
+  overflow: hidden !important;
 }
 </style>
