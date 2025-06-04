@@ -4,14 +4,14 @@
       <div class="insights-pane-header">
         <p>Favorite Actresses</p>
       </div>
-      <FavoriteActresses :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
+      <FavoriteActresses :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
     </InsightsPane>
 
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Favorite Actors</p>
       </div>
-      <FavoriteActors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"/>
+      <FavoriteActors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
     </InsightsPane>
 
 
@@ -635,6 +635,10 @@ export default {
     },
   },
   methods: {
+    updateSearchValue (value) {
+      // Navigate to Home and set the search value as a query parameter
+      this.$router.push({ name: 'Home', query: { search: encodeURIComponent(value) } });
+    },
     topStructure (result) {
       if (this.currentLogIsTVLog) {
         return result.tvShow;
@@ -652,7 +656,8 @@ export default {
       return (total / ratings.length).toFixed(2);
     },
     updateSearchValue (value) {
-      console.log("Update search value:", value);
+      // Navigate to Home and set the search value as a query parameters
+      this.$router.push({ name: 'Home', query: { search: encodeURIComponent(value) } });
     },
     getYear (media) {
       let date;

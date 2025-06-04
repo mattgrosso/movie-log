@@ -34,6 +34,7 @@ const loggedIn = () => {
 const routes = [
   {
     path: '/',
+    name: 'Home', // Added name for programmatic navigation
     component: Home,
     meta: {
       requiresLogin: true

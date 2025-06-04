@@ -401,6 +401,13 @@ export default {
         this.value = newVal;
       }
     },
+    '$route.query.search'(newVal) {
+      // When the route query changes, update the value
+      if (typeof newVal === 'string') {
+        this.value = decodeURIComponent(newVal);
+        this.$store.commit('setDBSearchValue', this.value);
+      }
+    },
     DBSortValue (newVal) {
       if (newVal) {
         this.setSortValue(newVal)

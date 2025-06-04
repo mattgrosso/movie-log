@@ -1,7 +1,7 @@
 <template>
   <div class="favorites-list">
     <ul>
-      <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3">
+      <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="updateSearchValue(entry.name)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
           <img
             :src="`https://image.tmdb.org/t/p/w92${entry.details.profile_path}`"
@@ -29,25 +29,43 @@ export default {
   data () {
     return {
       topTenList: [],
-      confidenceNumber: 3,
-      category: "actor"
+      minEntries: 3, // Minimum number of entries for an actor to be included
+      confidenceNumber: 2, // Confidence number for Bayesian average calculation
+      billingExponent: 4 // Exponent for billing weight calculation
     }
   },
   async mounted () {
     await this.buildTopTwelveList();
   },
   methods: {
-    averageRating(results) {
-      const ratedMovies = results.filter((result) => this.mostRecentRating(result).calculatedTotal);
-      const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
-      const total = ratings.reduce((a, b) => a + b, 0);
-      return (total / ratings.length).toFixed(2);
+    updateSearchValue (value) {
+      this.$emit('updateSearchValue', value);
     },
-    bayesianAverage(list) {
-      // Bayesian average for a list
-      const n = list.length;
+    averageRating(results, weights = null) {
+      // If weights are provided, use weighted average
+      const ratedMovies = results.filter((result, idx) => this.mostRecentRating(result).calculatedTotal && (!weights || weights[idx] > 0));
+      if (ratedMovies.length === 0) return 0;
+      if (weights) {
+        let weightedSum = 0;
+        let totalWeight = 0;
+        ratedMovies.forEach((result, idx) => {
+          const rating = parseFloat(this.mostRecentRating(result).calculatedTotal);
+          const weight = weights[idx];
+          weightedSum += rating * weight;
+          totalWeight += weight;
+        });
+        return (weightedSum / totalWeight).toFixed(2);
+      } else {
+        const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
+        const total = ratings.reduce((a, b) => a + b, 0);
+        return (total / ratings.length).toFixed(2);
+      }
+    },
+    bayesianAverage(list, weights = null) {
+      // Weighted Bayesian average
+      const n = weights ? weights.reduce((a, b) => a + b, 0) : list.length;
       const c = this.confidenceNumber;
-      const avg = parseFloat(this.averageRating(list));
+      const avg = parseFloat(this.averageRating(list, weights));
       const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
       return (n / (n + c)) * avg + (c / (n + c)) * globalAvg;
     },
@@ -106,47 +124,46 @@ export default {
       }
     },
     async buildTopTwelveList() {
-      const minEntries = 2;
-
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
-
       const valueToMovies = {};
 
       allEntries.forEach(entry => {
         const movie = entry.movie;
         const value = movie.cast;
-
         if (!value) return;
-
-        // Handle array (e.g., cast, genres) or string
         if (Array.isArray(value)) {
-          value.forEach(val => {
-            const name = val.name || val; // handle objects or strings
+          value.forEach((val, idx) => {
+            const name = val.name || val;
             if (!valueToMovies[name]) valueToMovies[name] = [];
-            valueToMovies[name].push(entry);
+            valueToMovies[name].push({ entry, billing: idx });
           });
         } else {
           const name = value.name || value;
           if (!valueToMovies[name]) valueToMovies[name] = [];
-          valueToMovies[name].push(entry);
+          valueToMovies[name].push({ entry, billing: 0 });
         }
       });
 
       // Filter by minimum entries and build list objects
       const listObjs = Object.entries(valueToMovies)
-        .filter(([, entries]) => entries.length >= minEntries)
-        .map(([name, entries]) => ({
-          name,
-          entries,
-          bayesian: this.bayesianAverage(entries),
-          count: entries.length
-        }));
+        .filter(([, appearances]) => appearances.length >= this.minEntries)
+        .map(([name, appearances]) => {
+          const entries = appearances.map(a => a.entry);
+          // Extreme weight for higher billing: 1/(billing+1)^this.billingExponent
+          const weights = appearances.map(a => 1 / Math.pow(a.billing + 1, this.billingExponent));
+          return {
+            name,
+            entries,
+            weights,
+            bayesian: this.bayesianAverage(entries, weights),
+            count: entries.length
+          };
+        });
 
       // Sort using bayesian average
       listObjs.sort((a, b) => b.bayesian - a.bayesian);
 
       const topTenActors = [];
-
       for (let i = 0; i < listObjs.length; i++) {
         if (topTenActors.length >= 12) break;
         const entry = listObjs[i];
@@ -156,7 +173,6 @@ export default {
           topTenActors.push({ ...entry, details });
         }
       }
-
       this.topTenList = topTenActors;
     }
   }
@@ -165,58 +181,59 @@ export default {
 
 <style lang="scss">
 .favorites-list {
+  color: #fff;
   display: flex;
   justify-content: center;
-  color: #fff;
   width: 100%;
 
   ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    width: 100%;
     display: flex;
     flex-wrap: wrap;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
 
     .favorite-list-item {
-      display: flex;
       align-items: center;
+      cursor: pointer;
+      display: flex;
       min-height: 36px;
       position: relative;
   
       .portrait-wrapper {
-        display: flex;
         align-items: center;
+        display: flex;
         justify-content: center;
-        width: 100%;
         padding: 4px;
+        width: 100%;
   
         .portrait {
-          width: 100%;
-          height: auto;
-          object-fit: cover;
           background: #eee;
           border-radius: 6px;
+          height: auto;
+          object-fit: cover;
+          width: 100%;
         }
   
         .placeholder {
           background: #444;
-          width: 48px;
           height: auto;
+          width: 48px;
         }
       }
   
       .name {
-        font-size: 0.45rem;
-        color: #fff;
-        position: absolute;
         background: #00000069;
-        padding: 2px 4px;
-        bottom: 4px;
-        left: 4px;
-        right: 4px;
-        border-bottom-right-radius: 6px;
         border-bottom-left-radius: 6px;
+        border-bottom-right-radius: 6px;
+        bottom: 4px;
+        color: #fff;
+        font-size: 0.45rem;
+        left: 4px;
+        padding: 2px 4px;
+        position: absolute;
+        right: 4px;
       }
     }
   }
