@@ -1,5 +1,5 @@
 <template>
-  <div class="favorite-actresses">
+  <div class="favorite-directors">
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="updateSearchValue(entry.name)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -10,7 +10,11 @@
           />
         </div>
         <div class="portrait-wrapper" v-else>
-          <div class="portrait placeholder"></div>
+          <img
+            src="../assets/images/Image_not_available.png"
+            :alt="entry.name"
+            class="portrait"
+          />
         </div>
         <span class="name">{{ entry.name }}</span>
       </li>
@@ -30,8 +34,7 @@ export default {
     return {
       topTenList: [],
       minEntries: 3, // Minimum number of entries for an actor to be included
-      confidenceNumber: 2, // This is the confidence number used in Bayesian average calculations
-      billingExponent: 4 // Exponent for billing weight calculation
+      confidenceNumber: 5, // This is the confidence number used in Bayesian average calculations
     }
   },
   async mounted () {
@@ -129,19 +132,15 @@ export default {
 
       allEntries.forEach(entry => {
         const movie = entry.movie;
-        const value = movie.cast;
-        if (!value) return;
-        if (Array.isArray(value)) {
-          value.forEach((val, idx) => {
-            const name = val.name || val;
-            if (!valueToMovies[name]) valueToMovies[name] = [];
-            valueToMovies[name].push({ entry, billing: idx });
-          });
-        } else {
-          const name = value.name || value;
-          if (!valueToMovies[name]) valueToMovies[name] = [];
-          valueToMovies[name].push({ entry, billing: 0 });
-        }
+        const crew = movie.crew;
+        if (!crew || !Array.isArray(crew)) return;
+        crew.forEach((person) => {
+          if (person.job === 'Director' && person.name) {
+            if (!valueToMovies[person.name]) valueToMovies[person.name] = [];
+            // Billing is not relevant for directors, so just use 0
+            valueToMovies[person.name].push({ entry, billing: 0 });
+          }
+        });
       });
 
       // Filter by minimum entries and build list objects
@@ -149,8 +148,7 @@ export default {
         .filter(([, appearances]) => appearances.length >= this.minEntries)
         .map(([name, appearances]) => {
           const entries = appearances.map(a => a.entry);
-          // Extreme weight for higher billing: 1/(billing+1)^this.billingExponent
-          const weights = appearances.map(a => 1 / Math.pow(a.billing + 1, this.billingExponent));
+          const weights = appearances.map(a => 1); // All weights 1 for directors
           return {
             name,
             entries,
@@ -163,24 +161,22 @@ export default {
       // Sort using bayesian average
       listObjs.sort((a, b) => b.bayesian - a.bayesian);
 
-      const topTenActresses = [];
+      const topTenDirectors = [];
       for (let i = 0; i < listObjs.length; i++) {
-        if (topTenActresses.length >= 12) break;
+        if (topTenDirectors.length >= 12) break;
         const entry = listObjs[i];
         const details = await this.getDetailsForCastMember(entry.name);
-        if (!details || typeof details.gender !== 'number') continue;
-        if (details.gender === 1 && topTenActresses.length < 12) {
-          topTenActresses.push({ ...entry, details });
-        }
+        // For directors, gender is not a filter, so just add
+        topTenDirectors.push({ ...entry, details });
       }
-      this.topTenList = topTenActresses;
+      this.topTenList = topTenDirectors;
     }
   }
 };
 </script>
 
 <style lang="scss">
-.favorite-actresses {
+.favorite-directors {
   color: #fff;
   display: flex;
   justify-content: center;
@@ -209,7 +205,6 @@ export default {
         width: 100%;
   
         .portrait {
-          background: #eee;
           border-radius: 6px;
           height: auto;
           object-fit: cover;

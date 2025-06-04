@@ -1,5 +1,5 @@
 <template>
-  <div class="favorites-list">
+  <div class="favorite-actors">
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="updateSearchValue(entry.name)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -180,7 +180,7 @@ export default {
 </script>
 
 <style lang="scss">
-.favorites-list {
+.favorite-actors {
   color: #fff;
   display: flex;
   justify-content: center;
