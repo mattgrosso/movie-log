@@ -178,6 +178,15 @@
           </div>
         </div>
 
+        <div v-if="topStructure(result).cast && topStructure(result).cast.length" class="cast">
+          <h4>Cast</h4>
+          <p class="long-list">
+            <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor(castMember.name)">
+              {{castMember.name}}<span v-if="countCastCrew(castMember.name)" class="small-count-bubble">&nbsp;({{ countCastCrew(castMember.name) }})</span><span v-if="index !== topStructure(result).cast.length - 1">&nbsp;&nbsp;</span>
+            </a>
+          </p>
+        </div>
+
         <div v-if="topStructure(result).flatKeywords && topStructure(result).flatKeywords.length" class="keywords">
           <h4>Keyword<span v-if="multipleEntries(topStructure(result).flatKeywords)">s</span></h4>
           <p class="long-list">
@@ -220,15 +229,6 @@
           <p class="long-list">
             <a v-for="(name, index) in getCrewMember('Photo')" :key="index" class="link" @click.stop="searchFor(name)">
               {{name}}<span v-if="countCastCrew(name)" class="small-count-bubble">&nbsp;({{ countCastCrew(name) }})</span><span v-if="index !== getCrewMember('Photo').length - 1">&nbsp;&nbsp;</span>
-            </a>
-          </p>
-        </div>
-
-        <div v-if="topStructure(result).cast && topStructure(result).cast.length" class="cast">
-          <h4>Cast</h4>
-          <p class="long-list">
-            <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor(castMember.name)">
-              {{castMember.name}}<span v-if="countCastCrew(castMember.name)" class="small-count-bubble">&nbsp;({{ countCastCrew(castMember.name) }})</span><span v-if="index !== topStructure(result).cast.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
         </div>
