@@ -34,7 +34,7 @@ export default {
   },
   data () {
     return {
-      threshold: 2,
+      threshold: 3,
     }
   },
   computed: {
@@ -131,8 +131,9 @@ export default {
     },
     outlierCastCrew () {
       const averages = this.castCrewAverages.map(person => person.average);
+      if (!averages.length) return [];
       const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
-      const stdDev = Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / averages.length);
+      const stdDev = Math.sqrt(averages.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / averages.length);
 
       // Define a threshold for outliers (e.g., 2 standard deviations from the mean)
       const threshold = this.threshold * stdDev;

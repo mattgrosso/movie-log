@@ -1,6 +1,35 @@
 <template>
   <div class="insights">
-    <div class="insights-pane">
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Actresses</p>
+      </div>
+      <FavoriteActresses :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" />
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Favorite Actors</p>
+      </div>
+      <FavoriteActors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"/>
+    </InsightsPane>
+
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Full Calendar</p>
+      </div>
+      <FullCalendarView :results="allEntriesWithFlatKeywordsAdded" :open="true" />
+    </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Yearly Averages</p>
+      </div>
+      <YearlyAverage :resultsWithRatings="resultsWithRatings"/>
+    </InsightsPane>
+
+    <InsightsPane>
       <div class="insights-pane-header">
         <p>Totals</p>
       </div>
@@ -35,8 +64,9 @@
         </div>
       </div>
       <LineChart :chartData="ratingsCountData" :options="ratingsCountOptions"/>
-    </div>
-    <div class="insights-pane">
+    </InsightsPane>
+
+    <InsightsPane>
       <div class="insights-pane-header">
         <p>View Counts</p>
       </div>
@@ -88,26 +118,17 @@
           <p class="insights-pane-item-value">{{moviesWatchedLastYear}}</p>
         </div>
       </div>
-    </div>
-    <div class="insights-panel">
+    </InsightsPane>
 
-    </div>
-    <!-- <div class="details py-3">
-      <p class="fs-5 my-2 text-center">
-        You've rated {{allEntriesWithFlatKeywordsAdded.length}} {{movieOrTVShowDisplay}}s.
-      </p>
-      <p class="m-0 d-flex justify-content-center align-items-center">
-        They have an average rating of {{averageRating(allEntriesWithFlatKeywordsAdded)}}
-      </p>
-    </div> -->
-    <!-- <Charts
-      v-if="!this.currentLogIsTVLog"
-      class="mt-5"
-      :results="allEntriesWithFlatKeywordsAdded"
-      :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-      :allCounts="allCounts"
-      @updateSearchValue="updateSearchValue"
-    /> -->
+    <!-- <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Outliers</p>
+      </div>
+      <Outliers :resultsWithRatings="resultsWithRatings" :allCounts="allCounts" @updateSearchValue="updateSearchValue"/>
+    </InsightsPane> -->
+
+
+
     <!-- <Settings/>
     <BulkTagEditor
       v-if="isMatt"
@@ -118,10 +139,17 @@
 
 <script>
 import Charts from "./Charts.vue";
+import Outliers from "./Outliers.vue";
+import YearlyAverage from "./YearlyAverage.vue";
+import FullCalendarView from "./FullCalendarView.vue";
+import Favorites from "./Favorites.vue";
+import FavoriteActresses from "./FavoriteActresses.vue";
+import FavoriteActors from "./FavoriteActors.vue";
 import { getRating } from "../assets/javascript/GetRating.js";
+
 import { Chart, registerables } from "chart.js";
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
-import randomColor from 'randomcolor';
+import InsightsPane from "./InsightsPane.vue";
 import uniq from 'lodash/uniq';
 
 Chart.register(...registerables);
@@ -130,7 +158,14 @@ export default {
   name: "Insights",
   components: {
     Charts,
-    LineChart
+    LineChart,
+    InsightsPane,
+    Outliers,
+    YearlyAverage,
+    FullCalendarView,
+    Favorites,
+    FavoriteActresses,
+    FavoriteActors,
   },
   computed: {
     currentLogIsTVLog () {
@@ -646,57 +681,5 @@ export default {
   .insights {
     color: white;
     padding: 18px;
-
-    .insights-pane {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: center;
-      padding: 24px 0;
-      border-top: 2px solid white;
-      position: relative;
-
-      .insights-pane-header {
-        position: absolute;
-        background: #212529;
-        top: 0;
-        transform: translateY(-50%);
-        padding: 0 10px;
-
-        p {
-          margin: 0;
-          font-size: 1rem;
-          font-weight: bold;
-        }
-      }
-
-      .insights-pane-item-wrapper {
-        padding: 0 5px 10px;
-
-        .insights-pane-item {
-          text-align: center;
-          border: 1px solid white;
-          border-radius: 3px;
-          color: white;
-  
-          p {
-            margin: 0;
-          }
-  
-          .insights-pane-item-header {
-            border-bottom: 1px solid white;
-            background: #3b5aaa;
-            font-size: 0.7rem;
-            border-top-left-radius: 3px;
-            border-top-right-radius: 3px;
-          }
-  
-          .insights-pane-item-value {
-            font-size: 1.3rem;
-          }
-        }
-      }
-      
-    }
   }
 </style>

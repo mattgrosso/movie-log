@@ -2,8 +2,8 @@
   <div class="yearly-average">
     <div class="year-adjustments">
       <p>Average ratings for last {{Math.floor(numberOfYears)}} years.</p>
-      <button class="btn btn-warning btn-sm" @click="decreaseYears">-</button>
-      <button class="btn btn-success btn-sm" @click="increaseYears">+</button>
+      <button class="btn btn-primary btn-sm" @click="decreaseYears">Fewer Years</button>
+      <button class="btn btn-success btn-sm" @click="increaseYears">More Years</button>
     </div>
     <BarChart class="chart" :chartData="yearlyAverageData" :options="yearlyAverageOptions"/>
   </div>
@@ -77,7 +77,7 @@ export default {
       const recentYears = this.uniqueYears.slice(startIndex);
       const recentAverages = averages.slice(startIndex);
 
-      const color = randomColor();
+      const color = "#5bc62b";
 
       return {
         labels: recentYears,
@@ -155,8 +155,6 @@ export default {
       }
 
       button {
-        width: 2rem;
-        height: 2rem;
         margin: 0 0.25rem;
       }
     }
