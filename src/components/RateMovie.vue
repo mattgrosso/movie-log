@@ -447,6 +447,19 @@
         </div>
       </div>
 
+      <div class="best-since">
+        <p v-if="lastHigherRatedMovie">
+          <span>This is the best movie you've watched since:</span>
+          <span class="best-since-movie">
+            <strong>{{ lastHigherRatedMovie.title }}</strong>
+            <span v-if="lastHigherRatedMovie.date">&nbsp;({{ relativeTime(lastHigherRatedMovie.date) }})</span>
+          </span>
+        </p>
+        <p v-else>
+          This is your highest rated movie!
+        </p>
+      </div>
+
       <div v-if="movieToRate" ref="neighbors" class="neighbors">
         <div class="hide-neighbors" @click="toggleNeighbors">
           <i class="bi bi-arrow-bar-down"/>
@@ -729,6 +742,43 @@ export default {
     },
     selectedMovieTagNames () {
       return this.selectedMovieTags.map((tag) => tag.title);
+    },
+    lastHigherRatedMovie() {
+      // Get all movies as array, including the current one as rated on page
+      const allMovies = [...this.$store.getters.allMoviesAsArray];
+      const current = this.movieAsRatedOnPage;
+
+      // Add current if not already present (by id)
+      if (!allMovies.some(entry => entry.movie.id === current.movie.id)) {
+        allMovies.push(current);
+      }
+
+      // Get current movie's rating
+      const currentRating = this.rating.calculatedTotal;
+      // Find all movies with higher rating
+      const higherRated = allMovies.filter(entry => {
+        const entryRating = getRating(entry).calculatedTotal;
+        return entryRating > currentRating;
+      });
+      
+      if (!higherRated.length) return null;
+      // Find the one with the most recent rating date
+      let mostRecent = higherRated[0];
+      let mostRecentDate = this.mostRecentRating(higherRated[0]).date || 0;
+      for (let i = 1; i < higherRated.length; i++) {
+        const entry = higherRated[i];
+        const entryDate = this.mostRecentRating(entry).date || 0;
+        if (entryDate > mostRecentDate) {
+          mostRecent = entry;
+          mostRecentDate = entryDate;
+        }
+      }
+
+      return {
+        title: mostRecent.movie.title,
+        date: mostRecentDate,
+        movie: mostRecent.movie
+      };
     }
   },
   methods: {
@@ -952,7 +1002,27 @@ export default {
     },
     toggleNeighbors () {
       this.$refs.neighbors.classList.toggle("unstuck");
-    }
+    },
+    // Returns a human-friendly relative time string for a given timestamp
+    relativeTime(date) {
+      if (!date) return '';
+      const now = Date.now();
+      const then = typeof date === 'string' ? new Date(date).getTime() : date;
+      const diff = now - then;
+      const seconds = Math.floor(diff / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      const months = Math.floor(days / 30);
+      const years = Math.floor(days / 365);
+      if (seconds < 60) return 'just now';
+      if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+      if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+      if (days === 1) return 'yesterday';
+      if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
+      if (months < 12) return `${months} month${months === 1 ? '' : 's'} ago`;
+      return `${years} year${years === 1 ? '' : 's'} ago`;
+    },
   },
 }
 </script>
@@ -994,6 +1064,20 @@ export default {
     .rating {
       i {
         cursor: pointer;
+      }
+    }
+
+    .best-since {
+      padding: 0.5rem;
+
+      span {
+        display: block;
+      }
+
+      .best-since-movie {
+        display: flex;
+        justify-content: center;
+        align-items: center;
       }
     }
 
