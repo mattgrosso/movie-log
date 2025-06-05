@@ -1,7 +1,7 @@
 <template>
   <div class="pick-media mx-auto">
     <ul class="p-0 d-flex justify-content-around flex-wrap">
-      <li class="card shadow border" v-for="media in searchResults" :key="media.id" @click="rateMedia(media)">
+      <li class="card shadow border" v-for="media in displayList" :key="media.id" @click="rateMedia(media)">
         <img
           v-if="media.poster_path"
           class="card-img-top"
@@ -31,6 +31,11 @@ export default {
       type: Boolean,
       required: false,
       default: false
+    },
+    mediaList: {
+      type: Array,
+      required: false,
+      default: null
     }
   },
   computed: {
@@ -42,6 +47,13 @@ export default {
         return this.$store.state.newEntrySearchResults.slice(0, 3);
       } else {
         return this.$store.state.newEntrySearchResults;
+      }
+    },
+    displayList () {
+      if (this.mediaList && this.mediaList.length) {
+        return this.mediaList;
+      } else {
+        return this.searchResults;
       }
     }
   },

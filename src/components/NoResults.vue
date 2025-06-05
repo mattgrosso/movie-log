@@ -1,6 +1,9 @@
 <template>
   <div class="no-results">
-    <div v-if="hasMedia || value" class="has-media-no-results">
+    <div v-if="suggestionsMode">
+      <NewRatingSearch :value="value" :suggestionsMode="true" @clear-search-value="clearValueSearchTypeAndFilterValue" @cancel-suggestions="$emit('cancel-suggestions')"/>
+    </div>
+    <div v-else-if="hasMedia || value" class="has-media-no-results">
       <NewRatingSearch :value="value" @clear-search-value="clearValueSearchTypeAndFilterValue"/>
     </div>
     <div v-else class="no-movies">
@@ -18,6 +21,10 @@ export default {
     value: {
       type: String,
       required: true
+    },
+    suggestionsMode: {
+      type: Boolean,
+      default: false
     }
   },
   components: {

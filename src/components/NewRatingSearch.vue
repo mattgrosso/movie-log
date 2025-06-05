@@ -1,6 +1,14 @@
 <template>
   <div class="new-rating-search mt-3 mb-4 mx-3">
-    <div v-if="quickPickResults" class="quick-pick">
+    <div v-if="suggestionsMode && suggestions && suggestions.length" class="quick-pick">
+      <p>Want some help getting started? Rate one of these popular movies:</p>
+      <PickMedia :quickPick="true" :mediaList="suggestions" />
+      <div class="button-wrapper d-flex justify-content-end gap-2">
+        <button class="btn btn-warning" @click="$emit('cancel-suggestions')">Cancel</button>
+        <button class="btn btn-primary" @click="fetchSuggestions" id="new-suggestions-button">More suggestions...</button>
+      </div>
+    </div>
+    <div v-else-if="quickPickResults" class="quick-pick">
       <p>Add rating for...</p>
       <PickMedia :quickPick="true"/>
       <div class="button-wrapper d-flex justify-content-end">
@@ -43,22 +51,34 @@ export default {
     value: {
       type: String,
       required: true
+    },
+    suggestionsMode: {
+      type: Boolean,
+      default: false
     }
   },
   data () {
     return {
       quickPickResults: null,
-      noResults: false
+      noResults: false,
+      suggestions: [],
+      suggestionsPage: 1
     }
   },
   mounted () {
-    setTimeout(() => {
-      this.searchTMDB(true);
-    }, 1000);
+    if (this.suggestionsMode) {
+      this.fetchSuggestions();
+    } else {
+      setTimeout(() => {
+        this.searchTMDB(true);
+      }, 1000);
+    }
   },
   watch: {
     value () {
-      this.searchTMDB(true);
+      if (!this.suggestionsMode) {
+        this.searchTMDB(true);
+      }
     }
   },
   computed: {
@@ -86,11 +106,31 @@ export default {
     }
   },
   methods: {
+    async fetchSuggestions () {
+      // Fetch popular movies from TMDB
+      try {
+        const resp = await axios.get(`https://api.themoviedb.org/3/movie/popular?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&page=${this.suggestionsPage}`);
+        if (resp.data && resp.data.results && resp.data.results.length) {
+          // Get IDs of already rated movies
+          const ratedIds = this.$store.getters.allMoviesAsArray.map(m => m.movie.id);
+          // Filter out already rated
+          let filtered = resp.data.results.filter(movie => !ratedIds.includes(movie.id));
+          // Shuffle the filtered array
+          for (let i = filtered.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
+          }
+          this.suggestions = filtered.slice(0, 3);
+          this.suggestionsPage = this.suggestionsPage >= resp.data.total_pages ? 1 : this.suggestionsPage + 1;
+        }
+      } catch (e) {
+        this.suggestions = [];
+      }
+    },
     searchTMDB: debounce(async function (quickPick) {
       if (!this.value) {
         return;
       }
-
       const resp = await axios.get(`https://api.themoviedb.org/3/search/${this.movieOrTV}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
       if (quickPick && resp.data.results.length) {
         this.quickPickEntrySearch(resp.data.results);
@@ -102,7 +142,6 @@ export default {
     }, 500),
     showNoResultsMessage () {
       this.noResults = true;
-
       setTimeout(() => {
         this.noResults = false;
         this.$emit('clear-search-value');
@@ -114,7 +153,6 @@ export default {
     },
     newEntrySearch (results) {
       this.$store.commit('setNewEntrySearchResults', results)
-
       this.$router.push(`/pick-media/${this.value}`);
     },
     reRate (tvShow) {

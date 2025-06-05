@@ -26,300 +26,314 @@
         </span>
       </div>
     </div>
-    <div v-if="showResultsList" class="results">
-      <div v-if="paginatedSortedResults.length" class="results-exist">
-        <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
-          <div class="btn-group col-12" role="group" aria-label="Button group">
-            <button class="results-actions-button btn btn-secondary" @click="toggleMovieTV">
-              <i v-if="currentLogIsTVLog" class="bi bi-film"/>
-              <i v-else class="bi bi-tv"/>
-            </button>
-            <button class="results-actions-button btn btn-warning" @click="shareResults">
-              <span v-if="!sharing">
-                <i class="bi bi-share"/>
-              </span>
-              <div v-else class="spinner-border text-light" role="status">
-                <span class="visually-hidden">Loading...</span>
-              </div>
-            </button>
-            <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage">
-              <span v-if="showAverage">
-                <span class="average-label">(avg)</span>
-                <span class="average-value">{{averageRating(filteredResults)}}</span>
-              </span>
-              <span v-else-if="showViewCount">
-                <span class="average-label">(views)</span>
-                <span class="average-value">{{viewsCount(filteredResults)}}</span>
-              </span>
-              <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
-              <span v-else>{{filteredResults.length}}</span>
-            </button>
-            <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info" type="button" @click="goToInsights">
-              <i class="bi bi-lightbulb"/>
-            </button>
-            <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion">
-              <i class="bi bi-lightning-charge"/>
-            </button>
-            <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchValue">
-              <i class="bi bi-shuffle"/>
-            </button>
-            <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i v-if="sortValue === 'rating'" class="bi bi-123"/>
-              <i v-if="sortValue === 'watched'" class="bi bi-calendar3"/>
-              <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
-              <i v-if="sortValue === 'title'" class="bi bi-alphabet"></i>
-              <i v-if="sortValue === 'views'" class="bi bi-eye"></i>
-              <i v-if="sortValue === 'direction'" class="bi bi-dpad"></i>
-              <i v-if="sortValue === 'imagery'" class="bi bi-image"></i>
-              <i v-if="sortValue === 'story'" class="bi bi-book"></i>
-              <i v-if="sortValue === 'performance'" class="bi bi-speedometer"></i>
-              <i v-if="sortValue === 'soundtrack'" class="bi bi-music-note-beamed"></i>
-              <i v-if="sortValue === 'stickiness'" class="bi bi-sticky"></i>
-              <span class="order-arrow">
-                <i v-if="sortOrder !== 'bestOrNewestOnTop'" class="bi bi-arrow-down-short"/>
-                <i v-if="sortOrder === 'bestOrNewestOnTop'" class="bi bi-arrow-up-short"/>
-              </span>
-              <ul class="dropdown-menu">
-                <li value="rating">
-                  <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setOrToggleSortValue('rating')">
-                    Rating
-                  </button>
-                </li>
-                <li value="watched">
-                  <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setOrToggleSortValue('watched')">
-                    Watch Date
-                  </button>
-                </li>
-                <li value="release">
-                  <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setOrToggleSortValue('release')">
-                    Release Date
-                  </button>
-                </li>
-                <li value="title">
-                  <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setOrToggleSortValue('title')">
-                    Title
-                  </button>
-                </li>
-                <li value="views">
-                  <button class="dropdown-item" :class="{active: sortValue === 'views'}" @click="setOrToggleSortValue('views')">
-                    Views
-                  </button>
-                </li>
-                <li value="direction">
-                  <button class="dropdown-item" :class="{active: sortValue === 'direction'}" @click="setOrToggleSortValue('direction')">
-                    Direction
-                  </button>
-                </li>
-                <li value="imagery">
-                  <button class="dropdown-item" :class="{active: sortValue === 'imagery'}" @click="setOrToggleSortValue('imagery')">
-                    Imagery
-                  </button>
-                </li>
-                <li value="story">
-                  <button class="dropdown-item" :class="{active: sortValue === 'story'}" @click="setOrToggleSortValue('story')">
-                    Story
-                  </button>
-                </li>
-                <li value="performance">
-                  <button class="dropdown-item" :class="{active: sortValue === 'performance'}" @click="setOrToggleSortValue('performance')">
-                    Performance
-                  </button>
-                </li>
-                <li value="soundtrack">
-                  <button class="dropdown-item" :class="{active: sortValue === 'soundtrack'}" @click="setOrToggleSortValue('soundtrack')">
-                    Soundtrack
-                  </button>
-                </li>
-                <li value="stickiness">
-                  <button class="dropdown-item" :class="{active: sortValue === 'stickiness'}" @click="setOrToggleSortValue('stickiness')">
-                    Stickiness
-                  </button>
-                </li>
-              </ul>
-            </button>
-          </div>
-          <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap col-md-12">
-            <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
-              <div>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleAnnualBestFilter"
-                >
-                  Annual Best
+    <!-- Suggestions button below search bar if user has rated < 10 movies -->
+    <div v-if="!showSuggestionsOnly && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center my-2">
+      <button class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
+    </div>
+    <NoResults
+      v-if="showSuggestionsOnly && userRatedMovieCount < 10"
+      :value="value"
+      :suggestionsMode="true"
+      @cancel-suggestions="showSuggestionsOnly = false"
+      style="margin-bottom: 2rem;"
+    />
+    <div v-else>
+      <div v-if="showResultsList" class="results">
+        <div v-if="paginatedSortedResults.length" class="results-exist">
+          <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
+            <div class="btn-group col-12" role="group" aria-label="Button group">
+              <button class="results-actions-button btn btn-secondary" @click="toggleMovieTV">
+                <i v-if="currentLogIsTVLog" class="bi bi-film"/>
+                <i v-else class="bi bi-tv"/>
+              </button>
+              <button class="results-actions-button btn btn-warning" @click="shareResults">
+                <span v-if="!sharing">
+                  <i class="bi bi-share"/>
                 </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleBestPicturesFilter"
-                >
-                  Best Picture
+                <div v-else class="spinner-border text-light" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </button>
+              <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage">
+                <span v-if="showAverage">
+                  <span class="average-label">(avg)</span>
+                  <span class="average-value">{{averageRating(filteredResults)}}</span>
                 </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'thisYear' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleThisYearFilter"
-                >
-                  This Year
+                <span v-else-if="showViewCount">
+                  <span class="average-label">(views)</span>
+                  <span class="average-value">{{viewsCount(filteredResults)}}</span>
                 </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'lastYear' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleLastYearFilter"
-                >
-                  Last Year
+                <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
+                <span v-else>{{filteredResults.length}}</span>
+              </button>
+              <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info" type="button" @click="goToInsights">
+                <i class="bi bi-lightbulb"/>
+              </button>
+              <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion">
+                <i class="bi bi-lightning-charge"/>
+              </button>
+              <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchValue">
+                <i class="bi bi-shuffle"/>
+              </button>
+              <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i v-if="sortValue === 'rating'" class="bi bi-123"/>
+                <i v-if="sortValue === 'watched'" class="bi bi-calendar3"/>
+                <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
+                <i v-if="sortValue === 'title'" class="bi bi-alphabet"></i>
+                <i v-if="sortValue === 'views'" class="bi bi-eye"></i>
+                <i v-if="sortValue === 'direction'" class="bi bi-dpad"></i>
+                <i v-if="sortValue === 'imagery'" class="bi bi-image"></i>
+                <i v-if="sortValue === 'story'" class="bi bi-book"></i>
+                <i v-if="sortValue === 'performance'" class="bi bi-speedometer"></i>
+                <i v-if="sortValue === 'soundtrack'" class="bi bi-music-note-beamed"></i>
+                <i v-if="sortValue === 'stickiness'" class="bi bi-sticky"></i>
+                <span class="order-arrow">
+                  <i v-if="sortOrder !== 'bestOrNewestOnTop'" class="bi bi-arrow-down-short"/>
+                  <i v-if="sortOrder === 'bestOrNewestOnTop'" class="bi bi-arrow-up-short"/>
                 </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'thisMonth' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleThisMonthFilter"
-                >
-                  This Month
-                </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'lastMonth' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleLastMonthFilter"
-                >
-                  Last Month
-                </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleQuickLinksList('genre')"
-                >
-                  Genres
-                </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleQuickLinksList('keyword')"
-                >
-                  Keywords
-                </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleQuickLinksList('year')"
-                >
-                  Years
-                </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleQuickLinksList('director')"
-                >
-                  <span v-if="currentLogIsTVLog">Creators</span>
-                  <span v-else>Directors</span>
-                </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleQuickLinksList('cast/crew')"
-                >
-                  Cast/Crew Members
-                </span>
-                <span
-                  class="badge mx-1"
-                  :class="activeQuickLinkList === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleQuickLinksList('studios')"
-                >
-                  Studios
-                </span>
-                <hr>
-                <div class="tags-quicklinks">
-                  <p data-bs-toggle="collapse" data-bs-target="#tagsCollapse" aria-expanded="false" aria-controls="tagsCollapse">
-                    Tags
-                    <i class="bi bi-caret-right-fill"/>
-                  </p>
-                  <div class="collapse" id="tagsCollapse">
-                    <span
-                      v-for="(tag, index) in tags"
-                      :key="index"
-                      class="badge mx-1"
-                      :class="value === tag ? 'text-bg-success' : 'text-bg-secondary'"
-                      @click="toggleQuickLinksList(tag)"
-                    >
-                      {{tag}}
-                    </span>
+                <ul class="dropdown-menu">
+                  <li value="rating">
+                    <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setOrToggleSortValue('rating')">
+                      Rating
+                    </button>
+                  </li>
+                  <li value="watched">
+                    <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setOrToggleSortValue('watched')">
+                      Watch Date
+                    </button>
+                  </li>
+                  <li value="release">
+                    <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setOrToggleSortValue('release')">
+                      Release Date
+                    </button>
+                  </li>
+                  <li value="title">
+                    <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setOrToggleSortValue('title')">
+                      Title
+                    </button>
+                  </li>
+                  <li value="views">
+                    <button class="dropdown-item" :class="{active: sortValue === 'views'}" @click="setOrToggleSortValue('views')">
+                      Views
+                    </button>
+                  </li>
+                  <li value="direction">
+                    <button class="dropdown-item" :class="{active: sortValue === 'direction'}" @click="setOrToggleSortValue('direction')">
+                      Direction
+                    </button>
+                  </li>
+                  <li value="imagery">
+                    <button class="dropdown-item" :class="{active: sortValue === 'imagery'}" @click="setOrToggleSortValue('imagery')">
+                      Imagery
+                    </button>
+                  </li>
+                  <li value="story">
+                    <button class="dropdown-item" :class="{active: sortValue === 'story'}" @click="setOrToggleSortValue('story')">
+                      Story
+                    </button>
+                  </li>
+                  <li value="performance">
+                    <button class="dropdown-item" :class="{active: sortValue === 'performance'}" @click="setOrToggleSortValue('performance')">
+                      Performance
+                    </button>
+                  </li>
+                  <li value="soundtrack">
+                    <button class="dropdown-item" :class="{active: sortValue === 'soundtrack'}" @click="setOrToggleSortValue('soundtrack')">
+                      Soundtrack
+                    </button>
+                  </li>
+                  <li value="stickiness">
+                    <button class="dropdown-item" :class="{active: sortValue === 'stickiness'}" @click="setOrToggleSortValue('stickiness')">
+                      Stickiness
+                    </button>
+                  </li>
+                </ul>
+              </button>
+            </div>
+            <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap col-md-12">
+              <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
+                <div>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleAnnualBestFilter"
+                  >
+                    Annual Best
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleBestPicturesFilter"
+                  >
+                    Best Picture
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'thisYear' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleThisYearFilter"
+                  >
+                    This Year
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'lastYear' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleLastYearFilter"
+                  >
+                    Last Year
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'thisMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleThisMonthFilter"
+                  >
+                    This Month
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'lastMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleLastMonthFilter"
+                  >
+                    Last Month
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('genre')"
+                  >
+                    Genres
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('keyword')"
+                  >
+                    Keywords
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('year')"
+                  >
+                    Years
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('director')"
+                  >
+                    <span v-if="currentLogIsTVLog">Creators</span>
+                    <span v-else>Directors</span>
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('cast/crew')"
+                  >
+                    Cast/Crew Members
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('studios')"
+                  >
+                    Studios
+                  </span>
+                  <hr>
+                  <div class="tags-quicklinks">
+                    <p data-bs-toggle="collapse" data-bs-target="#tagsCollapse" aria-expanded="false" aria-controls="tagsCollapse">
+                      Tags
+                      <i class="bi bi-caret-right-fill"/>
+                    </p>
+                    <div class="collapse" id="tagsCollapse">
+                      <span
+                        v-for="(tag, index) in tags"
+                        :key="index"
+                        class="badge mx-1"
+                        :class="value === tag ? 'text-bg-success' : 'text-bg-secondary'"
+                        @click="toggleQuickLinksList(tag)"
+                      >
+                        {{tag}}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div v-if="sortedDataForActiveQuickLinkList.length" class="quick-links-list-wrapper mt-2">
-                <div class="accordion-body col-12">
-                  <button
-                    class="quick-links-list-sort"
-                    :class="darkOrLight"
-                    @click="toggleQuickLinksSort"
-                  >
-                    {{quickLinksSortType}}
-                  </button>
-                  <ul class="quick-link-list p-0 col-12">
-                    <li v-for="(value, index) in sortedDataForActiveQuickLinkList" :key="index" @click="updateSearchValue(value.name)">
-                      <span class="badge mx-1" :class="darkOrLight">
-                        {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
-                      </span>
-                    </li>
-                  </ul>
+                <div v-if="sortedDataForActiveQuickLinkList.length" class="quick-links-list-wrapper mt-2">
+                  <div class="accordion-body col-12">
+                    <button
+                      class="quick-links-list-sort"
+                      :class="darkOrLight"
+                      @click="toggleQuickLinksSort"
+                    >
+                      {{quickLinksSortType}}
+                    </button>
+                    <ul class="quick-link-list p-0 col-12">
+                      <li v-for="(value, index) in sortedDataForActiveQuickLinkList" :key="index" @click="updateSearchValue(value.name)">
+                        <span class="badge mx-1" :class="darkOrLight">
+                          {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        <StickinessModal
-          v-if="showStickinessModal"
-          :showStickinessModal="showStickinessModal"
-          :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-        />
-        <TweakModal
-          v-else-if="showTweakModal"
-          :showTweakModal="showTweakModal"
-          :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-        />
-        <ul class="grid-layout pb-3" :class="listCountClasses">
-          <DBGridLayoutSearchResult
-            v-for="(result, index) in paginatedSortedResults"
-            :key="topStructure(result).id"
-            :result="result"
-            :keywordCounts="allCounts.keywords"
-            :allCounts="allCounts"
-            :index="index"
-            :resultsAreFiltered="resultsAreFiltered"
-            :sortValue="sortValue"
-            :activeQuickLinkList="activeQuickLinkList"
-            @updateSearchValue="updateSearchValue"
+          <StickinessModal
+            v-if="showStickinessModal"
+            :showStickinessModal="showStickinessModal"
+            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
           />
-        </ul>
-        <button
-          v-if="sortedResults.length > numberOfResultsToShow"
-          class="btn btn-secondary mb-5 float-end"
-          @click="addMoreResults"
-        >
-          More...
-        </button>
-        <div v-if="!(sortedResults.length > numberOfResultsToShow) && value" class="mb-5">
-          <div v-if="noResults" ref="noResults">
-            <p>No results found in your Movie Log or on TMDB.</p>
-            <p>I'm pretty sure that movie doesn't exist.</p>
-            <p>Either you're from the future or maybe you just spelled it wrong.</p>
-          </div>
-          <div v-else class="button-wrapper d-flex justify-content-end">
-            <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">Search TMDB for {{titleCase(value)}}</button>
+          <TweakModal
+            v-else-if="showTweakModal"
+            :showTweakModal="showTweakModal"
+            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+          />
+          <ul class="grid-layout pb-3" :class="listCountClasses">
+            <DBGridLayoutSearchResult
+              v-for="(result, index) in paginatedSortedResults"
+              :key="topStructure(result).id"
+              :result="result"
+              :keywordCounts="allCounts.keywords"
+              :allCounts="allCounts"
+              :index="index"
+              :resultsAreFiltered="resultsAreFiltered"
+              :sortValue="sortValue"
+              :activeQuickLinkList="activeQuickLinkList"
+              @updateSearchValue="updateSearchValue"
+            />
+          </ul>
+          <button
+            v-if="sortedResults.length > numberOfResultsToShow"
+            class="btn btn-secondary mb-5 float-end"
+            @click="addMoreResults"
+          >
+            More...
+          </button>
+          <!-- Suggestions button/component at the very bottom, only if not searching/filtering and all results are shown and user has rated 10+ movies -->
+          <div v-if="!value && !resultsAreFiltered && sortedResults.length <= numberOfResultsToShow && userRatedMovieCount >= 10" class="mt-4 mb-5 text-center">
+            <button v-if="!showSuggestionsOnly" class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
+            <NoResults
+              v-if="showSuggestionsOnly"
+              :value="value"
+              :suggestionsMode="true"
+              @cancel-suggestions="showSuggestionsOnly = false"
+              style="margin-bottom: 2rem;"
+            />
           </div>
         </div>
+        <div v-else class="no-results-but-search-type">
+          <p class="text-center">No {{movieOrTVShowDisplay}}s found for your search.</p>
+          <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
+        </div>
       </div>
-      <div v-else class="no-results-but-search-type">
-        <p class="text-center">No {{movieOrTVShowDisplay}}s found for your search.</p>
-        <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
+      <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValue="clearValue"/>
+      <div v-else class="loading-screen d-flex justify-content-center align-items-center my-5">
+        <div class="spinner-border text-light" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
       </div>
+      <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
     </div>
-    <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValue="clearValue"/>
-    <div v-else class="loading-screen d-flex justify-content-center align-items-center my-5">
-      <div class="spinner-border text-light" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-    </div>
-    <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
   </div>
 </template>
 
@@ -363,7 +377,8 @@ export default {
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
       showAverage: false,
-      showViewCount: false
+      showViewCount: false,
+      showSuggestionsOnly: false
     }
   },
   watch: {
@@ -1074,7 +1089,17 @@ export default {
         "count-more-than-4-remainder-2": count > 4 & count % 4 === 2,
         "count-more-than-4-remainder-3": count > 4 & count % 4 === 3
       }
-    }
+    },
+    userRatedMovieCount() {
+      // Count the number of movies the user has rated (not TV shows)
+      if (this.currentLogIsTVLog) return 0;
+      return this.allEntriesWithFlatKeywordsAdded.length;
+    },
+    suggestionsButtonLabel() {
+      return this.userRatedMovieCount === 0
+        ? 'Suggest some movies to rate'
+        : 'Suggest more movies to rate';
+    },
   },
   methods: {
     toggleMovieTV () {
