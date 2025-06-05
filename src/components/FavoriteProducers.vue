@@ -71,11 +71,11 @@ export default {
       // minEntries: Minimum number of movies you must have seen from a producer for them to be considered.
       //   Increase: Only producers you've seen more movies from will appear (list is more exclusive).
       //   Decrease: producers with fewer movies seen can appear (list is more inclusive).
-      confidenceNumber: 1,
+      confidenceNumber: 2,
       // confidenceNumber: Controls how much the global average rating influences the Bayesian average.
       //   Increase: Scores are pulled more toward the global average (less sensitive to outliers, more conservative).
       //   Decrease: Scores reflect your ratings more strongly (more sensitive to high/low averages for producers with few movies).
-      countWeight: 0.25,
+      countWeight: 5,
       // countWeight: Controls how much the number of movies seen from a producer boosts their score.
       //   Increase: producers you've seen more often are favored, even if their average is lower.
       //   Decrease: Number of movies seen matters less; average rating dominates.
@@ -197,16 +197,8 @@ export default {
       const producerJobs = [
         'Producer',
         'Executive Producer',
-        'Associate Producer',
         'Co-Producer',
-        'Line Producer',
-        'Production Supervisor',
-        'Unit Production Manager',
-        'Production Manager',
-        'Production Controller',
-        'Post Production Supervisor',
-        'Production Coordinator',
-        'Production Accountant'
+        'Associate Producer',
       ];
 
       allEntries.forEach(entry => {
