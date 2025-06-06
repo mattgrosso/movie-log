@@ -175,12 +175,6 @@
       </div>
       <Outliers :resultsWithRatings="resultsWithRatings" :allCounts="allCounts" @updateSearchValue="updateSearchValue"/>
     </InsightsPane>
-
-    <!-- <Settings/>
-    <BulkTagEditor
-      v-if="isMatt"
-      :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-    /> -->
   </div>
 </template>
 

@@ -283,12 +283,26 @@
             <div class="settings-panel-header d-flex justify-content-between align-items-center mb-2">
               <h5 class="mb-0">Settings</h5>
             </div>
+            <hr class="mt-0 mb-3">
             <div class="settings-panel-body">
               <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" id="shortsToggle" v-model="showShorts">
                 <label class="form-check-label" for="shortsToggle">Include short films</label>
               </div>
-              <!-- Add more settings here as needed -->
+              <!-- Normalization tweak slider -->
+              <div class="mb-3">
+                <label for="normalizationTweak" class="form-label">Normalization offset:</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  id="normalizationTweak"
+                  v-model.number="normalizationTweak"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  @change="saveNormalizationTweak"
+                >
+              </div>
             </div>
           </div>
           <!-- Results list follows the settings panel -->
@@ -385,6 +399,7 @@ export default {
       showSuggestionsOnly: false,
       showShorts: false, // shorts toggle, default to off
       showSettingsPanel: false, // controls settings panel visibility
+      normalizationTweak: 0.25, // default, will be set from store
     }
   },
   watch: {
@@ -413,6 +428,16 @@ export default {
     filteredResults: debounce(function (newVal) {
       this.$store.commit("setFilteredResults", newVal);
     }, 500),
+    '$store.state.settings.normalizationTweak': {
+      handler(newVal) {
+        if (typeof newVal === 'number') {
+          this.normalizationTweak = newVal;
+        } else {
+          this.normalizationTweak = 0.25;
+        }
+      },
+      immediate: true
+    },
   },
   mounted () {
     this.value = this.DBSearchValue;
@@ -1119,6 +1144,9 @@ export default {
         ? 'Suggest some movies to rate'
         : 'Suggest more movies to rate';
     },
+    normalizationTweakDisplay() {
+      return this.normalizationTweak.toFixed(2);
+    },
   },
   methods: {
     toggleSettingsPanel () {
@@ -1498,6 +1526,9 @@ export default {
     },
     goToInsights () {
       this.$router.push('/insights');
+    },
+    saveNormalizationTweak() {
+      this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });
     },
   },
 }
@@ -2096,5 +2127,11 @@ export default {
 .settings-panel-inline.dark .form-check-input:checked {
   background-color: #0d6efd;
   border-color: #0d6efd;
+}
+.settings-panel-inline.dark .form-range {
+  background-color: #343a40;
+}
+.settings-panel-inline .form-range {
+  accent-color: #0d6efd;
 }
 </style>
