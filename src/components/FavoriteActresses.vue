@@ -40,16 +40,14 @@
           />
         </div>
         <div class="modal-section">
-          <h3>Rated Films</h3>
+          <h3>Rated Films:</h3>
           <ul class="films-list">
-            <li v-for="film in selectedActress.entries" :key="film.movie.id">
+            <li v-for="film in selectedActress.entries" class="col-12" :key="film.movie.id">
               <strong>{{ film.movie.title }}</strong>
-              <span v-if="!isNaN(parseFloat(getRating(film).calculatedTotal))"> - Rated: {{ parseFloat(getRating(film).calculatedTotal).toFixed(2) }}</span>
-              <span v-else> - Not rated</span>
             </li>
           </ul>
         </div>
-        <button class="search-btn" @click="searchForActress">Search for this actress</button>
+        <button class="search-btn col-12" @click="searchForActress">Search for this actress</button>
       </div>
     </div>
   </div>
