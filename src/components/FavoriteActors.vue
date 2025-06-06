@@ -70,6 +70,7 @@ export default {
       topTenList: [],
       minEntries: 3, // Minimum number of entries for an actor to be included
       confidenceNumber: 2, // This is the confidence number used in Bayesian average calculations
+      billingLimit: 12, // Only count actors in the top 15 billing per film
       billingExponent: 4, // Exponent for billing weight calculation
       performanceWeight: 0.7, // adjust as desired
       // This gives the performance rating more weight in the final score
@@ -200,17 +201,20 @@ export default {
     async buildTopTwelveList() {
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
+      const billingLimit = this.billingLimit; // Use from data
       allEntries.forEach(entry => {
         const movie = entry.movie;
         const value = movie.cast;
         if (!value) return;
         if (Array.isArray(value)) {
           value.forEach((val, idx) => {
+            if (idx >= billingLimit) return; // Skip if not in top billing
             const name = val.name || val;
             if (!valueToMovies[name]) valueToMovies[name] = [];
             valueToMovies[name].push({ entry, billing: idx });
           });
         } else {
+          // Single cast member (should be rare)
           const name = value.name || value;
           if (!valueToMovies[name]) valueToMovies[name] = [];
           valueToMovies[name].push({ entry, billing: 0 });

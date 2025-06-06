@@ -27,7 +27,7 @@
       </div>
     </div>
     <!-- Suggestions button below search bar if user has rated < 10 movies -->
-    <div v-if="!showSuggestionsOnly && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center my-2">
+    <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center my-2">
       <button class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
     </div>
     <NoResults
