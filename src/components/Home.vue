@@ -42,9 +42,9 @@
         <div v-if="paginatedSortedResults.length" class="results-exist">
           <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
             <div class="btn-group col-12" role="group" aria-label="Button group">
-              <button class="results-actions-button btn btn-secondary" @click="toggleMovieTV">
-                <i v-if="currentLogIsTVLog" class="bi bi-film"/>
-                <i v-else class="bi bi-tv"/>
+              <!-- Settings (gear) button replaces shorts toggle -->
+              <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel">
+                <i class="bi bi-gear"></i>
               </button>
               <button class="results-actions-button btn btn-warning" @click="shareResults">
                 <span v-if="!sharing">
@@ -278,16 +278,20 @@
               </div>
             </div>
           </div>
-          <StickinessModal
-            v-if="showStickinessModal"
-            :showStickinessModal="showStickinessModal"
-            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-          />
-          <TweakModal
-            v-else-if="showTweakModal"
-            :showTweakModal="showTweakModal"
-            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-          />
+          <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
+          <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">
+            <div class="settings-panel-header d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">Settings</h5>
+            </div>
+            <div class="settings-panel-body">
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="shortsToggle" v-model="showShorts">
+                <label class="form-check-label" for="shortsToggle">Include short films</label>
+              </div>
+              <!-- Add more settings here as needed -->
+            </div>
+          </div>
+          <!-- Results list follows the settings panel -->
           <ul class="grid-layout pb-3" :class="listCountClasses">
             <DBGridLayoutSearchResult
               v-for="(result, index) in paginatedSortedResults"
@@ -378,7 +382,9 @@ export default {
       insetBrowserUrl: "",
       showAverage: false,
       showViewCount: false,
-      showSuggestionsOnly: false
+      showSuggestionsOnly: false,
+      showShorts: false, // shorts toggle, default to off
+      showSettingsPanel: false, // controls settings panel visibility
     }
   },
   watch: {
@@ -550,33 +556,46 @@ export default {
       return !this.currentLogIsTVLog && hasTiedResults && noTieBreakYetToday;
     },
     filteredResults () {
+      let results;
       if (this.activeQuickLinkList === "annual") {
         this.$store.commit("setDBSortValue", "release");
-        return this.bestMovieFromEachYear;
+        results = this.bestMovieFromEachYear;
       } else if (this.activeQuickLinkList === "bestPicture") {
         this.$store.commit("setDBSortValue", "release");
-        return this.bestPictures;
+        results = this.bestPictures;
       } else if (this.activeQuickLinkList === "thisYear") {
         this.$store.commit("setDBSortValue", "rating");
-        return this.thisYearsMovies;
+        results = this.thisYearsMovies;
       } else if (this.activeQuickLinkList === "lastYear") {
         this.$store.commit("setDBSortValue", "rating");
-        return this.lastYearsMovies;
+        results = this.lastYearsMovies;
       } else if (this.activeQuickLinkList === "thisMonth") {
         this.$store.commit("setDBSortValue", "rating");
-        return this.thisMonthsMovies;
+        results = this.thisMonthsMovies;
       } else if (this.activeQuickLinkList === "lastMonth") {
         this.$store.commit("setDBSortValue", "rating");
-        return this.lastMonthsMovies;
+        results = this.lastMonthsMovies;
       } else if (this.tags.includes(this.activeQuickLinkList)) {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.matchingTags;
+        results = this.matchingTags;
       } else if (this.value) {
         this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
-        return this.fuzzyFilter;
+        results = this.fuzzyFilter;
       } else {
-        return this.allEntriesWithFlatKeywordsAdded;
+        results = this.allEntriesWithFlatKeywordsAdded;
       }
+      // Exclude shorts if showShorts is false
+      if (!this.showShorts) {
+        results = results.filter(result => {
+          // Try to detect short films by genre or runtime
+          const genres = this.topStructure(result).genres || [];
+          const isShortGenre = genres.some(g => g.name && g.name.toLowerCase() === 'short');
+          const runtime = this.topStructure(result).runtime;
+          // Consider as short if genre is 'Short' or runtime <= 40 min
+          return !isShortGenre && !(runtime && runtime <= 40);
+        });
+      }
+      return results;
     },
     fuzzyFilter  () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
@@ -1102,6 +1121,9 @@ export default {
     },
   },
   methods: {
+    toggleSettingsPanel () {
+      this.showSettingsPanel = !this.showSettingsPanel;
+    },
     toggleMovieTV () {
       this.clearValue();
       this.$store.dispatch('toggleCurrentLog');
@@ -1991,6 +2013,32 @@ export default {
         cursor: pointer;
       }
     }
+
+    .settings-panel-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.3);
+      z-index: 2000;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+    }
+    .settings-panel {
+      width: 320px;
+      max-width: 90vw;
+      background: var(--bs-light, #fff);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.15);
+      border-radius: 8px;
+      margin: 2rem 2rem 0 0;
+      animation: slideInRight 0.2s;
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
   }
 
   .bg-dark {
@@ -2004,4 +2052,49 @@ export default {
       }
     }
   }
+
+  .settings-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100vh;
+  background: var(--bs-light, #fff);
+  box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+  z-index: 2000;
+  padding: 1.5rem 1.25rem 1.25rem 1.25rem;
+  transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+}
+.slide-enter-active, .slide-leave-active {
+  transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+}
+.slide-enter, .slide-leave-to {
+  transform: translateX(100%);
+}
+</style>
+
+<style scoped>
+.settings-panel-inline {
+  background: var(--bs-light, #fff);
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  max-width: 600px;
+  margin: 0 auto 1.5rem auto;
+  color: var(--bs-body-color, #212529);
+}
+.settings-panel-inline.dark {
+  background: #23272b !important;
+  border-color: #343a40 !important;
+  color: #f8f9fa !important;
+}
+.settings-panel-inline.dark .form-check-label,
+.settings-panel-inline.dark h5,
+.settings-panel-inline.dark .settings-panel-header,
+.settings-panel-inline.dark .settings-panel-body {
+  color: #f8f9fa !important;
+}
+.settings-panel-inline.dark .form-check-input:checked {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
 </style>
