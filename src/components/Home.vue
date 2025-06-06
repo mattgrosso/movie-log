@@ -438,6 +438,19 @@ export default {
       },
       immediate: true
     },
+    '$store.state.settings.includeShorts': {
+      handler(newVal) {
+        if (typeof newVal === 'boolean') {
+          this.showShorts = newVal;
+        } else {
+          this.showShorts = false;
+        }
+      },
+      immediate: true
+    },
+    showShorts(newVal) {
+      this.$store.dispatch('setDBValue', { path: 'settings/includeShorts', value: newVal });
+    },
   },
   mounted () {
     this.value = this.DBSearchValue;
@@ -462,6 +475,13 @@ export default {
     if (this.$route.query.movieDbKey) {
       this.$store.commit("setDBSortValue", "watched");
       this.sortOrder = "bestOrNewestOnTop";
+    }
+
+    // Initialize showShorts from store
+    if (typeof this.$store.state.settings.includeShorts === 'boolean') {
+      this.showShorts = this.$store.state.settings.includeShorts;
+    } else {
+      this.showShorts = false;
     }
   },
   beforeRouteLeave () {

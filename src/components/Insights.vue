@@ -15,7 +15,7 @@
       <div class="insights-pane-item-wrapper col-6">
         <div class="insights-pane-item">
           <p class="insights-pane-item-header">Total Movies</p>
-          <p class="insights-pane-item-value">{{allEntriesWithFlatKeywordsAdded.length}}</p>
+          <p class="insights-pane-item-value">{{filteredEntriesWithFlatKeywordsAdded.length}}</p>
         </div>
       </div>
       <div class="insights-pane-item-wrapper col-6">
@@ -221,6 +221,21 @@ export default {
     FavoriteProducers,
   },
   computed: {
+    includeShorts() {
+      // Default to false if not set
+      return this.$store.state.settings.includeShorts === true;
+    },
+    filteredEntriesWithFlatKeywordsAdded() {
+      if (this.includeShorts) return this.allEntriesWithFlatKeywordsAdded;
+      // Exclude shorts: genre 'Short' or runtime <= 40
+      return this.allEntriesWithFlatKeywordsAdded.filter(result => {
+        const structure = this.topStructure(result);
+        const genres = structure.genres || [];
+        const isShortGenre = genres.some(g => g.name && g.name.toLowerCase() === 'short');
+        const runtime = structure.runtime;
+        return !isShortGenre && !(runtime && runtime <= 40);
+      });
+    },
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
@@ -434,22 +449,22 @@ export default {
       });
     },
     viewsCount () {
-      return this.allEntriesWithFlatKeywordsAdded.reduce((total, result) => {
+      return this.filteredEntriesWithFlatKeywordsAdded.reduce((total, result) => {
         return total + (result.ratings ? result.ratings.length : 0);
       }, 0);
     },
     highestRating () {
-      const ratedMovies = this.allEntriesWithFlatKeywordsAdded.filter((result) => this.mostRecentRating(result).calculatedTotal);
+      const ratedMovies = this.filteredEntriesWithFlatKeywordsAdded.filter((result) => this.mostRecentRating(result).calculatedTotal);
       const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
       return Math.max(...ratings).toFixed(2);
     },
     lowestRating () {
-      const ratedMovies = this.allEntriesWithFlatKeywordsAdded.filter((result) => this.mostRecentRating(result).calculatedTotal);
+      const ratedMovies = this.filteredEntriesWithFlatKeywordsAdded.filter((result) => this.mostRecentRating(result).calculatedTotal);
       const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
       return Math.min(...ratings).toFixed(2);
     },
     averageRating () {
-      const ratedMovies = this.allEntriesWithFlatKeywordsAdded.filter((result) => this.mostRecentRating(result).calculatedTotal);
+      const ratedMovies = this.filteredEntriesWithFlatKeywordsAdded.filter((result) => this.mostRecentRating(result).calculatedTotal);
       const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
       const total = ratings.reduce((a, b) => a + b, 0);
       return (total / ratings.length).toFixed(2);
@@ -457,7 +472,7 @@ export default {
     datesWithCounts () {
       const datesWithCounts = {};
 
-      for (const result of this.allEntriesWithFlatKeywordsAdded) {
+      for (const result of this.filteredEntriesWithFlatKeywordsAdded) {
         for (const rating of result.ratings) {
           const datesWithCountsKey = new Date(rating.date).toLocaleDateString();
           if (datesWithCounts[datesWithCountsKey]) {
