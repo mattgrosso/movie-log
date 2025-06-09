@@ -355,6 +355,19 @@
       </div>
       <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
     </div>
+    <!-- Unrated movies section -->
+    <div v-if="unratedMoviesLoading" class="unrated-movies-loading text-center my-4">Loading more movies by this person...</div>
+    <div v-else-if="unratedMovies.length && !unratedMoviesLoading && !unratedMoviesError" class="unrated-movies-grid">
+      <h3>Some {{ value }} films you haven't rated yet:</h3>
+      <div v-if="unratedMovies.length" class="d-flex flex-wrap">
+        <div v-for="movie in unratedMovies" :key="movie.id" class="unrated-movie-card" :class="columnsForUnratedMovies">
+          <a v-if="movie.id" :href="'https://www.themoviedb.org/movie/' + movie.id" target="_blank" rel="noopener">
+            <img v-if="movie.poster_path" :src="'https://image.tmdb.org/t/p/w185' + movie.poster_path" :alt="movie.title" class="unrated-movie-poster col-12 p-1"/>
+          </a>
+        </div>
+      </div>
+      <div v-else-if="!unratedMoviesLoading && !unratedMoviesError">No unrated movies found.</div>
+    </div>
   </div>
 </template>
 
@@ -403,6 +416,12 @@ export default {
       showShorts: false, // shorts toggle, default to off
       showSettingsPanel: false, // controls settings panel visibility
       normalizationTweak: 0.25, // default, will be set from store
+      unratedMovies: [],
+      unratedMoviesLoading: false,
+      unratedMoviesError: null,
+      unratedMoviesQuery: '',
+      unratedMoviesPersonType: '',
+      unratedMoviesDebounceTimeout: null,
     }
   },
   watch: {
@@ -454,6 +473,20 @@ export default {
     showShorts(newVal) {
       this.$store.dispatch('setDBValue', { path: 'settings/includeShorts', value: newVal });
     },
+    value(newVal, oldVal) {
+      // Fetch unrated movies for any non-empty value
+      if (newVal && newVal !== oldVal) {
+        this.debouncedFetchUnratedMoviesByValue(newVal);
+      } else if (!newVal) {
+        this.unratedMovies = [];
+        this.unratedMoviesError = null;
+      }
+    },
+    '$store.state.dbLoaded'(newVal) {
+      if (newVal) {
+        this.checkResultsAndFindFilter();
+      }
+    }
   },
   mounted () {
     this.value = this.DBSearchValue;
@@ -1170,6 +1203,13 @@ export default {
     normalizationTweakDisplay() {
       return this.normalizationTweak.toFixed(2);
     },
+    columnsForUnratedMovies () {
+      if (this.unratedMovies.length % 4 === 0) {
+        return "col-3";
+      } else {
+        return "col-4";
+      }
+    }
   },
   methods: {
     toggleSettingsPanel () {
@@ -1558,6 +1598,111 @@ export default {
     },
     saveNormalizationTweak() {
       this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });
+    },
+    debouncedFetchUnratedMoviesByValue(value) {
+      clearTimeout(this.unratedMoviesDebounceTimeout);
+      this.unratedMoviesDebounceTimeout = setTimeout(() => {
+        this.fetchUnratedMoviesByValue(value);
+      }, 800);
+    },
+    async fetchUnratedMoviesByValue(value) {
+      this.unratedMoviesLoading = true;
+      this.unratedMoviesError = null;
+      this.unratedMovies = [];
+      try {
+        // 1. Search TMDB for a person matching the value
+        const personResp = await axios.get('https://api.themoviedb.org/3/search/person', {
+          params: {
+            api_key: process.env.VUE_APP_TMDB_API_KEY,
+            language: 'en-US',
+            query: value,
+          }
+        });
+
+        if (!personResp.data.results || personResp.data.results.length > 3) {
+          this.unratedMovies = [];
+          this.unratedMoviesLoading = false;
+          return;
+        }
+        const person = personResp.data.results[0];
+        // 2. Fetch movie credits for the found person
+        const creditsResp = await axios.get(`https://api.themoviedb.org/3/person/${person.id}/movie_credits`, {
+          params: {
+            api_key: process.env.VUE_APP_TMDB_API_KEY,
+            language: 'en-US',
+          }
+        });
+        // 3. Interpret known_for_department and filter credits accordingly
+        const department = (person.known_for_department || '').toLowerCase();
+        let relevantJobs = [];
+        let relevantList = [];
+        if (department === 'acting') {
+          relevantList = creditsResp.data.cast || [];
+        } else if (department === 'directing') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'directing');
+          relevantJobs = ['director', 'co-director', 'second unit director', 'assistant director'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'writing') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'writing');
+          relevantJobs = ['writer', 'screenplay', 'story', 'co-writer', 'author', 'teleplay', 'adaptation'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'production') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'production');
+          relevantJobs = ['producer', 'executive producer', 'co-producer', 'associate producer', 'line producer', 'production manager'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'camera') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'camera');
+          relevantJobs = ['director of photography', 'cinematographer', 'camera operator'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'editing') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'editing');
+          relevantJobs = ['editor', 'film editor', 'assistant editor'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'sound') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'sound');
+          relevantJobs = ['composer', 'original music composer', 'music', 'sound designer', 'sound editor', 'sound mixer'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else {
+          // fallback: show all movies from both cast and crew
+          relevantList = [
+            ...(creditsResp.data.cast || []),
+            ...(creditsResp.data.crew || [])
+          ];
+        }
+        // 4. Remove movies already rated by the user and filter out duplicates
+        const ratedIds = new Set(this.allEntriesWithFlatKeywordsAdded.map(r => this.topStructure(r).id));
+        // Remove duplicates by movie id
+        const seenIds = new Set();
+        const unrated = [];
+        for (const m of relevantList) {
+          if (!ratedIds.has(m.id) && !seenIds.has(m.id)) {
+            unrated.push(m);
+            seenIds.add(m.id);
+          }
+        }
+        // 5. Sort by popularity descending
+        unrated.sort((a, b) => b.popularity - a.popularity);
+        // 6. Dynamic popularity cutoff
+        if (unrated.length > 0) {
+          const popularities = unrated.map(m => m.popularity).filter(p => typeof p === 'number');
+          const max = Math.max(...popularities);
+          const min = Math.min(...popularities);
+          // Calculate a cutoff: e.g., keep movies in the top 40% of the popularity range, or at least 10
+          const cutoff = min + (max - min) * 0.6;
+          let filtered = unrated.filter(m => m.popularity >= cutoff);
+          // Always show at least 10 if available
+          if (filtered.length < 12 && unrated.length > 12) {
+            filtered = unrated.slice(0, 12);
+          }
+          this.unratedMovies = filtered;
+        } else {
+          this.unratedMovies = [];
+        }
+      } catch (err) {
+        this.unratedMoviesError = 'Error fetching from TMDB.';
+      } finally {
+        this.unratedMoviesLoading = false;
+      }
     },
   },
 }
@@ -1958,7 +2103,7 @@ export default {
               }
 
               &:nth-child(n+5) {
-                grid-column-end: span 3;
+                grid-column: span 3;
               }
 
               @media screen and (min-width: 832px) {
@@ -1996,7 +2141,7 @@ export default {
             li {
               &:first-child {
                 grid-column: span 2;
-                grid-row: span 2;
+                grid-row: span  2;
               }
 
               &:nth-child(2) {
@@ -2054,6 +2199,17 @@ export default {
             max-height: 97vh !important;
           }
         }
+      }
+    }
+
+    .unrated-movies-grid {
+      border-top: 1px solid white;
+      padding-bottom: 50px;
+
+      h3 {
+        font-size: 1rem;
+        margin: 16px 0;
+        padding: 0 0.25rem;
       }
     }
 
