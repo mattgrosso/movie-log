@@ -328,7 +328,7 @@
             More...
           </button>
           <!-- Suggestions button/component at the very bottom, only if not searching/filtering and all results are shown and user has rated 10+ movies -->
-          <div v-if="!value && !resultsAreFiltered && sortedResults.length <= numberOfResultsToShow && userRatedMovieCount >= 10" class="mt-4 mb-5 text-center">
+          <div v-else-if="!value && !resultsAreFiltered && sortedResults.length <= numberOfResultsToShow && userRatedMovieCount >= 10" class="mt-4 mb-5 text-center">
             <button v-if="!showSuggestionsOnly" class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
             <NoResults
               v-if="showSuggestionsOnly"
@@ -337,6 +337,9 @@
               @cancel-suggestions="showSuggestionsOnly = false"
               style="margin-bottom: 2rem;"
             />
+          </div>
+          <div v-else class="button-wrapper d-flex justify-content-end mb-5">
+            <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">Search TMDB for {{titleCase(value)}}</button>
           </div>
         </div>
         <div v-else class="no-results-but-search-type">
@@ -1456,6 +1459,12 @@ export default {
 
       if (resp.data.results.length) {
         this.newEntrySearch(resp.data.results);
+
+        window.scroll({
+          top: 0,
+          left: 0,
+          behavior: 'instant'
+        });
       } else {
         this.showNoResultsMessage();
       }
@@ -1474,7 +1483,7 @@ export default {
       }, 3000);
     },
     addMoreResults () {
-      this.numberOfResultsToShow = this.numberOfResultsToShow + 50;
+      this.numberOfResultsToShow = this.numberOfResultsToShow + 25;
 
       this.$nextTick(() => {
         window.scrollBy({
