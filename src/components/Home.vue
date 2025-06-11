@@ -299,7 +299,6 @@
                 <input class="form-check-input" type="checkbox" id="shortsToggle" v-model="showShorts">
                 <label class="form-check-label" for="shortsToggle">Include short films</label>
               </div>
-              <!-- Normalization tweak slider -->
               <div class="mb-3">
                 <label for="normalizationTweak" class="form-label">Normalization offset:</label>
                 <input
@@ -311,6 +310,19 @@
                   max="1"
                   step="0.01"
                   @change="saveNormalizationTweak"
+                >
+              </div>
+              <div class="mb-3">
+                <label for="tieBreakTweak" class="form-label">Max daily tiebreak prompts:</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  id="tieBreakTweak"
+                  v-model.number="tieBreakTweak"
+                  min="0"
+                  max="1"
+                  step="1"
+                  @change="saveTieBreakTweak"
                 >
               </div>
             </div>
@@ -426,6 +438,7 @@ export default {
       showShorts: false, // shorts toggle, default to off
       showSettingsPanel: false, // controls settings panel visibility
       normalizationTweak: 0.25, // default, will be set from store
+      tieBreakTweak: 1, // default, will be set from store
       unratedMovies: [],
       unratedMoviesLoading: false,
       unratedMoviesError: null,
@@ -466,6 +479,16 @@ export default {
           this.normalizationTweak = newVal;
         } else {
           this.normalizationTweak = 0.25;
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.tieBreakTweak': {
+      handler(newVal) {
+        if (typeof newVal === 'number') {
+          this.tieBreakTweak = newVal;
+        } else {
+          this.tieBreakTweak = 1;
         }
       },
       immediate: true
@@ -642,7 +665,8 @@ export default {
       const hasTiedResults = Boolean(this.sortedByRating[firstTiedPairIndex] && this.sortedByRating[firstTiedPairIndex + 1]);
       const lastTweak = this.$store.state.settings.lastTweak || Date.now();
       const oneDay = 24 * 60 * 60 * 1000;
-      const noTieBreakYetToday = Date.now() - lastTweak > (oneDay / 2);
+      const maxDailyTieBreaks = this.$store.state.settings.tieBreakTweak || 1;
+      const noTieBreakYetToday = Date.now() - lastTweak > (oneDay / maxDailyTieBreaks);
 
       return !this.currentLogIsTVLog && hasTiedResults && noTieBreakYetToday;
     },
@@ -1213,6 +1237,9 @@ export default {
     normalizationTweakDisplay() {
       return this.normalizationTweak.toFixed(2);
     },
+    tieBreakTweakDisplay() {
+      return this.tieBreakTweak.toFixed(2);
+    },
     columnsForUnratedMovies () {
       if (this.unratedMovies.length % 4 === 0) {
         return "col-3";
@@ -1608,6 +1635,9 @@ export default {
     },
     saveNormalizationTweak() {
       this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });
+    },
+    saveTieBreakTweak() {
+      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
     },
     debouncedFetchUnratedMoviesByValue(value) {
       clearTimeout(this.unratedMoviesDebounceTimeout);
