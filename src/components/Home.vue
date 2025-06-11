@@ -278,6 +278,16 @@
               </div>
             </div>
           </div>
+          <StickinessModal
+            v-if="showStickinessModal"
+            :showStickinessModal="showStickinessModal"
+            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"Add commentMore actions
+          />
+          <TweakModal
+            v-else-if="showTweakModal"
+            :showTweakModal="showTweakModal"
+            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+          />
           <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
           <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">
             <div class="settings-panel-header d-flex justify-content-between align-items-center mb-2">
