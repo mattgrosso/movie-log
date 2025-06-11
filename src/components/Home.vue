@@ -642,7 +642,7 @@ export default {
       const hasTiedResults = Boolean(this.sortedByRating[firstTiedPairIndex] && this.sortedByRating[firstTiedPairIndex + 1]);
       const lastTweak = this.$store.state.settings.lastTweak || Date.now();
       const oneDay = 24 * 60 * 60 * 1000;
-      const noTieBreakYetToday = Date.now() - lastTweak > oneDay;
+      const noTieBreakYetToday = Date.now() - lastTweak > (oneDay / 2);
 
       return !this.currentLogIsTVLog && hasTiedResults && noTieBreakYetToday;
     },
