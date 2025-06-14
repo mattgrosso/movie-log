@@ -42,10 +42,8 @@
         <div class="modal-section">
           <h3>Rated Films</h3>
           <ul class="films-list">
-            <li v-for="film in selectedDirector.entries" :key="film.movie.id">
+            <li v-for="film in selectedDirector.entries" class="col-12" :key="film.movie.id">
               <strong>{{ film.movie.title }}</strong>
-              <span v-if="!isNaN(parseFloat(getRating(film).calculatedTotal))"> - Rated: {{ parseFloat(getRating(film).calculatedTotal).toFixed(2) }}</span>
-              <span v-else> - Not rated</span>
             </li>
           </ul>
         </div>
