@@ -118,9 +118,6 @@
           </div>
         </div>
 
-        <div class="chatgpt-fact">
-          <p class="long-list">{{ chatGPTFact }}</p>
-        </div>
 
         <div class="directors">
           <h4>
@@ -309,7 +306,6 @@ export default {
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
       awardsData: null,
-      chatGPTFact: "",
       placeholderImage
     }
   },
@@ -323,10 +319,6 @@ export default {
     async showDetailsModal (val) {
       if (val && !this.awardsData && !this.currentLogIsTVLog) {
         this.awardsData = this.getAwardsData();
-      }
-
-      if (val && !this.currentLogIsTVLog && !this.chatGPTFact) {
-        this.chatGPTFact = await this.getChatGPTFact();
       }
     }
   },
@@ -473,76 +465,6 @@ export default {
         });
       } catch (error) {
         console.error('Failed to get awards data:', error);
-      }
-    },
-    async getChatGPTFact () {
-      try {
-        const apiKey = process.env.VUE_APP_chatGPTAPIKey;
-        const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
-        const title = this.topStructure(this.result).title;
-        const date = this.getYear(this.result) || "";
-        const randomPrompts = [
-          "Perhaps an interesting fact from the production of the film or a fun piece of trivia.",
-          "Maybe something about special effects?",
-          "Maybe something about a crew member who isn't an actor?",
-          "Maybe something about the music?",
-          "Maybe something about the writing?",
-          "Maybe something about the cinematography?",
-          "Maybe something about the editing?",
-          "Maybe something about the production design?",
-          "Maybe something about where it was filmed?",
-          "Maybe something about the costumes?",
-          "Maybe something about the public reaction to the film?",
-          "Maybe something about the box office performance?",
-          "Maybe something about the critical reception?",
-          "Maybe something about the film's legacy?",
-          "Maybe something about how the film is viewed today from a modern perspective?",
-          "Maybe something about the film's influence on other films?",
-          "Was this the first film for any notable actors or crew members?",
-          "Was this the last film for any notable actors or crew members?",
-          "Was this film based on a true story?",
-          "Has this film been mentioned as a favorite by any notable people?",
-          "Has this film been referenced in other films or TV shows?",
-          "Has this film been parodied in other films or TV shows?",
-          "Maybe something about the film's marketing?",
-          "Maybe something about what other films were released around the same time?",
-          "What did Roger Ebert think of this film?",
-          "What did Leonard Maltin think of this film?",
-          "What did Pauline Kael think of this film?",
-          "What did Vincent Canby think of this film?"
-        ]
-        const randomPrompt = randomPrompts[Math.floor(Math.random() * randomPrompts.length)];
-
-        const prompt = `Tell me an interesting fact about the movie ${title} from ${date}.
-        If the movie came out after your data, tell me that but also make a brief guess about what the movie might be about.
-        ${randomPrompt}
-        Try to reach for something obscure or not widely known.
-        Don't start with "One interesting fact about..." or "did you know...". Just tell me the fact.
-        Be conversational and engaging.`;
-
-        const response = await axios.post(
-          apiEndpoint,
-          {
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: "user",
-                content: prompt
-              }
-            ]
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              'Content-Type': 'application/json'
-            }
-          });
-
-        // console.log('response.data.choices[0].message.content: ', response.data.choices[0].message.content);
-        return response.data.choices[0].message.content;
-      } catch (error) {
-        console.error('chatGPT fact didnt work');
-        console.error(error);
       }
     },
     parseNamesToList (names) {
