@@ -20,18 +20,10 @@
       <p>I'm pretty sure that movie doesn't exist.</p>
       <p>Either you're from the future or maybe you just spelled it wrong.</p>
     </div>
-    <div v-else-if="!currentLogIsTVLog && !tvLogHasEntries" class="d-flex justify-content-center my-5">
+    <div v-else class="d-flex justify-content-center my-5">
       <div class="spinner-border" :class="inDarkMode ? 'text-light' : 'text-dark'" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
-    </div>
-    <div v-if="currentLogIsTVLog && recentlyRatedTVShows.length && tvLogHasEntries" class="last-three-shows mt-4">
-      <ul>
-        <li v-for="(tvShow, index) in recentlyRatedTVShows" :key="index" class="col-3" @click="reRate(tvShow)">
-          <img :src="`https://image.tmdb.org/t/p/w500${tvShow.poster_path}`" :alt="`${tvShow.name} poster`">
-          <RatingChangeRibbon :tvShow="tvShow"/>
-        </li>
-      </ul>
     </div>
   </div>
 </template>
@@ -85,25 +77,6 @@ export default {
     inDarkMode () {
       return document.querySelector("body").classList.contains('bg-dark');
     },
-    currentLogIsTVLog () {
-      return this.$store.state.currentLog === "tvLog";
-    },
-    movieOrTV () {
-      if (this.currentLogIsTVLog) {
-        return "tv";
-      } else {
-        return "movie";
-      }
-    },
-    recentlyRatedTVShows () {
-      return this.$store.state.settings.recentlyRatedTVShows || [];
-    },
-    tvLog () {
-      return this.$store.state.tvLog;
-    },
-    tvLogHasEntries () {
-      return Object.keys(this.tvLog).length > 0;
-    }
   },
   methods: {
     async fetchSuggestions () {
@@ -131,7 +104,7 @@ export default {
       if (!this.value) {
         return;
       }
-      const resp = await axios.get(`https://api.themoviedb.org/3/search/${this.movieOrTV}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
+      const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
       if (quickPick && resp.data.results.length) {
         this.quickPickEntrySearch(resp.data.results);
       } else if (resp.data.results.length) {
@@ -155,10 +128,6 @@ export default {
       this.$store.commit('setNewEntrySearchResults', results)
       this.$router.push(`/pick-media/${this.value}`);
     },
-    reRate (tvShow) {
-      this.$store.commit('setTVShowToRate', tvShow);
-      this.$router.push('/rate-tv-show');
-    }
   }
 }
 </script>

@@ -2,9 +2,6 @@ import store from '../../store/index';
 
 let allRatings = store.getters.allMediaRatingsArray;
 
-const currentLogIsTVLog = () => {
-  return store.state.currentLog === "tvLog";
-}
 
 const calculatePostStickyRatingFor = (rating) => {
   if (!rating) {
@@ -72,28 +69,19 @@ const calculatePostStickyRatingFor = (rating) => {
 }
 
 const mostRecentRating = (media) => {
-  let mostRecentRating;
-
-  if (currentLogIsTVLog()) {
-    if (!media?.ratings?.tvShow && !media.ratings?.length) {
-      return null;
-    }
-    mostRecentRating = media.ratings.tvShow || media.ratings[0];
-  } else {
-    if (!media?.ratings?.length) {
-      return null;
-    }
-
-    mostRecentRating = media.ratings[0];
-
-    media.ratings.forEach((rating) => {
-      if (!mostRecentRating?.date) {
-        mostRecentRating = rating;
-      } else if (rating.date && new Date(rating.date).getTime() > new Date(mostRecentRating.date).getTime()) {
-        mostRecentRating = rating;
-      }
-    })
+  if (!media?.ratings?.length) {
+    return null;
   }
+
+  let mostRecentRating = media.ratings[0];
+
+  media.ratings.forEach((rating) => {
+    if (!mostRecentRating?.date) {
+      mostRecentRating = rating;
+    } else if (rating.date && new Date(rating.date).getTime() > new Date(mostRecentRating.date).getTime()) {
+      mostRecentRating = rating;
+    }
+  })
 
   return mostRecentRating;
 }
@@ -103,7 +91,7 @@ export const getAllRatings = (dbEntry) => {
     return null;
   }
 
-  const ratings = dbEntry.ratings.tvShow ? [dbEntry.ratings.tvShow] : dbEntry.ratings;
+  const ratings = dbEntry.ratings;
 
   if (!Array.isArray(ratings) || ratings.length === 0) {
     return null;

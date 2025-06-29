@@ -212,30 +212,6 @@ describe('GetRating utilities', () => {
       })
     })
 
-    it('should handle TV show ratings structure', () => {
-      const entry = {
-        ratings: {
-          tvShow: {
-            date: '2023-01-01',
-            direction: 8,
-            imagery: 7,
-            story: 9,
-            performance: 8,
-            soundtrack: 7,
-            stickiness: 8,
-            love: 9,
-            overall: 8
-          }
-        }
-      }
-
-      const result = getAllRatings(entry)
-      
-      expect(result).toBeDefined()
-      expect(Array.isArray(result)).toBe(true)
-      expect(result).toHaveLength(1)
-      expect(result[0].calculatedTotal).toBeGreaterThan(0)
-    })
   })
 
   describe('Rating calculations', () => {

@@ -5,18 +5,11 @@ const Home = () => import(/* webpackChunkName: "home" */ "../components/Home.vue
 const Login = () => import(/* webpackChunkName: "login" */ "../components/Login.vue");
 const PickMedia = () => import(/* webpackChunkName: "pick-media" */ "../components/PickMedia.vue");
 const RateMovie = () => import(/* webpackChunkName: "rate-movie" */ "../components/RateMovie.vue");
-const RateTVShow = () => import(/* webpackChunkName: "rate-tv-show" */ "../components/RateTVShow.vue");
 const Insights = () => import(/* webpackChunkName: "insights" */ "../components/Insights.vue");
 const ShareDBResults = () => import(/* webpackChunkName: "share-db-results" */ "../components/ShareDBResults.vue");
 
 // Router
 const loggedIn = () => {
-  const currentLogFromLocalStorage = window.localStorage.getItem('movieLogCurrentLog');
-
-  if (currentLogFromLocalStorage) {
-    store.commit('setCurrentLog', currentLogFromLocalStorage);
-  }
-
   const databaseTopKeyFromLocalStorage = window.localStorage.getItem('databaseTopKey');
 
   if (store.getters.databaseTopKey) {
@@ -59,20 +52,6 @@ const routes = [
   {
     path: '/rate-movie',
     component: RateMovie,
-    meta: {
-      requiresLogin: true
-    },
-    beforeEnter: (to, from, next) => {
-      if (!loggedIn()) {
-        next('/login');
-      } else {
-        next();
-      }
-    }
-  },
-  {
-    path: '/rate-tv-show',
-    component: RateTVShow,
     meta: {
       requiresLogin: true
     },

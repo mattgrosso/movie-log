@@ -111,77 +111,6 @@ const createTVShowRatingFromEpisodeRatings = (ratings) => {
   return averages;
 };
 
-const addTVShowRating = async (ratings, tvShowTags) => {
-  if (!ratings.episodes[0].tvShowId) {
-    return;
-  }
-
-  const tmdbData = await getTMDBData(ratings.episodes[0]);
-
-  let crew;
-  let cast;
-
-  if (tmdbData) {
-    crew = tmdbData.crew.map((person) => {
-      return {
-        department: person.department,
-        id: person.id,
-        job: person.job,
-        known_for_department: person.known_for_department,
-        name: person.name,
-        popularity: person.popularity,
-        filmography: person.job === "Director" ? getDirectorsFilmography(person) : null
-      }
-    })
-
-    cast = tmdbData.cast.map((person) => {
-      return {
-        character: person.character,
-        id: person.id,
-        known_for_department: person.known_for_department,
-        name: person.name,
-        order: person.order,
-        popularity: person.popularity,
-        filmography: person.job === "Director" ? getDirectorsFilmography(person) : null
-      }
-    })
-  }
-
-  const tmdbDataWeStore = {
-    backdrop_path: tmdbData ? tmdbData.backdrop_path : null,
-    cast: tmdbData ? cast : [],
-    crew: tmdbData ? crew : [],
-    created_by: tmdbData ? tmdbData.created_by : [],
-    episode_run_time: tmdbData ? tmdbData.episode_run_time : [],
-    genres: tmdbData ? tmdbData.genres : [],
-    id: tmdbData ? tmdbData.id : null,
-    poster_path: tmdbData ? tmdbData.poster_path : null,
-    production_companies: tmdbData ? tmdbData.production_companies : [],
-    first_air_date: tmdbData ? tmdbData.first_air_date : null,
-    last_air_date: tmdbData ? tmdbData.last_air_date : null,
-    networks: tmdbData ? tmdbData.networks : [],
-    number_of_episodes: tmdbData ? tmdbData.number_of_episodes : null,
-    number_of_seasons: tmdbData ? tmdbData.number_of_seasons : null,
-    name: tmdbData ? tmdbData.name : "",
-    tags: tvShowTags || [],
-    keywords: tmdbData ? tmdbData.keywords.results : []
-  };
-
-  const ratingsWithShowRating = { ...ratings, tvShow: createTVShowRatingFromEpisodeRatings(ratings) };
-
-  const tvShowWithRatings = {
-    tvShow: tmdbDataWeStore,
-    ratings: ratingsWithShowRating
-  };
-
-  const safeName = tmdbDataWeStore.name.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
-  const key = findKeyForTVShowInDatabase(ratings.episodes[0].tvShowId) || `${new Date().getTime()}-${crypto.randomUUID()}-${safeName}`;
-
-  return {
-    path: `tvLog/${key}`,
-    value: tvShowWithRatings
-  }
-}
 
 const addMovieRating = async (ratings, movieTags) => {
   if (!ratings[0].id) {
@@ -261,14 +190,7 @@ const addMovieRating = async (ratings, movieTags) => {
 }
 
 const addRating = async (ratings, movieTags) => {
-  let dbEntry;
-
-  if (store.state.currentLog === "tvLog") {
-    dbEntry = await addTVShowRating(ratings, movieTags);
-  } else {
-    dbEntry = await addMovieRating(ratings, movieTags);
-  }
-
+  const dbEntry = await addMovieRating(ratings, movieTags);
   store.dispatch('setDBValue', dbEntry);
   return dbEntry;
 }

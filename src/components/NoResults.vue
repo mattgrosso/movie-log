@@ -7,8 +7,7 @@
       <NewRatingSearch :value="value" @clear-search-value="clearValueSearchTypeAndFilterValue"/>
     </div>
     <div v-else class="no-movies">
-      <p>Search for a {{movieOrTvShow}} in the box above and follow the instructions to add your first {{movieOrTvShow}} rating.</p>
-      <p>You can also rate a <a class="btn-link p-0" @click="toggleMovieTV">{{otherMedia}} instead.</a></p>
+      <p>Search for a movie in the box above and follow the instructions to add your first movie rating.</p>
     </div>
   </div>
 </template>
@@ -31,24 +30,11 @@ export default {
     NewRatingSearch
   },
   computed: {
-    currentLogIsTVLog () {
-      return this.$store.state.currentLog === "tvLog";
-    },
     hasMedia () {
       return this.$store.getters.allMediaAsArray.length > 0;
-    },
-    movieOrTvShow () {
-      return this.currentLogIsTVLog ? "TV Show" : "movie";
-    },
-    otherMedia () {
-      return this.currentLogIsTVLog ? "movie" : "TV Show";
     }
   },
   methods: {
-    toggleMovieTV () {
-      this.clearValueSearchTypeAndFilterValue();
-      this.$store.dispatch('toggleCurrentLog');
-    },
     clearValueSearchTypeAndFilterValue () {
       this.$emit('clearValueSearchTypeAndFilterValue');
     }

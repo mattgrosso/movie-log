@@ -69,9 +69,7 @@ const db = getDatabase();
 
 export default createStore({
   state: {
-    currentLog: 'movieLog',
     movieLog: {},
-    tvLog: {},
     settings: {},
     weights: [ // These values should all add up to 10 except that "stickiness" gets divided by 2 first
       { name: "love", weight: 2.8 },
@@ -88,7 +86,6 @@ export default createStore({
     databaseTopKey: null,
     newEntrySearchResults: [],
     movieToRate: {},
-    tvShowToRate: {},
     DBSearchValue: null,
     DBSortValue: null,
     DBSortOrder: null,
@@ -108,28 +105,15 @@ export default createStore({
         return [];
       }
 
-      if (state.currentLog === 'tvLog') {
-        return Object.keys(state.tvLog).map((key) => {
-          const tvShow = state.tvLog[key];
-          tvShow.dbKey = key;
-          return tvShow;
-        });
-      } else {
-        return Object.keys(state.movieLog).map((key) => {
-          const movie = state.movieLog[key];
-          movie.dbKey = key;
-          return movie;
-        });
-      }
+      return Object.keys(state.movieLog).map((key) => {
+        const movie = state.movieLog[key];
+        movie.dbKey = key;
+        return movie;
+      });
     },
     allMoviesAsArray: (state) => {
       return Object.keys(state.movieLog).map((key) => {
         return state.movieLog[key];
-      })
-    },
-    allTVShowsAsArray: (state) => {
-      return Object.keys(state.tvLog).map((key) => {
-        return state.tvLog[key];
       })
     },
     allMediaSortedByRating: (state, getters) => {
@@ -153,14 +137,8 @@ export default createStore({
     },
   },
   mutations: {
-    setCurrentLog (state, value) {
-      state.currentLog = value;
-    },
     setMovieLog (state, value) {
       state.movieLog = Object.freeze(value);
-    },
-    setTVLog (state, value) {
-      state.tvLog = Object.freeze(value);
     },
     setSettings (state, value) {
       state.settings = value;
@@ -182,9 +160,6 @@ export default createStore({
     },
     setMovieToRate (state, movie) {
       state.movieToRate = movie;
-    },
-    setTVShowToRate (state, tvShow) {
-      state.tvShowToRate = tvShow;
     },
     setDBSearchValue (state, value) {
       state.DBSearchValue = value;
@@ -236,7 +211,6 @@ export default createStore({
     },
     async resetLocalDB (context) {
       context.commit('setMovieLog', {});
-      context.commit('setTVLog', {});
       context.commit('setSettings', {});
       context.commit('setAcademyAwardWinners', {});
 
@@ -253,17 +227,6 @@ export default createStore({
 
           if (data) {
             context.commit('setMovieLog', data);
-          }
-          context.commit('setDbLoaded', true);
-        });
-      }
-      const tvLogHasData = Boolean(Object.keys(context.state.tvLog).length);
-      if (!tvLogHasData) {
-        onValue(ref(db, `${context.getters.databaseTopKey}/tvLog`), (snapshot) => {
-          const data = snapshot.val();
-
-          if (data) {
-            context.commit('setTVLog', data);
           }
           context.commit('setDbLoaded', true);
         });
@@ -317,7 +280,6 @@ export default createStore({
 
       const newDB = {
         movieLog: {},
-        tvLog: {},
         settings: {
           tags: {
             "viewing-tags": { title: "default viewing tag" },
@@ -343,39 +305,6 @@ export default createStore({
         });
     },
     // This action adds a TV show to the list of recently rated TV shows in the user's settings.
-    addToRecentlyRatedTVShows (context, tvShow) {
-      // Get the current list of recently rated TV shows from the user's settings.
-      const recentlyRatedTVShows = context.state.settings.recentlyRatedTVShows || [];
-
-      // If the TV show being added is already in the list, remove it from its current position.
-      if (recentlyRatedTVShows.find((show) => show.id === tvShow.id)) {
-        const index = recentlyRatedTVShows.findIndex((show) => show.id === tvShow.id);
-        recentlyRatedTVShows.splice(index, 1);
-      }
-
-      // If the list of recently rated TV shows is longer than 2, remove the oldest item(s) until it's only 2 items long.
-      if (recentlyRatedTVShows.length > 2) {
-        recentlyRatedTVShows.length = 2;
-      }
-
-      // Add the new TV show to the beginning of the list of recently rated TV shows.
-      recentlyRatedTVShows.unshift(tvShow);
-
-      // Update the user's settings in the database with the new list of recently rated TV shows.
-      context.dispatch('setDBValue', {
-        path: 'settings/recentlyRatedTVShows',
-        value: recentlyRatedTVShows
-      });
-    },
-    toggleCurrentLog (context) {
-      if (this.state.currentLog === 'movieLog') {
-        this.commit('setCurrentLog', 'tvLog');
-      } else {
-        this.commit('setCurrentLog', 'movieLog');
-      }
-
-      window.localStorage.setItem('movieLogCurrentLog', context.state.currentLog);
-    }
   },
   modules: {
   }

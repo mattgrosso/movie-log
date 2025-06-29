@@ -20,8 +20,7 @@
         {{smallFormattedDate(mostRecentRating(result).date)}}
       </span>
       <span v-else-if="sortValue === 'release'">
-        <span v-if="currentLogIsTVLog">{{smallFormattedDate(topStructure(result).first_air_date, topStructure(result).last_air_date)}}</span>
-        <span v-else>{{smallFormattedDate(topStructure(result).release_date)}}</span>
+        {{smallFormattedDate(topStructure(result).release_date)}}
       </span>
       <span v-else-if="sortValue === 'views'">
         {{result.ratings.length}} view<span v-if="result.ratings.length > 1" >s</span>
@@ -121,24 +120,12 @@
 
         <div class="directors">
           <h4>
-            <span v-if="currentLogIsTVLog">
-              Creator<span v-if="multipleEntries(topStructure(result).created_by)">s</span>
-            </span>
-            <span v-else>
-              Director<span v-if="multipleEntries(getCrewMember('Director', true))">s</span>
-            </span>
+            Director<span v-if="multipleEntries(getCrewMember('Director', true))">s</span>
           </h4>
           <p class="long-list">
-            <span v-if="currentLogIsTVLog">
-              <a v-for="(creator, index) in topStructure(result).created_by" :key="index" class="link" @click.stop="searchFor(creator.name)">
-                {{creator.name}}<span v-if="index !== topStructure(result).created_by.length - 1">&nbsp;&nbsp;</span>
-              </a>
-            </span>
-            <span v-else>
-              <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor(name)">
-                {{name}}<span v-if="countDirector(name)" class="small-count-bubble">&nbsp;({{ countDirector(name) }})</span><span v-if="index !== getCrewMember('Director', 'strict').length - 1">&nbsp;&nbsp;</span>
-              </a>
-            </span>
+            <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor(name)">
+              {{name}}<span v-if="countDirector(name)" class="small-count-bubble">&nbsp;({{ countDirector(name) }})</span><span v-if="index !== getCrewMember('Director', 'strict').length - 1">&nbsp;&nbsp;</span>
+            </a>
           </p>
         </div>
 
@@ -257,7 +244,6 @@
 import axios from 'axios';
 import ordinal from "ordinal-js";
 import minBy from 'lodash/minBy';
-import EpisodeRatingsChart from './EpisodeRatingsChart.vue';
 import Modal from './Modal.vue';
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ToggleableRating from './ToggleableRating.vue';
@@ -310,22 +296,18 @@ export default {
     }
   },
   components: {
-    EpisodeRatingsChart,
     Modal,
     InsetBrowserModal,
     ToggleableRating
   },
   watch: {
     async showDetailsModal (val) {
-      if (val && !this.awardsData && !this.currentLogIsTVLog) {
+      if (val && !this.awardsData) {
         this.awardsData = this.getAwardsData();
       }
     }
   },
   computed: {
-    currentLogIsTVLog () {
-      return this.$store.state.currentLog === "tvLog";
-    },
     overAllRank () {
       return this.$store.getters.allMediaSortedByRating.findIndex((media) => {
         return media.dbKey === this.result.dbKey;
@@ -488,11 +470,7 @@ export default {
       this.$emit('updateSearchValue', value);
     },
     topStructure (result) {
-      if (this.currentLogIsTVLog) {
-        return result.tvShow;
-      } else {
-        return result.movie;
-      }
+      return result.movie;
     },
     showDetails () {
       if (this.result.falseEntry) {
@@ -507,8 +485,6 @@ export default {
 
       if (searchValue) {
         value = searchValue;
-      } else if (this.currentLogIsTVLog) {
-        value = this.result.tvShow.name;
       } else {
         value = this.result.movie.title;
       }
@@ -535,33 +511,11 @@ export default {
       this.showDetailsModal = false;
     },
     getYear (media) {
-      let date;
-      if (this.currentLogIsTVLog) {
-        date = media.tvShow.first_air_date;
-      } else {
-        date = media.movie.release_date;
-      }
-
+      const date = media.movie.release_date;
       return new Date(date).getFullYear();
     },
-    tvNetwork (result) {
-      const networkName = result.tvShow.networks ? result.tvShow.networks[0].name : false;
-
-      if (networkName) {
-        return networkName;
-      } else {
-        return "";
-      }
-    },
     prettifyRuntime (result) {
-      let minutes;
-      if (this.currentLogIsTVLog && result.tvShow.episode_run_time) {
-        minutes = result.tvShow.episode_run_time[0];
-      } else if (this.currentLogIsTVLog) {
-        minutes = 0;
-      } else {
-        minutes = result.movie.runtime;
-      }
+      const minutes = result.movie.runtime;
       return minutes ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : "";
     },
     turnArrayIntoList (array, key) {
@@ -633,17 +587,10 @@ export default {
       return ordinal.toOrdinal(number);
     },
     rateMedia (media) {
-      if (this.currentLogIsTVLog) {
-        this.$store.commit('setTVShowToRate', media);
-        window.scroll({ top: top, behavior: 'smooth' });
-        this.showDetailsModal = false;
-        this.$router.push('/rate-tv-show');
-      } else {
-        this.$store.commit('setMovieToRate', media);
-        window.scroll({ top: top, behavior: 'smooth' });
-        this.showDetailsModal = false;
-        this.$router.push('/rate-movie');
-      }
+      this.$store.commit('setMovieToRate', media);
+      window.scroll({ top: top, behavior: 'smooth' });
+      this.showDetailsModal = false;
+      this.$router.push('/rate-movie');
     },
     formattedDate (date) {
       return new Date(date).toLocaleDateString();

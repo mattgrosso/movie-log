@@ -66,7 +66,7 @@
                 <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
                 <span v-else>{{filteredResults.length}}</span>
               </button>
-              <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info" type="button" @click="goToInsights">
+              <button class="results-actions-button btn btn-info" type="button" @click="goToInsights">
                 <i class="bi bi-lightbulb"/>
               </button>
               <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion">
@@ -221,8 +221,7 @@
                     :class="activeQuickLinkList === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
                     @click="toggleQuickLinksList('director')"
                   >
-                    <span v-if="currentLogIsTVLog">Creators</span>
-                    <span v-else>Directors</span>
+                    Directors
                   </span>
                   <span
                     class="badge mx-1"
@@ -365,7 +364,7 @@
           </div>
         </div>
         <div v-else class="no-results-but-search-type">
-          <p class="text-center">No {{movieOrTVShowDisplay}}s found for your search.</p>
+          <p class="text-center">No movies found for your search.</p>
           <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
         </div>
       </div>
@@ -580,23 +579,6 @@ export default {
         return [];
       }
     },
-    currentLogIsTVLog () {
-      return this.$store.state.currentLog === "tvLog";
-    },
-    movieOrTVShowDisplay () {
-      if (this.currentLogIsTVLog) {
-        return "TV show";
-      } else {
-        return "movie";
-      }
-    },
-    movieOrTV () {
-      if (this.currentLogIsTVLog) {
-        return "tv";
-      } else {
-        return "movie";
-      }
-    },
     DBSearchValue () {
       return this.$store.state.DBSearchValue;
     },
@@ -605,24 +587,14 @@ export default {
     },
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
-        if (this.currentLogIsTVLog) {
-          return {
-            ...result,
-            tvShow: {
-              ...this.topStructure(result),
-              flatKeywords: this.topStructure(result).keywords ? this.topStructure(result).keywords.map((keyword) => keyword.name) : []
-            }
-          }
-        } else {
-          const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
-          const flatChatGPTKeywords = this.topStructure(result).chatGPTKeywords || [];
-          const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
-          return {
-            ...result,
-            movie: {
-              ...this.topStructure(result),
-              flatKeywords: flatKeywords || []
-            }
+        const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
+        const flatChatGPTKeywords = this.topStructure(result).chatGPTKeywords || [];
+        const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
+        return {
+          ...result,
+          movie: {
+            ...this.topStructure(result),
+            flatKeywords: flatKeywords || []
           }
         }
       });
@@ -645,7 +617,7 @@ export default {
       });
     },
     showStickinessModal () {
-      return Boolean(!this.currentLogIsTVLog && this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
+      return Boolean(this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
     },
     showTweakModal () {
       if (this.showStickinessModal) {
@@ -672,7 +644,7 @@ export default {
       const maxDailyTieBreaks = this.$store.state.settings.tieBreakTweak || 1;
       const noTieBreakYetToday = Date.now() - lastTweak > (oneDay / maxDailyTieBreaks);
 
-      return !this.currentLogIsTVLog && hasTiedResults && noTieBreakYetToday;
+      return hasTiedResults && noTieBreakYetToday;
     },
     filteredResults () {
       let results;
@@ -789,11 +761,7 @@ export default {
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
         let year;
 
-        if (this.currentLogIsTVLog) {
-          year = new Date(result.tvShow.first_air_date).getFullYear();
-        } else {
-          year = new Date(result.movie.release_date).getFullYear();
-        }
+        year = new Date(result.movie.release_date).getFullYear();
 
         if (!years[year]) {
           years[year] = result;
@@ -805,10 +773,6 @@ export default {
       return Object.keys(years).map((year) => years[year]);
     },
     bestPictures () {
-      if (this.currentLogIsTVLog) {
-        return [];
-      }
-
       const bestPictureWinners = this.$store.state.academyAwardWinners.bestPicture;
 
       const allEntryIds = this.allEntriesWithFlatKeywordsAdded.map((result) => {
@@ -1001,9 +965,6 @@ export default {
       });
     },
     allDirectors () {
-      if (this.currentLogIsTVLog) {
-        return [];
-      }
 
       return Object.keys(this.countDirectors).map((keyword) => {
         const filmography = this.allEntriesWithFlatKeywordsAdded.find((entry) => {
@@ -1037,18 +998,16 @@ export default {
       const mediums = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        if (!this.currentLogIsTVLog) {
-          result.ratings.forEach((rating) => {
-            if (!rating.medium) {
-              return;
-            } else if (mediums[rating.medium]) {
-              mediums[rating.medium]++;
-            } else {
-              mediums[rating.medium] = 1;
-            }
-          })
-        }
-      })
+        result.ratings.forEach((rating) => {
+          if (!rating.medium) {
+            return;
+          } else if (mediums[rating.medium]) {
+            mediums[rating.medium]++;
+          } else {
+            mediums[rating.medium] = 1;
+          }
+        });
+      });
 
       return Object.keys(mediums).map((medium) => {
         return {
@@ -1121,12 +1080,7 @@ export default {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        let director;
-        if (this.currentLogIsTVLog) {
-          director = result.tvShow.created_by?.[0].name;
-        } else {
-          director = result.movie.crew?.find((person) => person.job === "Director").name;
-        }
+        const director = result.movie.crew?.find((person) => person.job === "Director")?.name;
 
         if (director) {
           if (counts[director]) {
@@ -1178,10 +1132,6 @@ export default {
     countMediums () {
       const counts = {};
 
-      if (this.currentLogIsTVLog) {
-        return counts;
-      }
-
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
         result.ratings.forEach((rating) => {
           if (counts[rating.medium]) {
@@ -1222,7 +1172,6 @@ export default {
     },
     userRatedMovieCount() {
       // Count the number of movies the user has rated (not TV shows)
-      if (this.currentLogIsTVLog) return 0;
       return this.allEntriesWithFlatKeywordsAdded.length;
     },
     suggestionsButtonLabel() {
@@ -1248,17 +1197,12 @@ export default {
     toggleSettingsPanel () {
       this.showSettingsPanel = !this.showSettingsPanel;
     },
-    toggleMovieTV () {
-      this.clearValue();
-      this.$store.dispatch('toggleCurrentLog');
-    },
     checkResultsAndFindFilter () {
       const allowRandom = !this.$route.query.noRandom;
       const hasResults = this.paginatedSortedResults.length > 0;
       const hasNotCalledFindFilter = !this.hasCalledFindFilter;
-      const isNotInTVMode = !this.currentLogIsTVLog;
 
-      if (allowRandom && hasResults && hasNotCalledFindFilter && isNotInTVMode) {
+      if (allowRandom && hasResults && hasNotCalledFindFilter) {
         this.findRandomSearchValue();
         this.hasCalledFindFilter = true;
       }
@@ -1449,9 +1393,9 @@ export default {
       if (key === "rating") {
         return this.mostRecentRating(item).calculatedTotal;
       } else if (key === "release") {
-        return new Date(this.currentLogIsTVLog ? item.tvShow.first_air_date : item.movie.release_date);
+        return new Date(this.getYear(item), 0, 1);
       } else if (key === "title") {
-        return this.currentLogIsTVLog ? item.tvShow.name : item.movie.title;
+        return this.topStructure(item).title;
       } else if (key === "watched") {
         const date = this.mostRecentRating(item).date || "3/22/1982";
         return new Date(date);
@@ -1517,12 +1461,7 @@ export default {
       }, 0);
     },
     getYear (media) {
-      let date;
-      if (this.currentLogIsTVLog) {
-        date = media.tvShow.first_air_date;
-      } else {
-        date = media.movie.release_date;
-      }
+      const date = media.movie.release_date;
 
       return new Date(date).getFullYear();
     },
@@ -1534,7 +1473,7 @@ export default {
         return;
       }
 
-      const resp = await axios.get(`https://api.themoviedb.org/3/search/${this.movieOrTV}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
+      const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
 
       if (resp.data.results.length) {
         this.newEntrySearch(resp.data.results);
@@ -1598,11 +1537,7 @@ export default {
       });
     },
     topStructure (result) {
-      if (this.currentLogIsTVLog) {
-        return result.tvShow;
-      } else {
-        return result.movie;
-      }
+      return result.movie;
     },
     titleCase (input) {
       const string = input.toString();

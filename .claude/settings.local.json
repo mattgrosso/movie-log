@@ -8,7 +8,10 @@
       "Bash(rg:*)",
       "Bash(grep:*)",
       "Bash(sed:*)",
-      "Bash(npm run test:run:*)"
+      "Bash(npm run test:run:*)",
+      "Bash(find:*)",
+      "Bash(rm:*)",
+      "Bash(npm test)"
     ],
     "deny": []
   }
