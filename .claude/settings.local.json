@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(yarn add:*)",
+      "Bash(mkdir:*)",
+      "Bash(yarn test:*)",
+      "Bash(yarn remove:*)",
+      "Bash(rg:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(npm run test:run:*)"
+    ],
+    "deny": []
+  }
+}

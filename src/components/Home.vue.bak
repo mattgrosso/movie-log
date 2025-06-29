@@ -1,0 +1,2360 @@
+<template>
+  <div class="home p-3 pt-4 mx-auto">
+    <div v-if="$store.state.dbLoaded" class="search-bar mx-auto">
+      <div class="input-group mb-1 col-12 md-col-6">
+        <input
+          class="form-control"
+          :class="{'has-content': value}"
+          ref="searchInput"
+          type="text"
+          autocapitalize="none"
+          autocorrect="off"
+          autocomplete="off"
+          name="search"
+          id="search"
+          :placeholder="placeholder"
+          style="font-size: 0.75rem;"
+          @focus="focusOnSearchBar"
+          @blur="blurSearchBar"
+          v-model="value"
+        >
+        <span v-if="value" class="clear-button" @click.prevent="clearValue" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
+          <i class="bi bi-x-circle"/>
+        </span>
+        <span v-if="value" class="more-info-button" @click.prevent="goToWikipedia">
+          <i class="bi bi-wikipedia"/>
+        </span>
+      </div>
+    </div>
+    <!-- Suggestions button below search bar if user has rated < 10 movies -->
+    <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center my-2">
+      <button class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
+    </div>
+    <NoResults
+      v-if="showSuggestionsOnly && userRatedMovieCount < 10"
+      :value="value"
+      :suggestionsMode="true"
+      @cancel-suggestions="showSuggestionsOnly = false"
+      style="margin-bottom: 2rem;"
+    />
+    <div v-else>
+      <div v-if="showResultsList" class="results">
+        <div v-if="paginatedSortedResults.length" class="results-exist">
+          <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
+            <div class="btn-group col-12" role="group" aria-label="Button group">
+              <!-- Settings (gear) button replaces shorts toggle -->
+              <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel">
+                <i class="bi bi-gear"></i>
+              </button>
+              <button class="results-actions-button btn btn-warning" @click="shareResults">
+                <span v-if="!sharing">
+                  <i class="bi bi-share"/>
+                </span>
+                <div v-else class="spinner-border text-light" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </button>
+              <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage">
+                <span v-if="showAverage">
+                  <span class="average-label">(avg)</span>
+                  <span class="average-value">{{averageRating(filteredResults)}}</span>
+                </span>
+                <span v-else-if="showViewCount">
+                  <span class="average-label">(views)</span>
+                  <span class="average-value">{{viewsCount(filteredResults)}}</span>
+                </span>
+                <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
+                <span v-else>{{filteredResults.length}}</span>
+              </button>
+              <button v-if="!currentLogIsTVLog" class="results-actions-button btn btn-info" type="button" @click="goToInsights">
+                <i class="bi bi-lightbulb"/>
+              </button>
+              <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion">
+                <i class="bi bi-lightning-charge"/>
+              </button>
+              <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchValue">
+                <i class="bi bi-shuffle"/>
+              </button>
+              <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i v-if="sortValue === 'rating'" class="bi bi-123"/>
+                <i v-if="sortValue === 'watched'" class="bi bi-calendar3"/>
+                <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
+                <i v-if="sortValue === 'title'" class="bi bi-alphabet"></i>
+                <i v-if="sortValue === 'views'" class="bi bi-eye"></i>
+                <i v-if="sortValue === 'direction'" class="bi bi-dpad"></i>
+                <i v-if="sortValue === 'imagery'" class="bi bi-image"></i>
+                <i v-if="sortValue === 'story'" class="bi bi-book"></i>
+                <i v-if="sortValue === 'performance'" class="bi bi-speedometer"></i>
+                <i v-if="sortValue === 'soundtrack'" class="bi bi-music-note-beamed"></i>
+                <i v-if="sortValue === 'stickiness'" class="bi bi-sticky"></i>
+                <span class="order-arrow">
+                  <i v-if="sortOrder !== 'bestOrNewestOnTop'" class="bi bi-arrow-down-short"/>
+                  <i v-if="sortOrder === 'bestOrNewestOnTop'" class="bi bi-arrow-up-short"/>
+                </span>
+                <ul class="dropdown-menu">
+                  <li value="rating">
+                    <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setOrToggleSortValue('rating')">
+                      Rating
+                    </button>
+                  </li>
+                  <li value="watched">
+                    <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setOrToggleSortValue('watched')">
+                      Watch Date
+                    </button>
+                  </li>
+                  <li value="release">
+                    <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setOrToggleSortValue('release')">
+                      Release Date
+                    </button>
+                  </li>
+                  <li value="title">
+                    <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setOrToggleSortValue('title')">
+                      Title
+                    </button>
+                  </li>
+                  <li value="views">
+                    <button class="dropdown-item" :class="{active: sortValue === 'views'}" @click="setOrToggleSortValue('views')">
+                      Views
+                    </button>
+                  </li>
+                  <li value="direction">
+                    <button class="dropdown-item" :class="{active: sortValue === 'direction'}" @click="setOrToggleSortValue('direction')">
+                      Direction
+                    </button>
+                  </li>
+                  <li value="imagery">
+                    <button class="dropdown-item" :class="{active: sortValue === 'imagery'}" @click="setOrToggleSortValue('imagery')">
+                      Imagery
+                    </button>
+                  </li>
+                  <li value="story">
+                    <button class="dropdown-item" :class="{active: sortValue === 'story'}" @click="setOrToggleSortValue('story')">
+                      Story
+                    </button>
+                  </li>
+                  <li value="performance">
+                    <button class="dropdown-item" :class="{active: sortValue === 'performance'}" @click="setOrToggleSortValue('performance')">
+                      Performance
+                    </button>
+                  </li>
+                  <li value="soundtrack">
+                    <button class="dropdown-item" :class="{active: sortValue === 'soundtrack'}" @click="setOrToggleSortValue('soundtrack')">
+                      Soundtrack
+                    </button>
+                  </li>
+                  <li value="stickiness">
+                    <button class="dropdown-item" :class="{active: sortValue === 'stickiness'}" @click="setOrToggleSortValue('stickiness')">
+                      Stickiness
+                    </button>
+                  </li>
+                </ul>
+              </button>
+            </div>
+            <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap col-md-12">
+              <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
+                <div>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleAnnualBestFilter"
+                  >
+                    Annual Best
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleBestPicturesFilter"
+                  >
+                    Best Picture
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'thisYear' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleThisYearFilter"
+                  >
+                    This Year
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'lastYear' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleLastYearFilter"
+                  >
+                    Last Year
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'thisMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleThisMonthFilter"
+                  >
+                    This Month
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'lastMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleLastMonthFilter"
+                  >
+                    Last Month
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('genre')"
+                  >
+                    Genres
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('keyword')"
+                  >
+                    Keywords
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('year')"
+                  >
+                    Years
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('director')"
+                  >
+                    <span v-if="currentLogIsTVLog">Creators</span>
+                    <span v-else>Directors</span>
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('cast/crew')"
+                  >
+                    Cast/Crew Members
+                  </span>
+                  <span
+                    class="badge mx-1"
+                    :class="activeQuickLinkList === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleQuickLinksList('studios')"
+                  >
+                    Studios
+                  </span>
+                  <hr>
+                  <div class="tags-quicklinks">
+                    <p data-bs-toggle="collapse" data-bs-target="#tagsCollapse" aria-expanded="false" aria-controls="tagsCollapse">
+                      Tags
+                      <i class="bi bi-caret-right-fill"/>
+                    </p>
+                    <div class="collapse" id="tagsCollapse">
+                      <span
+                        v-for="(tag, index) in tags"
+                        :key="index"
+                        class="badge mx-1"
+                        :class="value === tag ? 'text-bg-success' : 'text-bg-secondary'"
+                        @click="toggleQuickLinksList(tag)"
+                      >
+                        {{tag}}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="sortedDataForActiveQuickLinkList.length" class="quick-links-list-wrapper mt-2">
+                  <div class="accordion-body col-12">
+                    <button
+                      class="quick-links-list-sort"
+                      :class="darkOrLight"
+                      @click="toggleQuickLinksSort"
+                    >
+                      {{quickLinksSortType}}
+                    </button>
+                    <ul class="quick-link-list p-0 col-12">
+                      <li v-for="(value, index) in sortedDataForActiveQuickLinkList" :key="index" @click="updateSearchValue(value.name)">
+                        <span class="badge mx-1" :class="darkOrLight">
+                          {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <StickinessModal
+            v-if="showStickinessModal"
+            :showStickinessModal="showStickinessModal"
+            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"Add commentMore actions
+          />
+          <TweakModal
+            v-else-if="showTweakModal"
+            :showTweakModal="showTweakModal"
+            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+          />
+          <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
+          <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">
+            <div class="settings-panel-header d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">Settings</h5>
+            </div>
+            <hr class="mt-0 mb-3">
+            <div class="settings-panel-body">
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="shortsToggle" v-model="showShorts">
+                <label class="form-check-label" for="shortsToggle">Include short films</label>
+              </div>
+              <div class="mb-3">
+                <label for="normalizationTweak" class="form-label">Normalization offset:</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  id="normalizationTweak"
+                  v-model.number="normalizationTweak"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  @change="saveNormalizationTweak"
+                >
+              </div>
+              <div class="mb-3">
+                <label for="tieBreakTweak" class="form-label">Max daily tiebreak prompts:</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  id="tieBreakTweak"
+                  v-model.number="tieBreakTweak"
+                  min="0"
+                  max="1"
+                  step="1"
+                  @change="saveTieBreakTweak"
+                >
+              </div>
+            </div>
+          </div>
+          <!-- Results list follows the settings panel -->
+          <ul class="grid-layout pb-3" :class="listCountClasses">
+            <DBGridLayoutSearchResult
+              v-for="(result, index) in paginatedSortedResults"
+              :key="topStructure(result).id"
+              :result="result"
+              :keywordCounts="allCounts.keywords"
+              :allCounts="allCounts"
+              :index="index"
+              :resultsAreFiltered="resultsAreFiltered"
+              :sortValue="sortValue"
+              :activeQuickLinkList="activeQuickLinkList"
+              @updateSearchValue="updateSearchValue"
+            />
+          </ul>
+          <button
+            v-if="sortedResults.length > numberOfResultsToShow"
+            class="btn btn-secondary mb-5 float-end"
+            @click="addMoreResults"
+          >
+            More...
+          </button>
+          <!-- Suggestions button/component at the very bottom, only if not searching/filtering and all results are shown and user has rated 10+ movies -->
+          <div v-else-if="!value && !resultsAreFiltered && sortedResults.length <= numberOfResultsToShow && userRatedMovieCount >= 10" class="mt-4 mb-5 text-center">
+            <button v-if="!showSuggestionsOnly" class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
+            <NoResults
+              v-if="showSuggestionsOnly"
+              :value="value"
+              :suggestionsMode="true"
+              @cancel-suggestions="showSuggestionsOnly = false"
+              style="margin-bottom: 2rem;"
+            />
+          </div>
+          <div v-else class="button-wrapper d-flex justify-content-end mb-5">
+            <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">Search TMDB for {{titleCase(value)}}</button>
+          </div>
+        </div>
+        <div v-else class="no-results-but-search-type">
+          <p class="text-center">No {{movieOrTVShowDisplay}}s found for your search.</p>
+          <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
+        </div>
+      </div>
+      <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValue="clearValue"/>
+      <div v-else class="loading-screen d-flex justify-content-center align-items-center my-5">
+        <div class="spinner-border text-light" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
+    </div>
+    <!-- Unrated movies section -->
+    <div v-if="unratedMoviesLoading" class="unrated-movies-loading text-center my-4">Loading more movies by this person...</div>
+    <div v-else-if="unratedMovies.length && !unratedMoviesLoading && !unratedMoviesError" class="unrated-movies-grid">
+      <h3>Some {{ value }} films you haven't rated yet:</h3>
+      <div v-if="unratedMovies.length" class="d-flex flex-wrap">
+        <div v-for="movie in unratedMovies" :key="movie.id" class="unrated-movie-card" :class="columnsForUnratedMovies">
+          <a v-if="movie.id" :href="'https://www.themoviedb.org/movie/' + movie.id" target="_blank" rel="noopener">
+            <img v-if="movie.poster_path" :src="'https://image.tmdb.org/t/p/w185' + movie.poster_path" :alt="movie.title" class="unrated-movie-poster col-12 p-1"/>
+          </a>
+        </div>
+      </div>
+      <div v-else-if="!unratedMoviesLoading && !unratedMoviesError">No unrated movies found.</div>
+    </div>
+  </div>
+</template>
+
+<script>
+import axios from 'axios';
+import uniq from 'lodash/uniq';
+import minBy from 'lodash/minBy';
+import debounce from 'lodash/debounce';
+import Charts from "./Charts.vue";
+import Settings from "./Settings.vue";
+import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
+import StickinessModal from "./StickinessModal.vue";
+import TweakModal from "./TweakModal.vue";
+import NoResults from "./NoResults.vue";
+import InsetBrowserModal from './InsetBrowserModal.vue';
+import BulkTagEditor from './BulkTagEditor.vue';
+import { getRating } from "../assets/javascript/GetRating.js";
+
+export default {
+  components: {
+    Charts,
+    Settings,
+    DBGridLayoutSearchResult,
+    InsetBrowserModal,
+    StickinessModal,
+    TweakModal,
+    NoResults,
+    BulkTagEditor
+  },
+  data () {
+    return {
+      sortOrder: "bestOrNewestOnTop",
+      value: "",
+      activeQuickLinkList: "title",
+      sortValue: null,
+      quickLinksSortType: "count",
+      numberOfResultsToShow: 25,
+      sharing: false,
+      noResults: false,
+      hasCalledFindFilter: false,
+      showInsetBrowserModal: false,
+      insetBrowserUrl: "",
+      showAverage: false,
+      showViewCount: false,
+      showSuggestionsOnly: false,
+      showShorts: false, // shorts toggle, default to off
+      showSettingsPanel: false, // controls settings panel visibility
+      normalizationTweak: 0.25, // default, will be set from store
+      tieBreakTweak: 1, // default, will be set from store
+      unratedMovies: [],
+      unratedMoviesLoading: false,
+      unratedMoviesError: null,
+      unratedMoviesQuery: '',
+      unratedMoviesPersonType: '',
+      unratedMoviesDebounceTimeout: null,
+    }
+  },
+  watch: {
+    DBSearchValue (newVal) {
+      if (newVal || newVal === "") {
+        this.value = newVal;
+      }
+    },
+    '$route.query.search'(newVal, oldVal) {
+      // When the route query changes, update the value
+      if (newVal !== oldVal && typeof newVal === 'string') {
+        const decodedValue = decodeURIComponent(newVal);\n        this.value = decodedValue;
+        // Only commit if different from current store value to prevent cycles\n        if (this.$store.state.DBSearchValue !== decodedValue) {\n          this.$store.commit('setDBSearchValue', decodedValue);\n        }
+      }
+    },
+    DBSortValue (newVal) {
+      if (newVal) {
+        this.setSortValue(newVal)
+      }
+    },
+    paginatedSortedResults (newVal, oldVal) {
+      if (!oldVal.length && newVal.length) {
+        this.checkResultsAndFindFilter();
+      }
+    },
+    filteredResults: debounce(function (newVal) {
+      this.$store.commit("setFilteredResults", newVal);
+    }, 500),
+    '$store.state.settings.normalizationTweak': {
+      handler(newVal) {
+        if (typeof newVal === 'number') {
+          this.normalizationTweak = newVal;
+        } else {
+          this.normalizationTweak = 0.25;
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.tieBreakTweak': {
+      handler(newVal) {
+        if (typeof newVal === 'number') {
+          this.tieBreakTweak = newVal;
+        } else {
+          this.tieBreakTweak = 1;
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.includeShorts': {
+      handler(newVal) {
+        if (typeof newVal === 'boolean') {
+          this.showShorts = newVal;
+        } else {
+          this.showShorts = false;
+        }
+      },
+      immediate: true
+    },
+    showShorts(newVal) {
+      this.$store.dispatch('setDBValue', { path: 'settings/includeShorts', value: newVal });
+    },
+    value(newVal, oldVal) {
+      // Fetch unrated movies for any non-empty value
+      if (newVal && newVal !== oldVal) {
+        this.debouncedFetchUnratedMoviesByValue(newVal);
+      } else if (!newVal) {
+        this.unratedMovies = [];
+        this.unratedMoviesError = null;
+      }
+    },
+    '$store.state.dbLoaded'(newVal) {
+      if (newVal) {
+        this.checkResultsAndFindFilter();
+      }
+    }
+  },
+  mounted () {
+    this.value = this.DBSearchValue;
+    window.scroll({
+      top: 0,
+      left: 0,
+      behavior: 'instant'
+    });
+
+    if (this.$route.query.search) {
+      this.value = decodeURIComponent(this.$route.query.search);
+    } else {
+      this.checkResultsAndFindFilter();
+    }
+
+    if (this.DBSortValue) {
+      this.setSortValue(this.DBSortValue)
+    } else {
+      this.setSortValue("rating")
+    }
+
+    if (this.$route.query.movieDbKey) {
+      this.$store.commit("setDBSortValue", "watched");
+      this.sortOrder = "bestOrNewestOnTop";
+    }
+
+    // Initialize showShorts from store
+    if (typeof this.$store.state.settings.includeShorts === 'boolean') {
+      this.showShorts = this.$store.state.settings.includeShorts;
+    } else {
+      this.showShorts = false;
+    }
+  },
+  beforeRouteLeave () {
+    this.sortOrder = "bestOrNewestOnTop";
+    this.setSortValue(null);
+    this.value = "";
+    this.$store.commit("setDBSearchValue", this.value);
+    this.$store.commit("setDBSortValue", this.sortValue);
+  },
+  computed: {
+    isMatt () {
+      return this.$store.state.databaseTopKey === "mattgrosso-gmail-com" || !this.$store.state.databaseTopKey;
+    },
+    darkOrLight () {
+      const inDarkMode = document.querySelector("body").classList.contains('bg-dark');
+
+      return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
+    },
+    tags () {
+      if (this.$store.state?.settings?.tags?.['viewing-tags']) {
+        return Object.values(this.$store.state.settings.tags['viewing-tags']).map(tag => tag.title);
+      } else {
+        return [];
+      }
+    },
+    currentLogIsTVLog () {
+      return this.$store.state.currentLog === "tvLog";
+    },
+    movieOrTVShowDisplay () {
+      if (this.currentLogIsTVLog) {
+        return "TV show";
+      } else {
+        return "movie";
+      }
+    },
+    movieOrTV () {
+      if (this.currentLogIsTVLog) {
+        return "tv";
+      } else {
+        return "movie";
+      }
+    },
+    DBSearchValue () {
+      return this.$store.state.DBSearchValue;
+    },
+    DBSortValue () {
+      return this.$store.state.DBSortValue;
+    },
+    allEntriesWithFlatKeywordsAdded () {
+      return this.$store.getters.allMediaAsArray.map((result) => {
+        if (this.currentLogIsTVLog) {
+          return {
+            ...result,
+            tvShow: {
+              ...this.topStructure(result),
+              flatKeywords: this.topStructure(result).keywords ? this.topStructure(result).keywords.map((keyword) => keyword.name) : []
+            }
+          }
+        } else {
+          const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
+          const flatChatGPTKeywords = this.topStructure(result).chatGPTKeywords || [];
+          const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
+          return {
+            ...result,
+            movie: {
+              ...this.topStructure(result),
+              flatKeywords: flatKeywords || []
+            }
+          }
+        }
+      });
+    },
+    resultsThatNeedStickiness () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const hasntReratedStickinessOneWeek = !this.mostRecentRating(result).userAddedStickiness;
+        const hasntReratedStickinessSixMonths = !this.mostRecentRating(result).userAddedSixMonthStickiness;
+        const ratingDate = this.mostRecentRating(result).date || "1/1/2021";
+        const moreThanAWeekAgo = new Date(ratingDate).getTime() < new Date().getTime() - (604800000);
+        const moreThanSixMonthsAgo = new Date(ratingDate).getTime() < new Date().getTime() - (15778476000);
+
+        return (hasntReratedStickinessOneWeek && moreThanAWeekAgo) || (hasntReratedStickinessSixMonths && moreThanSixMonthsAgo);
+      }).sort((a, b) => {
+        const ratingDateA = this.mostRecentRating(a).date || "1/1/2021";
+        const ratingDateB = this.mostRecentRating(b).date || "1/1/2021";
+        const dateA = new Date(ratingDateA);
+        const dateB = new Date(ratingDateB);
+        return dateB - dateA;
+      });
+    },
+    showStickinessModal () {
+      return Boolean(!this.currentLogIsTVLog && this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
+    },
+    showTweakModal () {
+      if (this.showStickinessModal) {
+        return false;
+      }
+
+      const firstTiedPairIndex = this.sortedByRating.findIndex((movie, index) => {
+        const nextMovie = this.sortedByRating[index + 1];
+
+        if (!nextMovie) {
+          return false;
+        }
+
+        return getRating(movie).calculatedTotal === getRating(nextMovie).calculatedTotal;
+      });
+
+      if (firstTiedPairIndex === -1) {
+        return false;
+      }
+
+      const hasTiedResults = Boolean(this.sortedByRating[firstTiedPairIndex] && this.sortedByRating[firstTiedPairIndex + 1]);
+      const lastTweak = this.$store.state.settings.lastTweak || Date.now();
+      const oneDay = 24 * 60 * 60 * 1000;
+      const maxDailyTieBreaks = this.$store.state.settings.tieBreakTweak || 1;
+      const noTieBreakYetToday = Date.now() - lastTweak > (oneDay / maxDailyTieBreaks);
+
+      return !this.currentLogIsTVLog && hasTiedResults && noTieBreakYetToday;
+    },
+    filteredResults () {
+      let results;
+      if (this.activeQuickLinkList === "annual") {
+        results = this.bestMovieFromEachYear;
+      } else if (this.activeQuickLinkList === "bestPicture") {
+        results = this.bestPictures;
+      } else if (this.activeQuickLinkList === "thisYear") {
+        results = this.thisYearsMovies;
+      } else if (this.activeQuickLinkList === "lastYear") {
+        results = this.lastYearsMovies;
+      } else if (this.activeQuickLinkList === "thisMonth") {
+        results = this.thisMonthsMovies;
+      } else if (this.activeQuickLinkList === "lastMonth") {
+        results = this.lastMonthsMovies;
+      } else if (this.tags.includes(this.activeQuickLinkList)) {
+        results = this.matchingTags;
+      } else if (this.value) {
+        results = this.fuzzyFilter;
+      } else {
+        results = this.allEntriesWithFlatKeywordsAdded;
+      }
+      // Exclude shorts if showShorts is false
+      if (!this.showShorts) {
+        results = results.filter(result => {
+          // Try to detect short films by genre or runtime
+          const genres = this.topStructure(result).genres || [];
+          const isShortGenre = genres.some(g => g.name && g.name.toLowerCase() === 'short');
+          const runtime = this.topStructure(result).runtime;
+          // Consider as short if genre is 'Short' or runtime <= 40 min
+          return !isShortGenre && !(runtime && runtime <= 40);
+        });
+      }
+      return results;
+    },
+    fuzzyFilter  () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
+        if (!this.value) {
+          return true;
+        }
+
+        return this.topStructure(media).title.toLowerCase().includes(this.value.toLowerCase()) ||
+        this.topStructure(media).flatKeywords?.includes(this.value.toLowerCase()) ||
+        this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.value.toLowerCase()) ||
+        this.topStructure(media).cast?.flatMap((person) => {
+          const names = person.name.toLowerCase().split(' ');
+          return [person.name.toLowerCase(), ...names];
+        }).includes(this.value.toLowerCase()) ||
+        this.topStructure(media).crew?.flatMap((person) => {
+          const names = person.name.toLowerCase().split(' ');
+          return [person.name.toLowerCase(), ...names];
+        }).includes(this.value.toLowerCase()) ||
+        this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.value.toLowerCase()) ||
+        (this.yearFilter.length && this.yearFilter.includes(`${this.getYear(media)}`));
+      })
+    },
+    yearFilter () {
+      let parsedYears = [];
+
+      if (this.value.length === 2 && parseInt(this.value) < new Date().getFullYear() - 2000) {
+        parsedYears = [`20${this.value}`];
+      } else if (this.value.length === 2) {
+        parsedYears = [`19${this.value}`];
+      } else if (this.value.includes("-") && this.value.includes(" ")) {
+        parsedYears = this.value.split(" ").join("").split("-");
+
+        for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
+          parsedYears.push(i.toString());
+        }
+      } else if (this.value.includes("-")) {
+        parsedYears = this.value.split("-");
+
+        for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
+          parsedYears.push(i.toString());
+        }
+      } else if (this.value.length === 5 && this.value.includes("s")) {
+        parsedYears = this.value.split("s").filter((x) => x);
+
+        parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
+      } else if (this.value.length === 3 && this.value.includes("s")) {
+        parsedYears = this.value.split("s").filter((x) => x);
+
+        if (parseInt(this.value) < new Date().getFullYear() - 2000) {
+          parsedYears[0] = `20${parsedYears[0]}`;
+        } else {
+          parsedYears[0] = `19${parsedYears[0]}`;
+        }
+        parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
+        parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
+      } else if (this.value.length === 4 && parseInt(this.value)) {
+        parsedYears = [this.value];
+      }
+
+      return parsedYears;
+    },
+    bestMovieFromEachYear () {
+      const years = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        let year;
+
+        if (this.currentLogIsTVLog) {
+          year = new Date(result.tvShow.first_air_date).getFullYear();
+        } else {
+          year = new Date(result.movie.release_date).getFullYear();
+        }
+
+        if (!years[year]) {
+          years[year] = result;
+        } else if (this.mostRecentRating(result).calculatedTotal > this.mostRecentRating(years[year]).calculatedTotal) {
+          years[year] = result;
+        }
+      })
+
+      return Object.keys(years).map((year) => years[year]);
+    },
+    bestPictures () {
+      if (this.currentLogIsTVLog) {
+        return [];
+      }
+
+      const bestPictureWinners = this.$store.state.academyAwardWinners.bestPicture;
+
+      const allEntryIds = this.allEntriesWithFlatKeywordsAdded.map((result) => {
+        return this.topStructure(result).id;
+      });
+
+      const bestPictureWinnersWithRatingStatus = [];
+
+      bestPictureWinners.forEach((movie) => {
+        if (allEntryIds.includes(movie.id)) {
+          bestPictureWinnersWithRatingStatus.push({
+            ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id),
+            ...{
+              movie: {
+                ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id).movie,
+                academyAwardsYear: movie.academyAwardsYear
+              }
+            }
+          });
+        } else {
+          bestPictureWinnersWithRatingStatus.push({
+            falseEntry: true,
+            movie: movie,
+            ratings: [
+              {
+                date: Date.now(),
+                direction: 0,
+                id: movie.id,
+                imagery: 0,
+                impression: 0,
+                love: 0,
+                medium: "",
+                overall: 0,
+                performance: 0,
+                soundtrack: 0,
+                stickiness: 0,
+                story: 0,
+                title: movie.title,
+                year: new Date(movie.release_date).getFullYear()
+              }
+            ]
+          });
+        }
+      });
+
+      return bestPictureWinnersWithRatingStatus;
+    },
+    thisYearsMovies () {
+      const currentYear = new Date().getFullYear();
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingYear === currentYear;
+        }
+
+        return false;
+      });
+    },
+    lastYearsMovies () {
+      const lastYear = new Date().getFullYear() - 1;
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingYear === lastYear;
+        }
+
+        return false;
+      });
+    },
+    thisMonthsMovies () {
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingMonth = new Date(parseInt(mostRecentRating.date)).getMonth();
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingMonth === currentMonth && ratingYear === currentYear;
+        }
+
+        return false;
+      });
+    },
+    lastMonthsMovies () {
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+    
+      // Adjust for January
+      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+    
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingDate = new Date(parseInt(mostRecentRating.date));
+          const ratingMonth = ratingDate.getMonth();
+          const ratingYear = ratingDate.getFullYear();
+          return ratingMonth === lastMonth && ratingYear === lastMonthYear;
+        }
+    
+        return false;
+      });
+    },
+    matchingTags () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        return result.ratings.map((rating) => rating.tags || []).flat().map((tag) => tag.title).includes(this.activeQuickLinkList);
+      });
+    },
+    bestPicturesWithRatings () {
+      return this.bestPictures.filter((result) => !result.falseEntry);
+    },
+    showResultsList () {
+      return Boolean(this.paginatedSortedResults.length) || this.activeQuickLinkList !== "title";
+    },
+    sortedResults () {
+      return [...this.filteredResults].sort(this.sortResults);
+    },
+    sortedByRating () {
+      const allMediaSortedByRating = this.$store.getters.allMediaSortedByRating;
+
+      if (this.sortOrder === 'bestOrNewestOnTop') {
+        return allMediaSortedByRating;
+      } else {
+        return allMediaSortedByRating.slice().reverse();
+      }
+    },
+    paginatedSortedResults () {
+      return this.sortedResults.slice(0, this.numberOfResultsToShow);
+    },
+    datalistForActiveQuickLink () {
+      if (this.activeQuickLinkList === "keyword") {
+        return this.allKeywords;
+      } else if (this.activeQuickLinkList === "genre") {
+        return this.allGenres;
+      } else if (this.activeQuickLinkList === "year") {
+        return this.allYears;
+      } else if (this.activeQuickLinkList === "director") {
+        return this.allDirectors;
+      } else if (this.activeQuickLinkList === "cast/crew") {
+        return this.allCastCrew;
+      } else if (this.activeQuickLinkList === "studios") {
+        return this.allStudios;
+      } else if (this.activeQuickLinkList === "mediums") {
+        return this.allMediums;
+      } else {
+        return [];
+      }
+    },
+    sortedDataForActiveQuickLinkList () {
+      const data = [...this.datalistForActiveQuickLink];
+
+      if (this.quickLinksSortType === "a-z") {
+        return data.sort((a, b) => a.name.localeCompare(b.name));
+      } else {
+        return data.sort((a, b) => b.count - a.count);
+      }
+    },
+    allKeywords () {
+      return Object.keys(this.countedKeywords).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countedKeywords[keyword]
+        }
+      });
+    },
+    allGenres () {
+      return Object.keys(this.countedGenres).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countedGenres[keyword]
+        }
+      });
+    },
+    allYears () {
+      return Object.keys(this.countedYears).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countedYears[keyword]
+        }
+      });
+    },
+    allDirectors () {
+      if (this.currentLogIsTVLog) {
+        return [];
+      }
+
+      return Object.keys(this.countDirectors).map((keyword) => {
+        const filmography = this.allEntriesWithFlatKeywordsAdded.find((entry) => {
+          return entry.movie.crew.find((person) => person.job === "Director" && person.name === keyword);
+        }).movie.crew.find((person) => person.name === keyword && person.filmography)?.filmography;
+
+        return {
+          name: this.titleCase(keyword),
+          count: this.countDirectors[keyword],
+          filmography: filmography ? filmography.filter((film) => new Date(film.release_date) < new Date() && film.popularity > 8.65) : []
+        }
+      });
+    },
+    allCastCrew () {
+      return Object.keys(this.countCastCrew).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countCastCrew[keyword]
+        }
+      });
+    },
+    allStudios () {
+      return Object.keys(this.countStudios).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countStudios[keyword]
+        }
+      });
+    },
+    allMediums () {
+      const mediums = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        if (!this.currentLogIsTVLog) {
+          result.ratings.forEach((rating) => {
+            if (!rating.medium) {
+              return;
+            } else if (mediums[rating.medium]) {
+              mediums[rating.medium]++;
+            } else {
+              mediums[rating.medium] = 1;
+            }
+          })
+        }
+      })
+
+      return Object.keys(mediums).map((medium) => {
+        return {
+          name: this.titleCase(medium),
+          count: mediums[medium]
+        }
+      });
+    },
+    allCounts () {
+      return {
+        keywords: this.countedKeywords,
+        genres: this.countedGenres,
+        years: this.countedYears,
+        directors: this.countDirectors,
+        castCrew: this.countCastCrew,
+        studios: this.countStudios,
+        mediums: this.allMediums,
+        filmographies: this.allDirectors
+      }
+    },
+    countedKeywords () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        if (this.topStructure(result).flatKeywords) {
+          this.topStructure(result).flatKeywords.forEach((keyword) => {
+            if (counts[keyword]) {
+              counts[keyword]++;
+            } else if (keyword) {
+              counts[keyword] = 1;
+            }
+          })
+        }
+      })
+
+      return counts;
+    },
+    countedGenres () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        if (this.topStructure(result).genres) {
+          this.topStructure(result).genres.forEach((genre) => {
+            if (counts[genre.name]) {
+              counts[genre.name]++;
+            } else if (genre.name) {
+              counts[genre.name] = 1;
+            }
+          })
+        }
+      })
+
+      return counts;
+    },
+    countedYears () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const year = this.getYear(result);
+        if (counts[year]) {
+          counts[year]++;
+        } else if (year) {
+          counts[year] = 1;
+        }
+      })
+
+      return counts;
+    },
+    countDirectors () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        let director;
+        if (this.currentLogIsTVLog) {
+          director = result.tvShow.created_by?.[0].name;
+        } else {
+          director = result.movie.crew?.find((person) => person.job === "Director").name;
+        }
+
+        if (director) {
+          if (counts[director]) {
+            counts[director]++;
+          } else if (director) {
+            counts[director] = 1;
+          }
+        }
+      })
+
+      return counts;
+    },
+    countCastCrew () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const cast = this.topStructure(result).cast?.filter((person, index) => index < 10).map(person => person.name) || [];
+        const crew = this.topStructure(result).crew?.filter((person, index) => index < 10).map(person => person.name) || [];
+        const castCrewCombined = uniq([...cast, ...crew]);
+
+        castCrewCombined.forEach((person) => {
+          if (counts[person]) {
+            counts[person]++;
+          } else if (person) {
+            counts[person] = 1;
+          }
+        })
+      })
+
+      return counts;
+    },
+    countStudios () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const productionCompanies = this.topStructure(result).production_companies?.map(company => company.name) || [];
+
+        productionCompanies.forEach((company) => {
+          if (counts[company]) {
+            counts[company]++;
+          } else if (company) {
+            counts[company] = 1;
+          }
+        })
+      })
+
+      return counts;
+    },
+    countMediums () {
+      const counts = {};
+
+      if (this.currentLogIsTVLog) {
+        return counts;
+      }
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        result.ratings.forEach((rating) => {
+          if (counts[rating.medium]) {
+            counts[rating.medium]++;
+          } else if (rating.medium) {
+            counts[rating.medium] = 1;
+          }
+        })
+      })
+
+      return counts;
+    },
+    resultsAreFiltered () {
+      return Boolean(this.value);
+    },
+    placeholder () {
+      if (this.activeQuickLinkList === 'annual') {
+        return "The best of each year";
+      } else if (this.activeQuickLinkList === 'bestPicture') {
+        return "The Best Picture winners";
+      } else {
+        return "Search...";
+      }
+    },
+    listCountClasses () {
+      const count = this.paginatedSortedResults.length;
+
+      return {
+        "count-is-1": count === 1,
+        "count-is-2": count === 2,
+        "count-is-3": count === 3,
+        "count-is-4": count === 4,
+        "count-more-than-4-remainder-0": count > 4 & count % 4 === 0,
+        "count-more-than-4-remainder-1": count > 4 & count % 4 === 1,
+        "count-more-than-4-remainder-2": count > 4 & count % 4 === 2,
+        "count-more-than-4-remainder-3": count > 4 & count % 4 === 3
+      }
+    },
+    userRatedMovieCount() {
+      // Count the number of movies the user has rated (not TV shows)
+      if (this.currentLogIsTVLog) return 0;
+      return this.allEntriesWithFlatKeywordsAdded.length;
+    },
+    suggestionsButtonLabel() {
+      return this.userRatedMovieCount === 0
+        ? 'Suggest some movies to rate'
+        : 'Suggest more movies to rate';
+    },
+    normalizationTweakDisplay() {
+      return this.normalizationTweak.toFixed(2);
+    },
+    tieBreakTweakDisplay() {
+      return this.tieBreakTweak.toFixed(2);
+    },
+    columnsForUnratedMovies () {
+      if (this.unratedMovies.length % 4 === 0) {
+        return "col-3";
+      } else {
+        return "col-4";
+      }
+    }
+  },
+  methods: {
+    toggleSettingsPanel () {
+      this.showSettingsPanel = !this.showSettingsPanel;
+    },
+    toggleMovieTV () {
+      this.clearValue();
+      this.$store.dispatch('toggleCurrentLog');
+    },
+    checkResultsAndFindFilter () {
+      const allowRandom = !this.$route.query.noRandom;
+      const hasResults = this.paginatedSortedResults.length > 0;
+      const hasNotCalledFindFilter = !this.hasCalledFindFilter;
+      const isNotInTVMode = !this.currentLogIsTVLog;
+
+      if (allowRandom && hasResults && hasNotCalledFindFilter && isNotInTVMode) {
+        this.findRandomSearchValue();
+        this.hasCalledFindFilter = true;
+      }
+    },
+    findRandomSearchValue () {
+      this.$router.push({ query: { ...this.$route.query, returnFromRating: undefined } });
+      const countedLists = ["keyword", "genre", "year", "director", "cast/crew", "studios"];
+      const randomList = countedLists[Math.floor(Math.random() * countedLists.length)];
+
+      const minimumCount = 3;
+
+      let counts;
+      switch (randomList) {
+        case "keyword":
+          counts = this.countedKeywords;
+          break;
+        case "genre":
+          counts = this.countedGenres;
+          break;
+        case "year":
+          counts = this.countedYears;
+          break;
+        case "director":
+          counts = this.countDirectors;
+          break;
+        case "cast/crew":
+          counts = this.countCastCrew;
+          break;
+        case "studios":
+          counts = this.countStudios;
+          break;
+      }
+
+      const valuesFromRandomCountedList = Object.keys(counts);
+      let randomValue;
+      let safetyLimit = 100;
+
+      do {
+        const randomIndex = Math.floor(Math.random() * valuesFromRandomCountedList.length);
+        randomValue = valuesFromRandomCountedList[randomIndex];
+        safetyLimit--;
+      } while (counts[randomValue] <= minimumCount && safetyLimit > 0);
+
+      if (randomValue && safetyLimit > 0) {
+        this.updateSearchValue(randomValue);
+        this.sortOrder = "bestOrNewestOnTop";
+      } else {
+        this.clearValue();
+      }
+    },
+    async wikiLinkFor (searchValue) {
+      const wiki = await axios.get(`https://en.wikipedia.org/w/api.php?action=query&origin=*&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=%27${searchValue}%27`);
+      const pages = wiki.data.query.pages;
+      const pagesArray = Object.keys(pages).map((page) => pages[page]);
+      const bestMatch = minBy(pagesArray, (page) => page.index);
+
+      return `https://en.m.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
+    },
+    async goToWikipedia () {
+      this.insetBrowserUrl = await this.wikiLinkFor(this.value);
+      this.showInsetBrowserModal = true;
+    },
+    clearValue () {
+      this.value = "";
+    },
+    updateSearchValue (value) {
+      this.value = value;
+
+      window.scroll({
+        top: 0,
+        left: 0,
+        behavior: 'instant'
+      });
+
+      this.$refs.insightsAccordion?.classList.remove("show");
+    },
+    toggleQuickLinksSort () {
+      if (this.quickLinksSortType === "a-z") {
+        this.quickLinksSortType = "count";
+      } else {
+        this.quickLinksSortType = "a-z";
+      }
+    },
+    toggleQuickLinksAccordion (event) {
+      if (event.delegateTarget.classList.contains("collapsed")) {
+        this.updateSearchValue(null);
+        this.activeQuickLinkList = "title";
+      }
+    },
+    toggleQuickLinksList (value) {
+      if (this.activeQuickLinkList === value || !value) {
+        this.activeQuickLinkList = "title";
+        this.updateSearchValue("");
+        this.$refs.QuickLinksAccordion?.classList.remove("show");
+      } else if (this.tags?.includes(value)) {
+        this.activeQuickLinkList = value;
+        this.sortOrder = "bestOrNewestOnTop";
+
+        this.updateSearchValue(value);
+      } else {
+        this.activeQuickLinkList = value;
+
+        this.$refs.QuickLinksAccordion?.classList.add("show");
+      }
+    },
+    toggleAnnualBestFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "annual") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "annual";
+        this.$store.commit("setDBSortValue", "release");
+      }
+    },
+    toggleBestPicturesFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "bestPicture") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "bestPicture";
+        this.$store.commit("setDBSortValue", "release");
+      }
+    },
+    toggleThisYearFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "thisYear") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "thisYear";
+        this.$store.commit("setDBSortValue", "rating");
+      }
+    },
+    toggleLastYearFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "lastYear") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "lastYear";
+        this.$store.commit("setDBSortValue", "rating");
+      }
+    },
+    toggleThisMonthFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "thisMonth") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "thisMonth";
+        this.$store.commit("setDBSortValue", "rating");
+      }
+    },
+    toggleLastMonthFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "lastMonth") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "lastMonth";
+        this.$store.commit("setDBSortValue", "rating");
+      }
+    },
+    toggleSortOrder () {
+      if (this.sortOrder === "bestOrNewestOnTop") {
+        this.setSortOrder("worstOrOldestOnTop");
+      } else {
+        this.setSortOrder("bestOrNewestOnTop");
+      }
+    },
+    setSortOrder (order) {
+      this.sortOrder = order;
+    },
+    setSortValue (value) {
+      this.sortValue = value;
+    },
+    setOrToggleSortValue (value) {
+      if (this.sortValue === value) {
+        this.toggleSortOrder();
+      } else {
+        this.setSortValue(value);
+        this.setSortOrder("bestOrNewestOnTop");
+      }
+    },
+    getSortValue (item, key) {
+      if (key === "rating") {
+        return this.mostRecentRating(item).calculatedTotal;
+      } else if (key === "release") {
+        return new Date(this.currentLogIsTVLog ? item.tvShow.first_air_date : item.movie.release_date);
+      } else if (key === "title") {
+        return this.currentLogIsTVLog ? item.tvShow.name : item.movie.title;
+      } else if (key === "watched") {
+        const date = this.mostRecentRating(item).date || "3/22/1982";
+        return new Date(date);
+      } else if (key === "views") {
+        return item.ratings.length;
+      } else {
+        const keyScore = parseInt(this.mostRecentRating(item)[key]);
+        const keysToCompare = ["direction", "imagery", "impression", "love", "performance", "soundtrack", "stickiness", "story"];
+        const isKeyScoreHighestScore = keysToCompare.some((keyToCompare) => {
+          const keyToCompareScore = parseInt(this.mostRecentRating(item)[keyToCompare]);
+          return keyToCompareScore >= keyScore;
+        });
+        return isKeyScoreHighestScore ? keyScore : 0;
+      }
+    },
+    sortResults (a, b) {
+      const sortValueA = this.getSortValue(a, this.sortValue || "rating");
+      const sortValueB = this.getSortValue(b, this.sortValue || "rating");
+
+      if (sortValueA === sortValueB) {
+        const secondarySortValueA = this.mostRecentRating(a).calculatedTotal;
+        const secondarySortValueB = this.mostRecentRating(b).calculatedTotal;
+
+        if (secondarySortValueA < secondarySortValueB) {
+          return this.sortOrder === "bestOrNewestOnTop" ? 1 : -1;
+        }
+        if (secondarySortValueA > secondarySortValueB) {
+          return this.sortOrder === "bestOrNewestOnTop" ? -1 : 1;
+        }
+        return 0;
+      }
+
+      if (sortValueA < sortValueB) {
+        return this.sortOrder === "bestOrNewestOnTop" ? 1 : -1;
+      }
+      if (sortValueA > sortValueB) {
+        return this.sortOrder === "bestOrNewestOnTop" ? -1 : 1;
+      }
+
+      return 0;
+    },
+    toggleCountViewsAverage () {
+      if (this.showAverage) {
+        this.showAverage = false;
+        this.showViewCount = true;
+      } else if (this.showViewCount) {
+        this.showAverage = false;
+        this.showViewCount = false;
+      } else {
+        this.showAverage = true;
+        this.showViewCount = false;
+      }
+    },
+    averageRating (results) {
+      const ratedMovies = results.filter((result) => this.mostRecentRating(result).calculatedTotal);
+      const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
+      const total = ratings.reduce((a, b) => a + b, 0);
+      return (total / ratings.length).toFixed(2);
+    },
+    viewsCount (results) {
+      return results.reduce((total, result) => {
+        return total + (result.ratings ? result.ratings.length : 0);
+      }, 0);
+    },
+    getYear (media) {
+      let date;
+      if (this.currentLogIsTVLog) {
+        date = media.tvShow.first_air_date;
+      } else {
+        date = media.movie.release_date;
+      }
+
+      return new Date(date).getFullYear();
+    },
+    mostRecentRating (media) {
+      return getRating(media);
+    },
+    async searchTMDB () {
+      if (!this.value) {
+        return;
+      }
+
+      const resp = await axios.get(`https://api.themoviedb.org/3/search/${this.movieOrTV}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
+
+      if (resp.data.results.length) {
+        this.newEntrySearch(resp.data.results);
+
+        window.scroll({
+          top: 0,
+          left: 0,
+          behavior: 'instant'
+        });
+      } else {
+        this.showNoResultsMessage();
+      }
+    },
+    newEntrySearch (results) {
+      this.$store.commit('setNewEntrySearchResults', results)
+
+      this.$router.push(`/pick-media/${this.value}`);
+    },
+    showNoResultsMessage () {
+      this.noResults = true;
+
+      setTimeout(() => {
+        this.noResults = false;
+        this.clearValue();
+      }, 3000);
+    },
+    addMoreResults () {
+      this.numberOfResultsToShow = this.numberOfResultsToShow + 25;
+
+      this.$nextTick(() => {
+        window.scrollBy({
+          top: 500,
+          behavior: 'smooth'
+        })
+      });
+    },
+    async shareResults () {
+      this.sharing = true;
+
+      const shareObject = {
+        results: this.sortedResults,
+        sortOrder: this.sortOrder,
+        sortValue: this.sortValue,
+        value: this.value
+      };
+
+      const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
+
+      const dbEntry = {
+        path: `sharedDBSearches/${dbKey}`,
+        value: shareObject
+      }
+
+      this.$store.dispatch('setDBValue', dbEntry);
+
+      this.sharing = false;
+      this.value = "";
+
+      this.$nextTick(() => {
+        this.$router.push(`/share/${this.$store.state.databaseTopKey}/${dbKey}`);
+      });
+    },
+    topStructure (result) {
+      if (this.currentLogIsTVLog) {
+        return result.tvShow;
+      } else {
+        return result.movie;
+      }
+    },
+    titleCase (input) {
+      const string = input.toString();
+      return string.replace(
+        /\w\S*/g,
+        function (txt) {
+          return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+        }
+      );
+    },
+    focusOnSearchBar (event) {
+      event.target.classList.add('font-size-increased');
+      event.target.style.fontSize = '16px';
+
+      // Select the text if there is any text in the input
+      if (event.target.value) {
+        event.target.select();
+      }
+    },
+    blurSearchBar (event) {
+      event.target.classList.remove('font-size-increased');
+      event.target.style.fontSize = '12px';
+    },
+    handleTouchStart (event) {
+      event.target.classList.add('touch-active');
+    },
+    handleTouchEnd (event) {
+      event.target.classList.remove('touch-active');
+    },
+    goToInsights () {
+      this.$router.push('/insights');
+    },
+    saveNormalizationTweak() {
+      this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });
+    },
+    saveTieBreakTweak() {
+      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
+    },
+    debouncedFetchUnratedMoviesByValue(value) {
+      clearTimeout(this.unratedMoviesDebounceTimeout);
+      this.unratedMoviesDebounceTimeout = setTimeout(() => {
+        this.fetchUnratedMoviesByValue(value);
+      }, 800);
+    },
+    async fetchUnratedMoviesByValue(value) {
+      this.unratedMoviesLoading = true;
+      this.unratedMoviesError = null;
+      this.unratedMovies = [];
+      try {
+        // 1. Search TMDB for a person matching the value
+        const personResp = await axios.get('https://api.themoviedb.org/3/search/person', {
+          params: {
+            api_key: process.env.VUE_APP_TMDB_API_KEY,
+            language: 'en-US',
+            query: value,
+          }
+        });
+
+        if (!personResp.data.results || personResp.data.results.length > 3) {
+          this.unratedMovies = [];
+          this.unratedMoviesLoading = false;
+          return;
+        }
+        const person = personResp.data.results[0];
+        // 2. Fetch movie credits for the found person
+        const creditsResp = await axios.get(`https://api.themoviedb.org/3/person/${person.id}/movie_credits`, {
+          params: {
+            api_key: process.env.VUE_APP_TMDB_API_KEY,
+            language: 'en-US',
+          }
+        });
+        // 3. Interpret known_for_department and filter credits accordingly
+        const department = (person.known_for_department || '').toLowerCase();
+        let relevantJobs = [];
+        let relevantList = [];
+        if (department === 'acting') {
+          relevantList = creditsResp.data.cast || [];
+        } else if (department === 'directing') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'directing');
+          relevantJobs = ['director', 'co-director', 'second unit director', 'assistant director'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'writing') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'writing');
+          relevantJobs = ['writer', 'screenplay', 'story', 'co-writer', 'author', 'teleplay', 'adaptation'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'production') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'production');
+          relevantJobs = ['producer', 'executive producer', 'co-producer', 'associate producer', 'line producer', 'production manager'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'camera') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'camera');
+          relevantJobs = ['director of photography', 'cinematographer', 'camera operator'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'editing') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'editing');
+          relevantJobs = ['editor', 'film editor', 'assistant editor'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else if (department === 'sound') {
+          relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'sound');
+          relevantJobs = ['composer', 'original music composer', 'music', 'sound designer', 'sound editor', 'sound mixer'];
+          relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+        } else {
+          // fallback: show all movies from both cast and crew
+          relevantList = [
+            ...(creditsResp.data.cast || []),
+            ...(creditsResp.data.crew || [])
+          ];
+        }
+        // 4. Remove movies already rated by the user and filter out duplicates
+        const ratedIds = new Set(this.allEntriesWithFlatKeywordsAdded.map(r => this.topStructure(r).id));
+        // Remove duplicates by movie id
+        const seenIds = new Set();
+        const unrated = [];
+        for (const m of relevantList) {
+          if (!ratedIds.has(m.id) && !seenIds.has(m.id)) {
+            unrated.push(m);
+            seenIds.add(m.id);
+          }
+        }
+        // 5. Sort by popularity descending
+        unrated.sort((a, b) => b.popularity - a.popularity);
+        // 6. Dynamic popularity cutoff
+        if (unrated.length > 0) {
+          const popularities = unrated.map(m => m.popularity).filter(p => typeof p === 'number');
+          const max = Math.max(...popularities);
+          const min = Math.min(...popularities);
+          // Calculate a cutoff: e.g., keep movies in the top 40% of the popularity range, or at least 10
+          const cutoff = min + (max - min) * 0.6;
+          let filtered = unrated.filter(m => m.popularity >= cutoff);
+          // Always show at least 10 if available
+          if (filtered.length < 12 && unrated.length > 12) {
+            filtered = unrated.slice(0, 12);
+          }
+          this.unratedMovies = filtered;
+        } else {
+          this.unratedMovies = [];
+        }
+      } catch (err) {
+        this.unratedMoviesError = 'Error fetching from TMDB.';
+      } finally {
+        this.unratedMoviesLoading = false;
+      }
+    },
+  },
+}
+</script>
+
+<style lang="scss">
+  .home {
+    max-width: 832px;
+
+    .search-bar {
+      max-width: 416px;
+
+      input#search {
+        border-bottom-right-radius: .375rem;
+        border-top-right-radius: .375rem;
+
+        &.has-content {
+          padding-left: 36px;
+          padding-right: 36px;
+        }
+
+        &.font-size-increased {
+          margin: -6px 0 0;
+
+          & + .clear-button {
+            transform: translateY(calc(-50% - 3px));
+          }
+
+          & + .clear-button + .more-info-button {
+            transform: translateY(calc(-50% - 3px));
+          }
+        }
+      }
+
+      .clear-button {
+        align-items: center;
+        color: black;
+        cursor: pointer;
+        display: flex;
+        height: 60px;
+        justify-content: center;
+        right: 0px;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 40px;
+        z-index: 5;
+        overflow: hidden;
+      }
+
+      .clear-button::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 200%;
+        height: 200%;
+        background-color: rgba(0, 0, 0, 0.1);
+        transform: translate(-50%, -50%) scale(0);
+        transition: transform 0.5s ease-out;
+        border-radius: 50%;
+      }
+
+      .clear-button:active::before {
+        transform: translate(-50%, -50%) scale(1);
+      }
+
+      .clear-button:hover,
+      .clear-button:focus,
+      .clear-button.touch-active {
+        background-color: rgba(0, 0, 0, 0.1);
+        height: 30px;
+      }
+
+      .more-info-button {
+        align-items: center;
+        color: black;
+        cursor: pointer;
+        display: flex;
+        height: 40px;
+        justify-content: center;
+        left: 0px;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 40px;
+        z-index: 5;
+      }
+
+      svg {
+        height: 18px;
+        width: 18px;
+      }
+    }
+
+    .results {
+      .results-count {
+        font-size: 1rem;
+      }
+
+      .results-actions {
+        .dropdown-item {
+          &.active,
+          &:active {
+            color: #1e2125;
+            background-color: #e9ecef;
+          }
+        }
+
+        .dropdown-toggle {
+          position: relative;
+
+          &::after {
+            display: none;
+          }
+
+          > i {
+            margin-right: 6px;
+          }
+
+          .order-arrow {
+            position: absolute;
+            right: 7px;
+            top: 49%;
+            transform: translateY(-49%);
+          }
+        }
+
+        button {
+          svg {
+            height: 14px;
+            width: 14px;
+          }
+
+          border: none;
+
+          &.results-actions-button {
+            &:nth-child(1) {
+              background-color: #E71D36; /* Red */
+              color: white;
+            }
+
+            &:nth-child(2) {
+              background-color: #FF9F1C; /* Orange */
+              color: black;
+            }
+
+            &:nth-child(3) {
+              background-color: #FFD700; /* Yellow */
+              color: black;
+            }
+
+            &:nth-child(4) {
+              background-color: #24d776; /* Green */
+              color: black;
+            }
+
+            &:nth-child(5) {
+              background-color: #1D8BF1; /* Blue */
+              color: black;
+            }
+
+            &:nth-child(6) {
+              background-color: #5A189A; /* Indigo */
+              color: white;
+            }
+
+            &:nth-child(7) {
+              background-color: #cd7fe8; /* Violet */
+              color: white;
+            }
+
+            &:nth-child(8) {
+              background-color: #00FFFF; /* Cyan */
+              color: white;
+            }
+          }
+        }
+
+        .filtered-count-display {
+          .average-label {
+            font-size: 0.5rem;
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+          }
+
+          .average-value {
+            position: relative;
+            top: -4px;
+          }
+        }
+
+        .quick-link-types {
+          row-gap: 6px;
+
+          span {
+            cursor: pointer;
+            font-size: 0.75rem;
+          }
+
+          hr {
+            margin: 14px 0 10px;
+          }
+
+          .tags-quicklinks {
+            position: relative;
+
+            p {
+              background: #212529;
+              cursor: pointer;
+              font-size: 0.75rem;
+              padding: 0 10px 0 7px;
+              position: absolute;
+              right: 0;
+              top: -22px;
+
+              &[aria-expanded="true"] {
+                .bi-caret-right-fill::before {
+                  transform: rotate(90deg);
+                }
+              }
+
+              .bi-caret-right-fill::before {
+                transition: transform .5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+              }
+            }
+          }
+
+          .quick-links-list-wrapper {
+            border: 1px solid #c0c2c3;
+            max-height: 150px;
+            overflow-y: scroll;
+            position: relative;
+
+            .quick-links-list-sort {
+              position: sticky;
+              top: 4px;
+              left: 100%;
+              border: 1px solid #c0c2c3;
+              border-bottom-left-radius: 2px;
+              padding: 2px 4px;
+              background: white;
+              font-size: 0.65rem;
+              margin: 4px 8px;
+            }
+
+            .quick-link-list {
+              column-count: 2;
+              column-gap: 0;
+              list-style: none;
+              margin-top: -20px;
+
+              li {
+                .badge {
+                  align-items: center;
+                  cursor: pointer;
+                  display: flex;
+                  text-align: start;
+                  white-space: break-spaces;
+
+                  span {
+                    font-size: 0.5rem;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      ul {
+        list-style: none;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+
+        &.grid-layout {
+          display: grid;
+          grid-gap: 0;
+
+          li {
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+            &.highlight {
+              border: 2px solid #54b448;
+              transform: scale(1.2);
+              z-index: 1;
+            }
+
+            img {
+              width: 100%;
+              height: auto;
+              object-fit: cover;
+            }
+          }
+
+          &.count-is-1 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              grid-column: span 4;
+              grid-row: span 2;
+
+              @media screen and (min-width: 832px) {
+                grid-column: 2 / span 2;
+                grid-row: span 2;
+              }
+            }
+          }
+
+          &.count-is-2 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              grid-column: span 2;
+              grid-row: span 2;
+            }
+          }
+
+          &.count-is-3 {
+            grid-template-columns: repeat(4, 1fr);
+
+            @media screen and (min-width: 832px) {
+              grid-template-columns: repeat(3, 1fr);
+            }
+
+            li {
+              &:first-child {
+                grid-column: span 4;
+                grid-row: span 2;
+              }
+
+              &:nth-child(n+1) {
+                grid-column-end: span 2;
+              }
+
+              @media screen and (min-width: 832px) {
+                /* Override the first-child settings for larger screens */
+                &:first-child {
+                  grid-column: span 1; /* Corrected to span only 1 column */
+                }
+                /* Ensure each li takes up 1/3 of the width */
+                &:nth-child(n+1) {
+                  grid-column-end: span 1;
+                }
+              }
+            }
+          }
+
+          &.count-is-4 {
+            grid-template-columns: repeat(12, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 12;
+                grid-row: span 12;
+              }
+
+              &:nth-child(2),
+              &:nth-child(3),
+              &:nth-child(4) {
+                grid-column: span 4;
+                grid-row: span 4;
+              }
+
+              @media screen and (min-width: 832px) {
+                &:first-child,
+                &:nth-child(2),
+                &:nth-child(3),
+                &:nth-child(4) {
+                  grid-column: span 3;
+                  grid-row: span 4;
+                }
+              }
+            }
+          }
+
+          &.count-more-than-4-remainder-0 {
+            grid-template-columns: repeat(12, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 12;
+                grid-row: span 12;
+              }
+
+              &:nth-child(2),
+              &:nth-child(3),
+              &:nth-child(4) {
+                grid-column: span 4;
+                grid-row: span 4;
+              }
+
+              &:nth-child(n+5) {
+                grid-column: span 3;
+              }
+
+              @media screen and (min-width: 832px) {
+                &:first-child,
+                &:nth-child(2),
+                &:nth-child(3),
+                &:nth-child(4),
+                &:nth-child(n+5) {
+                  grid-column: span 3;
+                  grid-row: span 4;
+                }
+              }
+            }
+          }
+
+          &.count-more-than-4-remainder-1 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 2;
+                grid-row: span 2;
+              }
+
+              &:nth-child(n+2) {
+                grid-column: span 1;
+                grid-row: span 1;
+              }
+            }
+          }
+
+          &.count-more-than-4-remainder-2 {
+            grid-template-columns: repeat(4, 1fr);
+
+            li {
+              &:first-child {
+                grid-column: span 2;
+                grid-row: span  2;
+              }
+
+              &:nth-child(2) {
+                grid-column: span 2;
+                grid-row: span 2;
+              }
+
+              &:nth-child(n+2) {
+                grid-column-end: span 1;
+              }
+            }
+          }
+
+          &.count-more-than-4-remainder-3 {
+            grid-template-columns: repeat(4, 1fr);
+
+            @media screen and (min-width: 832px) {
+              grid-template-columns: repeat(12, 1fr);
+            }
+
+            li {
+              &:first-child {
+                grid-column: span 4;
+                grid-row: span 4;
+              }
+
+              &:nth-child(2),
+              &:nth-child(3) {
+                grid-column: span 2;
+                grid-row: span 2;
+              }
+
+              &:nth-child(n+4) {
+                grid-column: span 1;
+                grid-row: span 2;
+              }
+
+              @media screen and (min-width: 832px) {
+                &:first-child,
+                &:nth-child(2),
+                &:nth-child(3) {
+                  grid-column: span 4;
+                  grid-row: span 2;
+                }
+
+                &:nth-child(n+4) {
+                  grid-column: span 3;
+                  grid-row: span 2;
+                }
+              }
+            }
+          }
+
+          .cinemaroll-modal-content {
+            max-height: 97vh !important;
+          }
+        }
+      }
+    }
+
+    .unrated-movies-grid {
+      border-top: 1px solid white;
+      padding-bottom: 50px;
+
+      h3 {
+        font-size: 1rem;
+        margin: 16px 0;
+        padding: 0 0.25rem;
+      }
+    }
+
+    .loading-screen {
+      height: 75vh;
+    }
+
+    .btn {
+      .spinner-border {
+        height: 18px;
+        width: 18px;
+      }
+    }
+
+    .new-rating {
+      a {
+        cursor: pointer;
+      }
+    }
+
+    .settings-panel-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.3);
+      z-index: 2000;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+    }
+    .settings-panel {
+      width: 320px;
+      max-width: 90vw;
+      background: var(--bs-light, #fff);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.15);
+      border-radius: 8px;
+      margin: 2rem 2rem 0 0;
+      animation: slideInRight 0.2s;
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  }
+
+  .bg-dark {
+    .home {
+      color: white;
+
+      ul {
+        .media-result {
+          border-color: white;
+        }
+      }
+    }
+  }
+
+  .settings-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100vh;
+  background: var(--bs-light, #fff);
+  box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+  z-index: 2000;
+  padding: 1.5rem 1.25rem 1.25rem 1.25rem;
+  transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+}
+.slide-enter-active, .slide-leave-active {
+  transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+}
+.slide-enter, .slide-leave-to {
+  transform: translateX(100%);
+}
+</style>
+
+<style scoped>
+.settings-panel-inline {
+  background: var(--bs-light, #fff);
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  max-width: 600px;
+  margin: 0 auto 1.5rem auto;
+  color: var(--bs-body-color, #212529);
+}
+.settings-panel-inline.dark {
+  background: #23272b !important;
+  border-color: #343a40 !important;
+  color: #f8f9fa !important;
+}
+.settings-panel-inline.dark .form-check-label,
+.settings-panel-inline.dark h5,
+.settings-panel-inline.dark .settings-panel-header,
+.settings-panel-inline.dark .settings-panel-body {
+  color: #f8f9fa !important;
+}
+.settings-panel-inline.dark .form-check-input:checked {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+.settings-panel-inline.dark .form-range {
+  background-color: #343a40;
+}
+.settings-panel-inline .form-range {
+  accent-color: #0d6efd;
+}
+</style>

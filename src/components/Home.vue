@@ -453,11 +453,15 @@ export default {
         this.value = newVal;
       }
     },
-    '$route.query.search'(newVal) {
+    '$route.query.search'(newVal, oldVal) {
       // When the route query changes, update the value
-      if (typeof newVal === 'string') {
-        this.value = decodeURIComponent(newVal);
-        this.$store.commit('setDBSearchValue', this.value);
+      if (newVal !== oldVal && typeof newVal === 'string') {
+        const decodedValue = decodeURIComponent(newVal);
+        this.value = decodedValue;
+        // Only commit if different from current store value to prevent cycles
+        if (this.$store.state.DBSearchValue !== decodedValue) {
+          this.$store.commit('setDBSearchValue', decodedValue);
+        }
       }
     },
     DBSortValue (newVal) {
@@ -673,28 +677,20 @@ export default {
     filteredResults () {
       let results;
       if (this.activeQuickLinkList === "annual") {
-        this.$store.commit("setDBSortValue", "release");
         results = this.bestMovieFromEachYear;
       } else if (this.activeQuickLinkList === "bestPicture") {
-        this.$store.commit("setDBSortValue", "release");
         results = this.bestPictures;
       } else if (this.activeQuickLinkList === "thisYear") {
-        this.$store.commit("setDBSortValue", "rating");
         results = this.thisYearsMovies;
       } else if (this.activeQuickLinkList === "lastYear") {
-        this.$store.commit("setDBSortValue", "rating");
         results = this.lastYearsMovies;
       } else if (this.activeQuickLinkList === "thisMonth") {
-        this.$store.commit("setDBSortValue", "rating");
         results = this.thisMonthsMovies;
       } else if (this.activeQuickLinkList === "lastMonth") {
-        this.$store.commit("setDBSortValue", "rating");
         results = this.lastMonthsMovies;
       } else if (this.tags.includes(this.activeQuickLinkList)) {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         results = this.matchingTags;
       } else if (this.value) {
-        this.$store.commit("setDBSortValue", this.DBSortValue || "rating");
         results = this.fuzzyFilter;
       } else {
         results = this.allEntriesWithFlatKeywordsAdded;
@@ -1375,6 +1371,7 @@ export default {
         this.activeQuickLinkList = "title";
       } else {
         this.activeQuickLinkList = "annual";
+        this.$store.commit("setDBSortValue", "release");
       }
     },
     toggleBestPicturesFilter () {
@@ -1384,6 +1381,7 @@ export default {
         this.activeQuickLinkList = "title";
       } else {
         this.activeQuickLinkList = "bestPicture";
+        this.$store.commit("setDBSortValue", "release");
       }
     },
     toggleThisYearFilter () {
@@ -1393,6 +1391,7 @@ export default {
         this.activeQuickLinkList = "title";
       } else {
         this.activeQuickLinkList = "thisYear";
+        this.$store.commit("setDBSortValue", "rating");
       }
     },
     toggleLastYearFilter () {
@@ -1402,6 +1401,7 @@ export default {
         this.activeQuickLinkList = "title";
       } else {
         this.activeQuickLinkList = "lastYear";
+        this.$store.commit("setDBSortValue", "rating");
       }
     },
     toggleThisMonthFilter () {
@@ -1411,6 +1411,7 @@ export default {
         this.activeQuickLinkList = "title";
       } else {
         this.activeQuickLinkList = "thisMonth";
+        this.$store.commit("setDBSortValue", "rating");
       }
     },
     toggleLastMonthFilter () {
@@ -1420,6 +1421,7 @@ export default {
         this.activeQuickLinkList = "title";
       } else {
         this.activeQuickLinkList = "lastMonth";
+        this.$store.commit("setDBSortValue", "rating");
       }
     },
     toggleSortOrder () {
