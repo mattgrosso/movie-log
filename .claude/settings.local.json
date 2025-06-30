@@ -19,7 +19,8 @@
       "Bash(node:*)",
       "Bash(pkill:*)",
       "Bash(true)",
-      "WebFetch(domain:letterboxd.com)"
+      "WebFetch(domain:letterboxd.com)",
+      "Bash(yarn lint)"
     ],
     "deny": []
   }

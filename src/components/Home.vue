@@ -197,6 +197,13 @@
                   </span>
                   <span
                     class="badge mx-1"
+                    :class="activeQuickLinkList === 'notOnLetterboxd' ? 'text-bg-success' : 'text-bg-secondary'"
+                    @click="toggleNotOnLetterboxdFilter"
+                  >
+                    Not on Letterboxd
+                  </span>
+                  <span
+                    class="badge mx-1"
                     :class="activeQuickLinkList === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
                     @click="toggleQuickLinksList('genre')"
                   >
@@ -486,6 +493,7 @@ export default {
       unratedMoviesQuery: '',
       unratedMoviesPersonType: '',
       unratedMoviesDebounceTimeout: null,
+      letterboxdUserData: null,
     }
   },
   watch: {
@@ -722,6 +730,8 @@ export default {
         results = this.thisMonthsMovies;
       } else if (this.activeQuickLinkList === "lastMonth") {
         results = this.lastMonthsMovies;
+      } else if (this.activeQuickLinkList === "notOnLetterboxd") {
+        results = this.notOnLetterboxdMovies;
       } else if (this.tags.includes(this.activeQuickLinkList)) {
         results = this.matchingTags;
       } else if (this.value) {
@@ -946,6 +956,31 @@ export default {
         }
     
         return false;
+      });
+    },
+    notOnLetterboxdMovies () {
+      if (!this.$store.state.settings.letterboxdConnected || !this.$store.state.settings.letterboxdUsername) {
+        return [];
+      }
+
+      // If we don't have letterboxd data yet, return empty array
+      if (!this.letterboxdUserData) {
+        return [];
+      }
+
+      // Filter movies that are NOT in the user's Letterboxd films
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const movie = this.topStructure(result);
+        
+        // Check if this movie exists in the user's Letterboxd films
+        const movieExists = this.letterboxdUserData.films.some(film => {
+          const normalizedFilmTitle = this.normalizeMovieTitle(film.title);
+          const normalizedSearchTitle = this.normalizeMovieTitle(movie.title);
+          return normalizedFilmTitle === normalizedSearchTitle;
+        });
+        
+        // Return movies that are NOT on Letterboxd
+        return !movieExists;
       });
     },
     matchingTags () {
@@ -1330,6 +1365,33 @@ export default {
     clearValue () {
       this.value = "";
     },
+    async fetchLetterboxdData () {
+      if (!this.$store.state.settings.letterboxdConnected || !this.$store.state.settings.letterboxdUsername) {
+        return;
+      }
+
+      const username = this.$store.state.settings.letterboxdUsername;
+      
+      try {
+        // Import the LetterboxdScrapingService dynamically
+        const LetterboxdScrapingService = (await import('../services/LetterboxdScrapingService.js')).default;
+        
+        // Get user's Letterboxd data (this will use cache if available)
+        this.letterboxdUserData = await LetterboxdScrapingService.getUserData(username);
+        
+      } catch (error) {
+        console.error('Error fetching Letterboxd data:', error);
+        this.letterboxdUserData = null;
+      }
+    },
+    normalizeMovieTitle (title) {
+      // Use the same normalization logic as LetterboxdScrapingService
+      return title
+        .toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    },
     updateSearchValue (value) {
       this.value = value;
 
@@ -1428,6 +1490,19 @@ export default {
       } else {
         this.activeQuickLinkList = "lastMonth";
         this.$store.commit("setDBSortValue", "rating");
+      }
+    },
+    async toggleNotOnLetterboxdFilter () {
+      this.clearValue();
+
+      if (this.activeQuickLinkList === "notOnLetterboxd") {
+        this.activeQuickLinkList = "title";
+      } else {
+        this.activeQuickLinkList = "notOnLetterboxd";
+        this.$store.commit("setDBSortValue", "rating");
+        
+        // Fetch Letterboxd data if we don't have it yet
+        await this.fetchLetterboxdData();
       }
     },
     toggleSortOrder () {
