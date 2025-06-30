@@ -381,13 +381,14 @@
               @updateSearchValue="updateSearchValue"
             />
           </ul>
-          <button
-            v-if="sortedResults.length > numberOfResultsToShow"
-            class="btn btn-secondary mb-5 float-end"
-            @click="addMoreResults"
-          >
-            More...
-          </button>
+          <div v-if="sortedResults.length > numberOfResultsToShow" class="d-flex justify-content-end mb-5">
+            <button
+              class="btn btn-secondary"
+              @click="addMoreResults"
+            >
+              More...
+            </button>
+          </div>
           <!-- Suggestions button/component at the very bottom, only if not searching/filtering and all results are shown and user has rated 10+ movies -->
           <div v-else-if="!value && !resultsAreFiltered && sortedResults.length <= numberOfResultsToShow && userRatedMovieCount >= 10" class="mt-4 mb-5 text-center">
             <button v-if="!showSuggestionsOnly" class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
