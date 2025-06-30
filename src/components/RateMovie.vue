@@ -762,12 +762,22 @@ export default {
       });
       
       if (!higherRated.length) return null;
+      
+      // Filter out movies without valid dates, then find the most recent
+      const moviesWithDates = higherRated.filter(entry => {
+        const rating = this.mostRecentRating(entry);
+        return rating && rating.date;
+      });
+      
+      if (!moviesWithDates.length) return null;
+      
       // Find the one with the most recent rating date
-      let mostRecent = higherRated[0];
-      let mostRecentDate = this.mostRecentRating(higherRated[0]).date || 0;
-      for (let i = 1; i < higherRated.length; i++) {
-        const entry = higherRated[i];
-        const entryDate = this.mostRecentRating(entry).date || 0;
+      let mostRecent = moviesWithDates[0];
+      let mostRecentDate = typeof this.mostRecentRating(moviesWithDates[0]).date === 'number' ? this.mostRecentRating(moviesWithDates[0]).date : new Date(this.mostRecentRating(moviesWithDates[0]).date).getTime();
+      
+      for (let i = 1; i < moviesWithDates.length; i++) {
+        const entry = moviesWithDates[i];
+        const entryDate = typeof this.mostRecentRating(entry).date === 'number' ? this.mostRecentRating(entry).date : new Date(this.mostRecentRating(entry).date).getTime();
         if (entryDate > mostRecentDate) {
           mostRecent = entry;
           mostRecentDate = entryDate;
@@ -776,7 +786,7 @@ export default {
 
       return {
         title: mostRecent.movie.title,
-        date: mostRecentDate,
+        date: this.mostRecentRating(mostRecent).date,
         movie: mostRecent.movie
       };
     }
@@ -791,12 +801,19 @@ export default {
       return ids.includes(id);
     },
     mostRecentRating (movie) {
+      if (!movie?.ratings?.length) {
+        return null;
+      }
+
       let mostRecentRating = movie.ratings[0];
+
       movie.ratings.forEach((rating) => {
-        if (rating.date && rating.date > mostRecentRating.date) {
+        if (!mostRecentRating?.date) {
+          mostRecentRating = rating;
+        } else if (rating.date && (typeof rating.date === 'number' ? rating.date : new Date(rating.date).getTime()) > (typeof mostRecentRating.date === 'number' ? mostRecentRating.date : new Date(mostRecentRating.date).getTime())) {
           mostRecentRating = rating;
         }
-      })
+      });
 
       return mostRecentRating;
     },
