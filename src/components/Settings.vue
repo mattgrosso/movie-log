@@ -9,10 +9,24 @@
         </h2>
         <div id="panelsStayOpen-collapseSettings" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-headingSettings">
           <div class="accordion-body" :class="darkOrLight">
-            <p>This number tweaks the normalized ratings according to your preference.<br>I suggest finding the lowest rated movie you have that you think is a ten out of ten and then adjust this number until the ratings match your expectations.</p>
-            <div class="input-group mb-3">
-              <input type="number" class="form-control" v-model="normalizationTweak" />
-              <button class="btn btn-primary" @click="updateNormalizationTweak">Update</button>
+            <div class="mb-4">
+              <h6>Normalization Tweak</h6>
+              <p>This number tweaks the normalized ratings according to your preference.<br>I suggest finding the lowest rated movie you have that you think is a ten out of ten and then adjust this number until the ratings match your expectations.</p>
+              <div class="input-group mb-3">
+                <input type="number" class="form-control" v-model="normalizationTweak" />
+                <button class="btn btn-primary" @click="updateNormalizationTweak">Update</button>
+              </div>
+            </div>
+            
+            <div class="mb-4">
+              <h6>Letterboxd Integration</h6>
+              <p>Connect your Letterboxd account to see which movies you've logged.</p>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="letterboxdToggle" v-model="letterboxdConnected" @change="updateLetterboxdConnection">
+                <label class="form-check-label" for="letterboxdToggle">
+                  Enable Letterboxd integration (Demo)
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -27,7 +41,8 @@ import { getDatabase, ref, get } from "firebase/database";
 export default {
   data() {
     return {
-      normalizationTweak: null
+      normalizationTweak: null,
+      letterboxdConnected: false
     };
   },
   computed: {
@@ -47,6 +62,13 @@ export default {
         value: this.normalizationTweak || 0.25
       });
     },
+    updateLetterboxdConnection() {
+      // Update the Letterboxd connection status in the database
+      this.$store.dispatch('setDBValue', {
+        path: `settings/letterboxdConnected`,
+        value: this.letterboxdConnected
+      });
+    },
     fetchNormalizationTweak() {
       const db = getDatabase();
       const dbRef = ref(db, `${this.databaseTopKey}/settings/normalizationTweak`);
@@ -60,10 +82,22 @@ export default {
       }).catch((error) => {
         console.error(error);
       });
+    },
+    fetchLetterboxdConnection() {
+      const db = getDatabase();
+      const dbRef = ref(db, `${this.databaseTopKey}/settings/letterboxdConnected`);
+      get(dbRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          this.letterboxdConnected = snapshot.val();
+        }
+      }).catch((error) => {
+        console.error(error);
+      });
     }
   },
   mounted() {
     this.fetchNormalizationTweak();
+    this.fetchLetterboxdConnection();
   }
 };
 </script>

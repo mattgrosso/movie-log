@@ -11,7 +11,15 @@
       "Bash(npm run test:run:*)",
       "Bash(find:*)",
       "Bash(rm:*)",
-      "Bash(npm test)"
+      "Bash(npm test)",
+      "WebFetch(domain:api-docs.letterboxd.com)",
+      "Bash(npm run serve:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl:*)",
+      "Bash(node:*)",
+      "Bash(pkill:*)",
+      "Bash(true)",
+      "WebFetch(domain:letterboxd.com)"
     ],
     "deny": []
   }

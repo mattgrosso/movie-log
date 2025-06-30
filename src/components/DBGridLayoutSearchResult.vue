@@ -53,9 +53,17 @@
           </div>
         </div>
 
-        <div class="details-actions">
+        <div class="details-actions d-flex align-items-center">
+          <div v-if="$store.state.settings.letterboxdConnected"
+               @click="logOnLetterboxd"
+               :title="isMovieLoggedOnLetterboxd() ? 'Logged on Letterboxd' : 'Log on Letterboxd'"
+               :class="['letterboxd-status-button', { 'logged': isMovieLoggedOnLetterboxd(), 'not-logged': !isMovieLoggedOnLetterboxd() }]">
+            <img :src="isMovieLoggedOnLetterboxd() ? 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-rgb-500px.png' : 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-mono-500px.png'"
+                 alt="Letterboxd" 
+                 class="letterboxd-icon">
+          </div>
           <button class="btn btn-sm btn-success me-2" @click="rateMedia(topStructure(result))">Add New Rating</button>
-          <button class="btn btn-sm btn-info" @click="goToWikipedia()">Wikipedia</button>
+          <button class="btn btn-sm btn-info me-2" @click="goToWikipedia()">Wikipedia</button>
         </div>
 
         <div v-if="getAllRatings(previousEntry)" class="previous-ratings mb-3">
@@ -249,6 +257,8 @@ import InsetBrowserModal from './InsetBrowserModal.vue';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import placeholderImage from '../assets/images/sheen.jpg';
+import LetterboxdService from '../services/LetterboxdService.js';
+import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 
 export default {
   props: {
@@ -292,6 +302,7 @@ export default {
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
       awardsData: null,
+      letterboxdData: null,
       placeholderImage
     }
   },
@@ -304,6 +315,9 @@ export default {
     async showDetailsModal (val) {
       if (val && !this.awardsData) {
         this.awardsData = this.getAwardsData();
+      }
+      if (val && this.$store.state.settings.letterboxdConnected && this.$store.state.settings.letterboxdUsername) {
+        this.checkLetterboxdData();
       }
     }
   },
@@ -447,6 +461,40 @@ export default {
         });
       } catch (error) {
         console.error('Failed to get awards data:', error);
+      }
+    },
+    async checkLetterboxdData () {
+      if (!this.$store.state.settings.letterboxdConnected) {
+        return;
+      }
+      
+      try {
+        const movie = this.topStructure(this.result);
+        const username = this.$store.state.settings.letterboxdUsername;
+        
+        if (!username) {
+          console.log('No Letterboxd username provided');
+          return;
+        }
+        
+        // Use the scraping service to get user's film data
+        const LetterboxdScrapingService = (await import('../services/LetterboxdScrapingService.js')).default;
+        const userData = await LetterboxdScrapingService.getUserData(username);
+        
+        // Filter to just this movie's entries
+        if (userData && userData.films) {
+          const movieEntries = userData.films.filter(film => {
+            const normalizedFilmTitle = LetterboxdScrapingService.normalizeMovieTitle(film.title);
+            const normalizedSearchTitle = LetterboxdScrapingService.normalizeMovieTitle(movie.title);
+            return normalizedFilmTitle === normalizedSearchTitle;
+          });
+          
+          this.letterboxdData = movieEntries;
+        }
+        
+      } catch (error) {
+        console.error('Failed to get Letterboxd data:', error);
+        this.letterboxdData = null;
       }
     },
     parseNamesToList (names) {
@@ -662,12 +710,102 @@ export default {
     },
     countStudios (studio) {
       return this.allCounts.studios[studio] || 0;
+    },
+    logOnLetterboxd() {
+      // Use the log action to directly open the rating/review interface
+      const movie = this.topStructure(this.result);
+      const success = LetterboxdUrlService.logMovie(movie.title, this.getYear(this.result));
+      
+      if (!success) {
+        console.error('Failed to open movie on Letterboxd for logging:', movie.title);
+      }
+    },
+    checkIfRatingLoggedOnLetterboxd(rating) {
+      // Check if this specific Cinema Roll rating corresponds to a Letterboxd entry
+      if (!this.letterboxdData || !rating.date) return false;
+      
+      // Convert Cinema Roll date to comparable format
+      const ratingDate = new Date(rating.date);
+      
+      // Look for Letterboxd entries with precise date matching
+      return this.letterboxdData.some(letterboxdEntry => {
+        if (!letterboxdEntry.watchedDate) return false;
+        
+        const letterboxdDate = new Date(letterboxdEntry.watchedDate);
+        const daysDiff = Math.abs((ratingDate - letterboxdDate) / (1000 * 60 * 60 * 24));
+        
+        // Use tighter matching since we now have accurate dates
+        // Allow 1 day tolerance for timezone differences
+        return daysDiff <= 1;
+      });
+    },
+    getLetterboxdTooltip(rating) {
+      // Generate informative tooltip for Letterboxd matches
+      if (!this.letterboxdData || !rating.date) return 'Logged on Letterboxd';
+      
+      const ratingDate = new Date(rating.date);
+      
+      // Find the matching Letterboxd entry
+      const match = this.letterboxdData.find(letterboxdEntry => {
+        if (!letterboxdEntry.watchedDate) return false;
+        
+        const letterboxdDate = new Date(letterboxdEntry.watchedDate);
+        const daysDiff = Math.abs((ratingDate - letterboxdDate) / (1000 * 60 * 60 * 24));
+        
+        return daysDiff <= 1;
+      });
+      
+      if (!match) return 'Logged on Letterboxd';
+      
+      // Build detailed tooltip
+      let tooltip = `Watched on Letterboxd: ${match.watchedDate}`;
+      
+      if (match.hasReview) {
+        tooltip += ' • Has review';
+      }
+      
+      if (match.multipleViewings) {
+        tooltip += ' • Multiple viewings';
+      }
+      
+      return tooltip;
+    },
+    isMovieLoggedOnLetterboxd() {
+      // Check if this movie has any entries on Letterboxd (regardless of specific ratings)
+      return this.letterboxdData && this.letterboxdData.length > 0;
     }
   }
 };
 </script>
 
 <style lang="scss">
+  .letterboxd-status-button {
+    width: 32px;
+    height: 32px;
+    margin-right: 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, border-color 0.2s;
+    border: 0;
+
+    &.logged {
+      border-color: #28a745;
+    }
+
+    &.not-logged {
+      border-color: #6c757d;
+    }
+  }
+
+  .letterboxd-icon {
+    width: 24px;
+    height: 24px;
+    background: none !important;
+  }
+
   .grid-layout-media-result {
     cursor: pointer;
     position: relative;
@@ -819,6 +957,50 @@ export default {
       bottom: 3px;
       font-size: 0.5rem;
       position: relative;
+    }
+
+    .letterboxd-actions {
+      .letterboxd-status {
+        .badge {
+          font-size: 0.75rem;
+          padding: 0.5rem 0.75rem;
+          
+          i {
+            margin-right: 0.25rem;
+          }
+        }
+        
+        .bg-success {
+          background-color: #00e054 !important; // Letterboxd green
+        }
+      }
+      
+      .letterboxd-buttons {
+        .btn {
+          font-size: 0.7rem;
+          padding: 0.375rem 0.5rem;
+          
+          i {
+            margin-right: 0.25rem;
+            font-size: 0.8rem;
+          }
+        }
+        
+        .btn-outline-success {
+          border-color: #00e054;
+          color: #00e054;
+          
+          &:hover {
+            background-color: #00e054;
+            border-color: #00e054;
+          }
+        }
+        
+        .btn-success {
+          background-color: #00e054;
+          border-color: #00e054;
+        }
+      }
     }
   }
 </style>

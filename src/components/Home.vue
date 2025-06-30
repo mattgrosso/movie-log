@@ -324,6 +324,40 @@
                   @change="saveTieBreakTweak"
                 >
               </div>
+              <div class="mb-3">
+                <label for="letterboxdUsername" class="form-label">Letterboxd Username:</label>
+                <div class="input-group">
+                  <span class="input-group-text">letterboxd.com/</span>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="letterboxdUsername"
+                    v-model="letterboxdUsername"
+                    placeholder="username"
+                    @blur="saveLetterboxdUsername"
+                  >
+                </div>
+                <small class="form-text text-muted">Enter your public Letterboxd username to enable integration</small>
+                <div v-if="letterboxdUsername" class="mt-2">
+                  <button class="btn btn-sm btn-outline-info" @click="testLetterboxdScraping" :disabled="scrapingTest.loading">
+                    <span v-if="scrapingTest.loading">
+                      <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                      Testing...
+                    </span>
+                    <span v-else>
+                      <i class="bi bi-gear"></i> Test Letterboxd Connection
+                    </span>
+                  </button>
+                  <div v-if="scrapingTest.result" class="mt-2">
+                    <div v-if="scrapingTest.success" class="alert alert-success alert-sm">
+                      ✅ Found {{ scrapingTest.result.films?.length || 0 }} films in your Letterboxd profile!
+                    </div>
+                    <div v-else class="alert alert-warning alert-sm">
+                      ⚠️ {{ scrapingTest.error || 'Testing failed, using mock data instead' }}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <!-- Results list follows the settings panel -->
@@ -416,7 +450,7 @@ export default {
     StickinessModal,
     TweakModal,
     NoResults,
-    BulkTagEditor
+    BulkTagEditor,
   },
   data () {
     return {
@@ -438,6 +472,14 @@ export default {
       showSettingsPanel: false, // controls settings panel visibility
       normalizationTweak: 0.25, // default, will be set from store
       tieBreakTweak: 1, // default, will be set from store
+      letterboxdConnected: false, // Letterboxd integration toggle
+      letterboxdUsername: '', // Letterboxd username
+      scrapingTest: {
+        loading: false,
+        result: null,
+        success: false,
+        error: null
+      },
       unratedMovies: [],
       unratedMoviesLoading: false,
       unratedMoviesError: null,
@@ -502,6 +544,26 @@ export default {
           this.showShorts = newVal;
         } else {
           this.showShorts = false;
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.letterboxdConnected': {
+      handler(newVal) {
+        if (typeof newVal === 'boolean') {
+          this.letterboxdConnected = newVal;
+        } else {
+          this.letterboxdConnected = false;
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.letterboxdUsername': {
+      handler(newVal) {
+        if (typeof newVal === 'string') {
+          this.letterboxdUsername = newVal;
+        } else {
+          this.letterboxdUsername = '';
         }
       },
       immediate: true
@@ -1575,6 +1637,71 @@ export default {
     },
     saveTieBreakTweak() {
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
+    },
+    saveLetterboxdConnection() {
+      this.$store.dispatch('setDBValue', { path: 'settings/letterboxdConnected', value: this.letterboxdConnected });
+    },
+    saveLetterboxdUsername() {
+      this.$store.dispatch('setDBValue', { path: 'settings/letterboxdUsername', value: this.letterboxdUsername });
+      // Auto-enable integration when username is provided
+      if (this.letterboxdUsername && !this.letterboxdConnected) {
+        this.letterboxdConnected = true;
+        this.saveLetterboxdConnection();
+      }
+    },
+    // Test function for Letterboxd URL generation (call from browser console)
+    testLetterboxdUrls() {
+      // Import the service dynamically for testing
+      import('../services/LetterboxdUrlService.js').then(module => {
+        const LetterboxdUrlService = module.default;
+        console.log('🎬 Testing Letterboxd URL Generation:');
+        LetterboxdUrlService.testSlugGeneration();
+        
+        // Test with some of your actual movies
+        if (this.filteredResults.length > 0) {
+          console.log('\n📽️ Testing with your actual movies:');
+          this.filteredResults.slice(0, 5).forEach(result => {
+            const movie = this.topStructure(result);
+            const year = this.getYear(result);
+            const urls = LetterboxdUrlService.generateUrls(movie.title, year);
+            console.log(`"${movie.title}" (${year}):`, urls);
+          });
+        }
+      });
+    },
+    // Test function for Letterboxd scraping (UI button)
+    async testLetterboxdScraping() {
+      const username = this.letterboxdUsername || this.$store.state.settings.letterboxdUsername;
+      
+      if (!username) {
+        this.scrapingTest.error = 'No Letterboxd username set';
+        this.scrapingTest.success = false;
+        this.scrapingTest.result = null;
+        return;
+      }
+      
+      this.scrapingTest.loading = true;
+      this.scrapingTest.result = null;
+      this.scrapingTest.error = null;
+      
+      try {
+        // Import the scraping service dynamically
+        const LetterboxdScrapingService = (await import('../services/LetterboxdScrapingService.js')).default;
+        const result = await LetterboxdScrapingService.testScraping(username);
+        
+        this.scrapingTest.result = result;
+        this.scrapingTest.success = result && result.films && result.films.length > 0;
+        this.scrapingTest.loading = false;
+        
+        // Also log to console for debugging
+        console.log('🎬 Letterboxd test results:', result);
+        
+      } catch (error) {
+        console.error('❌ Letterboxd test failed:', error);
+        this.scrapingTest.error = error.message || 'Test failed';
+        this.scrapingTest.success = false;
+        this.scrapingTest.loading = false;
+      }
     },
     debouncedFetchUnratedMoviesByValue(value) {
       clearTimeout(this.unratedMoviesDebounceTimeout);
