@@ -425,11 +425,8 @@
       <span v-else>Loading movies...</span>
     </div>
     <div v-else-if="unratedMovies.length && !unratedMoviesLoading && !unratedMoviesError" class="unrated-movies-grid">
-      <h3>
-        <span v-if="unratedMoviesSearchType === 'person'">Some {{ value }} films you haven't rated yet:</span>
-        <span v-else-if="unratedMoviesSearchType === 'year'">Popular {{ value }} films you haven't rated yet:</span>
-        <span v-else-if="unratedMoviesSearchType === 'yearRange'">Popular films from {{ value }} you haven't rated yet:</span>
-        <span v-else>Some {{ value }} films you haven't rated yet:</span>
+      <h3 class="bg-dark">
+        More from {{ value }}:
       </h3>
       <div v-if="unratedMovies.length" class="d-flex flex-wrap">
         <div v-for="movie in unratedMovies" :key="movie.id" class="unrated-movie-card" :class="columnsForUnratedMovies">
@@ -2529,12 +2526,17 @@ export default {
 
     .unrated-movies-grid {
       border-top: 1px solid white;
-      padding-bottom: 50px;
+      padding: 16px 0 50px;
+      position: relative;
 
       h3 {
         font-size: 1rem;
-        margin: 16px 0;
-        padding: 0 0.25rem;
+        left: 50%;
+        padding: 0 16px;
+        position: absolute;
+        top: 0;
+        transform: translate(-50%, -50%);
+        white-space: nowrap;
       }
     }
 
