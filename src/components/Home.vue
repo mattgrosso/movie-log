@@ -343,18 +343,17 @@
                     placeholder="username"
                     @blur="saveLetterboxdUsername"
                   >
-                </div>
-                <small class="form-text text-muted">Enter your public Letterboxd username to enable integration</small>
-                <div v-if="letterboxdUsername" class="mt-2">
-                  <button class="btn btn-sm btn-outline-info" @click="testLetterboxdScraping" :disabled="scrapingTest.loading">
+                  <button v-if="letterboxdUsername" class="btn btn-outline-info" @click="testLetterboxdScraping" :disabled="scrapingTest.loading" title="Refresh Letterboxd Data">
                     <span v-if="scrapingTest.loading">
-                      <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                      Testing...
+                      <span class="spinner-border spinner-border-sm" role="status"></span>
                     </span>
                     <span v-else>
-                      <i class="bi bi-gear"></i> Test Letterboxd Connection
+                      <i class="bi bi-arrow-clockwise"></i>
                     </span>
                   </button>
+                </div>
+                <small class="form-text text-muted">Enter your public Letterboxd username to enable integration</small>
+                <div v-if="letterboxdUsername">
                   <div v-if="scrapingTest.result" class="mt-2">
                     <div v-if="scrapingTest.success" class="alert alert-success alert-sm">
                       ✅ Found {{ scrapingTest.result.films?.length || 0 }} films in your Letterboxd profile!
