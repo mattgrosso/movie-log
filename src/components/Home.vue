@@ -447,7 +447,7 @@
       <span v-else-if="unratedMoviesSearchType === 'general'">Loading movies matching "{{ value }}"...</span>
       <span v-else>Loading movies...</span>
     </div>
-    <div v-else-if="unratedMovies.length && !unratedMoviesLoading && !unratedMoviesError" class="unrated-movies-grid">
+    <div v-else-if="displayableUnratedMovies.length && !unratedMoviesLoading && !unratedMoviesError" class="unrated-movies-grid">
       <h3 class="bg-dark">
         <span v-if="unratedMoviesSearchType === 'person'">More from {{ value }}:</span>
         <span v-else-if="unratedMoviesSearchType === 'year'">More from {{ value }}:</span>
@@ -456,14 +456,13 @@
         <span v-else-if="unratedMoviesSearchType === 'general'">Movies matching "{{ value }}":</span>
         <span v-else>More from {{ value }}:</span>
       </h3>
-      <div v-if="unratedMovies.length" class="d-flex flex-wrap">
+      <div class="d-flex flex-wrap">
         <div v-for="movie in unratedMovies" :key="movie.id" class="unrated-movie-card" :class="columnsForUnratedMovies">
           <a v-if="movie.id" :href="'https://www.themoviedb.org/movie/' + movie.id" target="_blank" rel="noopener">
             <img v-if="movie.poster_path" :src="'https://image.tmdb.org/t/p/w185' + movie.poster_path" :alt="movie.title" class="unrated-movie-poster col-12 p-1"/>
           </a>
         </div>
       </div>
-      <div v-else-if="!unratedMoviesLoading && !unratedMoviesError">No unrated movies found.</div>
     </div>
   </div>
 </template>
@@ -683,6 +682,9 @@ export default {
     },
     DBSortValue () {
       return this.$store.state.DBSortValue;
+    },
+    displayableUnratedMovies () {
+      return this.unratedMovies.filter(movie => movie.id && movie.poster_path);
     },
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
