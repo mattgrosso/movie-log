@@ -56,7 +56,7 @@
         <div class="details-actions d-flex align-items-center">
           <div v-if="$store.state.settings.letterboxdConnected"
                @click="logOnLetterboxd"
-               :title="isMovieLoggedOnLetterboxd() ? 'Logged on Letterboxd' : 'Log on Letterboxd'"
+               :title="isMovieLoggedOnLetterboxd() ? 'View movie on Letterboxd' : 'Log on Letterboxd'"
                :class="['letterboxd-status-button', { 'logged': isMovieLoggedOnLetterboxd(), 'not-logged': !isMovieLoggedOnLetterboxd() }]">
             <img :src="isMovieLoggedOnLetterboxd() ? 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-rgb-500px.png' : 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-mono-500px.png'"
                  alt="Letterboxd" 
@@ -712,12 +712,33 @@ export default {
       return this.allCounts.studios[studio] || 0;
     },
     logOnLetterboxd() {
-      // Use the log action to directly open the rating/review interface
       const movie = this.topStructure(this.result);
-      const success = LetterboxdUrlService.logMovie(movie.title, this.getYear(this.result));
       
-      if (!success) {
-        console.error('Failed to open movie on Letterboxd for logging:', movie.title);
+      // Check if movie is already logged on Letterboxd
+      if (this.isMovieLoggedOnLetterboxd() && this.letterboxdData && this.letterboxdData.length > 0) {
+        // Movie is logged - open the movie's Letterboxd page where user can see their diary entries
+        const urls = LetterboxdUrlService.generateUrls(movie.title, this.getYear(this.result));
+        
+        if (urls && urls.webUrl) {
+          // Open the movie's page on Letterboxd - use location.href to avoid white screen on return
+          window.location.href = urls.webUrl;
+          console.log('Navigating to movie page on Letterboxd (already logged):', urls.webUrl);
+        } else {
+          // Fallback: open user's diary page  
+          const username = this.$store.state.settings.letterboxdUsername;
+          if (username) {
+            const diaryUrl = `https://letterboxd.com/${username}/films/diary/`;
+            window.location.href = diaryUrl;
+            console.log('Navigating to diary page as fallback:', diaryUrl);
+          }
+        }
+      } else {
+        // Movie not logged - use the log action to open rating/review interface
+        const success = LetterboxdUrlService.logMovie(movie.title, this.getYear(this.result));
+        
+        if (!success) {
+          console.error('Failed to open movie on Letterboxd for logging:', movie.title);
+        }
       }
     },
     checkIfRatingLoggedOnLetterboxd(rating) {
