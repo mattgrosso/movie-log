@@ -422,11 +422,18 @@
       <span v-if="unratedMoviesSearchType === 'person'">Loading more movies by this person...</span>
       <span v-else-if="unratedMoviesSearchType === 'year'">Loading popular movies from {{ value }}...</span>
       <span v-else-if="unratedMoviesSearchType === 'yearRange'">Loading popular movies from this time period...</span>
+      <span v-else-if="unratedMoviesSearchType === 'genre'">Loading popular {{ value.toLowerCase() }} movies...</span>
+      <span v-else-if="unratedMoviesSearchType === 'general'">Loading movies matching "{{ value }}"...</span>
       <span v-else>Loading movies...</span>
     </div>
     <div v-else-if="unratedMovies.length && !unratedMoviesLoading && !unratedMoviesError" class="unrated-movies-grid">
       <h3 class="bg-dark">
-        More from {{ value }}:
+        <span v-if="unratedMoviesSearchType === 'person'">More from {{ value }}:</span>
+        <span v-else-if="unratedMoviesSearchType === 'year'">More from {{ value }}:</span>
+        <span v-else-if="unratedMoviesSearchType === 'yearRange'">More from this time period:</span>
+        <span v-else-if="unratedMoviesSearchType === 'genre'">More {{ value.toLowerCase() }} movies:</span>
+        <span v-else-if="unratedMoviesSearchType === 'general'">Movies matching "{{ value }}":</span>
+        <span v-else>More from {{ value }}:</span>
       </h3>
       <div v-if="unratedMovies.length" class="d-flex flex-wrap">
         <div v-for="movie in unratedMovies" :key="movie.id" class="unrated-movie-card" :class="columnsForUnratedMovies">
@@ -500,7 +507,7 @@ export default {
       unratedMoviesQuery: '',
       unratedMoviesPersonType: '',
       unratedMoviesDebounceTimeout: null,
-      unratedMoviesSearchType: null, // 'person', 'year', 'yearRange'
+      unratedMoviesSearchType: null, // 'person', 'year', 'yearRange', 'genre', 'general'
       letterboxdUserData: null,
     }
   },
@@ -1837,8 +1844,22 @@ export default {
         return { type: 'yearRange', startYear: decade, endYear: decade + 9 };
       }
       
-      // Default to person search
-      return { type: 'person', value: trimmed };
+      // Common genre patterns
+      const commonGenres = {
+        'action': 28, 'adventure': 12, 'animation': 16, 'comedy': 35, 
+        'crime': 80, 'documentary': 99, 'drama': 18, 'family': 10751,
+        'fantasy': 14, 'history': 36, 'horror': 27, 'music': 10402,
+        'mystery': 9648, 'romance': 10749, 'sci-fi': 878, 'science fiction': 878,
+        'thriller': 53, 'war': 10752, 'western': 37
+      };
+      
+      const lowerValue = trimmed.toLowerCase();
+      if (commonGenres[lowerValue]) {
+        return { type: 'genre', genreId: commonGenres[lowerValue], value: trimmed };
+      }
+      
+      // For everything else, try both person and keyword search
+      return { type: 'general', value: trimmed };
     },
     async fetchUnratedMoviesByYear(year) {
       // Fetch multiple pages to get more variety
@@ -1853,6 +1874,7 @@ export default {
             sort_by: 'popularity.desc',
             page: page,
             'vote_count.gte': 25, // Further lowered to include more movies
+            include_adult: false, // Explicitly exclude adult content
           }
         });
         
@@ -1878,6 +1900,7 @@ export default {
             sort_by: 'popularity.desc',
             page: page,
             'vote_count.gte': 25,
+            include_adult: false, // Explicitly exclude adult content
           }
         });
         
@@ -1887,6 +1910,100 @@ export default {
         
         // Stop if we've reached the end
         if (page >= response.data.total_pages) break;
+      }
+      
+      return allResults;
+    },
+    async fetchUnratedMoviesByGenre(genreId) {
+      const allResults = [];
+      
+      // Filter out movies newer than 2 years to avoid current buzz
+      const maxDate = new Date();
+      maxDate.setFullYear(maxDate.getFullYear() - 2);
+      const maxDateString = maxDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      for (let page = 1; page <= 3; page++) { // Get first 3 pages (60 movies)
+        const response = await axios.get('https://api.themoviedb.org/3/discover/movie', {
+          params: {
+            api_key: process.env.VUE_APP_TMDB_API_KEY,
+            language: 'en-US',
+            with_genres: genreId,
+            sort_by: 'popularity.desc',
+            page: page,
+            'vote_count.gte': 50, // Increased vote threshold for better quality
+            'primary_release_date.lte': maxDateString, // No movies newer than 2 years
+            include_adult: false, // Explicitly exclude adult content
+          }
+        });
+        
+        if (response.data.results) {
+          allResults.push(...response.data.results);
+        }
+        
+        // Stop if we've reached the end
+        if (page >= response.data.total_pages) break;
+      }
+      
+      return allResults;
+    },
+    async fetchUnratedMoviesByKeyword(keyword) {
+      // Filter out movies newer than 1 year to avoid current buzz
+      const maxDate = new Date();
+      maxDate.setFullYear(maxDate.getFullYear() - 1);
+      const maxYear = maxDate.getFullYear();
+      
+      // First try movie search
+      const movieSearchResp = await axios.get('https://api.themoviedb.org/3/search/movie', {
+        params: {
+          api_key: process.env.VUE_APP_TMDB_API_KEY,
+          language: 'en-US',
+          query: keyword,
+          page: 1,
+          include_adult: false, // Explicitly exclude adult content
+        }
+      });
+      
+      let allResults = (movieSearchResp.data.results || []).filter(movie => {
+        const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : 0;
+        return releaseYear <= maxYear && movie.vote_count >= 30; // Filter by age and vote count
+      });
+      
+      // If we don't get enough results, try keyword search
+      if (allResults.length < 10) {
+        try {
+          const keywordSearchResp = await axios.get('https://api.themoviedb.org/3/search/keyword', {
+            params: {
+              api_key: process.env.VUE_APP_TMDB_API_KEY,
+              language: 'en-US',
+              query: keyword,
+            }
+          });
+          
+          if (keywordSearchResp.data.results && keywordSearchResp.data.results.length > 0) {
+            const keywordId = keywordSearchResp.data.results[0].id;
+            
+            // Get movies with this keyword, filtered by age
+            const maxDateString = maxDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+            const keywordMoviesResp = await axios.get('https://api.themoviedb.org/3/discover/movie', {
+              params: {
+                api_key: process.env.VUE_APP_TMDB_API_KEY,
+                language: 'en-US',
+                with_keywords: keywordId,
+                sort_by: 'popularity.desc',
+                page: 1,
+                'vote_count.gte': 50, // Higher threshold for keyword searches
+                'primary_release_date.lte': maxDateString, // No movies newer than 1 year
+                include_adult: false, // Explicitly exclude adult content
+              }
+            });
+            
+            const keywordResults = keywordMoviesResp.data.results || [];
+            // Merge results, prioritizing direct movie search results
+            allResults = [...allResults, ...keywordResults];
+          }
+        } catch (keywordError) {
+          console.log('Keyword search failed, using movie search results only:', keywordError);
+        }
       }
       
       return allResults;
@@ -1909,67 +2026,62 @@ export default {
         } else if (searchInfo.type === 'yearRange') {
           // Fetch movies from year range
           relevantList = await this.fetchUnratedMoviesByYearRange(searchInfo.startYear, searchInfo.endYear);
-        } else {
-          // Person search (original logic)
-          const personResp = await axios.get('https://api.themoviedb.org/3/search/person', {
-            params: {
-              api_key: process.env.VUE_APP_TMDB_API_KEY,
-              language: 'en-US',
-              query: searchInfo.value,
-            }
-          });
+        } else if (searchInfo.type === 'genre') {
+          // Fetch movies from specific genre
+          relevantList = await this.fetchUnratedMoviesByGenre(searchInfo.genreId);
+        } else if (searchInfo.type === 'general') {
+          // Try keyword/general search first
+          relevantList = await this.fetchUnratedMoviesByKeyword(searchInfo.value);
+          
+          // If keyword search didn't yield good results, fall back to person search
+          if (relevantList.length < 5) {
+            try {
+              const personResp = await axios.get('https://api.themoviedb.org/3/search/person', {
+                params: {
+                  api_key: process.env.VUE_APP_TMDB_API_KEY,
+                  language: 'en-US',
+                  query: searchInfo.value,
+                }
+              });
 
-          if (!personResp.data.results || personResp.data.results.length > 3) {
-            this.unratedMovies = [];
-            this.unratedMoviesLoading = false;
-            return;
-          }
-          
-          const person = personResp.data.results[0];
-          const creditsResp = await axios.get(`https://api.themoviedb.org/3/person/${person.id}/movie_credits`, {
-            params: {
-              api_key: process.env.VUE_APP_TMDB_API_KEY,
-              language: 'en-US',
+              if (personResp.data.results && personResp.data.results.length <= 3 && personResp.data.results.length > 0) {
+                const person = personResp.data.results[0];
+                const creditsResp = await axios.get(`https://api.themoviedb.org/3/person/${person.id}/movie_credits`, {
+                  params: {
+                    api_key: process.env.VUE_APP_TMDB_API_KEY,
+                    language: 'en-US',
+                  }
+                });
+                
+                // Use person search logic
+                const department = (person.known_for_department || '').toLowerCase();
+                let personRelevantList = [];
+                
+                if (department === 'acting') {
+                  personRelevantList = creditsResp.data.cast || [];
+                } else if (department === 'directing') {
+                  personRelevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'directing');
+                  const relevantJobs = ['director', 'co-director', 'second unit director', 'assistant director'];
+                  personRelevantList = personRelevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
+                } else {
+                  // fallback: show all movies from both cast and crew
+                  personRelevantList = [
+                    ...(creditsResp.data.cast || []),
+                    ...(creditsResp.data.crew || [])
+                  ];
+                }
+                
+                // Merge person results with keyword results, giving priority to keyword results
+                relevantList = [...relevantList, ...personRelevantList];
+                this.unratedMoviesSearchType = 'person'; // Update search type for display
+              }
+            } catch (personError) {
+              console.log('Person search fallback failed:', personError);
             }
-          });
-          
-          // Filter credits by department
-          const department = (person.known_for_department || '').toLowerCase();
-          let relevantJobs = [];
-          
-          if (department === 'acting') {
-            relevantList = creditsResp.data.cast || [];
-          } else if (department === 'directing') {
-            relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'directing');
-            relevantJobs = ['director', 'co-director', 'second unit director', 'assistant director'];
-            relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
-          } else if (department === 'writing') {
-            relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'writing');
-            relevantJobs = ['writer', 'screenplay', 'story', 'co-writer', 'author', 'teleplay', 'adaptation'];
-            relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
-          } else if (department === 'production') {
-            relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'production');
-            relevantJobs = ['producer', 'executive producer', 'co-producer', 'associate producer', 'line producer', 'production manager'];
-            relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
-          } else if (department === 'camera') {
-            relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'camera');
-            relevantJobs = ['director of photography', 'cinematographer', 'camera operator'];
-            relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
-          } else if (department === 'editing') {
-            relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'editing');
-            relevantJobs = ['editor', 'film editor', 'assistant editor'];
-            relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
-          } else if (department === 'sound') {
-            relevantList = (creditsResp.data.crew || []).filter(c => c.department && c.department.toLowerCase() === 'sound');
-            relevantJobs = ['composer', 'original music composer', 'music', 'sound designer', 'sound editor', 'sound mixer'];
-            relevantList = relevantList.filter(c => relevantJobs.includes((c.job || '').toLowerCase()));
-          } else {
-            // fallback: show all movies from both cast and crew
-            relevantList = [
-              ...(creditsResp.data.cast || []),
-              ...(creditsResp.data.crew || [])
-            ];
           }
+        } else {
+          // This shouldn't happen with our current logic, but keep as fallback
+          relevantList = [];
         }
         
         // Filter out already rated movies and remove duplicates
@@ -1993,10 +2105,14 @@ export default {
             const max = Math.max(...popularities);
             const min = Math.min(...popularities);
             
-            // Use much more lenient filtering for year searches
+            // Use more lenient filtering for different search types
             let cutoffPercentage;
             if (this.unratedMoviesSearchType === 'year' || this.unratedMoviesSearchType === 'yearRange') {
               cutoffPercentage = 0.2; // Keep movies in top 80% for year searches
+            } else if (this.unratedMoviesSearchType === 'genre') {
+              cutoffPercentage = 0.3; // Keep movies in top 70% for genre searches
+            } else if (this.unratedMoviesSearchType === 'general') {
+              cutoffPercentage = 0.4; // Keep movies in top 60% for keyword searches
             } else {
               cutoffPercentage = 0.6; // Keep original strict filtering for person searches
             }
@@ -2004,8 +2120,17 @@ export default {
             const cutoff = min + (max - min) * cutoffPercentage;
             let filtered = unrated.filter(m => m.popularity >= cutoff);
             
-            // Show more movies for year searches
-            const targetCount = this.unratedMoviesSearchType === 'year' || this.unratedMoviesSearchType === 'yearRange' ? 18 : 12;
+            // Show more movies for different search types
+            let targetCount;
+            if (this.unratedMoviesSearchType === 'year' || this.unratedMoviesSearchType === 'yearRange') {
+              targetCount = 18;
+            } else if (this.unratedMoviesSearchType === 'genre') {
+              targetCount = 15;
+            } else if (this.unratedMoviesSearchType === 'general') {
+              targetCount = 12;
+            } else {
+              targetCount = 12; // Default for person searches
+            }
             
             if (filtered.length < targetCount && unrated.length > targetCount) {
               filtered = unrated.slice(0, targetCount);
