@@ -367,7 +367,28 @@
             </div>
           </div>
           <!-- Results list follows the settings panel -->
-          <ul class="grid-layout pb-3" :class="listCountClasses">
+          <!-- Grouped results by person role -->
+          <div v-if="groupedByPersonRole" class="pb-3">
+            <div v-for="group in groupedByPersonRole" :key="`${group.personName}-${group.role}`" class="my-4 role-section">
+              <h6 class="bg-dark text-white text-end mb-2">{{ group.role }}</h6>
+              <ul class="grid-layout" :class="getGridClassesForGroup(group.movies.length)">
+                <DBGridLayoutSearchResult
+                  v-for="(result, index) in group.movies"
+                  :key="topStructure(result).id"
+                  :result="result"
+                  :keywordCounts="allCounts.keywords"
+                  :allCounts="allCounts"
+                  :index="index"
+                  :resultsAreFiltered="resultsAreFiltered"
+                  :sortValue="sortValue"
+                  :activeQuickLinkList="activeQuickLinkList"
+                  @updateSearchValue="updateSearchValue"
+                />
+              </ul>
+            </div>
+          </div>
+          <!-- Regular results list -->
+          <ul v-else class="grid-layout pb-3" :class="listCountClasses">
             <DBGridLayoutSearchResult
               v-for="(result, index) in paginatedSortedResults"
               :key="topStructure(result).id"
@@ -381,7 +402,7 @@
               @updateSearchValue="updateSearchValue"
             />
           </ul>
-          <div v-if="sortedResults.length > numberOfResultsToShow" class="d-flex justify-content-end mb-5">
+          <div v-if="!groupedByPersonRole && sortedResults.length > numberOfResultsToShow" class="d-flex justify-content-end mb-5">
             <button
               class="btn btn-secondary"
               @click="addMoreResults"
@@ -780,6 +801,140 @@ export default {
         this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.value.toLowerCase()) ||
         (this.yearFilter.length && this.yearFilter.includes(`${this.getYear(media)}`));
       })
+    },
+    groupedByPersonRole () {
+      if (!this.value) return null;
+      
+      const searchTerm = this.value.toLowerCase();
+      
+      // Define role hierarchy (higher number = higher priority)
+      const roleRanking = {
+        'Director': 7,
+        'Cast': 6,
+        'Producer': 5,
+        'Writer': 4,
+        'Cinematographer': 3,
+        'Music': 2,
+        'Editor': 1,
+        'Crew': 0
+      };
+      
+      // First pass: collect all movies for each person-role combination
+      const personRoleData = {};
+      const usedMovies = new Set(); // Track movies that have been assigned to higher priority roles
+      
+      this.fuzzyFilter.forEach((media) => {
+        const movieData = this.topStructure(media);
+        
+        // Check cast
+        if (movieData.cast) {
+          movieData.cast.forEach((person) => {
+            const personName = person.name.toLowerCase();
+            const personNames = personName.split(' ');
+            
+            if (personName.includes(searchTerm) || personNames.some(name => name.includes(searchTerm))) {
+              if (!personRoleData[person.name]) {
+                personRoleData[person.name] = {};
+              }
+              if (!personRoleData[person.name]['Cast']) {
+                personRoleData[person.name]['Cast'] = [];
+              }
+              personRoleData[person.name]['Cast'].push(media);
+            }
+          });
+        }
+        
+        // Check crew
+        if (movieData.crew) {
+          movieData.crew.forEach((person) => {
+            const personName = person.name.toLowerCase();
+            const personNames = personName.split(' ');
+            
+            if (personName.includes(searchTerm) || personNames.some(name => name.includes(searchTerm))) {
+              let roleCategory = 'Crew';
+              
+              // Categorize crew roles
+              if (person.job === 'Director') {
+                roleCategory = 'Director';
+              } else if (person.job && person.job.toLowerCase().includes('producer')) {
+                roleCategory = 'Producer';
+              } else if (person.job && ['Writer', 'Screenplay', 'Story', 'Novel'].includes(person.job)) {
+                roleCategory = 'Writer';
+              } else if (person.job && person.job.toLowerCase().includes('composer') || 
+                        person.job && person.job.toLowerCase().includes('music') ||
+                        person.job && person.job.toLowerCase().includes('score')) {
+                roleCategory = 'Music';
+              } else if (person.job && person.job.toLowerCase().includes('editor')) {
+                roleCategory = 'Editor';
+              } else if (person.job && (person.job.toLowerCase().includes('photo') ||
+                                      person.job.toLowerCase().includes('cinematographer') ||
+                                      person.job.toLowerCase().includes('director of photography'))) {
+                roleCategory = 'Cinematographer';
+              }
+              
+              if (!personRoleData[person.name]) {
+                personRoleData[person.name] = {};
+              }
+              if (!personRoleData[person.name][roleCategory]) {
+                personRoleData[person.name][roleCategory] = [];
+              }
+              
+              // Avoid duplicates in the same role category
+              if (!personRoleData[person.name][roleCategory].find(m => this.topStructure(m).id === movieData.id)) {
+                personRoleData[person.name][roleCategory].push(media);
+              }
+            }
+          });
+        }
+      });
+      
+      // Second pass: build final groups ensuring each movie appears only once, prioritizing by role ranking
+      const finalGroups = [];
+      
+      Object.keys(personRoleData).forEach(personName => {
+        const roles = personRoleData[personName];
+        
+        // Sort roles by ranking (highest first)
+        const sortedRoles = Object.keys(roles).sort((a, b) => (roleRanking[b] || 0) - (roleRanking[a] || 0));
+        
+        sortedRoles.forEach(role => {
+          const availableMovies = roles[role].filter(movie => !usedMovies.has(this.topStructure(movie).id));
+          
+          if (availableMovies.length > 0) {
+            // Sort the movies in this group using the same sorting logic as the main list
+            const sortedMovies = [...availableMovies].sort(this.sortResults);
+            
+            finalGroups.push({
+              personName: personName,
+              role: role,
+              movies: sortedMovies,
+              ranking: roleRanking[role] || 0
+            });
+            
+            // Mark these movies as used
+            availableMovies.forEach(movie => {
+              usedMovies.add(this.topStructure(movie).id);
+            });
+          }
+        });
+      });
+      
+      // Sort final groups by person name, then by role ranking (highest first)
+      finalGroups.sort((a, b) => {
+        if (a.personName !== b.personName) {
+          return a.personName.localeCompare(b.personName);
+        }
+        return b.ranking - a.ranking;
+      });
+      
+      // Only return grouped results if we found person matches and there are multiple groups for at least one person
+      const personCounts = {};
+      finalGroups.forEach(group => {
+        personCounts[group.personName] = (personCounts[group.personName] || 0) + 1;
+      });
+      
+      const hasMultipleRoles = Object.values(personCounts).some(count => count > 1);
+      return hasMultipleRoles ? finalGroups : null;
     },
     yearFilter () {
       let parsedYears = [];
@@ -1295,6 +1450,18 @@ export default {
   methods: {
     toggleSettingsPanel () {
       this.showSettingsPanel = !this.showSettingsPanel;
+    },
+    getGridClassesForGroup (count) {
+      return {
+        "count-is-1": count === 1,
+        "count-is-2": count === 2,
+        "count-is-3": count === 3,
+        "count-is-4": count === 4,
+        "count-more-than-4-remainder-0": count > 4 & count % 4 === 0,
+        "count-more-than-4-remainder-1": count > 4 & count % 4 === 1,
+        "count-more-than-4-remainder-2": count > 4 & count % 4 === 2,
+        "count-more-than-4-remainder-3": count > 4 & count % 4 === 3
+      }
     },
     checkResultsAndFindFilter () {
       const allowRandom = !this.$route.query.noRandom;
@@ -2708,6 +2875,22 @@ export default {
 }
 .slide-enter, .slide-leave-to {
   transform: translateX(100%);
+}
+
+.role-section {
+  border-top: 1px solid white;
+  padding: 16px 0 0;
+  position: relative;
+
+  h6 {
+    font-size: 0.75rem;
+    right: 12px;
+    padding: 0 12px;
+    position: absolute;
+    top: -2px;
+    transform: translateY(-50%);
+    white-space: nowrap;
+  }
 }
 </style>
 

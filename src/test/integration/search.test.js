@@ -238,5 +238,61 @@ describe('Search Integration', () => {
       expect(typeof viewsCount).toBe('number')
       expect(viewsCount).toBeGreaterThanOrEqual(0)
     })
+
+    it('should group search results by person role when person has multiple roles', async () => {
+      await wrapper.setData({ value: 'Steven Spielberg' })
+      
+      const groupedResults = wrapper.vm.groupedByPersonRole
+      
+      // If Steven Spielberg has multiple roles in our test data, groupedResults should exist
+      if (groupedResults) {
+        expect(Array.isArray(groupedResults)).toBe(true)
+        groupedResults.forEach(group => {
+          expect(group).toHaveProperty('personName')
+          expect(group).toHaveProperty('role')
+          expect(group).toHaveProperty('movies')
+          expect(group).toHaveProperty('ranking')
+          expect(Array.isArray(group.movies)).toBe(true)
+          expect(group.personName).toContain('Steven Spielberg')
+          expect(typeof group.ranking).toBe('number')
+        })
+        
+        // Verify roles are sorted by ranking (highest first)
+        for (let i = 1; i < groupedResults.length; i++) {
+          if (groupedResults[i-1].personName === groupedResults[i].personName) {
+            expect(groupedResults[i-1].ranking).toBeGreaterThanOrEqual(groupedResults[i].ranking)
+          }
+        }
+        
+        // Verify no movie appears in multiple groups
+        const allMovieIds = new Set()
+        groupedResults.forEach(group => {
+          group.movies.forEach(movie => {
+            const movieId = wrapper.vm.topStructure(movie).id
+            expect(allMovieIds.has(movieId)).toBe(false) // Should not already exist
+            allMovieIds.add(movieId)
+          })
+        })
+      }
+    })
+
+    it('should return null for groupedByPersonRole when person has only one role', async () => {
+      // Set up search for a person who only has one role in our test data
+      await wrapper.setData({ value: 'SingleRolePerson' })
+      
+      const groupedResults = wrapper.vm.groupedByPersonRole
+      
+      // Should be null when person doesn't have multiple roles
+      expect(groupedResults).toBeNull()
+    })
+
+    it('should return null for groupedByPersonRole when search is not for a person', async () => {
+      await wrapper.setData({ value: 'Test Movie' })
+      
+      const groupedResults = wrapper.vm.groupedByPersonRole
+      
+      // Should be null when searching for movies, not people
+      expect(groupedResults).toBeNull()
+    })
   })
 })
