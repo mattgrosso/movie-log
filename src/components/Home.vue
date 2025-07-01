@@ -474,7 +474,7 @@ export default {
       activeQuickLinkList: "title",
       sortValue: null,
       quickLinksSortType: "count",
-      numberOfResultsToShow: 24,
+      numberOfResultsToShow: 25,
       sharing: false,
       hasCalledFindFilter: false,
       showInsetBrowserModal: false,
