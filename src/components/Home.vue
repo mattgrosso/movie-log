@@ -480,7 +480,7 @@ export default {
       activeQuickLinkList: "title",
       sortValue: null,
       quickLinksSortType: "count",
-      numberOfResultsToShow: 25,
+      numberOfResultsToShow: 24,
       sharing: false,
       noResults: false,
       hasCalledFindFilter: false,
@@ -1653,7 +1653,8 @@ export default {
       }, 3000);
     },
     addMoreResults () {
-      this.numberOfResultsToShow = this.numberOfResultsToShow + 25;
+      // Add movies in increments of 48 for stable grid layout
+      this.numberOfResultsToShow = this.numberOfResultsToShow + 48;
 
       this.$nextTick(() => {
         window.scrollBy({
@@ -2431,6 +2432,8 @@ export default {
         &.grid-layout {
           display: grid;
           grid-gap: 0;
+          /* Smooth animation for layout changes during pagination */
+          transition: all 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
           li {
             overflow: hidden;
@@ -2443,6 +2446,14 @@ export default {
               border: 2px solid #54b448;
               transform: scale(1.2);
               z-index: 1;
+            }
+
+            /* Visual anchor glow effect for pagination */
+            &.visual-anchor {
+              box-shadow: 0 0 20px 8px rgba(84, 180, 72, 0.6);
+              transform: scale(1.02);
+              z-index: 2;
+              transition: all 500ms ease-out;
             }
 
             img {
