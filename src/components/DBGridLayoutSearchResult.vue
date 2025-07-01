@@ -257,7 +257,6 @@ import InsetBrowserModal from './InsetBrowserModal.vue';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import placeholderImage from '../assets/images/sheen.jpg';
-import LetterboxdService from '../services/LetterboxdService.js';
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 
 export default {
@@ -296,7 +295,6 @@ export default {
   },
   data () {
     return {
-      openEpisodes: [],
       getAllRatings: getAllRatings,
       showDetailsModal: false,
       showInsetBrowserModal: false,
@@ -722,14 +720,12 @@ export default {
         if (urls && urls.webUrl) {
           // Open the movie's page on Letterboxd - use location.href to avoid white screen on return
           window.location.href = urls.webUrl;
-          console.log('Navigating to movie page on Letterboxd (already logged):', urls.webUrl);
         } else {
           // Fallback: open user's diary page  
           const username = this.$store.state.settings.letterboxdUsername;
           if (username) {
             const diaryUrl = `https://letterboxd.com/${username}/films/diary/`;
             window.location.href = diaryUrl;
-            console.log('Navigating to diary page as fallback:', diaryUrl);
           }
         }
       } else {
@@ -740,56 +736,6 @@ export default {
           console.error('Failed to open movie on Letterboxd for logging:', movie.title);
         }
       }
-    },
-    checkIfRatingLoggedOnLetterboxd(rating) {
-      // Check if this specific Cinema Roll rating corresponds to a Letterboxd entry
-      if (!this.letterboxdData || !rating.date) return false;
-      
-      // Convert Cinema Roll date to comparable format
-      const ratingDate = new Date(rating.date);
-      
-      // Look for Letterboxd entries with precise date matching
-      return this.letterboxdData.some(letterboxdEntry => {
-        if (!letterboxdEntry.watchedDate) return false;
-        
-        const letterboxdDate = new Date(letterboxdEntry.watchedDate);
-        const daysDiff = Math.abs((ratingDate - letterboxdDate) / (1000 * 60 * 60 * 24));
-        
-        // Use tighter matching since we now have accurate dates
-        // Allow 1 day tolerance for timezone differences
-        return daysDiff <= 1;
-      });
-    },
-    getLetterboxdTooltip(rating) {
-      // Generate informative tooltip for Letterboxd matches
-      if (!this.letterboxdData || !rating.date) return 'Logged on Letterboxd';
-      
-      const ratingDate = new Date(rating.date);
-      
-      // Find the matching Letterboxd entry
-      const match = this.letterboxdData.find(letterboxdEntry => {
-        if (!letterboxdEntry.watchedDate) return false;
-        
-        const letterboxdDate = new Date(letterboxdEntry.watchedDate);
-        const daysDiff = Math.abs((ratingDate - letterboxdDate) / (1000 * 60 * 60 * 24));
-        
-        return daysDiff <= 1;
-      });
-      
-      if (!match) return 'Logged on Letterboxd';
-      
-      // Build detailed tooltip
-      let tooltip = `Watched on Letterboxd: ${match.watchedDate}`;
-      
-      if (match.hasReview) {
-        tooltip += ' • Has review';
-      }
-      
-      if (match.multipleViewings) {
-        tooltip += ' • Multiple viewings';
-      }
-      
-      return tooltip;
     },
     isMovieLoggedOnLetterboxd() {
       // Check if this movie has any entries on Letterboxd (regardless of specific ratings)

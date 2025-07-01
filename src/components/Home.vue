@@ -452,26 +452,20 @@ import axios from 'axios';
 import uniq from 'lodash/uniq';
 import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
-import Charts from "./Charts.vue";
-import Settings from "./Settings.vue";
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import StickinessModal from "./StickinessModal.vue";
 import TweakModal from "./TweakModal.vue";
 import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
-import BulkTagEditor from './BulkTagEditor.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
   components: {
-    Charts,
-    Settings,
     DBGridLayoutSearchResult,
     InsetBrowserModal,
     StickinessModal,
     TweakModal,
     NoResults,
-    BulkTagEditor,
   },
   data () {
     return {
@@ -482,7 +476,6 @@ export default {
       quickLinksSortType: "count",
       numberOfResultsToShow: 24,
       sharing: false,
-      noResults: false,
       hasCalledFindFilter: false,
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
@@ -1291,12 +1284,6 @@ export default {
         ? 'Suggest some movies to rate'
         : 'Suggest more movies to rate';
     },
-    normalizationTweakDisplay() {
-      return this.normalizationTweak.toFixed(2);
-    },
-    tieBreakTweakDisplay() {
-      return this.tieBreakTweak.toFixed(2);
-    },
     columnsForUnratedMovies () {
       if (this.unratedMovies.length % 4 === 0) {
         return "col-3";
@@ -1741,25 +1728,6 @@ export default {
       }
     },
     // Test function for Letterboxd URL generation (call from browser console)
-    testLetterboxdUrls() {
-      // Import the service dynamically for testing
-      import('../services/LetterboxdUrlService.js').then(module => {
-        const LetterboxdUrlService = module.default;
-        console.log('🎬 Testing Letterboxd URL Generation:');
-        LetterboxdUrlService.testSlugGeneration();
-        
-        // Test with some of your actual movies
-        if (this.filteredResults.length > 0) {
-          console.log('\n📽️ Testing with your actual movies:');
-          this.filteredResults.slice(0, 5).forEach(result => {
-            const movie = this.topStructure(result);
-            const year = this.getYear(result);
-            const urls = LetterboxdUrlService.generateUrls(movie.title, year);
-            console.log(`"${movie.title}" (${year}):`, urls);
-          });
-        }
-      });
-    },
     // Test function for Letterboxd scraping (UI button)
     async testLetterboxdScraping() {
       const username = this.letterboxdUsername || this.$store.state.settings.letterboxdUsername;
@@ -2432,8 +2400,6 @@ export default {
         &.grid-layout {
           display: grid;
           grid-gap: 0;
-          /* Smooth animation for layout changes during pagination */
-          transition: all 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
           li {
             overflow: hidden;
@@ -2448,13 +2414,6 @@ export default {
               z-index: 1;
             }
 
-            /* Visual anchor glow effect for pagination */
-            &.visual-anchor {
-              box-shadow: 0 0 20px 8px rgba(84, 180, 72, 0.6);
-              transform: scale(1.02);
-              z-index: 2;
-              transition: all 500ms ease-out;
-            }
 
             img {
               width: 100%;

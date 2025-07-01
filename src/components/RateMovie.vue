@@ -795,11 +795,6 @@ export default {
     movieYear (movie) {
       return new Date(movie.release_date).getFullYear();
     },
-    previouslyRated (id) {
-      const ids = Object.keys(this.database).map((key) => this.database[key].movie.id);
-
-      return ids.includes(id);
-    },
     mostRecentRating (movie) {
       if (!movie?.ratings?.length) {
         return null;
@@ -1013,8 +1008,8 @@ export default {
 
         this.chatGPTKeywords = parsedResponse.keywords?.map(keyword => keyword.toLowerCase());
       } catch (error) {
-        console.error('chatGPT fact didnt work');
-        console.error(error);
+        console.error('Failed to fetch ChatGPT keywords:', error);
+        this.chatGPTKeywords = [];
       }
     },
     toggleNeighbors () {
