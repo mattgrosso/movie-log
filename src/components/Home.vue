@@ -444,6 +444,7 @@
       <span v-else-if="unratedMoviesSearchType === 'year'">Loading popular movies from {{ value }}...</span>
       <span v-else-if="unratedMoviesSearchType === 'yearRange'">Loading popular movies from this time period...</span>
       <span v-else-if="unratedMoviesSearchType === 'genre'">Loading popular {{ value.toLowerCase() }} movies...</span>
+      <span v-else-if="unratedMoviesSearchType === 'company'">Loading more movies from {{ value }}...</span>
       <span v-else-if="unratedMoviesSearchType === 'general'">Loading movies matching "{{ value }}"...</span>
       <span v-else>Loading movies...</span>
     </div>
@@ -453,6 +454,7 @@
         <span v-else-if="unratedMoviesSearchType === 'year'">More from {{ value }}:</span>
         <span v-else-if="unratedMoviesSearchType === 'yearRange'">More from this time period:</span>
         <span v-else-if="unratedMoviesSearchType === 'genre'">More {{ value.toLowerCase() }} movies:</span>
+        <span v-else-if="unratedMoviesSearchType === 'company'">More from {{ value }}:</span>
         <span v-else-if="unratedMoviesSearchType === 'general'">Movies matching "{{ value }}":</span>
         <span v-else>More from {{ value }}:</span>
       </h3>
@@ -1996,8 +1998,39 @@ export default {
         return { type: 'genre', genreId: commonGenres[lowerValue], value: trimmed };
       }
       
+      // Check if search term matches a known production company
+      const matchingCompany = this.findMatchingProductionCompany(lowerValue);
+      if (matchingCompany) {
+        return { type: 'company', companyName: matchingCompany.name, value: trimmed };
+      }
+      
       // For everything else, try both person and keyword search
       return { type: 'general', value: trimmed };
+    },
+    findMatchingProductionCompany(searchTerm) {
+      // Get all production companies from existing movies
+      const allCompanies = [];
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const companies = this.topStructure(result).production_companies || [];
+        companies.forEach(company => {
+          if (company.name && !allCompanies.find(c => c.id === company.id)) {
+            allCompanies.push(company);
+          }
+        });
+      });
+      
+      // Find company by exact name match (case insensitive)
+      const exactMatch = allCompanies.find(company => 
+        company.name.toLowerCase() === searchTerm
+      );
+      if (exactMatch) return exactMatch;
+      
+      // Find company by partial name match (case insensitive)
+      const partialMatch = allCompanies.find(company => 
+        company.name.toLowerCase().includes(searchTerm) ||
+        searchTerm.includes(company.name.toLowerCase())
+      );
+      return partialMatch;
     },
     async fetchUnratedMoviesByYear(year) {
       // Fetch multiple pages to get more variety
@@ -2146,6 +2179,56 @@ export default {
       
       return allResults;
     },
+    async fetchUnratedMoviesByCompany(companyName) {
+      try {
+        // First, search for the company to get its ID
+        const companySearchResp = await axios.get('https://api.themoviedb.org/3/search/company', {
+          params: {
+            api_key: process.env.VUE_APP_TMDB_API_KEY,
+            query: companyName,
+          }
+        });
+        
+        if (!companySearchResp.data.results || companySearchResp.data.results.length === 0) {
+          return [];
+        }
+        
+        const companyId = companySearchResp.data.results[0].id;
+        
+        // Use discover API to find movies by this production company
+        const allResults = [];
+        const maxPages = 3; // Fetch multiple pages for variety
+        
+        for (let page = 1; page <= maxPages; page++) {
+          const discoverResp = await axios.get('https://api.themoviedb.org/3/discover/movie', {
+            params: {
+              api_key: process.env.VUE_APP_TMDB_API_KEY,
+              language: 'en-US',
+              with_companies: companyId,
+              'primary_release_date.lte': new Date().toISOString().split('T')[0], // Only released movies
+              sort_by: 'popularity.desc',
+              page: page,
+              include_adult: false,
+              'vote_count.gte': 20, // Minimum vote threshold
+            }
+          });
+          
+          if (discoverResp.data.results) {
+            allResults.push(...discoverResp.data.results);
+          }
+          
+          // If we got fewer results than expected, no point in fetching more pages
+          if (!discoverResp.data.results || discoverResp.data.results.length < 20) {
+            break;
+          }
+        }
+        
+        return allResults;
+      } catch (error) {
+        console.error('Error fetching movies by company:', error);
+        return [];
+      }
+    },
     async fetchUnratedMoviesByValue(value) {
       this.unratedMoviesLoading = true;
       this.unratedMoviesError = null;
@@ -2167,6 +2250,9 @@ export default {
         } else if (searchInfo.type === 'genre') {
           // Fetch movies from specific genre
           relevantList = await this.fetchUnratedMoviesByGenre(searchInfo.genreId);
+        } else if (searchInfo.type === 'company') {
+          // Fetch movies from specific production company
+          relevantList = await this.fetchUnratedMoviesByCompany(searchInfo.companyName);
         } else if (searchInfo.type === 'general') {
           // Try keyword/general search first
           relevantList = await this.fetchUnratedMoviesByKeyword(searchInfo.value);
