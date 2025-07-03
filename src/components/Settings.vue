@@ -27,6 +27,44 @@
                   Enable Letterboxd integration (Demo)
                 </label>
               </div>
+              
+              <div v-if="letterboxdConnected" class="mt-3">
+                <h6>Letterboxd Username</h6>
+                <p class="small">Enter your Letterboxd username to enable movie detection via web scraping.</p>
+                <div class="input-group mb-3">
+                  <input type="text" class="form-control" v-model="letterboxdUsername" placeholder="your-letterboxd-username" />
+                  <button class="btn btn-primary" @click="updateLetterboxdUsername">Update</button>
+                </div>
+              </div>
+              
+              <div v-if="letterboxdConnected" class="mt-3">
+                <h6>Manual Letterboxd Overrides</h6>
+                <p class="small">For movies that aren't detected automatically, you can manually mark them as logged on Letterboxd.</p>
+                
+                <div class="mb-2">
+                  <label class="form-label">Movie Title (exact match from your Cinema Roll database):</label>
+                  <input type="text" class="form-control" v-model="newOverrideTitle" placeholder="e.g., Mission: Impossible - Dead Reckoning Part One" />
+                </div>
+                
+                <div class="mb-2">
+                  <label class="form-label">Year:</label>
+                  <input type="number" class="form-control" v-model="newOverrideYear" placeholder="2023" />
+                </div>
+                
+                <button class="btn btn-success btn-sm" @click="addLetterboxdOverride" :disabled="!newOverrideTitle || !newOverrideYear">
+                  Mark as Logged on Letterboxd
+                </button>
+                
+                <div v-if="letterboxdOverrides && Object.keys(letterboxdOverrides).length" class="mt-3">
+                  <h6>Current Overrides:</h6>
+                  <ul class="list-group">
+                    <li v-for="(override, key) in letterboxdOverrides" :key="key" class="list-group-item d-flex justify-content-between align-items-center">
+                      <span>{{ override.title }} ({{ override.year }})</span>
+                      <button class="btn btn-outline-danger btn-sm" @click="removeLetterboxdOverride(key)">Remove</button>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -42,7 +80,11 @@ export default {
   data() {
     return {
       normalizationTweak: null,
-      letterboxdConnected: false
+      letterboxdConnected: false,
+      letterboxdUsername: '',
+      letterboxdOverrides: {},
+      newOverrideTitle: '',
+      newOverrideYear: null
     };
   },
   computed: {
@@ -69,6 +111,46 @@ export default {
         value: this.letterboxdConnected
       });
     },
+    updateLetterboxdUsername() {
+      // Update the Letterboxd username in the database
+      this.$store.dispatch('setDBValue', {
+        path: `settings/letterboxdUsername`,
+        value: this.letterboxdUsername
+      });
+    },
+    addLetterboxdOverride() {
+      if (!this.newOverrideTitle || !this.newOverrideYear) return;
+      
+      // Create a unique key for this override (title + year)
+      const overrideKey = `${this.newOverrideTitle.toLowerCase().replace(/[^a-z0-9]/g, '')}_${this.newOverrideYear}`;
+      
+      // Add to local state
+      this.letterboxdOverrides[overrideKey] = {
+        title: this.newOverrideTitle,
+        year: this.newOverrideYear,
+        addedAt: new Date().toISOString()
+      };
+      
+      // Update the database
+      this.$store.dispatch('setDBValue', {
+        path: `settings/letterboxdOverrides`,
+        value: this.letterboxdOverrides
+      });
+      
+      // Clear the form
+      this.newOverrideTitle = '';
+      this.newOverrideYear = null;
+    },
+    removeLetterboxdOverride(overrideKey) {
+      // Remove from local state
+      delete this.letterboxdOverrides[overrideKey];
+      
+      // Update the database
+      this.$store.dispatch('setDBValue', {
+        path: `settings/letterboxdOverrides`,
+        value: this.letterboxdOverrides
+      });
+    },
     fetchNormalizationTweak() {
       const db = getDatabase();
       const dbRef = ref(db, `${this.databaseTopKey}/settings/normalizationTweak`);
@@ -93,11 +175,35 @@ export default {
       }).catch((error) => {
         console.error(error);
       });
+    },
+    fetchLetterboxdUsername() {
+      const db = getDatabase();
+      const dbRef = ref(db, `${this.databaseTopKey}/settings/letterboxdUsername`);
+      get(dbRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          this.letterboxdUsername = snapshot.val();
+        }
+      }).catch((error) => {
+        console.error(error);
+      });
+    },
+    fetchLetterboxdOverrides() {
+      const db = getDatabase();
+      const dbRef = ref(db, `${this.databaseTopKey}/settings/letterboxdOverrides`);
+      get(dbRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          this.letterboxdOverrides = snapshot.val();
+        }
+      }).catch((error) => {
+        console.error(error);
+      });
     }
   },
   mounted() {
     this.fetchNormalizationTweak();
     this.fetchLetterboxdConnection();
+    this.fetchLetterboxdUsername();
+    this.fetchLetterboxdOverrides();
   }
 };
 </script>

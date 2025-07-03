@@ -352,7 +352,6 @@
                     </span>
                   </button>
                 </div>
-                <small class="form-text text-muted">Enter your public Letterboxd username to enable integration</small>
                 <div v-if="letterboxdUsername">
                   <div v-if="scrapingTest.result" class="mt-2">
                     <div v-if="scrapingTest.success" class="alert alert-success alert-sm">
@@ -360,6 +359,59 @@
                     </div>
                     <div v-else class="alert alert-warning alert-sm">
                       ⚠️ {{ scrapingTest.error || 'Testing failed, using mock data instead' }}
+                    </div>
+                  </div>
+                  
+                  <div class="text-end">
+                    <a href="#" @click.prevent="showOverridePanel = !showOverridePanel" class="text-light text-decoration-none opacity-75" title="Manual overrides" style="font-size: 0.75rem;">
+                      overrides <i class="bi bi-plus"></i>
+                    </a>
+                  </div>
+                  
+                  <div v-if="showOverridePanel" class="mt-2 border rounded p-2" style="background-color: rgba(255,255,255,0.1);">
+                    <small class="text-light opacity-75 d-block mb-2">Mark movies as logged on Letterboxd when auto-detection fails</small>
+                    <div class="row g-2 mb-2">
+                      <div class="col-7">
+                        <input 
+                          type="text" 
+                          class="form-control form-control-sm" 
+                          v-model="newOverrideTitle" 
+                          placeholder="Movie title (exact match)"
+                        />
+                      </div>
+                      <div class="col-3">
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm" 
+                          v-model="newOverrideYear" 
+                          placeholder="Year"
+                        />
+                      </div>
+                      <div class="col-2">
+                        <button 
+                          class="btn btn-success btn-sm w-100" 
+                          @click="addLetterboxdOverride" 
+                          :disabled="!newOverrideTitle || !newOverrideYear"
+                          title="Mark as logged on Letterboxd"
+                        >
+                          <i class="bi bi-plus"></i>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div v-if="letterboxdOverrides && Object.keys(letterboxdOverrides).length" class="mt-2">
+                      <div class="override-list">
+                        <div v-for="(override, key) in letterboxdOverrides" :key="key" class="d-flex justify-content-between align-items-center py-1 px-2 mb-1 rounded border" style="background-color: rgba(255,255,255,0.1);">
+                          <small class="text-light">{{ override.title }} ({{ override.year }})</small>
+                          <a href="#" @click.prevent="removeLetterboxdOverride(key)" class="text-danger text-decoration-none opacity-75" title="Remove override">
+                            <i class="bi bi-x" style="font-size: 1rem;"></i>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div v-else class="text-light text-center py-2 opacity-75">
+                      <small><em>No manual overrides set</em></small>
                     </div>
                   </div>
                 </div>
@@ -524,6 +576,10 @@ export default {
       unratedMoviesDebounceTimeout: null,
       unratedMoviesSearchType: null, // 'person', 'year', 'yearRange', 'genre', 'general'
       letterboxdUserData: null,
+      letterboxdOverrides: {},
+      newOverrideTitle: '',
+      newOverrideYear: null,
+      showOverridePanel: false,
     }
   },
   watch: {
@@ -654,6 +710,11 @@ export default {
       this.showShorts = this.$store.state.settings.includeShorts;
     } else {
       this.showShorts = false;
+    }
+    
+    // Initialize letterboxdOverrides from store
+    if (this.$store.state.settings.letterboxdOverrides) {
+      this.letterboxdOverrides = this.$store.state.settings.letterboxdOverrides;
     }
   },
   beforeRouteLeave () {
@@ -1139,7 +1200,15 @@ export default {
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
         const movie = this.topStructure(result);
         
-        // Check if this movie exists in the user's Letterboxd films
+        // First check manual overrides
+        const overrides = this.$store.state.settings.letterboxdOverrides || {};
+        const overrideKey = `${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '')}_${new Date(movie.release_date).getFullYear()}`;
+        
+        if (overrides[overrideKey]) {
+          return false; // Manual override says this movie is logged, so exclude from "not on letterboxd"
+        }
+        
+        // Check if this movie exists in the user's Letterboxd films (automatic detection)
         const movieExists = this.letterboxdUserData.films.some(film => {
           const normalizedFilmTitle = this.normalizeMovieTitle(film.title);
           const normalizedSearchTitle = this.normalizeMovieTitle(movie.title);
@@ -1932,6 +2001,39 @@ export default {
         this.scrapingTest.success = false;
         this.scrapingTest.loading = false;
       }
+    },
+    addLetterboxdOverride() {
+      if (!this.newOverrideTitle || !this.newOverrideYear) return;
+      
+      // Create a unique key for this override (title + year)
+      const overrideKey = `${this.newOverrideTitle.toLowerCase().replace(/[^a-z0-9]/g, '')}_${this.newOverrideYear}`;
+      
+      // Add to local state
+      this.letterboxdOverrides[overrideKey] = {
+        title: this.newOverrideTitle,
+        year: this.newOverrideYear,
+        addedAt: new Date().toISOString()
+      };
+      
+      // Update the database
+      this.$store.dispatch('setDBValue', {
+        path: `settings/letterboxdOverrides`,
+        value: this.letterboxdOverrides
+      });
+      
+      // Clear the form
+      this.newOverrideTitle = '';
+      this.newOverrideYear = null;
+    },
+    removeLetterboxdOverride(overrideKey) {
+      // Remove from local state
+      delete this.letterboxdOverrides[overrideKey];
+      
+      // Update the database
+      this.$store.dispatch('setDBValue', {
+        path: `settings/letterboxdOverrides`,
+        value: this.letterboxdOverrides
+      });
     },
     debouncedFetchUnratedMoviesByValue(value) {
       clearTimeout(this.unratedMoviesDebounceTimeout);

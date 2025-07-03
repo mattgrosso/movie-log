@@ -738,7 +738,18 @@ export default {
       }
     },
     isMovieLoggedOnLetterboxd() {
-      // Check if this movie has any entries on Letterboxd (regardless of specific ratings)
+      // First check manual overrides
+      const movie = this.topStructure(this.result);
+      const overrides = this.$store.state.settings.letterboxdOverrides || {};
+      
+      // Create override key to match what we use in Settings
+      const overrideKey = `${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '')}_${this.getYear(this.result)}`;
+      
+      if (overrides[overrideKey]) {
+        return true; // Manual override says this movie is logged
+      }
+      
+      // Fall back to automatic detection
       return this.letterboxdData && this.letterboxdData.length > 0;
     }
   }

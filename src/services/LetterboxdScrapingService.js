@@ -626,10 +626,27 @@ class LetterboxdScrapingService {
   static normalizeMovieTitle(title) {
     if (!title) return '';
     
-    return title.toLowerCase()
+    // Handle special cases for very short or problematic titles
+    const specialCases = {
+      'f1': 'f1',
+      'm': 'm',
+      'three colors blue': 'threecolorsblue',
+      'three color blue': 'threecolorsblue',
+      'trois couleurs bleu': 'threecolorsblue'
+    };
+    
+    let normalized = title.toLowerCase()
       .replace(/[^\w\s]/g, '') // Remove punctuation
       .replace(/\s+/g, ' ')    // Normalize spaces
       .trim();
+    
+    // Check for special cases after basic normalization
+    const noSpaces = normalized.replace(/\s/g, '');
+    if (specialCases[normalized] || specialCases[noSpaces]) {
+      return specialCases[normalized] || specialCases[noSpaces];
+    }
+    
+    return normalized;
   }
 
   /**
