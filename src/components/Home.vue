@@ -16,6 +16,8 @@
           style="font-size: 0.75rem;"
           @focus="focusOnSearchBar"
           @blur="blurSearchBar"
+          @keydown="onKeyDown"
+          @keyup="onKeyUp"
           v-model="value"
         >
         <span v-if="value" class="clear-button" @click.prevent="clearValue" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
@@ -26,6 +28,38 @@
         </span>
       </div>
     </div>
+    
+    <!-- Active Filter Chips - only show when filters are active -->
+    <div v-if="activeFilters.length || activeQuickLinkList !== 'title'" class="active-filters-section mx-auto my-2">
+      <div class="d-flex flex-wrap align-items-center">
+        <!-- Quick Link Filter Chip -->
+        <transition name="chip-fade" mode="out-in">
+          <span v-if="activeQuickLinkList !== 'title'" class="badge text-bg-primary me-2 my-1 d-inline-flex align-items-center chip-transition" style="padding: 0.25rem 0.4rem; font-weight: normal; font-size: 0.75rem; line-height: 1.2;">
+            {{ getQuickLinkDisplayName(activeQuickLinkList) }}
+            <button class="btn-close btn-close-white ms-1" @click="clearQuickLink" style="font-size: 0.5rem; line-height: 1;"></button>
+          </span>
+        </transition>
+        
+        <!-- Additional Filter Chips -->
+        <transition-group name="chip-fade" tag="div" class="d-inline-flex flex-wrap align-items-center">
+          <span v-for="filter in activeFilters" :key="filter.id" class="badge text-bg-secondary me-2 my-1 d-inline-flex align-items-center chip-transition" style="padding: 0.25rem 0.4rem; font-weight: normal; font-size: 0.75rem; line-height: 1.2;">
+            {{ filter.display }}
+            <button class="btn-close btn-close-white ms-1" @click="removeFilter(filter.id)" style="font-size: 0.5rem; line-height: 1;"></button>
+          </span>
+        </transition-group>
+        
+        <!-- Small Add Filter Button -->
+        <button class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center" style="font-size: 0.7rem; text-decoration: none; opacity: 0.7;" @click="showAddFilterModal = true" title="Add Filter">
+          <i class="bi bi-plus-circle" style="font-size: 0.8rem;"></i>
+        </button>
+        
+        <!-- Small Clear All Button -->
+        <button class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center ms-1" style="font-size: 0.7rem; text-decoration: none; opacity: 0.7;" @click="clearAllFilters" title="Clear All">
+          <i class="bi bi-x-circle" style="font-size: 0.8rem;"></i>
+        </button>
+      </div>
+    </div>
+    
     <!-- Suggestions button below search bar if user has rated < 10 movies -->
     <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center my-2">
       <button class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
@@ -519,6 +553,63 @@
       </div>
     </div>
   </div>
+  
+  <!-- Add Filter Modal -->
+  <div v-if="showAddFilterModal" class="modal-overlay" @click="showAddFilterModal = false">
+    <div class="modal-content" @click.stop>
+      <div class="modal-header">
+        <h5>Add Filter</h5>
+        <button class="btn-close" @click="showAddFilterModal = false"></button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Director Filter -->
+        <div class="filter-section mb-3">
+          <label class="form-label">Director</label>
+          <select class="form-select" @change="addDirectorFilter($event)">
+            <option value="">Select a director...</option>
+            <option v-for="director in topDirectors" :key="director.name" :value="director.name">
+              {{ director.name }} ({{ director.count }})
+            </option>
+          </select>
+        </div>
+        
+        <!-- Year Filter -->
+        <div class="filter-section mb-3">
+          <label class="form-label">Year</label>
+          <select class="form-select" @change="addYearFilter($event)">
+            <option value="">Select a year...</option>
+            <option v-for="year in availableYears" :key="year" :value="year">
+              {{ year }}
+            </option>
+          </select>
+        </div>
+        
+        <!-- Genre Filter -->
+        <div class="filter-section mb-3">
+          <label class="form-label">Genre</label>
+          <select class="form-select" @change="addGenreFilter($event)">
+            <option value="">Select a genre...</option>
+            <option v-for="genre in topGenres" :key="genre.name" :value="genre.name">
+              {{ genre.name }} ({{ genre.count }})
+            </option>
+          </select>
+        </div>
+        
+        <!-- Tag Filter -->
+        <div class="filter-section mb-3" v-if="userTags.length">
+          <label class="form-label">Tag</label>
+          <select class="form-select" @change="addTagFilter($event)">
+            <option value="">Select a tag...</option>
+            <option v-for="tag in userTags" :key="tag" :value="tag">
+              {{ tag }}
+            </option>
+          </select>
+        </div>
+        
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -580,12 +671,34 @@ export default {
       newOverrideTitle: '',
       newOverrideYear: null,
       showOverridePanel: false,
+      activeFilters: [], // New multi-filter system
+      showAddFilterModal: false,
+      searchToChipTimeout: null, // For auto-converting search to chip
     }
   },
   watch: {
     DBSearchValue (newVal) {
       if (newVal || newVal === "") {
         this.value = newVal;
+      }
+    },
+    value (newVal, oldVal) {
+      // Sync local value changes to store (to prevent cycles, only if they're different)
+      if (this.$store.state.DBSearchValue !== newVal) {
+        this.$store.commit('setDBSearchValue', newVal);
+      }
+      
+      // Clear any existing timeout
+      clearTimeout(this.searchToChipTimeout);
+      
+      // If there's a search value, set up auto-conversion to chip
+      // Don't auto-convert if user is typing and results are actively changing
+      if (newVal && newVal.trim() && newVal !== oldVal) {
+        console.log('Setting up auto-conversion timeout for:', newVal); // Debug log
+        this.searchToChipTimeout = setTimeout(() => {
+          console.log('Auto-converting to chip:', this.value); // Debug log - use current value
+          this.convertSearchToChip();
+        }, 2000); // 2 second delay
       }
     },
     '$route.query.search'(newVal, oldVal) {
@@ -723,6 +836,13 @@ export default {
     this.value = "";
     this.$store.commit("setDBSearchValue", this.value);
     this.$store.commit("setDBSortValue", this.sortValue);
+    
+    // Clean up timeouts
+    clearTimeout(this.searchToChipTimeout);
+  },
+  beforeUnmount() {
+    // Clean up timeouts when component is destroyed
+    clearTimeout(this.searchToChipTimeout);
   },
   computed: {
     isMatt () {
@@ -811,6 +931,7 @@ export default {
       return hasTiedResults && noTieBreakYetToday;
     },
     filteredResults () {
+      // Step 1: Get base results (from quick links or search)
       let results;
       if (this.activeQuickLinkList === "annual") {
         results = this.bestMovieFromEachYear;
@@ -833,7 +954,58 @@ export default {
       } else {
         results = this.allEntriesWithFlatKeywordsAdded;
       }
-      // Exclude shorts if showShorts is false
+      
+      // Step 2: Apply additional filters (combinable)
+      if (this.activeFilters.length > 0) {
+        results = results.filter(result => {
+          const movie = this.topStructure(result);
+          
+          // Check each active filter (AND logic - all must match)
+          return this.activeFilters.every(filter => {
+            switch (filter.type) {
+              case 'director':
+                return movie.crew && movie.crew.some(crew => 
+                  crew.job === 'Director' && crew.name === filter.value
+                );
+              case 'year':
+                return new Date(movie.release_date).getFullYear().toString() === filter.value;
+              case 'genre':
+                return movie.genres && movie.genres.some(genre => 
+                  genre.name === filter.value
+                );
+              case 'tag':
+                return result.ratings && result.ratings.some(rating => 
+                  rating.tags && rating.tags.some(tag => tag.title === filter.value)
+                );
+              case 'search':
+                // Apply the same fuzzy search logic as the main search with null checks
+                const searchValue = filter.value.toLowerCase();
+                return (movie.title && movie.title.toLowerCase().includes(searchValue)) ||
+                  (movie.flatKeywords && movie.flatKeywords.includes(searchValue)) ||
+                  (movie.genres && movie.genres.find((genre) => genre.name && genre.name.toLowerCase() === searchValue)) ||
+                  (movie.cast && movie.cast.flatMap((person) => {
+                    const names = [];
+                    if (person.name) names.push(person.name.toLowerCase());
+                    if (person.character) names.push(person.character.toLowerCase());
+                    return names;
+                  }).some((name) => name.includes(searchValue))) ||
+                  (movie.crew && movie.crew.flatMap((person) => {
+                    const names = [];
+                    if (person.name) names.push(person.name.toLowerCase());
+                    if (person.job) names.push(person.job.toLowerCase());
+                    return names;
+                  }).some((name) => name.includes(searchValue))) ||
+                  (movie.production_companies && movie.production_companies.some((company) => 
+                    company.name && company.name.toLowerCase().includes(searchValue)
+                  ));
+              default:
+                return true;
+            }
+          });
+        });
+      }
+      
+      // Step 3: Exclude shorts if showShorts is false
       if (!this.showShorts) {
         results = results.filter(result => {
           // Try to detect short films by genre or runtime
@@ -844,6 +1016,7 @@ export default {
           return !isShortGenre && !(runtime && runtime <= 40);
         });
       }
+      
       return results;
     },
     fuzzyFilter  () {
@@ -1518,6 +1691,28 @@ export default {
       } else {
         return "col-4";
       }
+    },
+    // Computed properties for filter modal
+    topDirectors() {
+      return Object.entries(this.allCounts.directors || {})
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20);
+    },
+    topGenres() {
+      return Object.entries(this.allCounts.genres || {})
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20);
+    },
+    availableYears() {
+      const years = this.allEntriesWithFlatKeywordsAdded
+        .map(movie => new Date(this.topStructure(movie).release_date).getFullYear())
+        .filter(year => !isNaN(year));
+      return [...new Set(years)].sort((a, b) => b - a);
+    },
+    userTags() {
+      return this.tags.slice(0, 20); // Limit to 20 most recent tags
     }
   },
   methods: {
@@ -1635,7 +1830,13 @@ export default {
         .trim();
     },
     updateSearchValue (value) {
-      this.value = value;
+      // If we have a value, convert it directly to a chip instead of putting it in the search bar
+      if (value && value.trim()) {
+        console.log('Converting clicked term to chip:', value);
+        this.addSearchFilter(value);
+      } else {
+        this.value = value || "";
+      }
 
       window.scroll({
         top: 0,
@@ -2035,6 +2236,218 @@ export default {
         value: this.letterboxdOverrides
       });
     },
+    // New multi-filter system methods
+    getQuickLinkDisplayName(quickLinkKey) {
+      const displayNames = {
+        'annual': 'Annual Best',
+        'bestPicture': 'Best Picture',
+        'thisYear': 'This Year',
+        'lastYear': 'Last Year',
+        'thisMonth': 'This Month',
+        'lastMonth': 'Last Month',
+        'notOnLetterboxd': 'Not on Letterboxd'
+      };
+      return displayNames[quickLinkKey] || quickLinkKey;
+    },
+    clearQuickLink() {
+      this.activeQuickLinkList = 'title';
+    },
+    removeFilter(filterId) {
+      this.activeFilters = this.activeFilters.filter(f => f.id !== filterId);
+    },
+    addDirectorFilter(event) {
+      const director = event.target.value;
+      if (director) {
+        this.activeFilters.push({
+          id: `director-${Date.now()}`,
+          type: 'director',
+          value: director,
+          display: `Director: ${director}`
+        });
+        event.target.value = '';
+        this.showAddFilterModal = false;
+      }
+    },
+    addYearFilter(event) {
+      const year = event.target.value;
+      if (year) {
+        this.activeFilters.push({
+          id: `year-${Date.now()}`,
+          type: 'year',
+          value: year,
+          display: `Year: ${year}`
+        });
+        event.target.value = '';
+        this.showAddFilterModal = false;
+      }
+    },
+    addGenreFilter(event) {
+      const genre = event.target.value;
+      if (genre) {
+        this.activeFilters.push({
+          id: `genre-${Date.now()}`,
+          type: 'genre',
+          value: genre,
+          display: `Genre: ${genre}`
+        });
+        event.target.value = '';
+        this.showAddFilterModal = false;
+      }
+    },
+    addTagFilter(event) {
+      const tag = event.target.value;
+      if (tag) {
+        this.activeFilters.push({
+          id: `tag-${Date.now()}`,
+          type: 'tag',
+          value: tag,
+          display: `Tag: ${tag}`
+        });
+        event.target.value = '';
+        this.showAddFilterModal = false;
+      }
+    },
+    onKeyDown(event) {
+      console.log('onKeyDown triggered, key:', event.key, 'current value:', this.value);
+    },
+    onKeyUp(event) {
+      console.log('onKeyUp triggered, key:', event.key, 'current value:', this.value);
+      // Set up auto-conversion after key is released
+      this.setupAutoConversion();
+    },
+    setupAutoConversion() {
+      // Clear any existing timeout
+      clearTimeout(this.searchToChipTimeout);
+      
+      // Wait for next tick to ensure v-model has updated
+      this.$nextTick(() => {
+        // If there's a search value, set up auto-conversion to chip
+        if (this.value && this.value.trim()) {
+          console.log('Setting up auto-conversion timeout for:', this.value);
+          this.searchToChipTimeout = setTimeout(() => {
+            console.log('Auto-converting to chip:', this.value);
+            this.convertSearchToChip();
+          }, 2000); // 2 second delay
+        }
+      });
+    },
+    convertSearchToChip() {
+      console.log('convertSearchToChip called, current value:', this.value); // Debug log
+      if (this.value && this.value.trim()) {
+        const searchTerm = this.value.trim();
+        
+        // Fade out just the text color, not the entire input
+        const inputElement = this.$refs.searchInput;
+        if (inputElement) {
+          inputElement.style.transition = 'color 0.3s ease';
+          inputElement.style.color = 'rgba(255, 255, 255, 0.3)'; // Fade text to 30% opacity
+        }
+        
+        // After a brief delay, add the chip and clear the input
+        setTimeout(() => {
+          this.addSearchFilter(searchTerm);
+          
+          // Clear the search input
+          this.value = '';
+          this.$store.commit('setDBSearchValue', '');
+          
+          // Restore text color
+          if (inputElement) {
+            inputElement.style.color = ''; // Reset to default
+          }
+        }, 150); // Small delay to show the fade effect
+        
+        // Clear the timeout
+        clearTimeout(this.searchToChipTimeout);
+        this.searchToChipTimeout = null;
+      } else {
+        console.log('No value to convert'); // Debug log
+      }
+    },
+    addSearchFilter(searchTerm) {
+      if (!searchTerm || !searchTerm.trim()) return;
+      
+      const trimmedTerm = searchTerm.trim();
+      
+      // Detect what type of filter this should be
+      const filterType = this.detectFilterType(trimmedTerm);
+      
+      // Check if this exact filter already exists
+      const existingFilter = this.activeFilters.find(filter => 
+        filter.type === filterType.type && filter.value === filterType.value
+      );
+      
+      if (existingFilter) {
+        console.log('Filter already exists:', filterType.type, filterType.value);
+        return; // Don't add duplicate
+      }
+      
+      // Add the appropriate filter chip
+      this.activeFilters.push({
+        id: `${filterType.type}-${Date.now()}`,
+        type: filterType.type,
+        value: filterType.value,
+        display: filterType.display
+      });
+      
+      console.log('Added filter chip:', filterType.type, filterType.display);
+    },
+    clearAllFilters() {
+      // Clear all active filters
+      this.activeFilters = [];
+      // Clear quick link filter
+      this.activeQuickLinkList = 'title';
+      // Clear search value
+      this.value = '';
+      this.$store.commit('setDBSearchValue', '');
+      console.log('Cleared all filters');
+    },
+    detectFilterType(term) {
+      // Check if it's a 4-digit year
+      if (/^\d{4}$/.test(term)) {
+        const year = parseInt(term);
+        if (year >= 1900 && year <= new Date().getFullYear() + 5) {
+          return {
+            type: 'year',
+            value: term,
+            display: term
+          };
+        }
+      }
+      
+      // Check if it matches any director names in our database
+      const allDirectors = this.allDirectors || [];
+      const matchingDirector = allDirectors.find(director => 
+        director.name && director.name === term
+      );
+      if (matchingDirector) {
+        return {
+          type: 'director',
+          value: term,
+          display: term
+        };
+      }
+      
+      // Check if it matches any genre names in our database
+      const allGenres = this.allGenres || [];
+      const matchingGenre = allGenres.find(genre => 
+        genre.name && genre.name === term
+      );
+      if (matchingGenre) {
+        return {
+          type: 'genre',
+          value: term,
+          display: term
+        };
+      }
+      
+      // Default to search filter for everything else
+      return {
+        type: 'search',
+        value: term,
+        display: term
+      };
+    }, // Force reload
     debouncedFetchUnratedMoviesByValue(value) {
       clearTimeout(this.unratedMoviesDebounceTimeout);
       this.unratedMoviesDebounceTimeout = setTimeout(() => {
@@ -2548,6 +2961,28 @@ export default {
       .clear-button.touch-active {
         background-color: rgba(0, 0, 0, 0.1);
         height: 30px;
+      }
+
+      .search-to-chip-button {
+        align-items: center;
+        color: black;
+        cursor: pointer;
+        display: flex;
+        height: 40px;
+        justify-content: center;
+        right: 40px; /* Position between clear and edge */
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 40px;
+        z-index: 5;
+        opacity: 0.6;
+        transition: opacity 0.2s ease;
+      }
+
+      .search-to-chip-button:hover {
+        opacity: 1;
+        background-color: rgba(0, 0, 0, 0.1);
       }
 
       .more-info-button {
@@ -3113,5 +3548,91 @@ export default {
 }
 .settings-panel-inline .form-range {
   accent-color: #0d6efd;
+}
+
+/* Filter Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  max-width: 90%;
+  width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  padding: 1rem;
+  border-bottom: 1px solid #dee2e6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h5 {
+  margin: 0;
+  flex-grow: 1;
+}
+
+.modal-body {
+  padding: 1rem;
+}
+
+.filter-section {
+  margin-bottom: 1rem;
+}
+
+/* Active Filter Chips */
+.active-filters-section {
+  max-width: 600px;
+}
+
+.active-filters-section .badge {
+  font-size: 0.75rem;
+  padding: 0.375rem 0.5rem;
+  margin-right: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.active-filters-section .btn-close {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-left: 0.25rem;
+}
+
+/* Chip Animation Transitions */
+.chip-fade-enter-active,
+.chip-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.chip-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.8) translateY(-10px);
+}
+
+.chip-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.8) translateY(-10px);
+}
+
+.chip-fade-move {
+  transition: transform 0.3s ease;
+}
+
+.chip-transition {
+  transition: all 0.2s ease;
 }
 </style>

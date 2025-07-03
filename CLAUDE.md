@@ -39,12 +39,22 @@ Cinema Roll is a personal movie rating and tracking application built with Vue.j
 - **Letterboxd**: Service for scraping and importing data
 
 ### Core Components
-- **Home**: Main dashboard with search and movie grid
+- **Home**: Main dashboard with search, advanced filtering, and movie grid
 - **RateMovie**: Rating interface with multi-criteria scoring
 - **Insights**: Analytics and visualizations of viewing patterns
 - **Favorites**: Lists of favorite actors, directors, etc.
 - **Charts**: Various data visualizations
 - **Settings**: User preferences and configuration
+
+### Advanced Filtering System
+- **Search-First Design**: Text input remains primary for adding new ratings
+- **Auto-Chip Conversion**: Search terms automatically convert to chips after 2-second delay
+- **Manual Chip Conversion**: Arrow button in search bar to manually convert searches
+- **Quick Links**: Preserved favorites (Annual Best, Best Picture, This Year, etc.)
+- **Combinable Filters**: Add additional filters on top of quick links or search
+- **Filter Chips**: Visual display of active filters with easy removal
+- **Filter Types**: Search, Director, Year, Genre, Tag with searchable dropdowns
+- **Mobile-Optimized**: Modal interface for adding filters
 
 ### Analytics & Insights
 - Calendar heatmap of viewing activity
@@ -56,9 +66,10 @@ Cinema Roll is a personal movie rating and tracking application built with Vue.j
 
 ### Letterboxd Integration
 - **Automatic Detection**: Web scraping service to detect logged movies
-- **Manual Overrides**: Settings interface for manually marking movies as logged
+- **Manual Overrides**: Subtle plus icon interface for manually marking movies as logged when auto-detection fails
 - **Username Configuration**: User can set their Letterboxd username for scraping
 - **Special Title Handling**: Enhanced normalization for problematic titles (F1, M, etc.)
+- **Filter Integration**: Manual overrides properly excluded from "Not on Letterboxd" quick filter
 
 ## Database Structure
 Firebase Realtime Database with user-specific data:
