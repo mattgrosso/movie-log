@@ -19,9 +19,6 @@
           @input="onInput"
           :value="inputValue"
         >
-        <span v-if="value" class="more-info-button" @click.prevent="goToWikipedia">
-          <i class="bi bi-wikipedia"/>
-        </span>
       </div>
     </div>
     
@@ -57,6 +54,11 @@
         <!-- Small Clear All Button -->
         <button class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center ms-1" style="font-size: 0.7rem; text-decoration: none; opacity: 0.7;" @click="clearAllFilters" title="Clear All">
           <i class="bi bi-x-circle" style="font-size: 0.8rem;"></i>
+        </button>
+        
+        <!-- Wikipedia Button - only show when there's exactly one chip -->
+        <button v-if="activeFilters.length === 1" class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center ms-1" style="font-size: 0.7rem; text-decoration: none; opacity: 0.7;" @click="goToWikipediaForChip" title="Wikipedia Info">
+          <i class="bi bi-wikipedia" style="font-size: 0.8rem;"></i>
         </button>
       </div>
     </div>
@@ -1992,6 +1994,13 @@ export default {
       this.insetBrowserUrl = await this.wikiLinkFor(this.value);
       this.showInsetBrowserModal = true;
     },
+    async goToWikipediaForChip () {
+      if (this.activeFilters.length === 1) {
+        const chip = this.activeFilters[0];
+        this.insetBrowserUrl = await this.wikiLinkFor(chip.value);
+        this.showInsetBrowserModal = true;
+      }
+    },
     showMovieInfo(movie) {
       this.selectedMovieInfo = movie;
       this.showMovieInfoModal = true;
@@ -3221,9 +3230,6 @@ export default {
             transform: translateY(calc(-50% - 3px));
           }
 
-          & + .clear-button + .more-info-button {
-            transform: translateY(calc(-50% - 3px));
-          }
         }
       }
 
@@ -3287,21 +3293,6 @@ export default {
       .search-to-chip-button:hover {
         opacity: 1;
         background-color: rgba(0, 0, 0, 0.1);
-      }
-
-      .more-info-button {
-        align-items: center;
-        color: black;
-        cursor: pointer;
-        display: flex;
-        height: 40px;
-        justify-content: center;
-        left: 0px;
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 40px;
-        z-index: 5;
       }
 
       svg {

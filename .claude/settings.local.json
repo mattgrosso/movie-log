@@ -28,7 +28,8 @@
       "Bash(timeout:*)",
       "Bash(ls:*)",
       "Bash(npm run dev:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(awk:*)"
     ],
     "deny": []
   }
