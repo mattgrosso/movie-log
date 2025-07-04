@@ -1153,7 +1153,7 @@ export default {
         results = results.filter(result => {
           // Try to detect short films by genre or runtime
           const genres = this.topStructure(result).genres || [];
-          const isShortGenre = genres.some(g => g.name && g.name.toLowerCase() === 'short');
+          const isShortGenre = Array.isArray(genres) ? genres.some(g => g.name && g.name.toLowerCase() === 'short') : false;
           const runtime = this.topStructure(result).runtime;
           // Consider as short if genre is 'Short' or runtime <= 40 min
           return !isShortGenre && !(runtime && runtime <= 40);
@@ -1702,8 +1702,9 @@ export default {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        if (this.topStructure(result).flatKeywords) {
-          this.topStructure(result).flatKeywords.forEach((keyword) => {
+        const keywords = this.topStructure(result).flatKeywords;
+        if (Array.isArray(keywords)) {
+          keywords.forEach((keyword) => {
             if (counts[keyword]) {
               counts[keyword]++;
             } else if (keyword) {
@@ -1719,8 +1720,9 @@ export default {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        if (this.topStructure(result).genres) {
-          this.topStructure(result).genres.forEach((genre) => {
+        const genres = this.topStructure(result).genres;
+        if (Array.isArray(genres)) {
+          genres.forEach((genre) => {
             if (counts[genre.name]) {
               counts[genre.name]++;
             } else if (genre.name) {
@@ -1750,7 +1752,8 @@ export default {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const director = result.movie.crew?.find((person) => person.job === "Director")?.name;
+        const crew = result.movie.crew;
+        const director = Array.isArray(crew) ? crew.find((person) => person.job === "Director")?.name : null;
 
         if (director) {
           if (counts[director]) {
@@ -1767,8 +1770,10 @@ export default {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const cast = this.topStructure(result).cast?.filter((person, index) => index < 10).map(person => person.name) || [];
-        const crew = this.topStructure(result).crew?.filter((person, index) => index < 10).map(person => person.name) || [];
+        const castData = this.topStructure(result).cast;
+        const crewData = this.topStructure(result).crew;
+        const cast = Array.isArray(castData) ? castData.filter((person, index) => index < 10).map(person => person.name) : [];
+        const crew = Array.isArray(crewData) ? crewData.filter((person, index) => index < 10).map(person => person.name) : [];
         const castCrewCombined = uniq([...cast, ...crew]);
 
         castCrewCombined.forEach((person) => {
@@ -1926,7 +1931,7 @@ export default {
       
       const allowRandomFromSetting = this.enableRandomSearch;
       const allowRandom = allowRandomFromURL && allowRandomFromSetting;
-      const hasResults = this.paginatedSortedResults.length > 0;
+      const hasResults = this.paginatedSortedResults?.length > 0;
       const hasNotCalledFindFilter = !this.hasCalledFindFilter;
 
       if (allowRandom && hasResults && hasNotCalledFindFilter) {
@@ -1963,7 +1968,7 @@ export default {
           break;
       }
 
-      const valuesFromRandomCountedList = Object.keys(counts);
+      const valuesFromRandomCountedList = Object.keys(counts || {});
       let randomValue;
       let safetyLimit = 100;
 
@@ -2243,14 +2248,17 @@ export default {
       }
     },
     averageRating (results) {
+      if (!Array.isArray(results) || results.length === 0) return '0.00';
       const ratedMovies = results.filter((result) => this.mostRecentRating(result).calculatedTotal);
+      if (ratedMovies.length === 0) return '0.00';
       const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
       const total = ratings.reduce((a, b) => a + b, 0);
       return (total / ratings.length).toFixed(2);
     },
     viewsCount (results) {
+      if (!Array.isArray(results)) return 0;
       return results.reduce((total, result) => {
-        return total + (result.ratings ? result.ratings.length : 0);
+        return total + (Array.isArray(result.ratings) ? result.ratings.length : 0);
       }, 0);
     },
     getYear (media) {
@@ -2259,6 +2267,9 @@ export default {
       return new Date(date).getFullYear();
     },
     mostRecentRating (media) {
+      if (!media || typeof media !== 'object') {
+        return { calculatedTotal: null, date: null };
+      }
       return getRating(media);
     },
     async searchTMDB () {
