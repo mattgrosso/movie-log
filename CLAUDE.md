@@ -114,9 +114,10 @@ Based on recent commits and development:
 - **Production Companies Integration**: Full support for filtering by production companies
 - **Filter Intersection Bug Fix**: Fixed critical bug where multiple chips created union instead of intersection
 - **Automated Testing**: Comprehensive test suite (28 tests) for chip functionality to prevent regressions
-- **Version Incrementing Improvements**: Better semantic versioning system
-- **UI Improvements**: Enhanced UX for unrated movies and person lists
+- **Random Search Toggle**: Added user setting to enable/disable random search on page load
+- **Settings Consolidation**: Removed duplicate Settings.vue, all settings now in Home.vue inline panel
 - **Performance Optimizations**: Debounced search and filtering optimizations
+- **iOS Input Scaling Fix**: Resolved layout shift issues with mobile zoom prevention
 
 ## Environment Variables Required
 - `VUE_APP_GOOGLE_API_KEY` - Firebase/Google API key

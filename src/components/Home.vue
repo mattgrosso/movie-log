@@ -340,6 +340,11 @@
                 <input class="form-check-input" type="checkbox" id="shortsToggle" v-model="showShorts">
                 <label class="form-check-label" for="shortsToggle">Include short films</label>
               </div>
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="randomSearchToggle" v-model="enableRandomSearch" @change="saveRandomSearchSetting">
+                <label class="form-check-label" for="randomSearchToggle">Show random search on page load</label>
+                <small class="form-text text-muted d-block">Discover movies you might not search for otherwise</small>
+              </div>
               <div class="mb-3">
                 <label for="normalizationTweak" class="form-label">Normalization offset:</label>
                 <input
@@ -651,6 +656,7 @@ export default {
       showViewCount: false,
       showSuggestionsOnly: false,
       showShorts: false, // shorts toggle, default to off
+      enableRandomSearch: null, // random search on page load toggle, will be set from store
       showSettingsPanel: false, // controls settings panel visibility
       normalizationTweak: 0.25, // default, will be set from store
       tieBreakTweak: 1, // default, will be set from store
@@ -678,6 +684,7 @@ export default {
       showAddFilterModal: false,
       searchToChipTimeout: null, // For auto-converting search to chip
       debouncedSearchValue: '', // Debounced value for fuzzy filtering
+      hasAutoRandomChip: false, // Track if current chip was added by auto random search
     }
   },
   watch: {
@@ -758,6 +765,36 @@ export default {
         }
       },
       immediate: true
+    },
+    '$store.state.settings': {
+      handler(newSettings) {
+        if (!newSettings) return;
+        
+        const wasNull = this.enableRandomSearch === null;
+        const settingValue = newSettings.enableRandomSearch;
+        const settingsKeys = Object.keys(newSettings);
+        
+        if (typeof settingValue === 'boolean') {
+          // We have a definitive boolean value from the user's settings
+          this.enableRandomSearch = settingValue;
+        } else if (settingsKeys.length > 5) {
+          // Settings object is fully loaded but doesn't have enableRandomSearch property
+          // This indicates a user who hasn't set this preference yet - default to true
+          this.enableRandomSearch = true;
+        } else {
+          // Settings object is empty or only partially loaded - wait for complete load
+          return;
+        }
+        
+        // If this is the first time setting is loaded, trigger random search check
+        if (wasNull && this.enableRandomSearch !== null) {
+          this.$nextTick(() => {
+            this.checkResultsAndFindFilter();
+          });
+        }
+      },
+      immediate: true,
+      deep: true
     },
     '$store.state.settings.letterboxdConnected': {
       handler(newVal) {
@@ -878,6 +915,12 @@ export default {
     } else {
       this.showShorts = false;
     }
+    
+    // Initialize enableRandomSearch from store - let the watcher handle defaults
+    if (typeof this.$store.state.settings.enableRandomSearch === 'boolean') {
+      this.enableRandomSearch = this.$store.state.settings.enableRandomSearch;
+    }
+    // Note: Don't set a default here - let the settings watcher handle it properly
     
     // Initialize letterboxdOverrides from store
     if (this.$store.state.settings.letterboxdOverrides) {
@@ -1843,7 +1886,15 @@ export default {
       }
     },
     checkResultsAndFindFilter () {
-      const allowRandom = !this.$route.query.noRandom;
+      const allowRandomFromURL = !this.$route.query.noRandom;
+      
+      // Don't trigger random search until settings are loaded and we have a definitive value
+      if (this.enableRandomSearch === null) {
+        return; // Settings not loaded yet, wait
+      }
+      
+      const allowRandomFromSetting = this.enableRandomSearch;
+      const allowRandom = allowRandomFromURL && allowRandomFromSetting;
       const hasResults = this.paginatedSortedResults.length > 0;
       const hasNotCalledFindFilter = !this.hasCalledFindFilter;
 
@@ -1891,10 +1942,10 @@ export default {
         safetyLimit--;
       } while (counts[randomValue] <= minimumCount && safetyLimit > 0);
 
-      if (randomValue && safetyLimit > 0) {
+      if (randomValue && safetyLimit > 0 && this.enableRandomSearch) {
         // Clear existing chips first, then add the random search
         this.clearAllFilters();
-        this.updateSearchValue(randomValue);
+        this.updateSearchValue(randomValue, true); // Mark as auto random
         this.sortOrder = "bestOrNewestOnTop";
       } else {
         this.clearValue();
@@ -1943,11 +1994,11 @@ export default {
         .replace(/\s+/g, ' ')
         .trim();
     },
-    updateSearchValue (value) {
+    updateSearchValue (value, isAutoRandom = false) {
       // If we have a value, clear existing filters first then add the new search
       if (value && value.trim()) {
         this.clearAllFilters();
-        this.addSearchFilter(value);
+        this.addSearchFilter(value, isAutoRandom);
       } else {
         this.value = value || "";
       }
@@ -2247,6 +2298,22 @@ export default {
       event.target.classList.add('font-size-increased');
       event.target.style.fontSize = '16px';
 
+      // If user focuses input and we have an auto random chip, clear it
+      if (this.hasAutoRandomChip) {
+        requestAnimationFrame(() => {
+          this.clearAllFilters();
+          this.hasAutoRandomChip = false;
+          // Clear the input value so user can start fresh
+          event.target.value = '';
+          this.inputValue = '';
+          this.value = '';
+          this.$store.commit('setDBSearchValue', '');
+          // Ensure focus remains on the input
+          event.target.focus();
+        });
+        return; // Don't select text since we're about to clear everything
+      }
+
       // Select the text if there is any text in the input
       if (event.target.value) {
         event.target.select();
@@ -2281,6 +2348,9 @@ export default {
         this.letterboxdConnected = true;
         this.saveLetterboxdConnection();
       }
+    },
+    saveRandomSearchSetting() {
+      this.$store.dispatch('setDBValue', { path: 'settings/enableRandomSearch', value: this.enableRandomSearch });
     },
     // Test function for Letterboxd URL generation (call from browser console)
     // Test function for Letterboxd scraping (UI button)
@@ -2407,6 +2477,7 @@ export default {
           value: director,
           display: `Director: ${director}`
         });
+        this.hasAutoRandomChip = false; // Reset auto chip flag
         event.target.value = '';
         this.showAddFilterModal = false;
       }
@@ -2420,6 +2491,7 @@ export default {
           value: year,
           display: `Year: ${year}`
         });
+        this.hasAutoRandomChip = false; // Reset auto chip flag
         event.target.value = '';
         this.showAddFilterModal = false;
       }
@@ -2433,6 +2505,7 @@ export default {
           value: genre,
           display: `Genre: ${genre}`
         });
+        this.hasAutoRandomChip = false; // Reset auto chip flag
         event.target.value = '';
         this.showAddFilterModal = false;
       }
@@ -2446,6 +2519,7 @@ export default {
           value: tag,
           display: `Tag: ${tag}`
         });
+        this.hasAutoRandomChip = false; // Reset auto chip flag
         event.target.value = '';
         this.showAddFilterModal = false;
       }
@@ -2516,7 +2590,7 @@ export default {
         this.searchToChipTimeout = null;
       }
     },
-    addSearchFilter(searchTerm) {
+    addSearchFilter(searchTerm, isAutoRandom = false) {
       if (!searchTerm || !searchTerm.trim()) return;
       
       const trimmedTerm = searchTerm.trim();
@@ -2541,6 +2615,8 @@ export default {
         display: filterType.display
       });
       
+      // Track if this chip was added by automatic random search
+      this.hasAutoRandomChip = isAutoRandom;
     },
     clearAllFilters() {
       // Blur the search input first to prevent layout shifts
