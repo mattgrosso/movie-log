@@ -343,7 +343,6 @@
               <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" id="randomSearchToggle" v-model="enableRandomSearch" @change="saveRandomSearchSetting">
                 <label class="form-check-label" for="randomSearchToggle">Show random search on page load</label>
-                <small class="form-text text-muted d-block">Discover movies you might not search for otherwise</small>
               </div>
               <div class="mb-3">
                 <label for="normalizationTweak" class="form-label">Normalization offset:</label>
@@ -699,17 +698,12 @@ export default {
         this.$store.commit('setDBSearchValue', newVal);
       }
       
-      // Auto-chip conversion setup
+      // Auto-chip conversion setup - use same delay as onInput
       clearTimeout(this.searchToChipTimeout);
       if (newVal && newVal.trim() && newVal !== oldVal) {
         this.searchToChipTimeout = setTimeout(() => {
           this.convertSearchToChip();
         }, 2000);
-      }
-      
-      // Update debounced search value for filtering
-      if (this.updateDebouncedSearch) {
-        this.updateDebouncedSearch();
       }
     },
     '$route.query.search'(newVal, oldVal) {
@@ -2528,28 +2522,20 @@ export default {
       const newVal = event.target.value;
       const oldVal = this.value;
       
-      // Update visual input immediately for responsiveness
+      // Update both visual input and value immediately for instant filtering
       this.inputValue = newVal;
+      this.value = newVal;
+      this.$store.commit('setDBSearchValue', newVal);
       
-      // Only update this.value and store when user stops typing or clears input
-      // This prevents expensive filtering on every keystroke
-      if (newVal === '') {
-        // Immediately clear when input is empty
-        this.value = '';
-        this.$store.commit('setDBSearchValue', '');
-      }
+      // Update search value immediately for instant filtering
+      this.debouncedSearchValue = newVal;
       
       // Auto-chip conversion setup
       clearTimeout(this.searchToChipTimeout);
       if (newVal && newVal.trim() && newVal !== oldVal) {
         this.searchToChipTimeout = setTimeout(() => {
           this.convertSearchToChip();
-        }, 2000);
-      }
-      
-      // Update debounced search value for filtering (this is what drives the filtering)
-      if (this.updateDebouncedSearch) {
-        this.updateDebouncedSearch(newVal);
+        }, 2000); // Comfortable delay for users to finish typing
       }
     },
     convertSearchToChip() {
@@ -2558,32 +2544,20 @@ export default {
       if (currentSearch && currentSearch.trim()) {
         const searchTerm = currentSearch.trim();
         
-        // Fade out just the text color, not the entire input
+        // Add the chip immediately and clear the input
+        this.addSearchFilter(searchTerm);
+        
+        // Clear search values so filtering switches to chip-based
+        this.inputValue = '';
+        this.value = '';
+        this.debouncedSearchValue = '';
+        this.$store.commit('setDBSearchValue', '');
+        
+        // Clear and blur the input
         const inputElement = this.$refs.searchInput;
         if (inputElement) {
-          inputElement.style.transition = 'color 0.3s ease';
-          inputElement.style.color = 'rgba(255, 255, 255, 0.3)'; // Fade text to 30% opacity
-        }
-        
-        // After a brief delay, add the chip and clear the input
-        setTimeout(() => {
-          this.addSearchFilter(searchTerm);
-          
-          // Clear the visual input but keep internal value for backward compatibility
-          this.inputValue = '';
-          this.value = searchTerm; // Keep for existing functionality
-          this.$store.commit('setDBSearchValue', searchTerm);
-          
-          // Restore text color and remove transition
-          if (inputElement) {
-            inputElement.style.color = ''; // Reset to default
-            inputElement.style.transition = ''; // Remove transition
-            
-            // Blur the input to immediately reset scaling and positioning
-            // This prevents layout shifts when the focus is lost later
-            inputElement.blur();
-          }
-        }, 150); // Small delay to show the fade effect
+          inputElement.blur();
+        } // Small delay to show the fade effect
         
         // Clear the timeout
         clearTimeout(this.searchToChipTimeout);
