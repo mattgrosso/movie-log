@@ -40,7 +40,12 @@
         <transition-group name="chip-fade" tag="div" class="d-inline-flex flex-wrap align-items-center">
           <span v-for="filter in activeFilters" :key="filter.id" class="badge text-bg-secondary me-2 my-1 d-inline-flex align-items-center chip-transition" style="padding: 0.25rem 0.4rem; font-weight: normal; font-size: 0.75rem; line-height: 1.2;">
             {{ filter.display }}
-            <button class="btn-close btn-close-white ms-1" @click="removeFilter(filter.id)" style="font-size: 0.5rem; line-height: 1;"></button>
+            <button 
+              class="btn-close btn-close-white ms-1" 
+              @click.stop.prevent="removeFilter(filter.id)" 
+              style="font-size: 0.5rem; line-height: 1;"
+              title="Remove filter">
+            </button>
           </span>
         </transition-group>
         
@@ -833,8 +838,8 @@ export default {
   },
   created() {
     // Create debounced function for search filtering
-    this.updateDebouncedSearch = debounce(() => {
-      this.debouncedSearchValue = this.value;
+    this.updateDebouncedSearch = debounce((searchValue) => {
+      this.debouncedSearchValue = searchValue;
     }, 300);
     
     // Initialize debounced search value
@@ -2362,6 +2367,11 @@ export default {
       this.activeQuickLinkList = 'title';
     },
     removeFilter(filterId) {
+      // Blur the search input first to prevent layout shifts from interfering with the click
+      if (this.$refs.searchInput) {
+        this.$refs.searchInput.blur();
+      }
+      
       this.activeFilters = this.activeFilters.filter(f => f.id !== filterId);
       
       // Update this.value based on remaining filters
@@ -2444,14 +2454,15 @@ export default {
       const newVal = event.target.value;
       const oldVal = this.value;
       
-      // Update both visual input and internal value when typing
+      // Update visual input immediately for responsiveness
       this.inputValue = newVal;
-      this.value = newVal;
       
-      // Manually trigger the same logic as the value watcher
-      // Sync local value changes to store (to prevent cycles, only if they're different)
-      if (this.$store.state.DBSearchValue !== newVal) {
-        this.$store.commit('setDBSearchValue', newVal);
+      // Only update this.value and store when user stops typing or clears input
+      // This prevents expensive filtering on every keystroke
+      if (newVal === '') {
+        // Immediately clear when input is empty
+        this.value = '';
+        this.$store.commit('setDBSearchValue', '');
       }
       
       // Auto-chip conversion setup
@@ -2462,14 +2473,16 @@ export default {
         }, 2000);
       }
       
-      // Update debounced search value for filtering
+      // Update debounced search value for filtering (this is what drives the filtering)
       if (this.updateDebouncedSearch) {
-        this.updateDebouncedSearch();
+        this.updateDebouncedSearch(newVal);
       }
     },
     convertSearchToChip() {
-      if (this.value && this.value.trim()) {
-        const searchTerm = this.value.trim();
+      // Use inputValue since this.value isn't updated on every keystroke anymore
+      const currentSearch = this.inputValue || this.value;
+      if (currentSearch && currentSearch.trim()) {
+        const searchTerm = currentSearch.trim();
         
         // Fade out just the text color, not the entire input
         const inputElement = this.$refs.searchInput;
@@ -2491,6 +2504,10 @@ export default {
           if (inputElement) {
             inputElement.style.color = ''; // Reset to default
             inputElement.style.transition = ''; // Remove transition
+            
+            // Blur the input to immediately reset scaling and positioning
+            // This prevents layout shifts when the focus is lost later
+            inputElement.blur();
           }
         }, 150); // Small delay to show the fade effect
         
@@ -2526,6 +2543,11 @@ export default {
       
     },
     clearAllFilters() {
+      // Blur the search input first to prevent layout shifts
+      if (this.$refs.searchInput) {
+        this.$refs.searchInput.blur();
+      }
+      
       // Clear all active filters
       this.activeFilters = [];
       // Clear quick link filter
@@ -3731,6 +3753,21 @@ export default {
 }
 .settings-panel-inline .form-range {
   accent-color: #0d6efd;
+}
+
+/* Chip Close Button Styles */
+.badge .btn-close {
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.badge .btn-close:hover {
+  opacity: 1;
+}
+
+.badge .btn-close:focus {
+  outline: none;
+  box-shadow: none;
 }
 
 /* Filter Modal Styles */

@@ -53,8 +53,10 @@ Cinema Roll is a personal movie rating and tracking application built with Vue.j
 - **Quick Links**: Preserved favorites (Annual Best, Best Picture, This Year, etc.)
 - **Combinable Filters**: Add additional filters on top of quick links or search
 - **Filter Chips**: Visual display of active filters with easy removal
-- **Filter Types**: Search, Director, Year, Genre, Tag with searchable dropdowns
+- **Filter Types**: Search, Director, Year, Genre, Production Company, Tag with searchable dropdowns
 - **Mobile-Optimized**: Modal interface for adding filters
+- **Intersection Logic**: Multiple chips use AND logic (not OR) for proper filtering
+- **Backward Compatibility**: Maintains `this.value` for existing functionality while supporting chips
 
 ### Analytics & Insights
 - Calendar heatmap of viewing activity
@@ -86,7 +88,7 @@ Firebase Realtime Database with user-specific data:
 - `src/router/index.js` - Vue Router configuration
 - `src/services/` - Letterboxd scraping services
 - `src/assets/javascript/` - Rating calculation utilities
-- `src/test/` - Vitest test files
+- `src/test/` - Vitest test files including comprehensive chip filtering tests
 
 ## Development Commands
 - `yarn serve` - Development server with hot reload
@@ -107,12 +109,14 @@ Firebase Realtime Database with user-specific data:
 - Missing user tutorial/onboarding
 
 ## Recent Development Focus
-Based on recent commits:
-- Production companies integration
-- Version incrementing improvements
-- UI improvements for unrated movies
-- Person lists organization by role
-- Movie list pagination and layout optimizations
+Based on recent commits and development:
+- **Chip-Based Filtering System**: Complete overhaul of search/filtering with visual chips
+- **Production Companies Integration**: Full support for filtering by production companies
+- **Filter Intersection Bug Fix**: Fixed critical bug where multiple chips created union instead of intersection
+- **Automated Testing**: Comprehensive test suite (28 tests) for chip functionality to prevent regressions
+- **Version Incrementing Improvements**: Better semantic versioning system
+- **UI Improvements**: Enhanced UX for unrated movies and person lists
+- **Performance Optimizations**: Debounced search and filtering optimizations
 
 ## Environment Variables Required
 - `VUE_APP_GOOGLE_API_KEY` - Firebase/Google API key
