@@ -17,11 +17,8 @@
           @focus="focusOnSearchBar"
           @blur="blurSearchBar"
           @input="onInput"
-          :value="value"
+          :value="inputValue"
         >
-        <span v-if="value" class="clear-button" @click.prevent="clearValue" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
-          <i class="bi bi-x-circle"/>
-        </span>
         <span v-if="value" class="more-info-button" @click.prevent="goToWikipedia">
           <i class="bi bi-wikipedia"/>
         </span>
@@ -533,7 +530,7 @@
       <span v-else-if="unratedMoviesSearchType === 'general'">Loading movies matching "{{ effectiveSearchTerm }}"...</span>
       <span v-else>Loading movies...</span>
     </div>
-    <div v-else-if="displayableUnratedMovies.length && !unratedMoviesLoading && !unratedMoviesError" class="unrated-movies-grid">
+    <div v-else-if="displayableUnratedMovies.length && !unratedMoviesLoading && !unratedMoviesError && paginatedSortedResults.length" class="unrated-movies-grid">
       <!-- Debug: {{ console.log('More from section conditions:', 'displayable:', displayableUnratedMovies.length, 'loading:', unratedMoviesLoading, 'error:', unratedMoviesError) }} -->
       <h3 class="bg-dark">
         <span v-if="unratedMoviesSearchType === 'person'">More from {{ effectiveSearchTerm }}:</span>
@@ -636,6 +633,7 @@ export default {
     return {
       sortOrder: "bestOrNewestOnTop",
       value: "",
+      inputValue: "", // Visual input value (can be different from internal value)
       activeQuickLinkList: "title",
       sortValue: null,
       quickLinksSortType: "count",
@@ -692,7 +690,6 @@ export default {
       // Auto-chip conversion setup
       clearTimeout(this.searchToChipTimeout);
       if (newVal && newVal.trim() && newVal !== oldVal) {
-        console.log('Setting up auto-chip timeout for:', newVal);
         this.searchToChipTimeout = setTimeout(() => {
           this.convertSearchToChip();
         }, 2000);
@@ -792,7 +789,7 @@ export default {
         } else {
           // Search is from chips - find the relevant chip to get the type
           const relevantChips = this.activeFilters.filter(filter => 
-            ['search', 'director', 'year', 'genre'].includes(filter.type)
+            ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
           );
           
           if (relevantChips.length > 0) {
@@ -806,6 +803,27 @@ export default {
         this.unratedMovies = [];
         this.unratedMoviesError = null;
       }
+    },
+    // Sync this.value with chips for backward compatibility
+    activeFilters: {
+      handler(newFilters, oldFilters) {
+        // Only sync when the search input is empty (no manual typing)
+        if (!this.value || !this.value.trim()) {
+          const relevantChips = newFilters.filter(filter => 
+            ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
+          );
+          
+          if (relevantChips.length > 0) {
+            // Set this.value to the most recent relevant chip value
+            const latestChip = relevantChips[relevantChips.length - 1];
+            this.value = latestChip.value;
+          } else if (oldFilters && oldFilters.length > 0 && newFilters.length === 0) {
+            // All chips removed - clear the value
+            this.value = '';
+          }
+        }
+      },
+      deep: true
     },
     '$store.state.dbLoaded'(newVal) {
       if (newVal) {
@@ -824,6 +842,7 @@ export default {
   },
   mounted () {
     this.value = this.DBSearchValue;
+    this.inputValue = this.value; // Sync visual input with internal value
     window.scroll({
       top: 0,
       left: 0,
@@ -832,6 +851,7 @@ export default {
 
     if (this.$route.query.search) {
       this.value = decodeURIComponent(this.$route.query.search);
+      this.inputValue = this.value; // Sync visual input
     } else {
       this.checkResultsAndFindFilter();
     }
@@ -963,6 +983,7 @@ export default {
     filteredResults () {
       // Step 1: Get base results (from quick links or search)
       let results;
+      
       if (this.activeQuickLinkList === "annual") {
         results = this.bestMovieFromEachYear;
       } else if (this.activeQuickLinkList === "bestPicture") {
@@ -979,7 +1000,11 @@ export default {
         results = this.notOnLetterboxdMovies;
       } else if (this.tags.includes(this.activeQuickLinkList)) {
         results = this.matchingTags;
+      } else if (this.activeFilters.length > 0) {
+        // When we have chips, start with all movies and apply all chip filters
+        results = this.allEntriesWithFlatKeywordsAdded;
       } else if (this.value) {
+        // Use fuzzyFilter only when typing manually (no chips)
         results = this.fuzzyFilter;
       } else {
         results = this.allEntriesWithFlatKeywordsAdded;
@@ -987,11 +1012,15 @@ export default {
       
       // Step 2: Apply additional filters (combinable)
       if (this.activeFilters.length > 0) {
-        results = results.filter(result => {
-          const movie = this.topStructure(result);
-          
-          // Check each active filter (AND logic - all must match)
-          return this.activeFilters.every(filter => {
+        // Apply all active filters
+        const filtersToApply = this.activeFilters;
+        
+        if (filtersToApply.length > 0) {
+          results = results.filter(result => {
+            const movie = this.topStructure(result);
+            
+            // Check each active filter (AND logic - all must match)
+            return filtersToApply.every(filter => {
             switch (filter.type) {
               case 'director':
                 return movie.crew && movie.crew.some(crew => 
@@ -1006,6 +1035,10 @@ export default {
               case 'tag':
                 return result.ratings && result.ratings.some(rating => 
                   rating.tags && rating.tags.some(tag => tag.title === filter.value)
+                );
+              case 'company':
+                return movie.production_companies && movie.production_companies.some(company => 
+                  company.name === filter.value
                 );
               case 'search':
                 // Apply the same fuzzy search logic as the main search with null checks
@@ -1031,8 +1064,9 @@ export default {
               default:
                 return true;
             }
+            });
           });
-        });
+        }
       }
       
       // Step 3: Exclude shorts if showShorts is false
@@ -1071,11 +1105,30 @@ export default {
       })
     },
     groupedByPersonRole () {
-      // Check for search term from input or from chip filters
-      const searchTerm = this.debouncedSearchValue || this.effectiveSearchTerm;
-      if (!searchTerm) return null;
+      // Use debounced search for typing performance, but fall back to effectiveSearchTerm for chips
+      let searchTerm;
+      if (this.debouncedSearchValue) {
+        // User is typing - use debounced value for performance
+        searchTerm = this.debouncedSearchValue;
+      } else if (this.activeFilters.length > 0) {
+        // User has chips active - use effectiveSearchTerm 
+        searchTerm = this.effectiveSearchTerm;
+      } else {
+        return null;
+      }
       
+      if (!searchTerm) return null;
       const normalizedSearchTerm = searchTerm.toLowerCase();
+      
+      // Only show person role sections when:
+      // 1. We have a director chip active, OR
+      // 2. The search term looks like a person's name (has spaces, suggesting first/last name)
+      const hasDirectorChip = this.activeFilters.some(filter => filter.type === 'director');
+      const looksLikePersonName = searchTerm.includes(' ') && searchTerm.split(' ').length >= 2;
+      
+      if (!hasDirectorChip && !looksLikePersonName) {
+        return null;
+      }
       
       // Define role hierarchy (higher number = higher priority)
       const roleRanking = {
@@ -1694,9 +1747,9 @@ export default {
       }
       
       // Look for the most recent chip that could generate "More from" content
-      // Priority: search > director > year > genre
+      // Priority: search > director > year > genre > company > tag
       const relevantChips = this.activeFilters.filter(filter => 
-        ['search', 'director', 'year', 'genre'].includes(filter.type)
+        ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
       );
       
       if (relevantChips.length > 0) {
@@ -1834,6 +1887,8 @@ export default {
       } while (counts[randomValue] <= minimumCount && safetyLimit > 0);
 
       if (randomValue && safetyLimit > 0) {
+        // Clear existing chips first, then add the random search
+        this.clearAllFilters();
         this.updateSearchValue(randomValue);
         this.sortOrder = "bestOrNewestOnTop";
       } else {
@@ -1853,6 +1908,7 @@ export default {
       this.showInsetBrowserModal = true;
     },
     clearValue () {
+      this.inputValue = "";
       this.value = "";
     },
     async fetchLetterboxdData () {
@@ -1883,8 +1939,9 @@ export default {
         .trim();
     },
     updateSearchValue (value) {
-      // If we have a value, convert it directly to a chip instead of putting it in the search bar
+      // If we have a value, clear existing filters first then add the new search
       if (value && value.trim()) {
+        this.clearAllFilters();
         this.addSearchFilter(value);
       } else {
         this.value = value || "";
@@ -2306,6 +2363,30 @@ export default {
     },
     removeFilter(filterId) {
       this.activeFilters = this.activeFilters.filter(f => f.id !== filterId);
+      
+      // Update this.value based on remaining filters
+      if (this.activeFilters.length === 0) {
+        // No filters remain, clear search values
+        this.inputValue = '';
+        this.value = '';
+        this.$store.commit('setDBSearchValue', '');
+      } else {
+        // Update this.value to match the remaining search filter (for backward compatibility)
+        const relevantChips = this.activeFilters.filter(filter => 
+          ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
+        );
+        
+        if (relevantChips.length > 0) {
+          const latestChip = relevantChips[relevantChips.length - 1];
+          this.value = latestChip.value;
+          this.$store.commit('setDBSearchValue', latestChip.value);
+        } else {
+          // No search-type chips remain, clear value
+          this.inputValue = '';
+          this.value = '';
+          this.$store.commit('setDBSearchValue', '');
+        }
+      }
     },
     addDirectorFilter(event) {
       const director = event.target.value;
@@ -2362,6 +2443,9 @@ export default {
     onInput(event) {
       const newVal = event.target.value;
       const oldVal = this.value;
+      
+      // Update both visual input and internal value when typing
+      this.inputValue = newVal;
       this.value = newVal;
       
       // Manually trigger the same logic as the value watcher
@@ -2398,9 +2482,10 @@ export default {
         setTimeout(() => {
           this.addSearchFilter(searchTerm);
           
-          // Clear the search input
-          this.value = '';
-          this.$store.commit('setDBSearchValue', '');
+          // Clear the visual input but keep internal value for backward compatibility
+          this.inputValue = '';
+          this.value = searchTerm; // Keep for existing functionality
+          this.$store.commit('setDBSearchValue', searchTerm);
           
           // Restore text color and remove transition
           if (inputElement) {
@@ -2412,8 +2497,6 @@ export default {
         // Clear the timeout
         clearTimeout(this.searchToChipTimeout);
         this.searchToChipTimeout = null;
-      } else {
-        console.log('No value to convert'); // Debug log
       }
     },
     addSearchFilter(searchTerm) {
@@ -2447,7 +2530,8 @@ export default {
       this.activeFilters = [];
       // Clear quick link filter
       this.activeQuickLinkList = 'title';
-      // Clear search value
+      // Clear search values
+      this.inputValue = '';
       this.value = '';
       this.$store.commit('setDBSearchValue', '');
     },
