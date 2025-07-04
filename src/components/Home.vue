@@ -551,10 +551,8 @@
         <span v-else>More from {{ effectiveSearchTerm }}:</span>
       </h3>
       <div class="d-flex flex-wrap">
-        <div v-for="movie in unratedMovies" :key="movie.id" class="unrated-movie-card" :class="columnsForUnratedMovies">
-          <a v-if="movie.id" :href="'https://www.themoviedb.org/movie/' + movie.id" target="_blank" rel="noopener">
-            <img v-if="movie.poster_path" :src="'https://image.tmdb.org/t/p/w185' + movie.poster_path" :alt="movie.title" class="unrated-movie-poster col-12 p-1"/>
-          </a>
+        <div v-for="movie in unratedMovies" :key="movie.id" class="unrated-movie-card" :class="columnsForUnratedMovies" @click="showMovieInfo(movie)">
+          <img v-if="movie.poster_path" :src="'https://image.tmdb.org/t/p/w185' + movie.poster_path" :alt="movie.title" class="unrated-movie-poster col-12 p-1" style="cursor: pointer;"/>
         </div>
       </div>
     </div>
@@ -613,6 +611,42 @@
           </select>
         </div>
         
+      </div>
+    </div>
+  </div>
+
+  <!-- Movie Info Modal -->
+  <div v-if="showMovieInfoModal" class="modal-overlay" @click="closeMovieInfoModal">
+    <div class="modal-content movie-info-modal" @click.stop>
+      <div class="modal-header">
+        <button class="btn-close btn-close-white" @click="closeMovieInfoModal"></button>
+      </div>
+      <div class="modal-body movie-info-body">
+        <div v-if="selectedMovieInfo" class="movie-info-content">
+          <div class="movie-poster-section">
+            <img 
+              v-if="selectedMovieInfo.poster_path" 
+              :src="`https://image.tmdb.org/t/p/w300${selectedMovieInfo.poster_path}`" 
+              :alt="selectedMovieInfo.title"
+              class="movie-poster"
+            >
+          </div>
+          <div class="movie-details-section">
+            <h6 class="movie-title">{{ selectedMovieInfo.title }}</h6>
+            <p v-if="selectedMovieInfo.release_date" class="movie-year">
+              <strong>Year:</strong> {{ new Date(selectedMovieInfo.release_date).getFullYear() }}
+            </p>
+            <p v-if="selectedMovieInfo.genres && selectedMovieInfo.genres.length" class="movie-genres">
+              <strong>Genres:</strong> {{ selectedMovieInfo.genres.map(g => g.name).join(', ') }}
+            </p>
+            <p v-if="selectedMovieInfo.overview" class="movie-overview">
+              <strong>Synopsis:</strong> {{ selectedMovieInfo.overview }}
+            </p>
+            <p v-if="selectedMovieInfo.vote_average" class="movie-rating">
+              <strong>TMDB Rating:</strong> {{ selectedMovieInfo.vote_average }}/10
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -684,6 +718,8 @@ export default {
       searchToChipTimeout: null, // For auto-converting search to chip
       debouncedSearchValue: '', // Debounced value for fuzzy filtering
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
+      showMovieInfoModal: false, // Show/hide movie info modal
+      selectedMovieInfo: null, // Movie data for the info modal
     }
   },
   watch: {
@@ -1955,6 +1991,16 @@ export default {
     async goToWikipedia () {
       this.insetBrowserUrl = await this.wikiLinkFor(this.value);
       this.showInsetBrowserModal = true;
+    },
+    showMovieInfo(movie) {
+      this.selectedMovieInfo = movie;
+      this.showMovieInfoModal = true;
+      document.body.classList.add('no-scroll');
+    },
+    closeMovieInfoModal() {
+      this.showMovieInfoModal = false;
+      this.selectedMovieInfo = null;
+      document.body.classList.remove('no-scroll');
     },
     clearValue () {
       this.inputValue = "";
@@ -3838,7 +3884,8 @@ export default {
 }
 
 .modal-content {
-  background: white;
+  background: #212529;
+  color: white;
   border-radius: 8px;
   max-width: 90%;
   width: 400px;
@@ -3847,11 +3894,12 @@ export default {
 }
 
 .modal-header {
-  padding: 1rem;
-  border-bottom: 1px solid #dee2e6;
+  padding: 0.5rem 1rem 0 1rem;
+  border-bottom: none;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: flex-end;
+  align-items: flex-start;
+  position: relative;
 }
 
 .modal-header h5 {
@@ -3861,6 +3909,60 @@ export default {
 
 .modal-body {
   padding: 1rem;
+}
+
+
+/* Movie Info Modal Specific Styles */
+.movie-info-modal {
+  max-width: 90%;
+  width: 500px;
+}
+
+.movie-info-content {
+  display: flex;
+  gap: 1rem;
+  flex-direction: column;
+}
+
+@media (min-width: 576px) {
+  .movie-info-content {
+    flex-direction: row;
+  }
+}
+
+.movie-poster-section {
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.movie-poster {
+  max-width: 150px;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.movie-details-section {
+  flex: 1;
+}
+
+.movie-title {
+  margin-bottom: 0.75rem;
+  color: #f8f9fa;
+  font-weight: 600;
+}
+
+.movie-year,
+.movie-genres,
+.movie-overview,
+.movie-rating {
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.movie-overview {
+  margin-bottom: 0.75rem;
 }
 
 .filter-section {
@@ -3907,5 +4009,19 @@ export default {
 
 .chip-transition {
   transition: all 0.2s ease;
+}
+
+/* Unrated Movie Posters */
+.unrated-movie-card {
+  cursor: pointer;
+}
+
+.unrated-movie-poster {
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.unrated-movie-poster:hover {
+  opacity: 0.8;
 }
 </style>
