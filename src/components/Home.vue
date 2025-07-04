@@ -16,9 +16,8 @@
           style="font-size: 0.75rem;"
           @focus="focusOnSearchBar"
           @blur="blurSearchBar"
-          @keydown="onKeyDown"
-          @keyup="onKeyUp"
-          v-model="value"
+          @input="onInput"
+          :value="value"
         >
         <span v-if="value" class="clear-button" @click.prevent="clearValue" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
           <i class="bi bi-x-circle"/>
@@ -527,22 +526,23 @@
     <!-- Unrated movies section -->
     <div v-if="unratedMoviesLoading" class="unrated-movies-loading text-center my-4">
       <span v-if="unratedMoviesSearchType === 'person'">Loading more movies by this person...</span>
-      <span v-else-if="unratedMoviesSearchType === 'year'">Loading popular movies from {{ value }}...</span>
+      <span v-else-if="unratedMoviesSearchType === 'year'">Loading popular movies from {{ effectiveSearchTerm }}...</span>
       <span v-else-if="unratedMoviesSearchType === 'yearRange'">Loading popular movies from this time period...</span>
-      <span v-else-if="unratedMoviesSearchType === 'genre'">Loading popular {{ value.toLowerCase() }} movies...</span>
-      <span v-else-if="unratedMoviesSearchType === 'company'">Loading more movies from {{ value }}...</span>
-      <span v-else-if="unratedMoviesSearchType === 'general'">Loading movies matching "{{ value }}"...</span>
+      <span v-else-if="unratedMoviesSearchType === 'genre'">Loading popular {{ effectiveSearchTerm.toLowerCase() }} movies...</span>
+      <span v-else-if="unratedMoviesSearchType === 'company'">Loading more movies from {{ effectiveSearchTerm }}...</span>
+      <span v-else-if="unratedMoviesSearchType === 'general'">Loading movies matching "{{ effectiveSearchTerm }}"...</span>
       <span v-else>Loading movies...</span>
     </div>
     <div v-else-if="displayableUnratedMovies.length && !unratedMoviesLoading && !unratedMoviesError" class="unrated-movies-grid">
+      <!-- Debug: {{ console.log('More from section conditions:', 'displayable:', displayableUnratedMovies.length, 'loading:', unratedMoviesLoading, 'error:', unratedMoviesError) }} -->
       <h3 class="bg-dark">
-        <span v-if="unratedMoviesSearchType === 'person'">More from {{ value }}:</span>
-        <span v-else-if="unratedMoviesSearchType === 'year'">More from {{ value }}:</span>
+        <span v-if="unratedMoviesSearchType === 'person'">More from {{ effectiveSearchTerm }}:</span>
+        <span v-else-if="unratedMoviesSearchType === 'year'">More from {{ effectiveSearchTerm }}:</span>
         <span v-else-if="unratedMoviesSearchType === 'yearRange'">More from this time period:</span>
-        <span v-else-if="unratedMoviesSearchType === 'genre'">More {{ value.toLowerCase() }} movies:</span>
-        <span v-else-if="unratedMoviesSearchType === 'company'">More from {{ value }}:</span>
-        <span v-else-if="unratedMoviesSearchType === 'general'">Movies matching "{{ value }}":</span>
-        <span v-else>More from {{ value }}:</span>
+        <span v-else-if="unratedMoviesSearchType === 'genre'">More {{ effectiveSearchTerm.toLowerCase() }} movies:</span>
+        <span v-else-if="unratedMoviesSearchType === 'company'">More from {{ effectiveSearchTerm }}:</span>
+        <span v-else-if="unratedMoviesSearchType === 'general'">Movies matching "{{ effectiveSearchTerm }}":</span>
+        <span v-else>More from {{ effectiveSearchTerm }}:</span>
       </h3>
       <div class="d-flex flex-wrap">
         <div v-for="movie in unratedMovies" :key="movie.id" class="unrated-movie-card" :class="columnsForUnratedMovies">
@@ -674,6 +674,7 @@ export default {
       activeFilters: [], // New multi-filter system
       showAddFilterModal: false,
       searchToChipTimeout: null, // For auto-converting search to chip
+      debouncedSearchValue: '', // Debounced value for fuzzy filtering
     }
   },
   watch: {
@@ -688,17 +689,18 @@ export default {
         this.$store.commit('setDBSearchValue', newVal);
       }
       
-      // Clear any existing timeout
+      // Auto-chip conversion setup
       clearTimeout(this.searchToChipTimeout);
-      
-      // If there's a search value, set up auto-conversion to chip
-      // Don't auto-convert if user is typing and results are actively changing
       if (newVal && newVal.trim() && newVal !== oldVal) {
-        console.log('Setting up auto-conversion timeout for:', newVal); // Debug log
+        console.log('Setting up auto-chip timeout for:', newVal);
         this.searchToChipTimeout = setTimeout(() => {
-          console.log('Auto-converting to chip:', this.value); // Debug log - use current value
           this.convertSearchToChip();
-        }, 2000); // 2 second delay
+        }, 2000);
+      }
+      
+      // Update debounced search value for filtering
+      if (this.updateDebouncedSearch) {
+        this.updateDebouncedSearch();
       }
     },
     '$route.query.search'(newVal, oldVal) {
@@ -778,10 +780,28 @@ export default {
     showShorts(newVal) {
       this.$store.dispatch('setDBValue', { path: 'settings/includeShorts', value: newVal });
     },
-    value(newVal, oldVal) {
-      // Fetch unrated movies for any non-empty value
+    effectiveSearchTerm(newVal, oldVal) {
+      // Fetch unrated movies for any non-empty search term (from input or chips)
       if (newVal && newVal !== oldVal) {
-        this.debouncedFetchUnratedMoviesByValue(newVal);
+        // Determine the context for the search
+        let searchContext = null;
+        
+        if (this.value && this.value.trim()) {
+          // Search is from input - use auto-detection
+          searchContext = null;
+        } else {
+          // Search is from chips - find the relevant chip to get the type
+          const relevantChips = this.activeFilters.filter(filter => 
+            ['search', 'director', 'year', 'genre'].includes(filter.type)
+          );
+          
+          if (relevantChips.length > 0) {
+            const chip = relevantChips[relevantChips.length - 1];
+            searchContext = { type: chip.type, value: chip.value };
+          }
+        }
+        
+        this.debouncedFetchUnratedMoviesByValue(newVal, searchContext);
       } else if (!newVal) {
         this.unratedMovies = [];
         this.unratedMoviesError = null;
@@ -792,6 +812,15 @@ export default {
         this.checkResultsAndFindFilter();
       }
     }
+  },
+  created() {
+    // Create debounced function for search filtering
+    this.updateDebouncedSearch = debounce(() => {
+      this.debouncedSearchValue = this.value;
+    }, 300);
+    
+    // Initialize debounced search value
+    this.debouncedSearchValue = this.value || '';
   },
   mounted () {
     this.value = this.DBSearchValue;
@@ -867,7 +896,8 @@ export default {
       return this.$store.state.DBSortValue;
     },
     displayableUnratedMovies () {
-      return this.unratedMovies.filter(movie => movie.id && movie.poster_path);
+      const filtered = this.unratedMovies.filter(movie => movie.id && movie.poster_path);
+      return filtered;
     },
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
@@ -1021,29 +1051,29 @@ export default {
     },
     fuzzyFilter  () {
       return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        if (!this.value) {
+        if (!this.debouncedSearchValue) {
           return true;
         }
 
-        return this.topStructure(media).title.toLowerCase().includes(this.value.toLowerCase()) ||
-        this.topStructure(media).flatKeywords?.includes(this.value.toLowerCase()) ||
-        this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.value.toLowerCase()) ||
+        return this.topStructure(media).title.toLowerCase().includes(this.debouncedSearchValue.toLowerCase()) ||
+        this.topStructure(media).flatKeywords?.includes(this.debouncedSearchValue.toLowerCase()) ||
+        this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.debouncedSearchValue.toLowerCase()) ||
         this.topStructure(media).cast?.flatMap((person) => {
           const names = person.name.toLowerCase().split(' ');
           return [person.name.toLowerCase(), ...names];
-        }).includes(this.value.toLowerCase()) ||
+        }).includes(this.debouncedSearchValue.toLowerCase()) ||
         this.topStructure(media).crew?.flatMap((person) => {
           const names = person.name.toLowerCase().split(' ');
           return [person.name.toLowerCase(), ...names];
-        }).includes(this.value.toLowerCase()) ||
-        this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.value.toLowerCase()) ||
+        }).includes(this.debouncedSearchValue.toLowerCase()) ||
+        this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.debouncedSearchValue.toLowerCase()) ||
         (this.yearFilter.length && this.yearFilter.includes(`${this.getYear(media)}`));
       })
     },
     groupedByPersonRole () {
-      if (!this.value) return null;
+      if (!this.debouncedSearchValue) return null;
       
-      const searchTerm = this.value.toLowerCase();
+      const searchTerm = this.debouncedSearchValue.toLowerCase();
       
       // Define role hierarchy (higher number = higher priority)
       const roleRanking = {
@@ -1651,7 +1681,28 @@ export default {
       return counts;
     },
     resultsAreFiltered () {
-      return Boolean(this.value);
+      return Boolean(this.value) || 
+             this.activeFilters.length > 0 || 
+             this.activeQuickLinkList !== 'title';
+    },
+    effectiveSearchTerm() {
+      // Return the search term to use for "More from" - either from input or from the most recent relevant chip
+      if (this.value && this.value.trim()) {
+        return this.value.trim();
+      }
+      
+      // Look for the most recent chip that could generate "More from" content
+      // Priority: search > director > year > genre
+      const relevantChips = this.activeFilters.filter(filter => 
+        ['search', 'director', 'year', 'genre'].includes(filter.type)
+      );
+      
+      if (relevantChips.length > 0) {
+        const term = relevantChips[relevantChips.length - 1].value;
+        return term;
+      }
+      
+      return '';
     },
     placeholder () {
       if (this.activeQuickLinkList === 'annual') {
@@ -1832,7 +1883,6 @@ export default {
     updateSearchValue (value) {
       // If we have a value, convert it directly to a chip instead of putting it in the search bar
       if (value && value.trim()) {
-        console.log('Converting clicked term to chip:', value);
         this.addSearchFilter(value);
       } else {
         this.value = value || "";
@@ -2307,32 +2357,31 @@ export default {
         this.showAddFilterModal = false;
       }
     },
-    onKeyDown(event) {
-      console.log('onKeyDown triggered, key:', event.key, 'current value:', this.value);
-    },
-    onKeyUp(event) {
-      console.log('onKeyUp triggered, key:', event.key, 'current value:', this.value);
-      // Set up auto-conversion after key is released
-      this.setupAutoConversion();
-    },
-    setupAutoConversion() {
-      // Clear any existing timeout
-      clearTimeout(this.searchToChipTimeout);
+    onInput(event) {
+      const newVal = event.target.value;
+      const oldVal = this.value;
+      this.value = newVal;
       
-      // Wait for next tick to ensure v-model has updated
-      this.$nextTick(() => {
-        // If there's a search value, set up auto-conversion to chip
-        if (this.value && this.value.trim()) {
-          console.log('Setting up auto-conversion timeout for:', this.value);
-          this.searchToChipTimeout = setTimeout(() => {
-            console.log('Auto-converting to chip:', this.value);
-            this.convertSearchToChip();
-          }, 2000); // 2 second delay
-        }
-      });
+      // Manually trigger the same logic as the value watcher
+      // Sync local value changes to store (to prevent cycles, only if they're different)
+      if (this.$store.state.DBSearchValue !== newVal) {
+        this.$store.commit('setDBSearchValue', newVal);
+      }
+      
+      // Auto-chip conversion setup
+      clearTimeout(this.searchToChipTimeout);
+      if (newVal && newVal.trim() && newVal !== oldVal) {
+        this.searchToChipTimeout = setTimeout(() => {
+          this.convertSearchToChip();
+        }, 2000);
+      }
+      
+      // Update debounced search value for filtering
+      if (this.updateDebouncedSearch) {
+        this.updateDebouncedSearch();
+      }
     },
     convertSearchToChip() {
-      console.log('convertSearchToChip called, current value:', this.value); // Debug log
       if (this.value && this.value.trim()) {
         const searchTerm = this.value.trim();
         
@@ -2351,9 +2400,10 @@ export default {
           this.value = '';
           this.$store.commit('setDBSearchValue', '');
           
-          // Restore text color
+          // Restore text color and remove transition
           if (inputElement) {
             inputElement.style.color = ''; // Reset to default
+            inputElement.style.transition = ''; // Remove transition
           }
         }, 150); // Small delay to show the fade effect
         
@@ -2378,7 +2428,6 @@ export default {
       );
       
       if (existingFilter) {
-        console.log('Filter already exists:', filterType.type, filterType.value);
         return; // Don't add duplicate
       }
       
@@ -2390,7 +2439,6 @@ export default {
         display: filterType.display
       });
       
-      console.log('Added filter chip:', filterType.type, filterType.display);
     },
     clearAllFilters() {
       // Clear all active filters
@@ -2400,7 +2448,6 @@ export default {
       // Clear search value
       this.value = '';
       this.$store.commit('setDBSearchValue', '');
-      console.log('Cleared all filters');
     },
     detectFilterType(term) {
       // Check if it's a 4-digit year
@@ -2448,10 +2495,10 @@ export default {
         display: term
       };
     }, // Force reload
-    debouncedFetchUnratedMoviesByValue(value) {
+    debouncedFetchUnratedMoviesByValue(value, searchContext = null) {
       clearTimeout(this.unratedMoviesDebounceTimeout);
       this.unratedMoviesDebounceTimeout = setTimeout(() => {
-        this.fetchUnratedMoviesByValue(value);
+        this.fetchUnratedMoviesByValue(value, searchContext);
       }, 800);
     },
     // Detection methods for different search types
@@ -2632,6 +2679,46 @@ export default {
       
       return allResults;
     },
+    async fetchUnratedMoviesByDirector(directorName) {
+      try {
+        // First, search for the person (director)
+        const personResp = await axios.get('https://api.themoviedb.org/3/search/person', {
+          params: {
+            api_key: process.env.VUE_APP_TMDB_API_KEY,
+            language: 'en-US',
+            query: directorName,
+          }
+        });
+        
+        if (!personResp.data.results || personResp.data.results.length === 0) {
+          return [];
+        }
+
+        // Take the first (most relevant) person result
+        const person = personResp.data.results[0];
+        
+        // Get their movie credits
+        const creditsResp = await axios.get(`https://api.themoviedb.org/3/person/${person.id}/movie_credits`, {
+          params: {
+            api_key: process.env.VUE_APP_TMDB_API_KEY,
+            language: 'en-US',
+          }
+        });
+        
+        // Filter for directing credits only
+        const directorCredits = (creditsResp.data.crew || []).filter(credit => {
+          const job = (credit.job || '').toLowerCase();
+          const relevantJobs = ['director', 'co-director'];
+          return relevantJobs.includes(job);
+        });
+        
+        return directorCredits;
+        
+      } catch (error) {
+        console.error('Error fetching movies by director:', error);
+        return [];
+      }
+    },
     async fetchUnratedMoviesByKeyword(keyword) {
       // Filter out movies newer than 1 year to avoid current buzz
       const maxDate = new Date();
@@ -2744,14 +2831,21 @@ export default {
         return [];
       }
     },
-    async fetchUnratedMoviesByValue(value) {
+    async fetchUnratedMoviesByValue(value, searchContext = null) {
       this.unratedMoviesLoading = true;
       this.unratedMoviesError = null;
       this.unratedMovies = [];
       
       try {
-        // Detect what type of search this is
-        const searchInfo = this.detectSearchType(value);
+        // Use provided search context or detect automatically
+        let searchInfo;
+        if (searchContext) {
+          // Use the context from the chip
+          searchInfo = searchContext;
+        } else {
+          // Detect what type of search this is
+          searchInfo = this.detectSearchType(value);
+        }
         this.unratedMoviesSearchType = searchInfo.type;
         
         let relevantList = [];
@@ -2768,6 +2862,9 @@ export default {
         } else if (searchInfo.type === 'company') {
           // Fetch movies from specific production company
           relevantList = await this.fetchUnratedMoviesByCompany(searchInfo.companyName);
+        } else if (searchInfo.type === 'director') {
+          // Fetch movies from specific director
+          relevantList = await this.fetchUnratedMoviesByDirector(searchInfo.value);
         } else if (searchInfo.type === 'general') {
           // Try keyword/general search first
           relevantList = await this.fetchUnratedMoviesByKeyword(searchInfo.value);
