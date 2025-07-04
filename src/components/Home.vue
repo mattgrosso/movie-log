@@ -513,7 +513,7 @@
             />
           </div>
           <div v-else class="button-wrapper d-flex justify-content-end mb-5">
-            <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">Search TMDB for {{titleCase(value)}}</button>
+            <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">Search TMDB for {{titleCase(effectiveSearchTerm)}}</button>
           </div>
         </div>
         <div v-else class="no-results-but-search-type">
@@ -2547,9 +2547,8 @@ export default {
         // Add the chip immediately and clear the input
         this.addSearchFilter(searchTerm);
         
-        // Clear search values so filtering switches to chip-based
+        // Clear visual input but keep this.value for "More from" and "Search TMDB" functionality
         this.inputValue = '';
-        this.value = '';
         this.debouncedSearchValue = '';
         this.$store.commit('setDBSearchValue', '');
         
