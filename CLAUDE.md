@@ -110,14 +110,37 @@ Firebase Realtime Database with user-specific data:
 
 ## Recent Development Focus
 Based on recent commits and development:
-- **Chip-Based Filtering System**: Complete overhaul of search/filtering with visual chips
+
+### Chip-Based Filtering System & Search UX
+- **Complete Filtering Overhaul**: Visual chip system with auto-conversion after 2-second typing pause
+- **Instant Search + Chip Conversion**: Best of both worlds - real-time filtering while typing, converts to organized chips when pausing
+- **Auto-Clear for Random Chips**: When random search on load creates a chip, clicking input auto-clears it so user can search immediately
+- **Focus-Based Clearing**: Uses `requestAnimationFrame` for responsive auto-clearing without timing delays
+- **Smart Search Value Management**: Preserves search context for "Search TMDB" button and "More from" section functionality
+- **Filter Intersection Logic**: Multiple chips use AND logic for proper database-style filtering
+
+### Random Search Toggle Feature
+- **Complete Toggle Implementation**: User setting to enable/disable automatic random search on page load
+- **Settings Integration**: Toggle in Home.vue settings panel with proper Firebase persistence
+- **Race Condition Fix**: Resolved timing issues where random search triggered before user's setting loaded from database
+- **Null-Safe Logic**: Prevents random search execution until definitive user setting is available
+
+### Header Banner Stabilization
+- **Timer-Based Caching**: Header banner images now cached for 30 seconds to prevent constant swapping
+- **Filtered Results Integration**: Banner still reflects current search/filter context, just updates less frequently
+- **Performance Optimization**: Reduces visual noise while maintaining relevance to user's current view
+
+### Search & Filter Polish
 - **Production Companies Integration**: Full support for filtering by production companies
-- **Filter Intersection Bug Fix**: Fixed critical bug where multiple chips created union instead of intersection
-- **Automated Testing**: Comprehensive test suite (28 tests) for chip functionality to prevent regressions
-- **Random Search Toggle**: Added user setting to enable/disable random search on page load
-- **Settings Consolidation**: Removed duplicate Settings.vue, all settings now in Home.vue inline panel
-- **Performance Optimizations**: Debounced search and filtering optimizations
-- **iOS Input Scaling Fix**: Resolved layout shift issues with mobile zoom prevention
+- **Automated Testing**: Comprehensive test suite (99+ tests) for chip functionality to prevent regressions
+- **Performance Optimizations**: Eliminated competing debounced functions that caused filtering delays
+- **Mobile UX**: Proper focus handling and responsive chip conversion timing
+
+### Recent Bug Fixes
+- **Filter Intersection Bug**: Fixed critical bug where multiple chips created union instead of intersection
+- **Search Value Persistence**: Fixed "Search TMDB" button losing text when chips are created
+- **More From Section**: Fixed inconsistency where "Steven Spielberg" wouldn't show "More from" section but "Francis Ford Coppola" would
+- **Settings Loading Race**: Eliminated race conditions in settings loading that caused random search to trigger incorrectly
 
 ## Environment Variables Required
 - `VUE_APP_GOOGLE_API_KEY` - Firebase/Google API key

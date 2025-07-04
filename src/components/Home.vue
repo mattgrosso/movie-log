@@ -819,19 +819,18 @@ export default {
         // Determine the context for the search
         let searchContext = null;
         
-        if (this.value && this.value.trim()) {
+        // Check if we have active chips - if so, use chip context
+        const relevantChips = this.activeFilters.filter(filter => 
+          ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
+        );
+        
+        if (relevantChips.length > 0) {
+          // Search is from chips - use the chip type and value
+          const chip = relevantChips[relevantChips.length - 1];
+          searchContext = { type: chip.type, value: chip.value };
+        } else if (this.value && this.value.trim()) {
           // Search is from input - use auto-detection
           searchContext = null;
-        } else {
-          // Search is from chips - find the relevant chip to get the type
-          const relevantChips = this.activeFilters.filter(filter => 
-            ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
-          );
-          
-          if (relevantChips.length > 0) {
-            const chip = relevantChips[relevantChips.length - 1];
-            searchContext = { type: chip.type, value: chip.value };
-          }
         }
         
         this.debouncedFetchUnratedMoviesByValue(newVal, searchContext);
@@ -3003,7 +3002,12 @@ export default {
           // Detect what type of search this is
           searchInfo = this.detectSearchType(value);
         }
-        this.unratedMoviesSearchType = searchInfo.type;
+        // Map chip types to display types for "More from" section
+        if (searchInfo.type === 'director') {
+          this.unratedMoviesSearchType = 'person';
+        } else {
+          this.unratedMoviesSearchType = searchInfo.type;
+        }
         
         let relevantList = [];
         
