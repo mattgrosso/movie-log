@@ -1071,9 +1071,11 @@ export default {
       })
     },
     groupedByPersonRole () {
-      if (!this.debouncedSearchValue) return null;
+      // Check for search term from input or from chip filters
+      const searchTerm = this.debouncedSearchValue || this.effectiveSearchTerm;
+      if (!searchTerm) return null;
       
-      const searchTerm = this.debouncedSearchValue.toLowerCase();
+      const normalizedSearchTerm = searchTerm.toLowerCase();
       
       // Define role hierarchy (higher number = higher priority)
       const roleRanking = {
@@ -1100,7 +1102,7 @@ export default {
             const personName = person.name.toLowerCase();
             const personNames = personName.split(' ');
             
-            if (personName.includes(searchTerm) || personNames.some(name => name.includes(searchTerm))) {
+            if (personName.includes(normalizedSearchTerm) || personNames.some(name => name.includes(normalizedSearchTerm))) {
               if (!personRoleData[person.name]) {
                 personRoleData[person.name] = {};
               }
@@ -1118,7 +1120,7 @@ export default {
             const personName = person.name.toLowerCase();
             const personNames = personName.split(' ');
             
-            if (personName.includes(searchTerm) || personNames.some(name => name.includes(searchTerm))) {
+            if (personName.includes(normalizedSearchTerm) || personNames.some(name => name.includes(normalizedSearchTerm))) {
               let roleCategory = 'Crew';
               
               // Categorize crew roles
