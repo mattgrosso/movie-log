@@ -46,19 +46,19 @@
           </span>
         </transition-group>
         
+        <!-- Wikipedia Button - only show when there's exactly one chip -->
+        <button v-if="activeFilters.length === 1" class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center" style="font-size: 0.9rem; text-decoration: none; opacity: 0.7;" @click="goToWikipediaForChip" title="Wikipedia Info">
+          <i class="bi bi-wikipedia" style="font-size: 1rem;"></i>
+        </button>
+        
         <!-- Small Add Filter Button -->
-        <button class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center" style="font-size: 0.7rem; text-decoration: none; opacity: 0.7;" @click="showAddFilterModal = true" title="Add Filter">
-          <i class="bi bi-plus-circle" style="font-size: 0.8rem;"></i>
+        <button class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center ms-1" style="font-size: 0.9rem; text-decoration: none; opacity: 0.7;" @click="showAddFilterModal = true" title="Add Filter">
+          <i class="bi bi-plus-circle" style="font-size: 1rem;"></i>
         </button>
         
         <!-- Small Clear All Button -->
-        <button class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center ms-1" style="font-size: 0.7rem; text-decoration: none; opacity: 0.7;" @click="clearAllFilters" title="Clear All">
-          <i class="bi bi-x-circle" style="font-size: 0.8rem;"></i>
-        </button>
-        
-        <!-- Wikipedia Button - only show when there's exactly one chip -->
-        <button v-if="activeFilters.length === 1" class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center ms-1" style="font-size: 0.7rem; text-decoration: none; opacity: 0.7;" @click="goToWikipediaForChip" title="Wikipedia Info">
-          <i class="bi bi-wikipedia" style="font-size: 0.8rem;"></i>
+        <button class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center ms-1" style="font-size: 0.9rem; text-decoration: none; opacity: 0.7;" @click="clearAllFilters" title="Clear All">
+          <i class="bi bi-x-circle" style="font-size: 1rem;"></i>
         </button>
       </div>
     </div>
@@ -1922,15 +1922,13 @@ export default {
       }
     },
     checkResultsAndFindFilter () {
-      const allowRandomFromURL = !this.$route.query.noRandom;
-      
       // Don't trigger random search until settings are loaded and we have a definitive value
       if (this.enableRandomSearch === null) {
         return; // Settings not loaded yet, wait
       }
       
       const allowRandomFromSetting = this.enableRandomSearch;
-      const allowRandom = allowRandomFromURL && allowRandomFromSetting;
+      const allowRandom = allowRandomFromSetting;
       const hasResults = this.paginatedSortedResults?.length > 0;
       const hasNotCalledFindFilter = !this.hasCalledFindFilter;
 
@@ -1978,12 +1976,12 @@ export default {
         safetyLimit--;
       } while (counts[randomValue] <= minimumCount && safetyLimit > 0);
 
-      if (randomValue && safetyLimit > 0 && this.enableRandomSearch !== false) {
+      if (randomValue && safetyLimit > 0) {
         // Clear existing chips first, then add the random search
         this.clearAllFilters();
         this.updateSearchValue(randomValue, true); // Mark as auto random
         this.sortOrder = "bestOrNewestOnTop";
-      } else if (this.enableRandomSearch !== false) {
+      } else {
         // If we couldn't find a value with minimum count, try with any count > 0
         const allValues = Object.keys(counts || {}).filter(key => counts[key] > 0);
         if (allValues.length > 0) {
@@ -1995,8 +1993,6 @@ export default {
         } else {
           this.clearValue();
         }
-      } else {
-        this.clearValue();
       }
     },
     async wikiLinkFor (searchValue) {

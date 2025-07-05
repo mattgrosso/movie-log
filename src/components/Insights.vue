@@ -705,7 +705,7 @@ export default {
   methods: {
     returnHome () {
       this.$store.commit("setShowHeader", true);
-      this.$router.push({ path: '/', query: { noRandom: 'true', movieDbKey: this.dbEntry?.path?.split("movieLog/")[1] } });
+      this.$router.push({ path: '/', query: { movieDbKey: this.dbEntry?.path?.split("movieLog/")[1] } });
     },
     updateSearchValue (value) {
       // Navigate to Home and set the search value as a query parameter
