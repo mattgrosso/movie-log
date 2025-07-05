@@ -1978,7 +1978,7 @@ export default {
         safetyLimit--;
       } while (counts[randomValue] <= minimumCount && safetyLimit > 0);
 
-      if (randomValue && safetyLimit > 0 && this.enableRandomSearch) {
+      if (randomValue && safetyLimit > 0 && this.enableRandomSearch !== false) {
         // Clear existing chips first, then add the random search
         this.clearAllFilters();
         this.updateSearchValue(randomValue, true); // Mark as auto random
