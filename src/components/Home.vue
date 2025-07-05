@@ -1983,6 +1983,18 @@ export default {
         this.clearAllFilters();
         this.updateSearchValue(randomValue, true); // Mark as auto random
         this.sortOrder = "bestOrNewestOnTop";
+      } else if (this.enableRandomSearch !== false) {
+        // If we couldn't find a value with minimum count, try with any count > 0
+        const allValues = Object.keys(counts || {}).filter(key => counts[key] > 0);
+        if (allValues.length > 0) {
+          const randomIndex = Math.floor(Math.random() * allValues.length);
+          const fallbackValue = allValues[randomIndex];
+          this.clearAllFilters();
+          this.updateSearchValue(fallbackValue, true);
+          this.sortOrder = "bestOrNewestOnTop";
+        } else {
+          this.clearValue();
+        }
       } else {
         this.clearValue();
       }
