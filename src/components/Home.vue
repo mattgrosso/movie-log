@@ -514,6 +514,12 @@
               style="margin-bottom: 2rem;"
             />
           </div>
+          <div v-else-if="noResults" class="button-wrapper d-flex justify-content-end mb-5">
+            <div class="alert alert-warning text-center" style="flex: 1; margin-bottom: 0;">
+              <p class="mb-2">No movies found on TMDB for "{{effectiveSearchTerm}}"</p>
+              <button class="btn btn-sm btn-outline-dark" @click="startNewSearch">Try Another Search</button>
+            </div>
+          </div>
           <div v-else class="button-wrapper d-flex justify-content-end mb-5">
             <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">Search TMDB for {{titleCase(effectiveSearchTerm)}}</button>
           </div>
@@ -523,7 +529,7 @@
           <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
         </div>
       </div>
-      <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValue="clearValue"/>
+      <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValue="clearValue" @startNewSearch="startNewSearch"/>
       <div v-else class="loading-screen d-flex justify-content-center align-items-center my-5">
         <div class="spinner-border text-light" role="status">
           <span class="visually-hidden">Loading...</span>
@@ -723,6 +729,7 @@ export default {
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
       showMovieInfoModal: false, // Show/hide movie info modal
       selectedMovieInfo: null, // Movie data for the info modal
+      noResults: false, // Show no results message for TMDB search
     }
   },
   watch: {
@@ -2277,13 +2284,16 @@ export default {
       return getRating(media);
     },
     async searchTMDB () {
-      if (!this.value) {
+      console.error('1');
+      if (!this.effectiveSearchTerm) {
+        console.error('2');
         return;
       }
-
-      const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
-
+      console.error('3');
+      const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.effectiveSearchTerm}`);
+      console.error('4');
       if (resp.data.results.length) {
+        console.error('5');
         this.newEntrySearch(resp.data.results);
 
         window.scroll({
@@ -2292,21 +2302,39 @@ export default {
           behavior: 'instant'
         });
       } else {
+        console.error('6');
         this.showNoResultsMessage();
       }
+      console.error('7');
     },
     newEntrySearch (results) {
       this.$store.commit('setNewEntrySearchResults', results)
 
-      this.$router.push(`/pick-media/${this.value}`);
+      this.$router.push(`/pick-media/${this.effectiveSearchTerm}`);
     },
     showNoResultsMessage () {
       this.noResults = true;
 
       setTimeout(() => {
         this.noResults = false;
-        this.clearValue();
-      }, 3000);
+      }, 30000); // Extended from 3 seconds to 30 seconds
+    },
+    startNewSearch () {
+      // Clear current search state
+      this.noResults = false;
+      this.value = '';
+      this.inputValue = '';
+      this.activeFilters = [];
+      
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      // Focus the search input after a short delay for smooth scrolling
+      setTimeout(() => {
+        if (this.$refs.searchInput) {
+          this.$refs.searchInput.focus();
+        }
+      }, 500);
     },
     addMoreResults () {
       // Add movies in increments of 48 for stable grid layout

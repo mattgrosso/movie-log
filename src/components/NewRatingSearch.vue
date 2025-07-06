@@ -117,8 +117,9 @@ export default {
       this.noResults = true;
       setTimeout(() => {
         this.noResults = false;
-        this.$emit('clear-search-value');
-      }, 3000);
+        // Reset to a clean state instead of just clearing the search value
+        this.$emit('start-new-search');
+      }, 5000); // Show message for 5 seconds instead of 3
     },
     quickPickEntrySearch (results) {
       this.$store.commit('setNewEntrySearchResults', results);
