@@ -29,7 +29,10 @@
       "Bash(ls:*)",
       "Bash(npm run dev:*)",
       "Bash(npm run:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(yarn serve)",
+      "Bash(yarn build)",
+      "Bash(npx vue-cli-service build:*)"
     ],
     "deny": []
   }

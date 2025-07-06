@@ -716,6 +716,7 @@ export default {
       newOverrideYear: null,
       showOverridePanel: false,
       activeFilters: [], // New multi-filter system
+      activeSearchUnits: [], // Unified search units system
       showAddFilterModal: false,
       searchToChipTimeout: null, // For auto-converting search to chip
       debouncedSearchValue: '', // Debounced value for fuzzy filtering
@@ -865,7 +866,9 @@ export default {
         if (relevantChips.length > 0) {
           // Search is from chips - use the chip type and value
           const chip = relevantChips[relevantChips.length - 1];
-          searchContext = { type: chip.type, value: chip.value };
+          // Normalize 'search' type chips to 'general' to match input behavior
+          const normalizedType = chip.type === 'search' ? 'general' : chip.type;
+          searchContext = { type: normalizedType, value: chip.value };
         } else if (this.value && this.value.trim()) {
           // Search is from input - use auto-detection
           searchContext = null;
@@ -1079,32 +1082,33 @@ export default {
         results = this.notOnLetterboxdMovies;
       } else if (this.tags.includes(this.activeQuickLinkList)) {
         results = this.matchingTags;
-      } else if (this.activeFilters.length > 0) {
-        // When we have chips, start with all movies and apply all chip filters
-        results = this.allEntriesWithFlatKeywordsAdded;
       } else if (this.value) {
-        // Use fuzzyFilter only when typing manually (no chips)
         results = this.fuzzyFilter;
       } else {
         results = this.allEntriesWithFlatKeywordsAdded;
       }
       
-      // Step 2: Apply additional filters (combinable)
+      // Step 2: Apply additional filters (chip system)
       if (this.activeFilters.length > 0) {
-        // Apply all active filters
-        const filtersToApply = this.activeFilters;
-        
-        if (filtersToApply.length > 0) {
-          results = results.filter(result => {
-            const movie = this.topStructure(result);
-            
-            // Check each active filter (AND logic - all must match)
-            return filtersToApply.every(filter => {
+        results = results.filter(result => {
+          const movie = this.topStructure(result);
+          
+          // Check each active filter (AND logic - all must match)
+          return this.activeFilters.every(filter => {
             switch (filter.type) {
               case 'director':
                 return movie.crew && movie.crew.some(crew => 
                   crew.job === 'Director' && crew.name === filter.value
                 );
+              case 'person':
+                // Check both cast and crew for the person
+                const inCast = movie.cast && movie.cast.some(cast => 
+                  cast.name === filter.value
+                );
+                const inCrew = movie.crew && movie.crew.some(crew => 
+                  crew.name === filter.value
+                );
+                return inCast || inCrew;
               case 'year':
                 return new Date(movie.release_date).getFullYear().toString() === filter.value;
               case 'genre':
@@ -1120,32 +1124,25 @@ export default {
                   company.name === filter.value
                 );
               case 'search':
-                // Apply the same fuzzy search logic as the main search with null checks
+                // Use EXACTLY the same logic as fuzzyFilter for consistency
                 const searchValue = filter.value.toLowerCase();
                 return (movie.title && movie.title.toLowerCase().includes(searchValue)) ||
                   (movie.flatKeywords && movie.flatKeywords.includes(searchValue)) ||
                   (movie.genres && movie.genres.find((genre) => genre.name && genre.name.toLowerCase() === searchValue)) ||
                   (movie.cast && movie.cast.flatMap((person) => {
-                    const names = [];
-                    if (person.name) names.push(person.name.toLowerCase());
-                    if (person.character) names.push(person.character.toLowerCase());
-                    return names;
-                  }).some((name) => name.includes(searchValue))) ||
+                    const names = person.name ? person.name.toLowerCase().split(' ') : [];
+                    return person.name ? [person.name.toLowerCase(), ...names] : [];
+                  }).includes(searchValue)) ||
                   (movie.crew && movie.crew.flatMap((person) => {
-                    const names = [];
-                    if (person.name) names.push(person.name.toLowerCase());
-                    if (person.job) names.push(person.job.toLowerCase());
-                    return names;
-                  }).some((name) => name.includes(searchValue))) ||
-                  (movie.production_companies && movie.production_companies.some((company) => 
-                    company.name && company.name.toLowerCase().includes(searchValue)
-                  ));
+                    const names = person.name ? person.name.toLowerCase().split(' ') : [];
+                    return person.name ? [person.name.toLowerCase(), ...names] : [];
+                  }).includes(searchValue)) ||
+                  (movie.production_companies && movie.production_companies.map((company) => company.name ? company.name.toLowerCase() : '').includes(searchValue));
               default:
                 return true;
             }
-            });
           });
-        }
+        });
       }
       
       // Step 3: Exclude shorts if showShorts is false
@@ -1825,20 +1822,19 @@ export default {
              this.activeQuickLinkList !== 'title';
     },
     effectiveSearchTerm() {
-      // Return the search term to use for "More from" - either from input or from the most recent relevant chip
+      // Return the search term to use for "More from" and "Search TMDB" - either from input or from chips
       if (this.value && this.value.trim()) {
         return this.value.trim();
       }
       
-      // Look for the most recent chip that could generate "More from" content
-      // Priority: search > director > year > genre > company > tag
-      const relevantChips = this.activeFilters.filter(filter => 
-        ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
-      );
+      // Look for chips with priority: search > director > year > genre > company > tag
+      const typePriority = ['search', 'director', 'year', 'genre', 'company', 'tag'];
       
-      if (relevantChips.length > 0) {
-        const term = relevantChips[relevantChips.length - 1].value;
-        return term;
+      for (const type of typePriority) {
+        const chipOfType = this.activeFilters.find(filter => filter.type === type);
+        if (chipOfType) {
+          return chipOfType.value;
+        }
       }
       
       return '';
@@ -2591,6 +2587,20 @@ export default {
         this.showAddFilterModal = false;
       }
     },
+    addCompanyFilter(event) {
+      const company = event.target.value;
+      if (company) {
+        this.activeFilters.push({
+          id: `company-${Date.now()}`,
+          type: 'company',
+          value: company,
+          display: company
+        });
+        this.hasAutoRandomChip = false; // Reset auto chip flag
+        event.target.value = '';
+        this.showAddFilterModal = false;
+      }
+    },
     onInput(event) {
       const newVal = event.target.value;
       const oldVal = this.value;
@@ -2950,9 +2960,9 @@ export default {
       }
     },
     async fetchUnratedMoviesByKeyword(keyword) {
-      // Filter out movies newer than 1 year to avoid current buzz
+      // Filter out movies newer than 6 months to avoid current buzz, but be more lenient
       const maxDate = new Date();
-      maxDate.setFullYear(maxDate.getFullYear() - 1);
+      maxDate.setMonth(maxDate.getMonth() - 6);
       const maxYear = maxDate.getFullYear();
       
       // First try movie search
@@ -2968,7 +2978,8 @@ export default {
       
       let allResults = (movieSearchResp.data.results || []).filter(movie => {
         const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : 0;
-        return releaseYear <= maxYear && movie.vote_count >= 30; // Filter by age and vote count
+        // More lenient filtering: allow more recent movies and lower vote counts for niche keywords
+        return releaseYear <= maxYear + 1 && movie.vote_count >= 10; // Relaxed criteria
       });
       
       // If we don't get enough results, try keyword search
@@ -2994,8 +3005,8 @@ export default {
                 with_keywords: keywordId,
                 sort_by: 'popularity.desc',
                 page: 1,
-                'vote_count.gte': 50, // Higher threshold for keyword searches
-                'primary_release_date.lte': maxDateString, // No movies newer than 1 year
+                'vote_count.gte': 20, // Lower threshold for keyword searches
+                'primary_release_date.lte': maxDateString, // No movies newer than 6 months
                 include_adult: false, // Explicitly exclude adult content
               }
             });
@@ -3144,7 +3155,10 @@ export default {
                 
                 // Merge person results with keyword results, giving priority to keyword results
                 relevantList = [...relevantList, ...personRelevantList];
-                this.unratedMoviesSearchType = 'person'; // Update search type for display
+                // Only update search type if we found significant person results and no keyword results
+                if (relevantList.length < 5 && personRelevantList.length > 0) {
+                  this.unratedMoviesSearchType = 'person'; // Update search type for display
+                }
               }
             } catch (personError) {
               console.log('Person search fallback failed:', personError);
