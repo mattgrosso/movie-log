@@ -2842,6 +2842,7 @@ export default {
     // Detection methods for different search types
     detectSearchType(value) {
       const trimmed = value.trim();
+      const lowerValue = trimmed.toLowerCase();
       
       // Year patterns
       if (/^\d{4}$/.test(trimmed)) {
@@ -2884,27 +2885,116 @@ export default {
         return { type: 'yearRange', startYear: decade, endYear: decade + 9 };
       }
       
-      // Common genre patterns
-      const commonGenres = {
-        'action': 28, 'adventure': 12, 'animation': 16, 'comedy': 35, 
-        'crime': 80, 'documentary': 99, 'drama': 18, 'family': 10751,
-        'fantasy': 14, 'history': 36, 'horror': 27, 'music': 10402,
-        'mystery': 9648, 'romance': 10749, 'sci-fi': 878, 'science fiction': 878,
-        'thriller': 53, 'war': 10752, 'western': 37
-      };
+      // Priority 1: Exact matches (case insensitive)
       
-      const lowerValue = trimmed.toLowerCase();
-      if (commonGenres[lowerValue]) {
-        return { type: 'genre', genreId: commonGenres[lowerValue], value: trimmed };
+      // Check for exact director match
+      const allDirectors = this.allDirectors || [];
+      const exactDirectorMatch = allDirectors.find(director => 
+        director.name && director.name.toLowerCase() === lowerValue
+      );
+      if (exactDirectorMatch) {
+        return { type: 'person', value: trimmed };
       }
       
-      // Check if search term matches a known production company
+      // Check for exact genre match
+      const allGenres = this.allGenres || [];
+      const exactGenreMatch = allGenres.find(genre => 
+        genre.name && genre.name.toLowerCase() === lowerValue
+      );
+      if (exactGenreMatch) {
+        // Find the genre ID for TMDB API
+        const commonGenres = {
+          'action': 28, 'adventure': 12, 'animation': 16, 'comedy': 35, 
+          'crime': 80, 'documentary': 99, 'drama': 18, 'family': 10751,
+          'fantasy': 14, 'history': 36, 'horror': 27, 'music': 10402,
+          'mystery': 9648, 'romance': 10749, 'sci-fi': 878, 'science fiction': 878,
+          'thriller': 53, 'war': 10752, 'western': 37
+        };
+        const genreId = commonGenres[exactGenreMatch.name.toLowerCase()] || 18; // Default to drama
+        return { type: 'genre', genreId: genreId, value: trimmed };
+      }
+      
+      // Check for exact keyword match
+      const allKeywords = Object.keys(this.countedKeywords || {});
+      const exactKeywordMatch = allKeywords.find(keyword => 
+        keyword && keyword.toLowerCase() === lowerValue
+      );
+      if (exactKeywordMatch) {
+        return { type: 'keyword', value: trimmed };
+      }
+      
+      // Check for exact cast match
+      const allCast = [];
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const cast = this.topStructure(result).cast || [];
+        cast.forEach(person => {
+          if (person.name && !allCast.find(c => c.name === person.name)) {
+            allCast.push(person);
+          }
+        });
+      });
+      
+      const exactCastMatch = allCast.find(person => 
+        person.name && person.name.toLowerCase() === lowerValue
+      );
+      if (exactCastMatch) {
+        return { type: 'person', value: trimmed };
+      }
+      
+      // Check for exact production company match
       const matchingCompany = this.findMatchingProductionCompany(lowerValue);
       if (matchingCompany) {
         return { type: 'company', companyName: matchingCompany.name, value: trimmed };
       }
       
-      // For everything else, try both person and keyword search
+      // Priority 2: Partial matches
+      
+      // Check for partial director match
+      const partialDirectorMatch = allDirectors.find(director => 
+        director.name && (director.name.toLowerCase().includes(lowerValue) ||
+        lowerValue.includes(director.name.toLowerCase()))
+      );
+      if (partialDirectorMatch) {
+        return { type: 'person', value: trimmed };
+      }
+      
+      // Check for partial genre match
+      const partialGenreMatch = allGenres.find(genre => 
+        genre.name && (genre.name.toLowerCase().includes(lowerValue) ||
+        lowerValue.includes(genre.name.toLowerCase()))
+      );
+      if (partialGenreMatch) {
+        // Find the genre ID for TMDB API
+        const commonGenres = {
+          'action': 28, 'adventure': 12, 'animation': 16, 'comedy': 35, 
+          'crime': 80, 'documentary': 99, 'drama': 18, 'family': 10751,
+          'fantasy': 14, 'history': 36, 'horror': 27, 'music': 10402,
+          'mystery': 9648, 'romance': 10749, 'sci-fi': 878, 'science fiction': 878,
+          'thriller': 53, 'war': 10752, 'western': 37
+        };
+        const genreId = commonGenres[partialGenreMatch.name.toLowerCase()] || 18; // Default to drama
+        return { type: 'genre', genreId: genreId, value: trimmed };
+      }
+      
+      // Check for partial keyword match
+      const partialKeywordMatch = allKeywords.find(keyword => 
+        keyword && (keyword.toLowerCase().includes(lowerValue) ||
+        lowerValue.includes(keyword.toLowerCase()))
+      );
+      if (partialKeywordMatch) {
+        return { type: 'keyword', value: trimmed };
+      }
+      
+      // Check for partial cast match
+      const partialCastMatch = allCast.find(person => 
+        person.name && (person.name.toLowerCase().includes(lowerValue) ||
+        lowerValue.includes(person.name.toLowerCase()))
+      );
+      if (partialCastMatch) {
+        return { type: 'person', value: trimmed };
+      }
+      
+      // For everything else, use general search
       return { type: 'general', value: trimmed };
     },
     findMatchingProductionCompany(searchTerm) {
@@ -2913,11 +3003,26 @@ export default {
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
         const companies = this.topStructure(result).production_companies || [];
         companies.forEach(company => {
-          if (company.name && !allCompanies.find(c => c.id === company.id)) {
+          if (company.name && !allCompanies.find(c => 
+            (c.id && company.id && c.id === company.id) || 
+            (!c.id && !company.id && c.name === company.name)
+          )) {
             allCompanies.push(company);
           }
         });
       });
+      
+      
+      // Normalize search term for better matching
+      const normalizeCompanyName = (name) => {
+        return name.toLowerCase()
+          .replace(/\b(inc|corp|corporation|ltd|limited|pictures|films|entertainment|studios|productions)\b/g, '')
+          .replace(/[^a-z0-9\s]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      const normalizedSearchTerm = normalizeCompanyName(searchTerm);
       
       // Find company by exact name match (case insensitive)
       const exactMatch = allCompanies.find(company => 
@@ -2925,12 +3030,27 @@ export default {
       );
       if (exactMatch) return exactMatch;
       
+      // Find company by normalized exact match
+      const normalizedExactMatch = allCompanies.find(company => 
+        normalizeCompanyName(company.name) === normalizedSearchTerm
+      );
+      if (normalizedExactMatch) return normalizedExactMatch;
+      
       // Find company by partial name match (case insensitive)
       const partialMatch = allCompanies.find(company => 
         company.name.toLowerCase().includes(searchTerm) ||
         searchTerm.includes(company.name.toLowerCase())
       );
-      return partialMatch;
+      if (partialMatch) return partialMatch;
+      
+      // Find company by normalized partial match
+      const normalizedPartialMatch = allCompanies.find(company => {
+        const normalizedCompanyName = normalizeCompanyName(company.name);
+        return normalizedCompanyName.includes(normalizedSearchTerm) ||
+               normalizedSearchTerm.includes(normalizedCompanyName);
+      });
+      
+      return normalizedPartialMatch;
     },
     async fetchUnratedMoviesByYear(year) {
       // Fetch multiple pages to get more variety
@@ -3209,6 +3329,14 @@ export default {
         } else if (searchInfo.type === 'director') {
           // Fetch movies from specific director
           relevantList = await this.fetchUnratedMoviesByDirector(searchInfo.value);
+        } else if (searchInfo.type === 'person') {
+          // Fetch movies from specific person (actor/director)
+          relevantList = await this.fetchUnratedMoviesByDirector(searchInfo.value);
+          this.unratedMoviesSearchType = 'person';
+        } else if (searchInfo.type === 'keyword') {
+          // Fetch movies from specific keyword
+          relevantList = await this.fetchUnratedMoviesByKeyword(searchInfo.value);
+          this.unratedMoviesSearchType = 'keyword';
         } else if (searchInfo.type === 'general') {
           // Try keyword/general search first
           relevantList = await this.fetchUnratedMoviesByKeyword(searchInfo.value);

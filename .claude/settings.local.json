@@ -34,7 +34,8 @@
       "Bash(yarn build)",
       "Bash(npx vue-cli-service build:*)",
       "Bash(git stash:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(NODE_ENV=development npm test -- --run src/test/more-from-section-comprehensive.test.js -t \"production company\")"
     ],
     "deny": []
   }
