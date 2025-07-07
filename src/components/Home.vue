@@ -4,7 +4,6 @@
       <div class="input-group mb-1 col-12 md-col-6">
         <input
           class="form-control"
-          :class="{'has-content': value}"
           ref="searchInput"
           type="text"
           autocapitalize="none"
@@ -3476,11 +3475,6 @@ export default {
       input#search {
         border-bottom-right-radius: .375rem;
         border-top-right-radius: .375rem;
-
-        &.has-content {
-          padding-left: 36px;
-          padding-right: 36px;
-        }
 
         &.font-size-increased {
           margin: -6px 0 0;
