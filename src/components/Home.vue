@@ -383,7 +383,7 @@
                     placeholder="username"
                     @blur="saveLetterboxdUsername"
                   >
-                  <button v-if="letterboxdUsername" class="btn btn-outline-info" @click="testLetterboxdScraping" :disabled="scrapingTest.loading" title="Refresh Letterboxd Data">
+                  <button v-if="letterboxdUsername" class="btn btn-outline-info" @click="scrapeLetterboxd" :disabled="scrapingTest.loading" title="Refresh Letterboxd Data">
                     <span v-if="scrapingTest.loading">
                       <span class="spinner-border spinner-border-sm" role="status"></span>
                     </span>
@@ -2337,16 +2337,11 @@ export default {
       return getRating(media);
     },
     async searchTMDB () {
-      console.error('1');
       if (!this.effectiveSearchTerm) {
-        console.error('2');
         return;
       }
-      console.error('3');
       const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.effectiveSearchTerm}`);
-      console.error('4');
       if (resp.data.results.length) {
-        console.error('5');
         this.newEntrySearch(resp.data.results);
 
         window.scroll({
@@ -2355,10 +2350,8 @@ export default {
           behavior: 'instant'
         });
       } else {
-        console.error('6');
         this.showNoResultsMessage();
       }
-      console.error('7');
     },
     newEntrySearch (results) {
       this.$store.commit('setNewEntrySearchResults', results)
@@ -2497,7 +2490,7 @@ export default {
     },
     // Test function for Letterboxd URL generation (call from browser console)
     // Test function for Letterboxd scraping (UI button)
-    async testLetterboxdScraping() {
+    async scrapeLetterboxd() {
       const username = this.letterboxdUsername || this.$store.state.settings.letterboxdUsername;
       
       if (!username) {
@@ -2521,11 +2514,10 @@ export default {
         this.scrapingTest.loading = false;
         
         // Also log to console for debugging
-        console.log('🎬 Letterboxd test results:', result);
+        console.log('🎬 Letterboxd scraping results:', result);
         
       } catch (error) {
-        console.error('❌ Letterboxd test failed:', error);
-        this.scrapingTest.error = error.message || 'Test failed';
+        this.scrapingTest.error = error.message || 'Scraping failed';
         this.scrapingTest.success = false;
         this.scrapingTest.loading = false;
       }
