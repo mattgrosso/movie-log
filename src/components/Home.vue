@@ -732,17 +732,7 @@ export default {
     }
   },
   watch: {
-    DBSearchValue (newVal) {
-      if (newVal || newVal === "") {
-        this.value = newVal;
-      }
-    },
-    value (newVal, oldVal) {
-      // Sync local value changes to store (to prevent cycles, only if they're different)
-      if (this.$store.state.DBSearchValue !== newVal) {
-        this.$store.commit('setDBSearchValue', newVal);
-      }
-      
+    value (newVal, oldVal) {      
       // Auto-chip conversion setup - use same delay as onInput
       clearTimeout(this.searchToChipTimeout);
       if (newVal && newVal.trim() && newVal !== oldVal) {
@@ -756,10 +746,6 @@ export default {
       if (newVal !== oldVal && typeof newVal === 'string') {
         const decodedValue = decodeURIComponent(newVal);
         this.value = decodedValue;
-        // Only commit if different from current store value to prevent cycles
-        if (this.$store.state.DBSearchValue !== decodedValue) {
-          this.$store.commit('setDBSearchValue', decodedValue);
-        }
       }
     },
     DBSortValue (newVal) {
@@ -923,7 +909,6 @@ export default {
     this.debouncedSearchValue = this.value || '';
   },
   mounted () {
-    this.value = this.DBSearchValue;
     this.inputValue = this.value; // Sync visual input with internal value
     window.scroll({
       top: 0,
@@ -971,7 +956,6 @@ export default {
     this.sortOrder = "bestOrNewestOnTop";
     this.setSortValue(null);
     this.value = "";
-    this.$store.commit("setDBSearchValue", this.value);
     this.$store.commit("setDBSortValue", this.sortValue);
     
     // Clean up timeouts
@@ -996,9 +980,6 @@ export default {
       } else {
         return [];
       }
-    },
-    DBSearchValue () {
-      return this.$store.state.DBSearchValue;
     },
     DBSortValue () {
       return this.$store.state.DBSortValue;
@@ -2069,6 +2050,9 @@ export default {
     },
     async wikiLinkFor (searchValue) {
       const wiki = await axios.get(`https://en.wikipedia.org/w/api.php?action=query&origin=*&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=%27${searchValue}%27`);
+      if (!wiki || !wiki.data || !wiki.data.query || !wiki.data.query.pages) {
+        return '';
+      }
       const pages = wiki.data.query.pages;
       const pagesArray = Object.keys(pages).map((page) => pages[page]);
       const bestMatch = minBy(pagesArray, (page) => page.index);
@@ -2467,7 +2451,6 @@ export default {
           event.target.value = '';
           this.inputValue = '';
           this.value = '';
-          this.$store.commit('setDBSearchValue', '');
           // Ensure focus remains on the input
           event.target.focus();
         });
@@ -2609,7 +2592,6 @@ export default {
         // No filters remain, clear search values
         this.inputValue = '';
         this.value = '';
-        this.$store.commit('setDBSearchValue', '');
       } else {
         // Update this.value to match the remaining search filter (for backward compatibility)
         const relevantChips = this.activeFilters.filter(filter => 
@@ -2619,12 +2601,10 @@ export default {
         if (relevantChips.length > 0) {
           const latestChip = relevantChips[relevantChips.length - 1];
           this.value = latestChip.value;
-          this.$store.commit('setDBSearchValue', latestChip.value);
         } else {
           // No search-type chips remain, clear value
           this.inputValue = '';
           this.value = '';
-          this.$store.commit('setDBSearchValue', '');
         }
       }
     },
@@ -2705,7 +2685,6 @@ export default {
       // Update both visual input and value immediately for instant filtering
       this.inputValue = newVal;
       this.value = newVal;
-      this.$store.commit('setDBSearchValue', newVal);
       
       // Update search value immediately for instant filtering
       this.debouncedSearchValue = newVal;
@@ -2730,7 +2709,6 @@ export default {
         // Clear visual input but keep this.value for "More from" and "Search TMDB" functionality
         this.inputValue = '';
         this.debouncedSearchValue = '';
-        this.$store.commit('setDBSearchValue', '');
         
         // Clear and blur the input
         const inputElement = this.$refs.searchInput;
@@ -2784,7 +2762,6 @@ export default {
       // Clear search values
       this.inputValue = '';
       this.value = '';
-      this.$store.commit('setDBSearchValue', '');
     },
     detectFilterType(term) {
       // Check if it's a 4-digit year

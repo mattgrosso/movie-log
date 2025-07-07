@@ -3,11 +3,10 @@ import { mount } from '@vue/test-utils'
 import Home from '@/components/Home.vue'
 
 // Mock external dependencies
-vi.mock('axios', () => ({
-  default: {
-    get: vi.fn(() => Promise.resolve({ data: { query: { pages: {} } } }))
-  }
-}))
+vi.mock('axios', async () => {
+  const { mockAxiosModule } = await import('../utils/mockAxios.js')
+  return mockAxiosModule()
+})
 vi.mock('lodash/uniq', () => ({ default: vi.fn(arr => [...new Set(arr)]) }))
 vi.mock('lodash/minBy', () => ({ default: vi.fn() }))
 vi.mock('lodash/debounce', () => ({ default: vi.fn(fn => fn) }))

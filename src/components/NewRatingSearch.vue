@@ -105,6 +105,10 @@ export default {
         return;
       }
       const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
+      if (!resp || !resp.data || !resp.data.results) {
+        this.showNoResultsMessage();
+        return;
+      }
       if (quickPick && resp.data.results.length) {
         this.quickPickEntrySearch(resp.data.results);
       } else if (resp.data.results.length) {

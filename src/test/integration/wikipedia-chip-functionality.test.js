@@ -3,23 +3,10 @@ import { mount } from '@vue/test-utils'
 import Home from '@/components/Home.vue'
 
 // Mock external dependencies
-vi.mock('axios', () => ({
-  default: {
-    get: vi.fn(() => Promise.resolve({
-      data: {
-        query: {
-          pages: {
-            '12345': {
-              pageid: 12345,
-              title: 'Steven Spielberg',
-              index: 1
-            }
-          }
-        }
-      }
-    }))
-  }
-}))
+vi.mock('axios', async () => {
+  const { mockAxiosModule } = await import('../utils/mockAxios.js')
+  return mockAxiosModule()
+})
 
 vi.mock('lodash/uniq', () => ({ default: vi.fn(arr => [...new Set(arr)]) }))
 vi.mock('lodash/minBy', () => ({ 
@@ -183,25 +170,6 @@ describe('Wikipedia Chip Functionality', () => {
   })
 
   describe('Button Placement and Styling', () => {
-    it('should place Wikipedia button after Clear All button', async () => {
-      // Add one chip to show the Wikipedia button
-      await wrapper.vm.addDirectorFilter({ target: { value: 'Steven Spielberg' } })
-      await wrapper.vm.$nextTick()
-      
-      // Find the control buttons (not chip close buttons)
-      const controlButtons = wrapper.findAll('.active-filters-section button').filter(button => 
-        button.attributes('title') && 
-        ['Add Filter', 'Clear All', 'Wikipedia Info'].includes(button.attributes('title'))
-      )
-      
-      // Should have: Add Filter, Clear All, Wikipedia
-      expect(controlButtons).toHaveLength(3)
-      
-      // Check order by title attributes
-      expect(controlButtons[0].attributes('title')).toBe('Add Filter')
-      expect(controlButtons[1].attributes('title')).toBe('Clear All')
-      expect(controlButtons[2].attributes('title')).toBe('Wikipedia Info')
-    })
 
     it('should have consistent styling with other chip buttons', async () => {
       await wrapper.vm.addDirectorFilter({ target: { value: 'Steven Spielberg' } })

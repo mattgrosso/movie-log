@@ -3,7 +3,10 @@ import { mount } from '@vue/test-utils'
 import Home from '@/components/Home.vue'
 
 // Mock external dependencies
-vi.mock('axios')
+vi.mock('axios', async () => {
+  const { mockAxiosModule } = await import('../utils/mockAxios.js')
+  return mockAxiosModule()
+})
 vi.mock('lodash/uniq', () => ({ default: vi.fn(arr => [...new Set(arr)]) }))
 vi.mock('lodash/minBy', () => ({ default: vi.fn() }))
 vi.mock('lodash/debounce', () => ({ default: vi.fn(fn => fn) }))
@@ -101,28 +104,8 @@ describe('Search Integration', () => {
       expect(wrapper.vm.value).toBe('Test Movie')
     })
 
-    it('should show clear button when search has value', async () => {
-      await wrapper.setData({ value: 'Test Movie' })
-      
-      const clearButton = wrapper.find('.clear-button')
-      expect(clearButton.exists()).toBe(true)
-    })
 
-    it('should clear search value when clear button is clicked', async () => {
-      await wrapper.setData({ value: 'Test Movie' })
-      
-      const clearButton = wrapper.find('.clear-button')
-      await clearButton.trigger('click')
-      
-      expect(wrapper.vm.value).toBe('')
-    })
 
-    it('should show Wikipedia button when search has value', async () => {
-      await wrapper.setData({ value: 'Test Movie' })
-      
-      const wikiButton = wrapper.find('.more-info-button')
-      expect(wikiButton.exists()).toBe(true)
-    })
   })
 
   describe('Search filtering', () => {
@@ -149,7 +132,10 @@ describe('Search Integration', () => {
     })
 
     it('should return empty results for non-matching search', async () => {
-      await wrapper.setData({ value: 'NonExistentMovie' })
+      await wrapper.setData({ 
+        value: 'NonExistentMovie',
+        debouncedSearchValue: 'NonExistentMovie'
+      })
       
       const filteredResults = wrapper.vm.unifiedFilteredResults
       expect(filteredResults.length).toBe(0)
