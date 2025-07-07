@@ -1070,7 +1070,14 @@ export default {
       return hasTiedResults && noTieBreakYetToday;
     },
     filteredResults () {
-      // Step 1: Get base results (from quick links or search)
+      // MIGRATED: Now uses the unified filtering system
+      return this.unifiedFilteredResults;
+    },
+    unifiedFilteredResults() {
+      // UNIFIED FILTERING: Complete replacement for filteredResults
+      // Handles quick links, input text, chips, and shorts filtering in one place
+      
+      // Step 1: Get base results (from quick links or all entries)
       let results;
       
       if (this.activeQuickLinkList === "annual") {
@@ -1089,65 +1096,19 @@ export default {
         results = this.notOnLetterboxdMovies;
       } else if (this.tags.includes(this.activeQuickLinkList)) {
         results = this.matchingTags;
-      } else if (this.value) {
-        results = this.fuzzyFilter;
       } else {
+        // No quick link active - start with all entries
         results = this.allEntriesWithFlatKeywordsAdded;
       }
       
-      // Step 2: Apply additional filters (chip system)
-      if (this.activeFilters.length > 0) {
+      // Step 2: Apply all filters from allActiveFilters (input + chips)
+      if (this.allActiveFilters.length > 0) {
         results = results.filter(result => {
           const movie = this.topStructure(result);
           
-          // Check each active filter (AND logic - all must match)
-          return this.activeFilters.every(filter => {
-            switch (filter.type) {
-              case 'director':
-                return movie.crew && movie.crew.some(crew => 
-                  crew.job === 'Director' && crew.name === filter.value
-                );
-              case 'person':
-                // Check both cast and crew for the person
-                const inCast = movie.cast && movie.cast.some(cast => 
-                  cast.name === filter.value
-                );
-                const inCrew = movie.crew && movie.crew.some(crew => 
-                  crew.name === filter.value
-                );
-                return inCast || inCrew;
-              case 'year':
-                return new Date(movie.release_date).getFullYear().toString() === filter.value;
-              case 'genre':
-                return movie.genres && movie.genres.some(genre => 
-                  genre.name === filter.value
-                );
-              case 'tag':
-                return result.ratings && result.ratings.some(rating => 
-                  rating.tags && rating.tags.some(tag => tag.title === filter.value)
-                );
-              case 'company':
-                return movie.production_companies && movie.production_companies.some(company => 
-                  company.name === filter.value
-                );
-              case 'search':
-                // Use EXACTLY the same logic as fuzzyFilter for consistency
-                const searchValue = filter.value.toLowerCase();
-                return (movie.title && movie.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(searchValue)) ||
-                  (movie.flatKeywords && movie.flatKeywords.includes(searchValue)) ||
-                  (movie.genres && movie.genres.find((genre) => genre.name && genre.name.toLowerCase() === searchValue)) ||
-                  (movie.cast && movie.cast.flatMap((person) => {
-                    const names = person.name ? person.name.toLowerCase().split(' ') : [];
-                    return person.name ? [person.name.toLowerCase(), ...names] : [];
-                  }).includes(searchValue)) ||
-                  (movie.crew && movie.crew.flatMap((person) => {
-                    const names = person.name ? person.name.toLowerCase().split(' ') : [];
-                    return person.name ? [person.name.toLowerCase(), ...names] : [];
-                  }).includes(searchValue)) ||
-                  (movie.production_companies && movie.production_companies.map((company) => company.name ? company.name.toLowerCase() : '').includes(searchValue));
-              default:
-                return true;
-            }
+          // ALL filters must match (AND logic)
+          return this.allActiveFilters.every(filter => {
+            return this.applyFilter(movie, result, filter);
           });
         });
       }
@@ -1165,27 +1126,6 @@ export default {
       }
       
       return results;
-    },
-    fuzzyFilter  () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((media) => {
-        if (!this.debouncedSearchValue) {
-          return true;
-        }
-
-        return this.topStructure(media).title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(this.debouncedSearchValue.toLowerCase()) ||
-        this.topStructure(media).flatKeywords?.includes(this.debouncedSearchValue.toLowerCase()) ||
-        this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.debouncedSearchValue.toLowerCase()) ||
-        this.topStructure(media).cast?.flatMap((person) => {
-          const names = person.name.toLowerCase().split(' ');
-          return [person.name.toLowerCase(), ...names];
-        }).includes(this.debouncedSearchValue.toLowerCase()) ||
-        this.topStructure(media).crew?.flatMap((person) => {
-          const names = person.name.toLowerCase().split(' ');
-          return [person.name.toLowerCase(), ...names];
-        }).includes(this.debouncedSearchValue.toLowerCase()) ||
-        this.topStructure(media).production_companies?.map((company) => company.name.toLowerCase()).includes(this.debouncedSearchValue.toLowerCase()) ||
-        (this.yearFilter.length && this.yearFilter.includes(`${this.getYear(media)}`));
-      })
     },
     groupedByPersonRole () {
       // Use debounced search for typing performance, but fall back to effectiveSearchTerm for chips
@@ -1229,7 +1169,7 @@ export default {
       const personRoleData = {};
       const usedMovies = new Set(); // Track movies that have been assigned to higher priority roles
       
-      this.fuzzyFilter.forEach((media) => {
+      this.unifiedFilteredResults.forEach((media) => {
         const movieData = this.topStructure(media);
         
         // Check cast
@@ -1828,6 +1768,32 @@ export default {
              this.activeFilters.length > 0 || 
              this.activeQuickLinkList !== 'title';
     },
+    allActiveFilters() {
+      // UNIFIED FILTERING: Combine input text and chips into single array
+      // This is the bridge between old dual system and new unified approach
+      const filters = [];
+      
+      // Add input text as a special "input" search filter if it exists
+      if (this.debouncedSearchValue && this.debouncedSearchValue.trim()) {
+        filters.push({
+          id: '__input__',
+          type: 'search',
+          value: this.debouncedSearchValue.trim(),
+          display: this.debouncedSearchValue.trim(),
+          source: 'input'
+        });
+      }
+      
+      // Add all existing chips
+      this.activeFilters.forEach(chip => {
+        filters.push({
+          ...chip,
+          source: 'chip'
+        });
+      });
+      
+      return filters;
+    },
     effectiveSearchTerm() {
       // Return the search term to use for "More from" and "Search TMDB" - either from input or from chips
       if (this.value && this.value.trim()) {
@@ -1909,6 +1875,110 @@ export default {
     }
   },
   methods: {
+    applyFilter(movie, result, filter) {
+      // UNIFIED FILTERING: Apply a single filter to a movie
+      // This consolidates all filtering logic from fuzzyFilter + activeFilters
+      switch (filter.type) {
+        case 'search':
+          // Handle search filters (from input or search chips)
+          const searchValue = filter.value.toLowerCase();
+          return (movie.title && movie.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(searchValue)) ||
+            (movie.flatKeywords && movie.flatKeywords.includes(searchValue)) ||
+            (movie.genres && movie.genres.some((genre) => genre.name && genre.name.toLowerCase() === searchValue)) ||
+            (movie.cast && movie.cast.flatMap((person) => {
+              const names = person.name ? person.name.toLowerCase().split(' ') : [];
+              return person.name ? [person.name.toLowerCase(), ...names] : [];
+            }).some(name => name.includes(searchValue))) ||
+            (movie.crew && movie.crew.flatMap((person) => {
+              const names = person.name ? person.name.toLowerCase().split(' ') : [];
+              return person.name ? [person.name.toLowerCase(), ...names] : [];
+            }).some(name => name.includes(searchValue))) ||
+            (movie.production_companies && movie.production_companies.some((company) => company.name && company.name.toLowerCase().includes(searchValue))) ||
+            (this.getYearFiltersForSearch(filter.value).includes(movie.release_date ? movie.release_date.substring(0, 4) : ''));
+        
+        case 'director':
+          return movie.crew && movie.crew.some(crew => 
+            crew.job === 'Director' && crew.name === filter.value
+          );
+        
+        case 'person':
+          // Check both cast and crew for the person
+          const inCast = movie.cast && movie.cast.some(cast => 
+            cast.name === filter.value
+          );
+          const inCrew = movie.crew && movie.crew.some(crew => 
+            crew.name === filter.value
+          );
+          return inCast || inCrew;
+        
+        case 'year':
+          // Extract year directly from release_date string to avoid timezone issues
+          const movieYear = movie.release_date ? movie.release_date.substring(0, 4) : '';
+          return movieYear === filter.value;
+        
+        case 'genre':
+          return movie.genres && movie.genres.some(genre => 
+            genre.name === filter.value
+          );
+        
+        case 'tag':
+          return result.ratings && result.ratings.some(rating => 
+            rating.tags && rating.tags.some(tag => tag.title === filter.value)
+          );
+        
+        case 'company':
+          return movie.production_companies && movie.production_companies.some(company => 
+            company.name === filter.value
+          );
+        
+        default:
+          return true;
+      }
+    },
+    getYearFiltersForSearch(searchValue) {
+      // Extract year filtering logic from yearFilter computed property
+      // This allows search filters to also handle year-based searches
+      let parsedYears = [];
+      
+      if (searchValue.length === 2 && parseInt(searchValue) < new Date().getFullYear() - 2000) {
+        parsedYears = [`20${searchValue}`];
+      } else if (searchValue.length === 2) {
+        parsedYears = [`19${searchValue}`];
+      } else if (searchValue.includes("-") && searchValue.includes(" ")) {
+        parsedYears = searchValue.split(" ").join("").split("-");
+        for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
+          parsedYears.push(i.toString());
+        }
+      } else if (searchValue.includes("-")) {
+        parsedYears = searchValue.split("-");
+        for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
+          parsedYears.push(i.toString());
+        }
+      } else if (searchValue.length === 5 && searchValue.includes("s")) {
+        parsedYears = searchValue.split("s").filter((x) => x);
+        const decade = parseInt(parsedYears[0]);
+        for (let i = decade; i < decade + 10; i++) {
+          parsedYears.push(i.toString());
+        }
+      } else if (searchValue.length === 3 && searchValue.includes("s")) {
+        parsedYears = searchValue.split("s").filter((x) => x);
+        if (parseInt(searchValue) < new Date().getFullYear() - 2000) {
+          const decade = parseInt(`20${parsedYears[0]}`);
+          for (let i = decade; i < decade + 10; i++) {
+            parsedYears.push(i.toString());
+          }
+        } else {
+          const decade = parseInt(`19${parsedYears[0]}`);
+          for (let i = decade; i < decade + 10; i++) {
+            parsedYears.push(i.toString());
+          }
+        }
+      } else if (searchValue.length === 4 && parseInt(searchValue)) {
+        parsedYears = [searchValue];
+      }
+      
+      return parsedYears;
+    },
     toggleSettingsPanel () {
       this.showSettingsPanel = !this.showSettingsPanel;
     },

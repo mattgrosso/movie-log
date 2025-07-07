@@ -129,7 +129,7 @@ describe('Search Integration', () => {
     it('should filter results based on title', async () => {
       await wrapper.setData({ value: 'Test' })
       
-      const filteredResults = wrapper.vm.fuzzyFilter
+      const filteredResults = wrapper.vm.unifiedFilteredResults
       expect(filteredResults.length).toBeGreaterThan(0)
       expect(filteredResults[0].movie.title).toContain('Test')
     })
@@ -137,21 +137,21 @@ describe('Search Integration', () => {
     it('should filter results based on genre', async () => {
       await wrapper.setData({ value: 'action' })
       
-      const filteredResults = wrapper.vm.fuzzyFilter
+      const filteredResults = wrapper.vm.unifiedFilteredResults
       expect(filteredResults.length).toBeGreaterThan(0)
     })
 
     it('should filter results based on cast member', async () => {
       await wrapper.setData({ value: 'Test Actor' })
       
-      const filteredResults = wrapper.vm.fuzzyFilter
+      const filteredResults = wrapper.vm.unifiedFilteredResults
       expect(filteredResults.length).toBeGreaterThan(0)
     })
 
     it('should return empty results for non-matching search', async () => {
       await wrapper.setData({ value: 'NonExistentMovie' })
       
-      const filteredResults = wrapper.vm.fuzzyFilter
+      const filteredResults = wrapper.vm.unifiedFilteredResults
       expect(filteredResults.length).toBe(0)
     })
   })

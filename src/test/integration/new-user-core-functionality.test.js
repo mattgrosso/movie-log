@@ -92,7 +92,7 @@ describe('New User Core Functionality', () => {
       wrapper.vm.value = 'Star Wars'
       await wrapper.vm.$nextTick()
       
-      expect(() => wrapper.vm.fuzzyFilter).not.toThrow()
+      expect(() => wrapper.vm.unifiedFilteredResults).not.toThrow()
       expect(wrapper.vm.filteredResults).toEqual([])
     })
 
@@ -347,7 +347,7 @@ describe('New User Core Functionality', () => {
         wrapper.vm.value = input
         await wrapper.vm.$nextTick()
         
-        expect(() => wrapper.vm.fuzzyFilter).not.toThrow()
+        expect(() => wrapper.vm.unifiedFilteredResults).not.toThrow()
         expect(() => wrapper.vm.convertSearchToChip()).not.toThrow()
       }
     })

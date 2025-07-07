@@ -152,7 +152,7 @@ describe('New User Edge Cases', () => {
       wrapper.vm.value = 'test search'
       await wrapper.vm.$nextTick()
       
-      expect(() => wrapper.vm.fuzzyFilter).not.toThrow()
+      expect(() => wrapper.vm.unifiedFilteredResults).not.toThrow()
     })
   })
 
@@ -294,7 +294,7 @@ describe('New User Edge Cases', () => {
       wrapper.vm.value = veryLongSearch
       await wrapper.vm.$nextTick()
       
-      expect(() => wrapper.vm.fuzzyFilter).not.toThrow()
+      expect(() => wrapper.vm.unifiedFilteredResults).not.toThrow()
       expect(() => wrapper.vm.convertSearchToChip()).not.toThrow()
     })
 
@@ -303,7 +303,7 @@ describe('New User Edge Cases', () => {
       wrapper.vm.value = specialChars
       await wrapper.vm.$nextTick()
       
-      expect(() => wrapper.vm.fuzzyFilter).not.toThrow()
+      expect(() => wrapper.vm.unifiedFilteredResults).not.toThrow()
       expect(() => wrapper.vm.convertSearchToChip()).not.toThrow()
     })
 
@@ -312,7 +312,7 @@ describe('New User Edge Cases', () => {
       wrapper.vm.value = unicodeSearch
       await wrapper.vm.$nextTick()
       
-      expect(() => wrapper.vm.fuzzyFilter).not.toThrow()
+      expect(() => wrapper.vm.unifiedFilteredResults).not.toThrow()
       expect(() => wrapper.vm.convertSearchToChip()).not.toThrow()
     })
 

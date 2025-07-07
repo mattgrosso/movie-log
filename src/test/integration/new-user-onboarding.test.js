@@ -97,7 +97,7 @@ describe('New User Onboarding', () => {
       expect(wrapper.vm.paginatedSortedResults).toEqual([])
       
       // Should not crash when searching with empty database
-      expect(() => wrapper.vm.fuzzyFilter).not.toThrow()
+      expect(() => wrapper.vm.unifiedFilteredResults).not.toThrow()
     })
 
     it('should handle chip operations with empty database', async () => {

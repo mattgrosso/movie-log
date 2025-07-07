@@ -45,8 +45,8 @@ describe('Search Units Consistency', () => {
         return { type: 'search', value: term, display: term }
       },
 
-      // Simulate the fuzzyFilter computed property (input-based filtering)
-      get fuzzyFilter() {
+      // Simulate the unifiedFilteredResults computed property (unified filtering)
+      get unifiedFilteredResults() {
         if (!this.debouncedSearchValue) return this.allEntriesWithFlatKeywordsAdded
         
         const searchValue = this.debouncedSearchValue.toLowerCase()
@@ -95,7 +95,7 @@ describe('Search Units Consistency', () => {
   it('should produce identical results for "Heat" search in input vs chip', () => {
     // Test input-based filtering
     mockComponent.debouncedSearchValue = 'Heat'
-    const inputResults = mockComponent.fuzzyFilter
+    const inputResults = mockComponent.unifiedFilteredResults
     
     // Test chip-based filtering
     mockComponent.debouncedSearchValue = ''
@@ -121,7 +121,7 @@ describe('Search Units Consistency', () => {
     searchTerms.forEach(term => {
       // Input filtering
       mockComponent.debouncedSearchValue = term
-      const inputResults = mockComponent.fuzzyFilter
+      const inputResults = mockComponent.unifiedFilteredResults
       
       // Chip filtering
       mockComponent.debouncedSearchValue = ''
