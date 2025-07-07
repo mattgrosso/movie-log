@@ -1133,7 +1133,7 @@ export default {
               case 'search':
                 // Use EXACTLY the same logic as fuzzyFilter for consistency
                 const searchValue = filter.value.toLowerCase();
-                return (movie.title && movie.title.toLowerCase().includes(searchValue)) ||
+                return (movie.title && movie.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(searchValue)) ||
                   (movie.flatKeywords && movie.flatKeywords.includes(searchValue)) ||
                   (movie.genres && movie.genres.find((genre) => genre.name && genre.name.toLowerCase() === searchValue)) ||
                   (movie.cast && movie.cast.flatMap((person) => {
@@ -1172,7 +1172,7 @@ export default {
           return true;
         }
 
-        return this.topStructure(media).title.toLowerCase().includes(this.debouncedSearchValue.toLowerCase()) ||
+        return this.topStructure(media).title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(this.debouncedSearchValue.toLowerCase()) ||
         this.topStructure(media).flatKeywords?.includes(this.debouncedSearchValue.toLowerCase()) ||
         this.topStructure(media).genres?.find((genre) => genre.name.toLowerCase() === this.debouncedSearchValue.toLowerCase()) ||
         this.topStructure(media).cast?.flatMap((person) => {

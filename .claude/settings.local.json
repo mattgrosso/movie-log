@@ -33,7 +33,8 @@
       "Bash(yarn serve)",
       "Bash(yarn build)",
       "Bash(npx vue-cli-service build:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }
