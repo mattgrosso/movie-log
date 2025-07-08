@@ -721,7 +721,6 @@ export default {
       newOverrideYear: null,
       showOverridePanel: false,
       activeFilters: [], // New multi-filter system
-      activeSearchUnits: [], // Unified search units system
       showAddFilterModal: false,
       debouncedSearchValue: '', // Debounced value for fuzzy filtering
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
@@ -731,13 +730,6 @@ export default {
     }
   },
   watch: {
-    '$route.query.search'(newVal, oldVal) {
-      // When the route query changes, update the value
-      if (newVal !== oldVal && typeof newVal === 'string') {
-        const decodedValue = decodeURIComponent(newVal);
-        this.value = decodedValue;
-      }
-    },
     DBSortValue (newVal) {
       if (newVal) {
         this.setSortValue(newVal)
@@ -876,10 +868,9 @@ export default {
     }, 300);
     
     // Initialize debounced search value
-    this.debouncedSearchValue = this.value || '';
+    this.debouncedSearchValue = '';
   },
   mounted () {
-    this.inputValue = this.value; // Sync visual input with internal value
     window.scroll({
       top: 0,
       left: 0,
@@ -887,8 +878,7 @@ export default {
     });
 
     if (this.$route.query.search) {
-      this.value = decodeURIComponent(this.$route.query.search);
-      this.inputValue = this.value; // Sync visual input
+      this.inputValue = decodeURIComponent(this.$route.query.search);
     } else {
       this.checkResultsAndFindFilter();
     }
@@ -925,7 +915,6 @@ export default {
   beforeRouteLeave () {
     this.sortOrder = "bestOrNewestOnTop";
     this.setSortValue(null);
-    this.value = "";
     this.$store.commit("setDBSortValue", this.sortValue);
   },
   computed: {
@@ -1213,60 +1202,6 @@ export default {
       
       const hasMultipleRoles = Object.values(personCounts).some(count => count > 1);
       return hasMultipleRoles ? finalGroups : null;
-    },
-    yearFilter () {
-      let parsedYears = [];
-
-      if (this.value.length === 2 && parseInt(this.value) < new Date().getFullYear() - 2000) {
-        parsedYears = [`20${this.value}`];
-      } else if (this.value.length === 2) {
-        parsedYears = [`19${this.value}`];
-      } else if (this.value.includes("-") && this.value.includes(" ")) {
-        parsedYears = this.value.split(" ").join("").split("-");
-
-        for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
-          parsedYears.push(i.toString());
-        }
-      } else if (this.value.includes("-")) {
-        parsedYears = this.value.split("-");
-
-        for (let i = parseInt(parsedYears[0]) + 1; i < parseInt(parsedYears[1]); i++) {
-          parsedYears.push(i.toString());
-        }
-      } else if (this.value.length === 5 && this.value.includes("s")) {
-        parsedYears = this.value.split("s").filter((x) => x);
-
-        parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
-      } else if (this.value.length === 3 && this.value.includes("s")) {
-        parsedYears = this.value.split("s").filter((x) => x);
-
-        if (parseInt(this.value) < new Date().getFullYear() - 2000) {
-          parsedYears[0] = `20${parsedYears[0]}`;
-        } else {
-          parsedYears[0] = `19${parsedYears[0]}`;
-        }
-        parsedYears.push(`${parseInt(parsedYears[0]) + 1}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 2}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 3}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 4}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 5}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 6}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 7}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 8}`);
-        parsedYears.push(`${parseInt(parsedYears[0]) + 9}`);
-      } else if (this.value.length === 4 && parseInt(this.value)) {
-        parsedYears = [this.value];
-      }
-
-      return parsedYears;
     },
     bestMovieFromEachYear () {
       const years = {};
@@ -1695,9 +1630,7 @@ export default {
       return counts;
     },
     resultsAreFiltered () {
-      return Boolean(this.value) || 
-             this.activeFilters.length > 0 || 
-             this.activeQuickLinkList !== 'title';
+      return this.activeFilters.length > 0 || this.activeQuickLinkList !== 'title';
     },
     allActiveFilters() {
       // UNIFIED FILTERING: Combine input text and chips into single array
@@ -1726,11 +1659,6 @@ export default {
       return filters;
     },
     effectiveSearchTerm() {
-      // Return the search term to use for "More from" and "Search TMDB" - either from input or from chips
-      if (this.value && this.value.trim()) {
-        return this.value.trim();
-      }
-      
       // Look for chips with priority: search > director > year > genre > company > tag
       const typePriority = ['search', 'director', 'year', 'genre', 'company', 'tag'];
       
@@ -2026,10 +1954,6 @@ export default {
 
       return `https://en.m.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
     },
-    async goToWikipedia () {
-      this.insetBrowserUrl = await this.wikiLinkFor(this.value);
-      this.showInsetBrowserModal = true;
-    },
     async goToWikipediaForChip () {
       if (this.activeFilters.length === 1) {
         const chip = this.activeFilters[0];
@@ -2049,7 +1973,6 @@ export default {
     },
     clearValue () {
       this.inputValue = "";
-      this.value = "";
     },
     async fetchLetterboxdData () {
       if (!this.$store.state.settings.letterboxdConnected || !this.$store.state.settings.letterboxdUsername) {
@@ -2084,7 +2007,7 @@ export default {
         this.clearAllFilters();
         this.addSearchFilter(value, isAutoRandom);
       } else {
-        this.value = value || "";
+        this.clearValue();
       }
 
       window.scroll({
@@ -2335,7 +2258,6 @@ export default {
     startNewSearch () {
       // Clear current search state
       this.noResults = false;
-      this.value = '';
       this.inputValue = '';
       this.activeFilters = [];
       
@@ -2361,30 +2283,7 @@ export default {
       });
     },
     async shareResults () {
-      this.sharing = true;
-
-      const shareObject = {
-        results: this.sortedResults,
-        sortOrder: this.sortOrder,
-        sortValue: this.sortValue,
-        value: this.value
-      };
-
-      const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
-
-      const dbEntry = {
-        path: `sharedDBSearches/${dbKey}`,
-        value: shareObject
-      }
-
-      this.$store.dispatch('setDBValue', dbEntry);
-
-      this.sharing = false;
-      this.value = "";
-
-      this.$nextTick(() => {
-        this.$router.push(`/share/${this.$store.state.databaseTopKey}/${dbKey}`);
-      });
+      console.error('Sharing is disabled for now');
     },
     titleCase (input) {
       const string = input.toString();
@@ -2407,7 +2306,6 @@ export default {
           // Clear the input value so user can start fresh
           event.target.value = '';
           this.inputValue = '';
-          this.value = '';
           // Ensure focus remains on the input
           event.target.focus();
         });
@@ -2540,25 +2438,13 @@ export default {
       
       this.activeFilters = this.activeFilters.filter(f => f.id !== filterId);
       
-      // Update this.value based on remaining filters
       if (this.activeFilters.length === 0) {
         // No filters remain, clear search values
         this.inputValue = '';
-        this.value = '';
       } else {
-        // Update this.value to match the remaining search filter (for backward compatibility)
         const relevantChips = this.activeFilters.filter(filter => 
           ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
         );
-        
-        if (relevantChips.length > 0) {
-          const latestChip = relevantChips[relevantChips.length - 1];
-          this.value = latestChip.value;
-        } else {
-          // No search-type chips remain, clear value
-          this.inputValue = '';
-          this.value = '';
-        }
       }
     },
     addDirectorFilter(event) {
@@ -2633,25 +2519,21 @@ export default {
     },
     onInput(event) {
       const newVal = event.target.value;
-      const oldVal = this.value;
       
       // Update both visual input and value immediately for instant filtering
       this.inputValue = newVal;
-      this.value = newVal;
       
       // Update search value immediately for instant filtering
       this.debouncedSearchValue = newVal;
     },
     convertSearchToChip() {
-      // Use inputValue since this.value isn't updated on every keystroke anymore
-      const currentSearch = this.inputValue || this.value;
+      const currentSearch = this.inputValue;
       if (currentSearch && currentSearch.trim()) {
         const searchTerm = currentSearch.trim();
         
         // Add the chip immediately and clear the input
         this.addSearchFilter(searchTerm);
         
-        // Clear visual input but keep this.value for "More from" and "Search TMDB" functionality
         this.inputValue = '';
         this.debouncedSearchValue = '';
         
@@ -2702,7 +2584,6 @@ export default {
       this.activeQuickLinkList = 'title';
       // Clear search values
       this.inputValue = '';
-      this.value = '';
     },
     debouncedFetchUnratedMoviesByValue(value, searchContext = null) {
       clearTimeout(this.unratedMoviesDebounceTimeout);
