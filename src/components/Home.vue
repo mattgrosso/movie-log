@@ -723,7 +723,6 @@ export default {
       activeFilters: [], // New multi-filter system
       activeSearchUnits: [], // Unified search units system
       showAddFilterModal: false,
-      searchToChipTimeout: null, // For auto-converting search to chip
       debouncedSearchValue: '', // Debounced value for fuzzy filtering
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
       showMovieInfoModal: false, // Show/hide movie info modal
@@ -732,15 +731,6 @@ export default {
     }
   },
   watch: {
-    value (newVal, oldVal) {      
-      // Auto-chip conversion setup - use same delay as onInput
-      clearTimeout(this.searchToChipTimeout);
-      if (newVal && newVal.trim() && newVal !== oldVal) {
-        this.searchToChipTimeout = setTimeout(() => {
-          this.convertSearchToChip();
-        }, 2000);
-      }
-    },
     '$route.query.search'(newVal, oldVal) {
       // When the route query changes, update the value
       if (newVal !== oldVal && typeof newVal === 'string') {
@@ -957,13 +947,6 @@ export default {
     this.setSortValue(null);
     this.value = "";
     this.$store.commit("setDBSortValue", this.sortValue);
-    
-    // Clean up timeouts
-    clearTimeout(this.searchToChipTimeout);
-  },
-  beforeUnmount() {
-    // Clean up timeouts when component is destroyed
-    clearTimeout(this.searchToChipTimeout);
   },
   computed: {
     isMatt () {
@@ -2456,6 +2439,7 @@ export default {
       }
     },
     blurSearchBar (event) {
+      this.convertSearchToChip();
       event.target.classList.remove('font-size-increased');
       event.target.style.fontSize = '12px';
     },
@@ -2512,10 +2496,6 @@ export default {
         this.scrapingTest.result = result;
         this.scrapingTest.success = result && result.films && result.films.length > 0;
         this.scrapingTest.loading = false;
-        
-        // Also log to console for debugging
-        console.log('🎬 Letterboxd scraping results:', result);
-        
       } catch (error) {
         this.scrapingTest.error = error.message || 'Scraping failed';
         this.scrapingTest.success = false;
@@ -2680,14 +2660,6 @@ export default {
       
       // Update search value immediately for instant filtering
       this.debouncedSearchValue = newVal;
-      
-      // Auto-chip conversion setup
-      clearTimeout(this.searchToChipTimeout);
-      if (newVal && newVal.trim() && newVal !== oldVal) {
-        this.searchToChipTimeout = setTimeout(() => {
-          this.convertSearchToChip();
-        }, 2000); // Comfortable delay for users to finish typing
-      }
     },
     convertSearchToChip() {
       // Use inputValue since this.value isn't updated on every keystroke anymore
@@ -2707,10 +2679,6 @@ export default {
         if (inputElement) {
           inputElement.blur();
         } // Small delay to show the fade effect
-        
-        // Clear the timeout
-        clearTimeout(this.searchToChipTimeout);
-        this.searchToChipTimeout = null;
       }
     },
     addSearchFilter(searchTerm, isAutoRandom = false) {
