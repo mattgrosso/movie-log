@@ -93,14 +93,14 @@
               <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage">
                 <span v-if="showAverage">
                   <span class="average-label">(avg)</span>
-                  <span class="average-value">{{averageRating(filteredResults)}}</span>
+                  <span class="average-value">{{averageRating(unifiedFilteredResults)}}</span>
                 </span>
                 <span v-else-if="showViewCount">
                   <span class="average-label">(views)</span>
-                  <span class="average-value">{{viewsCount(filteredResults)}}</span>
+                  <span class="average-value">{{viewsCount(unifiedFilteredResults)}}</span>
                 </span>
-                <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{filteredResults.length}}</span>
-                <span v-else>{{filteredResults.length}}</span>
+                <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{unifiedFilteredResults.length}}</span>
+                <span v-else>{{unifiedFilteredResults.length}}</span>
               </button>
               <button class="results-actions-button btn btn-info" type="button" @click="goToInsights">
                 <i class="bi bi-lightbulb"/>
@@ -547,7 +547,6 @@
       <span v-else>Loading movies...</span>
     </div>
     <div v-else-if="displayableUnratedMovies.length && !unratedMoviesLoading && !unratedMoviesError && paginatedSortedResults.length" class="unrated-movies-grid">
-      <!-- Debug: {{ console.log('More from section conditions:', 'displayable:', displayableUnratedMovies.length, 'loading:', unratedMoviesLoading, 'error:', unratedMoviesError) }} -->
       <h3 class="bg-dark">
         <span v-if="unratedMoviesSearchType === 'person'">More from {{ effectiveSearchTerm }}:</span>
         <span v-else-if="unratedMoviesSearchType === 'year'">More from {{ effectiveSearchTerm }}:</span>
@@ -683,6 +682,7 @@ export default {
     return {
       sortOrder: "bestOrNewestOnTop",
       value: "",
+      cachedCastMembers: new Set(), // Cache for fast cast member lookups
       inputValue: "", // Visual input value (can be different from internal value)
       activeQuickLinkList: "title",
       sortValue: null,
@@ -748,9 +748,11 @@ export default {
         this.checkResultsAndFindFilter();
       }
     },
-    filteredResults: debounce(function (newVal) {
-      this.$store.commit("setFilteredResults", newVal);
-    }, 500),
+    allEntriesWithFlatKeywordsAdded (newVal, oldval) {
+      if (!oldval.length && newVal.length) {
+        this.buildCastMembersCache();
+      }
+    },
     '$store.state.settings.normalizationTweak': {
       handler(newVal) {
         if (typeof newVal === 'number') {
@@ -844,14 +846,13 @@ export default {
         const relevantChips = this.activeFilters.filter(filter => 
           ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
         );
-        
         if (relevantChips.length > 0) {
           // Search is from chips - use the chip type and value
           const chip = relevantChips[relevantChips.length - 1];
           // Normalize 'search' type chips to 'general' to match input behavior
           const normalizedType = chip.type === 'search' ? 'general' : chip.type;
           searchContext = { type: normalizedType, value: chip.value };
-        } else if (this.value && this.value.trim()) {
+        } else {
           // Search is from input - use auto-detection
           searchContext = null;
         }
@@ -861,27 +862,6 @@ export default {
         this.unratedMovies = [];
         this.unratedMoviesError = null;
       }
-    },
-    // Sync this.value with chips for backward compatibility
-    activeFilters: {
-      handler(newFilters, oldFilters) {
-        // Only sync when the search input is empty (no manual typing)
-        if (!this.value || !this.value.trim()) {
-          const relevantChips = newFilters.filter(filter => 
-            ['search', 'director', 'year', 'genre', 'company', 'tag'].includes(filter.type)
-          );
-          
-          if (relevantChips.length > 0) {
-            // Set this.value to the most recent relevant chip value
-            const latestChip = relevantChips[relevantChips.length - 1];
-            this.value = latestChip.value;
-          } else if (oldFilters && oldFilters.length > 0 && newFilters.length === 0) {
-            // All chips removed - clear the value
-            this.value = '';
-          }
-        }
-      },
-      deep: true
     },
     '$store.state.dbLoaded'(newVal) {
       if (newVal) {
@@ -1032,14 +1012,7 @@ export default {
 
       return hasTiedResults && noTieBreakYetToday;
     },
-    filteredResults () {
-      // MIGRATED: Now uses the unified filtering system
-      return this.unifiedFilteredResults;
-    },
     unifiedFilteredResults() {
-      // UNIFIED FILTERING: Complete replacement for filteredResults
-      // Handles quick links, input text, chips, and shorts filtering in one place
-      
       // Step 1: Get base results (from quick links or all entries)
       let results;
       
@@ -1079,12 +1052,8 @@ export default {
       // Step 3: Exclude shorts if showShorts is false
       if (!this.showShorts) {
         results = results.filter(result => {
-          // Try to detect short films by genre or runtime
-          const genres = result.movie.genres || [];
-          const isShortGenre = Array.isArray(genres) ? genres.some(g => g.name && g.name.toLowerCase() === 'short') : false;
-          const runtime = result.movie.runtime;
-          // Consider as short if genre is 'Short' or runtime <= 40 min
-          return !isShortGenre && !(runtime && runtime <= 40);
+          // Consider as short if runtime <= 40 min
+          return !(result.movie.runtime && result.movie.runtime <= 40);
         });
       }
       
@@ -1475,7 +1444,7 @@ export default {
       return Boolean(this.paginatedSortedResults.length) || this.activeQuickLinkList !== "title";
     },
     sortedResults () {
-      return [...this.filteredResults].sort(this.sortResults);
+      return [...this.unifiedFilteredResults].sort(this.sortResults);
     },
     sortedByRating () {
       const allMediaSortedByRating = this.$store.getters.allMediaSortedByRating;
@@ -1542,7 +1511,6 @@ export default {
       });
     },
     allDirectors () {
-
       return Object.keys(this.countDirectors).map((keyword) => {
         const filmography = this.allEntriesWithFlatKeywordsAdded.find((entry) => {
           return entry.movie.crew.find((person) => person.job === "Director" && person.name === keyword);
@@ -1838,6 +1806,22 @@ export default {
     }
   },
   methods: {
+    buildCastMembersCache() {
+      // Clear any existing cache
+      this.cachedCastMembers = new Set();
+      
+      // Process each movie entry once
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const cast = result.movie?.cast || [];
+        
+        // Add each cast member's name to the Set
+        cast.forEach(person => {
+          if (person.name) {
+            this.cachedCastMembers.add(person.name.toLowerCase());
+          }
+        });
+      });
+    },
     applyFilter(movie, result, filter) {
       // UNIFIED FILTERING: Apply a single filter to a movie
       // This consolidates all filtering logic from fuzzyFilter + activeFilters
@@ -2684,11 +2668,11 @@ export default {
       const trimmedTerm = searchTerm.trim();
       
       // Detect what type of filter this should be
-      const filterType = this.detectFilterType(trimmedTerm);
+      const searchType = this.detectSearchType(trimmedTerm);
       
       // Check if this exact filter already exists
       const existingFilter = this.activeFilters.find(filter => 
-        filter.type === filterType.type && filter.value === filterType.value
+        filter.type === searchType.type && filter.value === searchType.value
       );
       
       if (existingFilter) {
@@ -2697,10 +2681,10 @@ export default {
       
       // Add the appropriate filter chip
       this.activeFilters.push({
-        id: `${filterType.type}-${Date.now()}`,
-        type: filterType.type,
-        value: filterType.value,
-        display: filterType.display
+        id: `${searchType.type}-${Date.now()}`,
+        type: searchType.type,
+        value: searchType.value,
+        display: searchType.display
       });
       
       // Track if this chip was added by automatic random search
@@ -2720,90 +2704,42 @@ export default {
       this.inputValue = '';
       this.value = '';
     },
-    detectFilterType(term) {
-      // Check if it's a 4-digit year
-      if (/^\d{4}$/.test(term)) {
-        const year = parseInt(term);
-        if (year >= 1900 && year <= new Date().getFullYear() + 5) {
-          return {
-            type: 'year',
-            value: term,
-            display: term
-          };
-        }
-      }
-      
-      // Check if it matches any director names in our database
-      const allDirectors = this.allDirectors || [];
-      const matchingDirector = allDirectors.find(director => 
-        director.name && director.name === term
-      );
-      if (matchingDirector) {
-        return {
-          type: 'director',
-          value: term,
-          display: term
-        };
-      }
-      
-      // Check if it matches any genre names in our database
-      const allGenres = this.allGenres || [];
-      const matchingGenre = allGenres.find(genre => 
-        genre.name && genre.name === term
-      );
-      if (matchingGenre) {
-        return {
-          type: 'genre',
-          value: term,
-          display: term
-        };
-      }
-      
-      // Default to search filter for everything else
-      return {
-        type: 'search',
-        value: term,
-        display: term
-      };
-    }, // Force reload
     debouncedFetchUnratedMoviesByValue(value, searchContext = null) {
       clearTimeout(this.unratedMoviesDebounceTimeout);
       this.unratedMoviesDebounceTimeout = setTimeout(() => {
         this.fetchUnratedMoviesByValue(value, searchContext);
       }, 800);
     },
-    // Detection methods for different search types
-    detectSearchType(value) {
-      console.time('1');
-      const trimmed = value.trim();
-      const lowerValue = trimmed.toLowerCase();
-      
+    detectYearTypes (searchValue) {
       // Year patterns
-      if (/^\d{4}$/.test(trimmed)) {
-        const year = parseInt(trimmed);
+      if (/^\d{4}$/.test(searchValue)) {
+        const year = parseInt(searchValue);
         if (year >= 1900 && year <= new Date().getFullYear() + 5) {
-          return { type: 'year', value: year };
+          return { type: 'year', value: year, display: year.toString() };
         }
       }
+
       // 2-digit year (e.g., "95" → 1995)
-      if (/^\d{2}$/.test(trimmed)) {
-        const shortYear = parseInt(trimmed);
+      if (/^\d{2}$/.test(searchValue)) {
+        const shortYear = parseInt(searchValue);
         const currentYear = new Date().getFullYear();
         const currentCentury = Math.floor(currentYear / 100) * 100;
         const fullYear = shortYear <= (currentYear % 100) + 10 ? currentCentury + shortYear : currentCentury - 100 + shortYear;
-        return { type: 'year', value: fullYear };
+        return { type: 'year', value: fullYear, display: fullYear.toString() };
       }
+
       // Year range (e.g., "1990-1995")
-      const rangeMatch = trimmed.match(/^(\d{4})-(\d{4})$/);
+      const rangeMatch = searchValue.match(/^(\d{4})-(\d{4})$/);
       if (rangeMatch) {
         const startYear = parseInt(rangeMatch[1]);
         const endYear = parseInt(rangeMatch[2]);
         if (startYear >= 1900 && endYear <= new Date().getFullYear() + 5 && startYear <= endYear) {
-          return { type: 'yearRange', startYear, endYear };
+          return { type: 'yearRange', startYear, endYear, display: `${startYear}-${endYear}` };
         }
       }
+
       // Decade patterns (e.g., "90s", "1990s")
-      const decadeMatch = trimmed.match(/^(\d{2,4})s$/i);
+      const decadeMatch = searchValue.match(/^(\d{2,4})s$/i);
       if (decadeMatch) {
         let decade = parseInt(decadeMatch[1]);
         if (decade < 100) {
@@ -2813,18 +2749,35 @@ export default {
           decade = decade <= (currentYear % 100) + 10 ? currentCentury + decade : currentCentury - 100 + decade;
         }
         decade = Math.floor(decade / 10) * 10; // Round down to decade
-        return { type: 'yearRange', startYear: decade, endYear: decade + 9 };
+        return { type: 'yearRange', startYear: decade, endYear: decade + 9, display: `${decade}s` };
       }
-      // Priority 1: Exact matches (case insensitive)
-      
+
+      // If no year types matched, return null
+      return null;
+    },
+    detectDirectorTypes(searchValue, lowerValue) {
       // Check for exact director match
       const allDirectors = this.allDirectors || [];
       const exactDirectorMatch = allDirectors.find(director => 
         director.name && director.name.toLowerCase() === lowerValue
       );
       if (exactDirectorMatch) {
-        return { type: 'person', value: trimmed };
+        return { type: 'person', value: searchValue, display: `${exactDirectorMatch.name}` };
       }
+
+      // Check for partial director match
+      const partialDirectorMatch = allDirectors.find(director => 
+        director.name && (director.name.toLowerCase().includes(lowerValue) ||
+        lowerValue.includes(director.name.toLowerCase()))
+      );
+      if (partialDirectorMatch) {
+        return { type: 'person', value: searchValue, display: `${partialDirectorMatch.name}`};
+      }
+
+      // If no director types matched, return null
+      return null;
+    },
+    detectGenreTypes(searchValue, lowerValue) {
       // Check for exact genre match
       const allGenres = this.allGenres || [];
       const exactGenreMatch = allGenres.find(genre => 
@@ -2840,52 +2793,9 @@ export default {
           'thriller': 53, 'war': 10752, 'western': 37
         };
         const genreId = commonGenres[exactGenreMatch.name.toLowerCase()] || 18; // Default to drama
-        return { type: 'genre', genreId: genreId, value: trimmed };
+        return { type: 'genre', genreId: genreId, value: searchValue, display: `${exactGenreMatch.name}` };
       }
 
-      // Check for exact keyword match
-      const allKeywords = Object.keys(this.countedKeywords || {});
-      const exactKeywordMatch = allKeywords.find(keyword => 
-        keyword && keyword.toLowerCase() === lowerValue
-      );
-      if (exactKeywordMatch) {
-        return { type: 'keyword', value: trimmed };
-      }
-      console.time('h');
-      // Check for exact cast match
-      const allCast = [];
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const cast = result.movie.cast || [];
-        cast.forEach(person => {
-          if (person.name && !allCast.find(c => c.name === person.name)) {
-            allCast.push(person);
-          }
-        });
-      });
-      console.timeEnd('h');
-      
-      const exactCastMatch = allCast.find(person => 
-        person.name && person.name.toLowerCase() === lowerValue
-      );
-      if (exactCastMatch) {
-        return { type: 'person', value: trimmed };
-      }
-      
-      // Check for exact production company match
-      const matchingCompany = this.findMatchingProductionCompany(lowerValue);
-      if (matchingCompany) {
-        return { type: 'company', companyName: matchingCompany.name, value: trimmed };
-      }
-      // Priority 2: Partial matches
-      // Check for partial director match
-      const partialDirectorMatch = allDirectors.find(director => 
-        director.name && (director.name.toLowerCase().includes(lowerValue) ||
-        lowerValue.includes(director.name.toLowerCase()))
-      );
-      if (partialDirectorMatch) {
-        return { type: 'person', value: trimmed };
-      }
-      
       // Check for partial genre match
       const partialGenreMatch = allGenres.find(genre => 
         genre.name && (genre.name.toLowerCase().includes(lowerValue) ||
@@ -2901,30 +2811,122 @@ export default {
           'thriller': 53, 'war': 10752, 'western': 37
         };
         const genreId = commonGenres[partialGenreMatch.name.toLowerCase()] || 18; // Default to drama
-        return { type: 'genre', genreId: genreId, value: trimmed };
+        return { type: 'genre', genreId: genreId, value: searchValue, display: `${partialGenreMatch.name}` };
       }
-      
+
+      // If no genre types matched, return null
+      return null;
+    },
+    detectKeywordTypes(searchValue, lowerValue) {
+      // Check for exact keyword match
+      const allKeywords = Object.keys(this.countedKeywords || {});
+      const exactKeywordMatch = allKeywords.find(keyword => 
+        keyword && keyword.toLowerCase() === lowerValue
+      );
+      if (exactKeywordMatch) {
+        return { type: 'keyword', value: searchValue, display: `${exactKeywordMatch}` };
+      }
+
       // Check for partial keyword match
       const partialKeywordMatch = allKeywords.find(keyword => 
         keyword && (keyword.toLowerCase().includes(lowerValue) ||
         lowerValue.includes(keyword.toLowerCase()))
       );
       if (partialKeywordMatch) {
-        return { type: 'keyword', value: trimmed };
+        return { type: 'keyword', value: searchValue, display: `${partialKeywordMatch}` };
       }
+
+      // If no keyword types matched, return null
+      return null;
+    },
+    detectCastTypes(searchValue, lowerValue) {
+      // Check for exact cast match
+      if (!this.cachedCastMembers || !this.cachedCastMembers.size) {
+        console.warn('Rebuilding Cast Cache');
+        this.buildCastMembersCache();
+      }
+      const hasCastMatch = this.cachedCastMembers.has(lowerValue);
       
+      if (hasCastMatch) {
+        return { type: 'person', value: searchValue, display: `${searchValue}` };
+      }
+
       // Check for partial cast match
-      const partialCastMatch = allCast.find(person => 
-        person.name && (person.name.toLowerCase().includes(lowerValue) ||
-        lowerValue.includes(person.name.toLowerCase()))
+      const partialCastMatch = Array.from(this.cachedCastMembers).some(name => 
+        name.includes(lowerValue) || lowerValue.includes(name)
       );
+      
       if (partialCastMatch) {
-        return { type: 'person', value: trimmed };
+        return { type: 'person', value: searchValue, display: `${searchValue}` };
+      }
+
+      // If no cast types matched, return null
+      return null;
+    },
+    detectProductionCompanyTypes(searchValue, lowerValue) {
+      // Check for exact production company match
+      const matchingCompany = this.findMatchingProductionCompany(lowerValue);
+      if (matchingCompany) {
+        return { type: 'company', companyName: matchingCompany.name, value: searchValue, display: `${matchingCompany.name}` };
+      }
+      // Check for partial production company match
+      const allCompanies = this.allEntriesWithFlatKeywordsAdded.flatMap(result =>
+        result.movie.production_companies || []
+      );
+      const partialCompanyMatch = allCompanies.find(company =>
+        company.name && (company.name.toLowerCase().includes(lowerValue) ||
+        lowerValue.includes(company.name.toLowerCase()))
+      );
+      if (partialCompanyMatch) {
+        return { type: 'company', companyName: partialCompanyMatch.name, value: searchValue, display: `${partialCompanyMatch.name}` };
+      }
+
+      // If no production company types matched, return null
+      return null;
+    },
+    detectSearchType(value) {
+      const trimmed = value.trim();
+      const lowerValue = trimmed.toLowerCase();
+      
+      // Check for years
+      if (this.detectYearTypes(trimmed)) {
+        console.error('Its a year: ', this.detectYearTypes(trimmed));
+        return this.detectYearTypes(trimmed);
+      }
+
+      // Check for directors
+      if (this.detectDirectorTypes(trimmed, lowerValue)) {
+        console.error('Its a director: ', this.detectDirectorTypes(trimmed, lowerValue));
+        return this.detectDirectorTypes(trimmed, lowerValue);
+      }
+
+      // Check for genres
+      if (this.detectGenreTypes(trimmed, lowerValue)) {
+        console.error('Its a genre: ', this.detectGenreTypes(trimmed, lowerValue));
+        return this.detectGenreTypes(trimmed, lowerValue);
+      }
+
+      // Check for cast members
+      if (this.detectCastTypes(trimmed, lowerValue)) {
+        console.error('Its a cast member: ', this.detectCastTypes(trimmed, lowerValue));
+        return this.detectCastTypes(trimmed, lowerValue);
       }
       
+      // Check for production companies
+      if (this.detectProductionCompanyTypes(trimmed, lowerValue)) {
+        console.error('Its a production company: ', this.detectProductionCompanyTypes(trimmed, lowerValue));
+        return this.detectProductionCompanyTypes(trimmed, lowerValue);
+      }
+
+      // Check for keywords
+      if (this.detectKeywordTypes(trimmed, lowerValue)) {
+        console.error('Its a keyword: ', this.detectKeywordTypes(trimmed, lowerValue));
+        return this.detectKeywordTypes(trimmed, lowerValue);
+      }
+
       // For everything else, use general search
-      console.timeEnd('1');
-      return { type: 'general', value: trimmed };
+      console.error('Its a general search: ', trimmed);
+      return { type: 'general', value: trimmed, display: `Search: ${trimmed}` };
     },
     findMatchingProductionCompany(searchTerm) {
       // Get all production companies from existing movies
@@ -2940,7 +2942,6 @@ export default {
           }
         });
       });
-      
       
       // Normalize search term for better matching
       const normalizeCompanyName = (name) => {
@@ -3220,7 +3221,6 @@ export default {
       }
     },
     async fetchUnratedMoviesByValue(value, searchContext = null) {
-      console.time('overall');
       this.unratedMoviesLoading = true;
       this.unratedMoviesError = null;
       this.unratedMovies = [];
@@ -3232,11 +3232,10 @@ export default {
           // Use the context from the chip
           searchInfo = searchContext;
         } else {
-          console.time('detectSearchType ');
           // Detect what type of search this is
           searchInfo = this.detectSearchType(value);
-          console.timeEnd('detectSearchType');
         }
+
         // Map chip types to display types for "More from" section
         if (searchInfo.type === 'director') {
           this.unratedMoviesSearchType = 'person';
@@ -3390,7 +3389,6 @@ export default {
       } finally {
         this.unratedMoviesLoading = false;
       }
-      console.timeEnd('overall');
     },
   },
 }
