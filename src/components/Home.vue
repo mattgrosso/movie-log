@@ -466,7 +466,7 @@
               <ul class="grid-layout" :class="getGridClassesForGroup(group.movies.length)">
                 <DBGridLayoutSearchResult
                   v-for="(result, index) in group.movies"
-                  :key="topStructure(result).id"
+                  :key="result.movie.id"
                   :result="result"
                   :keywordCounts="allCounts.keywords"
                   :allCounts="allCounts"
@@ -483,7 +483,7 @@
           <ul v-else class="grid-layout pb-3" :class="listCountClasses">
             <DBGridLayoutSearchResult
               v-for="(result, index) in paginatedSortedResults"
-              :key="topStructure(result).id"
+              :key="result.movie.id"
               :result="result"
               :keywordCounts="allCounts.keywords"
               :allCounts="allCounts"
@@ -974,12 +974,12 @@ export default {
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
         const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
-        const flatChatGPTKeywords = this.topStructure(result).chatGPTKeywords || [];
+        const flatChatGPTKeywords = result.movie.chatGPTKeywords || [];
         const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
         return {
           ...result,
           movie: {
-            ...this.topStructure(result),
+            ...result.movie,
             flatKeywords: flatKeywords || []
           }
         }
@@ -1067,7 +1067,7 @@ export default {
       // Step 2: Apply all filters from allActiveFilters (input + chips)
       if (this.allActiveFilters.length > 0) {
         results = results.filter(result => {
-          const movie = this.topStructure(result);
+          const movie = result.movie;
           
           // ALL filters must match (AND logic)
           return this.allActiveFilters.every(filter => {
@@ -1080,9 +1080,9 @@ export default {
       if (!this.showShorts) {
         results = results.filter(result => {
           // Try to detect short films by genre or runtime
-          const genres = this.topStructure(result).genres || [];
+          const genres = result.movie.genres || [];
           const isShortGenre = Array.isArray(genres) ? genres.some(g => g.name && g.name.toLowerCase() === 'short') : false;
-          const runtime = this.topStructure(result).runtime;
+          const runtime = result.movie.runtime;
           // Consider as short if genre is 'Short' or runtime <= 40 min
           return !isShortGenre && !(runtime && runtime <= 40);
         });
@@ -1133,7 +1133,7 @@ export default {
       const usedMovies = new Set(); // Track movies that have been assigned to higher priority roles
       
       this.unifiedFilteredResults.forEach((media) => {
-        const movieData = this.topStructure(media);
+        const movieData = media.movie;
         
         // Check cast
         if (movieData.cast) {
@@ -1189,7 +1189,7 @@ export default {
               }
               
               // Avoid duplicates in the same role category
-              if (!personRoleData[person.name][roleCategory].find(m => this.topStructure(m).id === movieData.id)) {
+              if (!personRoleData[person.name][roleCategory].find(m => m.movie.id === movieData.id)) {
                 personRoleData[person.name][roleCategory].push(media);
               }
             }
@@ -1207,7 +1207,7 @@ export default {
         const sortedRoles = Object.keys(roles).sort((a, b) => (roleRanking[b] || 0) - (roleRanking[a] || 0));
         
         sortedRoles.forEach(role => {
-          const availableMovies = roles[role].filter(movie => !usedMovies.has(this.topStructure(movie).id));
+          const availableMovies = roles[role].filter(movie => !usedMovies.has(movie.movie.id));
           
           if (availableMovies.length > 0) {
             // Sort the movies in this group using the same sorting logic as the main list
@@ -1222,7 +1222,7 @@ export default {
             
             // Mark these movies as used
             availableMovies.forEach(movie => {
-              usedMovies.add(this.topStructure(movie).id);
+              usedMovies.add(movie.movie.id);
             });
           }
         });
@@ -1320,7 +1320,7 @@ export default {
       const bestPictureWinners = this.$store.state.academyAwardWinners.bestPicture;
 
       const allEntryIds = this.allEntriesWithFlatKeywordsAdded.map((result) => {
-        return this.topStructure(result).id;
+        return result.movie.id;
       });
 
       const bestPictureWinnersWithRatingStatus = [];
@@ -1442,7 +1442,7 @@ export default {
 
       // Filter movies that are NOT in the user's Letterboxd films
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        const movie = this.topStructure(result);
+        const movie = result.movie;
         
         // First check manual overrides
         const overrides = this.$store.state.settings.letterboxdOverrides || {};
@@ -1609,7 +1609,7 @@ export default {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const keywords = this.topStructure(result).flatKeywords;
+        const keywords = result.movie.flatKeywords;
         if (Array.isArray(keywords)) {
           keywords.forEach((keyword) => {
             if (counts[keyword]) {
@@ -1627,7 +1627,7 @@ export default {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const genres = this.topStructure(result).genres;
+        const genres = result.movie.genres;
         if (Array.isArray(genres)) {
           genres.forEach((genre) => {
             if (counts[genre.name]) {
@@ -1677,8 +1677,8 @@ export default {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const castData = this.topStructure(result).cast;
-        const crewData = this.topStructure(result).crew;
+        const castData = result.movie.cast;
+        const crewData = result.movie.crew;
         const cast = Array.isArray(castData) ? castData.filter((person, index) => index < 10).map(person => person.name) : [];
         const crew = Array.isArray(crewData) ? crewData.filter((person, index) => index < 10).map(person => person.name) : [];
         const castCrewCombined = uniq([...cast, ...crew]);
@@ -1698,7 +1698,7 @@ export default {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const productionCompanies = this.topStructure(result).production_companies?.map(company => company.name) || [];
+        const productionCompanies = result.movie.production_companies?.map(company => company.name) || [];
 
         productionCompanies.forEach((company) => {
           if (counts[company]) {
@@ -1829,7 +1829,7 @@ export default {
     },
     availableYears() {
       const years = this.allEntriesWithFlatKeywordsAdded
-        .map(movie => new Date(this.topStructure(movie).release_date).getFullYear())
+        .map(movie => new Date(movie.movie.release_date).getFullYear())
         .filter(year => !isNaN(year));
       return [...new Set(years)].sort((a, b) => b - a);
     },
@@ -2240,7 +2240,7 @@ export default {
       } else if (key === "release") {
         return new Date(this.getYear(item), 0, 1);
       } else if (key === "title") {
-        return this.topStructure(item).title;
+        return item.movie.title;
       } else if (key === "watched") {
         const date = this.mostRecentRating(item).date || "3/22/1982";
         return new Date(date);
@@ -2401,9 +2401,6 @@ export default {
       this.$nextTick(() => {
         this.$router.push(`/share/${this.$store.state.databaseTopKey}/${dbKey}`);
       });
-    },
-    topStructure (result) {
-      return result.movie;
     },
     titleCase (input) {
       const string = input.toString();
@@ -2777,6 +2774,7 @@ export default {
     },
     // Detection methods for different search types
     detectSearchType(value) {
+      console.time('1');
       const trimmed = value.trim();
       const lowerValue = trimmed.toLowerCase();
       
@@ -2787,7 +2785,6 @@ export default {
           return { type: 'year', value: year };
         }
       }
-      
       // 2-digit year (e.g., "95" → 1995)
       if (/^\d{2}$/.test(trimmed)) {
         const shortYear = parseInt(trimmed);
@@ -2796,7 +2793,6 @@ export default {
         const fullYear = shortYear <= (currentYear % 100) + 10 ? currentCentury + shortYear : currentCentury - 100 + shortYear;
         return { type: 'year', value: fullYear };
       }
-      
       // Year range (e.g., "1990-1995")
       const rangeMatch = trimmed.match(/^(\d{4})-(\d{4})$/);
       if (rangeMatch) {
@@ -2806,7 +2802,6 @@ export default {
           return { type: 'yearRange', startYear, endYear };
         }
       }
-      
       // Decade patterns (e.g., "90s", "1990s")
       const decadeMatch = trimmed.match(/^(\d{2,4})s$/i);
       if (decadeMatch) {
@@ -2820,7 +2815,6 @@ export default {
         decade = Math.floor(decade / 10) * 10; // Round down to decade
         return { type: 'yearRange', startYear: decade, endYear: decade + 9 };
       }
-      
       // Priority 1: Exact matches (case insensitive)
       
       // Check for exact director match
@@ -2831,7 +2825,6 @@ export default {
       if (exactDirectorMatch) {
         return { type: 'person', value: trimmed };
       }
-      
       // Check for exact genre match
       const allGenres = this.allGenres || [];
       const exactGenreMatch = allGenres.find(genre => 
@@ -2849,7 +2842,7 @@ export default {
         const genreId = commonGenres[exactGenreMatch.name.toLowerCase()] || 18; // Default to drama
         return { type: 'genre', genreId: genreId, value: trimmed };
       }
-      
+
       // Check for exact keyword match
       const allKeywords = Object.keys(this.countedKeywords || {});
       const exactKeywordMatch = allKeywords.find(keyword => 
@@ -2858,17 +2851,18 @@ export default {
       if (exactKeywordMatch) {
         return { type: 'keyword', value: trimmed };
       }
-      
+      console.time('h');
       // Check for exact cast match
       const allCast = [];
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const cast = this.topStructure(result).cast || [];
+        const cast = result.movie.cast || [];
         cast.forEach(person => {
           if (person.name && !allCast.find(c => c.name === person.name)) {
             allCast.push(person);
           }
         });
       });
+      console.timeEnd('h');
       
       const exactCastMatch = allCast.find(person => 
         person.name && person.name.toLowerCase() === lowerValue
@@ -2882,9 +2876,7 @@ export default {
       if (matchingCompany) {
         return { type: 'company', companyName: matchingCompany.name, value: trimmed };
       }
-      
       // Priority 2: Partial matches
-      
       // Check for partial director match
       const partialDirectorMatch = allDirectors.find(director => 
         director.name && (director.name.toLowerCase().includes(lowerValue) ||
@@ -2931,13 +2923,14 @@ export default {
       }
       
       // For everything else, use general search
+      console.timeEnd('1');
       return { type: 'general', value: trimmed };
     },
     findMatchingProductionCompany(searchTerm) {
       // Get all production companies from existing movies
       const allCompanies = [];
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const companies = this.topStructure(result).production_companies || [];
+        const companies = result.movie.production_companies || [];
         companies.forEach(company => {
           if (company.name && !allCompanies.find(c => 
             (c.id && company.id && c.id === company.id) || 
@@ -3227,6 +3220,7 @@ export default {
       }
     },
     async fetchUnratedMoviesByValue(value, searchContext = null) {
+      console.time('overall');
       this.unratedMoviesLoading = true;
       this.unratedMoviesError = null;
       this.unratedMovies = [];
@@ -3238,8 +3232,10 @@ export default {
           // Use the context from the chip
           searchInfo = searchContext;
         } else {
+          console.time('detectSearchType ');
           // Detect what type of search this is
           searchInfo = this.detectSearchType(value);
+          console.timeEnd('detectSearchType');
         }
         // Map chip types to display types for "More from" section
         if (searchInfo.type === 'director') {
@@ -3247,7 +3243,6 @@ export default {
         } else {
           this.unratedMoviesSearchType = searchInfo.type;
         }
-        
         let relevantList = [];
         
         if (searchInfo.type === 'year') {
@@ -3287,7 +3282,7 @@ export default {
                   query: searchInfo.value,
                 }
               });
-
+              
               if (personResp.data.results && personResp.data.results.length <= 3 && personResp.data.results.length > 0) {
                 const person = personResp.data.results[0];
                 const creditsResp = await axios.get(`https://api.themoviedb.org/3/person/${person.id}/movie_credits`, {
@@ -3330,9 +3325,8 @@ export default {
           // This shouldn't happen with our current logic, but keep as fallback
           relevantList = [];
         }
-        
         // Filter out already rated movies and remove duplicates
-        const ratedIds = new Set(this.allEntriesWithFlatKeywordsAdded.map(r => this.topStructure(r).id));
+        const ratedIds = new Set(this.allEntriesWithFlatKeywordsAdded.map(r => r.movie.id));
         const seenIds = new Set();
         const unrated = [];
         
@@ -3342,7 +3336,6 @@ export default {
             seenIds.add(m.id);
           }
         }
-        
         // Sort by popularity and apply filtering
         if (unrated.length > 0) {
           unrated.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
@@ -3397,6 +3390,7 @@ export default {
       } finally {
         this.unratedMoviesLoading = false;
       }
+      console.timeEnd('overall');
     },
   },
 }
