@@ -696,58 +696,55 @@ export default {
   },
   data () {
     return {
-      searchValue: '',
-      filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword'],
+      activeFilters: [], // New multi-filter system
+      activeQuickLinkList: "title",
+      cachedCastMembers: new Set(), // Cache for fast cast member lookups
       debouncedSetSearchValue: debounce(function(value) {
         this.searchValue = value;
       }, 300),
-
-
-      sortOrder: "bestOrNewestOnTop",
-      value: "",
-      cachedCastMembers: new Set(), // Cache for fast cast member lookups
-      inputValue: "", // Visual input value (can be different from internal value)
-      activeQuickLinkList: "title",
-      sortValue: null,
-      quickLinksSortType: "count",
-      numberOfResultsToShow: 25,
-      sharing: false,
-      hasCalledFindFilter: false,
-      showInsetBrowserModal: false,
-      insetBrowserUrl: "",
-      showAverage: false,
-      showViewCount: false,
-      showSuggestionsOnly: false,
-      showShorts: false, // shorts toggle, default to off
       enableRandomSearch: null, // random search on page load toggle, will be set from store
-      showSettingsPanel: false, // controls settings panel visibility
-      normalizationTweak: 0.25, // default, will be set from store
-      tieBreakTweak: 1, // default, will be set from store
+      filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword'],
+      hasAutoRandomChip: false, // Track if current chip was added by auto random search
+      hasCalledFindFilter: false,
+      inputValue: "", // Visual input value (can be different from internal value)
+      insetBrowserUrl: "",
       letterboxdConnected: false, // Letterboxd integration toggle
+      letterboxdOverrides: {},
+      letterboxdUserData: null,
       letterboxdUsername: '', // Letterboxd username
+      newOverrideTitle: '',
+      newOverrideYear: null,
+      noResults: false, // Show no results message for TMDB search
+      normalizationTweak: 0.25, // default, will be set from store
+      numberOfResultsToShow: 25,
+      quickLinksSortType: "count",
       scrapingTest: {
         loading: false,
         result: null,
         success: false,
         error: null
       },
+      searchValue: '',
+      selectedMovieInfo: null, // Movie data for the info modal
+      sharing: false,
+      showAddFilterModal: false,
+      showAverage: false,
+      showInsetBrowserModal: false,
+      showMovieInfoModal: false, // Show/hide movie info modal
+      showOverridePanel: false,
+      showSettingsPanel: false, // controls settings panel visibility
+      showShorts: false, // shorts toggle, default to off
+      showSuggestionsOnly: false,
+      showViewCount: false,
+      sortOrder: "bestOrNewestOnTop",
+      sortValue: null,
+      tieBreakTweak: 1, // default, will be set from store
       unratedMovies: [],
+      unratedMoviesDebounceTimeout: null,
       unratedMoviesError: null,
       unratedMoviesQuery: '',
-      unratedMoviesPersonType: '',
-      unratedMoviesDebounceTimeout: null,
       unratedMoviesSearchType: null, // 'person', 'year', 'yearRange', 'genre', 'general'
-      letterboxdUserData: null,
-      letterboxdOverrides: {},
-      newOverrideTitle: '',
-      newOverrideYear: null,
-      showOverridePanel: false,
-      activeFilters: [], // New multi-filter system
-      showAddFilterModal: false,
-      hasAutoRandomChip: false, // Track if current chip was added by auto random search
-      showMovieInfoModal: false, // Show/hide movie info modal
-      selectedMovieInfo: null, // Movie data for the info modal
-      noResults: false, // Show no results message for TMDB search
+      value: "",
     }
   },
   watch: {
@@ -912,27 +909,67 @@ export default {
     this.$store.commit("setDBSortValue", this.sortValue);
   },
   computed: {
-    isMatt () {
-      return this.$store.state.databaseTopKey === "mattgrosso-gmail-com" || !this.$store.state.databaseTopKey;
+    activeFiltersMinusTemps() {
+      // Return only non-temporary filters
+      return this.activeFilters.filter((filter) => !filter.temp);
     },
-    darkOrLight () {
-      const inDarkMode = document.querySelector("body").classList.contains('bg-dark');
-
-      return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
+    allActiveFilters() {
+      const filters = [];
+      
+      // Add input text as a general search filter if it exists AND no chips are active
+      // (avoid double filtering when temp chips exist)
+      if (this.searchValue && this.searchValue.trim() && this.activeFilters.length === 0) {
+        filters.push({
+          id: '__input__',
+          type: 'general',
+          value: this.searchValue.trim(),
+          display: this.searchValue.trim(),
+          source: 'input'
+        });
+      }
+      
+      // Add all existing chips
+      this.activeFilters.forEach(chip => {
+        filters.push({
+          ...chip,
+          source: 'chip'
+        });
+      });
+      
+      return filters;
     },
-    tags () {
-      if (this.$store.state?.settings?.tags?.['viewing-tags']) {
-        return Object.values(this.$store.state.settings.tags['viewing-tags']).map(tag => tag.title);
-      } else {
-        return [];
+    allCastCrew () {
+      return Object.keys(this.countCastCrew).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countCastCrew[keyword]
+        }
+      });
+    },
+    allCounts () {
+      return {
+        keywords: this.countedKeywords,
+        genres: this.countedGenres,
+        years: this.countedYears,
+        directors: this.countDirectors,
+        castCrew: this.countCastCrew,
+        studios: this.countStudios,
+        mediums: this.allMediums,
+        filmographies: this.allDirectors
       }
     },
-    DBSortValue () {
-      return this.$store.state.DBSortValue;
-    },
-    displayableUnratedMovies () {
-      const filtered = this.unratedMovies.filter(movie => movie.id && movie.poster_path);
-      return filtered;
+    allDirectors () {
+      return Object.keys(this.countDirectors).map((keyword) => {
+        const filmography = this.allEntriesWithFlatKeywordsAdded.find((entry) => {
+          return entry.movie.crew.find((person) => person.job === "Director" && person.name === keyword);
+        }).movie.crew.find((person) => person.name === keyword && person.filmography)?.filmography;
+
+        return {
+          name: this.titleCase(keyword),
+          count: this.countDirectors[keyword],
+          filmography: filmography ? filmography.filter((film) => new Date(film.release_date) < new Date() && film.popularity > 8.65) : []
+        }
+      });
     },
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
@@ -948,101 +985,289 @@ export default {
         }
       });
     },
-    resultsThatNeedStickiness () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        const hasntReratedStickinessOneWeek = !this.mostRecentRating(result).userAddedStickiness;
-        const hasntReratedStickinessSixMonths = !this.mostRecentRating(result).userAddedSixMonthStickiness;
-        const ratingDate = this.mostRecentRating(result).date || "1/1/2021";
-        const moreThanAWeekAgo = new Date(ratingDate).getTime() < new Date().getTime() - (604800000);
-        const moreThanSixMonthsAgo = new Date(ratingDate).getTime() < new Date().getTime() - (15778476000);
-
-        return (hasntReratedStickinessOneWeek && moreThanAWeekAgo) || (hasntReratedStickinessSixMonths && moreThanSixMonthsAgo);
-      }).sort((a, b) => {
-        const ratingDateA = this.mostRecentRating(a).date || "1/1/2021";
-        const ratingDateB = this.mostRecentRating(b).date || "1/1/2021";
-        const dateA = new Date(ratingDateA);
-        const dateB = new Date(ratingDateB);
-        return dateB - dateA;
-      });
-    },
-    showStickinessModal () {
-      return Boolean(this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
-    },
-    showTweakModal () {
-      if (this.showStickinessModal) {
-        return false;
-      }
-
-      const firstTiedPairIndex = this.sortedByRating.findIndex((movie, index) => {
-        const nextMovie = this.sortedByRating[index + 1];
-
-        if (!nextMovie) {
-          return false;
+    allGenres () {
+      return Object.keys(this.countedGenres).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countedGenres[keyword]
         }
+      });
+    },
+    allKeywords () {
+      return Object.keys(this.countedKeywords).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countedKeywords[keyword]
+        }
+      });
+    },
+    allMediums () {
+      const mediums = {};
 
-        return getRating(movie).calculatedTotal === getRating(nextMovie).calculatedTotal;
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        result.ratings.forEach((rating) => {
+          if (!rating.medium) {
+            return;
+          } else if (mediums[rating.medium]) {
+            mediums[rating.medium]++;
+          } else {
+            mediums[rating.medium] = 1;
+          }
+        });
       });
 
-      if (firstTiedPairIndex === -1) {
-        return false;
-      }
-
-      const hasTiedResults = Boolean(this.sortedByRating[firstTiedPairIndex] && this.sortedByRating[firstTiedPairIndex + 1]);
-      const lastTweak = this.$store.state.settings.lastTweak || Date.now();
-      const oneDay = 24 * 60 * 60 * 1000;
-      const maxDailyTieBreaks = this.$store.state.settings.tieBreakTweak || 1;
-      const noTieBreakYetToday = Date.now() - lastTweak > (oneDay / maxDailyTieBreaks);
-
-      return hasTiedResults && noTieBreakYetToday;
+      return Object.keys(mediums).map((medium) => {
+        return {
+          name: this.titleCase(medium),
+          count: mediums[medium]
+        }
+      });
     },
-    unifiedFilteredResults() {
-      // Step 1: Get base results (from quick links or all entries)
-      let results;
-      
-      if (this.activeQuickLinkList === "annual") {
-        results = this.bestMovieFromEachYear;
-      } else if (this.activeQuickLinkList === "bestPicture") {
-        results = this.bestPictures;
-      } else if (this.activeQuickLinkList === "thisYear") {
-        results = this.thisYearsMovies;
-      } else if (this.activeQuickLinkList === "lastYear") {
-        results = this.lastYearsMovies;
-      } else if (this.activeQuickLinkList === "thisMonth") {
-        results = this.thisMonthsMovies;
-      } else if (this.activeQuickLinkList === "lastMonth") {
-        results = this.lastMonthsMovies;
-      } else if (this.activeQuickLinkList === "notOnLetterboxd") {
-        results = this.notOnLetterboxdMovies;
-      } else if (this.tags.includes(this.activeQuickLinkList)) {
-        results = this.matchingTags;
-      } else {
-        // No quick link active - start with all entries
-        results = this.allEntriesWithFlatKeywordsAdded;
-      }
+    allStudios () {
+      return Object.keys(this.countStudios).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countStudios[keyword]
+        }
+      });
+    },
+    allYears () {
+      return Object.keys(this.countedYears).map((keyword) => {
+        return {
+          name: this.titleCase(keyword),
+          count: this.countedYears[keyword]
+        }
+      });
+    },
+    availableYears() {
+      const years = this.allEntriesWithFlatKeywordsAdded
+        .map(movie => new Date(movie.movie.release_date).getFullYear())
+        .filter(year => !isNaN(year));
+      return [...new Set(years)].sort((a, b) => b - a);
+    },
+    bestMovieFromEachYear () {
+      const years = {};
 
-      // Step 2: Apply all filters from allActiveFilters (input + chips)
-      if (this.allActiveFilters.length > 0) {
-        results = results.filter(result => {
-          // ALL filters must match (AND logic)
-          return this.allActiveFilters.every(filter => {
-            return this.applyFilter(result, filter);
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        let year;
+
+        year = new Date(result.movie.release_date).getFullYear();
+
+        if (!years[year]) {
+          years[year] = result;
+        } else if (this.mostRecentRating(result).calculatedTotal > this.mostRecentRating(years[year]).calculatedTotal) {
+          years[year] = result;
+        }
+      })
+
+      return Object.keys(years).map((year) => years[year]);
+    },
+    bestPictures () {
+      const bestPictureWinners = this.$store.state.academyAwardWinners.bestPicture;
+
+      const allEntryIds = this.allEntriesWithFlatKeywordsAdded.map((result) => {
+        return result.movie.id;
+      });
+
+      const bestPictureWinnersWithRatingStatus = [];
+
+      bestPictureWinners.forEach((movie) => {
+        if (allEntryIds.includes(movie.id)) {
+          bestPictureWinnersWithRatingStatus.push({
+            ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id),
+            ...{
+              movie: {
+                ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id).movie,
+                academyAwardsYear: movie.academyAwardsYear
+              }
+            }
           });
-        });
-      }
+        } else {
+          bestPictureWinnersWithRatingStatus.push({
+            falseEntry: true,
+            movie: movie,
+            ratings: [
+              {
+                date: Date.now(),
+                direction: 0,
+                id: movie.id,
+                imagery: 0,
+                impression: 0,
+                love: 0,
+                medium: "",
+                overall: 0,
+                performance: 0,
+                soundtrack: 0,
+                stickiness: 0,
+                story: 0,
+                title: movie.title,
+                year: new Date(movie.release_date).getFullYear()
+              }
+            ]
+          });
+        }
+      });
 
-      // Step 3: Exclude shorts if showShorts is false
-      if (!this.showShorts) {
-        results = results.filter(result => {
-          // Consider as short if runtime <= 40 min
-          return !(result.movie.runtime && result.movie.runtime <= 40);
-        });
-      }
-
-      return results;
+      return bestPictureWinnersWithRatingStatus;
     },
-    activeFiltersMinusTemps() {
-      // Return only non-temporary filters
-      return this.activeFilters.filter((filter) => !filter.temp);
+    bestPicturesWithRatings () {
+      return this.bestPictures.filter((result) => !result.falseEntry);
+    },
+    countCastCrew () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const castData = result.movie.cast;
+        const crewData = result.movie.crew;
+        const cast = Array.isArray(castData) ? castData.filter((person, index) => index < 10).map(person => person.name) : [];
+        const crew = Array.isArray(crewData) ? crewData.filter((person, index) => index < 10).map(person => person.name) : [];
+        const castCrewCombined = uniq([...cast, ...crew]);
+
+        castCrewCombined.forEach((person) => {
+          if (counts[person]) {
+            counts[person]++;
+          } else if (person) {
+            counts[person] = 1;
+          }
+        })
+      })
+
+      return counts;
+    },
+    countDirectors () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const crew = result.movie.crew;
+        const director = Array.isArray(crew) ? crew.find((person) => person.job === "Director")?.name : null;
+
+        if (director) {
+          if (counts[director]) {
+            counts[director]++;
+          } else if (director) {
+            counts[director] = 1;
+          }
+        }
+      })
+
+      return counts;
+    },
+    countedGenres () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const genres = result.movie.genres;
+        if (Array.isArray(genres)) {
+          genres.forEach((genre) => {
+            if (counts[genre.name]) {
+              counts[genre.name]++;
+            } else if (genre.name) {
+              counts[genre.name] = 1;
+            }
+          })
+        }
+      })
+
+      return counts;
+    },
+    countedKeywords () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const keywords = result.movie.flatKeywords;
+        if (Array.isArray(keywords)) {
+          keywords.forEach((keyword) => {
+            if (counts[keyword]) {
+              counts[keyword]++;
+            } else if (keyword) {
+              counts[keyword] = 1;
+            }
+          })
+        }
+      })
+
+      return counts;
+    },
+    countedYears () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const year = this.getYear(result);
+        if (counts[year]) {
+          counts[year]++;
+        } else if (year) {
+          counts[year] = 1;
+        }
+      })
+
+      return counts;
+    },
+    countStudios () {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const productionCompanies = result.movie.production_companies?.map(company => company.name) || [];
+
+        productionCompanies.forEach((company) => {
+          if (counts[company]) {
+            counts[company]++;
+          } else if (company) {
+            counts[company] = 1;
+          }
+        })
+      })
+
+      return counts;
+    },
+    darkOrLight () {
+      const inDarkMode = document.querySelector("body").classList.contains('bg-dark');
+
+      return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
+    },
+    datalistForActiveQuickLink () {
+      if (this.activeQuickLinkList === "keyword") {
+        return this.allKeywords;
+      } else if (this.activeQuickLinkList === "genre") {
+        return this.allGenres;
+      } else if (this.activeQuickLinkList === "year") {
+        return this.allYears;
+      } else if (this.activeQuickLinkList === "director") {
+        return this.allDirectors;
+      } else if (this.activeQuickLinkList === "cast/crew") {
+        return this.allCastCrew;
+      } else if (this.activeQuickLinkList === "studios") {
+        return this.allStudios;
+      } else if (this.activeQuickLinkList === "mediums") {
+        return this.allMediums;
+      } else {
+        return [];
+      }
+    },
+    DBSortValue () {
+      return this.$store.state.DBSortValue;
+    },
+    displayableUnratedMovies () {
+      const filtered = this.unratedMovies.filter(movie => movie.id && movie.poster_path);
+      return filtered;
+    },
+    effectiveSearchFilter() {
+      const typePriority = this.filterTypes;
+      
+      for (const type of typePriority) {
+        const chipOfType = this.allActiveFilters.find(filter => filter.type === type);
+        if (chipOfType) {
+          return chipOfType;
+        }
+      }
+
+      return null;
+    },
+    effectiveSearchTerm() {
+      if (this.effectiveSearchFilter) {
+        return this.effectiveSearchFilter.value;      
+      } else {
+        return '';
+      }
     },
     groupedByAllCategories() {
       // Use debounced search for typing performance, but fall back to effectiveSearchTerm for chips
@@ -1296,114 +1521,8 @@ export default {
       const hasMultipleRoles = Object.values(personCounts).some(count => count > 1);
       return hasMultipleRoles ? finalGroups : null;
     },
-    bestMovieFromEachYear () {
-      const years = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        let year;
-
-        year = new Date(result.movie.release_date).getFullYear();
-
-        if (!years[year]) {
-          years[year] = result;
-        } else if (this.mostRecentRating(result).calculatedTotal > this.mostRecentRating(years[year]).calculatedTotal) {
-          years[year] = result;
-        }
-      })
-
-      return Object.keys(years).map((year) => years[year]);
-    },
-    bestPictures () {
-      const bestPictureWinners = this.$store.state.academyAwardWinners.bestPicture;
-
-      const allEntryIds = this.allEntriesWithFlatKeywordsAdded.map((result) => {
-        return result.movie.id;
-      });
-
-      const bestPictureWinnersWithRatingStatus = [];
-
-      bestPictureWinners.forEach((movie) => {
-        if (allEntryIds.includes(movie.id)) {
-          bestPictureWinnersWithRatingStatus.push({
-            ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id),
-            ...{
-              movie: {
-                ...this.allEntriesWithFlatKeywordsAdded.find((entry) => entry.movie.id === movie.id).movie,
-                academyAwardsYear: movie.academyAwardsYear
-              }
-            }
-          });
-        } else {
-          bestPictureWinnersWithRatingStatus.push({
-            falseEntry: true,
-            movie: movie,
-            ratings: [
-              {
-                date: Date.now(),
-                direction: 0,
-                id: movie.id,
-                imagery: 0,
-                impression: 0,
-                love: 0,
-                medium: "",
-                overall: 0,
-                performance: 0,
-                soundtrack: 0,
-                stickiness: 0,
-                story: 0,
-                title: movie.title,
-                year: new Date(movie.release_date).getFullYear()
-              }
-            ]
-          });
-        }
-      });
-
-      return bestPictureWinnersWithRatingStatus;
-    },
-    thisYearsMovies () {
-      const currentYear = new Date().getFullYear();
-
-      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        const mostRecentRating = this.mostRecentRating(result);
-
-        if (mostRecentRating && mostRecentRating.date) {
-          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
-          return ratingYear === currentYear;
-        }
-
-        return false;
-      });
-    },
-    lastYearsMovies () {
-      const lastYear = new Date().getFullYear() - 1;
-
-      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        const mostRecentRating = this.mostRecentRating(result);
-
-        if (mostRecentRating && mostRecentRating.date) {
-          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
-          return ratingYear === lastYear;
-        }
-
-        return false;
-      });
-    },
-    thisMonthsMovies () {
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-
-      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        const mostRecentRating = this.mostRecentRating(result);
-
-        if (mostRecentRating && mostRecentRating.date) {
-          const ratingMonth = new Date(parseInt(mostRecentRating.date)).getMonth();
-          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
-          return ratingMonth === currentMonth && ratingYear === currentYear;
-        }
-
-        return false;
-      });
+    isMatt () {
+      return this.$store.state.databaseTopKey === "mattgrosso-gmail-com" || !this.$store.state.databaseTopKey;
     },
     lastMonthsMovies () {
       const currentDate = new Date();
@@ -1425,6 +1544,39 @@ export default {
         }
     
         return false;
+      });
+    },
+    lastYearsMovies () {
+      const lastYear = new Date().getFullYear() - 1;
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingYear === lastYear;
+        }
+
+        return false;
+      });
+    },
+    listCountClasses () {
+      const count = this.paginatedSortedResults.length;
+
+      return {
+        "count-is-1": count === 1,
+        "count-is-2": count === 2,
+        "count-is-3": count === 3,
+        "count-is-4": count === 4,
+        "count-more-than-4-remainder-0": count > 4 & count % 4 === 0,
+        "count-more-than-4-remainder-1": count > 4 & count % 4 === 1,
+        "count-more-than-4-remainder-2": count > 4 & count % 4 === 2,
+        "count-more-than-4-remainder-3": count > 4 & count % 4 === 3
+      }
+    },
+    matchingTags () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        return result.ratings.map((rating) => rating.tags || []).flat().map((tag) => tag.title).includes(this.activeQuickLinkList);
       });
     },
     notOnLetterboxdMovies () {
@@ -1460,19 +1612,70 @@ export default {
         return !movieExists;
       });
     },
-    matchingTags () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        return result.ratings.map((rating) => rating.tags || []).flat().map((tag) => tag.title).includes(this.activeQuickLinkList);
-      });
+    paginatedSortedResults () {
+      return this.sortedResults.slice(0, this.numberOfResultsToShow);
     },
-    bestPicturesWithRatings () {
-      return this.bestPictures.filter((result) => !result.falseEntry);
+    placeholder () {
+      if (this.activeQuickLinkList === 'annual') {
+        return "The best of each year";
+      } else if (this.activeQuickLinkList === 'bestPicture') {
+        return "The Best Picture winners";
+      } else {
+        return "Search...";
+      }
+    },
+    resultsAreFiltered () {
+      return this.activeFilters.length > 0 || this.activeQuickLinkList !== 'title';
+    },
+    resultsThatNeedStickiness () {
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const hasntReratedStickinessOneWeek = !this.mostRecentRating(result).userAddedStickiness;
+        const hasntReratedStickinessSixMonths = !this.mostRecentRating(result).userAddedSixMonthStickiness;
+        const ratingDate = this.mostRecentRating(result).date || "1/1/2021";
+        const moreThanAWeekAgo = new Date(ratingDate).getTime() < new Date().getTime() - (604800000);
+        const moreThanSixMonthsAgo = new Date(ratingDate).getTime() < new Date().getTime() - (15778476000);
+
+        return (hasntReratedStickinessOneWeek && moreThanAWeekAgo) || (hasntReratedStickinessSixMonths && moreThanSixMonthsAgo);
+      }).sort((a, b) => {
+        const ratingDateA = this.mostRecentRating(a).date || "1/1/2021";
+        const ratingDateB = this.mostRecentRating(b).date || "1/1/2021";
+        const dateA = new Date(ratingDateA);
+        const dateB = new Date(ratingDateB);
+        return dateB - dateA;
+      });
     },
     showResultsList () {
       return Boolean(this.paginatedSortedResults.length) || this.activeQuickLinkList !== "title";
     },
-    sortedResults () {
-      return [...this.unifiedFilteredResults].sort(this.sortResults);
+    showStickinessModal () {
+      return Boolean(this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
+    },
+    showTweakModal () {
+      if (this.showStickinessModal) {
+        return false;
+      }
+
+      const firstTiedPairIndex = this.sortedByRating.findIndex((movie, index) => {
+        const nextMovie = this.sortedByRating[index + 1];
+
+        if (!nextMovie) {
+          return false;
+        }
+
+        return getRating(movie).calculatedTotal === getRating(nextMovie).calculatedTotal;
+      });
+
+      if (firstTiedPairIndex === -1) {
+        return false;
+      }
+
+      const hasTiedResults = Boolean(this.sortedByRating[firstTiedPairIndex] && this.sortedByRating[firstTiedPairIndex + 1]);
+      const lastTweak = this.$store.state.settings.lastTweak || Date.now();
+      const oneDay = 24 * 60 * 60 * 1000;
+      const maxDailyTieBreaks = this.$store.state.settings.tieBreakTweak || 1;
+      const noTieBreakYetToday = Date.now() - lastTweak > (oneDay / maxDailyTieBreaks);
+
+      return hasTiedResults && noTieBreakYetToday;
     },
     sortedByRating () {
       const allMediaSortedByRating = this.$store.getters.allMediaSortedByRating;
@@ -1481,28 +1684,6 @@ export default {
         return allMediaSortedByRating;
       } else {
         return allMediaSortedByRating.slice().reverse();
-      }
-    },
-    paginatedSortedResults () {
-      return this.sortedResults.slice(0, this.numberOfResultsToShow);
-    },
-    datalistForActiveQuickLink () {
-      if (this.activeQuickLinkList === "keyword") {
-        return this.allKeywords;
-      } else if (this.activeQuickLinkList === "genre") {
-        return this.allGenres;
-      } else if (this.activeQuickLinkList === "year") {
-        return this.allYears;
-      } else if (this.activeQuickLinkList === "director") {
-        return this.allDirectors;
-      } else if (this.activeQuickLinkList === "cast/crew") {
-        return this.allCastCrew;
-      } else if (this.activeQuickLinkList === "studios") {
-        return this.allStudios;
-      } else if (this.activeQuickLinkList === "mediums") {
-        return this.allMediums;
-      } else {
-        return [];
       }
     },
     sortedDataForActiveQuickLinkList () {
@@ -1514,294 +1695,51 @@ export default {
         return data.sort((a, b) => b.count - a.count);
       }
     },
-    allKeywords () {
-      return Object.keys(this.countedKeywords).map((keyword) => {
-        return {
-          name: this.titleCase(keyword),
-          count: this.countedKeywords[keyword]
-        }
-      });
-    },
-    allGenres () {
-      return Object.keys(this.countedGenres).map((keyword) => {
-        return {
-          name: this.titleCase(keyword),
-          count: this.countedGenres[keyword]
-        }
-      });
-    },
-    allYears () {
-      return Object.keys(this.countedYears).map((keyword) => {
-        return {
-          name: this.titleCase(keyword),
-          count: this.countedYears[keyword]
-        }
-      });
-    },
-    allDirectors () {
-      return Object.keys(this.countDirectors).map((keyword) => {
-        const filmography = this.allEntriesWithFlatKeywordsAdded.find((entry) => {
-          return entry.movie.crew.find((person) => person.job === "Director" && person.name === keyword);
-        }).movie.crew.find((person) => person.name === keyword && person.filmography)?.filmography;
-
-        return {
-          name: this.titleCase(keyword),
-          count: this.countDirectors[keyword],
-          filmography: filmography ? filmography.filter((film) => new Date(film.release_date) < new Date() && film.popularity > 8.65) : []
-        }
-      });
-    },
-    allCastCrew () {
-      return Object.keys(this.countCastCrew).map((keyword) => {
-        return {
-          name: this.titleCase(keyword),
-          count: this.countCastCrew[keyword]
-        }
-      });
-    },
-    allStudios () {
-      return Object.keys(this.countStudios).map((keyword) => {
-        return {
-          name: this.titleCase(keyword),
-          count: this.countStudios[keyword]
-        }
-      });
-    },
-    allMediums () {
-      const mediums = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        result.ratings.forEach((rating) => {
-          if (!rating.medium) {
-            return;
-          } else if (mediums[rating.medium]) {
-            mediums[rating.medium]++;
-          } else {
-            mediums[rating.medium] = 1;
-          }
-        });
-      });
-
-      return Object.keys(mediums).map((medium) => {
-        return {
-          name: this.titleCase(medium),
-          count: mediums[medium]
-        }
-      });
-    },
-    allCounts () {
-      return {
-        keywords: this.countedKeywords,
-        genres: this.countedGenres,
-        years: this.countedYears,
-        directors: this.countDirectors,
-        castCrew: this.countCastCrew,
-        studios: this.countStudios,
-        mediums: this.allMediums,
-        filmographies: this.allDirectors
-      }
-    },
-    countedKeywords () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const keywords = result.movie.flatKeywords;
-        if (Array.isArray(keywords)) {
-          keywords.forEach((keyword) => {
-            if (counts[keyword]) {
-              counts[keyword]++;
-            } else if (keyword) {
-              counts[keyword] = 1;
-            }
-          })
-        }
-      })
-
-      return counts;
-    },
-    countedGenres () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const genres = result.movie.genres;
-        if (Array.isArray(genres)) {
-          genres.forEach((genre) => {
-            if (counts[genre.name]) {
-              counts[genre.name]++;
-            } else if (genre.name) {
-              counts[genre.name] = 1;
-            }
-          })
-        }
-      })
-
-      return counts;
-    },
-    countedYears () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const year = this.getYear(result);
-        if (counts[year]) {
-          counts[year]++;
-        } else if (year) {
-          counts[year] = 1;
-        }
-      })
-
-      return counts;
-    },
-    countDirectors () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const crew = result.movie.crew;
-        const director = Array.isArray(crew) ? crew.find((person) => person.job === "Director")?.name : null;
-
-        if (director) {
-          if (counts[director]) {
-            counts[director]++;
-          } else if (director) {
-            counts[director] = 1;
-          }
-        }
-      })
-
-      return counts;
-    },
-    countCastCrew () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const castData = result.movie.cast;
-        const crewData = result.movie.crew;
-        const cast = Array.isArray(castData) ? castData.filter((person, index) => index < 10).map(person => person.name) : [];
-        const crew = Array.isArray(crewData) ? crewData.filter((person, index) => index < 10).map(person => person.name) : [];
-        const castCrewCombined = uniq([...cast, ...crew]);
-
-        castCrewCombined.forEach((person) => {
-          if (counts[person]) {
-            counts[person]++;
-          } else if (person) {
-            counts[person] = 1;
-          }
-        })
-      })
-
-      return counts;
-    },
-    countStudios () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const productionCompanies = result.movie.production_companies?.map(company => company.name) || [];
-
-        productionCompanies.forEach((company) => {
-          if (counts[company]) {
-            counts[company]++;
-          } else if (company) {
-            counts[company] = 1;
-          }
-        })
-      })
-
-      return counts;
-    },
-    countMediums () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        result.ratings.forEach((rating) => {
-          if (counts[rating.medium]) {
-            counts[rating.medium]++;
-          } else if (rating.medium) {
-            counts[rating.medium] = 1;
-          }
-        })
-      })
-
-      return counts;
-    },
-    resultsAreFiltered () {
-      return this.activeFilters.length > 0 || this.activeQuickLinkList !== 'title';
-    },
-    allActiveFilters() {
-      const filters = [];
-      
-      // Add input text as a general search filter if it exists AND no chips are active
-      // (avoid double filtering when temp chips exist)
-      if (this.searchValue && this.searchValue.trim() && this.activeFilters.length === 0) {
-        filters.push({
-          id: '__input__',
-          type: 'general',
-          value: this.searchValue.trim(),
-          display: this.searchValue.trim(),
-          source: 'input'
-        });
-      }
-      
-      // Add all existing chips
-      this.activeFilters.forEach(chip => {
-        filters.push({
-          ...chip,
-          source: 'chip'
-        });
-      });
-      
-      return filters;
-    },
-    effectiveSearchFilter() {
-      const typePriority = this.filterTypes;
-      
-      for (const type of typePriority) {
-        const chipOfType = this.allActiveFilters.find(filter => filter.type === type);
-        if (chipOfType) {
-          return chipOfType;
-        }
-      }
-
-      return null;
-    },
-    effectiveSearchTerm() {
-      if (this.effectiveSearchFilter) {
-        return this.effectiveSearchFilter.value;      
-      } else {
-        return '';
-      }
-    },
-    placeholder () {
-      if (this.activeQuickLinkList === 'annual') {
-        return "The best of each year";
-      } else if (this.activeQuickLinkList === 'bestPicture') {
-        return "The Best Picture winners";
-      } else {
-        return "Search...";
-      }
-    },
-    listCountClasses () {
-      const count = this.paginatedSortedResults.length;
-
-      return {
-        "count-is-1": count === 1,
-        "count-is-2": count === 2,
-        "count-is-3": count === 3,
-        "count-is-4": count === 4,
-        "count-more-than-4-remainder-0": count > 4 & count % 4 === 0,
-        "count-more-than-4-remainder-1": count > 4 & count % 4 === 1,
-        "count-more-than-4-remainder-2": count > 4 & count % 4 === 2,
-        "count-more-than-4-remainder-3": count > 4 & count % 4 === 3
-      }
-    },
-    userRatedMovieCount() {
-      // Count the number of movies the user has rated (not TV shows)
-      return this.allEntriesWithFlatKeywordsAdded.length;
+    sortedResults () {
+      return [...this.unifiedFilteredResults].sort(this.sortResults);
     },
     suggestionsButtonLabel() {
       return this.userRatedMovieCount === 0
         ? 'Suggest some movies to rate'
         : 'Suggest more movies to rate';
     },
-    // Computed properties for filter modal
+    tags () {
+      if (this.$store.state?.settings?.tags?.['viewing-tags']) {
+        return Object.values(this.$store.state.settings.tags['viewing-tags']).map(tag => tag.title);
+      } else {
+        return [];
+      }
+    },
+    thisMonthsMovies () {
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingMonth = new Date(parseInt(mostRecentRating.date)).getMonth();
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingMonth === currentMonth && ratingYear === currentYear;
+        }
+
+        return false;
+      });
+    },
+    thisYearsMovies () {
+      const currentYear = new Date().getFullYear();
+
+      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
+        const mostRecentRating = this.mostRecentRating(result);
+
+        if (mostRecentRating && mostRecentRating.date) {
+          const ratingYear = new Date(parseInt(mostRecentRating.date)).getFullYear();
+          return ratingYear === currentYear;
+        }
+
+        return false;
+      });
+    },
     topDirectors() {
       return Object.entries(this.allCounts.directors || {})
         .map(([name, count]) => ({ name, count }))
@@ -1814,11 +1752,54 @@ export default {
         .sort((a, b) => b.count - a.count)
         .slice(0, 20);
     },
-    availableYears() {
-      const years = this.allEntriesWithFlatKeywordsAdded
-        .map(movie => new Date(movie.movie.release_date).getFullYear())
-        .filter(year => !isNaN(year));
-      return [...new Set(years)].sort((a, b) => b - a);
+    unifiedFilteredResults() {
+      // Step 1: Get base results (from quick links or all entries)
+      let results;
+      
+      if (this.activeQuickLinkList === "annual") {
+        results = this.bestMovieFromEachYear;
+      } else if (this.activeQuickLinkList === "bestPicture") {
+        results = this.bestPictures;
+      } else if (this.activeQuickLinkList === "thisYear") {
+        results = this.thisYearsMovies;
+      } else if (this.activeQuickLinkList === "lastYear") {
+        results = this.lastYearsMovies;
+      } else if (this.activeQuickLinkList === "thisMonth") {
+        results = this.thisMonthsMovies;
+      } else if (this.activeQuickLinkList === "lastMonth") {
+        results = this.lastMonthsMovies;
+      } else if (this.activeQuickLinkList === "notOnLetterboxd") {
+        results = this.notOnLetterboxdMovies;
+      } else if (this.tags.includes(this.activeQuickLinkList)) {
+        results = this.matchingTags;
+      } else {
+        // No quick link active - start with all entries
+        results = this.allEntriesWithFlatKeywordsAdded;
+      }
+
+      // Step 2: Apply all filters from allActiveFilters (input + chips)
+      if (this.allActiveFilters.length > 0) {
+        results = results.filter(result => {
+          // ALL filters must match (AND logic)
+          return this.allActiveFilters.every(filter => {
+            return this.applyFilter(result, filter);
+          });
+        });
+      }
+
+      // Step 3: Exclude shorts if showShorts is false
+      if (!this.showShorts) {
+        results = results.filter(result => {
+          // Consider as short if runtime <= 40 min
+          return !(result.movie.runtime && result.movie.runtime <= 40);
+        });
+      }
+
+      return results;
+    },
+    userRatedMovieCount() {
+      // Count the number of movies the user has rated (not TV shows)
+      return this.allEntriesWithFlatKeywordsAdded.length;
     },
     userTags() {
       return this.tags.slice(0, 20); // Limit to 20 most recent tags
