@@ -459,8 +459,28 @@
             </div>
           </div>
           <!-- Results list follows the settings panel -->
+          <!-- Multi-category grouped results -->
+          <div v-if="groupedByAllCategories" class="pb-3">
+            <div v-for="group in groupedByAllCategories" :key="group.category" class="my-4 role-section">
+              <h6 class="bg-dark text-white text-end mb-2">{{ group.categoryDisplay }}</h6>
+              <ul class="grid-layout" :class="getGridClassesForGroup(group.movies.length)">
+                <DBGridLayoutSearchResult
+                  v-for="(result, index) in group.movies"
+                  :key="result.movie.id"
+                  :result="result"
+                  :keywordCounts="allCounts.keywords"
+                  :allCounts="allCounts"
+                  :index="index"
+                  :resultsAreFiltered="resultsAreFiltered"
+                  :sortValue="sortValue"
+                  :activeQuickLinkList="activeQuickLinkList"
+                  @updateSearchValue="updateSearchValue"
+                />
+              </ul>
+            </div>
+          </div>
           <!-- Grouped results by person role -->
-          <div v-if="groupedByPersonRole" class="pb-3">
+          <div v-else-if="groupedByPersonRole" class="pb-3">
             <div v-for="group in groupedByPersonRole" :key="`${group.personName}-${group.role}`" class="my-4 role-section">
               <h6 class="bg-dark text-white text-end mb-2">{{ group.role }}</h6>
               <ul class="grid-layout" :class="getGridClassesForGroup(group.movies.length)">
@@ -494,7 +514,7 @@
               @updateSearchValue="updateSearchValue"
             />
           </ul>
-          <div v-if="!groupedByPersonRole && sortedResults.length > numberOfResultsToShow" class="d-flex justify-content-end mb-5">
+          <div v-if="!groupedByAllCategories && !groupedByPersonRole && sortedResults.length > numberOfResultsToShow" class="d-flex justify-content-end mb-5">
             <button
               class="btn btn-secondary"
               @click="addMoreResults"
@@ -1018,6 +1038,171 @@ export default {
     activeFiltersMinusTemps() {
       // Return only non-temporary filters
       return this.activeFilters.filter((filter) => !filter.temp);
+    },
+    groupedByAllCategories() {
+      // Use debounced search for typing performance, but fall back to effectiveSearchTerm for chips
+      let searchTerm;
+      if (this.searchValue) {
+        // User is typing - use debounced value for performance
+        searchTerm = this.searchValue;
+      } else if (this.activeFilters.length > 0) {
+        // User has chips active - use effectiveSearchTerm 
+        searchTerm = this.effectiveSearchTerm;
+      } else {
+        return null;
+      }
+      
+      if (!searchTerm || !searchTerm.toLowerCase) return null;
+      const normalizedSearchTerm = searchTerm.toLowerCase();
+      
+      // Only show grouped results when we have a simple search term
+      // Skip if we have multiple chips or quick links active
+      if (this.activeFilters.filter(f => !f.temp).length > 1 || this.activeQuickLinkList !== 'title') {
+        return null;
+      }
+      
+      // Skip if the search term is too short
+      if (normalizedSearchTerm.length < 3) {
+        return null;
+      }
+      
+      // Check if this is a year search - if so, bypass grouping and use normal results
+      if (this.detectYearTypes(searchTerm)) {
+        return null; // Let normal filtering handle years
+      }
+      
+      const categories = [];
+      const allResults = this.allEntriesWithFlatKeywordsAdded;
+      const usedMovieIds = new Set(); // Track movies already used in previous categories
+      
+      // Title Matches
+      const titleMatches = allResults.filter(media => 
+        media.movie.title && media.movie.title.toLowerCase().includes(normalizedSearchTerm)
+      );
+      if (titleMatches.length > 0) {
+        const sortedTitleMatches = [...titleMatches].sort(this.sortResults).slice(0, 20);
+        categories.push({
+          category: 'title',
+          categoryDisplay: 'Title Matches',
+          movies: sortedTitleMatches
+        });
+        // Mark these movies as used
+        sortedTitleMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+      }
+      
+      // Director Matches (excluding already used movies)
+      const directorMatches = allResults.filter(media => 
+        !usedMovieIds.has(media.movie.id) &&
+        media.movie.crew && media.movie.crew.some(person => 
+          person.job === 'Director' && person.name && person.name.toLowerCase().includes(normalizedSearchTerm)
+        )
+      );
+      if (directorMatches.length > 0) {
+        const sortedDirectorMatches = [...directorMatches].sort(this.sortResults).slice(0, 20);
+        categories.push({
+          category: 'director',
+          categoryDisplay: 'Director',
+          movies: sortedDirectorMatches
+        });
+        // Mark these movies as used
+        sortedDirectorMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+      }
+      
+      // Producer Matches (excluding already used movies)
+      const producerMatches = allResults.filter(media => 
+        !usedMovieIds.has(media.movie.id) &&
+        media.movie.crew && media.movie.crew.some(person => 
+          person.job && person.job.toLowerCase().includes('producer') && 
+          person.name && person.name.toLowerCase().includes(normalizedSearchTerm)
+        )
+      );
+      if (producerMatches.length > 0) {
+        const sortedProducerMatches = [...producerMatches].sort(this.sortResults).slice(0, 20);
+        categories.push({
+          category: 'producer',
+          categoryDisplay: 'Producer',
+          movies: sortedProducerMatches
+        });
+        // Mark these movies as used
+        sortedProducerMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+      }
+      
+      // Cast Matches (excluding already used movies)
+      const castMatches = allResults.filter(media => 
+        !usedMovieIds.has(media.movie.id) &&
+        media.movie.cast && media.movie.cast.some(person => 
+          person.name && person.name.toLowerCase().includes(normalizedSearchTerm)
+        )
+      );
+      if (castMatches.length > 0) {
+        const sortedCastMatches = [...castMatches].sort(this.sortResults).slice(0, 20);
+        categories.push({
+          category: 'cast',
+          categoryDisplay: 'Cast',
+          movies: sortedCastMatches
+        });
+        // Mark these movies as used
+        sortedCastMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+      }
+      
+      // Production Companies/Keywords - prioritize production companies over keywords since they're more specific
+      const companyMatches = allResults.filter(media => 
+        !usedMovieIds.has(media.movie.id) &&
+        media.movie.production_companies && media.movie.production_companies.some(company => 
+          company.name && company.name.toLowerCase().includes(normalizedSearchTerm)
+        )
+      );
+      
+      if (companyMatches.length > 0) {
+        // Use production companies if available
+        const sortedCompanyMatches = [...companyMatches].sort(this.sortResults).slice(0, 20);
+        categories.push({
+          category: 'company',
+          categoryDisplay: 'Production Companies',
+          movies: sortedCompanyMatches
+        });
+        // Mark these movies as used
+        sortedCompanyMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+      } else {
+        // Only check keywords if no production company matches found
+        const keywordMatches = allResults.filter(media => 
+          !usedMovieIds.has(media.movie.id) &&
+          media.movie.flatKeywords && media.movie.flatKeywords.includes(normalizedSearchTerm)
+        );
+        
+        if (keywordMatches.length > 0) {
+          // Use keywords if available
+          const sortedKeywordMatches = [...keywordMatches].sort(this.sortResults).slice(0, 20);
+          categories.push({
+            category: 'keyword',
+            categoryDisplay: 'Keywords',
+            movies: sortedKeywordMatches
+          });
+          // Mark these movies as used
+          sortedKeywordMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+        } else {
+          // Only check genres if no keyword matches found
+          const genreMatches = allResults.filter(media => 
+            !usedMovieIds.has(media.movie.id) &&
+            media.movie.genres && media.movie.genres.some(genre => 
+              genre.name && genre.name.toLowerCase().includes(normalizedSearchTerm)
+            )
+          );
+          if (genreMatches.length > 0) {
+            const sortedGenreMatches = [...genreMatches].sort(this.sortResults).slice(0, 20);
+            categories.push({
+              category: 'genre',
+              categoryDisplay: 'Genres',
+              movies: sortedGenreMatches
+            });
+            // Mark these movies as used
+            sortedGenreMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+          }
+        }
+      }
+      
+      // Show grouped results if we have any categories
+      return categories.length > 0 ? categories : null;
     },
     groupedByPersonRole () {
       // Use debounced search for typing performance, but fall back to effectiveSearchTerm for chips
@@ -1606,8 +1791,9 @@ export default {
     allActiveFilters() {
       const filters = [];
       
-      // Add input text as a general search filter if it exists
-      if (this.searchValue && this.searchValue.trim()) {
+      // Add input text as a general search filter if it exists AND no chips are active
+      // (avoid double filtering when temp chips exist)
+      if (this.searchValue && this.searchValue.trim() && this.activeFilters.length === 0) {
         filters.push({
           id: '__input__',
           type: 'general',
@@ -2462,13 +2648,14 @@ export default {
       this.activeFilters = this.activeFilters.filter(filter => !filter.temp);
       
       if (value.trim()) {
-        // Always use general type for temp filters during typing
-        // Real type detection happens only when converting to permanent chip
+        // Use detectFilterType for consistent behavior between typing and chip conversion
+        const searchType = this.detectFilterType(value.trim());
+        
         const tempFilter = {
           id: `temp-${Date.now()}`,
-          type: 'general',
-          value: value.trim(),
-          display: value.trim(),
+          type: searchType.type,
+          value: searchType.value,
+          display: searchType.display,
           temp: true  // Mark as temporary
         };
         
