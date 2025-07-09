@@ -68,7 +68,7 @@
     </div>
     <NoResults
       v-if="showSuggestionsOnly && userRatedMovieCount < 10"
-      :value="value"
+      :value="searchValue || effectiveSearchTerm"
       :suggestionsMode="true"
       @cancel-suggestions="showSuggestionsOnly = false"
       style="margin-bottom: 2rem;"
@@ -527,7 +527,7 @@
             <button v-if="!showSuggestionsOnly" class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
             <NoResults
               v-if="showSuggestionsOnly"
-              :value="value"
+              :value="searchValue || effectiveSearchTerm"
               :suggestionsMode="true"
               @cancel-suggestions="showSuggestionsOnly = false"
               style="margin-bottom: 2rem;"
@@ -548,7 +548,12 @@
           <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
         </div>
       </div>
-      <NoResults v-else-if="$store.state.dbLoaded" :value="value" @startNewSearch="startNewSearch"/>
+      <NoResults 
+        v-else-if="$store.state.dbLoaded"
+        :class="{'no-results-buffer': !activeFiltersMinusTemps.length}"
+        :value="searchValue || effectiveSearchTerm"
+        @startNewSearch="startNewSearch"
+      />
       <div v-else class="loading-screen d-flex justify-content-center align-items-center my-5">
         <div class="spinner-border text-light" role="status">
           <span class="visually-hidden">Loading...</span>
@@ -1075,129 +1080,61 @@ export default {
       const allResults = this.allEntriesWithFlatKeywordsAdded;
       const usedMovieIds = new Set(); // Track movies already used in previous categories
       
-      // Title Matches
-      const titleMatches = allResults.filter(media => 
-        media.movie.title && media.movie.title.toLowerCase().includes(normalizedSearchTerm)
-      );
-      if (titleMatches.length > 0) {
-        const sortedTitleMatches = [...titleMatches].sort(this.sortResults).slice(0, 20);
-        categories.push({
-          category: 'title',
-          categoryDisplay: 'Title Matches',
-          movies: sortedTitleMatches
-        });
-        // Mark these movies as used
-        sortedTitleMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-      }
+      // Define category filters in priority order
+      const categoryFilters = [
+        { type: 'title', displayName: 'Title Matches' },
+        { type: 'director', displayName: 'Director' },
+        { type: 'producer', displayName: 'Producer' },
+        { type: 'cast', displayName: 'Cast' }
+      ];
       
-      // Director Matches (excluding already used movies)
-      const directorMatches = allResults.filter(media => 
-        !usedMovieIds.has(media.movie.id) &&
-        media.movie.crew && media.movie.crew.some(person => 
-          person.job === 'Director' && person.name && person.name.toLowerCase().includes(normalizedSearchTerm)
-        )
-      );
-      if (directorMatches.length > 0) {
-        const sortedDirectorMatches = [...directorMatches].sort(this.sortResults).slice(0, 20);
-        categories.push({
-          category: 'director',
-          categoryDisplay: 'Director',
-          movies: sortedDirectorMatches
-        });
-        // Mark these movies as used
-        sortedDirectorMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-      }
-      
-      // Producer Matches (excluding already used movies)
-      const producerMatches = allResults.filter(media => 
-        !usedMovieIds.has(media.movie.id) &&
-        media.movie.crew && media.movie.crew.some(person => 
-          person.job && person.job.toLowerCase().includes('producer') && 
-          person.name && person.name.toLowerCase().includes(normalizedSearchTerm)
-        )
-      );
-      if (producerMatches.length > 0) {
-        const sortedProducerMatches = [...producerMatches].sort(this.sortResults).slice(0, 20);
-        categories.push({
-          category: 'producer',
-          categoryDisplay: 'Producer',
-          movies: sortedProducerMatches
-        });
-        // Mark these movies as used
-        sortedProducerMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-      }
-      
-      // Cast Matches (excluding already used movies)
-      const castMatches = allResults.filter(media => 
-        !usedMovieIds.has(media.movie.id) &&
-        media.movie.cast && media.movie.cast.some(person => 
-          person.name && person.name.toLowerCase().includes(normalizedSearchTerm)
-        )
-      );
-      if (castMatches.length > 0) {
-        const sortedCastMatches = [...castMatches].sort(this.sortResults).slice(0, 20);
-        categories.push({
-          category: 'cast',
-          categoryDisplay: 'Cast',
-          movies: sortedCastMatches
-        });
-        // Mark these movies as used
-        sortedCastMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-      }
-      
-      // Production Companies/Keywords - prioritize production companies over keywords since they're more specific
-      const companyMatches = allResults.filter(media => 
-        !usedMovieIds.has(media.movie.id) &&
-        media.movie.production_companies && media.movie.production_companies.some(company => 
-          company.name && company.name.toLowerCase().includes(normalizedSearchTerm)
-        )
-      );
-      
-      if (companyMatches.length > 0) {
-        // Use production companies if available
-        const sortedCompanyMatches = [...companyMatches].sort(this.sortResults).slice(0, 20);
-        categories.push({
-          category: 'company',
-          categoryDisplay: 'Production Companies',
-          movies: sortedCompanyMatches
-        });
-        // Mark these movies as used
-        sortedCompanyMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-      } else {
-        // Only check keywords if no production company matches found
-        const keywordMatches = allResults.filter(media => 
+      // Process each category
+      categoryFilters.forEach(categoryConfig => {
+        const filter = { type: categoryConfig.type, value: searchTerm };
+        
+        const matches = allResults.filter(media => 
           !usedMovieIds.has(media.movie.id) &&
-          media.movie.flatKeywords && media.movie.flatKeywords.includes(normalizedSearchTerm)
+          this.applyFilter(media, filter)
         );
         
-        if (keywordMatches.length > 0) {
-          // Use keywords if available
-          const sortedKeywordMatches = [...keywordMatches].sort(this.sortResults).slice(0, 20);
+        if (matches.length > 0) {
+          const sortedMatches = [...matches].sort(this.sortResults).slice(0, 20);
           categories.push({
-            category: 'keyword',
-            categoryDisplay: 'Keywords',
-            movies: sortedKeywordMatches
+            category: categoryConfig.type,
+            categoryDisplay: categoryConfig.displayName,
+            movies: sortedMatches
           });
           // Mark these movies as used
-          sortedKeywordMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-        } else {
-          // Only check genres if no keyword matches found
-          const genreMatches = allResults.filter(media => 
-            !usedMovieIds.has(media.movie.id) &&
-            media.movie.genres && media.movie.genres.some(genre => 
-              genre.name && genre.name.toLowerCase().includes(normalizedSearchTerm)
-            )
-          );
-          if (genreMatches.length > 0) {
-            const sortedGenreMatches = [...genreMatches].sort(this.sortResults).slice(0, 20);
-            categories.push({
-              category: 'genre',
-              categoryDisplay: 'Genres',
-              movies: sortedGenreMatches
-            });
-            // Mark these movies as used
-            sortedGenreMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-          }
+          sortedMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+        }
+      });
+      
+      // Production Companies/Keywords/Genres - prioritize production companies over keywords since they're more specific
+      const fallbackFilters = [
+        { type: 'company', displayName: 'Production Companies' },
+        { type: 'keyword', displayName: 'Keywords' },
+        { type: 'genre', displayName: 'Genres' }
+      ];
+      
+      // Only use the first fallback filter that has matches
+      for (const categoryConfig of fallbackFilters) {
+        const filter = { type: categoryConfig.type, value: searchTerm };
+        
+        const matches = allResults.filter(media => 
+          !usedMovieIds.has(media.movie.id) &&
+          this.applyFilter(media, filter)
+        );
+        
+        if (matches.length > 0) {
+          const sortedMatches = [...matches].sort(this.sortResults).slice(0, 20);
+          categories.push({
+            category: categoryConfig.type,
+            categoryDisplay: categoryConfig.displayName,
+            movies: sortedMatches
+          });
+          // Mark these movies as used
+          sortedMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+          break; // Only use the first match
         }
       }
       
@@ -1962,6 +1899,29 @@ export default {
         case 'keyword':
           return movie.flatKeywords && movie.flatKeywords.includes(filter.value.toLowerCase());
 
+        case 'title':
+          // Title-only search
+          return movie.title && movie.title.toLowerCase().includes(filter.value.toLowerCase());
+
+        case 'director':
+          // Director-only search
+          return movie.crew && movie.crew.some(person => 
+            person.job === 'Director' && person.name && person.name.toLowerCase().includes(filter.value.toLowerCase())
+          );
+
+        case 'producer':
+          // Producer-only search
+          return movie.crew && movie.crew.some(person => 
+            person.job && person.job.toLowerCase().includes('producer') && 
+            person.name && person.name.toLowerCase().includes(filter.value.toLowerCase())
+          );
+
+        case 'cast':
+          // Cast-only search
+          return movie.cast && movie.cast.some(person => 
+            person.name && person.name.toLowerCase().includes(filter.value.toLowerCase())
+          );
+
         default:
           return false;
       }
@@ -2658,7 +2618,7 @@ export default {
           display: searchType.display,
           temp: true  // Mark as temporary
         };
-        
+
         this.activeFilters.push(tempFilter);
       }
     },
@@ -2857,15 +2817,6 @@ export default {
         return { type: 'keyword', value: exactKeywordMatch, display: `${exactKeywordMatch}` };
       }
 
-      // Check for partial keyword match
-      const partialKeywordMatch = allKeywords.find(keyword => 
-        keyword && (keyword.toLowerCase().includes(lowerValue) ||
-        lowerValue.includes(keyword.toLowerCase()))
-      );
-      if (partialKeywordMatch) {
-        return { type: 'keyword', value: partialKeywordMatch, display: `${partialKeywordMatch}` };
-      }
-
       // If no keyword types matched, return null
       return null;
     },
@@ -2885,24 +2836,26 @@ export default {
       return null;
     },
     detectProductionCompanyTypes(searchValue, lowerValue) {
-      // Check for exact production company match
-      const matchingCompany = this.findMatchingProductionCompany(lowerValue);
-      if (matchingCompany) {
-        return { type: 'company', value: matchingCompany.name, display: `${matchingCompany.name}` };
-      }
-      // Check for partial production company match
-      const allCompanies = this.allEntriesWithFlatKeywordsAdded.flatMap(result =>
-        result.movie.production_companies || []
+      // Check for exact director match
+      const allStudios = this.allStudios || [];
+      const exactStudioMatch = allStudios.find(studio => 
+        studio.name && studio.name.toLowerCase() === lowerValue
       );
-      const partialCompanyMatch = allCompanies.find(company =>
-        company.name && (company.name.toLowerCase().includes(lowerValue) ||
-        lowerValue.includes(company.name.toLowerCase()))
-      );
-      if (partialCompanyMatch) {
-        return { type: 'company', value: partialCompanyMatch.name, display: `${partialCompanyMatch.name}` };
+      if (exactStudioMatch) {
+        return { type: 'person', value: exactStudioMatch.name, display: `${exactStudioMatch.name}` };
       }
 
-      // If no production company types matched, return null
+      // Check for partial director match (whole words only)
+      const partialStudioMatch = allStudios.find(studio => {
+        if (!studio.name) return false;
+        const studioWords = studio.name.toLowerCase().split(' ');
+        return studioWords.some(word => word === lowerValue);
+      });
+      if (partialStudioMatch) {
+        return { type: 'person', value: partialStudioMatch.name, display: `${partialStudioMatch.name}`};
+      }
+
+      // If no director types matched, return null
       return null;
     },
     createFilterByType(expectedType, value) {
@@ -2962,60 +2915,6 @@ export default {
 
       // For everything else, use general search
       return { type: 'general', value: trimmed, display: `${trimmed}` };
-    },
-    findMatchingProductionCompany(searchTerm) {
-      // Get all production companies from existing movies
-      const allCompanies = [];
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const companies = result.movie.production_companies || [];
-        companies.forEach(company => {
-          if (company.name && !allCompanies.find(c => 
-            (c.id && company.id && c.id === company.id) || 
-            (!c.id && !company.id && c.name === company.name)
-          )) {
-            allCompanies.push(company);
-          }
-        });
-      });
-      
-      // Normalize search term for better matching
-      const normalizeCompanyName = (name) => {
-        return name.toLowerCase()
-          .replace(/\b(inc|corp|corporation|ltd|limited|pictures|films|entertainment|studios|productions)\b/g, '')
-          .replace(/[^a-z0-9\s]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-      };
-      
-      const normalizedSearchTerm = normalizeCompanyName(searchTerm);
-      
-      // Find company by exact name match (case insensitive)
-      const exactMatch = allCompanies.find(company => 
-        company.name.toLowerCase() === searchTerm
-      );
-      if (exactMatch) return exactMatch;
-      
-      // Find company by normalized exact match
-      const normalizedExactMatch = allCompanies.find(company => 
-        normalizeCompanyName(company.name) === normalizedSearchTerm
-      );
-      if (normalizedExactMatch) return normalizedExactMatch;
-      
-      // Find company by partial name match (case insensitive)
-      const partialMatch = allCompanies.find(company => 
-        company.name.toLowerCase().includes(searchTerm) ||
-        searchTerm.includes(company.name.toLowerCase())
-      );
-      if (partialMatch) return partialMatch;
-      
-      // Find company by normalized partial match
-      const normalizedPartialMatch = allCompanies.find(company => {
-        const normalizedCompanyName = normalizeCompanyName(company.name);
-        return normalizedCompanyName.includes(normalizedSearchTerm) ||
-               normalizedSearchTerm.includes(normalizedCompanyName);
-      });
-      
-      return normalizedPartialMatch;
     },
     async fetchUnratedMoviesByYear(year) {
       // Fetch multiple pages to get more variety
@@ -3868,6 +3767,11 @@ export default {
         transform: translate(-50%, -50%);
         white-space: nowrap;
       }
+    }
+
+    .no-results-buffer {
+      // This is here to deal with the jump in position when the input is deblurred and a chip is automatically added
+      margin-top: 58px;
     }
 
     .loading-screen {
