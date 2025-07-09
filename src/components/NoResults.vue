@@ -1,10 +1,10 @@
 <template>
   <div class="no-results">
     <div v-if="suggestionsMode">
-      <NewRatingSearch :value="value" :suggestionsMode="true" @clear-search-value="clearValueSearchTypeAndFilterValue" @start-new-search="startNewSearch" @cancel-suggestions="$emit('cancel-suggestions')"/>
+      <NewRatingSearch :value="value" :suggestionsMode="true" @start-new-search="startNewSearch" @cancel-suggestions="$emit('cancel-suggestions')"/>
     </div>
     <div v-else-if="hasMedia || value" class="has-media-no-results">
-      <NewRatingSearch :value="value" @clear-search-value="clearValueSearchTypeAndFilterValue" @start-new-search="startNewSearch"/>
+      <NewRatingSearch :value="value" @start-new-search="startNewSearch"/>
     </div>
     <div v-else class="no-movies">
       <p>Search for a movie in the box above and follow the instructions to add your first movie rating.</p>
@@ -35,9 +35,6 @@ export default {
     }
   },
   methods: {
-    clearValueSearchTypeAndFilterValue () {
-      this.$emit('clearValueSearchTypeAndFilterValue');
-    },
     startNewSearch () {
       this.$emit('startNewSearch');
     }

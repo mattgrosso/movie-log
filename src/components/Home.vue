@@ -528,7 +528,7 @@
           <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
         </div>
       </div>
-      <NoResults v-else-if="$store.state.dbLoaded" :value="value" @clearValue="clearValue" @startNewSearch="startNewSearch"/>
+      <NoResults v-else-if="$store.state.dbLoaded" :value="value" @startNewSearch="startNewSearch"/>
       <div v-else class="loading-screen d-flex justify-content-center align-items-center my-5">
         <div class="spinner-border text-light" role="status">
           <span class="visually-hidden">Loading...</span>
@@ -1878,7 +1878,7 @@ export default {
           this.updateSearchValue(fallbackValue, true);
           this.sortOrder = "bestOrNewestOnTop";
         } else {
-          this.clearValue();
+          this.clearInput();
         }
       }
     },
@@ -1909,9 +1909,6 @@ export default {
       this.showMovieInfoModal = false;
       this.selectedMovieInfo = null;
       document.body.classList.remove('no-scroll');
-    },
-    clearValue () {
-      this.inputValue = "";
     },
     async fetchLetterboxdData () {
       if (!this.$store.state.settings.letterboxdConnected || !this.$store.state.settings.letterboxdUsername) {
@@ -1946,7 +1943,7 @@ export default {
         this.clearAllFilters();
         this.addSearchFilter(value, isAutoRandom);
       } else {
-        this.clearValue();
+        this.clearInput();
       }
 
       window.scroll({
@@ -1954,8 +1951,6 @@ export default {
         left: 0,
         behavior: 'instant'
       });
-
-      this.$refs.insightsAccordion?.classList.remove("show");
     },
     toggleQuickLinksSort () {
       if (this.quickLinksSortType === "a-z") {
@@ -1987,7 +1982,7 @@ export default {
       }
     },
     toggleAnnualBestFilter () {
-      this.clearValue();
+      this.clearInput();
 
       if (this.activeQuickLinkList === "annual") {
         this.activeQuickLinkList = "title";
@@ -1997,7 +1992,7 @@ export default {
       }
     },
     toggleBestPicturesFilter () {
-      this.clearValue();
+      this.clearInput();
 
       if (this.activeQuickLinkList === "bestPicture") {
         this.activeQuickLinkList = "title";
@@ -2007,7 +2002,7 @@ export default {
       }
     },
     toggleThisYearFilter () {
-      this.clearValue();
+      this.clearInput();
 
       if (this.activeQuickLinkList === "thisYear") {
         this.activeQuickLinkList = "title";
@@ -2017,7 +2012,7 @@ export default {
       }
     },
     toggleLastYearFilter () {
-      this.clearValue();
+      this.clearInput();
 
       if (this.activeQuickLinkList === "lastYear") {
         this.activeQuickLinkList = "title";
@@ -2027,7 +2022,7 @@ export default {
       }
     },
     toggleThisMonthFilter () {
-      this.clearValue();
+      this.clearInput();
 
       if (this.activeQuickLinkList === "thisMonth") {
         this.activeQuickLinkList = "title";
@@ -2037,7 +2032,7 @@ export default {
       }
     },
     toggleLastMonthFilter () {
-      this.clearValue();
+      this.clearInput();
 
       if (this.activeQuickLinkList === "lastMonth") {
         this.activeQuickLinkList = "title";
@@ -2047,7 +2042,7 @@ export default {
       }
     },
     async toggleNotOnLetterboxdFilter () {
-      this.clearValue();
+      this.clearInput();
 
       if (this.activeQuickLinkList === "notOnLetterboxd") {
         this.activeQuickLinkList = "title";
@@ -2480,6 +2475,16 @@ export default {
         this.activeFilters.push(tempFilter);
       }
     },
+    clearInput () {
+      this.inputValue = '';
+      this.setSearchValue('');
+      
+      // Clear and blur the input
+      const inputElement = this.$refs.searchInput;
+      if (inputElement) {
+        inputElement.blur();
+      } // Small delay to show the fade effect
+    },
     convertSearchToChip() {
       // Find any existing temp filter and remove it
       this.activeFilters = this.activeFilters.filter(filter => !filter.temp);
@@ -2490,20 +2495,11 @@ export default {
         
         // Add the chip immediately and clear the input
         this.addSearchFilter(searchTerm);
-        
-        this.inputValue = '';
-        this.setSearchValue('');
-        
-        // Clear and blur the input
-        const inputElement = this.$refs.searchInput;
-        if (inputElement) {
-          inputElement.blur();
-        } // Small delay to show the fade effect
       }
     },
     addSearchFilter(searchTerm, isAutoRandom = false) {
       if (!searchTerm || !searchTerm.trim()) return;
-      
+
       const trimmedTerm = searchTerm.trim();
       
       // Detect what type of filter this should be
@@ -2515,7 +2511,7 @@ export default {
       );
       
       if (existingFilter) {
-        return; // Don't add duplicate
+        return;
       }
       
       // Add the appropriate filter chip
@@ -2525,7 +2521,9 @@ export default {
         value: searchType.value,
         display: searchType.display
       });
-      
+
+      this.clearInput();
+
       // Track if this chip was added by automatic random search
       this.hasAutoRandomChip = isAutoRandom;
     },
