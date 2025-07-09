@@ -1866,7 +1866,7 @@ export default {
       if (randomValue && safetyLimit > 0) {
         // Clear existing chips first, then add the random search
         this.clearAllFilters();
-        this.updateSearchValue(randomValue, true); // Mark as auto random
+        this.updateSearchValue(randomValue, true, randomList); // Pass the category
         this.sortOrder = "bestOrNewestOnTop";
       } else {
         // If we couldn't find a value with minimum count, try with any count > 0
@@ -1875,7 +1875,7 @@ export default {
           const randomIndex = Math.floor(Math.random() * allValues.length);
           const fallbackValue = allValues[randomIndex];
           this.clearAllFilters();
-          this.updateSearchValue(fallbackValue, true);
+          this.updateSearchValue(fallbackValue, true, randomList); // Pass the category
           this.sortOrder = "bestOrNewestOnTop";
         } else {
           this.clearInput();
@@ -1937,11 +1937,11 @@ export default {
         .replace(/\s+/g, ' ')
         .trim();
     },
-    updateSearchValue (value, isAutoRandom = false) {
+    updateSearchValue (value, isAutoRandom = false, expectedType = null) {
       // If we have a value, clear existing filters first then add the new search
       if (value && value.trim()) {
         this.clearAllFilters();
-        this.addSearchFilter(value, isAutoRandom);
+        this.addSearchFilter(value, isAutoRandom, expectedType);
       } else {
         this.clearInput();
       }
@@ -2497,13 +2497,19 @@ export default {
         this.addSearchFilter(searchTerm);
       }
     },
-    addSearchFilter(searchTerm, isAutoRandom = false) {
+    addSearchFilter(searchTerm, isAutoRandom = false, expectedType = null) {
       if (!searchTerm || !searchTerm.trim()) return;
 
       const trimmedTerm = searchTerm.trim();
       
-      // Detect what type of filter this should be
-      const searchType = this.detectFilterType(trimmedTerm);
+      // If we know the expected type (from random search), use it directly
+      let searchType;
+      if (expectedType) {
+        searchType = this.createFilterByType(expectedType, trimmedTerm);
+      } else {
+        // Otherwise detect what type of filter this should be
+        searchType = this.detectFilterType(trimmedTerm);
+      }
       
       // Check if this exact filter already exists
       const existingFilter = this.activeFilters.find(filter => 
@@ -2598,16 +2604,17 @@ export default {
         director.name && director.name.toLowerCase() === lowerValue
       );
       if (exactDirectorMatch) {
-        return { type: 'person', value: searchValue, display: `${exactDirectorMatch.name}` };
+        return { type: 'person', value: exactDirectorMatch.name, display: `${exactDirectorMatch.name}` };
       }
 
-      // Check for partial director match
-      const partialDirectorMatch = allDirectors.find(director => 
-        director.name && (director.name.toLowerCase().includes(lowerValue) ||
-        lowerValue.includes(director.name.toLowerCase()))
-      );
+      // Check for partial director match (whole words only)
+      const partialDirectorMatch = allDirectors.find(director => {
+        if (!director.name) return false;
+        const directorWords = director.name.toLowerCase().split(' ');
+        return directorWords.some(word => word === lowerValue);
+      });
       if (partialDirectorMatch) {
-        return { type: 'person', value: searchValue, display: `${partialDirectorMatch.name}`};
+        return { type: 'person', value: partialDirectorMatch.name, display: `${partialDirectorMatch.name}`};
       }
 
       // If no director types matched, return null
@@ -2629,7 +2636,7 @@ export default {
           'thriller': 53, 'war': 10752, 'western': 37
         };
         const genreId = commonGenres[exactGenreMatch.name.toLowerCase()] || 18; // Default to drama
-        return { type: 'genre', genreId: genreId, value: searchValue, display: `${exactGenreMatch.name}` };
+        return { type: 'genre', genreId: genreId, value: exactGenreMatch.name, display: `${exactGenreMatch.name}` };
       }
 
       // Check for partial genre match
@@ -2647,7 +2654,7 @@ export default {
           'thriller': 53, 'war': 10752, 'western': 37
         };
         const genreId = commonGenres[partialGenreMatch.name.toLowerCase()] || 18; // Default to drama
-        return { type: 'genre', genreId: genreId, value: searchValue, display: `${partialGenreMatch.name}` };
+        return { type: 'genre', genreId: genreId, value: partialGenreMatch.name, display: `${partialGenreMatch.name}` };
       }
 
       // If no genre types matched, return null
@@ -2660,7 +2667,7 @@ export default {
         keyword && keyword.toLowerCase() === lowerValue
       );
       if (exactKeywordMatch) {
-        return { type: 'keyword', value: searchValue, display: `${exactKeywordMatch}` };
+        return { type: 'keyword', value: exactKeywordMatch, display: `${exactKeywordMatch}` };
       }
 
       // Check for partial keyword match
@@ -2669,7 +2676,7 @@ export default {
         lowerValue.includes(keyword.toLowerCase()))
       );
       if (partialKeywordMatch) {
-        return { type: 'keyword', value: searchValue, display: `${partialKeywordMatch}` };
+        return { type: 'keyword', value: partialKeywordMatch, display: `${partialKeywordMatch}` };
       }
 
       // If no keyword types matched, return null
@@ -2694,7 +2701,7 @@ export default {
       // Check for exact production company match
       const matchingCompany = this.findMatchingProductionCompany(lowerValue);
       if (matchingCompany) {
-        return { type: 'company', companyName: matchingCompany.name, value: searchValue, display: `${matchingCompany.name}` };
+        return { type: 'company', value: matchingCompany.name, display: `${matchingCompany.name}` };
       }
       // Check for partial production company match
       const allCompanies = this.allEntriesWithFlatKeywordsAdded.flatMap(result =>
@@ -2705,11 +2712,32 @@ export default {
         lowerValue.includes(company.name.toLowerCase()))
       );
       if (partialCompanyMatch) {
-        return { type: 'company', companyName: partialCompanyMatch.name, value: searchValue, display: `${partialCompanyMatch.name}` };
+        return { type: 'company', value: partialCompanyMatch.name, display: `${partialCompanyMatch.name}` };
       }
 
       // If no production company types matched, return null
       return null;
+    },
+    createFilterByType(expectedType, value) {
+      const trimmed = value.trim();
+      
+      switch (expectedType) {
+        case "keyword":
+          return { type: 'keyword', value: trimmed, display: trimmed };
+        case "genre":
+          return { type: 'genre', value: trimmed, display: trimmed };
+        case "year":
+          return { type: 'year', value: trimmed, display: trimmed };
+        case "director":
+          return { type: 'person', value: trimmed, display: trimmed };
+        case "cast/crew":
+          return { type: 'person', value: trimmed, display: trimmed };
+        case "studios":
+          return { type: 'company', value: trimmed, display: trimmed };
+        default:
+          // Fall back to detection if unknown type
+          return this.detectFilterType(trimmed);
+      }
     },
     detectFilterType(value) {
       const trimmed = value.trim();
@@ -3005,7 +3033,6 @@ export default {
       return allResults;
     },
     async fetchUnratedMoviesByCompany(companyName) {
-      console.log('companyName: ', companyName);
       try {
         // First, search for the company to get its ID
         const companySearchResp = await axios.get('https://api.themoviedb.org/3/search/company', {
