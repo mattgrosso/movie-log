@@ -148,5 +148,10 @@ Based on recent commits and development:
 
 This application serves as a comprehensive personal movie tracking system with sophisticated rating algorithms and rich data visualization capabilities.
 
+## Project Development Notes
+
+### Testing Strategy
+- Remember to keep our test suite up to date with all new changes. Whenever possible write tests first and use those to power our process. Whenever we wrap up a new feature remember to update existing test, add new ones and remove any that are no longer relevant. You can run tests with 'yarn test:run'
+
 ## Important Note for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
