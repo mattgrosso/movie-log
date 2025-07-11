@@ -479,26 +479,6 @@
               </ul>
             </div>
           </div>
-          <!-- Grouped results by person role -->
-          <div v-else-if="groupedByPersonRole" class="pb-3">
-            <div v-for="group in groupedByPersonRole" :key="`${group.personName}-${group.role}`" class="my-4 role-section">
-              <h6 class="bg-dark text-white text-end mb-2">{{ group.role }}</h6>
-              <ul class="grid-layout" :class="getGridClassesForGroup(group.movies.length)">
-                <DBGridLayoutSearchResult
-                  v-for="(result, index) in group.movies"
-                  :key="result.movie.id"
-                  :result="result"
-                  :keywordCounts="allCounts.keywords"
-                  :allCounts="allCounts"
-                  :index="index"
-                  :resultsAreFiltered="resultsAreFiltered"
-                  :sortValue="sortValue"
-                  :activeQuickLinkList="activeQuickLinkList"
-                  @updateSearchValue="updateSearchValue"
-                />
-              </ul>
-            </div>
-          </div>
           <!-- Regular results list -->
           <ul v-else class="grid-layout pb-3" :class="listCountClasses">
             <DBGridLayoutSearchResult
@@ -514,7 +494,7 @@
               @updateSearchValue="updateSearchValue"
             />
           </ul>
-          <div v-if="!groupedByAllCategories && !groupedByPersonRole && sortedResults.length > numberOfResultsToShow" class="d-flex justify-content-end mb-5">
+          <div v-if="!groupedByAllCategories && sortedResults.length > numberOfResultsToShow" class="d-flex justify-content-end mb-5">
             <button
               class="btn btn-secondary"
               @click="addMoreResults"
@@ -956,7 +936,7 @@ export default {
         studios: this.countStudios,
         mediums: this.allMediums,
         filmographies: this.allDirectors
-      }
+      };
     },
     allDirectors () {
       return Object.keys(this.countDirectors).map((keyword) => {
@@ -1291,8 +1271,14 @@ export default {
         return null;
       }
       
-      // Skip if the search term is too short
+      // Skip if the search term is too short or too generic
       if (normalizedSearchTerm.length < 3) {
+        return null;
+      }
+      
+      // Skip for very common/generic terms that will match too many movies
+      const genericTerms = ['war', 'love', 'man', 'the', 'and', 'new', 'black', 'red', 'big', 'american', 'last', 'first'];
+      if (genericTerms.includes(normalizedSearchTerm)) {
         return null;
       }
       
@@ -1300,6 +1286,12 @@ export default {
       if (this.detectYearTypes(searchTerm)) {
         return null; // Let normal filtering handle years
       }
+      
+      // Performance optimization: Skip expensive computation if we have no results to group
+      if (!this.allEntriesWithFlatKeywordsAdded || this.allEntriesWithFlatKeywordsAdded.length === 0) {
+        return null;
+      }
+      
       
       const categories = [];
       const allResults = this.allEntriesWithFlatKeywordsAdded;
@@ -1323,7 +1315,7 @@ export default {
         );
         
         if (matches.length > 0) {
-          const sortedMatches = [...matches].sort(this.sortResults).slice(0, 20);
+          const sortedMatches = [...matches].sort(this.sortResults);
           categories.push({
             category: categoryConfig.type,
             categoryDisplay: categoryConfig.displayName,
@@ -1351,7 +1343,7 @@ export default {
         );
         
         if (matches.length > 0) {
-          const sortedMatches = [...matches].sort(this.sortResults).slice(0, 20);
+          const sortedMatches = [...matches].sort(this.sortResults);
           categories.push({
             category: categoryConfig.type,
             categoryDisplay: categoryConfig.displayName,
@@ -1363,163 +1355,108 @@ export default {
         }
       }
       
-      // Show grouped results if we have any categories
-      return categories.length > 0 ? categories : null;
-    },
-    groupedByPersonRole () {
-      // Use debounced search for typing performance, but fall back to effectiveSearchTerm for chips
-      let searchTerm;
-      if (this.searchValue) {
-        // User is typing - use debounced value for performance
-        searchTerm = this.searchValue;
-      } else if (this.activeFilters.length > 0) {
-        // User has chips active - use effectiveSearchTerm 
-        searchTerm = this.effectiveSearchTerm;
-      } else {
-        return null;
-      }
+      // Add catchall section with intelligent role detection for remaining movies
+      const uncategorizedMovies = allResults.filter(media => 
+        !usedMovieIds.has(media.movie.id) &&
+        this.applyFilter(media, { type: 'general', value: searchTerm })
+      );
       
-      if (!searchTerm || !searchTerm.toLowerCase) return null;
-      const normalizedSearchTerm = searchTerm.toLowerCase();
-      
-      // Only show person role sections when:
-      // 1. We have a director chip active, OR
-      // 2. The search term looks like a person's name (has spaces, suggesting first/last name)
-      const hasDirectorChip = this.activeFilters.some(filter => filter.type === 'director');
-      const looksLikePersonName = searchTerm.includes(' ') && searchTerm.split(' ').length >= 2;
-      
-      if (!hasDirectorChip && !looksLikePersonName) {
-        return null;
-      }
-      
-      // Define role hierarchy (higher number = higher priority)
-      const roleRanking = {
-        'Director': 7,
-        'Cast': 6,
-        'Producer': 5,
-        'Writer': 4,
-        'Cinematographer': 3,
-        'Music': 2,
-        'Editor': 1,
-        'Crew': 0
-      };
-      
-      // First pass: collect all movies for each person-role combination
-      const personRoleData = {};
-      const usedMovies = new Set(); // Track movies that have been assigned to higher priority roles
-      
-      this.unifiedFilteredResults.forEach((media) => {
-        const movieData = media.movie;
+      if (uncategorizedMovies.length > 0) {
+        // Try to intelligently categorize the uncategorized movies by person role
+        const adHocCategories = {};
+        const trulyUncategorized = [];
         
-        // Check cast
-        if (movieData.cast) {
-          movieData.cast.forEach((person) => {
-            const personName = person.name.toLowerCase();
-            const personNames = personName.split(' ');
-            
-            if (personName.includes(normalizedSearchTerm) || personNames.some(name => name.includes(normalizedSearchTerm))) {
-              if (!personRoleData[person.name]) {
-                personRoleData[person.name] = {};
-              }
-              if (!personRoleData[person.name]['Cast']) {
-                personRoleData[person.name]['Cast'] = [];
-              }
-              personRoleData[person.name]['Cast'].push(media);
+        uncategorizedMovies.forEach(media => {
+          const movie = media.movie;
+          let foundRole = false;
+          
+          // Helper function for full-word matching
+          const hasFullWordMatch = (personName, searchTerm) => {
+            if (!personName) return false;
+            const personWords = personName.toLowerCase().split(' ');
+            const searchWords = searchTerm.toLowerCase().split(' ');
+            return searchWords.some(searchWord => 
+              personWords.some(personWord => personWord === searchWord)
+            );
+          };
+          
+          // Check if person appears in cast
+          if (movie.cast) {
+            const castMatch = movie.cast.find(person => 
+              hasFullWordMatch(person.name, searchTerm)
+            );
+            if (castMatch) {
+              if (!adHocCategories['Cast']) adHocCategories['Cast'] = [];
+              adHocCategories['Cast'].push(media);
+              foundRole = true;
             }
-          });
-        }
-        
-        // Check crew
-        if (movieData.crew) {
-          movieData.crew.forEach((person) => {
-            const personName = person.name.toLowerCase();
-            const personNames = personName.split(' ');
-            
-            if (personName.includes(normalizedSearchTerm) || personNames.some(name => name.includes(normalizedSearchTerm))) {
+          }
+          
+          // Check if person appears in crew (only if not already found in cast)
+          if (!foundRole && movie.crew) {
+            const crewMatch = movie.crew.find(person => 
+              hasFullWordMatch(person.name, searchTerm)
+            );
+            if (crewMatch) {
               let roleCategory = 'Crew';
               
-              // Categorize crew roles
-              if (person.job === 'Director') {
+              // Categorize specific crew roles
+              if (crewMatch.job === 'Director') {
                 roleCategory = 'Director';
-              } else if (person.job && person.job.toLowerCase().includes('producer')) {
+              } else if (crewMatch.job && crewMatch.job.toLowerCase().includes('producer')) {
                 roleCategory = 'Producer';
-              } else if (person.job && ['Writer', 'Screenplay', 'Story', 'Novel'].includes(person.job)) {
+              } else if (crewMatch.job && ['Writer', 'Screenplay', 'Story', 'Novel'].includes(crewMatch.job)) {
                 roleCategory = 'Writer';
-              } else if (person.job && person.job.toLowerCase().includes('composer') || 
-                        person.job && person.job.toLowerCase().includes('music') ||
-                        person.job && person.job.toLowerCase().includes('score')) {
+              } else if (crewMatch.job && (crewMatch.job.toLowerCase().includes('composer') || 
+                        crewMatch.job.toLowerCase().includes('music') ||
+                        crewMatch.job.toLowerCase().includes('score'))) {
                 roleCategory = 'Music';
-              } else if (person.job && person.job.toLowerCase().includes('editor')) {
+              } else if (crewMatch.job && crewMatch.job.toLowerCase().includes('editor')) {
                 roleCategory = 'Editor';
-              } else if (person.job && (person.job.toLowerCase().includes('photo') ||
-                                      person.job.toLowerCase().includes('cinematographer') ||
-                                      person.job.toLowerCase().includes('director of photography'))) {
+              } else if (crewMatch.job && (crewMatch.job.toLowerCase().includes('photo') ||
+                                        crewMatch.job.toLowerCase().includes('cinematographer') ||
+                                        crewMatch.job.toLowerCase().includes('director of photography'))) {
                 roleCategory = 'Cinematographer';
               }
               
-              if (!personRoleData[person.name]) {
-                personRoleData[person.name] = {};
-              }
-              if (!personRoleData[person.name][roleCategory]) {
-                personRoleData[person.name][roleCategory] = [];
-              }
-              
-              // Avoid duplicates in the same role category
-              if (!personRoleData[person.name][roleCategory].find(m => m.movie.id === movieData.id)) {
-                personRoleData[person.name][roleCategory].push(media);
-              }
+              if (!adHocCategories[roleCategory]) adHocCategories[roleCategory] = [];
+              adHocCategories[roleCategory].push(media);
+              foundRole = true;
             }
-          });
-        }
-      });
-      
-      // Second pass: build final groups ensuring each movie appears only once, prioritizing by role ranking
-      const finalGroups = [];
-      
-      Object.keys(personRoleData).forEach(personName => {
-        const roles = personRoleData[personName];
-        
-        // Sort roles by ranking (highest first)
-        const sortedRoles = Object.keys(roles).sort((a, b) => (roleRanking[b] || 0) - (roleRanking[a] || 0));
-        
-        sortedRoles.forEach(role => {
-          const availableMovies = roles[role].filter(movie => !usedMovies.has(movie.movie.id));
+          }
           
-          if (availableMovies.length > 0) {
-            // Sort the movies in this group using the same sorting logic as the main list
-            const sortedMovies = [...availableMovies].sort(this.sortResults);
-            
-            finalGroups.push({
-              personName: personName,
-              role: role,
-              movies: sortedMovies,
-              ranking: roleRanking[role] || 0
-            });
-            
-            // Mark these movies as used
-            availableMovies.forEach(movie => {
-              usedMovies.add(movie.movie.id);
+          // If no specific role found, add to truly uncategorized
+          if (!foundRole) {
+            trulyUncategorized.push(media);
+          }
+        });
+        
+        // Add ad-hoc categories to the results
+        Object.keys(adHocCategories).forEach(roleCategory => {
+          const movies = adHocCategories[roleCategory];
+          if (movies.length > 0) {
+            const sortedMovies = [...movies].sort(this.sortResults);
+            categories.push({
+              category: roleCategory.toLowerCase(),
+              categoryDisplay: roleCategory,
+              movies: sortedMovies
             });
           }
         });
-      });
-      
-      // Sort final groups by person name, then by role ranking (highest first)
-      finalGroups.sort((a, b) => {
-        if (a.personName !== b.personName) {
-          return a.personName.localeCompare(b.personName);
+        
+        // Add truly uncategorized movies as "Other" if any remain
+        if (trulyUncategorized.length > 0) {
+          const sortedUncategorized = [...trulyUncategorized].sort(this.sortResults);
+          categories.push({
+            category: 'other',
+            categoryDisplay: 'Other',
+            movies: sortedUncategorized
+          });
         }
-        return b.ranking - a.ranking;
-      });
+      }
       
-      // Only return grouped results if we found person matches and there are multiple groups for at least one person
-      const personCounts = {};
-      finalGroups.forEach(group => {
-        personCounts[group.personName] = (personCounts[group.personName] || 0) + 1;
-      });
-      
-      const hasMultipleRoles = Object.values(personCounts).some(count => count > 1);
-      return hasMultipleRoles ? finalGroups : null;
+      // Show grouped results if we have any categories
+      return categories.length > 0 ? categories : null;
     },
     isMatt () {
       return this.$store.state.databaseTopKey === "mattgrosso-gmail-com" || !this.$store.state.databaseTopKey;
@@ -2067,8 +2004,7 @@ export default {
     updateSearchValue (value, isAutoRandom = false, expectedType = null) {
       // If we have a value, clear existing filters first then add the new search
       if (value && value.trim()) {
-        this.clearAllFilters();
-        this.addSearchFilter(value, isAutoRandom, expectedType);
+        this.replaceAllFiltersWithSearch(value, isAutoRandom, expectedType);
       } else {
         this.clearInput();
       }
@@ -2078,6 +2014,40 @@ export default {
         left: 0,
         behavior: 'instant'
       });
+    },
+    replaceAllFiltersWithSearch(value, isAutoRandom = false, expectedType = null) {
+      // Blur the search input first to prevent layout shifts
+      if (this.$refs.searchInput) {
+        this.$refs.searchInput.blur();
+      }
+      
+      if (!value || !value.trim()) return;
+
+      const trimmedTerm = value.trim();
+      
+      // If we know the expected type (from random search), use it directly
+      let searchType;
+      if (expectedType) {
+        searchType = this.createFilterByType(expectedType, trimmedTerm);
+      } else {
+        // Otherwise detect what type of filter this should be
+        searchType = this.detectFilterType(trimmedTerm);
+      }
+
+      // Create the new filter
+      const newFilter = {
+        id: `${searchType.type}-${Date.now()}`,
+        type: searchType.type,
+        value: searchType.value,
+        display: searchType.display,
+        temp: isAutoRandom // Mark as temporary if it's from auto-random
+      };
+
+      // Replace all filters with this single new one in one operation
+      this.activeFilters = [newFilter];
+      this.activeQuickLinkList = 'title';
+      this.inputValue = '';
+      this.hasAutoRandomChip = isAutoRandom;
     },
     toggleQuickLinksSort () {
       if (this.quickLinksSortType === "a-z") {
@@ -2638,7 +2608,7 @@ export default {
         // Otherwise detect what type of filter this should be
         searchType = this.detectFilterType(trimmedTerm);
       }
-      
+
       // Check if this exact filter already exists
       const existingFilter = this.activeFilters.find(filter => 
         filter.type === searchType.type && filter.value === searchType.value
