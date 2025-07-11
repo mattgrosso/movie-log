@@ -1930,7 +1930,7 @@ export default {
       if (randomValue && safetyLimit > 0) {
         // Clear existing chips first, then add the random search
         this.clearAllFilters();
-        this.updateSearchValue(randomValue, true, randomList); // Pass the category
+        this.updateSearchValue(randomValue, false, randomList);
         this.sortOrder = "bestOrNewestOnTop";
       } else {
         // If we couldn't find a value with minimum count, try with any count > 0
@@ -2004,6 +2004,7 @@ export default {
     updateSearchValue (value, isAutoRandom = false, expectedType = null) {
       // If we have a value, clear existing filters first then add the new search
       if (value && value.trim()) {
+        console.error('1');
         this.replaceAllFiltersWithSearch(value, isAutoRandom, expectedType);
       } else {
         this.clearInput();
