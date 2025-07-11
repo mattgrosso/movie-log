@@ -2737,24 +2737,6 @@ export default {
         return { type: 'genre', genreId: genreId, value: exactGenreMatch.name, display: `${exactGenreMatch.name}` };
       }
 
-      // Check for partial genre match
-      const partialGenreMatch = allGenres.find(genre => 
-        genre.name && (genre.name.toLowerCase().includes(lowerValue) ||
-        lowerValue.includes(genre.name.toLowerCase()))
-      );
-      if (partialGenreMatch) {
-        // Find the genre ID for TMDB API
-        const commonGenres = {
-          'action': 28, 'adventure': 12, 'animation': 16, 'comedy': 35, 
-          'crime': 80, 'documentary': 99, 'drama': 18, 'family': 10751,
-          'fantasy': 14, 'history': 36, 'horror': 27, 'music': 10402,
-          'mystery': 9648, 'romance': 10749, 'sci-fi': 878, 'science fiction': 878,
-          'thriller': 53, 'war': 10752, 'western': 37
-        };
-        const genreId = commonGenres[partialGenreMatch.name.toLowerCase()] || 18; // Default to drama
-        return { type: 'genre', genreId: genreId, value: partialGenreMatch.name, display: `${partialGenreMatch.name}` };
-      }
-
       // If no genre types matched, return null
       return null;
     },
