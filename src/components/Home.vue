@@ -896,8 +896,8 @@ export default {
     allActiveFilters() {
       const filters = [];
       
-      // Add input text as a general search filter if it exists AND no chips are active
-      // (avoid double filtering when temp chips exist)
+      // Add input text as a general search filter if it exists AND no chips are active at all
+      // (avoid double filtering when any chips exist, temp or permanent)
       if (this.searchValue && this.searchValue.trim() && this.activeFilters.length === 0) {
         filters.push({
           id: '__input__',
@@ -2560,14 +2560,13 @@ export default {
       this.activeFilters = this.activeFilters.filter(filter => !filter.temp);
       
       if (value.trim()) {
-        // Use detectFilterType for consistent behavior between typing and chip conversion
-        const searchType = this.detectFilterType(value.trim());
-        
+        // Always use general search while typing for consistent results
+        // Type detection only happens when converting to permanent chips
         const tempFilter = {
           id: `temp-${Date.now()}`,
-          type: searchType.type,
-          value: searchType.value,
-          display: searchType.display,
+          type: 'general',
+          value: value.trim(),
+          display: value.trim(),
           temp: true  // Mark as temporary
         };
 
