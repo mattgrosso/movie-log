@@ -647,6 +647,11 @@
             <p v-if="selectedMovieInfo.vote_average" class="movie-rating">
               <strong>TMDB Rating:</strong> {{ selectedMovieInfo.vote_average }}/10
             </p>
+            <div class="mt-3">
+              <button class="btn btn-primary" @click="rateMovieFromModal">
+                Rate Movie
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1995,6 +2000,16 @@ export default {
       this.showMovieInfoModal = false;
       this.selectedMovieInfo = null;
       document.body.classList.remove('no-scroll');
+    },
+    rateMovieFromModal() {
+      if (this.selectedMovieInfo) {
+        this.$store.commit('setMovieToRate', this.selectedMovieInfo);
+        this.$router.push('/rate-movie');
+        // Scroll to top when navigating to rate movie page
+        this.$nextTick(() => {
+          window.scrollTo(0, 0);
+        });
+      }
     },
     async fetchLetterboxdData () {
       if (!this.$store.state.settings.letterboxdConnected || !this.$store.state.settings.letterboxdUsername) {
