@@ -2177,7 +2177,7 @@ export default {
       if (key === "rating") {
         return this.mostRecentRating(item).calculatedTotal;
       } else if (key === "release") {
-        return new Date(this.getYear(item), 0, 1);
+        return new Date(item.movie.release_date);
       } else if (key === "title") {
         return item.movie.title;
       } else if (key === "watched") {
