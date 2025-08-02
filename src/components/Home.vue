@@ -1301,8 +1301,8 @@ export default {
       const categoryFilters = [
         { type: 'title', displayName: 'Title Matches' },
         { type: 'director', displayName: 'Director' },
-        { type: 'producer', displayName: 'Producer' },
-        { type: 'cast', displayName: 'Cast' }
+        { type: 'cast', displayName: 'Cast' },
+        { type: 'producer', displayName: 'Producer' }
       ];
       
       // Process each category
@@ -1326,32 +1326,54 @@ export default {
         }
       });
       
-      // Production Companies/Keywords/Genres - prioritize production companies over keywords since they're more specific
-      const fallbackFilters = [
-        { type: 'company', displayName: 'Production Companies' },
-        { type: 'keyword', displayName: 'Keywords' },
-        { type: 'genre', displayName: 'Genres' }
-      ];
+      // Production Companies - check first since they're most specific
+      const companyFilter = { type: 'company', value: searchTerm };
+      const companyMatches = allResults.filter(media => 
+        !usedMovieIds.has(media.movie.id) &&
+        this.applyFilter(media, companyFilter)
+      );
       
-      // Only use the first fallback filter that has matches
-      for (const categoryConfig of fallbackFilters) {
-        const filter = { type: categoryConfig.type, value: searchTerm };
+      if (companyMatches.length > 0) {
+        const sortedMatches = [...companyMatches].sort(this.sortResults);
+        categories.push({
+          category: 'company',
+          categoryDisplay: 'Production Companies',
+          movies: sortedMatches
+        });
+        // Mark these movies as used
+        sortedMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
+      } else {
+        // Combine Keywords and Genres into a single chunk
+        const keywordFilter = { type: 'keyword', value: searchTerm };
+        const genreFilter = { type: 'genre', value: searchTerm };
         
-        const matches = allResults.filter(media => 
+        const keywordMatches = allResults.filter(media => 
           !usedMovieIds.has(media.movie.id) &&
-          this.applyFilter(media, filter)
+          this.applyFilter(media, keywordFilter)
         );
         
-        if (matches.length > 0) {
-          const sortedMatches = [...matches].sort(this.sortResults);
+        const genreMatches = allResults.filter(media => 
+          !usedMovieIds.has(media.movie.id) &&
+          this.applyFilter(media, genreFilter)
+        );
+        
+        // Combine both arrays and remove duplicates
+        const combinedMatches = [...keywordMatches];
+        genreMatches.forEach(genreMatch => {
+          if (!combinedMatches.some(existing => existing.movie.id === genreMatch.movie.id)) {
+            combinedMatches.push(genreMatch);
+          }
+        });
+        
+        if (combinedMatches.length > 0) {
+          const sortedMatches = [...combinedMatches].sort(this.sortResults);
           categories.push({
-            category: categoryConfig.type,
-            categoryDisplay: categoryConfig.displayName,
+            category: 'keyword-genre',
+            categoryDisplay: 'Keywords',
             movies: sortedMatches
           });
           // Mark these movies as used
           sortedMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-          break; // Only use the first match
         }
       }
       
@@ -2004,7 +2026,6 @@ export default {
     updateSearchValue (value, isAutoRandom = false, expectedType = null) {
       // If we have a value, clear existing filters first then add the new search
       if (value && value.trim()) {
-        console.error('1');
         this.replaceAllFiltersWithSearch(value, isAutoRandom, expectedType);
       } else {
         this.clearInput();
