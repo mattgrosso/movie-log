@@ -1808,17 +1808,23 @@ export default {
               const names = person.name ? person.name.toLowerCase().split(' ') : [];
               return person.name ? [person.name.toLowerCase(), ...names] : [];
             }).some(name => name.includes(searchValue))) ||
-            (movie.production_companies && movie.production_companies.some((company) => company.name && company.name.toLowerCase().includes(searchValue))) ||
-            (this.getListOfYearsFromRange(filter.value).includes(movie.release_date ? movie.release_date.substring(0, 4) : ''));
+            (movie.production_companies && movie.production_companies.some((company) => company.name && company.name.toLowerCase().includes(searchValue)));
 
         case 'person':
           // Check both cast and crew for the person
-          const inCast = movie.cast && movie.cast.some(cast => 
-            cast.name === filter.value
-          );
-          const inCrew = movie.crew && movie.crew.some(crew => 
-            crew.name === filter.value
-          );
+          const filterValueLower = filter.value.toLowerCase();
+          const inCast = movie.cast && movie.cast.some(cast => {
+            if (!cast.name) return false;
+            const fullName = cast.name.toLowerCase();
+            const lastName = cast.name.split(' ').slice(-1)[0].toLowerCase();
+            return fullName === filterValueLower || lastName === filterValueLower;
+          });
+          const inCrew = movie.crew && movie.crew.some(crew => {
+            if (!crew.name) return false;
+            const fullName = crew.name.toLowerCase();
+            const lastName = crew.name.split(' ').slice(-1)[0].toLowerCase();
+            return fullName === filterValueLower || lastName === filterValueLower;
+          });
           return inCast || inCrew;
 
         case 'year':
