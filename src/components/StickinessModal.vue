@@ -42,8 +42,8 @@
               <span v-else>1 - I forgot it immediately</span>
             </option>
             <option value="2">
-              <span v-if="showSixMonthMessage">2 - I remember it</span>
-              <span v-else>2 - I mentioned it to people</span>
+              <span v-if="showSixMonthMessage">2 - I remember it fondly</span>
+              <span v-else>2 - I've been mentioning it fondly to people</span>
             </option>
             <option value="3">
               <span v-if="showSixMonthMessage">3 - I think about it often</span>
@@ -51,11 +51,11 @@
             </option>
             <option value="4">
               <span v-if="showSixMonthMessage">4 - I reference it and think about it a lot</span>
-              <span v-else>4 - I think about it all the time</span>
+              <span v-else>4 - I can't seem to stop thinking about it</span>
             </option>
             <option value="5">
-              <span v-if="showSixMonthMessage">5 - It changed the way I think</span>
-              <span v-else>5 - It changed the way I think</span>
+              <span v-if="showSixMonthMessage">5 - It expanded my idea of what movies can be</span>
+              <span v-else>5 - It expanded my idea of what movies can be</span>
             </option>
           </select>
         </div>

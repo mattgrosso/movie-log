@@ -72,7 +72,7 @@
 
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="direction">Direction</label>
-        <p class="fs-6 fst-italic">Rate the film's directing and editing.</p>
+        <p class="fs-6 fst-italic">Rate the film's directing and editing. Does the film seem to have a consistent and intentional voice?</p>
         <select class="form-select" name="direction" id="direction" v-model="direction">
           <option value=""></option>
           <option value="0">
@@ -114,7 +114,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="imagery">Imagery</label>
         <p class="fs-6 fst-italic">
-          Rate the film's cinematography, visual effects, production design,costume design, and/or animation.
+          Rate the film's cinematography, visual effects, production design, costume design, and/or animation.
         </p>
         <select class="form-select" name="imagery" id="imagery" v-model="imagery">
           <option value=""></option>
@@ -157,7 +157,7 @@
       <div class="col-12 my-5">
         <label class="form-label fs-4 mb-0" for="story">Story</label>
         <p class="fs-6 fst-italic">
-          Rate the film's story and screenplay.
+          Rate the film's story, screenplay, and writing.
         </p>
         <select class="form-select" name="story" id="story" v-model="story">
           <option value=""></option>
@@ -294,19 +294,19 @@
             0 - If I think of it at all it will be to warn others away
           </option>
           <option value="1">
-            1 - I'm having a hard time remembering it already
+            1 - I doubt I'll think of it or recommend it to anyone
           </option>
           <option value="2">
-            2 - I think I'll mention it to some people
+            2 - I think I'll mention it fondly to some people
           </option>
           <option value="3">
-            3 - I'm going to think about it often
+            3 - I'm going to think about it often and will look for chances to bring it up
           </option>
           <option value="4">
-            4 - This is going to stay with me all the time
+            4 - This is going to stay with me all the time and I will quote it often
           </option>
           <option value="5">
-            5 - This movie will change the way I think
+            5 - This movie will change the way I think and has expanded what I think movies can be
           </option>
         </select>
       </div>
