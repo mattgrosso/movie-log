@@ -8,6 +8,7 @@
         Home
       </span>
     </div>
+
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Totals</p>
@@ -98,6 +99,42 @@
         </div>
       </div>
     </InsightsPane>
+
+    <InsightsPane>
+      <div class="insights-pane-header">
+        <p>Custom Scatter Plot</p>
+      </div>
+      <ScatterChart :chartData="scatterPlotData" :options="scatterPlotOptions"/>
+      <div class="scatter-controls mt-3">
+        <div class="row g-2">
+          <div class="col-12">
+            <button class="btn btn-outline-light w-100 scatter-button" @click="randomizeAxes" title="Random Axes">
+              <i class="bi bi-shuffle"/>
+            </button>
+          </div>
+          <div class="col-12">
+            <div class="form-floating" data-bs-theme="dark">
+              <select id="x-axis-select" class="form-select scatter-select" v-model="selectedXAxis">
+                <option v-for="option in axisOptions" :key="option.key" :value="option.key">
+                  {{ option.label }}
+                </option>
+              </select>
+              <label for="x-axis-select">X-Axis</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="form-floating" data-bs-theme="dark">
+              <select id="y-axis-select" class="form-select scatter-select" v-model="selectedYAxis">
+                <option v-for="option in axisOptions" :key="option.key" :value="option.key">
+                  {{ option.label }}
+                </option>
+              </select>
+              <label for="y-axis-select">Y-Axis</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </InsightsPane>
     
     <InsightsPane>
       <div class="insights-pane-header">
@@ -179,7 +216,6 @@
 </template>
 
 <script>
-import Charts from "./Charts.vue";
 import Outliers from "./Outliers.vue";
 import YearlyAverage from "./YearlyAverage.vue";
 import FullCalendarView from "./FullCalendarView.vue";
@@ -204,8 +240,8 @@ Chart.register(...registerables);
 export default {
   name: "Insights",
   components: {
-    Charts,
     LineChart,
+    ScatterChart,
     InsightsPane,
     Outliers,
     YearlyAverage,
@@ -220,7 +256,67 @@ export default {
     FavoriteComposers,
     FavoriteProducers,
   },
+  data() {
+    return {
+      selectedXAxis: 'runtime', // Will be randomized on mount
+      selectedYAxis: 'userRating', // Will be randomized on mount
+      axisOptions: [
+        { key: 'runtime', label: 'Runtime (minutes)' },
+        { key: 'releaseYear', label: 'Release Year' },
+        { key: 'userRating', label: 'User Rating' },
+        { key: 'releaseMonth', label: 'Release Month' },
+        { key: 'genreCount', label: 'Genre Count' },
+        { key: 'castSize', label: 'Cast Size' },
+        { key: 'daysSinceRelease', label: 'Days Since Release' },
+        { key: 'titleLength', label: 'Title Length (characters)' },
+        { key: 'viewCount', label: 'View Count' },
+        { key: 'love', label: 'Love Rating' },
+        { key: 'story', label: 'Story Rating' },
+        { key: 'direction', label: 'Direction Rating' },
+        { key: 'imagery', label: 'Imagery Rating' },
+        { key: 'performance', label: 'Performance Rating' },
+        { key: 'soundtrack', label: 'Soundtrack Rating' },
+        { key: 'stickiness', label: 'Stickiness Rating' },
+        { key: 'cerebralScale', label: 'Instinctual ↔ Cerebral' },
+        { key: 'blockbusterScale', label: 'Indie ↔ Blockbuster' },
+        { key: 'mainstreamScale', label: 'Arthouse ↔ Mainstream' },
+        { key: 'comfortScale', label: 'Challenge ↔ Comfort' },
+        { key: 'styleScale', label: 'Substance ↔ Style' },
+        { key: 'groundedScale', label: 'Fantastical ↔ Grounded' },
+        { key: 'classicScale', label: 'Contemporary ↔ Classic' },
+        { key: 'upliftingScale', label: 'Melancholy ↔ Uplifting' },
+        { key: 'tenseScale', label: 'Relaxing ↔ Tense' },
+        { key: 'hopefulScale', label: 'Cynical ↔ Hopeful' },
+        { key: 'simpleScale', label: 'Complex ↔ Simple' },
+        { key: 'characterScale', label: 'Plot-Driven ↔ Character-Driven' },
+        { key: 'linearScale', label: 'Non-Linear ↔ Linear' },
+        { key: 'universalScale', label: 'Niche ↔ Universal' },
+        { key: 'escapistScale', label: 'Realistic ↔ Escapist' },
+        { key: 'polishedScale', label: 'Raw ↔ Polished' },
+        { key: 'familiarScale', label: 'Innovative ↔ Familiar' },
+        { key: 'minimalistScale', label: 'Maximalist ↔ Minimalist' }
+      ]
+    };
+  },
+  mounted() {
+    // Set random axes on page load
+    this.randomizeAxes();
+  },
   computed: {
+    allEntriesWithFlatKeywordsAdded () {
+      return this.$store.getters.allMediaAsArray.map((result) => {
+        const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
+        const flatChatGPTKeywords = result.movie.chatGPTKeywords || [];
+        const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
+        return {
+          ...result,
+          movie: {
+            ...result.movie,
+            flatKeywords: flatKeywords || []
+          }
+        };
+      });
+    },
     includeShorts() {
       // Default to false if not set
       return this.$store.state.settings.includeShorts === true;
@@ -701,34 +797,129 @@ export default {
         }
       }
     },
+    scatterPlotData() {
+      const data = this.filteredEntriesWithFlatKeywordsAdded.map(result => {
+        const xValue = this.getAxisValue(result, this.selectedXAxis);
+        const yValue = this.getAxisValue(result, this.selectedYAxis);
+        
+        // Only include points where both x and y values exist
+        if (xValue !== null && yValue !== null) {
+          return {
+            x: xValue,
+            y: yValue,
+            label: this.topStructure(result).title || 'Unknown Title'
+          };
+        }
+        return null;
+      }).filter(point => point !== null);
+
+      return {
+        datasets: [{
+          label: 'Movies',
+          data: data,
+          backgroundColor: 'rgba(54, 162, 235, 0.6)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          pointRadius: 4,
+          pointHoverRadius: 6
+        }]
+      };
+    },
+    scatterPlotOptions() {
+      const xAxisOption = this.axisOptions.find(opt => opt.key === this.selectedXAxis);
+      const yAxisOption = this.axisOptions.find(opt => opt.key === this.selectedYAxis);
+      
+      // Check if either axis is a qualitative scale
+      const qualitativeScales = ['cerebralScale', 'blockbusterScale', 'mainstreamScale', 'comfortScale', 'styleScale', 'groundedScale', 'classicScale', 'upliftingScale', 'tenseScale', 'hopefulScale', 'simpleScale', 'characterScale', 'linearScale', 'universalScale', 'escapistScale', 'polishedScale', 'familiarScale', 'minimalistScale'];
+      const xIsQualitative = qualitativeScales.includes(this.selectedXAxis);
+      const yIsQualitative = qualitativeScales.includes(this.selectedYAxis);
+      
+      return {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: false,
+            text: `${yAxisOption?.label || 'Y'} vs ${xAxisOption?.label || 'X'}`,
+            color: 'white'
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.raw.label;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            position: 'bottom',
+            title: {
+              display: true,
+              text: xAxisOption?.label || 'X-Axis',
+              color: 'white'
+            },
+            ticks: {
+              color: 'white',
+              display: !xIsQualitative // Hide ticks for qualitative scales
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            },
+            ...(xIsQualitative && {
+              min: -10,
+              max: 10
+            })
+          },
+          y: {
+            title: {
+              display: true,
+              text: yAxisOption?.label || 'Y-Axis',
+              color: 'white'
+            },
+            ticks: {
+              color: 'white',
+              display: !yIsQualitative // Hide ticks for qualitative scales
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            },
+            ...(yIsQualitative && {
+              min: -10,
+              max: 10
+            })
+          }
+        }
+      };
+    },
   },
   methods: {
     returnHome () {
       this.$store.commit("setShowHeader", true);
       this.$router.push({ path: '/', query: { movieDbKey: this.dbEntry?.path?.split("movieLog/")[1] } });
     },
-    updateSearchValue (value) {
-      // Navigate to Home and set the search value as a query parameter
-      this.$router.push({ name: 'Home', query: { search: encodeURIComponent(value) } });
-    },
-    topStructure (result) {
-      if (this.currentLogIsTVLog) {
-        return result.tvShow;
-      } else {
-        return result.movie;
+    randomizeAxes() {
+      const availableOptions = this.axisOptions.map(opt => opt.key);
+      
+      // Get two different random axes
+      const randomX = availableOptions[Math.floor(Math.random() * availableOptions.length)];
+      let randomY = availableOptions[Math.floor(Math.random() * availableOptions.length)];
+      
+      // Ensure Y is different from X
+      while (randomY === randomX) {
+        randomY = availableOptions[Math.floor(Math.random() * availableOptions.length)];
       }
+      
+      this.selectedXAxis = randomX;
+      this.selectedYAxis = randomY;
     },
     mostRecentRating (media) {
       return getRating(media);
     },
-    averageRating (results) {
-      const ratedMovies = results.filter((result) => this.mostRecentRating(result).calculatedTotal);
-      const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
-      const total = ratings.reduce((a, b) => a + b, 0);
-      return (total / ratings.length).toFixed(2);
-    },
     updateSearchValue (value) {
-      // Navigate to Home and set the search value as a query parameters
+      // Navigate to Home and set the search value as a query parameter
       this.$router.push({ name: 'Home', query: { search: encodeURIComponent(value) } });
     },
     getYear (media) {
@@ -749,8 +940,1540 @@ export default {
           return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
         }
       );
+    },
+    topStructure (media) {
+      // For insights, we're only dealing with movies
+      return media.movie;
+    },
+    getAxisValue(result, axisKey) {
+      const structure = this.topStructure(result);
+      const rating = this.mostRecentRating(result);
+      
+      switch (axisKey) {
+        case 'runtime':
+          return structure.runtime || null;
+        case 'releaseYear':
+          return structure.release_date ? new Date(structure.release_date).getFullYear() : null;
+        case 'userRating':
+          return rating.calculatedTotal ? parseFloat(rating.calculatedTotal) : null;
+        case 'releaseMonth':
+          return structure.release_date ? new Date(structure.release_date).getMonth() + 1 : null;
+        case 'genreCount':
+          return structure.genres ? structure.genres.length : 0;
+        case 'castSize':
+          return structure.cast ? structure.cast.length : 0;
+        case 'daysSinceRelease':
+          if (structure.release_date) {
+            const releaseDate = new Date(structure.release_date);
+            const today = new Date();
+            return Math.floor((today - releaseDate) / (1000 * 60 * 60 * 24));
+          }
+          return null;
+        case 'titleLength':
+          return structure.title ? structure.title.length : 0;
+        case 'viewCount':
+          return result.ratings ? result.ratings.length : 1;
+        case 'love':
+          return rating.love || null;
+        case 'story':
+          return rating.story || null;
+        case 'direction':
+          return rating.direction || null;
+        case 'imagery':
+          return rating.imagery || null;
+        case 'performance':
+          return rating.performance || null;
+        case 'soundtrack':
+          return rating.soundtrack || null;
+        case 'stickiness':
+          return rating.stickiness || null;
+        case 'cerebralScale':
+          return this.calculateCerebralScale(structure);
+        case 'blockbusterScale':
+          return this.calculateBlockbusterScale(structure);
+        case 'mainstreamScale':
+          return this.calculateMainstreamScale(structure);
+        case 'comfortScale':
+          return this.calculateComfortScale(structure);
+        case 'styleScale':
+          return this.calculateStyleScale(structure);
+        case 'groundedScale':
+          return this.calculateGroundedScale(structure);
+        case 'classicScale':
+          return this.calculateClassicScale(structure);
+        case 'upliftingScale':
+          return this.calculateUpliftingScale(structure);
+        case 'tenseScale':
+          return this.calculateTenseScale(structure);
+        case 'hopefulScale':
+          return this.calculateHopefulScale(structure);
+        case 'simpleScale':
+          return this.calculateSimpleScale(structure);
+        case 'characterScale':
+          return this.calculateCharacterScale(structure);
+        case 'linearScale':
+          return this.calculateLinearScale(structure);
+        case 'universalScale':
+          return this.calculateUniversalScale(structure);
+        case 'escapistScale':
+          return this.calculateEscapistScale(structure);
+        case 'polishedScale':
+          return this.calculatePolishedScale(structure);
+        case 'familiarScale':
+          return this.calculateFamiliarScale(structure);
+        case 'minimalistScale':
+          return this.calculateMinimalistScale(structure);
+        default:
+          return null;
+      }
+    },
+    calculateCerebralScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const runtime = movie.runtime || 90;
+      
+      // Cerebral indicators (+) with weighted values
+      const cerebralGenres = [
+        { name: 'documentary', weight: 2.8 },
+        { name: 'drama', weight: 1.4 },
+        { name: 'history', weight: 2.2 },
+        { name: 'war', weight: 1.8 },
+        { name: 'biography', weight: 2.1 }
+      ];
+      const cerebralKeywords = [
+        { name: 'philosophy', weight: 1.7 },
+        { name: 'politics', weight: 1.5 },
+        { name: 'paranoia', weight: 1.9 },
+        { name: 'dystopia', weight: 1.8 },
+        { name: 'investigation', weight: 1.6 },
+        { name: 'memory', weight: 1.4 },
+        { name: 'psychology', weight: 1.8 },
+        { name: 'conspiracy', weight: 1.5 },
+        { name: 'time travel', weight: 1.3 },
+        { name: 'based on true story', weight: 1.2 },
+        { name: 'biography', weight: 1.1 }
+      ];
+      
+      cerebralGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      cerebralKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Instinctual indicators (-) with weighted values
+      const instinctualGenres = [
+        { name: 'action', weight: -2.3 },
+        { name: 'horror', weight: -1.9 },
+        { name: 'thriller', weight: -1.1 },
+        { name: 'comedy', weight: -1.7 },
+        { name: 'adventure', weight: -1.5 }
+      ];
+      const instinctualKeywords = [
+        { name: 'martial arts', weight: -2.2 },
+        { name: 'chase', weight: -1.8 },
+        { name: 'fight', weight: -1.6 },
+        { name: 'explosion', weight: -1.4 },
+        { name: 'gun', weight: -1.2 },
+        { name: 'violence', weight: -1.5 },
+        { name: 'rescue', weight: -1.1 },
+        { name: 'showdown', weight: -1.3 },
+        { name: 'survival', weight: -1.0 },
+        { name: 'escape', weight: -0.9 }
+      ];
+      
+      instinctualGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      instinctualKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Add runtime factor (longer films tend to be more cerebral)
+      score += (runtime - 100) * 0.01;
+      
+      // Add some random variation based on title hash for uniqueness
+      const titleHash = movie.title ? movie.title.length * 0.13 : 0;
+      score += (titleHash % 1) * 0.4 - 0.2;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateBlockbusterScale(movie) {
+      let score = 0;
+      const companies = movie.production_companies || [];
+      const cast = movie.cast || [];
+      const budget = movie.budget || 0;
+      const runtime = movie.runtime || 90;
+      
+      // Blockbuster indicators (+) with weighted values - using actual companies from collection
+      const majorStudios = [
+        { name: 'walt disney', weight: 3.8 },
+        { name: 'warner bros', weight: 3.2 },
+        { name: 'universal', weight: 3.5 },
+        { name: 'paramount', weight: 2.9 },
+        { name: 'sony', weight: 2.7 },
+        { name: 'columbia pictures', weight: 3.0 },
+        { name: 'twentieth century fox', weight: 3.1 },
+        { name: 'marvel', weight: 4.2 },
+        { name: 'lucasfilm', weight: 3.9 },
+        { name: 'touchstone pictures', weight: 2.8 },
+        { name: 'dreamworks', weight: 3.1 }
+      ];
+      
+      majorStudios.forEach(studio => {
+        if (companies.some(c => c.name && c.name.toLowerCase().includes(studio.name))) {
+          score += studio.weight;
+        }
+      });
+      
+      // Cast size factor (continuous)
+      score += Math.min(cast.length * 0.15, 3.0);
+      
+      // Budget factor (continuous)
+      if (budget > 0) {
+        score += Math.min(Math.log10(budget) - 6, 4.0); // Log scale for budget
+      }
+      
+      // Indie indicators (-) with weighted values - using actual companies from collection
+      const indieStudios = [
+        { name: 'a24', weight: -3.7 },
+        { name: 'focus features', weight: -2.8 },
+        { name: 'fox searchlight', weight: -2.9 },
+        { name: 'searchlight', weight: -2.9 },
+        { name: 'annapurna', weight: -3.1 },
+        { name: 'neon', weight: -3.4 },
+        { name: 'bleecker street', weight: -2.6 },
+        { name: 'miramax', weight: -2.7 },
+        { name: 'summit entertainment', weight: -2.3 },
+        { name: 'roadside attractions', weight: -2.8 }
+      ];
+      
+      indieStudios.forEach(studio => {
+        if (companies.some(c => c.name && c.name.toLowerCase().includes(studio.name))) {
+          score += studio.weight;
+        }
+      });
+      
+      // Small cast penalty (continuous)
+      if (cast.length < 15) {
+        score -= (15 - cast.length) * 0.12;
+      }
+      
+      // Low budget factor
+      if (budget > 0 && budget < 10000000) {
+        score -= Math.min((10000000 - budget) / 2000000, 3.0);
+      }
+      
+      // Runtime factor (blockbusters tend to be longer)
+      score += (runtime - 100) * 0.008;
+      
+      // Title-based variation for uniqueness
+      const titleVariation = movie.title ? (movie.title.charCodeAt(0) % 100) * 0.02 - 1.0 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateMainstreamScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const language = movie.original_language || 'en';
+      const keywords = movie.flatKeywords || [];
+      const budget = movie.budget || 0;
+      
+      // Mainstream indicators (+) with weighted values
+      const popularGenres = [
+        { name: 'action', weight: 2.3 },
+        { name: 'comedy', weight: 2.8 },
+        { name: 'adventure', weight: 2.1 },
+        { name: 'animation', weight: 2.4 },
+        { name: 'family', weight: 2.9 }
+      ];
+      
+      popularGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      
+      // Language factor with nuance
+      if (language === 'en') {
+        score += 2.3;
+      } else {
+        score -= 1.8; // Non-English penalty
+      }
+      
+      // Arthouse indicators (-) with weighted values
+      const arthouseGenres = [
+        { name: 'drama', weight: -1.2 },
+        { name: 'documentary', weight: -2.7 },
+        { name: 'foreign', weight: -2.1 }
+      ];
+      const arthouseKeywords = [
+        { name: 'festival', weight: -2.4 },
+        { name: 'cannes', weight: -2.8 },
+        { name: 'sundance', weight: -2.2 },
+        { name: 'experimental', weight: -2.6 },
+        { name: 'avant-garde', weight: -2.9 },
+        { name: 'independent film', weight: -2.1 },
+        { name: 'black and white', weight: -1.8 },
+        { name: 'foreign language film', weight: -2.0 },
+        { name: 'art', weight: -1.5 },
+        { name: 'surrealism', weight: -2.3 },
+        { name: 'minimalism', weight: -1.9 }
+      ];
+      
+      arthouseGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      arthouseKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Budget factor (mainstream films often have bigger budgets)
+      if (budget > 0) {
+        score += Math.min((budget / 50000000), 1.5);
+      }
+      
+      // Genre count factor (arthouse films often have fewer genres)
+      const genreCount = genres.length;
+      if (genreCount <= 2) {
+        score -= 0.8; // Fewer genres = more arthouse
+      } else if (genreCount >= 4) {
+        score += 0.6; // More genres = more mainstream
+      }
+      
+      // Title-based variation
+      const titleLength = movie.title ? movie.title.length : 20;
+      score += (titleLength * 0.037) % 0.8 - 0.4;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateComfortScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const runtime = movie.runtime || 90;
+      
+      // Comfort indicators (+) with weighted values
+      const comfortGenres = [
+        { name: 'comedy', weight: 2.6 },
+        { name: 'family', weight: 3.1 },
+        { name: 'animation', weight: 2.8 },
+        { name: 'romance', weight: 2.3 },
+        { name: 'adventure', weight: 1.7 }
+      ];
+      const comfortKeywords = [
+        { name: 'friendship', weight: 2.1 },
+        { name: 'wedding', weight: 1.8 },
+        { name: 'christmas', weight: 2.2 },
+        { name: 'holiday', weight: 1.9 },
+        { name: 'happy ending', weight: 2.0 },
+        { name: 'school', weight: 1.6 },
+        { name: 'romantic comedy', weight: 1.7 },
+        { name: 'coming of age', weight: 1.5 },
+        { name: 'feel good', weight: 1.8 }
+      ];
+      
+      comfortGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      comfortKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Challenge indicators (-) with weighted values
+      const challengeGenres = [
+        { name: 'horror', weight: -2.7 },
+        { name: 'thriller', weight: -1.4 },
+        { name: 'war', weight: -2.2 },
+        { name: 'crime', weight: -1.8 }
+      ];
+      const challengeKeywords = [
+        { name: 'murder', weight: -2.4 },
+        { name: 'violence', weight: -2.1 },
+        { name: 'death', weight: -1.8 },
+        { name: 'revenge', weight: -1.9 },
+        { name: 'betrayal', weight: -1.7 },
+        { name: 'torture', weight: -2.6 },
+        { name: 'dystopia', weight: -2.0 },
+        { name: 'alcoholism', weight: -1.8 },
+        { name: 'suicide', weight: -2.2 },
+        { name: 'tragedy', weight: -1.6 },
+        { name: 'prison', weight: -1.5 }
+      ];
+      
+      challengeGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      challengeKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Runtime factor (shorter films often more comfortable)
+      score += (100 - runtime) * 0.005;
+      
+      // Title-based variation
+      const titleHash = movie.title ? movie.title.replace(/\s/g, '').length * 0.17 : 0;
+      score += (titleHash % 1) * 0.6 - 0.3;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateStyleScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const budget = movie.budget || 0;
+      const runtime = movie.runtime || 100;
+      
+      // Style indicators (+) with weighted values
+      const visualGenres = [
+        { name: 'fantasy', weight: 2.4 },
+        { name: 'science fiction', weight: 2.1 },
+        { name: 'action', weight: 1.8 },
+        { name: 'adventure', weight: 1.7 }
+      ];
+      const styleKeywords = [
+        { name: 'visual effects', weight: 2.3 },
+        { name: 'special effects', weight: 2.2 },
+        { name: 'computer animation', weight: 2.0 },
+        { name: 'cinematography', weight: 1.9 },
+        { name: 'cgi', weight: 2.1 },
+        { name: 'superhero', weight: 1.8 },
+        { name: 'spectacle', weight: 1.7 },
+        { name: 'epic', weight: 1.6 },
+        { name: 'costume design', weight: 1.4 }
+      ];
+      
+      visualGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      styleKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Budget factor (continuous)
+      if (budget > 0) {
+        score += Math.min((budget / 50000000) * 1.8, 3.2); // High budget often means visual spectacle
+      }
+      
+      // Substance indicators (-) with weighted values
+      const substanceGenres = [
+        { name: 'drama', weight: -2.1 },
+        { name: 'biography', weight: -2.4 },
+        { name: 'history', weight: -1.9 }
+      ];
+      const substanceKeywords = [
+        { name: 'character study', weight: -2.6 },
+        { name: 'based on true story', weight: -2.2 },
+        { name: 'biography', weight: -2.4 },
+        { name: 'friendship', weight: -1.8 },
+        { name: 'marriage', weight: -1.6 },
+        { name: 'family relationships', weight: -1.7 },
+        { name: 'coming of age', weight: -1.5 },
+        { name: 'father son relationship', weight: -1.9 },
+        { name: 'mother daughter relationship', weight: -1.8 },
+        { name: 'divorce', weight: -1.4 }
+      ];
+      
+      substanceGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      substanceKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Runtime factor (epic films often emphasize style)
+      score += (runtime - 100) * 0.006;
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.length * 0.09) % 0.7 - 0.35 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateGroundedScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const language = movie.original_language || 'en';
+      const budget = movie.budget || 0;
+      
+      // Grounded indicators (+) with weighted values
+      const realisticGenres = [
+        { name: 'drama', weight: 2.3 },
+        { name: 'biography', weight: 2.8 },
+        { name: 'documentary', weight: 3.1 },
+        { name: 'history', weight: 2.4 },
+        { name: 'crime', weight: 1.9 }
+      ];
+      const groundedKeywords = [
+        { name: 'based on true story', weight: 2.7 },
+        { name: 'biography', weight: 2.5 },
+        { name: 'new york city', weight: 1.8 },
+        { name: 'los angeles', weight: 1.6 },
+        { name: 'police', weight: 1.9 },
+        { name: 'hospital', weight: 1.7 },
+        { name: 'journalist', weight: 1.8 },
+        { name: 'courtroom', weight: 1.9 },
+        { name: 'workplace', weight: 1.5 },
+        { name: 'contemporary', weight: 1.6 }
+      ];
+      
+      realisticGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      groundedKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Language factor (non-English often more grounded)
+      if (language !== 'en') {
+        score += 1.3;
+      }
+      
+      // Budget factor (lower budget often more grounded)
+      if (budget > 0 && budget < 20000000) {
+        score += Math.min((20000000 - budget) / 10000000, 1.8);
+      }
+      
+      // Fantastical indicators (-) with weighted values
+      const fantasticalGenres = [
+        { name: 'fantasy', weight: -2.9 },
+        { name: 'science fiction', weight: -2.6 },
+        { name: 'animation', weight: -2.2 },
+        { name: 'horror', weight: -1.7 }
+      ];
+      const fantasticalKeywords = [
+        { name: 'magic', weight: -2.4 },
+        { name: 'supernatural', weight: -2.1 },
+        { name: 'future', weight: -1.9 },
+        { name: 'alien', weight: -2.3 },
+        { name: 'monster', weight: -1.8 },
+        { name: 'superhero', weight: -2.2 },
+        { name: 'time travel', weight: -2.0 },
+        { name: 'space', weight: -1.9 },
+        { name: 'dragon', weight: -2.5 },
+        { name: 'wizard', weight: -2.4 },
+        { name: 'mythology', weight: -1.6 }
+      ];
+      
+      fantasticalGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      fantasticalKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.split(' ').length * 0.23) % 0.8 - 0.4 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateClassicScale(movie) {
+      let score = 0;
+      const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const currentYear = new Date().getFullYear();
+      
+      // Age-based scoring (continuous)
+      if (releaseYear > 0) {
+        const age = currentYear - releaseYear;
+        if (age > 40) {
+          score += 2.8 + (age - 40) * 0.04; // Extra points for very old films
+        } else if (age > 20) {
+          score += 1.2 + (age - 20) * 0.08;
+        } else if (age < 10) {
+          score -= 2.1 - age * 0.15; // Penalty for very recent films
+        }
+      }
+      
+      // Classic indicators (+) with weighted values
+      const classicGenres = [
+        { name: 'drama', weight: 1.4 },
+        { name: 'romance', weight: 1.8 },
+        { name: 'musical', weight: 2.3 },
+        { name: 'western', weight: 2.6 }
+      ];
+      const classicKeywords = [
+        { name: 'period piece', weight: 2.3 },
+        { name: 'costume drama', weight: 2.1 },
+        { name: 'black and white', weight: 2.5 },
+        { name: 'world war ii', weight: 1.8 },
+        { name: 'historical', weight: 1.9 },
+        { name: 'victorian era', weight: 2.0 },
+        { name: '1940s', weight: 1.7 },
+        { name: '1950s', weight: 1.6 },
+        { name: 'old hollywood', weight: 2.2 }
+      ];
+      
+      classicGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      classicKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Contemporary indicators (-) with weighted values
+      const modernGenres = [
+        { name: 'science fiction', weight: -1.8 },
+        { name: 'action', weight: -1.3 }
+      ];
+      const contemporaryKeywords = [
+        { name: 'internet', weight: -2.1 },
+        { name: 'social media', weight: -2.3 },
+        { name: 'cell phone', weight: -1.9 },
+        { name: 'computer', weight: -1.7 },
+        { name: 'modern day', weight: -1.8 },
+        { name: '2000s', weight: -1.5 },
+        { name: '2010s', weight: -1.6 },
+        { name: 'contemporary', weight: -1.4 },
+        { name: 'technology', weight: -1.8 }
+      ];
+      
+      modernGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      contemporaryKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Runtime factor (classic films often have different pacing)
+      const runtime = movie.runtime || 100;
+      if (runtime > 150) {
+        score += 0.8; // Epic length often associated with classics
+      } else if (runtime < 90) {
+        score -= 0.4; // Very short films less classic
+      }
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.charCodeAt(movie.title.length - 1) % 50) * 0.016 - 0.4 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateUpliftingScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const runtime = movie.runtime || 100;
+      
+      // Uplifting indicators (+) with weighted values
+      const upliftingGenres = [
+        { name: 'comedy', weight: 2.8 },
+        { name: 'family', weight: 2.6 },
+        { name: 'animation', weight: 2.3 },
+        { name: 'romance', weight: 2.1 },
+        { name: 'adventure', weight: 1.9 },
+        { name: 'musical', weight: 2.4 }
+      ];
+      const upliftingKeywords = [
+        { name: 'friendship', weight: 2.2 },
+        { name: 'hope', weight: 2.7 },
+        { name: 'redemption', weight: 2.5 },
+        { name: 'inspiring', weight: 2.3 },
+        { name: 'triumph', weight: 2.1 },
+        { name: 'happy ending', weight: 2.4 },
+        { name: 'celebration', weight: 1.8 },
+        { name: 'wedding', weight: 1.9 },
+        { name: 'christmas', weight: 2.0 }
+      ];
+      
+      upliftingGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      upliftingKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Melancholy indicators (-) with weighted values
+      const melancholyGenres = [
+        { name: 'drama', weight: -1.8 },
+        { name: 'war', weight: -2.4 },
+        { name: 'crime', weight: -1.6 },
+        { name: 'thriller', weight: -1.3 }
+      ];
+      const melancholyKeywords = [
+        { name: 'death', weight: -2.1 },
+        { name: 'tragedy', weight: -2.6 },
+        { name: 'loss', weight: -2.2 },
+        { name: 'suicide', weight: -2.8 },
+        { name: 'alcoholism', weight: -2.4 },
+        { name: 'depression', weight: -2.5 },
+        { name: 'funeral', weight: -2.3 },
+        { name: 'betrayal', weight: -2.0 },
+        { name: 'divorce', weight: -1.8 }
+      ];
+      
+      melancholyGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      melancholyKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Runtime factor (longer films often more melancholy)
+      score += (100 - runtime) * 0.004;
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.replace(/[^a-z]/gi, '').length * 0.11) % 0.9 - 0.45 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateTenseScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const runtime = movie.runtime || 100;
+      
+      // Tense indicators (+) with weighted values
+      const tenseGenres = [
+        { name: 'thriller', weight: 2.9 },
+        { name: 'horror', weight: 2.7 },
+        { name: 'mystery', weight: 2.2 },
+        { name: 'action', weight: 1.8 },
+        { name: 'crime', weight: 2.1 }
+      ];
+      const tenseKeywords = [
+        { name: 'suspense', weight: 2.4 },
+        { name: 'chase', weight: 2.6 },
+        { name: 'kidnapping', weight: 2.1 },
+        { name: 'murder', weight: 2.3 },
+        { name: 'paranoia', weight: 2.5 },
+        { name: 'survival', weight: 2.0 },
+        { name: 'escape', weight: 1.9 },
+        { name: 'showdown', weight: 1.8 },
+        { name: 'violence', weight: 1.7 }
+      ];
+      
+      tenseGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      tenseKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Relaxing indicators (-) with weighted values
+      const relaxingGenres = [
+        { name: 'comedy', weight: -2.3 },
+        { name: 'romance', weight: -2.1 },
+        { name: 'family', weight: -2.5 },
+        { name: 'documentary', weight: -1.8 }
+      ];
+      const relaxingKeywords = [
+        { name: 'friendship', weight: -2.4 },
+        { name: 'wedding', weight: -2.2 },
+        { name: 'christmas', weight: -2.3 },
+        { name: 'holiday', weight: -2.0 },
+        { name: 'school', weight: -2.1 },
+        { name: 'coming of age', weight: -1.9 },
+        { name: 'romantic comedy', weight: -2.5 },
+        { name: 'feel good', weight: -2.4 }
+      ];
+      
+      relaxingGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      relaxingKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Runtime factor (longer films can build more tension)
+      score += (runtime - 100) * 0.008;
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 100) * 0.014 - 0.7 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateHopefulScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : 0;
+      
+      // Hopeful indicators (+) with weighted values
+      const hopefulGenres = [
+        { name: 'family', weight: 2.4 },
+        { name: 'adventure', weight: 2.1 },
+        { name: 'animation', weight: 2.2 },
+        { name: 'comedy', weight: 1.9 }
+      ];
+      const hopefulKeywords = [
+        { name: 'hope', weight: 2.8 },
+        { name: 'redemption', weight: 2.6 },
+        { name: 'triumph', weight: 2.3 },
+        { name: 'happy ending', weight: 2.4 },
+        { name: 'friendship', weight: 2.1 },
+        { name: 'inspiring', weight: 2.2 },
+        { name: 'second chance', weight: 2.0 },
+        { name: 'rescue', weight: 1.9 },
+        { name: 'wedding', weight: 1.8 }
+      ];
+      
+      hopefulGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      hopefulKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Cynical indicators (-) with weighted values
+      const cynicalGenres = [
+        { name: 'war', weight: -2.6 },
+        { name: 'crime', weight: -2.1 },
+        { name: 'thriller', weight: -1.8 }
+      ];
+      const cynicalKeywords = [
+        { name: 'corruption', weight: -2.4 },
+        { name: 'betrayal', weight: -2.2 },
+        { name: 'revenge', weight: -2.1 },
+        { name: 'murder', weight: -2.0 },
+        { name: 'dystopia', weight: -2.5 },
+        { name: 'paranoia', weight: -2.3 },
+        { name: 'conspiracy', weight: -1.9 },
+        { name: 'alcoholism', weight: -2.6 },
+        { name: 'suicide', weight: -2.8 }
+      ];
+      
+      cynicalGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      cynicalKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Era factor (older films sometimes more optimistic)
+      if (releaseYear > 0 && releaseYear < 1970) {
+        score += 1.2;
+      } else if (releaseYear > 2000) {
+        score -= 0.8; // Modern films often more cynical
+      }
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.length * 0.13) % 0.8 - 0.4 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateSimpleScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const runtime = movie.runtime || 100;
+      const genreCount = genres.length;
+      
+      // Simple indicators (+) with weighted values
+      const simpleGenres = [
+        { name: 'comedy', weight: 2.1 },
+        { name: 'action', weight: 1.9 },
+        { name: 'horror', weight: 1.8 },
+        { name: 'romance', weight: 2.0 },
+        { name: 'family', weight: 2.3 }
+      ];
+      const simpleKeywords = [
+        { name: 'friendship', weight: 2.4 },
+        { name: 'family', weight: 2.6 },
+        { name: 'school', weight: 2.2 },
+        { name: 'wedding', weight: 2.1 },
+        { name: 'coming of age', weight: 2.0 },
+        { name: 'high school', weight: 2.3 },
+        { name: 'love', weight: 2.2 },
+        { name: 'christmas', weight: 2.4 }
+      ];
+      
+      simpleGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      simpleKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Genre count factor
+      if (genreCount <= 2) {
+        score += 1.8; // Fewer genres = simpler
+      } else if (genreCount >= 4) {
+        score -= 1.5; // More genres = more complex
+      }
+      
+      // Complex indicators (-) with weighted values
+      const complexGenres = [
+        { name: 'drama', weight: -1.7 },
+        { name: 'mystery', weight: -2.3 },
+        { name: 'science fiction', weight: -2.1 },
+        { name: 'thriller', weight: -2.0 }
+      ];
+      const complexKeywords = [
+        { name: 'time travel', weight: -2.8 },
+        { name: 'conspiracy', weight: -2.4 },
+        { name: 'dystopia', weight: -2.6 },
+        { name: 'philosophy', weight: -2.5 },
+        { name: 'artificial intelligence', weight: -2.3 },
+        { name: 'alternate reality', weight: -2.7 },
+        { name: 'multiple timeline', weight: -2.8 },
+        { name: 'psychological', weight: -2.2 }
+      ];
+      
+      complexGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      complexKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Runtime factor (shorter films often simpler)
+      score += (90 - runtime) * 0.006;
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.replace(/\s/g, '').length * 0.07) % 0.6 - 0.3 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateCharacterScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const cast = movie.credits?.cast || [];
+      const runtime = movie.runtime || 100;
+      
+      // Character-driven indicators (+) with weighted values
+      const characterGenres = [
+        { name: 'drama', weight: 2.4 },
+        { name: 'biography', weight: 2.8 },
+        { name: 'romance', weight: 2.1 }
+      ];
+      const characterKeywords = [
+        { name: 'friendship', weight: 2.5 },
+        { name: 'marriage', weight: 2.4 },
+        { name: 'father son relationship', weight: 2.6 },
+        { name: 'mother daughter relationship', weight: 2.5 },
+        { name: 'family relationships', weight: 2.3 },
+        { name: 'love', weight: 2.2 },
+        { name: 'psychological', weight: 2.1 },
+        { name: 'character study', weight: 2.7 }
+      ];
+      
+      characterGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      characterKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Cast size factor (character-driven films often have smaller casts)
+      if (cast.length > 0 && cast.length < 20) {
+        score += 1.6;
+      } else if (cast.length > 50) {
+        score -= 1.2;
+      }
+      
+      // Plot-driven indicators (-) with weighted values
+      const plotGenres = [
+        { name: 'action', weight: -2.2 },
+        { name: 'adventure', weight: -1.9 },
+        { name: 'thriller', weight: -2.0 },
+        { name: 'mystery', weight: -1.8 }
+      ];
+      const plotKeywords = [
+        { name: 'superhero', weight: -2.3 },
+        { name: 'chase', weight: -2.1 },
+        { name: 'explosion', weight: -2.0 },
+        { name: 'heist', weight: -2.2 },
+        { name: 'mission', weight: -2.0 },
+        { name: 'murder', weight: -1.9 },
+        { name: 'gun fight', weight: -2.1 },
+        { name: 'car chase', weight: -2.2 }
+      ];
+      
+      plotGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      plotKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Runtime factor (character studies often take time)
+      score += (runtime - 100) * 0.005;
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.split(' ').length * 0.19) % 0.7 - 0.35 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateLinearScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const runtime = movie.runtime || 100;
+      
+      // Linear indicators (+) with weighted values
+      const linearGenres = [
+        { name: 'action', weight: 2.2 },
+        { name: 'adventure', weight: 2.0 },
+        { name: 'comedy', weight: 1.9 },
+        { name: 'horror', weight: 1.8 }
+      ];
+      const linearKeywords = [
+        { name: 'journey', weight: 2.2 },
+        { name: 'coming of age', weight: 2.1 },
+        { name: 'road trip', weight: 2.0 },
+        { name: 'race against time', weight: 2.3 },
+        { name: 'quest', weight: 1.9 },
+        { name: 'rescue', weight: 2.0 },
+        { name: 'escape', weight: 2.1 },
+        { name: 'mission', weight: 1.8 }
+      ];
+      
+      linearGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      linearKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Non-linear indicators (-) with weighted values
+      const nonLinearGenres = [
+        { name: 'drama', weight: -1.6 },
+        { name: 'mystery', weight: -2.3 },
+        { name: 'science fiction', weight: -1.9 }
+      ];
+      const nonLinearKeywords = [
+        { name: 'time travel', weight: -2.4 },
+        { name: 'memory', weight: -2.2 },
+        { name: 'flashback', weight: -2.0 },
+        { name: 'multiple timeline', weight: -2.6 },
+        { name: 'nonlinear', weight: -2.7 },
+        { name: 'dream', weight: -2.1 },
+        { name: 'parallel universe', weight: -2.5 },
+        { name: 'anthology', weight: -2.3 }
+      ];
+      
+      nonLinearGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      nonLinearKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Runtime factor (shorter films often more linear)
+      score += (100 - runtime) * 0.007;
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.charCodeAt(0) % 60) * 0.016 - 0.48 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateUniversalScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const language = movie.original_language || 'en';
+      const budget = movie.budget || 0;
+      
+      // Universal indicators (+) with weighted values
+      const universalGenres = [
+        { name: 'family', weight: 2.6 },
+        { name: 'animation', weight: 2.4 },
+        { name: 'comedy', weight: 2.2 },
+        { name: 'adventure', weight: 2.0 }
+      ];
+      const universalKeywords = [
+        { name: 'family', weight: 2.7 },
+        { name: 'friendship', weight: 2.5 },
+        { name: 'school', weight: 2.3 },
+        { name: 'high school', weight: 2.2 },
+        { name: 'love', weight: 2.1 },
+        { name: 'christmas', weight: 2.4 },
+        { name: 'wedding', weight: 2.0 },
+        { name: 'coming of age', weight: 2.2 }
+      ];
+      
+      universalGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      universalKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Language factor
+      if (language === 'en') {
+        score += 1.8; // English more universal
+      } else {
+        score -= 1.4;
+      }
+      
+      // Budget factor (higher budget often more universal appeal)
+      if (budget > 50000000) {
+        score += Math.min((budget / 100000000) * 1.5, 2.2);
+      }
+      
+      // Niche indicators (-) with weighted values
+      const nicheGenres = [
+        { name: 'documentary', weight: -2.8 },
+        { name: 'foreign', weight: -2.4 },
+        { name: 'art', weight: -2.6 }
+      ];
+      const nicheKeywords = [
+        { name: 'foreign language film', weight: -2.7 },
+        { name: 'art', weight: -2.5 },
+        { name: 'independent film', weight: -2.3 },
+        { name: 'cult', weight: -2.4 },
+        { name: 'experimental', weight: -2.6 },
+        { name: 'avant garde', weight: -2.8 },
+        { name: 'surreal', weight: -2.5 },
+        { name: 'abstract', weight: -2.7 }
+      ];
+      
+      nicheGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      nicheKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.replace(/[aeiou]/gi, '').length * 0.12) % 0.8 - 0.4 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateEscapistScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const budget = movie.budget || 0;
+      
+      // Escapist indicators (+) with weighted values
+      const escapistGenres = [
+        { name: 'fantasy', weight: 2.8 },
+        { name: 'science fiction', weight: 2.6 },
+        { name: 'adventure', weight: 2.3 },
+        { name: 'animation', weight: 2.4 },
+        { name: 'action', weight: 2.1 }
+      ];
+      const escapistKeywords = [
+        { name: 'fantasy', weight: 2.6 },
+        { name: 'superhero', weight: 2.5 },
+        { name: 'space', weight: 2.4 },
+        { name: 'magic', weight: 2.3 },
+        { name: 'alien', weight: 2.2 },
+        { name: 'time travel', weight: 2.1 },
+        { name: 'alternate reality', weight: 2.4 },
+        { name: 'computer animation', weight: 2.0 }
+      ];
+      
+      escapistGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      escapistKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Budget factor (escapist films often have higher budgets)
+      if (budget > 80000000) {
+        score += Math.min((budget / 150000000) * 1.8, 2.1);
+      }
+      
+      // Realistic indicators (-) with weighted values
+      const realisticGenres = [
+        { name: 'drama', weight: -2.0 },
+        { name: 'documentary', weight: -2.9 },
+        { name: 'biography', weight: -2.4 },
+        { name: 'history', weight: -2.2 }
+      ];
+      const realisticKeywords = [
+        { name: 'based on true story', weight: -2.8 },
+        { name: 'biography', weight: -2.6 },
+        { name: 'documentary', weight: -2.7 },
+        { name: 'real life', weight: -2.4 },
+        { name: 'prison', weight: -2.1 },
+        { name: 'hospital', weight: -2.0 },
+        { name: 'courtroom', weight: -2.2 },
+        { name: 'war', weight: -2.3 }
+      ];
+      
+      realisticGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      realisticKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.match(/[A-Z]/g)?.length || 0) * 0.14 - 0.42 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculatePolishedScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const budget = movie.budget || 0;
+      const companies = movie.production_companies || [];
+      
+      // Polished indicators (+) with weighted values
+      const polishedStudios = [
+        { name: 'disney', weight: 2.6 },
+        { name: 'warner bros', weight: 2.3 },
+        { name: 'universal', weight: 2.2 },
+        { name: 'paramount', weight: 2.1 },
+        { name: 'sony', weight: 2.0 }
+      ];
+      const polishedKeywords = [
+        { name: 'computer animation', weight: 2.4 },
+        { name: 'special effects', weight: 2.3 },
+        { name: 'visual effects', weight: 2.2 },
+        { name: 'cgi', weight: 2.1 },
+        { name: 'blockbuster', weight: 2.0 },
+        { name: 'sequel', weight: 1.9 },
+        { name: 'franchise', weight: 2.2 },
+        { name: 'superhero', weight: 2.1 }
+      ];
+      
+      polishedStudios.forEach(studio => {
+        if (companies.some(c => c.name && c.name.toLowerCase().includes(studio.name))) {
+          score += studio.weight;
+        }
+      });
+      polishedKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Budget factor (higher budget often more polished)
+      if (budget > 0) {
+        score += Math.min((budget / 100000000) * 2.8, 3.5);
+      }
+      
+      // Raw indicators (-) with weighted values
+      const rawStudios = [
+        { name: 'a24', weight: -2.4 },
+        { name: 'mumblecore', weight: -2.8 },
+        { name: 'independent', weight: -1.9 }
+      ];
+      const rawKeywords = [
+        { name: 'prison', weight: -2.6 },
+        { name: 'murder', weight: -2.4 },
+        { name: 'violence', weight: -2.3 },
+        { name: 'drug', weight: -2.5 },
+        { name: 'crime', weight: -2.2 },
+        { name: 'gang', weight: -2.4 },
+        { name: 'street', weight: -2.1 },
+        { name: 'urban', weight: -2.0 }
+      ];
+      
+      rawStudios.forEach(studio => {
+        if (companies.some(c => c.name && c.name.toLowerCase().includes(studio.name))) {
+          score += studio.weight;
+        }
+      });
+      rawKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Low budget factor
+      if (budget > 0 && budget < 5000000) {
+        score -= Math.min((5000000 - budget) / 1000000, 2.5);
+      }
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.replace(/\W/g, '').length * 0.08) % 0.6 - 0.3 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateFamiliarScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : 0;
+      
+      // Familiar indicators (+) with weighted values
+      const familiarGenres = [
+        { name: 'comedy', weight: 2.1 },
+        { name: 'action', weight: 1.9 },
+        { name: 'romance', weight: 2.0 },
+        { name: 'family', weight: 2.2 }
+      ];
+      const familiarKeywords = [
+        { name: 'sequel', weight: 2.4 },
+        { name: 'franchise', weight: 2.3 },
+        { name: 'superhero', weight: 2.1 },
+        { name: 'remake', weight: 2.5 },
+        { name: 'adaptation', weight: 2.0 },
+        { name: 'classic', weight: 2.2 },
+        { name: 'traditional', weight: 1.9 },
+        { name: 'formula', weight: 1.8 }
+      ];
+      
+      familiarGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      familiarKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Era factor (older films more familiar to modern audiences)
+      if (releaseYear > 0 && releaseYear < 1990) {
+        score += 1.5;
+      }
+      
+      // Innovative indicators (-) with weighted values
+      const innovativeGenres = [
+        { name: 'science fiction', weight: -2.0 },
+        { name: 'experimental', weight: -2.8 }
+      ];
+      const innovativeKeywords = [
+        { name: 'original screenplay', weight: -2.6 },
+        { name: 'experimental', weight: -2.8 },
+        { name: 'avant garde', weight: -2.7 },
+        { name: 'innovative', weight: -2.5 },
+        { name: 'first film', weight: -2.4 },
+        { name: 'debut', weight: -2.3 },
+        { name: 'breakthrough', weight: -2.2 },
+        { name: 'unique', weight: -2.1 }
+      ];
+      
+      innovativeGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      innovativeKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Recent films factor (very recent films might be more innovative)
+      if (releaseYear > 2018) {
+        score -= 1.2;
+      }
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.split(' ').length * 0.15) % 0.7 - 0.35 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
+    },
+    calculateMinimalistScale(movie) {
+      let score = 0;
+      const genres = movie.genres || [];
+      const keywords = movie.flatKeywords || [];
+      const budget = movie.budget || 0;
+      const cast = movie.credits?.cast || [];
+      const runtime = movie.runtime || 100;
+      
+      // Minimalist indicators (+) with weighted values
+      const minimalistGenres = [
+        { name: 'drama', weight: 2.2 },
+        { name: 'documentary', weight: 2.4 },
+        { name: 'art', weight: 2.6 }
+      ];
+      const minimalistKeywords = [
+        { name: 'character study', weight: 2.8 },
+        { name: 'dialogue', weight: 2.5 },
+        { name: 'conversation', weight: 2.4 },
+        { name: 'intimate', weight: 2.3 },
+        { name: 'quiet', weight: 2.2 },
+        { name: 'subtle', weight: 2.1 },
+        { name: 'introspective', weight: 2.6 },
+        { name: 'contemplative', weight: 2.5 }
+      ];
+      
+      minimalistGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      minimalistKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // Budget factor (lower budget often more minimalist)
+      if (budget > 0 && budget < 10000000) {
+        score += Math.min((10000000 - budget) / 2000000, 2.2);
+      }
+      
+      // Cast size factor (smaller cast more minimalist)
+      if (cast.length > 0 && cast.length < 15) {
+        score += 1.8;
+      }
+      
+      // Maximalist indicators (-) with weighted values
+      const maximalistGenres = [
+        { name: 'action', weight: -2.3 },
+        { name: 'adventure', weight: -2.1 },
+        { name: 'fantasy', weight: -2.4 },
+        { name: 'science fiction', weight: -2.2 }
+      ];
+      const maximalistKeywords = [
+        { name: 'epic', weight: -2.4 },
+        { name: 'explosion', weight: -2.3 },
+        { name: 'special effects', weight: -2.5 },
+        { name: 'visual effects', weight: -2.4 },
+        { name: 'spectacle', weight: -2.6 },
+        { name: 'action packed', weight: -2.7 },
+        { name: 'blockbuster', weight: -2.2 },
+        { name: 'ensemble cast', weight: -2.1 }
+      ];
+      
+      maximalistGenres.forEach(genre => {
+        if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
+          score += genre.weight;
+        }
+      });
+      maximalistKeywords.forEach(keyword => {
+        if (keywords.some(k => k.toLowerCase().includes(keyword.name))) {
+          score += keyword.weight;
+        }
+      });
+      
+      // High budget factor (blockbusters often maximalist)
+      if (budget > 150000000) {
+        score -= Math.min((budget - 150000000) / 100000000, 2.8);
+      }
+      
+      // Large cast factor
+      if (cast.length > 50) {
+        score -= 1.9;
+      }
+      
+      // Runtime factor (shorter films often more minimalist)
+      score += (90 - runtime) * 0.008;
+      
+      // Title-based variation
+      const titleVariation = movie.title ? (movie.title.replace(/\s/g, '').length * 0.06) % 0.5 - 0.25 : 0;
+      score += titleVariation;
+      
+      return Math.max(-10, Math.min(10, score));
     }
-  },
+  }
 };
 </script>
 
