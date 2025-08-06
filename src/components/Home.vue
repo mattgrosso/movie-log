@@ -1413,8 +1413,8 @@ export default {
               hasFullWordMatch(person.name, searchTerm)
             );
             if (castMatch) {
-              if (!adHocCategories['Cast']) adHocCategories['Cast'] = [];
-              adHocCategories['Cast'].push(media);
+              if (!adHocCategories['cast']) adHocCategories['cast'] = [];
+              adHocCategories['cast'].push(media);
               foundRole = true;
             }
           }
@@ -1458,16 +1458,29 @@ export default {
           }
         });
         
-        // Add ad-hoc categories to the results
+        // Add ad-hoc categories to the results, but avoid duplicating existing categories
         Object.keys(adHocCategories).forEach(roleCategory => {
           const movies = adHocCategories[roleCategory];
+          const categoryKey = roleCategory.toLowerCase();
+          
+          // Check if this category already exists
+          const existingCategory = categories.find(cat => cat.category === categoryKey);
+          
           if (movies.length > 0) {
-            const sortedMovies = [...movies].sort(this.sortResults);
-            categories.push({
-              category: roleCategory.toLowerCase(),
-              categoryDisplay: roleCategory,
-              movies: sortedMovies
-            });
+            if (existingCategory) {
+              // Merge movies into existing category
+              existingCategory.movies.push(...movies);
+              // Re-sort the combined movies
+              existingCategory.movies.sort(this.sortResults);
+            } else {
+              // Create new category
+              const sortedMovies = [...movies].sort(this.sortResults);
+              categories.push({
+                category: categoryKey,
+                categoryDisplay: roleCategory.charAt(0).toUpperCase() + roleCategory.slice(1),
+                movies: sortedMovies
+              });
+            }
           }
         });
         
