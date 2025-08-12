@@ -1689,7 +1689,7 @@ export default {
       return hasTiedResults && noTieBreakYetToday;
     },
     showAwardsModal () {
-      if (this.showStickinessModal || this.showTweakModal || !this.isMatt) {
+      if (this.showStickinessModal || this.showTweakModal) {
         return false;
       }
       
