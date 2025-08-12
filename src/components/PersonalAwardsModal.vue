@@ -10,6 +10,23 @@
         <div v-if="!selectedCategory" class="text-center awards-header">
           <h2 class="mb-1">{{ awardNameWithThe }} {{ currentYear }}</h2>
           <p class="mb-0">Your own annual awards</p>
+          
+          <!-- New Movies Notification -->
+          <div v-if="hasNewMovies" class="alert alert-info mt-2 mb-0 text-start">
+            <h6 class="mb-2">
+              <i class="fas fa-star"></i>
+              New movies to consider ({{ newMoviesForCurrentYear.length }})
+            </h6>
+            <div class="new-movies-list">
+              <div v-for="entry in newMoviesForCurrentYear" :key="entry.movie.id" class="new-movie-item">
+                <strong>{{ entry.movie.title }}</strong>
+                <span class="text-muted"> • {{ getRating(entry).calculatedTotal }}/10</span>
+              </div>
+            </div>
+            <small class="text-muted">
+              These movies weren't available when you last completed {{ currentYear }} awards.
+            </small>
+          </div>
         </div>
       </template>
       <template v-slot:body>
@@ -38,6 +55,9 @@
                 <span class="category-winner" v-if="getCategoryWinner(category.key)">
                   👑 {{ getCategoryWinner(category.key) }}
                 </span>
+                <span class="category-no-nominees" v-if="isCategoryMarkedAsNoNominees(category.key)">
+                  🚫 No nominees
+                </span>
               </button>
             </div>
           </div>
@@ -57,6 +77,18 @@
               <div class="current-nominees-section">
                 <h6 class="section-title">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
                 <div class="current-nominees-gallery" :class="{'two-row-layout': getCurrentNominees().length >= 6}">
+                  <!-- No nominees button when category is empty -->
+                  <div v-if="getCurrentNominees().length === 0" class="no-nominees-placeholder">
+                    <button 
+                      class="btn btn-sm btn-outline-secondary no-nominees-btn"
+                      @click="markCategoryAsNoNominees"
+                      :class="darkOrLight"
+                    >
+                      <i class="fas fa-ban"></i>
+                      No nominees for now
+                    </button>
+                  </div>
+                  
                   <div 
                     v-for="nominee in getCurrentNominees()" 
                     :key="getOptionId(nominee)"
@@ -222,6 +254,7 @@ export default {
       currentYear: null,
       awardsData: {},
       autoSaveTimeout: null,
+      migrationCompleted: false, // Flag to prevent repeated migrations
       eligibleOptions: [],
       loadingOptions: false,
       showSavedMessage: false,
@@ -284,6 +317,18 @@ export default {
     progressPercentage() {
       return (this.completedCategories / this.totalCategories) * 100;
     },
+    newMoviesForCurrentYear() {
+      // Get movies that weren't available when this year was last completed
+      const existingAwards = this.$store.state.settings.personalAwards?.[this.currentYear];
+      if (!existingAwards || !existingAwards.completed) {
+        return []; // No previous completion or not completed yet
+      }
+      
+      return this.getNewMoviesForYear(this.currentYear, existingAwards);
+    },
+    hasNewMovies() {
+      return this.newMoviesForCurrentYear.length > 0;
+    },
     darkOrLight() {
       const inDarkMode = document.querySelector("body").classList.contains('bg-dark');
       return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
@@ -317,7 +362,96 @@ export default {
       return incompleteYears[randomIndex];
     }
   },
+  watch: {
+    '$store.state.dbLoaded'(newVal) {
+      // Try migration again when database finishes loading
+      if (newVal && !this.migrationCompleted) {
+        this.migrateAwardsData();
+      }
+    }
+  },
+  async mounted() {
+    // Run migration for legacy awards data on component load
+    await this.migrateAwardsData();
+  },
   methods: {
+    async migrateAwardsData() {
+      // Safety checks: prevent repeated migrations and ensure data is available
+      if (this.migrationCompleted) return;
+      if (!this.$store.state.dbLoaded) return;
+      if (!this.allEntriesWithFlatKeywordsAdded?.length) return;
+      
+      const personalAwards = this.$store.state.settings.personalAwards;
+      if (!personalAwards) {
+        this.migrationCompleted = true;
+        return;
+      }
+
+      let hasLegacyData = false;
+      const migratedAwards = { ...personalAwards };
+
+      // Check each year for missing availableMovieIds
+      for (const [year, awardsData] of Object.entries(personalAwards)) {
+        if (awardsData.completed && !awardsData.availableMovieIds) {
+          hasLegacyData = true;
+          
+          const yearNum = parseInt(year);
+          let availableMovieIds = [];
+          
+          if (awardsData.lastUpdated) {
+            // Backfill movie IDs based on what was rated before the lastUpdated timestamp
+            availableMovieIds = this.allEntriesWithFlatKeywordsAdded
+              .filter(entry => {
+                const entryYear = new Date(entry.movie.release_date).getFullYear();
+                const notShort = !entry.movie.runtime || entry.movie.runtime > 40;
+                const ratedBeforeCompletion = new Date(entry.ratings[0]?.date || entry.movie.release_date).getTime() <= awardsData.lastUpdated;
+                
+                return entryYear === yearNum && notShort && ratedBeforeCompletion;
+              })
+              .map(entry => entry.movie.id);
+          } else {
+            // Very old legacy data without lastUpdated - mark as incomplete so user can re-complete
+            migratedAwards[year] = {
+              ...awardsData,
+              completed: false,
+              availableMovieIds: [] // Will be populated when user re-completes
+            };
+            continue;
+          }
+
+          migratedAwards[year] = {
+            ...awardsData,
+            availableMovieIds
+          };
+        }
+      }
+
+      // Save the migrated data if any changes were made
+      if (hasLegacyData) {
+        await this.$store.dispatch('setDBValue', {
+          path: 'settings/personalAwards',
+          value: migratedAwards
+        });
+      }
+      
+      // Mark migration as completed regardless of whether we found legacy data
+      this.migrationCompleted = true;
+    },
+    markCategoryAsNoNominees() {
+      // Mark category as having no worthy nominees for now
+      if (!this.awardsData[this.selectedCategory]) {
+        this.awardsData[this.selectedCategory] = {};
+      }
+      
+      this.awardsData[this.selectedCategory].nominees = [];
+      this.awardsData[this.selectedCategory].winner = null;
+      this.awardsData[this.selectedCategory].noNominees = true; // Special flag
+      
+      this.autoSave();
+      
+      // Navigate back to category grid to show updated status
+      this.selectedCategory = null;
+    },
     openModal() {
       this.showModal = true;
       this.currentYear = this.firstEligibleYear; // Use the pre-selected random year
@@ -355,7 +489,9 @@ export default {
     },
     isCategoryCompleted(categoryKey) {
       const categoryData = this.awardsData[categoryKey];
-      return categoryData && categoryData.nominees?.length > 0 && categoryData.winner;
+      // Category is complete if it has nominees + winner OR is marked as no nominees
+      return (categoryData && categoryData.nominees?.length > 0 && categoryData.winner) || 
+             (categoryData && categoryData.noNominees === true);
     },
     isCategoryDisabled(categoryKey) {
       // Check if there are no eligible options for this category
@@ -562,6 +698,10 @@ export default {
       } else {
         // Add nominee
         categoryData.nominees.push(option);
+        // Clear the "no nominees" flag if it was set
+        if (categoryData.noNominees) {
+          categoryData.noNominees = false;
+        }
       }
       
       this.awardsData[this.selectedCategory] = categoryData;
@@ -596,7 +736,9 @@ export default {
     },
     getCategoryNomineeCount(categoryKey) {
       const categoryData = this.awardsData[categoryKey];
-      return categoryData ? (categoryData.nominees || []).length : 0;
+      if (!categoryData) return 0;
+      if (categoryData.noNominees) return 0; // Show 0 for "no nominees" categories
+      return (categoryData.nominees || []).length;
     },
     getCategoryWinner(categoryKey) {
       const categoryData = this.awardsData[categoryKey];
@@ -606,16 +748,39 @@ export default {
       const winnerTitle = this.getOptionTitle(categoryData.winner);
       return winnerTitle.length > 20 ? winnerTitle.substring(0, 17) + '...' : winnerTitle;
     },
+    isCategoryMarkedAsNoNominees(categoryKey) {
+      const categoryData = this.awardsData[categoryKey];
+      return categoryData && categoryData.noNominees === true;
+    },
     hasNewMoviesForYear(year, existingAwards) {
-      // Check if there are new movies for this year since last awards update
-      if (!existingAwards.lastUpdated) return true;
+      // Check if there are new movies for this year since last awards completion
+      if (!existingAwards.lastUpdated || !existingAwards.availableMovieIds) {
+        return true; // Legacy data or no previous awards data
+      }
       
-      const newMovies = this.getMoviesForYear().filter(entry => {
-        const movieDate = new Date(entry.ratings[0]?.date || entry.movie.release_date);
-        return movieDate.getTime() > existingAwards.lastUpdated;
+      const currentMovieIds = this.allEntriesWithFlatKeywordsAdded
+        .filter(entry => {
+          const entryYear = new Date(entry.movie.release_date).getFullYear();
+          const notShort = !entry.movie.runtime || entry.movie.runtime > 40;
+          return entryYear === year && notShort;
+        })
+        .map(entry => entry.movie.id);
+      
+      // Check if any current movie IDs are missing from the stored list
+      return currentMovieIds.some(id => !existingAwards.availableMovieIds.includes(id));
+    },
+    getNewMoviesForYear(year, existingAwards) {
+      // Get the list of movies that weren't available when awards were last completed
+      if (!existingAwards.availableMovieIds) {
+        return []; // No stored movie list, can't determine what's new
+      }
+      
+      return this.allEntriesWithFlatKeywordsAdded.filter(entry => {
+        const entryYear = new Date(entry.movie.release_date).getFullYear();
+        const notShort = !entry.movie.runtime || entry.movie.runtime > 40;
+        const isNewMovie = !existingAwards.availableMovieIds.includes(entry.movie.id);
+        return entryYear === year && notShort && isNewMovie;
       });
-      
-      return newMovies.length > 0;
     },
     sortOptionsByRelevantRating(options, categoryKey) {
       // Map awards categories to Cinema Roll sort keys (same as dropdown)
@@ -722,6 +887,7 @@ export default {
         const awardsEntry = {
           completed: this.completedCategories === this.totalCategories,
           lastUpdated: Date.now(),
+          availableMovieIds: this.getMoviesForYear().map(entry => entry.movie.id),
           categories: this.awardsData
         };
         
@@ -769,6 +935,22 @@ export default {
   h2 {
     font-size: 1.5rem;
     font-weight: 700;
+  }
+  
+  .new-movies-list {
+    max-height: 150px;
+    overflow-y: auto;
+    
+    .new-movie-item {
+      font-size: 0.9em;
+      line-height: 1.4;
+      padding: 2px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+      
+      &:last-child {
+        border-bottom: none;
+      }
+    }
   }
 }
 
@@ -861,6 +1043,16 @@ export default {
           margin-top: 2px;
           line-height: 1.1;
           opacity: 0.9;
+        }
+        
+        .category-no-nominees {
+          font-size: 0.55em;
+          font-weight: 500;
+          margin-top: 2px;
+          line-height: 1.1;
+          opacity: 0.7;
+          color: #6c757d;
+          font-style: italic;
         }
         
         // Checkmark positioning
@@ -1046,8 +1238,23 @@ export default {
           align-items: center;
           justify-content: center;
           width: 100%;
-          height: 100%;
+          height: 60px;
           font-style: italic;
+          
+          .no-nominees-btn {
+            font-size: 0.8em;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            
+            &:hover {
+              transform: scale(1.02);
+            }
+            
+            i {
+              margin-right: 6px;
+            }
+          }
         }
         
         .current-nominee-poster {
@@ -1146,6 +1353,17 @@ export default {
           justify-content: center;
           height: 200px;
           text-align: center;
+          grid-column: 1 / -1; // Span all grid columns
+          
+          .spinner-border {
+            margin: 0 auto;
+          }
+          
+          p {
+            margin-top: 8px;
+            color: #6c757d;
+            font-size: 0.9em;
+          }
         }
       }
     }

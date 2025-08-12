@@ -921,9 +921,6 @@ export default {
     if (this.$store.state.settings.letterboxdOverrides) {
       this.letterboxdOverrides = this.$store.state.settings.letterboxdOverrides;
     }
-    
-    // One-time cleanup of old timestamps
-    this.cleanupOldTimestamps();
   },
   beforeRouteLeave () {
     this.sortOrder = "bestOrNewestOnTop";
@@ -2527,26 +2524,6 @@ export default {
         return name.slice(0, -1); // e.g., "Oscars" -> "Oscar"
       }
       return name; // Already singular
-    },
-    async cleanupOldTimestamps() {
-      // One-time cleanup: remove old lastAwards and lastGroskers timestamps
-      const cleanupDone = this.$store.state.settings.timestampCleanupDone;
-      if (cleanupDone) return; // Already cleaned up
-      
-      console.log('Cleaning up old award timestamps...');
-      
-      // Remove old timestamps
-      if (this.$store.state.settings.lastAwards) {
-        await this.$store.dispatch('setDBValue', { path: 'settings/lastAwards', value: null });
-      }
-      if (this.$store.state.settings.lastGroskers) {
-        await this.$store.dispatch('setDBValue', { path: 'settings/lastGroskers', value: null });
-      }
-      
-      // Mark cleanup as done
-      await this.$store.dispatch('setDBValue', { path: 'settings/timestampCleanupDone', value: true });
-      
-      console.log('Timestamp cleanup complete!');
     },
     saveLetterboxdConnection() {
       this.$store.dispatch('setDBValue', { path: 'settings/letterboxdConnected', value: this.letterboxdConnected });
