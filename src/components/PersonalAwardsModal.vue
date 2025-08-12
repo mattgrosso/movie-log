@@ -884,12 +884,23 @@ export default {
       // Debounced auto-save to prevent too many Firebase writes
       clearTimeout(this.autoSaveTimeout);
       this.autoSaveTimeout = setTimeout(async () => {
+        const isNowComplete = this.completedCategories === this.totalCategories;
+        const wasComplete = this.$store.state.settings.personalAwards?.[this.currentYear]?.completed;
+        
         const awardsEntry = {
-          completed: this.completedCategories === this.totalCategories,
+          completed: isNowComplete,
           lastUpdated: Date.now(),
           availableMovieIds: this.getMoviesForYear().map(entry => entry.movie.id),
           categories: this.awardsData
         };
+        
+        // If we just completed this year's awards, record the completion date
+        if (isNowComplete && !wasComplete) {
+          await this.$store.dispatch('setDBValue', {
+            path: 'settings/lastAwardCompletionDate',
+            value: new Date().toDateString()
+          });
+        }
         
         const dbEntry = {
           path: `settings/personalAwards/${this.currentYear}`,

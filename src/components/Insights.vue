@@ -113,6 +113,14 @@
           </select>
           <label for="awards-year-select">Select Year</label>
         </div>
+        <button 
+          v-if="hasEligibleYears && isWithinDailyLimit" 
+          class="btn btn-outline-warning btn-sm mt-2 w-100"
+          @click="startNewAwards"
+        >
+          <i class="fas fa-trophy"></i>
+          Start New Awards (Override Daily Limit)
+        </button>
       </div>
       <div v-if="selectedAwardsData" class="awards-results">
         <div v-for="category in awardCategories" :key="category.key" class="award-category mb-3">
@@ -993,6 +1001,27 @@ export default {
         }
       };
     },
+    hasEligibleYears() {
+      // Check if there are any incomplete years that could have awards
+      const yearsEligibleForAwards = this.allEntriesWithFlatKeywordsAdded
+        .map(entry => new Date(entry.movie.release_date).getFullYear())
+        .filter(year => year >= 2010) // Or whatever your earliest year is
+        .filter((year, index, array) => array.indexOf(year) === index) // Unique years
+        .sort((a, b) => b - a);
+      
+      return yearsEligibleForAwards.some(year => {
+        const existingAwards = this.$store.state.settings.personalAwards?.[year];
+        return !existingAwards?.completed;
+      });
+    },
+    isWithinDailyLimit() {
+      const settings = this.$store.state.settings;
+      const today = new Date().toDateString();
+      const lastAwardDate = settings.lastAwardCompletionDate;
+      
+      // Return true if we're within the daily limit (i.e., already completed awards today)
+      return lastAwardDate === today;
+    },
   },
   methods: {
     returnHome () {
@@ -1058,6 +1087,16 @@ export default {
       // Get person name and movie for person categories
       if (!option) return '';
       return option.name || 'Unknown';
+    },
+    async startNewAwards() {
+      // Override the daily limit by clearing the last completion date
+      await this.$store.dispatch('setDBValue', {
+        path: 'settings/lastAwardCompletionDate',
+        value: null
+      });
+      
+      // Navigate to home page which will now show the awards prompt
+      this.$router.push('/');
     },
     getMovieTitle(option) {
       // Get movie title for movie categories

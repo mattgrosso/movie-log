@@ -1693,6 +1693,15 @@ export default {
         return false;
       }
       
+      // Check daily limit - only show awards once per day unless manually overridden
+      const settings = this.$store.state.settings;
+      const today = new Date().toDateString();
+      const lastAwardDate = settings.lastAwardCompletionDate;
+      
+      if (lastAwardDate === today) {
+        return false; // Already did awards today
+      }
+      
       // Check if there are any years with 10+ rated movies that don't have completed awards
       const yearCounts = {};
       
