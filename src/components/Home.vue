@@ -330,10 +330,13 @@
             :showTweakModal="showTweakModal"
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
           />
-          <GroskersModal
-            v-else-if="showGroskersModal"
-            :showGroskersModal="showGroskersModal"
+          <PersonalAwardsModal
+            v-else-if="showAwardsModal"
+            :showAwardsModal="showAwardsModal"
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+            :personalAwardName="personalAwardName"
+            :awardNameWithThe="getAwardNameWithThe()"
+            :awardNameSingular="getAwardNameSingular()"
           />
           <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
           <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">
@@ -375,6 +378,19 @@
                   step="1"
                   @change="saveTieBreakTweak"
                 >
+              </div>
+              <div class="mb-3">
+                <label for="personalAwardName" class="form-label">Personal Award Name:</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="personalAwardName"
+                  v-model="personalAwardName"
+                  placeholder="e.g., The Oscars, The Groskers, The Smithies"
+                  maxlength="50"
+                  @change="savePersonalAwardName"
+                >
+                <small class="form-text text-white">Use plural form like "The Oscars"</small>
               </div>
               <div class="mb-3">
                 <label for="letterboxdUsername" class="form-label">Letterboxd Username:</label>
@@ -672,7 +688,7 @@ import debounce from 'lodash/debounce';
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import StickinessModal from "./StickinessModal.vue";
 import TweakModal from "./TweakModal.vue";
-import GroskersModal from "./GroskersModal.vue";
+import PersonalAwardsModal from "./PersonalAwardsModal.vue";
 import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
@@ -683,7 +699,7 @@ export default {
     InsetBrowserModal,
     StickinessModal,
     TweakModal,
-    GroskersModal,
+    PersonalAwardsModal,
     NoResults,
   },
   data () {
@@ -731,6 +747,7 @@ export default {
       sortOrder: "bestOrNewestOnTop",
       sortValue: null,
       tieBreakTweak: 1, // default, will be set from store
+      personalAwardName: 'The Oscars', // default, will be set from store
       unratedMovies: [],
       unratedMoviesDebounceTimeout: null,
       unratedMoviesError: null,
@@ -771,6 +788,16 @@ export default {
           this.tieBreakTweak = newVal;
         } else {
           this.tieBreakTweak = 1;
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.personalAwardName': {
+      handler(newVal) {
+        if (typeof newVal === 'string' && newVal.length > 0) {
+          this.personalAwardName = newVal;
+        } else {
+          this.personalAwardName = 'Oscar';
         }
       },
       immediate: true
@@ -894,6 +921,9 @@ export default {
     if (this.$store.state.settings.letterboxdOverrides) {
       this.letterboxdOverrides = this.$store.state.settings.letterboxdOverrides;
     }
+    
+    // One-time cleanup of old timestamps
+    this.cleanupOldTimestamps();
   },
   beforeRouteLeave () {
     this.sortOrder = "bestOrNewestOnTop";
@@ -1661,16 +1691,16 @@ export default {
 
       return hasTiedResults && noTieBreakYetToday;
     },
-    showGroskersModal () {
-      if (this.showStickinessModal || this.showTweakModal) {
+    showAwardsModal () {
+      if (this.showStickinessModal || this.showTweakModal || !this.isMatt) {
         return false;
       }
       
-      // Check if there are any years with 10+ rated movies that don't have completed Groskers
+      // Check if there are any years with 10+ rated movies that don't have completed awards
       const yearCounts = {};
       
       this.allEntriesWithFlatKeywordsAdded.forEach(entry => {
-        // Exclude shorts (<40min) from Groskers consideration
+        // Exclude shorts (<40min) from awards consideration
         if (entry.movie.runtime && entry.movie.runtime <= 40) {
           return;
         }
@@ -1683,20 +1713,20 @@ export default {
         .filter(year => yearCounts[year] >= 10)
         .map(year => parseInt(year));
 
-      // Check if any eligible years need Groskers (either new or have new movies)
+      // Check if any eligible years need awards (either new or have new movies)
       const hasEligibleYears = eligibleYears.some(year => {
-        const existingGroskers = this.$store.state.settings.groskers?.[year];
-        if (!existingGroskers) return true; // New year needs Groskers
+        const existingAwards = this.$store.state.settings.personalAwards?.[year];
+        if (!existingAwards) return true; // New year needs awards
         
-        // Check if there are new movies since last Groskers update
-        if (!existingGroskers.lastUpdated) return true;
+        // Check if there are new movies since last awards update
+        if (!existingAwards.lastUpdated) return true;
         
         const newMovies = this.allEntriesWithFlatKeywordsAdded.filter(entry => {
           const entryYear = new Date(entry.movie.release_date).getFullYear();
           if (entryYear !== year) return false;
           
           const movieDate = new Date(entry.ratings[0]?.date || entry.movie.release_date);
-          return movieDate.getTime() > existingGroskers.lastUpdated;
+          return movieDate.getTime() > existingAwards.lastUpdated;
         });
         
         return newMovies.length > 0;
@@ -2473,6 +2503,50 @@ export default {
     },
     saveTieBreakTweak() {
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
+    },
+    savePersonalAwardName() {
+      this.$store.dispatch('setDBValue', { path: 'settings/personalAwardName', value: this.personalAwardName });
+    },
+    // Grammar helper methods for award names
+    getAwardNameWithThe() {
+      // Returns the full award name with "The" if it doesn't already start with it
+      const name = this.personalAwardName || 'Oscar';
+      return name.toLowerCase().startsWith('the ') ? name : `The ${name}`;
+    },
+    getAwardNameWithoutThe() {
+      // Returns the award name without "The"
+      const name = this.personalAwardName || 'Oscar';
+      return name.toLowerCase().startsWith('the ') ? name.substring(4) : name;
+    },
+    getAwardNameSingular() {
+      // Converts plural award name to singular (removes 's' or handles special cases)
+      const name = this.getAwardNameWithoutThe();
+      if (name.toLowerCase().endsWith('ies')) {
+        return name.slice(0, -3) + 'y'; // e.g., "Smithies" -> "Smithy"
+      } else if (name.toLowerCase().endsWith('s')) {
+        return name.slice(0, -1); // e.g., "Oscars" -> "Oscar"
+      }
+      return name; // Already singular
+    },
+    async cleanupOldTimestamps() {
+      // One-time cleanup: remove old lastAwards and lastGroskers timestamps
+      const cleanupDone = this.$store.state.settings.timestampCleanupDone;
+      if (cleanupDone) return; // Already cleaned up
+      
+      console.log('Cleaning up old award timestamps...');
+      
+      // Remove old timestamps
+      if (this.$store.state.settings.lastAwards) {
+        await this.$store.dispatch('setDBValue', { path: 'settings/lastAwards', value: null });
+      }
+      if (this.$store.state.settings.lastGroskers) {
+        await this.$store.dispatch('setDBValue', { path: 'settings/lastGroskers', value: null });
+      }
+      
+      // Mark cleanup as done
+      await this.$store.dispatch('setDBValue', { path: 'settings/timestampCleanupDone', value: true });
+      
+      console.log('Timestamp cleanup complete!');
     },
     saveLetterboxdConnection() {
       this.$store.dispatch('setDBValue', { path: 'settings/letterboxdConnected', value: this.letterboxdConnected });

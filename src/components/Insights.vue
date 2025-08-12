@@ -100,6 +100,66 @@
       </div>
     </InsightsPane>
 
+    <InsightsPane v-if="completedAwardsYears.length > 0">
+      <div class="insights-pane-header">
+        <p>Personal Awards Results</p>
+      </div>
+      <div class="awards-year-selector mb-3 w-100">
+        <div class="form-floating" data-bs-theme="dark">
+          <select id="awards-year-select" class="form-select w-100" v-model="selectedAwardsYear">
+            <option v-for="year in completedAwardsYears" :key="year" :value="year">
+              {{ year }}
+            </option>
+          </select>
+          <label for="awards-year-select">Select Year</label>
+        </div>
+      </div>
+      <div v-if="selectedAwardsData" class="awards-results">
+        <div v-for="category in awardCategories" :key="category.key" class="award-category mb-3">
+          <h6 class="category-title mb-2">{{ category.name }}</h6>
+          <div v-if="selectedAwardsData[category.key]" class="category-results">
+            <div class="award-display d-flex align-items-start">
+              <!-- Winner Poster -->
+              <div v-if="selectedAwardsData[category.key].winner" class="winner-section me-3">
+                <div class="winner-poster">
+                  <img 
+                    v-if="getMoviePoster(selectedAwardsData[category.key].winner)"
+                    :src="getMoviePoster(selectedAwardsData[category.key].winner)" 
+                    :alt="getOptionTitle(selectedAwardsData[category.key].winner)"
+                    class="poster-img"
+                  >
+                  <div v-else class="poster-placeholder">
+                    {{ getOptionTitle(selectedAwardsData[category.key].winner).charAt(0) }}
+                  </div>
+                  <div class="winner-badge">WINNER</div>
+                </div>
+                <div v-if="isPersonCategory(category.key)" class="winner-title mt-1">
+                  {{ getPersonTitle(selectedAwardsData[category.key].winner) }}<br/>
+                  ({{ getMovieTitle(selectedAwardsData[category.key].winner) }})
+                </div>
+              </div>
+
+              <!-- Nominees List -->
+              <div v-if="getNomineesExcludingWinner(selectedAwardsData[category.key]).length > 0" class="nominees-section flex-grow-1">
+                <div class="nominees-label">Also nominated:</div>
+                <ul class="nominees-list mb-0">
+                  <li v-for="nominee in getNomineesExcludingWinner(selectedAwardsData[category.key])" 
+                      :key="getOptionId(nominee)"
+                      class="nominee-item">
+                    <span v-if="isPersonCategory(category.key)">{{ getPersonTitle(nominee) }} ({{ getMovieTitle(nominee) }})</span>
+                    <span v-else>{{ getOptionTitle(nominee) }}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div v-else class="no-data">
+            <em>No data for this category</em>
+          </div>
+        </div>
+      </div>
+    </InsightsPane>
+
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Custom Scatter Plot</p>
@@ -260,6 +320,7 @@ export default {
     return {
       selectedXAxis: 'runtime', // Will be randomized on mount
       selectedYAxis: 'userRating', // Will be randomized on mount
+      selectedAwardsYear: null,
       axisOptions: [
         { key: 'runtime', label: 'Runtime (minutes)' },
         { key: 'releaseYear', label: 'Release Year' },
@@ -303,6 +364,44 @@ export default {
     this.randomizeAxes();
   },
   computed: {
+    completedAwardsYears() {
+      // Get all years that have completed personal awards
+      const personalAwards = this.$store.state.settings.personalAwards;
+      if (!personalAwards) return [];
+      
+      const years = Object.keys(personalAwards)
+        .filter(year => personalAwards[year].completed)
+        .map(year => parseInt(year))
+        .sort((a, b) => b - a); // Most recent first
+        
+      // Set default selected year to most recent if not already set
+      if (years.length > 0 && !this.selectedAwardsYear) {
+        this.selectedAwardsYear = years[0];
+      }
+      
+      return years;
+    },
+    selectedAwardsData() {
+      if (!this.selectedAwardsYear) return null;
+      return this.$store.state.settings.personalAwards?.[this.selectedAwardsYear]?.categories;
+    },
+    awardCategories() {
+      return [
+        { key: 'bestPicture', name: 'Best Picture' },
+        { key: 'bestDirector', name: 'Best Director' },
+        { key: 'bestActor', name: 'Best Actor' },
+        { key: 'bestActress', name: 'Best Actress' },
+        { key: 'bestSupportingActor', name: 'Best Supporting Actor' },
+        { key: 'bestSupportingActress', name: 'Best Supporting Actress' },
+        { key: 'bestScreenplay', name: 'Best Screenplay or Writing' },
+        { key: 'bestCinematography', name: 'Best Cinematography' },
+        { key: 'bestEditing', name: 'Best Editing' },
+        { key: 'bestScore', name: 'Best Score or Music' },
+        { key: 'bestVisualEffects', name: 'Best Visual Effects or Production Design' },
+        { key: 'bestAnimatedFeature', name: 'Best Animated Feature' },
+        { key: 'bestDocumentaryFeature', name: 'Best Documentary Feature' }
+      ];
+    },
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
         const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
@@ -914,6 +1013,56 @@ export default {
       
       this.selectedXAxis = randomX;
       this.selectedYAxis = randomY;
+    },
+    getOptionTitle(option) {
+      // Helper method to get the title of an award nominee/winner
+      if (!option) return '';
+      return option.name || option.movie?.title || 'Unknown';
+    },
+    getOptionId(option) {
+      // Helper method to get unique ID for an award nominee/winner
+      if (!option) return '';
+      return option.id || option.movie?.id || Math.random().toString(36);
+    },
+    getMoviePoster(option) {
+      // Helper method to get movie poster URL
+      if (!option) return null;
+      
+      // For person awards (actors, directors, etc.)
+      if (option.details?.profile_path) {
+        return `https://image.tmdb.org/t/p/w185${option.details.profile_path}`;
+      }
+      
+      // For movie awards
+      if (option.movie?.poster_path) {
+        return `https://image.tmdb.org/t/p/w185${option.movie.poster_path}`;
+      }
+      
+      return null;
+    },
+    getNomineesExcludingWinner(categoryData) {
+      // Filter nominees to exclude the winner to avoid duplication
+      if (!categoryData?.nominees || !categoryData.winner) {
+        return categoryData?.nominees || [];
+      }
+      
+      const winnerId = this.getOptionId(categoryData.winner);
+      return categoryData.nominees.filter(nominee => this.getOptionId(nominee) !== winnerId);
+    },
+    isPersonCategory(categoryKey) {
+      // Determine if this category is for people (actors, directors, etc) vs movies
+      const personCategories = ['bestDirector', 'bestActor', 'bestActress', 'bestSupportingActor', 'bestSupportingActress'];
+      return personCategories.includes(categoryKey);
+    },
+    getPersonTitle(option) {
+      // Get person name and movie for person categories
+      if (!option) return '';
+      return option.name || 'Unknown';
+    },
+    getMovieTitle(option) {
+      // Get movie title for movie categories
+      if (!option) return '';
+      return option.movie?.title || 'Unknown Movie';
     },
     mostRecentRating (media) {
       return getRating(media);
@@ -2492,6 +2641,109 @@ export default {
       left: 6px;
       position: absolute;
       top: 6px;
+    }
+
+    .awards-results {
+      .award-category {
+        .category-title {
+          color: #f8f9fa;
+          font-weight: 600;
+          font-size: 0.9em;
+          border-bottom: 1px solid #495057;
+          padding-bottom: 4px;
+          text-align: end;
+        }
+
+        .category-results {
+          padding-top: 12px;
+        }
+        
+        .award-display {
+          .winner-section {
+            .winner-poster {
+              position: relative;
+              width: 100px;
+              
+              .poster-img, .poster-placeholder {
+                width: 100%;
+                aspect-ratio: 2/3;
+                border-radius: 4px;
+                object-fit: cover;
+              }
+              
+              .poster-placeholder {
+                background: #495057;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.5em;
+                font-weight: bold;
+                color: #ffd700;
+              }
+              
+              .winner-badge {
+                position: absolute;
+                top: -6px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #ffd700;
+                color: #000;
+                font-size: 0.6em;
+                font-weight: bold;
+                padding: 2px 6px;
+                border-radius: 8px;
+                white-space: nowrap;
+              }
+            }
+            
+            .winner-title {
+              font-size: 0.75em;
+              font-weight: 600;
+              text-align: center;
+              line-height: 1.2;
+              max-width: 100px;
+            }
+          }
+          
+          .nominees-section {
+            .nominees-label {
+              font-size: 0.8em;
+              color: #adb5bd;
+              font-weight: 600;
+              margin-bottom: 4px;
+            }
+            
+            .nominees-list {
+              list-style: none;
+              padding-left: 0;
+              
+              .nominee-item {
+                font-size: 0.8em;
+                color: #e9ecef;
+                line-height: 1.3;
+                margin-bottom: 2px;
+                padding-left: 12px;
+                position: relative;
+                
+                &::before {
+                  content: "•";
+                  color: #6c757d;
+                  position: absolute;
+                  left: 0;
+                }
+              }
+            }
+          }
+        }
+        
+        .no-data {
+          color: #6c757d;
+          font-style: italic;
+          font-size: 0.85em;
+          text-align: center;
+          padding: 20px;
+        }
+      }
     }
   }
 </style>

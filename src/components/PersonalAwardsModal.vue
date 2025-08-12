@@ -1,18 +1,19 @@
 <template>
-  <div v-if="yearsEligibleForGroskers.length && showGroskersModal" class="groskers">
-    <div class="groskers-notice alert alert-warning my-2" role="alert" @click="openModal">
-      You have {{ yearsEligibleForGroskers.length }} year{{ yearsEligibleForGroskers.length === 1 ? '' : 's' }} ready for Groskers!<br/>
-      <a class="alert-link" @click.stop="openModal">Click to award your personal Oscars.</a>
+  <div v-if="yearsEligibleForAwards.length && showAwardsModal" class="personal-awards">
+    <div class="awards-notice alert alert-warning my-2" role="alert">
+      <a class="alert-link" @click.stop="openModal">
+        {{ firstEligibleYear }} is ready for your {{ awardNameSingular }} choices
+      </a>
     </div>
     <Modal :show="showModal" @close="closeModal">
       <template v-slot:header>
-        <div class="text-center groskers-header">
-          <h2 class="mb-1">The {{ currentYear }} Groskers</h2>
-          <p class="mb-0">Your personal Academy Awards</p>
+        <div v-if="!selectedCategory" class="text-center awards-header">
+          <h2 class="mb-1">{{ awardNameWithThe }} {{ currentYear }}</h2>
+          <p class="mb-0">Your own annual awards</p>
         </div>
       </template>
       <template v-slot:body>
-        <div class="groskers-form">
+        <div class="awards-form">
           <!-- Mobile-First Category Grid -->
           <div v-if="!selectedCategory" class="category-grid">
             <div class="category-buttons">
@@ -54,7 +55,7 @@
               
               <!-- Current Nominees - Always visible -->
               <div class="current-nominees-section">
-                <h6 class="section-title">Current Nominees:</h6>
+                <h6 class="section-title">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
                 <div class="current-nominees-gallery" :class="{'two-row-layout': getCurrentNominees().length >= 6}">
                   <div 
                     v-for="nominee in getCurrentNominees()" 
@@ -151,7 +152,7 @@
                     <!-- Status overlay -->
                     <div class="nominee-status-overlay">
                       <span v-if="isWinner(option)" class="status-icon winner">👑</span>
-                      <span v-else-if="isNominee(option)" class="status-icon nominee">✓</span>
+                      <span v-else-if="isNominee(option)" class="status-icon nominee"><i class="bi bi-check-circle-fill"></i></span>
                     </div>
                   </div>
                   
@@ -169,7 +170,7 @@
         </div>
       </template>
       <template v-slot:footer>
-        <div class="groskers-modal-footer d-flex justify-content-center w-100">
+        <div class="awards-modal-footer d-flex justify-content-center w-100">
           <div v-if="showSavedMessage" class="saved-message text-success">
             ✓ Saved!
           </div>
@@ -187,15 +188,27 @@ import Modal from './Modal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 
 export default {
-  name: "GroskersModal",
+  name: "PersonalAwardsModal",
   props: {
     allEntriesWithFlatKeywordsAdded: {
       type: Array,
       required: true
     },
-    showGroskersModal: {
+    showAwardsModal: {
       type: Boolean,
       required: true
+    },
+    personalAwardName: {
+      type: String,
+      default: 'Oscar'
+    },
+    awardNameWithThe: {
+      type: String,
+      default: 'The Oscars'
+    },
+    awardNameSingular: {
+      type: String,
+      default: 'Oscar'
     }
   },
   components: {
@@ -207,7 +220,7 @@ export default {
       submitting: false,
       selectedCategory: null,
       currentYear: null,
-      groskersData: {},
+      awardsData: {},
       autoSaveTimeout: null,
       eligibleOptions: [],
       loadingOptions: false,
@@ -216,11 +229,11 @@ export default {
     };
   },
   computed: {
-    yearsEligibleForGroskers() {
+    yearsEligibleForAwards() {
       const yearCounts = {};
       
       this.allEntriesWithFlatKeywordsAdded.forEach(entry => {
-        // Exclude shorts (<40min) from Groskers consideration
+        // Exclude shorts (<40min) from awards consideration
         if (entry.movie.runtime && entry.movie.runtime <= 40) {
           return;
         }
@@ -236,8 +249,8 @@ export default {
 
       // Filter out years that are already completed (optional - since this is a "living record")
       return eligibleYears.filter(year => {
-        const existingGroskers = this.$store.state.settings.groskers?.[year];
-        return !existingGroskers?.completed || this.hasNewMoviesForYear(year, existingGroskers);
+        const existingAwards = this.$store.state.settings.personalAwards?.[year];
+        return !existingAwards?.completed || this.hasNewMoviesForYear(year, existingAwards);
       });
     },
     categories() {
@@ -248,11 +261,11 @@ export default {
         { key: 'bestActress', name: 'Best Actress', type: 'person' },
         { key: 'bestSupportingActor', name: 'Best Supporting Actor', type: 'person' },
         { key: 'bestSupportingActress', name: 'Best Supporting Actress', type: 'person' },
-        { key: 'bestScreenplay', name: 'Best Screenplay', type: 'movie' },
+        { key: 'bestScreenplay', name: 'Best Screenplay or Writing', type: 'movie' },
         { key: 'bestCinematography', name: 'Best Cinematography', type: 'movie' },
         { key: 'bestEditing', name: 'Best Editing', type: 'movie' },
-        { key: 'bestScore', name: 'Best Score', type: 'movie' },
-        { key: 'bestVisualEffects', name: 'Best Visual Effects', type: 'movie' },
+        { key: 'bestScore', name: 'Best Score or Music', type: 'movie' },
+        { key: 'bestVisualEffects', name: 'Best Visual Effects or Production Design', type: 'movie' },
         { key: 'bestAnimatedFeature', name: 'Best Animated Feature', type: 'movie' },
         { key: 'bestDocumentaryFeature', name: 'Best Documentary Feature', type: 'movie' }
       ].map(category => ({
@@ -274,26 +287,56 @@ export default {
     darkOrLight() {
       const inDarkMode = document.querySelector("body").classList.contains('bg-dark');
       return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
+    },
+    firstEligibleYear() {
+      if (this.yearsEligibleForAwards.length === 0) return null;
+      
+      // Filter to only incomplete years (years that need awards or have new movies)
+      const incompleteYears = this.yearsEligibleForAwards.filter(year => {
+        const existingAwards = this.$store.state.settings.personalAwards?.[year];
+        if (!existingAwards) return true; // New year needs awards
+        
+        // Check if there are new movies since last awards update
+        if (!existingAwards.lastUpdated) return true;
+        
+        const newMovies = this.allEntriesWithFlatKeywordsAdded.filter(entry => {
+          const entryYear = new Date(entry.movie.release_date).getFullYear();
+          if (entryYear !== year) return false;
+          
+          const movieDate = new Date(entry.ratings[0]?.date || entry.movie.release_date);
+          return movieDate.getTime() > existingAwards.lastUpdated;
+        });
+        
+        return newMovies.length > 0;
+      });
+      
+      // Only return a year if there are incomplete years - don't show message if all years are complete
+      if (incompleteYears.length === 0) return null;
+      
+      const randomIndex = Math.floor(Math.random() * incompleteYears.length);
+      return incompleteYears[randomIndex];
     }
   },
   methods: {
     openModal() {
       this.showModal = true;
-      this.currentYear = this.yearsEligibleForGroskers[0]; // Start with most recent eligible year
-      this.initializeGroskersData();
+      this.currentYear = this.firstEligibleYear; // Use the pre-selected random year
+      this.initializeAwardsData();
+      
+      // Don't set timestamp on open - only when user dismisses modal
     },
     closeModal() {
       this.showModal = false;
       this.selectedCategory = null;
-      this.groskersData = {};
+      this.awardsData = {};
     },
-    initializeGroskersData() {
-      // Load existing Groskers data for this year if it exists
-      const existingGroskers = this.$store.state.settings.groskers?.[this.currentYear];
-      if (existingGroskers) {
-        this.groskersData = { ...existingGroskers.categories };
+    initializeAwardsData() {
+      // Load existing awards data for this year if it exists
+      const existingAwards = this.$store.state.settings.personalAwards?.[this.currentYear];
+      if (existingAwards) {
+        this.awardsData = { ...existingAwards.categories };
       } else {
-        this.groskersData = {};
+        this.awardsData = {};
       }
     },
     async selectCategory(categoryKey) {
@@ -311,7 +354,7 @@ export default {
       return category ? category.name : '';
     },
     isCategoryCompleted(categoryKey) {
-      const categoryData = this.groskersData[categoryKey];
+      const categoryData = this.awardsData[categoryKey];
       return categoryData && categoryData.nominees?.length > 0 && categoryData.winner;
     },
     isCategoryDisabled(categoryKey) {
@@ -504,7 +547,7 @@ export default {
       }
     },
     toggleNominee(option) {
-      const categoryData = this.groskersData[this.selectedCategory] || { nominees: [], winner: null };
+      const categoryData = this.awardsData[this.selectedCategory] || { nominees: [], winner: null };
       const optionId = this.getOptionId(option);
       
       const existingIndex = categoryData.nominees.findIndex(nom => this.getOptionId(nom) === optionId);
@@ -521,61 +564,61 @@ export default {
         categoryData.nominees.push(option);
       }
       
-      this.groskersData[this.selectedCategory] = categoryData;
+      this.awardsData[this.selectedCategory] = categoryData;
       
       // Auto-save
       this.autoSave();
     },
     selectWinner(option) {
-      const categoryData = this.groskersData[this.selectedCategory] || { nominees: [], winner: null };
+      const categoryData = this.awardsData[this.selectedCategory] || { nominees: [], winner: null };
       categoryData.winner = option;
-      this.groskersData[this.selectedCategory] = categoryData;
+      this.awardsData[this.selectedCategory] = categoryData;
       
       // Auto-save
       this.autoSave();
     },
     isNominee(option) {
-      const categoryData = this.groskersData[this.selectedCategory];
+      const categoryData = this.awardsData[this.selectedCategory];
       if (!categoryData || !categoryData.nominees) return false;
       
       const optionId = this.getOptionId(option);
       return categoryData.nominees.some(nom => this.getOptionId(nom) === optionId);
     },
     isWinner(option) {
-      const categoryData = this.groskersData[this.selectedCategory];
+      const categoryData = this.awardsData[this.selectedCategory];
       if (!categoryData || !categoryData.winner) return false;
       
       return this.getOptionId(categoryData.winner) === this.getOptionId(option);
     },
     getCurrentNominees() {
-      const categoryData = this.groskersData[this.selectedCategory];
+      const categoryData = this.awardsData[this.selectedCategory];
       return categoryData ? categoryData.nominees || [] : [];
     },
     getCategoryNomineeCount(categoryKey) {
-      const categoryData = this.groskersData[categoryKey];
+      const categoryData = this.awardsData[categoryKey];
       return categoryData ? (categoryData.nominees || []).length : 0;
     },
     getCategoryWinner(categoryKey) {
-      const categoryData = this.groskersData[categoryKey];
+      const categoryData = this.awardsData[categoryKey];
       if (!categoryData || !categoryData.winner) return null;
       
       // Return a shortened version of the winner name for display
       const winnerTitle = this.getOptionTitle(categoryData.winner);
       return winnerTitle.length > 20 ? winnerTitle.substring(0, 17) + '...' : winnerTitle;
     },
-    hasNewMoviesForYear(year, existingGroskers) {
-      // Check if there are new movies for this year since last Groskers update
-      if (!existingGroskers.lastUpdated) return true;
+    hasNewMoviesForYear(year, existingAwards) {
+      // Check if there are new movies for this year since last awards update
+      if (!existingAwards.lastUpdated) return true;
       
       const newMovies = this.getMoviesForYear().filter(entry => {
         const movieDate = new Date(entry.ratings[0]?.date || entry.movie.release_date);
-        return movieDate.getTime() > existingGroskers.lastUpdated;
+        return movieDate.getTime() > existingAwards.lastUpdated;
       });
       
       return newMovies.length > 0;
     },
     sortOptionsByRelevantRating(options, categoryKey) {
-      // Map Groskers categories to Cinema Roll sort keys (same as dropdown)
+      // Map awards categories to Cinema Roll sort keys (same as dropdown)
       const categoryMappings = {
         'bestPicture': 'rating', // Overall calculated total
         'bestDirector': 'direction',
@@ -625,19 +668,19 @@ export default {
         const secondarySortValueB = this.mostRecentRating(b).calculatedTotal;
 
         if (secondarySortValueA < secondarySortValueB) {
-          return 1; // Always sort best on top for Groskers
+          return 1; // Always sort best on top for awards
         }
         if (secondarySortValueA > secondarySortValueB) {
-          return -1; // Always sort best on top for Groskers
+          return -1; // Always sort best on top for awards
         }
         return 0;
       }
 
       if (sortValueA < sortValueB) {
-        return 1; // Always sort best on top for Groskers
+        return 1; // Always sort best on top for awards
       }
       if (sortValueA > sortValueB) {
-        return -1; // Always sort best on top for Groskers
+        return -1; // Always sort best on top for awards
       }
 
       return 0;
@@ -676,15 +719,15 @@ export default {
       // Debounced auto-save to prevent too many Firebase writes
       clearTimeout(this.autoSaveTimeout);
       this.autoSaveTimeout = setTimeout(async () => {
-        const groskersEntry = {
+        const awardsEntry = {
           completed: this.completedCategories === this.totalCategories,
           lastUpdated: Date.now(),
-          categories: this.groskersData
+          categories: this.awardsData
         };
         
         const dbEntry = {
-          path: `settings/groskers/${this.currentYear}`,
-          value: groskersEntry
+          path: `settings/personalAwards/${this.currentYear}`,
+          value: awardsEntry
         };
         
         try {
@@ -707,16 +750,20 @@ export default {
 </script>
 
 <style lang="scss">
-.groskers {
-  .alert-link {
-    cursor: pointer;
+.personal-awards {
+  .awards-notice {
+    text-align: center;
+
+    .alert-link {
+      cursor: pointer;
+    }
   }
 
   .cinemaroll-modal-body {
     padding-top: 0 !important;
   }
 
-  .groskers-header {
+  .awards-header {
   padding: 1rem 0;
   
   h2 {
@@ -725,14 +772,10 @@ export default {
   }
 }
 
-.groskers-form {
+.awards-form {
   min-height: 500px;
   
   .category-grid {
-    height: calc(100vh - 250px);
-    max-height: 500px;
-    overflow-y: auto;
-    
     .category-buttons {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -747,25 +790,19 @@ export default {
       .category-btn {
         border: 1px solid #6c757d;
         border-radius: 6px;
-        padding: 8px 6px;
+        padding: 12px 8px;
         text-align: center;
         cursor: pointer;
-        transition: border-color 0.2s, background-color 0.2s;
         display: flex;
         flex-direction: column;
         gap: 2px;
-        min-height: 50px;
+        min-height: 60px;
         
         // Light theme
         &.text-bg-light {
           background: white;
           color: #212529;
           border-color: #dee2e6;
-          
-          &:hover:not(.disabled) {
-            border-color: #007bff;
-            background-color: #f8f9fa;
-          }
           
           &.completed {
             border-color: #28a745;
@@ -778,11 +815,6 @@ export default {
           background: #343a40;
           color: #f8f9fa;
           border-color: #6c757d;
-          
-          &:hover:not(.disabled) {
-            border-color: #007bff;
-            background-color: #495057;
-          }
           
           &.completed {
             border-color: #28a745;
@@ -854,6 +886,15 @@ export default {
       font-size: 0.85em;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      
+      .instruction-text {
+        font-weight: 400;
+        font-size: 0.75em;
+        text-transform: none;
+        letter-spacing: normal;
+        opacity: 0.8;
+        font-style: italic;
+      }
     }
     
     .nominees-grid {
@@ -878,15 +919,7 @@ export default {
         &.text-bg-light {
           border: 2px solid #dee2e6;
           
-          &:hover {
-            border-color: #007bff;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-          }
           
-          &.selected {
-            border-color: #007bff;
-            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
-          }
           
           &.winner {
             border-color: #28a745;
@@ -898,15 +931,7 @@ export default {
         &.text-bg-dark {
           border: 2px solid #6c757d;
           
-          &:hover {
-            border-color: #007bff;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-          }
           
-          &.selected {
-            border-color: #007bff;
-            box-shadow: 0 0 0 2px rgba(0,123,255,0.4);
-          }
           
           &.winner {
             border-color: #28a745;
@@ -946,7 +971,8 @@ export default {
             }
             
             &.nominee {
-              background: rgba(0,123,255,0.9);
+              background: rgba(40,167,69,0.9);
+              color: white;
             }
           }
         }
@@ -1029,13 +1055,8 @@ export default {
           transition: transform 0.2s;
           flex-shrink: 0;
           flex-grow: 0;
-          min-width: 45px;
-          max-width: 60px;
-          width: 60px; // Default: 1-5 nominees single row
+          width: 62px;
           
-          &:hover {
-            transform: scale(1.05);
-          }
           
           &.winner {
             .nominee-poster-image {
@@ -1093,11 +1114,6 @@ export default {
               align-items: center;
               justify-content: center;
               opacity: 0.8;
-              
-              &:hover {
-                opacity: 1;
-                background: rgba(255,0,0,0.8);
-              }
             }
           }
           
@@ -1108,17 +1124,6 @@ export default {
             margin-top: 4px;
             line-height: 1.2;
             font-weight: 500;
-          }
-        }
-        
-        // 6+ nominees: two rows, smaller size
-        &.two-row-layout {
-          .current-nominee-poster {
-            width: 50px;
-            
-            @media (max-width: 575px) {
-              width: 45px; // Smaller on mobile
-            }
           }
         }
       }
@@ -1146,6 +1151,7 @@ export default {
     }
   }
 }
+}
 
 // Make modal wider on larger screens
 @media (min-width: 768px) {
@@ -1154,7 +1160,7 @@ export default {
     max-height: 85vh !important;
   }
   
-  .groskers-form {
+  .awards-form {
     .category-grid,
     .category-detail {
       height: calc(85vh - 200px);
@@ -1169,7 +1175,7 @@ export default {
   }
 }
 
-.groskers-modal-footer {
+.awards-modal-footer {
   .saved-message {
     font-weight: 600;
     font-size: 0.9em;
@@ -1185,13 +1191,6 @@ export default {
   .btn-outline-secondary {
     border-color: #6c757d;
     color: #f8f9fa;
-    
-    &:hover {
-      background-color: #6c757d;
-      border-color: #6c757d;
-      color: #fff;
-    }
   }
-}
 }
 </style>
