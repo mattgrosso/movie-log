@@ -17,7 +17,6 @@ export default defineConfig({
         '**/*.test.js',
         '**/*.spec.js',
         'dist/',
-        'coverage/',
         '*.config.js'
       ]
     },

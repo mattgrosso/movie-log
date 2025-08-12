@@ -153,5 +153,15 @@ This application serves as a comprehensive personal movie tracking system with s
 ### Testing Strategy
 - Remember to keep our test suite up to date with all new changes. Whenever possible write tests first and use those to power our process. Whenever we wrap up a new feature remember to update existing test, add new ones and remove any that are no longer relevant. You can run tests with 'yarn test:run'
 
+### Development Server Protocol
+**NEVER kill or interfere with running development servers.** The user typically has `yarn serve` running in another terminal pane and relies on it for continuous development. 
+
+- **DON'T**: Use `yarn serve`, `pkill`, or any commands that would interfere with existing processes
+- **DO**: Use `yarn test:run` for quick syntax/functionality checks
+- **DO**: Ask the user to test new features in their existing development server
+- **DO**: Focus on code implementation and let the user handle server management
+
+This is critical for maintaining an uninterrupted development workflow.
+
 ## Important Note for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.

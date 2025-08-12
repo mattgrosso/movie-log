@@ -330,6 +330,11 @@
             :showTweakModal="showTweakModal"
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
           />
+          <GroskersModal
+            v-else-if="showGroskersModal"
+            :showGroskersModal="showGroskersModal"
+            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+          />
           <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
           <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">
             <div class="settings-panel-header d-flex justify-content-between align-items-center mb-2">
@@ -667,6 +672,7 @@ import debounce from 'lodash/debounce';
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import StickinessModal from "./StickinessModal.vue";
 import TweakModal from "./TweakModal.vue";
+import GroskersModal from "./GroskersModal.vue";
 import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
@@ -677,6 +683,7 @@ export default {
     InsetBrowserModal,
     StickinessModal,
     TweakModal,
+    GroskersModal,
     NoResults,
   },
   data () {
@@ -1653,6 +1660,49 @@ export default {
       const noTieBreakYetToday = Date.now() - lastTweak > (oneDay / maxDailyTieBreaks);
 
       return hasTiedResults && noTieBreakYetToday;
+    },
+    showGroskersModal () {
+      if (this.showStickinessModal || this.showTweakModal) {
+        return false;
+      }
+      
+      // Check if there are any years with 10+ rated movies that don't have completed Groskers
+      const yearCounts = {};
+      
+      this.allEntriesWithFlatKeywordsAdded.forEach(entry => {
+        // Exclude shorts (<40min) from Groskers consideration
+        if (entry.movie.runtime && entry.movie.runtime <= 40) {
+          return;
+        }
+        
+        const year = new Date(entry.movie.release_date).getFullYear();
+        yearCounts[year] = (yearCounts[year] || 0) + 1;
+      });
+
+      const eligibleYears = Object.keys(yearCounts)
+        .filter(year => yearCounts[year] >= 10)
+        .map(year => parseInt(year));
+
+      // Check if any eligible years need Groskers (either new or have new movies)
+      const hasEligibleYears = eligibleYears.some(year => {
+        const existingGroskers = this.$store.state.settings.groskers?.[year];
+        if (!existingGroskers) return true; // New year needs Groskers
+        
+        // Check if there are new movies since last Groskers update
+        if (!existingGroskers.lastUpdated) return true;
+        
+        const newMovies = this.allEntriesWithFlatKeywordsAdded.filter(entry => {
+          const entryYear = new Date(entry.movie.release_date).getFullYear();
+          if (entryYear !== year) return false;
+          
+          const movieDate = new Date(entry.ratings[0]?.date || entry.movie.release_date);
+          return movieDate.getTime() > existingGroskers.lastUpdated;
+        });
+        
+        return newMovies.length > 0;
+      });
+      
+      return hasEligibleYears;
     },
     sortedByRating () {
       const allMediaSortedByRating = this.$store.getters.allMediaSortedByRating;
