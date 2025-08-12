@@ -934,452 +934,452 @@ export default {
   }
 
   .awards-header {
-  padding: 1rem 0;
-  
-  h2 {
-    font-size: 1.5rem;
-    font-weight: 700;
-  }
-  
-  .new-movies-list {
-    max-height: 150px;
-    overflow-y: auto;
+    padding: 1rem 0;
     
-    .new-movie-item {
-      font-size: 0.9em;
-      line-height: 1.4;
-      padding: 2px 0;
-      border-bottom: 1px solid rgba(0,0,0,0.1);
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    
+    .new-movies-list {
+      max-height: 150px;
+      overflow-y: auto;
       
-      &:last-child {
-        border-bottom: none;
+      .new-movie-item {
+        border-bottom: 1px solid rgba(0,0,0,0.1);
+        font-size: 0.9em;
+        line-height: 1.4;
+        padding: 2px 0;
+        
+        &:last-child {
+          border-bottom: none;
+        }
       }
     }
   }
-}
 
-.awards-form {
-  min-height: 500px;
-  
-  .category-grid {
-    .category-buttons {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-      padding: 0 4px;
-      
-      @media (min-width: 576px) {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-      }
-      
-      .category-btn {
-        border: 1px solid #6c757d;
-        border-radius: 6px;
-        padding: 12px 8px;
-        text-align: center;
-        cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        min-height: 60px;
+  .awards-form {
+    min-height: 500px;
+    
+    .category-grid {
+      .category-buttons {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(2, 1fr);
+        padding: 0 4px;
         
-        // Light theme
-        &.text-bg-light {
-          background: white;
-          color: #212529;
-          border-color: #dee2e6;
-          
-          &.completed {
-            border-color: #28a745;
-            background-color: #f8fff8;
-          }
+        @media (min-width: 576px) {
+          gap: 10px;
+          grid-template-columns: repeat(3, 1fr);
         }
         
-        // Dark theme
-        &.text-bg-dark {
-          background: #343a40;
-          color: #f8f9fa;
-          border-color: #6c757d;
+        .category-btn {
+          border-radius: 6px;
+          border: 1px solid #6c757d;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-height: 60px;
+          padding: 12px 8px;
+          text-align: center;
           
-          &.completed {
-            border-color: #28a745;
-            background-color: #1e4620;
+          // Light theme
+          &.text-bg-light {
+            background: white;
+            border-color: #dee2e6;
+            color: #212529;
+            
+            &.completed {
+              background-color: #f8fff8;
+              border-color: #28a745;
+            }
           }
           
-          &.disabled {
-            background: #2c3034;
-            border-color: #495057;
+          // Dark theme
+          &.text-bg-dark {
+            background: #343a40;
+            border-color: #6c757d;
+            color: #f8f9fa;
+            
+            &.completed {
+              background-color: #1e4620;
+              border-color: #28a745;
+            }
+            
+            &.disabled {
+              background: #2c3034;
+              border-color: #495057;
+              color: #6c757d;
+              cursor: not-allowed;
+              opacity: 0.4;
+            }
+          }
+          
+          // Light theme disabled state
+          &.text-bg-light.disabled {
+            background: #f8f9fa;
+            border-color: #dee2e6;
             color: #6c757d;
             cursor: not-allowed;
             opacity: 0.4;
           }
-        }
-        
-        // Light theme disabled state
-        &.text-bg-light.disabled {
-          background: #f8f9fa;
-          border-color: #dee2e6;
-          color: #6c757d;
-          cursor: not-allowed;
-          opacity: 0.4;
-        }
-        
-        .category-status {
-          font-size: 1em;
-        }
-        
-        .category-name {
-          font-size: 0.75em;
-          font-weight: 600;
-          line-height: 1.1;
-        }
-        
-        .category-meta {
-          font-size: 0.6em;
-          opacity: 0.7;
-          margin-top: 1px;
-        }
-        
-        .category-winner {
-          font-size: 0.55em;
-          font-weight: 500;
-          margin-top: 2px;
-          line-height: 1.1;
-          opacity: 0.9;
-        }
-        
-        .category-no-nominees {
-          font-size: 0.55em;
-          font-weight: 500;
-          margin-top: 2px;
-          line-height: 1.1;
-          opacity: 0.7;
-          color: #6c757d;
-          font-style: italic;
-        }
-        
-        // Checkmark positioning
-        position: relative;
-        
-        .category-status {
-          position: absolute;
-          top: 2px;
-          right: 2px;
-          font-size: 0.8em;
-        }
-      }
-    }
-  }
-  
-  .category-detail {
-    display: flex;
-    flex-direction: column;
-    
-    .section-title {
-      font-weight: 600;
-      margin-bottom: 8px;
-      font-size: 0.85em;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      
-      .instruction-text {
-        font-weight: 400;
-        font-size: 0.75em;
-        text-transform: none;
-        letter-spacing: normal;
-        opacity: 0.8;
-        font-style: italic;
-      }
-    }
-    
-    .nominees-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      margin-bottom: 16px;
-      
-      @media (min-width: 576px) {
-        gap: 8px;
-      }
-      
-      .nominee-tile {
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.2s;
-        position: relative;
-        overflow: hidden;
-        aspect-ratio: 2/3;
-        
-        // Light theme
-        &.text-bg-light {
-          border: 2px solid #dee2e6;
           
-          
-          
-          &.winner {
-            border-color: #28a745;
-            box-shadow: 0 0 0 2px rgba(40,167,69,0.25);
+          .category-status {
+            font-size: 1em;
           }
-        }
-        
-        // Dark theme
-        &.text-bg-dark {
-          border: 2px solid #6c757d;
           
-          
-          
-          &.winner {
-            border-color: #28a745;
-            box-shadow: 0 0 0 2px rgba(40,167,69,0.4);
-          }
-        }
-        
-        .nominee-image {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          
-          img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-          }
-        }
-        
-        .nominee-status-overlay {
-          position: absolute;
-          top: 4px;
-          right: 4px;
-          z-index: 2;
-          
-          .status-icon {
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 2px 4px;
-            border-radius: 4px;
-            font-size: 0.9em;
-            
-            &.winner {
-              background: rgba(40,167,69,0.9);
-            }
-            
-            &.nominee {
-              background: rgba(40,167,69,0.9);
-              color: white;
-            }
-          }
-        }
-        
-        .nominee-info-overlay {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: linear-gradient(transparent, rgba(0,0,0,0.8));
-          color: white;
-          padding: 8px 6px 6px;
-          
-          .nominee-title {
-            font-weight: 600;
+          .category-name {
             font-size: 0.75em;
-            line-height: 1.2;
-            margin-bottom: 1px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            font-weight: 600;
+            line-height: 1.1;
           }
           
-          .nominee-subtitle {
-            font-size: 0.65em;
+          .category-meta {
+            font-size: 0.6em;
+            margin-top: 1px;
+            opacity: 0.7;
+          }
+          
+          .category-winner {
+            font-size: 0.55em;
+            font-weight: 500;
+            line-height: 1.1;
+            margin-top: 2px;
             opacity: 0.9;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+          }
+          
+          .category-no-nominees {
+            color: #6c757d;
+            font-size: 0.55em;
+            font-style: italic;
+            font-weight: 500;
+            line-height: 1.1;
+            margin-top: 2px;
+            opacity: 0.7;
+          }
+          
+          // Checkmark positioning
+          position: relative;
+          
+          .category-status {
+            font-size: 0.8em;
+            position: absolute;
+            right: 2px;
+            top: 2px;
           }
         }
       }
     }
     
-    .sticky-top-section {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: #000000;
-      padding: 12px 16px 8px;
-      margin: -12px -16px 0;
-      border-bottom: 1px solid #333;
-      
-      .category-header h5 {
-        color: white;
-      }
+    .category-detail {
+      display: flex;
+      flex-direction: column;
       
       .section-title {
-        color: white;
-      }
-    }
-    
-    .current-nominees-section {
-      margin-bottom: 8px;
-      
-      .current-nominees-gallery {
-        display: flex;
-        justify-content: center;
-        gap: 4px;
-        padding: 8px 4px;
-        align-items: flex-start;
-        flex-wrap: wrap; // Allow wrapping for 2 rows
-        overflow: visible;
-        position: relative;
-        align-content: flex-start;
+        font-size: 0.85em;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+        text-transform: uppercase;
         
-        .no-nominees-placeholder {
-          color: #999;
-          font-size: 0.8em;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 100%;
-          height: 60px;
+        .instruction-text {
+          font-size: 0.75em;
           font-style: italic;
+          font-weight: 400;
+          letter-spacing: normal;
+          opacity: 0.8;
+          text-transform: none;
+        }
+      }
+      
+      .nominees-grid {
+        display: grid;
+        gap: 6px;
+        grid-template-columns: repeat(3, 1fr);
+        margin-bottom: 16px;
+        
+        @media (min-width: 576px) {
+          gap: 8px;
+        }
+        
+        .nominee-tile {
+          aspect-ratio: 2/3;
+          border-radius: 6px;
+          cursor: pointer;
+          overflow: hidden;
+          position: relative;
+          transition: all 0.2s;
           
-          .no-nominees-btn {
-            font-size: 0.8em;
-            padding: 6px 12px;
-            border-radius: 6px;
-            transition: all 0.2s;
+          // Light theme
+          &.text-bg-light {
+            border: 2px solid #dee2e6;
             
-            &:hover {
-              transform: scale(1.02);
+            
+            
+            &.winner {
+              border-color: #28a745;
+              box-shadow: 0 0 0 2px rgba(40,167,69,0.25);
+            }
+          }
+          
+          // Dark theme
+          &.text-bg-dark {
+            border: 2px solid #6c757d;
+            
+            
+            
+            &.winner {
+              border-color: #28a745;
+              box-shadow: 0 0 0 2px rgba(40,167,69,0.4);
+            }
+          }
+          
+          .nominee-image {
+            height: 100%;
+            left: 0;
+            position: absolute;
+            top: 0;
+            width: 100%;
+            
+            img {
+              height: 100%;
+              object-fit: cover;
+              width: 100%;
+            }
+          }
+          
+          .nominee-status-overlay {
+            position: absolute;
+            right: 4px;
+            top: 4px;
+            z-index: 2;
+            
+            .status-icon {
+              background: rgba(0,0,0,0.7);
+              border-radius: 4px;
+              color: white;
+              font-size: 0.9em;
+              padding: 2px 4px;
+              
+              &.winner {
+                background: rgba(40,167,69,0.9);
+              }
+              
+              &.nominee {
+                background: rgba(40,167,69,0.9);
+                color: white;
+              }
+            }
+          }
+          
+          .nominee-info-overlay {
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            bottom: 0;
+            color: white;
+            left: 0;
+            padding: 8px 6px 6px;
+            position: absolute;
+            right: 0;
+            
+            .nominee-title {
+              font-size: 0.75em;
+              font-weight: 600;
+              line-height: 1.2;
+              margin-bottom: 1px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
             
-            i {
-              margin-right: 6px;
+            .nominee-subtitle {
+              font-size: 0.65em;
+              opacity: 0.9;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
           }
         }
+      }
+      
+      .sticky-top-section {
+        background: #000000;
+        border-bottom: 1px solid #333;
+        margin: -12px -16px 0;
+        padding: 12px 16px 8px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
         
-        .current-nominee-poster {
-          cursor: pointer;
-          transition: transform 0.2s;
-          flex-shrink: 0;
-          flex-grow: 0;
-          width: 62px;
+        .category-header h5 {
+          color: white;
+        }
+        
+        .section-title {
+          color: white;
+        }
+      }
+      
+      .current-nominees-section {
+        margin-bottom: 8px;
+        
+        .current-nominees-gallery {
+          align-content: flex-start;
+          align-items: flex-start;
+          display: flex;
+          flex-wrap: wrap; // Allow wrapping for 2 rows
+          gap: 4px;
+          justify-content: center;
+          overflow: visible;
+          padding: 8px 4px;
+          position: relative;
           
-          
-          &.winner {
-            .nominee-poster-image {
-              border: 2px solid #ffd700;
-              box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+          .no-nominees-placeholder {
+            align-items: center;
+            color: #999;
+            display: flex;
+            font-size: 0.8em;
+            font-style: italic;
+            height: 60px;
+            justify-content: center;
+            width: 100%;
+            
+            .no-nominees-btn {
+              border-radius: 6px;
+              font-size: 0.8em;
+              padding: 6px 12px;
+              transition: all 0.2s;
+              
+              &:hover {
+                transform: scale(1.02);
+              }
+              
+              i {
+                margin-right: 6px;
+              }
             }
           }
           
-          .nominee-poster-image {
-            position: relative;
-            width: 100%;
-            border-radius: 4px;
-            overflow: hidden;
-            border: 2px solid #333;
-            aspect-ratio: 3/4; // Maintain poster ratio
-            min-width: 40px;
+          .current-nominee-poster {
+            cursor: pointer;
+            flex-grow: 0;
+            flex-shrink: 0;
+            transition: transform 0.2s;
+            width: 62px;
             
-            img {
-              width: 100%;
-              height: 100%;
-              object-fit: cover;
-            }
             
-            .winner-overlay {
-              position: absolute;
-              top: 2px;
-              right: 2px;
-              background: rgba(0,0,0,0.8);
-              border-radius: 50%;
-              width: 18px;
-              height: 18px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              
-              .winner-crown {
-                font-size: 0.7em;
+            &.winner {
+              .nominee-poster-image {
+                border: 2px solid #ffd700;
+                box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
               }
             }
             
-            .remove-nominee-btn {
-              position: absolute;
-              top: 2px;
-              left: 2px;
-              background: rgba(0,0,0,0.8);
-              color: white;
-              border: none;
-              border-radius: 50%;
-              width: 18px;
-              height: 18px;
-              font-size: 0.9em;
-              line-height: 1;
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              opacity: 0.8;
+            .nominee-poster-image {
+              aspect-ratio: 3/4; // Maintain poster ratio
+              border-radius: 4px;
+              border: 2px solid #333;
+              min-width: 40px;
+              overflow: hidden;
+              position: relative;
+              width: 100%;
+              
+              img {
+                height: 100%;
+                object-fit: cover;
+                width: 100%;
+              }
+              
+              .winner-overlay {
+                align-items: center;
+                background: rgba(0,0,0,0.8);
+                border-radius: 50%;
+                display: flex;
+                height: 18px;
+                justify-content: center;
+                position: absolute;
+                right: 2px;
+                top: 2px;
+                width: 18px;
+                
+                .winner-crown {
+                  font-size: 0.7em;
+                }
+              }
+              
+              .remove-nominee-btn {
+                align-items: center;
+                background: rgba(0,0,0,0.8);
+                border-radius: 50%;
+                border: none;
+                color: white;
+                cursor: pointer;
+                display: flex;
+                font-size: 0.9em;
+                height: 18px;
+                justify-content: center;
+                left: 2px;
+                line-height: 1;
+                opacity: 0.8;
+                position: absolute;
+                top: 2px;
+                width: 18px;
+              }
             }
-          }
-          
-          .nominee-poster-name {
-            color: white;
-            font-size: 0.6em;
-            text-align: center;
-            margin-top: 4px;
-            line-height: 1.2;
-            font-weight: 500;
+            
+            .nominee-poster-name {
+              color: white;
+              font-size: 0.6em;
+              font-weight: 500;
+              line-height: 1.2;
+              margin-top: 4px;
+              text-align: center;
+            }
           }
         }
       }
-    }
-    
-    .available-options-section {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding-top: 24px;
       
-      .nominees-grid {
+      .available-options-section {
+        display: flex;
+        flex-direction: column;
         flex: 1;
-        overflow-y: auto;
+        padding-top: 24px;
         
-        .loading-container {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 200px;
-          text-align: center;
-          grid-column: 1 / -1; // Span all grid columns
+        .nominees-grid {
+          flex: 1;
+          overflow-y: auto;
           
-          .spinner-border {
-            margin: 0 auto;
-          }
-          
-          p {
-            margin-top: 8px;
-            color: #6c757d;
-            font-size: 0.9em;
+          .loading-container {
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            grid-column: 1 / -1; // Span all grid columns
+            height: 200px;
+            justify-content: center;
+            text-align: center;
+            
+            .spinner-border {
+              margin: 0 auto;
+            }
+            
+            p {
+              color: #6c757d;
+              font-size: 0.9em;
+              margin-top: 8px;
+            }
           }
         }
       }
     }
   }
-}
 }
 
 // Make modal wider on larger screens
 @media (min-width: 768px) {
   :deep(.cinemaroll-modal-content) {
-    max-width: 650px !important;
     max-height: 85vh !important;
+    max-width: 650px !important;
   }
   
   .awards-form {
@@ -1399,8 +1399,8 @@ export default {
 
 .awards-modal-footer {
   .saved-message {
-    font-weight: 600;
     font-size: 0.9em;
+    font-weight: 600;
   }
   
   .auto-save-note {
