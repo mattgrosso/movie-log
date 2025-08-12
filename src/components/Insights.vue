@@ -410,20 +410,6 @@ export default {
         { key: 'bestDocumentaryFeature', name: 'Best Documentary Feature' }
       ];
     },
-    allEntriesWithFlatKeywordsAdded () {
-      return this.$store.getters.allMediaAsArray.map((result) => {
-        const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
-        const flatChatGPTKeywords = result.movie.chatGPTKeywords || [];
-        const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
-        return {
-          ...result,
-          movie: {
-            ...result.movie,
-            flatKeywords: flatKeywords || []
-          }
-        };
-      });
-    },
     includeShorts() {
       // Default to false if not set
       return this.$store.state.settings.includeShorts === true;
@@ -465,13 +451,6 @@ export default {
           }
         }
       });
-    },
-    movieOrTVShowDisplay () {
-      if (this.currentLogIsTVLog) {
-        return "TV show";
-      } else {
-        return "movie";
-      }
     },
     allCounts () {
       return {
@@ -585,25 +564,6 @@ export default {
             counts[company]++;
           } else if (company) {
             counts[company] = 1;
-          }
-        })
-      })
-
-      return counts;
-    },
-    countMediums () {
-      const counts = {};
-
-      if (this.currentLogIsTVLog) {
-        return counts;
-      }
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        result.ratings.forEach((rating) => {
-          if (counts[rating.medium]) {
-            counts[rating.medium]++;
-          } else if (rating.medium) {
-            counts[rating.medium] = 1;
           }
         })
       })

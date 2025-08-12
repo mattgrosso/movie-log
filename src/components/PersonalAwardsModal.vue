@@ -76,7 +76,7 @@
               <!-- Current Nominees - Always visible -->
               <div class="current-nominees-section">
                 <h6 class="section-title">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
-                <div class="current-nominees-gallery" :class="{'two-row-layout': getCurrentNominees().length >= 6}">
+                <div class="current-nominees-gallery">
                   <!-- No nominees button when category is empty -->
                   <div v-if="getCurrentNominees().length === 0" class="no-nominees-placeholder">
                     <button 
@@ -160,7 +160,7 @@
                   v-for="option in eligibleOptions" 
                   :key="getOptionId(option)"
                   class="nominee-tile"
-                  :class="[{'selected': isNominee(option), 'winner': isWinner(option)}, darkOrLight]"
+                  :class="[{'winner': isWinner(option)}, darkOrLight]"
                   @click="toggleNominee(option)"
                 >
                   <!-- Image container -->
@@ -313,9 +313,6 @@ export default {
     },
     completedCategories() {
       return this.categories.filter(cat => cat.completed && !cat.disabled).length;
-    },
-    progressPercentage() {
-      return (this.completedCategories / this.totalCategories) * 100;
     },
     newMoviesForCurrentYear() {
       // Get movies that weren't available when this year was last completed
@@ -478,10 +475,6 @@ export default {
       this.loadingOptions = true;
       this.eligibleOptions = await this.getEligibleOptions();
       this.loadingOptions = false;
-    },
-    getCategoryButtonClass(category) {
-      const baseClass = this.selectedCategory === category.key ? 'btn-primary' : 'btn-outline-secondary';
-      return baseClass;
     },
     getCurrentCategoryName() {
       const category = this.categories.find(cat => cat.key === this.selectedCategory);

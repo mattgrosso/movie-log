@@ -2495,12 +2495,6 @@ export default {
       event.target.classList.remove('font-size-increased');
       event.target.style.fontSize = '12px';
     },
-    handleTouchStart (event) {
-      event.target.classList.add('touch-active');
-    },
-    handleTouchEnd (event) {
-      event.target.classList.remove('touch-active');
-    },
     goToInsights () {
       this.$router.push('/insights');
     },
@@ -2690,20 +2684,6 @@ export default {
           type: 'tag',
           value: tag,
           display: `Tag: ${tag}`
-        });
-        this.hasAutoRandomChip = false; // Reset auto chip flag
-        event.target.value = '';
-        this.showAddFilterModal = false;
-      }
-    },
-    addCompanyFilter(event) {
-      const company = event.target.value;
-      if (company) {
-        this.activeFilters.push({
-          id: `company-${Date.now()}`,
-          type: 'company',
-          value: company,
-          display: company
         });
         this.hasAutoRandomChip = false; // Reset auto chip flag
         event.target.value = '';
@@ -3370,75 +3350,9 @@ export default {
 
         &.font-size-increased {
           margin: -6px 0 0;
-
-          & + .clear-button {
-            transform: translateY(calc(-50% - 3px));
-          }
-
         }
       }
 
-      .clear-button {
-        align-items: center;
-        color: black;
-        cursor: pointer;
-        display: flex;
-        height: 60px;
-        justify-content: center;
-        right: 0px;
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 40px;
-        z-index: 5;
-        overflow: hidden;
-      }
-
-      .clear-button::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 200%;
-        height: 200%;
-        background-color: rgba(0, 0, 0, 0.1);
-        transform: translate(-50%, -50%) scale(0);
-        transition: transform 0.5s ease-out;
-        border-radius: 50%;
-      }
-
-      .clear-button:active::before {
-        transform: translate(-50%, -50%) scale(1);
-      }
-
-      .clear-button:hover,
-      .clear-button:focus,
-      .clear-button.touch-active {
-        background-color: rgba(0, 0, 0, 0.1);
-        height: 30px;
-      }
-
-      .search-to-chip-button {
-        align-items: center;
-        color: black;
-        cursor: pointer;
-        display: flex;
-        height: 40px;
-        justify-content: center;
-        right: 40px; /* Position between clear and edge */
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 40px;
-        z-index: 5;
-        opacity: 0.6;
-        transition: opacity 0.2s ease;
-      }
-
-      .search-to-chip-button:hover {
-        opacity: 1;
-        background-color: rgba(0, 0, 0, 0.1);
-      }
 
       svg {
         height: 18px;
@@ -3844,9 +3758,6 @@ export default {
             }
           }
 
-          .cinemaroll-modal-content {
-            max-height: 97vh !important;
-          }
         }
       }
     }
@@ -3883,11 +3794,6 @@ export default {
       }
     }
 
-    .new-rating {
-      a {
-        cursor: pointer;
-      }
-    }
 
     .settings-panel-overlay {
       position: fixed;
