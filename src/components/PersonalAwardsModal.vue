@@ -1,5 +1,5 @@
 <template>
-  <div v-if="yearsEligibleForAwards.length && showAwardsModal" class="personal-awards">
+  <div v-if="showAwardsModal" class="personal-awards">
     <div class="awards-notice alert alert-warning my-2" role="alert">
       <a class="alert-link" @click.stop="openModal">
         {{ firstEligibleYear }} is ready for your {{ awardNameSingular }} choices

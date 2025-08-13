@@ -382,9 +382,10 @@ export default {
         .map(year => parseInt(year))
         .sort((a, b) => b - a); // Most recent first
         
-      // Set default selected year to most recent if not already set
+      // Set default selected year to random year if not already set
       if (years.length > 0 && !this.selectedAwardsYear) {
-        this.selectedAwardsYear = years[0];
+        const randomIndex = Math.floor(Math.random() * years.length);
+        this.selectedAwardsYear = years[randomIndex];
       }
       
       return years;

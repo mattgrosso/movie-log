@@ -1689,16 +1689,46 @@ export default {
       return hasTiedResults && noTieBreakYetToday;
     },
     showAwardsModal () {
-      if (this.showStickinessModal || this.showTweakModal) {
+      // Don't show until database is loaded to prevent flash
+      if (!this.$store.state.dbLoaded) {
+        return false;
+      }
+      
+      if (this.showStickinessModal || this.showTweakModal || !this.isMatt) {
         return false;
       }
       
       // Check daily limit - only show awards once per day unless manually overridden
       const settings = this.$store.state.settings;
+      if (!settings) {
+        return false; // Settings not loaded yet
+      }
+      
       const today = new Date().toDateString();
       const lastAwardDate = settings.lastAwardCompletionDate;
       
-      if (lastAwardDate === today) {
+      
+      // If lastAwardDate is undefined, we need to determine if this is because:
+      // 1. Settings haven't loaded yet (return false to prevent flash)
+      // 2. User has never completed awards (continue with normal logic)
+      if (lastAwardDate === undefined) {
+        // Check if there are any existing personal awards - if so, settings are loaded
+        const hasExistingAwards = settings.personalAwards && Object.keys(settings.personalAwards).length > 0;
+        
+        if (!hasExistingAwards) {
+          // No existing awards data suggests settings might not be fully loaded yet
+          // or this is truly a new user. To be safe, check if other expected settings exist
+          const hasOtherSettings =  settings.hasOwnProperty('includeShorts') || 
+                                    settings.hasOwnProperty('normalizationTweak') ||
+                                    settings.hasOwnProperty('letterboxdUsername') ||
+                                    settings.hasOwnProperty('personalAwardName');
+          
+          if (!hasOtherSettings) {
+            return false; // Settings likely not loaded yet
+          }
+        }
+        // If we get here, settings are loaded but user just hasn't done awards before
+      } else if (lastAwardDate === today) {
         return false; // Already did awards today
       }
       
@@ -1738,6 +1768,7 @@ export default {
         return newMovies.length > 0;
       });
       
+      console.error('6');
       return hasEligibleYears;
     },
     sortedByRating () {
