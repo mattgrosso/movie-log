@@ -1659,10 +1659,19 @@ export default {
       return Boolean(this.paginatedSortedResults.length) || this.activeQuickLinkList !== "title";
     },
     showStickinessModal () {
+      // Don't interrupt awards workflow
+      if (this.showAwardsModal) {
+        return false;
+      }
       return Boolean(this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
     },
     showTweakModal () {
       if (this.showStickinessModal) {
+        return false;
+      }
+      
+      // Don't interrupt awards workflow
+      if (this.showAwardsModal) {
         return false;
       }
 
@@ -1767,8 +1776,7 @@ export default {
         
         return newMovies.length > 0;
       });
-      
-      console.error('6');
+
       return hasEligibleYears;
     },
     sortedByRating () {

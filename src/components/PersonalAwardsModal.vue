@@ -47,7 +47,11 @@
                 @click="category.disabled ? null : selectCategory(category.key)"
                 :title="category.disabledReason || ''"
               >
-                <span class="category-status" v-if="category.completed">✅</span>
+                <span class="category-status" v-if="category.completed">
+                  <span class="green-checkmark">
+                    <i class="bi bi-check"></i>
+                  </span>
+                </span>
                 <span class="category-name">{{ category.name }}</span>
                 <span class="category-meta" v-if="!category.disabled">
                   {{ getCategoryNomineeCount(category.key) }} nominees
@@ -87,6 +91,9 @@
                       <i class="fas fa-ban"></i>
                       No nominees for now
                     </button>
+                    <div class="helper-text">
+                      Click options below to nominate
+                    </div>
                   </div>
                   
                   <div 
@@ -127,20 +134,16 @@
                       
                       <!-- Remove button -->
                       <button class="remove-nominee-btn" @click.stop="toggleNominee(nominee)">
-                        ×
+                        <i class="bi bi-x"></i>
                       </button>
                     </div>
                     
                     <!-- Name below -->
                     <div class="nominee-poster-name">
-                      {{ getOptionTitle(nominee).length > 12 ? getOptionTitle(nominee).substring(0, 9) + '...' : getOptionTitle(nominee) }}
+                      {{ getOptionTitle(nominee).length > 10 ? getOptionTitle(nominee).substring(0, 9) + '...' : getOptionTitle(nominee) }}
                     </div>
                   </div>
                   
-                  <!-- Placeholder when no nominees -->
-                  <div v-if="getCurrentNominees().length === 0" class="no-nominees-placeholder">
-                    Click options below to nominate
-                  </div>
                 </div>
               </div>
             </div>
@@ -184,7 +187,7 @@
                     <!-- Status overlay -->
                     <div class="nominee-status-overlay">
                       <span v-if="isWinner(option)" class="status-icon winner">👑</span>
-                      <span v-else-if="isNominee(option)" class="status-icon nominee"><i class="bi bi-check-circle-fill"></i></span>
+                      <span v-else-if="isNominee(option)" class="status-icon nominee"><i class="bi bi-check"></i></span>
                     </div>
                   </div>
                   
@@ -202,12 +205,30 @@
         </div>
       </template>
       <template v-slot:footer>
-        <div class="awards-modal-footer d-flex justify-content-center w-100">
-          <div v-if="showSavedMessage" class="saved-message text-success">
-            ✓ Saved!
+        <div class="awards-modal-footer d-flex justify-content-between align-items-center w-100">
+          <div class="save-status">
+            <div v-if="showSavedMessage" class="saved-message text-success">
+              ✓ Saved!
+            </div>
+            <div v-else class="auto-save-note small">
+              Changes saved automatically
+            </div>
           </div>
-          <div v-else class="auto-save-note text-muted small">
-            Changes saved automatically
+          
+          <div v-if="completedCategories === totalCategories" class="completion-section">
+            <button 
+              class="btn btn-success btn-sm"
+              @click="completeYearAndClose"
+            >
+              <i class="fas fa-trophy me-1"></i>
+              Complete {{ currentYear }} Awards
+            </button>
+          </div>
+          
+          <div v-else class="progress-section">
+            <small>
+              {{ completedCategories }} of {{ totalCategories }} categories complete
+            </small>
           </div>
         </div>
       </template>
@@ -355,8 +376,53 @@ export default {
       // Only return a year if there are incomplete years - don't show message if all years are complete
       if (incompleteYears.length === 0) return null;
       
-      const randomIndex = Math.floor(Math.random() * incompleteYears.length);
-      return incompleteYears[randomIndex];
+      // Check if we have a daily selected year that's still valid
+      const settings = this.$store.state.settings;
+      const today = new Date().toDateString();
+      const dailySelection = settings.dailyAwardsYear;
+      const dailySelectionDate = settings.dailyAwardsYearDate;
+      
+      // If we have a selection from today, use it (don't re-check if it's incomplete)
+      // Only override if the year is actually completed
+      if (dailySelection && dailySelectionDate === today) {
+        const existingAwards = settings.personalAwards?.[dailySelection];
+        const isCompleted = existingAwards && existingAwards.completed;
+        
+        if (!isCompleted) {
+          return dailySelection; // Always return today's selection unless it's completed
+        }
+      }
+      
+      // Otherwise, pick a new year and persist it
+      // Prioritize years with partial progress (some categories have nominees/winners)
+      const yearsWithPartialProgress = incompleteYears.filter(year => {
+        const existingAwards = this.$store.state.settings.personalAwards?.[year];
+        if (!existingAwards || !existingAwards.categories) return false;
+        
+        // Check if any category has nominees or winners
+        return Object.values(existingAwards.categories).some(categoryData => 
+          (categoryData.nominees && categoryData.nominees.length > 0) || 
+          categoryData.winner ||
+          categoryData.noNominees
+        );
+      });
+      
+      let selectedYear;
+      if (yearsWithPartialProgress.length > 0) {
+        // Prioritize years with partial progress
+        const randomIndex = Math.floor(Math.random() * yearsWithPartialProgress.length);
+        selectedYear = yearsWithPartialProgress[randomIndex];
+      } else {
+        // Fall back to any incomplete year
+        const randomIndex = Math.floor(Math.random() * incompleteYears.length);
+        selectedYear = incompleteYears[randomIndex];
+      }
+      
+      // Persist the daily selection (don't await to avoid blocking UI)
+      this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYear', value: selectedYear });
+      this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYearDate', value: today });
+      
+      return selectedYear;
     }
   },
   watch: {
@@ -448,6 +514,43 @@ export default {
       
       // Navigate back to category grid to show updated status
       this.selectedCategory = null;
+    },
+    async completeYearAndClose() {
+      // Mark as completed manually
+      const awardsEntry = {
+        completed: true,
+        lastUpdated: Date.now(),
+        availableMovieIds: this.getMoviesForYear().map(entry => entry.movie.id),
+        categories: this.awardsData
+      };
+      
+      // Save the awards entry
+      await this.$store.dispatch('setDBValue', {
+        path: `settings/personalAwards/${this.currentYear}`,
+        value: awardsEntry
+      });
+      
+      // Record completion date and clear daily selection
+      await this.$store.dispatch('setDBValue', {
+        path: 'settings/lastAwardCompletionDate',
+        value: new Date().toDateString()
+      });
+      
+      await this.$store.dispatch('setDBValue', {
+        path: 'settings/dailyAwardsYear',
+        value: null
+      });
+      
+      await this.$store.dispatch('setDBValue', {
+        path: 'settings/dailyAwardsYearDate', 
+        value: null
+      });
+      
+      // Show success and close
+      this.showSavedMessage = true;
+      setTimeout(() => {
+        this.closeModal();
+      }, 1000); // Brief delay to show success message
     },
     openModal() {
       this.showModal = true;
@@ -554,16 +657,24 @@ export default {
       movies.forEach(entry => {
         if (categoryKey === 'bestDirector') {
           const crew = entry.movie.crew || [];
-          crew.filter(person => person.job === 'Director').forEach(director => {
-            if (!people.find(p => p.name === director.name && p.movieId === entry.movie.id)) {
+          const directors = crew.filter(person => person.job === 'Director');
+          
+          if (directors.length > 0) {
+            // Check if we already have an entry for this movie
+            const existingEntry = people.find(p => p.movieId === entry.movie.id);
+            
+            if (!existingEntry) {
+              // Create a single entry for the movie with all directors
+              const directorNames = directors.map(d => d.name);
               people.push({
-                id: director.id || `${director.name}-${entry.movie.id}`,
-                name: director.name,
+                id: `directors-${entry.movie.id}`,
+                name: directorNames.join(' & '), // Combine director names
+                directors: directors, // Store all director info
                 movie: entry.movie,
                 movieId: entry.movie.id
               });
             }
-          });
+          }
         } else if (categoryKey.includes('Actor') || categoryKey.includes('Actress')) {
           const isActress = categoryKey.includes('Actress');
           const isSupporting = categoryKey.includes('Supporting');
@@ -690,10 +801,18 @@ export default {
         }
       } else {
         // Add nominee
+        const wasEmpty = categoryData.nominees.length === 0;
         categoryData.nominees.push(option);
         // Clear the "no nominees" flag if it was set
         if (categoryData.noNominees) {
           categoryData.noNominees = false;
+        }
+        
+        // If we just added a nominee, scroll to the right to show it
+        if (!wasEmpty) { // Only scroll if there were already nominees (otherwise no need to scroll)
+          this.$nextTick(() => {
+            this.scrollNomineesToRight();
+          });
         }
       }
       
@@ -701,6 +820,16 @@ export default {
       
       // Auto-save
       this.autoSave();
+    },
+    scrollNomineesToRight() {
+      // Find the nominees gallery and scroll to the right
+      const gallery = document.querySelector('.current-nominees-gallery');
+      if (gallery) {
+        gallery.scrollTo({
+          left: gallery.scrollWidth,
+          behavior: 'smooth'
+        });
+      }
     },
     selectWinner(option) {
       const categoryData = this.awardsData[this.selectedCategory] || { nominees: [], winner: null };
@@ -893,6 +1022,16 @@ export default {
             path: 'settings/lastAwardCompletionDate',
             value: new Date().toDateString()
           });
+          
+          // Clear the daily year selection so a new year will be selected
+          await this.$store.dispatch('setDBValue', {
+            path: 'settings/dailyAwardsYear',
+            value: null
+          });
+          await this.$store.dispatch('setDBValue', {
+            path: 'settings/dailyAwardsYearDate',
+            value: null
+          });
         }
         
         const dbEntry = {
@@ -1065,8 +1204,20 @@ export default {
           .category-status {
             font-size: 0.8em;
             position: absolute;
-            right: 2px;
-            top: 2px;
+            right: 6px;
+            top: 6px;
+            
+            .green-checkmark {
+              align-items: center;
+              background-color: #28a745;
+              border-radius: 50%;
+              color: white;
+              display: flex;
+              font-size: 0.7em;
+              height: 14px;
+              justify-content: center;
+              width: 14px;
+            }
           }
         }
       }
@@ -1167,8 +1318,16 @@ export default {
               }
               
               &.nominee {
-                background: rgba(40,167,69,0.9);
-                color: white;
+                background: #28a745; // Green circle background
+                color: white; // White checkmark
+                border-radius: 50%; // Make it circular
+                width: 20px; // Fixed width for circle
+                height: 20px; // Fixed height for circle
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.8em; // Smaller checkmark to fit in circle
+                font-weight: bold;
               }
             }
           }
@@ -1228,10 +1387,11 @@ export default {
           align-content: flex-start;
           align-items: flex-start;
           display: flex;
-          flex-wrap: wrap; // Allow wrapping for 2 rows
+          flex-wrap: nowrap; // No wrapping for horizontal scroll
           gap: 4px;
-          justify-content: center;
-          overflow: visible;
+          justify-content: flex-start;
+          overflow-x: auto;
+          overflow-y: visible;
           padding: 8px 4px;
           position: relative;
           
@@ -1239,9 +1399,11 @@ export default {
             align-items: center;
             color: #999;
             display: flex;
+            flex-direction: column; // Stack vertically
             font-size: 0.8em;
             font-style: italic;
-            height: 60px;
+            gap: 8px; // Space between button and text
+            height: 98.5px; // Match poster height to prevent jumping
             justify-content: center;
             width: 100%;
             
@@ -1316,7 +1478,7 @@ export default {
                 color: white;
                 cursor: pointer;
                 display: flex;
-                font-size: 0.9em;
+                font-size: 0.7em; // Slightly smaller for better fit
                 height: 18px;
                 justify-content: center;
                 left: 2px;
@@ -1325,6 +1487,12 @@ export default {
                 position: absolute;
                 top: 2px;
                 width: 18px;
+                
+                i {
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                }
               }
             }
             
@@ -1405,6 +1573,23 @@ export default {
   
   .auto-save-note {
     font-size: 0.8em;
+  }
+  
+  .completion-section {
+    .btn {
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      
+      i {
+        color: #ffd700;
+      }
+    }
+  }
+  
+  .progress-section {
+    font-size: 0.8em;
+    text-align: right;
+    color: #f8f9fa; // Ensure text is visible on dark backgrounds
   }
 }
 
