@@ -332,7 +332,6 @@
           />
           <PersonalAwardsModal
             v-else-if="showAwardsModal"
-            :showAwardsModal="showAwardsModal"
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
             :personalAwardName="personalAwardName"
             :awardNameWithThe="getAwardNameWithThe()"
@@ -1703,7 +1702,7 @@ export default {
         return false;
       }
       
-      if (this.showStickinessModal || this.showTweakModal || !this.isMatt) {
+      if (this.showStickinessModal || this.showTweakModal) {
         return false;
       }
       

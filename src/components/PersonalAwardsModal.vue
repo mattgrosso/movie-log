@@ -1,5 +1,5 @@
 <template>
-  <div v-if="showAwardsModal" class="personal-awards">
+  <div class="personal-awards">
     <div class="awards-notice alert alert-warning my-2" role="alert">
       <a class="alert-link" @click.stop="openModal">
         {{ firstEligibleYear }} is ready for your {{ awardNameSingular }} choices
@@ -247,10 +247,6 @@ export default {
       type: Array,
       required: true
     },
-    showAwardsModal: {
-      type: Boolean,
-      required: true
-    },
     personalAwardName: {
       type: String,
       default: 'Oscar'
@@ -425,81 +421,7 @@ export default {
       return selectedYear;
     }
   },
-  watch: {
-    '$store.state.dbLoaded'(newVal) {
-      // Try migration again when database finishes loading
-      if (newVal && !this.migrationCompleted) {
-        this.migrateAwardsData();
-      }
-    }
-  },
-  async mounted() {
-    // Run migration for legacy awards data on component load
-    await this.migrateAwardsData();
-  },
   methods: {
-    async migrateAwardsData() {
-      // Safety checks: prevent repeated migrations and ensure data is available
-      if (this.migrationCompleted) return;
-      if (!this.$store.state.dbLoaded) return;
-      if (!this.allEntriesWithFlatKeywordsAdded?.length) return;
-      
-      const personalAwards = this.$store.state.settings.personalAwards;
-      if (!personalAwards) {
-        this.migrationCompleted = true;
-        return;
-      }
-
-      let hasLegacyData = false;
-      const migratedAwards = { ...personalAwards };
-
-      // Check each year for missing availableMovieIds
-      for (const [year, awardsData] of Object.entries(personalAwards)) {
-        if (awardsData.completed && !awardsData.availableMovieIds) {
-          hasLegacyData = true;
-          
-          const yearNum = parseInt(year);
-          let availableMovieIds = [];
-          
-          if (awardsData.lastUpdated) {
-            // Backfill movie IDs based on what was rated before the lastUpdated timestamp
-            availableMovieIds = this.allEntriesWithFlatKeywordsAdded
-              .filter(entry => {
-                const entryYear = new Date(entry.movie.release_date).getFullYear();
-                const notShort = !entry.movie.runtime || entry.movie.runtime > 40;
-                const ratedBeforeCompletion = new Date(entry.ratings[0]?.date || entry.movie.release_date).getTime() <= awardsData.lastUpdated;
-                
-                return entryYear === yearNum && notShort && ratedBeforeCompletion;
-              })
-              .map(entry => entry.movie.id);
-          } else {
-            // Very old legacy data without lastUpdated - mark as incomplete so user can re-complete
-            migratedAwards[year] = {
-              ...awardsData,
-              completed: false,
-              availableMovieIds: [] // Will be populated when user re-completes
-            };
-            continue;
-          }
-
-          migratedAwards[year] = {
-            ...awardsData,
-            availableMovieIds
-          };
-        }
-      }
-
-      // Save the migrated data if any changes were made
-      if (hasLegacyData) {
-        await this.$store.dispatch('setDBValue', {
-          path: 'settings/personalAwards',
-          value: migratedAwards
-        });
-      }
-      
-      // Mark migration as completed regardless of whether we found legacy data
-      this.migrationCompleted = true;
-    },
     markCategoryAsNoNominees() {
       // Mark category as having no worthy nominees for now
       if (!this.awardsData[this.selectedCategory]) {
