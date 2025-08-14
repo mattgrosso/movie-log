@@ -44,8 +44,12 @@
       "WebFetch(domain:developers.themoviedb.org)",
       "WebSearch",
       "WebFetch(domain:www.moviestillsdb.com)",
-      "WebFetch(domain:www.myapifilms.com)"
+      "WebFetch(domain:www.myapifilms.com)",
+      "WebFetch(domain:www.themoviedb.org)",
+      "WebFetch(domain:www.superheroapi.com)",
+      "WebFetch(domain:developers.google.com)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }

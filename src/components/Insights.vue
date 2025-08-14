@@ -118,8 +118,10 @@
           class="btn btn-outline-warning btn-sm mt-2 w-100"
           @click="startNewAwards"
         >
-          <i class="fas fa-trophy"></i>
-          Start New Awards (Override Daily Limit)
+          <span v-if="startingNewAwards" class="spinner-border spinner-border-sm me-2" role="status"></span>
+          <i v-else class="fas fa-trophy"></i>
+          <span v-if="startingNewAwards">Starting Awards...</span>
+          <span v-else>Start New Awards (Override Daily Limit)</span>
         </button>
       </div>
       <div v-if="selectedAwardsData" class="awards-results">
@@ -402,7 +404,8 @@ export default {
         { key: 'polishedScale', label: 'Raw ↔ Polished' },
         { key: 'familiarScale', label: 'Innovative ↔ Familiar' },
         { key: 'minimalistScale', label: 'Maximalist ↔ Minimalist' }
-      ]
+      ],
+      startingNewAwards: false
     };
   },
   mounted() {
@@ -1145,14 +1148,20 @@ export default {
       return option.name || 'Unknown';
     },
     async startNewAwards() {
-      // Override the daily limit by clearing the last completion date
-      await this.$store.dispatch('setDBValue', {
-        path: 'settings/lastAwardCompletionDate',
-        value: null
-      });
-      
-      // Navigate to home page which will now show the awards prompt
-      this.$router.push('/');
+      this.startingNewAwards = true;
+      try {
+        // Override the daily limit by clearing the last completion date
+        await this.$store.dispatch('setDBValue', {
+          path: 'settings/lastAwardCompletionDate',
+          value: null
+        });
+        
+        // Navigate to home page which will now show the awards prompt
+        this.$router.push('/');
+      } finally {
+        // Note: loading state will be cleared when component unmounts due to navigation
+        this.startingNewAwards = false;
+      }
     },
     getMovieTitle(option) {
       // Get movie title for movie categories

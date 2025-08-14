@@ -476,6 +476,30 @@
                   </div>
                 </div>
               </div>
+              
+              <!-- Matt Only Settings Section -->
+              <div v-if="isMatt" class="mt-4">
+                <hr>
+                <h6 class="mb-3 text-white">Matt Only</h6>
+                <ThreeStateToggle
+                  id="stickinessPromptState"
+                  label="Stickiness Prompts"
+                  :value="stickinessPromptState"
+                  @input="saveStickinessPromptState"
+                />
+                <ThreeStateToggle
+                  id="tieBreakPromptState"
+                  label="Tie-break Prompts"
+                  :value="tieBreakPromptState"
+                  @input="saveTieBreakPromptState"
+                />
+                <ThreeStateToggle
+                  id="awardsPromptState"
+                  label="Personal Awards Prompts"
+                  :value="awardsPromptState"
+                  @input="saveAwardsPromptState"
+                />
+              </div>
             </div>
           </div>
           <!-- Results list follows the settings panel -->
@@ -690,6 +714,7 @@ import TweakModal from "./TweakModal.vue";
 import PersonalAwardsModal from "./PersonalAwardsModal.vue";
 import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
+import ThreeStateToggle from './ThreeStateToggle.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
@@ -700,6 +725,7 @@ export default {
     TweakModal,
     PersonalAwardsModal,
     NoResults,
+    ThreeStateToggle,
   },
   data () {
     return {
@@ -753,6 +779,10 @@ export default {
       unratedMoviesQuery: '',
       unratedMoviesSearchType: null, // 'person', 'year', 'yearRange', 'genre', 'general'
       value: "",
+      // Matt-only dev settings
+      stickinessPromptState: 'normal',
+      tieBreakPromptState: 'normal',
+      awardsPromptState: 'normal',
     }
   },
   watch: {
@@ -857,6 +887,36 @@ export default {
           this.letterboxdUsername = newVal;
         } else {
           this.letterboxdUsername = '';
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.stickinessPromptState': {
+      handler(newVal) {
+        if (typeof newVal === 'string' && ['disabled', 'normal', 'forced'].includes(newVal)) {
+          this.stickinessPromptState = newVal;
+        } else {
+          this.stickinessPromptState = 'normal';
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.tieBreakPromptState': {
+      handler(newVal) {
+        if (typeof newVal === 'string' && ['disabled', 'normal', 'forced'].includes(newVal)) {
+          this.tieBreakPromptState = newVal;
+        } else {
+          this.tieBreakPromptState = 'normal';
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.awardsPromptState': {
+      handler(newVal) {
+        if (typeof newVal === 'string' && ['disabled', 'normal', 'forced'].includes(newVal)) {
+          this.awardsPromptState = newVal;
+        } else {
+          this.awardsPromptState = 'normal';
         }
       },
       immediate: true
@@ -1658,6 +1718,14 @@ export default {
       return Boolean(this.paginatedSortedResults.length) || this.activeQuickLinkList !== "title";
     },
     showStickinessModal () {
+      // Check three-state setting
+      if (this.stickinessPromptState === 'forced') {
+        return true;
+      }
+      if (this.stickinessPromptState === 'disabled') {
+        return false;
+      }
+      // Normal behavior (stickinessPromptState === 'normal')
       // Don't interrupt awards workflow
       if (this.showAwardsModal) {
         return false;
@@ -1665,6 +1733,14 @@ export default {
       return Boolean(this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
     },
     showTweakModal () {
+      // Check three-state setting
+      if (this.tieBreakPromptState === 'forced') {
+        return true;
+      }
+      if (this.tieBreakPromptState === 'disabled') {
+        return false;
+      }
+      // Normal behavior (tieBreakPromptState === 'normal')
       if (this.showStickinessModal) {
         return false;
       }
@@ -1697,6 +1773,14 @@ export default {
       return hasTiedResults && noTieBreakYetToday;
     },
     showAwardsModal () {
+      // Check three-state setting
+      if (this.awardsPromptState === 'forced') {
+        return true;
+      }
+      if (this.awardsPromptState === 'disabled') {
+        return false;
+      }
+      // Normal behavior (awardsPromptState === 'normal')
       // Don't show until database is loaded to prevent flash
       if (!this.$store.state.dbLoaded) {
         return false;
@@ -2585,6 +2669,18 @@ export default {
     },
     saveRandomSearchSetting() {
       this.$store.dispatch('setDBValue', { path: 'settings/enableRandomSearch', value: this.enableRandomSearch });
+    },
+    saveStickinessPromptState(value) {
+      this.stickinessPromptState = value;
+      this.$store.dispatch('setDBValue', { path: 'settings/stickinessPromptState', value: value });
+    },
+    saveTieBreakPromptState(value) {
+      this.tieBreakPromptState = value;
+      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakPromptState', value: value });
+    },
+    saveAwardsPromptState(value) {
+      this.awardsPromptState = value;
+      this.$store.dispatch('setDBValue', { path: 'settings/awardsPromptState', value: value });
     },
     // Test function for Letterboxd URL generation (call from browser console)
     // Test function for Letterboxd scraping (UI button)

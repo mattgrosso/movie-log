@@ -212,5 +212,11 @@ This fixes the fragility issue where the modal would disappear unexpectedly and 
 - **New Methods**: `getOptionMovie()` and `getOptionRole()` for cleaner data separation
 - **Styling**: Role text is smaller, italicized, and slightly more transparent for visual hierarchy
 
-## Important Note for Claude
+## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
+
+**CRITICAL: Always check text contrast and readability!** Before implementing any UI changes, ensure text is legible against its background. This app uses dark themes and Bootstrap classes - always verify that text colors work properly against dark backgrounds. Common issues include:
+- Dark text on dark backgrounds (unreadable)
+- Light text on light backgrounds (unreadable) 
+- Insufficient contrast ratios
+- Missing Bootstrap text color classes like `text-light`, `text-white`, or `text-muted`
