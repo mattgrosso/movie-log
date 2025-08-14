@@ -1762,7 +1762,13 @@ export default {
         const existingAwards = this.$store.state.settings.personalAwards?.[year];
         if (!existingAwards) return true; // New year needs awards
         
-        // Check if there are new movies since last awards update
+        // CRITICAL FIX: If awards exist but were NOT explicitly completed via "Complete Awards" button,
+        // the year should still be eligible (this covers partial progress)
+        if (!existingAwards.completed) {
+          return true;
+        }
+        
+        // If explicitly completed, check if there are new movies since last awards update
         if (!existingAwards.lastUpdated) return true;
         
         const newMovies = this.allEntriesWithFlatKeywordsAdded.filter(entry => {

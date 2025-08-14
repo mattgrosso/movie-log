@@ -194,8 +194,11 @@
                   <!-- Text overlay -->
                   <div class="nominee-info-overlay">
                     <div class="nominee-title">{{ getOptionTitle(option) }}</div>
-                    <div class="nominee-subtitle" v-if="getOptionSubtitle(option)">
-                      {{ getOptionSubtitle(option) }}
+                    <div class="nominee-movie" v-if="getOptionMovie(option)">
+                      {{ getOptionMovie(option) }}
+                    </div>
+                    <div class="nominee-role" v-if="getOptionRole(option)">
+                      {{ getOptionRole(option) }}
                     </div>
                   </div>
                 </div>
@@ -355,7 +358,13 @@ export default {
         const existingAwards = this.$store.state.settings.personalAwards?.[year];
         if (!existingAwards) return true; // New year needs awards
         
-        // Check if there are new movies since last awards update
+        // CRITICAL FIX: If awards exist but were NOT explicitly completed via "Complete Awards" button,
+        // the year should still be considered incomplete (this covers partial progress)
+        if (!existingAwards.completed) {
+          return true;
+        }
+        
+        // If explicitly completed, check if there are new movies since last awards update
         if (!existingAwards.lastUpdated) return true;
         
         const newMovies = this.allEntriesWithFlatKeywordsAdded.filter(entry => {
@@ -708,6 +717,24 @@ export default {
         return `${option.movie.title}${option.character ? ` (${option.character})` : ''}`;
       }
     },
+    getOptionMovie(option) {
+      if (option.movie && !option.id) {
+        // This is a movie option, no separate movie line needed
+        return null;
+      } else {
+        // This is a person option, show just the movie title
+        return option.movie.title;
+      }
+    },
+    getOptionRole(option) {
+      if (option.movie && !option.id) {
+        // This is a movie option, no role to show
+        return null;
+      } else {
+        // This is a person option, show just the character/role
+        return option.character || null;
+      }
+    },
     toggleNominee(option) {
       const categoryData = this.awardsData[this.selectedCategory] || { nominees: [], winner: null };
       const optionId = this.getOptionId(option);
@@ -929,7 +956,6 @@ export default {
       clearTimeout(this.autoSaveTimeout);
       this.autoSaveTimeout = setTimeout(async () => {
         const isNowComplete = this.completedCategories === this.totalCategories;
-        const wasComplete = this.$store.state.settings.personalAwards?.[this.currentYear]?.completed;
         
         const awardsEntry = {
           completed: isNowComplete,
@@ -938,23 +964,9 @@ export default {
           categories: this.awardsData
         };
         
-        // If we just completed this year's awards, record the completion date
-        if (isNowComplete && !wasComplete) {
-          await this.$store.dispatch('setDBValue', {
-            path: 'settings/lastAwardCompletionDate',
-            value: new Date().toDateString()
-          });
-          
-          // Clear the daily year selection so a new year will be selected
-          await this.$store.dispatch('setDBValue', {
-            path: 'settings/dailyAwardsYear',
-            value: null
-          });
-          await this.$store.dispatch('setDBValue', {
-            path: 'settings/dailyAwardsYearDate',
-            value: null
-          });
-        }
+        // Note: We no longer auto-set completion date or clear daily selection
+        // This prevents the modal from auto-closing when categories are completed
+        // Users must explicitly complete awards using the "Complete Awards" button
         
         const dbEntry = {
           path: `settings/personalAwards/${this.currentYear}`,
@@ -1279,6 +1291,24 @@ export default {
               overflow: hidden;
               text-overflow: ellipsis;
               white-space: nowrap;
+            }
+            
+            .nominee-movie {
+              font-size: 0.65em;
+              opacity: 0.9;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              margin-bottom: 1px;
+            }
+            
+            .nominee-role {
+              font-size: 0.6em;
+              opacity: 0.8;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              font-style: italic;
             }
           }
         }

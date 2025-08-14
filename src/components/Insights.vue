@@ -274,6 +274,44 @@
       <YearlyAverage :resultsWithRatings="resultsWithRatings"/>
     </InsightsPane>
 
+    <InsightsPane v-if="partialAwardsYears.length > 0">
+      <div class="insights-pane-header">
+        <p>Resume Awards</p>
+      </div>
+      <div class="partial-awards-section">
+        <p class="mb-3" style="font-size: 0.9rem; opacity: 0.8;">
+          You have partially completed awards for these years:
+        </p>
+        <div v-for="yearData in partialAwardsYears" :key="yearData.year" class="partial-award-item mb-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ yearData.year }}</strong>
+              <span class="ms-2 text-muted">
+                {{ yearData.completedCategories }}/{{ yearData.totalCategories }} categories complete
+              </span>
+              <div v-if="yearData.hasNewMovies" class="text-warning small mt-1">
+                <i class="fas fa-star"></i>
+                {{ yearData.newMoviesCount }} new movies to consider
+              </div>
+            </div>
+            <button 
+              class="btn btn-primary btn-sm"
+              @click="resumeAwards(yearData.year)"
+              :title="`Resume ${yearData.year} awards`"
+            >
+              <i class="fas fa-trophy me-1"></i>
+              Resume
+            </button>
+          </div>
+          <div class="progress mt-2" style="height: 6px;">
+            <div 
+              class="progress-bar" 
+              :style="`width: ${(yearData.completedCategories / yearData.totalCategories) * 100}%`"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </InsightsPane>
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Outliers</p>
@@ -389,6 +427,63 @@ export default {
       }
       
       return years;
+    },
+    partialAwardsYears() {
+      // Get all years with partial awards progress that can be resumed
+      const personalAwards = this.$store.state.settings.personalAwards;
+      if (!personalAwards) return [];
+      
+      const yearCounts = {};
+      // Calculate eligible years based on movie counts
+      this.filteredEntriesWithFlatKeywordsAdded.forEach(entry => {
+        if (entry.movie.runtime && entry.movie.runtime <= 40) return; // Exclude shorts
+        const year = new Date(entry.movie.release_date).getFullYear();
+        yearCounts[year] = (yearCounts[year] || 0) + 1;
+      });
+      
+      const eligibleYears = Object.keys(yearCounts)
+        .filter(year => yearCounts[year] >= 10)
+        .map(year => parseInt(year));
+      
+      return eligibleYears
+        .map(year => {
+          const awardData = personalAwards[year];
+          if (!awardData || !awardData.categories) return null;
+          
+          // Count completed categories (have nominees and winner, or marked as no nominees)
+          const categories = Object.values(awardData.categories);
+          const completedCategories = categories.filter(cat => 
+            (cat.nominees?.length > 0 && cat.winner) || cat.noNominees === true
+          ).length;
+          
+          // Only include if there's partial progress but not completed via the "Complete Awards" button
+          if (completedCategories === 0) return null; // No progress
+          
+          // Check for new movies since last update
+          const currentMovieIds = this.filteredEntriesWithFlatKeywordsAdded
+            .filter(entry => {
+              const entryYear = new Date(entry.movie.release_date).getFullYear();
+              const notShort = !entry.movie.runtime || entry.movie.runtime > 40;
+              return entryYear === year && notShort;
+            })
+            .map(entry => entry.movie.id);
+          
+          const hasNewMovies = awardData.availableMovieIds ? 
+            currentMovieIds.some(id => !awardData.availableMovieIds.includes(id)) : true;
+          
+          const newMoviesCount = hasNewMovies && awardData.availableMovieIds ?
+            currentMovieIds.filter(id => !awardData.availableMovieIds.includes(id)).length : 0;
+          
+          return {
+            year,
+            completedCategories,
+            totalCategories: 13, // Total possible categories
+            hasNewMovies,
+            newMoviesCount
+          };
+        })
+        .filter(yearData => yearData !== null)
+        .sort((a, b) => b.year - a.year); // Most recent first
     },
     selectedAwardsData() {
       if (!this.selectedAwardsYear) return null;
@@ -1070,6 +1165,21 @@ export default {
     updateSearchValue (value) {
       // Navigate to Home and set the search value as a query parameter
       this.$router.push({ name: 'Home', query: { search: encodeURIComponent(value) } });
+    },
+    async resumeAwards(year) {
+      // Set the daily awards year to force the awards modal to show for this specific year
+      await this.$store.dispatch('setDBValue', {
+        path: 'settings/dailyAwardsYear',
+        value: year
+      });
+      
+      await this.$store.dispatch('setDBValue', {
+        path: 'settings/dailyAwardsYearDate',
+        value: new Date().toDateString()
+      });
+      
+      // Navigate to home where the awards modal will appear
+      this.$router.push({ name: 'Home' });
     },
     getYear (media) {
       let date;

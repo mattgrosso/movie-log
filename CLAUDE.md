@@ -163,5 +163,54 @@ This application serves as a comprehensive personal movie tracking system with s
 
 This is critical for maintaining an uninterrupted development workflow.
 
+## Recent Changes - Awards Modal Stability Fixes (Aug 2024)
+
+### Fixed Awards Modal Auto-Close Issue
+- **Problem**: Awards modal would unexpectedly disappear when users completed categories, preventing them from continuing work
+- **Root Cause #1**: `autoSave()` function automatically set completion date when all categories were filled, causing modal to be hidden by daily limit logic
+- **Root Cause #2**: `showAwardsModal` computed property treated any year with awards data as "complete", ignoring partial progress
+- **Root Cause #3**: `firstEligibleYear` computed property (banner display) had similar flawed logic, causing missing year in banner
+- **Solution**: 
+  1. Removed auto-completion behavior from `autoSave()` - users now must explicitly click "Complete Awards" button
+  2. Fixed eligibility logic to keep showing modal for years with partial progress (not explicitly completed)
+  3. Fixed banner year display logic to include years with partial progress
+
+### Added Awards Resume Functionality
+- **New Feature**: "Resume Awards" section in Insights page (`src/components/Insights.vue`)
+- **Functionality**: Shows partially completed award years with progress bars and "Resume" buttons
+- **Detection Logic**: Identifies years with partial progress (some nominees/winners but not explicitly completed)
+- **Resume Method**: Sets daily awards year selection and navigates to Home to trigger modal
+- **New Movies Detection**: Highlights years with new movies added since last awards session
+
+### Key Files Modified
+- `src/components/PersonalAwardsModal.vue:927-963` - Removed auto-completion from autoSave()
+- `src/components/Home.vue:1796-1801` - **CRITICAL FIX**: Added partial progress check to showAwardsModal eligibility logic
+- `src/components/PersonalAwardsModal.vue:376-381` - **CRITICAL FIX**: Added partial progress check to firstEligibleYear banner logic
+- `src/components/Insights.vue:277-314` - Added Resume Awards section in template
+- `src/components/Insights.vue:431-487` - Added partialAwardsYears computed property
+- `src/components/Insights.vue:1169-1183` - Added resumeAwards() method
+
+### Technical Details
+- Awards modal no longer auto-closes when categories are completed
+- Completion date only set when user explicitly clicks "Complete Awards" button
+- Resume logic bypasses daily limit by setting `dailyAwardsYear` to specific year
+- Progress calculation excludes explicitly completed years (via button) but includes partial work
+- All existing functionality preserved, just made less fragile
+
+This fixes the fragility issue where the modal would disappear unexpectedly and provides a reliable way to resume work on partial awards.
+
+### Debug Logging Cleanup (Aug 2024)
+- All debug logging (`🏆 AWARDS DEBUG:` messages) has been removed after successful problem resolution
+- Core functionality preserved, console noise eliminated
+- System now operates cleanly in production
+
+### Awards UI Enhancement - Actor Display (Aug 2024)
+- **Improvement**: Split actor nomination display from 2 lines to 3 lines for better readability
+- **Before**: Name on line 1, "Movie (Role)" on line 2
+- **After**: Name on line 1, Movie on line 2, Role on line 3 (italicized)
+- **Files Modified**: `src/components/PersonalAwardsModal.vue` - template, methods, and CSS
+- **New Methods**: `getOptionMovie()` and `getOptionRole()` for cleaner data separation
+- **Styling**: Role text is smaller, italicized, and slightly more transparent for visual hierarchy
+
 ## Important Note for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
