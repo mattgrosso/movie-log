@@ -20,7 +20,7 @@
             <div class="new-movies-list">
               <div v-for="entry in newMoviesForCurrentYear" :key="entry.movie.id" class="new-movie-item">
                 <strong>{{ entry.movie.title }}</strong>
-                <span class="text-muted"> • {{ getRating(entry).calculatedTotal }}/10</span>
+                <span class="text-muted"> • {{ mostRecentRating(entry).calculatedTotal }}/10</span>
               </div>
             </div>
             <small class="text-muted">
@@ -71,7 +71,7 @@
             <!-- Sticky Top Section -->
             <div class="sticky-top-section">
               <div class="category-header d-flex justify-content-between align-items-center mb-3">
-                <button class="btn btn-sm btn-outline-secondary" @click="selectedCategory = null">
+                <button class="btn btn-sm btn-outline-secondary" @click="backToCategories">
                   ← Back
                 </button>
                 <h5 class="mb-0 text-center flex-grow-1">{{ getCurrentCategoryName() }}</h5>
@@ -180,7 +180,7 @@
                     >
                     <img 
                       v-else-if="option.movie && option.movie.poster_path"
-                      :src="`https://image.tmdb.org/t/p/w185${option.movie.poster_path}`" 
+                      :src="`https://image.tmdb.org/t/p/w154${option.movie.poster_path}`" 
                       :alt="getOptionTitle(option)"
                     >
                     
@@ -208,27 +208,21 @@
         </div>
       </template>
       <template v-slot:footer>
-        <div class="awards-modal-footer d-flex justify-content-between align-items-center w-100">
-          <div class="save-status">
-            <div v-if="showSavedMessage" class="saved-message text-success">
-              ✓ Saved!
-            </div>
-            <div v-else class="auto-save-note small">
-              Changes saved automatically
-            </div>
-          </div>
-          
-          <div v-if="completedCategories === totalCategories" class="completion-section">
+        <!-- Only show footer on category screen, not nomination screens -->
+        <div v-if="!selectedCategory" class="awards-modal-footer w-100">
+          <div v-if="completedCategories === totalCategories" class="completion-section w-100">
             <button 
-              class="btn btn-success btn-sm"
+              class="btn btn-success w-100"
               @click="completeYearAndClose"
+              :disabled="submitting"
             >
-              <i class="fas fa-trophy me-1"></i>
-              Complete {{ currentYear }} Awards
+              <span v-if="submitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
+              <i v-else class="fas fa-trophy me-2"></i>
+              {{ submitting ? 'Completing...' : `Complete ${currentYear} Awards` }}
             </button>
           </div>
           
-          <div v-else class="progress-section">
+          <div v-else class="progress-section text-center">
             <small>
               {{ completedCategories }} of {{ totalCategories }} categories complete
             </small>
@@ -273,12 +267,9 @@ export default {
       selectedCategory: null,
       currentYear: null,
       awardsData: {},
-      autoSaveTimeout: null,
       migrationCompleted: false, // Flag to prevent repeated migrations
       eligibleOptions: [],
-      loadingOptions: false,
-      showSavedMessage: false,
-      savedTimeout: null
+      loadingOptions: false
     };
   },
   computed: {
@@ -441,47 +432,54 @@ export default {
       this.awardsData[this.selectedCategory].winner = null;
       this.awardsData[this.selectedCategory].noNominees = true; // Special flag
       
-      this.autoSave();
+      // Save removed - will save on Back/Complete/Close only
       
       // Navigate back to category grid to show updated status
       this.selectedCategory = null;
     },
+    async backToCategories() {
+      // Save current progress before going back
+      await this.saveCurrentState();
+      this.selectedCategory = null;
+    },
     async completeYearAndClose() {
-      // Mark as completed manually
-      const awardsEntry = {
-        completed: true,
-        lastUpdated: Date.now(),
-        availableMovieIds: this.getMoviesForYear().map(entry => entry.movie.id),
-        categories: this.awardsData
-      };
+      // Prevent multiple clicks
+      if (this.submitting) return;
+      this.submitting = true;
       
-      // Save the awards entry
-      await this.$store.dispatch('setDBValue', {
-        path: `settings/personalAwards/${this.currentYear}`,
-        value: awardsEntry
-      });
-      
-      // Record completion date and clear daily selection
-      await this.$store.dispatch('setDBValue', {
-        path: 'settings/lastAwardCompletionDate',
-        value: new Date().toDateString()
-      });
-      
-      await this.$store.dispatch('setDBValue', {
-        path: 'settings/dailyAwardsYear',
-        value: null
-      });
-      
-      await this.$store.dispatch('setDBValue', {
-        path: 'settings/dailyAwardsYearDate', 
-        value: null
-      });
-      
-      // Show success and close
-      this.showSavedMessage = true;
-      setTimeout(() => {
+      try {
+        // Save the awards entry
+        await this.$store.dispatch('setDBValue', {
+          path: `settings/personalAwards/${this.currentYear}`,
+          value: {
+            completed: true,
+            lastUpdated: Date.now(),
+            categories: this.awardsData
+          }
+        });
+        
+        // Record completion date
+        await this.$store.dispatch('setDBValue', {
+          path: 'settings/lastAwardCompletionDate',
+          value: new Date().toDateString()
+        });
+        
+        // Clear daily selection
+        await this.$store.dispatch('setDBValue', {
+          path: 'settings/dailyAwardsYear',
+          value: null
+        });
+        
+        // Close modal
         this.closeModal();
-      }, 1000); // Brief delay to show success message
+        
+      } catch (error) {
+        console.error('Complete year error:', error);
+        // Still close even if save fails
+        this.closeModal();
+      } finally {
+        this.submitting = false;
+      }
     },
     openModal() {
       this.showModal = true;
@@ -491,9 +489,34 @@ export default {
       // Don't set timestamp on open - only when user dismisses modal
     },
     closeModal() {
+      // Close immediately - no save needed since Back/Complete buttons handle saving
       this.showModal = false;
       this.selectedCategory = null;
       this.awardsData = {};
+    },
+    async saveCurrentState() {
+      // Final save method that runs immediately (no debounce)
+      try {
+        const isNowComplete = this.completedCategories === this.totalCategories;
+        
+        const awardsEntry = {
+          completed: isNowComplete,
+          lastUpdated: Date.now(),
+          availableMovieIds: this.getMoviesForYear().map(entry => entry.movie.id),
+          categories: this.awardsData
+        };
+        
+        const dbEntry = {
+          path: `settings/personalAwards/${this.currentYear}`,
+          value: awardsEntry
+        };
+        
+        await this.$store.dispatch('setDBValue', dbEntry);
+        
+      } catch (error) {
+        console.error('Final save error:', error);
+        // Don't rethrow - just log the error
+      }
     },
     initializeAwardsData() {
       // Load existing awards data for this year if it exists
@@ -767,8 +790,7 @@ export default {
       
       this.awardsData[this.selectedCategory] = categoryData;
       
-      // Auto-save
-      this.autoSave();
+      // Save removed - will save on Back/Complete/Close only
     },
     scrollNomineesToRight() {
       // Find the nominees gallery and scroll to the right
@@ -785,8 +807,7 @@ export default {
       categoryData.winner = option;
       this.awardsData[this.selectedCategory] = categoryData;
       
-      // Auto-save
-      this.autoSave();
+      // Save removed - will save on Back/Complete/Close only
     },
     isNominee(option) {
       const categoryData = this.awardsData[this.selectedCategory];
@@ -951,43 +972,6 @@ export default {
     isActingCategory(categoryKey) {
       return categoryKey && (categoryKey.includes('Actor') || categoryKey.includes('Actress'));
     },
-    async autoSave() {
-      // Debounced auto-save to prevent too many Firebase writes
-      clearTimeout(this.autoSaveTimeout);
-      this.autoSaveTimeout = setTimeout(async () => {
-        const isNowComplete = this.completedCategories === this.totalCategories;
-        
-        const awardsEntry = {
-          completed: isNowComplete,
-          lastUpdated: Date.now(),
-          availableMovieIds: this.getMoviesForYear().map(entry => entry.movie.id),
-          categories: this.awardsData
-        };
-        
-        // Note: We no longer auto-set completion date or clear daily selection
-        // This prevents the modal from auto-closing when categories are completed
-        // Users must explicitly complete awards using the "Complete Awards" button
-        
-        const dbEntry = {
-          path: `settings/personalAwards/${this.currentYear}`,
-          value: awardsEntry
-        };
-        
-        try {
-          await this.$store.dispatch('setDBValue', dbEntry);
-          
-          // Show saved message briefly
-          this.showSavedMessage = true;
-          clearTimeout(this.savedTimeout);
-          this.savedTimeout = setTimeout(() => {
-            this.showSavedMessage = false;
-          }, 800); // Show for 0.8 seconds
-          
-        } catch (error) {
-          console.error('Auto-save error:', error);
-        }
-      }, 1000); // 1 second debounce
-    }
   }
 };
 </script>
@@ -1194,7 +1178,8 @@ export default {
           cursor: pointer;
           overflow: hidden;
           position: relative;
-          transition: all 0.2s;
+          transition: border-color 0.1s, box-shadow 0.1s;
+          will-change: border-color, box-shadow;
           
           // Light theme
           &.text-bg-light {
@@ -1363,11 +1348,7 @@ export default {
               border-radius: 6px;
               font-size: 0.8em;
               padding: 6px 12px;
-              transition: all 0.2s;
-              
-              &:hover {
-                transform: scale(1.02);
-              }
+              transition: background-color 0.1s;
               
               i {
                 margin-right: 6px;
@@ -1379,9 +1360,8 @@ export default {
             cursor: pointer;
             flex-grow: 0;
             flex-shrink: 0;
-            transition: transform 0.2s;
+            transition: opacity 0.1s;
             width: 62px;
-            
             
             &.winner {
               .nominee-poster-image {
@@ -1531,6 +1511,24 @@ export default {
     .btn {
       font-weight: 600;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: transform 0.1s, box-shadow 0.1s;
+      
+      // Mobile touch feedback
+      -webkit-tap-highlight-color: rgba(40, 167, 69, 0.3);
+      touch-action: manipulation;
+      
+      &:active {
+        transform: scale(0.98);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      }
+      
+      // Enhanced mobile touch states
+      @media (hover: none) and (pointer: coarse) {
+        &:active {
+          transform: scale(0.95);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+      }
       
       i {
         color: #ffd700;
@@ -1550,6 +1548,29 @@ export default {
   .btn-outline-secondary {
     border-color: #6c757d;
     color: #f8f9fa;
+    transition: background-color 0.1s, transform 0.1s;
+    
+    // Mobile touch feedback
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.3);
+    touch-action: manipulation;
+    
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-color: #adb5bd;
+    }
+    
+    &:active {
+      background-color: rgba(255, 255, 255, 0.2);
+      transform: scale(0.98);
+    }
+    
+    // Enhanced mobile touch states
+    @media (hover: none) and (pointer: coarse) {
+      &:active {
+        background-color: rgba(255, 255, 255, 0.3);
+        transform: scale(0.95);
+      }
+    }
   }
 }
 </style>

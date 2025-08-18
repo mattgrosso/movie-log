@@ -87,6 +87,29 @@ export default {
         display: flex;
         justify-content: center;
         align-items: center;
+        transition: background-color 0.1s, transform 0.1s;
+        border-radius: 4px;
+        
+        // Mobile touch feedback
+        -webkit-tap-highlight-color: rgba(255, 255, 255, 0.3);
+        touch-action: manipulation;
+        
+        &:hover {
+          background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        &:active {
+          background-color: rgba(255, 255, 255, 0.2);
+          transform: scale(0.95);
+        }
+        
+        // Additional mobile touch states
+        @media (hover: none) and (pointer: coarse) {
+          &:active {
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: scale(0.92);
+          }
+        }
       }
     }
 
