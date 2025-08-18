@@ -274,28 +274,53 @@ export default {
   },
   computed: {
     yearsEligibleForAwards() {
-      const yearCounts = {};
-      
-      this.allEntriesWithFlatKeywordsAdded.forEach(entry => {
-        // Exclude shorts (<40min) from awards consideration
-        if (entry.movie.runtime && entry.movie.runtime <= 40) {
-          return;
+      try {
+        if (!this.allEntriesWithFlatKeywordsAdded || !Array.isArray(this.allEntriesWithFlatKeywordsAdded)) {
+          return [];
         }
         
-        const year = new Date(entry.movie.release_date).getFullYear();
-        yearCounts[year] = (yearCounts[year] || 0) + 1;
-      });
+        const yearCounts = {};
+        
+        this.allEntriesWithFlatKeywordsAdded.forEach(entry => {
+          try {
+            if (!entry || !entry.movie || !entry.movie.release_date) {
+              return;
+            }
+            
+            // Exclude shorts (<40min) from awards consideration
+            if (entry.movie.runtime && entry.movie.runtime <= 40) {
+              return;
+            }
+            
+            const year = new Date(entry.movie.release_date).getFullYear();
+            if (isNaN(year)) return;
+            
+            yearCounts[year] = (yearCounts[year] || 0) + 1;
+          } catch (error) {
+            console.error('Error processing entry for year calculation:', entry, error);
+          }
+        });
 
-      const eligibleYears = Object.keys(yearCounts)
-        .filter(year => yearCounts[year] >= 10)
-        .map(year => parseInt(year))
-        .sort((a, b) => b - a); // Most recent first
+        const eligibleYears = Object.keys(yearCounts)
+          .filter(year => yearCounts[year] >= 10)
+          .map(year => parseInt(year))
+          .filter(year => !isNaN(year))
+          .sort((a, b) => b - a); // Most recent first
 
-      // Filter out years that are already completed (optional - since this is a "living record")
-      return eligibleYears.filter(year => {
-        const existingAwards = this.$store.state.settings.personalAwards?.[year];
-        return !existingAwards?.completed || this.hasNewMoviesForYear(year, existingAwards);
-      });
+        // Filter out years that are already completed (optional - since this is a "living record")
+        return eligibleYears.filter(year => {
+          try {
+            const existingAwards = this.$store.state.settings?.personalAwards?.[year];
+            return !existingAwards?.completed || this.hasNewMoviesForYear(year, existingAwards);
+          } catch (error) {
+            console.error('Error checking year eligibility:', year, error);
+            return false;
+          }
+        });
+      } catch (error) {
+        console.error('Error in yearsEligibleForAwards:', error);
+        return [];
+      }
     },
     categories() {
       return [
@@ -342,83 +367,111 @@ export default {
       return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
     },
     firstEligibleYear() {
-      if (this.yearsEligibleForAwards.length === 0) return null;
-      
-      // Filter to only incomplete years (years that need awards or have new movies)
-      const incompleteYears = this.yearsEligibleForAwards.filter(year => {
-        const existingAwards = this.$store.state.settings.personalAwards?.[year];
-        if (!existingAwards) return true; // New year needs awards
+      try {
+        if (!this.yearsEligibleForAwards || this.yearsEligibleForAwards.length === 0) return null;
         
-        // CRITICAL FIX: If awards exist but were NOT explicitly completed via "Complete Awards" button,
-        // the year should still be considered incomplete (this covers partial progress)
-        if (!existingAwards.completed) {
-          return true;
-        }
-        
-        // If explicitly completed, check if there are new movies since last awards update
-        if (!existingAwards.lastUpdated) return true;
-        
-        const newMovies = this.allEntriesWithFlatKeywordsAdded.filter(entry => {
-          const entryYear = new Date(entry.movie.release_date).getFullYear();
-          if (entryYear !== year) return false;
-          
-          const movieDate = new Date(entry.ratings[0]?.date || entry.movie.release_date);
-          return movieDate.getTime() > existingAwards.lastUpdated;
+        // Filter to only incomplete years (years that need awards or have new movies)
+        const incompleteYears = this.yearsEligibleForAwards.filter(year => {
+          try {
+            const existingAwards = this.$store.state.settings?.personalAwards?.[year];
+            if (!existingAwards) return true; // New year needs awards
+            
+            // CRITICAL FIX: If awards exist but were NOT explicitly completed via "Complete Awards" button,
+            // the year should still be considered incomplete (this covers partial progress)
+            if (!existingAwards.completed) {
+              return true;
+            }
+            
+            // If explicitly completed, check if there are new movies since last awards update
+            if (!existingAwards.lastUpdated) return true;
+            
+            if (!this.allEntriesWithFlatKeywordsAdded) return false;
+            
+            const newMovies = this.allEntriesWithFlatKeywordsAdded.filter(entry => {
+              try {
+                if (!entry || !entry.movie || !entry.movie.release_date) return false;
+                const entryYear = new Date(entry.movie.release_date).getFullYear();
+                if (entryYear !== year) return false;
+                
+                const movieDate = new Date(entry.ratings?.[0]?.date || entry.movie.release_date);
+                return movieDate.getTime() > existingAwards.lastUpdated;
+              } catch (error) {
+                console.error('Error checking new movies for year:', year, entry, error);
+                return false;
+              }
+            });
+            
+            return newMovies.length > 0;
+          } catch (error) {
+            console.error('Error filtering incomplete years:', year, error);
+            return false;
+          }
         });
         
-        return newMovies.length > 0;
-      });
-      
-      // Only return a year if there are incomplete years - don't show message if all years are complete
-      if (incompleteYears.length === 0) return null;
-      
-      // Check if we have a daily selected year that's still valid
-      const settings = this.$store.state.settings;
-      const today = new Date().toDateString();
-      const dailySelection = settings.dailyAwardsYear;
-      const dailySelectionDate = settings.dailyAwardsYearDate;
-      
-      // If we have a selection from today, use it (don't re-check if it's incomplete)
-      // Only override if the year is actually completed
-      if (dailySelection && dailySelectionDate === today) {
-        const existingAwards = settings.personalAwards?.[dailySelection];
-        const isCompleted = existingAwards && existingAwards.completed;
+        // Only return a year if there are incomplete years - don't show message if all years are complete
+        if (incompleteYears.length === 0) return null;
         
-        if (!isCompleted) {
-          return dailySelection; // Always return today's selection unless it's completed
+        // Check if we have a daily selected year that's still valid
+        const settings = this.$store.state.settings || {};
+        const today = new Date().toDateString();
+        const dailySelection = settings.dailyAwardsYear;
+        const dailySelectionDate = settings.dailyAwardsYearDate;
+        
+        // If we have a selection from today, use it (don't re-check if it's incomplete)
+        // Only override if the year is actually completed
+        if (dailySelection && dailySelectionDate === today) {
+          const existingAwards = settings.personalAwards?.[dailySelection];
+          const isCompleted = existingAwards && existingAwards.completed;
+          
+          if (!isCompleted) {
+            return dailySelection; // Always return today's selection unless it's completed
+          }
         }
-      }
-      
-      // Otherwise, pick a new year and persist it
-      // Prioritize years with partial progress (some categories have nominees/winners)
-      const yearsWithPartialProgress = incompleteYears.filter(year => {
-        const existingAwards = this.$store.state.settings.personalAwards?.[year];
-        if (!existingAwards || !existingAwards.categories) return false;
         
-        // Check if any category has nominees or winners
-        return Object.values(existingAwards.categories).some(categoryData => 
-          (categoryData.nominees && categoryData.nominees.length > 0) || 
-          categoryData.winner ||
-          categoryData.noNominees
-        );
-      });
-      
-      let selectedYear;
-      if (yearsWithPartialProgress.length > 0) {
-        // Prioritize years with partial progress
-        const randomIndex = Math.floor(Math.random() * yearsWithPartialProgress.length);
-        selectedYear = yearsWithPartialProgress[randomIndex];
-      } else {
-        // Fall back to any incomplete year
-        const randomIndex = Math.floor(Math.random() * incompleteYears.length);
-        selectedYear = incompleteYears[randomIndex];
+        // Otherwise, pick a new year and persist it
+        // Prioritize years with partial progress (some categories have nominees/winners)
+        const yearsWithPartialProgress = incompleteYears.filter(year => {
+          try {
+            const existingAwards = this.$store.state.settings?.personalAwards?.[year];
+            if (!existingAwards || !existingAwards.categories) return false;
+            
+            // Check if any category has nominees or winners
+            return Object.values(existingAwards.categories).some(categoryData => 
+              (categoryData.nominees && categoryData.nominees.length > 0) || 
+              categoryData.winner ||
+              categoryData.noNominees
+            );
+          } catch (error) {
+            console.error('Error checking partial progress for year:', year, error);
+            return false;
+          }
+        });
+        
+        let selectedYear;
+        if (yearsWithPartialProgress.length > 0) {
+          // Prioritize years with partial progress
+          const randomIndex = Math.floor(Math.random() * yearsWithPartialProgress.length);
+          selectedYear = yearsWithPartialProgress[randomIndex];
+        } else {
+          // Fall back to any incomplete year
+          const randomIndex = Math.floor(Math.random() * incompleteYears.length);
+          selectedYear = incompleteYears[randomIndex];
+        }
+        
+        // Persist the daily selection (don't await to avoid blocking UI)
+        // Wrap in try-catch to prevent dispatch errors from crashing
+        try {
+          this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYear', value: selectedYear });
+          this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYearDate', value: today });
+        } catch (error) {
+          console.error('Error persisting daily selection:', error);
+        }
+        
+        return selectedYear;
+      } catch (error) {
+        console.error('Error in firstEligibleYear:', error);
+        return null;
       }
-      
-      // Persist the daily selection (don't await to avoid blocking UI)
-      this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYear', value: selectedYear });
-      this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYearDate', value: today });
-      
-      return selectedYear;
     }
   },
   methods: {
@@ -438,9 +491,15 @@ export default {
       this.selectedCategory = null;
     },
     async backToCategories() {
-      // Save current progress before going back
-      await this.saveCurrentState();
-      this.selectedCategory = null;
+      try {
+        // Save current progress before going back
+        await this.saveCurrentState();
+      } catch (error) {
+        console.error('Save error on back:', error);
+        // Continue anyway - don't block navigation
+      } finally {
+        this.selectedCategory = null;
+      }
     },
     async completeYearAndClose() {
       // Prevent multiple clicks
@@ -530,8 +589,15 @@ export default {
     async selectCategory(categoryKey) {
       this.selectedCategory = categoryKey;
       this.loadingOptions = true;
-      this.eligibleOptions = await this.getEligibleOptions();
-      this.loadingOptions = false;
+      
+      try {
+        this.eligibleOptions = await this.getEligibleOptions();
+      } catch (error) {
+        console.error('Error loading options for category:', categoryKey, error);
+        this.eligibleOptions = []; // Fallback to empty array
+      } finally {
+        this.loadingOptions = false;
+      }
     },
     getCurrentCategoryName() {
       const category = this.categories.find(cat => cat.key === this.selectedCategory);
@@ -572,11 +638,28 @@ export default {
       return null;
     },
     getMoviesForYear() {
-      return this.allEntriesWithFlatKeywordsAdded.filter(entry => {
-        const yearMatch = new Date(entry.movie.release_date).getFullYear() === this.currentYear;
-        const notShort = !entry.movie.runtime || entry.movie.runtime > 40; // Exclude shorts
-        return yearMatch && notShort;
-      });
+      try {
+        if (!this.allEntriesWithFlatKeywordsAdded || !Array.isArray(this.allEntriesWithFlatKeywordsAdded)) {
+          return [];
+        }
+        
+        return this.allEntriesWithFlatKeywordsAdded.filter(entry => {
+          try {
+            if (!entry || !entry.movie || !entry.movie.release_date) {
+              return false;
+            }
+            const yearMatch = new Date(entry.movie.release_date).getFullYear() === this.currentYear;
+            const notShort = !entry.movie.runtime || entry.movie.runtime > 40; // Exclude shorts
+            return yearMatch && notShort;
+          } catch (error) {
+            console.error('Error processing movie entry:', entry, error);
+            return false;
+          }
+        });
+      } catch (error) {
+        console.error('Error in getMoviesForYear:', error);
+        return [];
+      }
     },
     async getEligibleOptions() {
       const category = this.categories.find(cat => cat.key === this.selectedCategory);
@@ -685,49 +768,68 @@ export default {
       const filteredPeople = [];
       
       for (const person of people) {
-        if (!person.needsGenderCheck) {
-          filteredPeople.push(person);
-          continue;
-        }
-        
-        const details = await this.getDetailsForCastMember(person.name);
-        if (!details || typeof details.gender !== 'number') continue;
-        
-        // Apply inclusive gender logic
-        let genderMatches = false;
-        if (person.isActress) {
-          genderMatches = details.gender === 1 || details.gender === 3; // Female + Other for actress categories
-        } else {
-          genderMatches = details.gender === 2 || details.gender === 3; // Male + Other for actor categories
-        }
-        
-        if (genderMatches) {
-          filteredPeople.push({
-            ...person,
-            details: details, // Include the full TMDb details
-            needsGenderCheck: false
-          });
+        try {
+          if (!person.needsGenderCheck) {
+            filteredPeople.push(person);
+            continue;
+          }
+          
+          const details = await this.getDetailsForCastMember(person.name);
+          if (!details || typeof details.gender !== 'number') continue;
+          
+          // Apply inclusive gender logic
+          let genderMatches = false;
+          if (person.isActress) {
+            genderMatches = details.gender === 1 || details.gender === 3; // Female + Other for actress categories
+          } else {
+            genderMatches = details.gender === 2 || details.gender === 3; // Male + Other for actor categories
+          }
+          
+          if (genderMatches) {
+            filteredPeople.push({
+              ...person,
+              details: details, // Include the full TMDb details
+              needsGenderCheck: false
+            });
+          }
+        } catch (error) {
+          console.error('Error filtering person by gender:', person.name, error);
+          // Continue with next person - don't let one API failure crash everything
         }
       }
       
       return filteredPeople;
     },
     getOptionId(option) {
-      if (option.movie && !option.id) {
-        // This is a movie option
-        return `movie-${option.movie.id}`;
-      } else {
-        // This is a person option
-        return `person-${option.id}-${option.movieId}`;
+      try {
+        if (!option) return 'unknown';
+        
+        if (option.movie && !option.id) {
+          // This is a movie option
+          return `movie-${option.movie.id || 'unknown'}`;
+        } else {
+          // This is a person option
+          return `person-${option.id || 'unknown'}-${option.movieId || 'unknown'}`;
+        }
+      } catch (error) {
+        console.error('Error getting option ID:', option, error);
+        return 'error';
       }
     },
     getOptionTitle(option) {
-      if (option.movie && !option.id) {
-        // This is a movie option
-        return option.movie.title;
-      } else {
-        // This is a person option
-        return option.name;
+      try {
+        if (!option) return 'Unknown';
+        
+        if (option.movie && !option.id) {
+          // This is a movie option
+          return option.movie.title || 'Unknown Movie';
+        } else {
+          // This is a person option
+          return option.name || 'Unknown Person';
+        }
+      } catch (error) {
+        console.error('Error getting option title:', option, error);
+        return 'Error';
       }
     },
     getOptionSubtitle(option) {
@@ -966,8 +1068,13 @@ export default {
       }
     },
     mostRecentRating(media) {
-      // Use the same mostRecentRating logic as the main app
-      return getRating(media);
+      try {
+        // Use the same mostRecentRating logic as the main app
+        return getRating(media) || { calculatedTotal: 0 };
+      } catch (error) {
+        console.error('Error getting most recent rating:', media, error);
+        return { calculatedTotal: 0 };
+      }
     },
     isActingCategory(categoryKey) {
       return categoryKey && (categoryKey.includes('Actor') || categoryKey.includes('Actress'));
