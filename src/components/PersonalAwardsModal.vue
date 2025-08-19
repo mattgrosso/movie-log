@@ -237,6 +237,22 @@
 import Modal from './Modal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 
+// Add global error handlers for debugging
+window.addEventListener('error', (event) => {
+  console.error('🚨 GLOBAL ERROR: Uncaught error detected');
+  console.error('🚨 GLOBAL ERROR: Message:', event.message);
+  console.error('🚨 GLOBAL ERROR: Filename:', event.filename);
+  console.error('🚨 GLOBAL ERROR: Line:', event.lineno);
+  console.error('🚨 GLOBAL ERROR: Column:', event.colno);
+  console.error('🚨 GLOBAL ERROR: Error object:', event.error);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('🚨 GLOBAL PROMISE REJECTION: Unhandled promise rejection detected');
+  console.error('🚨 GLOBAL PROMISE REJECTION: Reason:', event.reason);
+  console.error('🚨 GLOBAL PROMISE REJECTION: Promise:', event.promise);
+});
+
 export default {
   name: "PersonalAwardsModal",
   props: {
@@ -491,15 +507,19 @@ export default {
       this.selectedCategory = null;
     },
     async backToCategories() {
-      try {
-        // Save current progress before going back
-        await this.saveCurrentState();
-      } catch (error) {
-        console.error('Save error on back:', error);
-        // Continue anyway - don't block navigation
-      } finally {
-        this.selectedCategory = null;
-      }
+      console.log('🔄 BACK CLICKED: Navigating immediately');
+      
+      // Navigate immediately without any processing
+      this.selectedCategory = null;
+      console.log('✅ BACK: Navigated immediately');
+      
+      // Use setTimeout to push save to next event loop cycle
+      setTimeout(() => {
+        this.saveCurrentState().catch(error => {
+          console.error('🚨 BACKGROUND SAVE FAILED:', error.message);
+          // Could show a toast notification here if needed
+        });
+      }, 0);
     },
     async completeYearAndClose() {
       // Prevent multiple clicks
@@ -507,6 +527,8 @@ export default {
       this.submitting = true;
       
       try {
+        console.log('🏆 COMPLETING YEAR:', this.currentYear);
+        
         // Save the awards entry
         await this.$store.dispatch('setDBValue', {
           path: `settings/personalAwards/${this.currentYear}`,
@@ -531,9 +553,10 @@ export default {
         
         // Close modal
         this.closeModal();
+        console.log('✅ YEAR COMPLETED');
         
       } catch (error) {
-        console.error('Complete year error:', error);
+        console.error('🚨 COMPLETE YEAR FAILED:', error.message);
         // Still close even if save fails
         this.closeModal();
       } finally {
@@ -541,48 +564,96 @@ export default {
       }
     },
     openModal() {
-      this.showModal = true;
-      this.currentYear = this.firstEligibleYear; // Use the pre-selected random year
-      this.initializeAwardsData();
-      
-      // Don't set timestamp on open - only when user dismisses modal
+      try {
+        this.showModal = true;
+        this.currentYear = this.firstEligibleYear;
+        this.initializeAwardsData();
+        console.log('🏆 MODAL OPENED: Year', this.currentYear);
+      } catch (error) {
+        console.error('🚨 MODAL OPEN FAILED:', error.message);
+      }
     },
     closeModal() {
-      // Close immediately - no save needed since Back/Complete buttons handle saving
-      this.showModal = false;
-      this.selectedCategory = null;
-      this.awardsData = {};
+      try {
+        this.showModal = false;
+        this.selectedCategory = null;
+        this.awardsData = {};
+      } catch (error) {
+        console.error('🚨 MODAL CLOSE FAILED:', error.message);
+      }
     },
     async saveCurrentState() {
-      // Final save method that runs immediately (no debounce)
       try {
         const isNowComplete = this.completedCategories === this.totalCategories;
+        
+        // Optimize: Only get movie IDs if we don't already have them
+        let movieIds = [];
+        const existingData = this.$store.state.settings.personalAwards?.[this.currentYear];
+        if (existingData?.availableMovieIds) {
+          movieIds = existingData.availableMovieIds;
+        } else {
+          const moviesForYear = this.getMoviesForYear();
+          movieIds = moviesForYear.map(entry => entry?.movie?.id).filter(id => id);
+        }
+        
+        // Create minimal data structure by removing huge movie objects
+        const cleanedCategories = {};
+        Object.keys(this.awardsData).forEach(key => {
+          const categoryData = this.awardsData[key];
+          if (categoryData) {
+            cleanedCategories[key] = {
+              nominees: (categoryData.nominees || []).map(nominee => this.convertNomineeToMinimal(nominee)),
+              winner: categoryData.winner ? this.convertNomineeToMinimal(categoryData.winner) : null,
+              noNominees: categoryData.noNominees || false
+            };
+          }
+        });
         
         const awardsEntry = {
           completed: isNowComplete,
           lastUpdated: Date.now(),
-          availableMovieIds: this.getMoviesForYear().map(entry => entry.movie.id),
-          categories: this.awardsData
+          availableMovieIds: movieIds,
+          categories: cleanedCategories
         };
         
-        const dbEntry = {
+        const dataSize = JSON.stringify(awardsEntry).length;
+        console.log('💾 BACKGROUND SAVE:', this.currentYear, `(${dataSize} chars)`);
+        
+        await this.$store.dispatch('setDBValue', {
           path: `settings/personalAwards/${this.currentYear}`,
           value: awardsEntry
-        };
+        });
         
-        await this.$store.dispatch('setDBValue', dbEntry);
+        console.log('✅ BACKGROUND SAVE: Complete');
         
       } catch (error) {
-        console.error('Final save error:', error);
+        console.error('🚨 BACKGROUND SAVE FAILED:', error.message);
+        console.error('🚨 BACKGROUND SAVE ERROR CODE:', error.code);
         // Don't rethrow - just log the error
       }
     },
     initializeAwardsData() {
-      // Load existing awards data for this year if it exists
-      const existingAwards = this.$store.state.settings.personalAwards?.[this.currentYear];
-      if (existingAwards) {
-        this.awardsData = { ...existingAwards.categories };
-      } else {
+      try {
+        const existingAwards = this.$store.state.settings.personalAwards?.[this.currentYear];
+        if (existingAwards && existingAwards.categories) {
+          // Expand minimal nominees back to full objects for display
+          this.awardsData = {};
+          Object.keys(existingAwards.categories).forEach(categoryKey => {
+            const categoryData = existingAwards.categories[categoryKey];
+            this.awardsData[categoryKey] = {
+              nominees: (categoryData.nominees || [])
+                .map(nominee => this.expandNomineeFromMinimal(nominee))
+                .filter(nominee => nominee !== null), // Remove any that couldn't be expanded
+              winner: categoryData.winner ? this.expandNomineeFromMinimal(categoryData.winner) : null,
+              noNominees: categoryData.noNominees || false
+            };
+          });
+          console.log('📂 LOADED AWARDS: Expanded', Object.keys(this.awardsData).length, 'categories');
+        } else {
+          this.awardsData = {};
+        }
+      } catch (error) {
+        console.error('🚨 INIT FAILED:', error.message);
         this.awardsData = {};
       }
     },
@@ -1075,6 +1146,107 @@ export default {
         console.error('Error getting most recent rating:', media, error);
         return { calculatedTotal: 0 };
       }
+    },
+    convertNomineeToMinimal(nominee) {
+      // Convert nominees to minimal storage format while preserving role data
+      if (!nominee) return null;
+      
+      // Check if this is a person nominee (has name and movieId)
+      if (nominee.name && nominee.movieId) {
+        // This is a person (actor/actress/director)
+        const minimal = {
+          type: 'person',
+          id: nominee.id,
+          name: nominee.name,
+          movieId: nominee.movieId
+        };
+        
+        // Preserve role-specific data
+        if (nominee.character) {
+          minimal.character = nominee.character; // For actors/actresses
+        }
+        if (nominee.directors) {
+          minimal.directors = nominee.directors; // For directors
+        }
+        if (nominee.details && nominee.details.profile_path) {
+          minimal.profilePath = nominee.details.profile_path; // For display
+        }
+        
+        return minimal;
+      } 
+      
+      // Check if this is a movie nominee (has movie property)
+      else if (nominee.movie) {
+        // This is a movie entry
+        return {
+          type: 'movie',
+          movieId: nominee.movie.id
+          // No additional role data needed for movies
+        };
+      }
+      
+      // Fallback - unknown structure
+      console.warn('🤔 Unknown nominee structure:', nominee);
+      return nominee;
+    },
+    expandNomineeFromMinimal(minimalNominee) {
+      // Convert minimal storage back to full nominee for display
+      if (!minimalNominee) return null;
+      
+      // Handle legacy data - if it already has a movie object, it's not minimal
+      if (minimalNominee.movie) {
+        return minimalNominee; // Already expanded/legacy format
+      }
+      
+      if (minimalNominee.type === 'person') {
+        // Find the movie from our movie log
+        const movieEntry = this.allEntriesWithFlatKeywordsAdded.find(entry => 
+          entry.movie.id === minimalNominee.movieId
+        );
+        
+        if (!movieEntry) {
+          console.warn('⚠️ Could not find movie for person nominee:', minimalNominee);
+          return null;
+        }
+        
+        // Reconstruct person nominee
+        const expanded = {
+          id: minimalNominee.id,
+          name: minimalNominee.name,
+          movieId: minimalNominee.movieId,
+          movie: movieEntry.movie // Add back the movie object for display
+        };
+        
+        // Restore role-specific data
+        if (minimalNominee.character) {
+          expanded.character = minimalNominee.character;
+        }
+        if (minimalNominee.directors) {
+          expanded.directors = minimalNominee.directors;
+        }
+        if (minimalNominee.profilePath) {
+          expanded.details = { profile_path: minimalNominee.profilePath };
+        }
+        
+        return expanded;
+      }
+      
+      else if (minimalNominee.type === 'movie') {
+        // Find the full movie entry
+        const movieEntry = this.allEntriesWithFlatKeywordsAdded.find(entry => 
+          entry.movie.id === minimalNominee.movieId
+        );
+        
+        if (!movieEntry) {
+          console.warn('⚠️ Could not find movie entry:', minimalNominee);
+          return null;
+        }
+        
+        return movieEntry; // Return the full entry for movie nominees
+      }
+      
+      // Fallback for unknown types or legacy data
+      return minimalNominee;
     },
     isActingCategory(categoryKey) {
       return categoryKey && (categoryKey.includes('Actor') || categoryKey.includes('Actress'));

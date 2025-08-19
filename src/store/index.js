@@ -293,16 +293,15 @@ export default createStore({
       context.dispatch('initializeDB');
     },
     async setDBValue (context, dbEntry) {
-      const cleanedDBEntry = removeNaNAndUndefined(dbEntry.value);
-
-      set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedDBEntry)
-        .then(() => {
-          console.log('setDBValue success');
-        })
-        .catch((error) => {
-          console.error(error);
-          Sentry.captureException(error);
-        });
+      const startTime = performance.now();
+      
+      try {
+        const cleanedDBEntry = removeNaNAndUndefined(dbEntry.value);
+        
+        await set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedDBEntry);
+      } catch (error) {
+        throw error;
+      }
     },
     // This action adds a TV show to the list of recently rated TV shows in the user's settings.
   },
