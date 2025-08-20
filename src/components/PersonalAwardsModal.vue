@@ -859,7 +859,7 @@ export default {
       } else {
         // For acting categories, use movie-grouped approach
         const optionsByMovie = await this.extractAndGroupPeopleByMovie(moviesForYear, this.selectedCategory);
-        
+
         // Sort movies by their performance rating (same as old system)
         // First create array of movie entries for sorting
         const movieEntries = Object.keys(optionsByMovie).map(movieId => {
@@ -958,7 +958,7 @@ export default {
             const batchSize = 3;
             const castBatch = movieGroup.allCast.slice(currentIndex, currentIndex + batchSize);
             if (castBatch.length === 0) break;
-            
+
             const filteredBatch = await this.filterCastMembersByGender(castBatch);
             processedCast.push(...filteredBatch);
             currentIndex += batchSize;
@@ -984,14 +984,22 @@ export default {
           }
           
           const details = await this.getDetailsForCastMember(person.name);
-          if (!details || typeof details.gender !== 'number') continue;
+          // If we can't determine gender, include the person (inclusive approach)
+          if (!details || typeof details.gender !== 'number') {
+            filteredCast.push({
+              ...person,
+              details: details,
+              needsGenderCheck: false
+            });
+            continue;
+          }
           
           // Apply inclusive gender logic
           let genderMatches = false;
           if (person.isActress) {
-            genderMatches = details.gender === 1 || details.gender === 3; // Female + Other
+            genderMatches = details.gender === 0 || details.gender === 1 || details.gender === 3; // Female + Other
           } else {
-            genderMatches = details.gender === 2 || details.gender === 3; // Male + Other
+            genderMatches = details.gender === 0 || details.gender === 2 || details.gender === 3; // Male + Other
           }
           
           if (genderMatches) {
@@ -1230,7 +1238,16 @@ export default {
           
           count++;
           const details = await this.getDetailsForCastMember(person.name);
-          if (!details || typeof details.gender !== 'number') continue;
+          
+          // If we can't determine gender, include the person (inclusive approach)
+          if (!details || typeof details.gender !== 'number') {
+            filteredPeople.push({
+              ...person,
+              details: details, // Include the full TMDb details
+              needsGenderCheck: false
+            });
+            continue;
+          }
           
           // Apply inclusive gender logic
           let genderMatches = false;
