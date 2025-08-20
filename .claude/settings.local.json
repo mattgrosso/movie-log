@@ -47,7 +47,8 @@
       "WebFetch(domain:www.myapifilms.com)",
       "WebFetch(domain:www.themoviedb.org)",
       "WebFetch(domain:www.superheroapi.com)",
-      "WebFetch(domain:developers.google.com)"
+      "WebFetch(domain:developers.google.com)",
+      "Bash(PATCH=true yarn build)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

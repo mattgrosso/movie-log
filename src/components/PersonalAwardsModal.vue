@@ -41,11 +41,11 @@
                 class="category-btn"
                 :class="[
                   {'completed': category.completed, 'disabled': category.disabled}, 
-                  darkOrLight
+                  'text-bg-dark'
                 ]"
                 :disabled="category.disabled"
-                @click="category.disabled ? null : selectCategory(category.key)"
                 :title="category.disabledReason || ''"
+                @click="category.disabled ? null : selectCategory(category.key)"
               >
                 <span class="category-status" v-if="category.completed">
                   <span class="green-checkmark">
@@ -84,9 +84,8 @@
                   <!-- No nominees button when category is empty -->
                   <div v-if="getCurrentNominees().length === 0" class="no-nominees-placeholder">
                     <button 
-                      class="btn btn-sm btn-outline-secondary no-nominees-btn"
+                      class="btn btn-sm btn-outline-secondary no-nominees-btn text-bg-dark"
                       @click="markCategoryAsNoNominees"
-                      :class="darkOrLight"
                     >
                       <i class="fas fa-ban"></i>
                       No nominees for now
@@ -151,54 +150,122 @@
             <!-- Available Options Section -->
             <div class="available-options-section">
               <h6 class="section-title">Available Options:</h6>
-              <div class="nominees-grid">
-                <div v-if="loadingOptions" class="loading-container">
-                  <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                  </div>
-                  <p class="mt-2">Loading nominees...</p>
+              <!-- Loading state -->
+              <div v-if="loadingOptions" class="loading-container">
+                <div class="spinner-border" role="status">
+                  <span class="visually-hidden">Loading...</span>
                 </div>
+                <p class="mt-2">Loading nominees...</p>
+              </div>
+              
+              <!-- Movie-grouped options (for acting categories) -->
+              <div v-else-if="isActingCategory(selectedCategory)" class="movie-groups">
                 <div 
-                  v-else
-                  v-for="option in eligibleOptions" 
-                  :key="getOptionId(option)"
-                  class="nominee-tile"
-                  :class="[{'winner': isWinner(option)}, darkOrLight]"
-                  @click="toggleNominee(option)"
+                  v-for="movieGroup in eligibleOptionsByMovie" 
+                  :key="movieGroup.movieId"
+                  class="movie-group"
                 >
-                  <!-- Image container -->
-                  <div class="nominee-image">
-                    <img 
-                      v-if="isActingCategory(selectedCategory) && option.details && option.details.profile_path"
-                      :src="`https://image.tmdb.org/t/p/w154${option.details.profile_path}`" 
-                      :alt="option.name"
+                  <!-- Movie header -->
+                  <div class="movie-group-header">
+                    <h6 class="movie-title">{{ movieGroup.movie.title }}</h6>
+                    <span class="movie-year">({{ new Date(movieGroup.movie.release_date).getFullYear() }})</span>
+                  </div>
+                  
+                  <!-- Cast members grid for this movie -->
+                  <div class="nominees-grid">
+                    <div 
+                      v-for="option in movieGroup.loadedCast" 
+                      :key="getOptionId(option)"
+                      class="nominee-tile text-bg-dark"
+                      :class="[{'winner': isWinner(option)}]"
+                      @click="toggleNominee(option)"
                     >
-                    <img 
-                      v-else-if="isActingCategory(selectedCategory)"
-                      src="../assets/images/Image_not_available.png"
-                      :alt="option.name"
-                    >
-                    <img 
-                      v-else-if="option.movie && option.movie.poster_path"
-                      :src="`https://image.tmdb.org/t/p/w154${option.movie.poster_path}`" 
-                      :alt="getOptionTitle(option)"
-                    >
-                    
-                    <!-- Status overlay -->
-                    <div class="nominee-status-overlay">
-                      <span v-if="isWinner(option)" class="status-icon winner">👑</span>
-                      <span v-else-if="isNominee(option)" class="status-icon nominee"><i class="bi bi-check"></i></span>
+                      <!-- Image container -->
+                      <div class="nominee-image">
+                        <img 
+                          v-if="isActingCategory(selectedCategory) && option.details && option.details.profile_path"
+                          :src="`https://image.tmdb.org/t/p/w154${option.details.profile_path}`" 
+                          :alt="option.name"
+                        >
+                        <img 
+                          v-else-if="isActingCategory(selectedCategory)"
+                          src="../assets/images/Image_not_available.png"
+                          :alt="option.name"
+                        >
+                        <img 
+                          v-else-if="option.movie && option.movie.poster_path"
+                          :src="`https://image.tmdb.org/t/p/w154${option.movie.poster_path}`" 
+                          :alt="getOptionTitle(option)"
+                        >
+                        
+                        <!-- Status overlay -->
+                        <div class="nominee-status-overlay">
+                          <span v-if="isWinner(option)" class="status-icon winner">👑</span>
+                          <span v-else-if="isNominee(option)" class="status-icon nominee"><i class="bi bi-check"></i></span>
+                        </div>
+                      </div>
+                      
+                      <!-- Text overlay -->
+                      <div class="nominee-info-overlay">
+                        <div class="nominee-title">{{ getOptionTitle(option) }}</div>
+                        <div class="nominee-movie" v-if="getOptionMovie(option)">
+                          {{ getOptionMovie(option) }}
+                        </div>
+                        <div class="nominee-role" v-if="getOptionRole(option)">
+                          {{ getOptionRole(option) }}
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
-                  <!-- Text overlay -->
-                  <div class="nominee-info-overlay">
-                    <div class="nominee-title">{{ getOptionTitle(option) }}</div>
-                    <div class="nominee-movie" v-if="getOptionMovie(option)">
-                      {{ getOptionMovie(option) }}
+                  <!-- Load more button for this movie -->
+                  <div v-if="movieGroup.hasMore || movieGroup.isLoading" class="load-more-section">
+                    <button 
+                      class="btn btn-sm btn-outline-secondary load-more-btn"
+                      :disabled="movieGroup.isLoading"
+                      @click="loadMoreForMovie(movieGroup.movieId)"
+                    >
+                      <span v-if="movieGroup.isLoading" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                      <i v-else class="fas fa-plus me-2"></i>
+                      {{ movieGroup.isLoading ? 'Loading...' : 'Load more cast' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Simple grid for non-acting categories -->
+              <div v-else class="simple-options">
+                <div class="nominees-grid">
+                  <div 
+                    v-for="option in eligibleOptions" 
+                    :key="getOptionId(option)"
+                    class="nominee-tile text-bg-dark"
+                    :class="[{'winner': isWinner(option)}]"
+                    @click="toggleNominee(option)"
+                  >
+                    <!-- Image container -->
+                    <div class="nominee-image">
+                      <img 
+                        v-if="option.movie && option.movie.poster_path"
+                        :src="`https://image.tmdb.org/t/p/w154${option.movie.poster_path}`" 
+                        :alt="getOptionTitle(option)"
+                      >
+                      <img 
+                        v-else
+                        src="../assets/images/Image_not_available.png"
+                        :alt="getOptionTitle(option)"
+                      >
+                      
+                      <!-- Status overlay -->
+                      <div class="nominee-status-overlay">
+                        <span v-if="isWinner(option)" class="status-icon winner">👑</span>
+                        <span v-else-if="isNominee(option)" class="status-icon nominee"><i class="bi bi-check"></i></span>
+                      </div>
                     </div>
-                    <div class="nominee-role" v-if="getOptionRole(option)">
-                      {{ getOptionRole(option) }}
+                    
+                    <!-- Text overlay -->
+                    <div class="nominee-info-overlay">
+                      <div class="nominee-title">{{ getOptionTitle(option) }}</div>
                     </div>
                   </div>
                 </div>
@@ -214,11 +281,11 @@
             <button 
               class="btn btn-success w-100"
               @click="completeYearAndClose"
-              :disabled="submitting"
+              :disabled="savingState"
             >
-              <span v-if="submitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
+              <span v-if="savingState" class="spinner-border spinner-border-sm me-2" role="status"></span>
               <i v-else class="fas fa-trophy me-2"></i>
-              {{ submitting ? 'Completing...' : `Complete ${currentYear} Awards` }}
+              {{ savingState ? 'Completing...' : `Complete ${currentYear} Awards` }}
             </button>
           </div>
           
@@ -236,22 +303,6 @@
 <script>
 import Modal from './Modal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-
-// Add global error handlers for debugging
-window.addEventListener('error', (event) => {
-  console.error('🚨 GLOBAL ERROR: Uncaught error detected');
-  console.error('🚨 GLOBAL ERROR: Message:', event.message);
-  console.error('🚨 GLOBAL ERROR: Filename:', event.filename);
-  console.error('🚨 GLOBAL ERROR: Line:', event.lineno);
-  console.error('🚨 GLOBAL ERROR: Column:', event.colno);
-  console.error('🚨 GLOBAL ERROR: Error object:', event.error);
-});
-
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('🚨 GLOBAL PROMISE REJECTION: Unhandled promise rejection detected');
-  console.error('🚨 GLOBAL PROMISE REJECTION: Reason:', event.reason);
-  console.error('🚨 GLOBAL PROMISE REJECTION: Promise:', event.promise);
-});
 
 export default {
   name: "PersonalAwardsModal",
@@ -279,13 +330,16 @@ export default {
   data() {
     return {
       showModal: false,
-      submitting: false,
+      savingState: false,
       selectedCategory: null,
       currentYear: null,
       awardsData: {},
-      migrationCompleted: false, // Flag to prevent repeated migrations
-      eligibleOptions: [],
-      loadingOptions: false
+      eligibleOptions: [], // For movie categories: simple array. For acting: movie-grouped array
+      loadingOptions: false,
+      // Cache expensive operations per year/category
+      optionsCache: {}, // Format: { "1994-bestActor": [{ movieId, movie, loadedCast, hasMore }] }
+      // Cache TMDb person details across all categories
+      personDetailsCache: {} // Format: { "Tom Hanks": { gender, profile_path, etc. } }
     };
   },
   computed: {
@@ -377,10 +431,6 @@ export default {
     },
     hasNewMovies() {
       return this.newMoviesForCurrentYear.length > 0;
-    },
-    darkOrLight() {
-      const inDarkMode = document.querySelector("body").classList.contains('bg-dark');
-      return { 'text-bg-dark': inDarkMode, 'text-bg-light': !inDarkMode };
     },
     firstEligibleYear() {
       try {
@@ -477,8 +527,14 @@ export default {
         // Persist the daily selection (don't await to avoid blocking UI)
         // Wrap in try-catch to prevent dispatch errors from crashing
         try {
-          this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYear', value: selectedYear });
-          this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYearDate', value: today });
+          this.$store.dispatch('setDBValue', { 
+            path: 'settings/dailyAwardsYear',
+            value: selectedYear
+          });
+          this.$store.dispatch('setDBValue', {
+            path: 'settings/dailyAwardsYearDate',
+            value: today
+          });
         } catch (error) {
           console.error('Error persisting daily selection:', error);
         }
@@ -488,6 +544,13 @@ export default {
         console.error('Error in firstEligibleYear:', error);
         return null;
       }
+    },
+    eligibleOptionsByMovie() {
+      // Only return movie-grouped data for acting categories
+      if (this.isActingCategory(this.selectedCategory)) {
+        return this.eligibleOptions;
+      }
+      return [];
     }
   },
   methods: {
@@ -507,38 +570,15 @@ export default {
       this.selectedCategory = null;
     },
     async backToCategories() {
-      console.log('🔄 BACK CLICKED: Navigating immediately');
-      
-      // Navigate immediately without any processing
       this.selectedCategory = null;
-      console.log('✅ BACK: Navigated immediately');
       
-      // Use setTimeout to push save to next event loop cycle
+      // Queue save in background - store handles deduplication and sequencing
       setTimeout(() => {
-        this.saveCurrentState().catch(error => {
-          console.error('🚨 BACKGROUND SAVE FAILED:', error.message);
-          // Could show a toast notification here if needed
-        });
+        this.saveCurrentState()
       }, 0);
     },
-    async completeYearAndClose() {
-      // Prevent multiple clicks
-      if (this.submitting) return;
-      this.submitting = true;
-      
+    async completeYearAndClose() {      
       try {
-        console.log('🏆 COMPLETING YEAR:', this.currentYear);
-        
-        // Save the awards entry
-        await this.$store.dispatch('setDBValue', {
-          path: `settings/personalAwards/${this.currentYear}`,
-          value: {
-            completed: true,
-            lastUpdated: Date.now(),
-            categories: this.awardsData
-          }
-        });
-        
         // Record completion date
         await this.$store.dispatch('setDBValue', {
           path: 'settings/lastAwardCompletionDate',
@@ -550,17 +590,20 @@ export default {
           path: 'settings/dailyAwardsYear',
           value: null
         });
+
+        // Queue save in background - store handles deduplication and sequencing
+        setTimeout(() => {
+          this.saveCurrentState()
+        }, 0);
         
         // Close modal
         this.closeModal();
-        console.log('✅ YEAR COMPLETED');
-        
       } catch (error) {
         console.error('🚨 COMPLETE YEAR FAILED:', error.message);
         // Still close even if save fails
         this.closeModal();
       } finally {
-        this.submitting = false;
+        this.savingState = false;
       }
     },
     openModal() {
@@ -568,7 +611,14 @@ export default {
         this.showModal = true;
         this.currentYear = this.firstEligibleYear;
         this.initializeAwardsData();
-        console.log('🏆 MODAL OPENED: Year', this.currentYear);
+        
+        // Clear options cache for new session
+        this.optionsCache = {};
+        this.personDetailsCache = {};
+        
+        // Clean up old localStorage entries (24+ hours old)
+        this.cleanupLocalStorageCache();
+        
       } catch (error) {
         console.error('🚨 MODAL OPEN FAILED:', error.message);
       }
@@ -578,11 +628,16 @@ export default {
         this.showModal = false;
         this.selectedCategory = null;
         this.awardsData = {};
+        this.eligibleOptions = [];
       } catch (error) {
         console.error('🚨 MODAL CLOSE FAILED:', error.message);
       }
     },
     async saveCurrentState() {
+      // Prevent multiple clicks
+      if (this.savingState) return;
+      this.savingState = true;
+
       try {
         const isNowComplete = this.completedCategories === this.totalCategories;
         
@@ -602,7 +657,7 @@ export default {
           const categoryData = this.awardsData[key];
           if (categoryData) {
             cleanedCategories[key] = {
-              nominees: (categoryData.nominees || []).map(nominee => this.convertNomineeToMinimal(nominee)),
+              nominees: (categoryData.nominees || []).map(nominee => this.convertNomineeToMinimal(nominee)).filter(n => n),
               winner: categoryData.winner ? this.convertNomineeToMinimal(categoryData.winner) : null,
               noNominees: categoryData.noNominees || false
             };
@@ -615,21 +670,17 @@ export default {
           availableMovieIds: movieIds,
           categories: cleanedCategories
         };
+
         
-        const dataSize = JSON.stringify(awardsEntry).length;
-        console.log('💾 BACKGROUND SAVE:', this.currentYear, `(${dataSize} chars)`);
-        
+        // Queue the save - store handles deduplication and sequencing
         await this.$store.dispatch('setDBValue', {
           path: `settings/personalAwards/${this.currentYear}`,
           value: awardsEntry
         });
         
-        console.log('✅ BACKGROUND SAVE: Complete');
-        
+        this.savingState = false;
       } catch (error) {
-        console.error('🚨 BACKGROUND SAVE FAILED:', error.message);
-        console.error('🚨 BACKGROUND SAVE ERROR CODE:', error.code);
-        // Don't rethrow - just log the error
+        console.error('🚨 SAVE PREPARATION FAILED:', error.message);
       }
     },
     initializeAwardsData() {
@@ -648,7 +699,6 @@ export default {
               noNominees: categoryData.noNominees || false
             };
           });
-          console.log('📂 LOADED AWARDS: Expanded', Object.keys(this.awardsData).length, 'categories');
         } else {
           this.awardsData = {};
         }
@@ -660,11 +710,9 @@ export default {
     async selectCategory(categoryKey) {
       this.selectedCategory = categoryKey;
       this.loadingOptions = true;
-      
       try {
-        this.eligibleOptions = await this.getEligibleOptions();
+        this.eligibleOptions = await this.getEligibleOptionsByMovie();
       } catch (error) {
-        console.error('Error loading options for category:', categoryKey, error);
         this.eligibleOptions = []; // Fallback to empty array
       } finally {
         this.loadingOptions = false;
@@ -733,7 +781,17 @@ export default {
       }
     },
     async getEligibleOptions() {
+      // Check cache first
+      const cacheKey = `${this.currentYear}-${this.selectedCategory}`;
+      if (this.optionsCache[cacheKey]) {
+        return this.optionsCache[cacheKey];
+      }
+      
       const category = this.categories.find(cat => cat.key === this.selectedCategory);
+      if (!category) {
+        return [];
+      }
+      
       let moviesForYear = this.getMoviesForYear();
       
       // Apply genre filtering for specific categories
@@ -757,7 +815,248 @@ export default {
       }
       
       // Sort by relevant rating category
-      return this.sortOptionsByRelevantRating(options, this.selectedCategory);
+      const sortedOptions = this.sortOptionsByRelevantRating(options, this.selectedCategory);
+      
+      // Cache the results to avoid expensive recomputation
+      this.optionsCache[cacheKey] = sortedOptions;
+      
+      return sortedOptions;
+    },
+    async getEligibleOptionsByMovie() {
+      // Check cache first
+      const cacheKey = `${this.currentYear}-${this.selectedCategory}`;
+      if (this.optionsCache[cacheKey]) {
+        // For cached data, show all immediately (no API calls needed)
+        return this.optionsCache[cacheKey];
+      }
+      
+      const category = this.categories.find(cat => cat.key === this.selectedCategory);
+      if (!category) {
+        return {};
+      }
+      
+      let moviesForYear = this.getMoviesForYear();
+      
+      // Apply genre filtering for specific categories
+      if (this.selectedCategory === 'bestAnimatedFeature') {
+        moviesForYear = moviesForYear.filter(entry => 
+          entry.movie.genres && entry.movie.genres.some(genre => genre.name === 'Animation')
+        );
+      } else if (this.selectedCategory === 'bestDocumentaryFeature') {
+        moviesForYear = moviesForYear.filter(entry => 
+          entry.movie.genres && entry.movie.genres.some(genre => genre.name === 'Documentary')
+        );
+      }
+      
+      if (category.type === 'movie') {
+        // For movie categories, use simple array (like old system)
+        const sortCriteria = this.getCategorySortKey(this.selectedCategory);
+        const sortedMovies = this.sortOptionsByRelevantRating(moviesForYear, this.selectedCategory);
+        
+        // Cache and return simple array
+        this.optionsCache[cacheKey] = sortedMovies;
+        return sortedMovies;
+      } else {
+        // For acting categories, use movie-grouped approach
+        const optionsByMovie = await this.extractAndGroupPeopleByMovie(moviesForYear, this.selectedCategory);
+        
+        // Sort movies by their performance rating (same as old system)
+        // First create array of movie entries for sorting
+        const movieEntries = Object.keys(optionsByMovie).map(movieId => {
+          const movieEntry = moviesForYear.find(entry => entry.movie.id == movieId);
+          return { movieId, movieEntry };
+        }).filter(item => item.movieEntry);
+        
+        // Sort movie entries using the same logic as old system
+        const sortCriteria = this.getCategorySortKey(this.selectedCategory);
+        movieEntries.sort((a, b) => {
+          return this.sortResultsLikeMainApp(a.movieEntry, b.movieEntry, sortCriteria);
+        });
+        
+        // Extract sorted movie IDs
+        const sortedMovieIds = movieEntries.map(item => item.movieId);
+        
+        // Convert to array to preserve sort order
+        const sortedMovieArray = sortedMovieIds.map(movieId => ({
+          movieId,
+          ...optionsByMovie[movieId]
+        }));
+        
+        // Cache the results
+        this.optionsCache[cacheKey] = sortedMovieArray;
+        
+        return sortedMovieArray;
+      }
+    },
+    async extractAndGroupPeopleByMovie(movies, categoryKey) {
+      const isActress = categoryKey.includes('Actress');
+      const isSupporting = categoryKey.includes('Supporting');
+      const movieGroups = {};
+      
+      // Group cast members by movie
+      movies.forEach(entry => {
+        if (categoryKey === 'bestDirector') {
+          const crew = entry.movie.crew || [];
+          const directors = crew.filter(person => person.job === 'Director');
+          
+          if (directors.length > 0) {
+            const directorNames = directors.map(d => d.name);
+            movieGroups[entry.movie.id] = {
+              movie: entry.movie,
+              allCast: [{
+                id: `directors-${entry.movie.id}`,
+                name: directorNames.join(' & '),
+                directors: directors,
+                movie: entry.movie,
+                movieId: entry.movie.id
+              }],
+              loadedCast: [],
+              hasMore: false,
+              isLoading: false
+            };
+          }
+        } else if (categoryKey.includes('Actor') || categoryKey.includes('Actress')) {
+          const cast = entry.movie.cast || [];
+          
+          // Use full cast list - no artificial limits
+          const eligibleCast = cast.map((person, index) => ({
+            id: person.id || `${person.name}-${entry.movie.id}`,
+            name: person.name,
+            character: person.character,
+            movie: entry.movie,
+            movieId: entry.movie.id,
+            castPosition: index,
+            isActress: isActress,
+            needsGenderCheck: true
+          }));
+          
+          if (eligibleCast.length > 0) {
+            movieGroups[entry.movie.id] = {
+              movie: entry.movie,
+              allCast: eligibleCast,
+              loadedCast: [],
+              processedIndex: 0, // Track how far into allCast we've processed
+              hasMore: eligibleCast.length > 0,
+              isLoading: false
+            };
+          }
+        }
+      });
+      
+      // Load initial cast for each movie (3 people per movie)
+      const movieIds = Object.keys(movieGroups);
+      
+      for (const movieId of movieIds) {
+        const movieGroup = movieGroups[movieId];
+        
+        if (movieGroup.allCast.length > 0) {
+          // Load people in batches until we get 3 valid ones (accounting for gender filtering)
+          let processedCast = [];
+          let currentIndex = 0;
+          
+          while (processedCast.length < 3 && currentIndex < movieGroup.allCast.length) {
+            const batchSize = 3;
+            const castBatch = movieGroup.allCast.slice(currentIndex, currentIndex + batchSize);
+            if (castBatch.length === 0) break;
+            
+            const filteredBatch = await this.filterCastMembersByGender(castBatch);
+            processedCast.push(...filteredBatch);
+            currentIndex += batchSize;
+          }
+          
+          movieGroup.loadedCast = processedCast.slice(0, 3); // Show first 3 valid people
+          movieGroup.processedIndex = currentIndex;
+          movieGroup.hasMore = currentIndex < movieGroup.allCast.length;
+        }
+      }
+      
+      return movieGroups;
+    },
+    async filterCastMembersByGender(castMembers) {
+      // Process a specific set of cast members (same logic as filterPeopleByGender but for subset)
+      const filteredCast = [];
+      
+      for (const person of castMembers) {
+        try {
+          if (!person.needsGenderCheck) {
+            filteredCast.push(person);
+            continue;
+          }
+          
+          const details = await this.getDetailsForCastMember(person.name);
+          if (!details || typeof details.gender !== 'number') continue;
+          
+          // Apply inclusive gender logic
+          let genderMatches = false;
+          if (person.isActress) {
+            genderMatches = details.gender === 1 || details.gender === 3; // Female + Other
+          } else {
+            genderMatches = details.gender === 2 || details.gender === 3; // Male + Other
+          }
+          
+          if (genderMatches) {
+            filteredCast.push({
+              ...person,
+              details: details,
+              needsGenderCheck: false
+            });
+          }
+        } catch (error) {
+          console.error('Error filtering cast member by gender:', person.name, error);
+        }
+      }
+      
+      return filteredCast;
+    },
+    getCategorySortKey(categoryKey) {
+      // Map awards categories to Cinema Roll sort keys
+      const categoryMappings = {
+        'bestPicture': 'rating',
+        'bestDirector': 'direction',
+        'bestActor': 'performance',
+        'bestActress': 'performance',
+        'bestSupportingActor': 'performance',
+        'bestSupportingActress': 'performance',
+        'bestScreenplay': 'story',
+        'bestCinematography': 'imagery',
+        'bestEditing': 'direction',
+        'bestScore': 'soundtrack',
+        'bestVisualEffects': 'imagery',
+        'bestAnimatedFeature': 'rating',
+        'bestDocumentaryFeature': 'rating'
+      };
+      return categoryMappings[categoryKey] || 'rating';
+    },
+    async loadMoreForMovie(movieId) {
+      const movieGroup = this.eligibleOptionsByMovie.find(group => group.movieId === movieId);
+      if (!movieGroup || !movieGroup.hasMore || movieGroup.isLoading) return;
+      
+      movieGroup.isLoading = true;
+      
+      try {
+        // Keep loading batches until we get 3 valid people (accounting for gender filtering)
+        let newlyLoadedCast = [];
+        const targetCount = 3;
+        
+        while (newlyLoadedCast.length < targetCount && movieGroup.processedIndex < movieGroup.allCast.length) {
+          const batchSize = 3;
+          const nextBatch = movieGroup.allCast.slice(movieGroup.processedIndex, movieGroup.processedIndex + batchSize);
+          
+          if (nextBatch.length === 0) break;
+          
+          const filteredBatch = await this.filterCastMembersByGender(nextBatch);
+          newlyLoadedCast.push(...filteredBatch);
+          movieGroup.processedIndex += batchSize;
+        }
+        
+        // Add the new cast members (up to 3) to the loaded cast
+        movieGroup.loadedCast.push(...newlyLoadedCast.slice(0, targetCount));
+        movieGroup.hasMore = movieGroup.processedIndex < movieGroup.allCast.length;
+      } catch (error) {
+        console.error('Error loading more cast for movie:', movieId, error);
+      } finally {
+        movieGroup.isLoading = false;
+      }
     },
     extractPeopleFromMovies(movies, categoryKey) {
       const people = [];
@@ -795,9 +1094,9 @@ export default {
             // Basic eligibility check by position first
             let eligible = false;
             if (isSupporting) {
-              eligible = index < 8; // Top 8 for supporting
+              eligible = index < 10; // Top 8 for supporting
             } else {
-              eligible = index < 4; // Top 4 for leads
+              eligible = index < 5; // Top 4 for leads
             }
             
             if (eligible && !people.find(p => p.name === person.name && p.movieId === entry.movie.id)) {
@@ -819,7 +1118,30 @@ export default {
       return people;
     },
     async getDetailsForCastMember(actorName) {
-      // Exact same method as FavoriteActors.vue
+      // Check in-memory cache first
+      if (this.personDetailsCache[actorName]) {
+        return this.personDetailsCache[actorName];
+      }
+      
+      // Check localStorage fallback (helpful for iOS PWAs with memory pressure)
+      try {
+        const cacheKey = `person_${actorName}_${this.currentYear}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsedData = JSON.parse(cached);
+          const isExpired = Date.now() - parsedData.timestamp > (24 * 60 * 60 * 1000); // 24 hours
+          if (!isExpired) {
+            this.personDetailsCache[actorName] = parsedData.data;
+            return parsedData.data;
+          } else {
+            localStorage.removeItem(cacheKey);
+          }
+        }
+      } catch (error) {
+        console.warn('LocalStorage cache read failed:', error);
+      }
+      
+      // Fetch from TMDb API
       const query = encodeURIComponent(actorName);
       const url = `https://api.themoviedb.org/3/search/person?api_key=${process.env.VUE_APP_TMDB_API_KEY}&query=${query}`;
       try {
@@ -828,15 +1150,76 @@ export default {
           throw new Error('Failed to fetch from TMDB');
         }
         const data = await response.json();
-        return data.results && data.results.length > 0 ? data.results[0] : null;
+        const personDetails = data.results && data.results.length > 0 ? data.results[0] : null;
+        
+        // Cache the result in memory
+        this.personDetailsCache[actorName] = personDetails;
+        
+        // Also cache in localStorage for persistence (especially helpful on iOS PWAs)
+        try {
+          const cacheKey = `person_${actorName}_${this.currentYear}`;
+          const cacheData = {
+            data: personDetails,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        } catch (error) {
+          console.warn('LocalStorage cache write failed:', error);
+        }
+        
+        return personDetails;
       } catch (error) {
         console.error('Error fetching TMDB person:', error);
+        // Cache the null result to avoid retrying failed requests
+        this.personDetailsCache[actorName] = null;
+        
+        // Also cache the failure in localStorage
+        try {
+          const cacheKey = `person_${actorName}_${this.currentYear}`;
+          const cacheData = {
+            data: null,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        } catch (localStorageError) {
+          console.warn('LocalStorage cache write failed:', localStorageError);
+        }
+        
         return null;
+      }
+    },
+    cleanupLocalStorageCache() {
+      // Clean up old person cache entries from localStorage
+      try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('person_')) {
+            try {
+              const cached = localStorage.getItem(key);
+              if (cached) {
+                const parsedData = JSON.parse(cached);
+                const isExpired = Date.now() - parsedData.timestamp > (24 * 60 * 60 * 1000); // 24 hours
+                if (isExpired) {
+                  keysToRemove.push(key);
+                }
+              }
+            } catch (parseError) {
+              // Invalid entry, mark for removal
+              keysToRemove.push(key);
+            }
+          }
+        }
+        
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+      } catch (error) {
+        console.warn('LocalStorage cleanup failed:', error);
       }
     },
     async filterPeopleByGender(people) {
       // Filter people by gender using TMDb API calls (same as FavoriteActors.vue)
       const filteredPeople = [];
+      let count = 0;
       
       for (const person of people) {
         try {
@@ -845,6 +1228,7 @@ export default {
             continue;
           }
           
+          count++;
           const details = await this.getDetailsForCastMember(person.name);
           if (!details || typeof details.gender !== 'number') continue;
           
@@ -901,16 +1285,6 @@ export default {
       } catch (error) {
         console.error('Error getting option title:', option, error);
         return 'Error';
-      }
-    },
-    getOptionSubtitle(option) {
-      if (option.movie && !option.id) {
-        // This is a movie option, show director or other info
-        const director = option.movie.credits?.crew?.find(person => person.job === 'Director');
-        return director ? `Directed by ${director.name}` : '';
-      } else {
-        // This is a person option, show movie and character if applicable
-        return `${option.movie.title}${option.character ? ` (${option.character})` : ''}`;
       }
     },
     getOptionMovie(option) {
@@ -1229,9 +1603,7 @@ export default {
         }
         
         return expanded;
-      }
-      
-      else if (minimalNominee.type === 'movie') {
+      } else if (minimalNominee.type === 'movie') {
         // Find the full movie entry
         const movieEntry = this.allEntriesWithFlatKeywordsAdded.find(entry => 
           entry.movie.id === minimalNominee.movieId
@@ -1319,20 +1691,7 @@ export default {
           min-height: 60px;
           padding: 12px 8px;
           text-align: center;
-          
-          // Light theme
-          &.text-bg-light {
-            background: white;
-            border-color: #dee2e6;
-            color: #212529;
-            
-            &.completed {
-              background-color: #f8fff8;
-              border-color: #28a745;
-            }
-          }
-          
-          // Dark theme
+
           &.text-bg-dark {
             background: #343a40;
             border-color: #6c757d;
@@ -1350,15 +1709,6 @@ export default {
               cursor: not-allowed;
               opacity: 0.4;
             }
-          }
-          
-          // Light theme disabled state
-          &.text-bg-light.disabled {
-            background: #f8f9fa;
-            border-color: #dee2e6;
-            color: #6c757d;
-            cursor: not-allowed;
-            opacity: 0.4;
           }
           
           .category-status {
@@ -1459,20 +1809,7 @@ export default {
           position: relative;
           transition: border-color 0.1s, box-shadow 0.1s;
           will-change: border-color, box-shadow;
-          
-          // Light theme
-          &.text-bg-light {
-            border: 2px solid #dee2e6;
-            
-            
-            
-            &.winner {
-              border-color: #28a745;
-              box-shadow: 0 0 0 2px rgba(40,167,69,0.25);
-            }
-          }
-          
-          // Dark theme
+
           &.text-bg-dark {
             border: 2px solid #6c757d;
             
@@ -1747,6 +2084,95 @@ export default {
               font-size: 0.9em;
               margin-top: 8px;
             }
+          }
+        }
+        
+        .movie-groups {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          
+          .movie-group {
+            .movie-group-header {
+              align-items: baseline;
+              display: flex;
+              gap: 8px;
+              margin-bottom: 12px;
+              
+              .movie-title {
+                color: #f8f9fa;
+                font-size: 0.9em;
+                font-weight: 600;
+                margin: 0;
+              }
+              
+              .movie-year {
+                color: #adb5bd;
+                font-size: 0.8em;
+                font-weight: 400;
+              }
+            }
+            
+            .nominees-grid {
+              display: grid;
+              gap: 6px;
+              grid-template-columns: repeat(3, 1fr);
+              margin-bottom: 12px;
+              
+              @media (min-width: 576px) {
+                gap: 8px;
+              }
+            }
+            
+            .load-more-section {
+              text-align: center;
+              
+              .load-more-btn {
+                border-color: #6c757d;
+                color: #f8f9fa;
+                font-size: 0.8em;
+                padding: 4px 12px;
+                transition: background-color 0.1s, transform 0.1s;
+                
+                &:hover {
+                  background-color: rgba(255, 255, 255, 0.1);
+                  border-color: #adb5bd;
+                }
+                
+                &:active {
+                  background-color: rgba(255, 255, 255, 0.2);
+                  transform: scale(0.98);
+                }
+                
+                &:disabled {
+                  opacity: 0.6;
+                  cursor: not-allowed;
+                }
+                
+                i {
+                  font-size: 0.9em;
+                }
+              }
+            }
+          }
+        }
+        
+        .loading-container {
+          align-items: center;
+          display: flex;
+          flex-direction: column;
+          height: 200px;
+          justify-content: center;
+          text-align: center;
+          
+          .spinner-border {
+            margin: 0 auto;
+          }
+          
+          p {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 8px;
           }
         }
       }

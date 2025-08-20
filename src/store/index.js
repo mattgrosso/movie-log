@@ -98,6 +98,9 @@ export default createStore({
     // devModeTopKey: 'brianpatrick1-gmail-com',
     dbLoaded: false,
     filteredResults: [],
+    // Simple save debouncing
+    lastSavePath: null,
+    lastSaveTime: 0,
   },
   getters: {
     allMediaAsArray: (state) => {
@@ -181,6 +184,10 @@ export default createStore({
     },
     setFilteredResults (state, value) {
       state.filteredResults = value;
+    },
+    updateLastSave (state, { path, time }) {
+      state.lastSavePath = path;
+      state.lastSaveTime = time;
     }
   },
   actions: {
@@ -293,12 +300,18 @@ export default createStore({
       context.dispatch('initializeDB');
     },
     async setDBValue (context, dbEntry) {
-      const startTime = performance.now();
+      const now = Date.now();
+      const timeSinceLastSave = now - context.state.lastSaveTime;
+      const isSamePath = context.state.lastSavePath === dbEntry.path;
+      
+      // Simple debounce: skip if saving same path within 1 second
+      if (isSamePath && timeSinceLastSave < 1000) {
+        return;
+      }
       
       try {
-        const cleanedDBEntry = removeNaNAndUndefined(dbEntry.value);
-        
-        await set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedDBEntry);
+        const cleanedValue = removeNaNAndUndefined(dbEntry.value);
+        await set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedValue);
       } catch (error) {
         throw error;
       }
