@@ -139,7 +139,16 @@
                     
                     <!-- Name below -->
                     <div class="nominee-poster-name">
-                      {{ getOptionTitle(nominee).length > 10 ? getOptionTitle(nominee).substring(0, 9) + '...' : getOptionTitle(nominee) }}
+                      <div class="actor-name">
+                        {{ getOptionTitle(nominee).length > 10 ? getOptionTitle(nominee).substring(0, 9) + '...' : getOptionTitle(nominee) }}
+                      </div>
+                      <!-- Show all roles for acting categories -->
+                      <div v-if="isActingCategory(selectedCategory) && nominee.allRoles" class="all-roles">
+                        <div v-for="movieGroup in getGroupedRolesByMovie(nominee.allRoles)" :key="movieGroup.movieId" class="movie-group-entry">
+                          <div class="role-movie">{{ movieGroup.movieTitle }}</div>
+                          <div v-for="character in movieGroup.characters" :key="character" class="role-character">{{ character }}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
@@ -263,9 +272,17 @@
                       </div>
                     </div>
                     
-                    <!-- Text overlay -->
-                    <div class="nominee-info-overlay">
-                      <div class="nominee-title">{{ getOptionTitle(option) }}</div>
+                    <!-- Text overlay - conditional based on category -->
+                    <div v-if="shouldShowTextOverlay(selectedCategory)" class="nominee-info-overlay">
+                      <div class="nominee-title" :class="{ 'allow-wrap': selectedCategory === 'bestDirector' }">
+                        {{ getOptionTitle(option) }}
+                      </div>
+                      <div v-if="isActingCategory(selectedCategory) && getOptionMovie(option)" class="nominee-movie">
+                        {{ getOptionMovie(option) }}
+                      </div>
+                      <div v-if="isActingCategory(selectedCategory) && getOptionRole(option)" class="nominee-role">
+                        {{ getOptionRole(option) }}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -936,16 +953,23 @@ export default {
           const cast = entry.movie.cast || [];
           
           // Use full cast list - no artificial limits
-          const eligibleCast = cast.map((person, index) => ({
-            id: person.id || `${person.name}-${entry.movie.id}`,
-            name: person.name,
-            character: person.character,
-            movie: entry.movie,
-            movieId: entry.movie.id,
-            castPosition: index,
-            isActress: isActress,
-            needsGenderCheck: true
-          }));
+          const eligibleCast = cast.map((person, index) => {
+            // Debug logging for actor ID issues
+            if (person.name === 'Jeff Daniels') {
+              console.log(`Jeff Daniels in ${entry.movie.title}: TMDb ID = ${person.id}, using ID = ${person.id || person.name}`);
+            }
+            
+            return {
+              id: person.id || person.name, // Use name as fallback for grouping
+              name: person.name,
+              character: person.character,
+              movie: entry.movie,
+              movieId: entry.movie.id,
+              castPosition: index,
+              isActress: isActress,
+              needsGenderCheck: true
+            };
+          });
           
           if (eligibleCast.length > 0) {
             movieGroups[entry.movie.id] = {
@@ -1128,8 +1152,13 @@ export default {
             }
             
             if (eligible && !people.find(p => p.name === person.name && p.movieId === entry.movie.id)) {
+              // Debug logging for actor ID issues
+              if (person.name === 'Jeff Daniels') {
+                console.log(`Adding Jeff Daniels from ${entry.movie.title}: TMDb ID = ${person.id}, using ID = ${person.id || person.name}`);
+              }
+              
               people.push({
-                id: person.id || `${person.name}-${entry.movie.id}`,
+                id: person.id || person.name, // Use name as fallback for grouping
                 name: person.name,
                 character: person.character,
                 movie: entry.movie,
@@ -1315,6 +1344,26 @@ export default {
       try {
         if (!option) return 'Unknown';
         
+        // Special case for Best Director - extract director name from movie-grouped data structure
+        if (this.selectedCategory === 'bestDirector') {
+          // For Best Director, option might be a movie group with allCast containing director info
+          if (option.allCast && option.allCast.length > 0) {
+            return option.allCast[0].name || 'Unknown Director';
+          }
+          // Fallback: if it's already a director object with name
+          if (option.name) {
+            return option.name;
+          }
+          // Fallback: extract from movie crew
+          if (option.movie && option.movie.crew) {
+            const directors = option.movie.crew.filter(person => person.job === 'Director');
+            if (directors.length > 0) {
+              return directors.map(d => d.name).join(' & ');
+            }
+          }
+          return 'Unknown Director';
+        }
+        
         if (option.movie && !option.id) {
           // This is a movie option
           return option.movie.title || 'Unknown Movie';
@@ -1348,8 +1397,69 @@ export default {
     },
     toggleNominee(option) {
       const categoryData = this.awardsData[this.selectedCategory] || { nominees: [], winner: null };
-      const optionId = this.getOptionId(option);
       
+      if (this.isActingCategory(this.selectedCategory)) {
+        // For acting categories, handle multi-role nominations
+        this.toggleActorNomination(option, categoryData);
+      } else {
+        // For non-acting categories, use simple single nomination logic
+        this.toggleSingleNomination(option, categoryData);
+      }
+      
+      this.awardsData[this.selectedCategory] = categoryData;
+    },
+    
+    toggleActorNomination(option, categoryData) {
+      const actorId = option.id; // The person's TMDb ID
+      
+      console.log(`Toggling nomination for actor ${actorId} (${option.name})`);
+      console.log('Full option object:', option);
+      
+      // Find all roles for this actor in the current year
+      const allActorRoles = this.getAllActorRolesInYear(actorId);
+      
+      console.log(`Found ${allActorRoles.length} roles for this actor`);
+      
+      // Check if any role for this actor is already nominated
+      const hasAnyNomination = allActorRoles.some(role => 
+        categoryData.nominees.some(nom => this.getOptionId(nom) === this.getOptionId(role))
+      );
+      
+      if (hasAnyNomination) {
+        // Remove all roles for this actor
+        categoryData.nominees = categoryData.nominees.filter(nom => {
+          const nomPersonId = nom.id;
+          return nomPersonId !== actorId;
+        });
+        
+        // If any of their roles was the winner, clear winner
+        if (categoryData.winner && categoryData.winner.id === actorId) {
+          categoryData.winner = null;
+        }
+      } else {
+        // Add all roles for this actor
+        const wasEmpty = categoryData.nominees.length === 0;
+        
+        allActorRoles.forEach(role => {
+          categoryData.nominees.push(role);
+        });
+        
+        // Clear the "no nominees" flag if it was set
+        if (categoryData.noNominees) {
+          categoryData.noNominees = false;
+        }
+        
+        // If we just added nominees, scroll to the right to show them
+        if (!wasEmpty) {
+          this.$nextTick(() => {
+            this.scrollNomineesToRight();
+          });
+        }
+      }
+    },
+    
+    toggleSingleNomination(option, categoryData) {
+      const optionId = this.getOptionId(option);
       const existingIndex = categoryData.nominees.findIndex(nom => this.getOptionId(nom) === optionId);
       
       if (existingIndex >= 0) {
@@ -1369,16 +1479,56 @@ export default {
         }
         
         // If we just added a nominee, scroll to the right to show it
-        if (!wasEmpty) { // Only scroll if there were already nominees (otherwise no need to scroll)
+        if (!wasEmpty) {
           this.$nextTick(() => {
             this.scrollNomineesToRight();
           });
         }
       }
+    },
+    
+    getAllActorRolesInYear(actorId) {
+      // Find all roles for this actor across all movies in the current year
+      const allRoles = [];
+      const seenRoles = new Set(); // Prevent duplicates
       
-      this.awardsData[this.selectedCategory] = categoryData;
+      if (this.isActingCategory(this.selectedCategory)) {
+        // Search through the movie-grouped data
+        this.eligibleOptionsByMovie.forEach(movieGroup => {
+          // Check allCast (unloaded cast members) - this is where Steve Jobs cast likely is
+          if (movieGroup.allCast) {
+            movieGroup.allCast.forEach(person => {
+              if (person.id === actorId) {
+                const roleKey = `${person.movie.id}-${person.character || 'unknown'}`;
+                if (!seenRoles.has(roleKey)) {
+                  allRoles.push(person);
+                  seenRoles.add(roleKey);
+                }
+              }
+            });
+          }
+          // Check loadedCast (visible cast members) - this is where The Martian cast is
+          if (movieGroup.loadedCast) {
+            movieGroup.loadedCast.forEach(person => {
+              if (person.id === actorId) {
+                const roleKey = `${person.movie.id}-${person.character || 'unknown'}`;
+                if (!seenRoles.has(roleKey)) {
+                  allRoles.push(person);
+                  seenRoles.add(roleKey);
+                }
+              }
+            });
+          }
+        });
+      }
       
-      // Save removed - will save on Back/Complete/Close only
+      // Debug logging
+      console.log(`🔍 Searching for actor ${actorId} across ${this.eligibleOptionsByMovie.length} movie groups`);
+      allRoles.forEach((role, index) => {
+        console.log(`  Role ${index + 1}: ${role.movie.title} as "${role.character || 'unnamed'}" (Movie ID: ${role.movie.id})`);
+      });
+      
+      return allRoles;
     },
     scrollNomineesToRight() {
       // Find the nominees gallery and scroll to the right
@@ -1401,18 +1551,121 @@ export default {
       const categoryData = this.awardsData[this.selectedCategory];
       if (!categoryData || !categoryData.nominees) return false;
       
-      const optionId = this.getOptionId(option);
-      return categoryData.nominees.some(nom => this.getOptionId(nom) === optionId);
+      if (this.isActingCategory(this.selectedCategory)) {
+        // For acting categories, check if any role for this actor is nominated
+        const actorId = option.id;
+        return categoryData.nominees.some(nom => nom.id === actorId);
+      } else {
+        // For non-acting categories, check exact match
+        const optionId = this.getOptionId(option);
+        return categoryData.nominees.some(nom => this.getOptionId(nom) === optionId);
+      }
     },
     isWinner(option) {
       const categoryData = this.awardsData[this.selectedCategory];
       if (!categoryData || !categoryData.winner) return false;
       
-      return this.getOptionId(categoryData.winner) === this.getOptionId(option);
+      if (this.isActingCategory(this.selectedCategory)) {
+        // For acting categories, check if this actor is the winner (any role)
+        const actorId = option.id;
+        return categoryData.winner.id === actorId;
+      } else {
+        // For non-acting categories, check exact match
+        return this.getOptionId(categoryData.winner) === this.getOptionId(option);
+      }
     },
     getCurrentNominees() {
       const categoryData = this.awardsData[this.selectedCategory];
-      return categoryData ? categoryData.nominees || [] : [];
+      if (!categoryData || !categoryData.nominees) return [];
+      
+      if (this.isActingCategory(this.selectedCategory)) {
+        // For acting categories, group by actor and show combined roles
+        return this.getGroupedActorNominees(categoryData.nominees);
+      } else {
+        // For non-acting categories, return nominees as-is
+        return categoryData.nominees;
+      }
+    },
+    
+    getGroupedActorNominees(nominees) {
+      // Group nominees by actor ID
+      const groupedByActor = {};
+      
+      nominees.forEach(nominee => {
+        const actorId = nominee.id;
+        
+        // Try to find profile image from grid data if nominee doesn't have one
+        if (!nominee.details || !nominee.details.profile_path) {
+          // Look for this actor in the visible grid to get their profile image
+          const gridActor = this.findActorInGrid(nominee.name);
+          if (gridActor && gridActor.details && gridActor.details.profile_path) {
+            nominee.details = gridActor.details;
+          }
+        }
+        
+        if (!groupedByActor[actorId]) {
+          // Use the nominee with the best profile image as the base
+          groupedByActor[actorId] = {
+            ...nominee, // Base data from first role
+            allRoles: [] // Array to store all roles
+          };
+        } else {
+          // If this nominee has a better profile image, use it as the base
+          if (nominee.details && nominee.details.profile_path && 
+              (!groupedByActor[actorId].details || !groupedByActor[actorId].details.profile_path)) {
+            console.log(`Updating Jeff Daniels profile image from ${nominee.movie.title}`);
+            groupedByActor[actorId].details = nominee.details;
+          }
+        }
+        groupedByActor[actorId].allRoles.push(nominee);
+      });
+      
+      const result = Object.values(groupedByActor);
+      
+      
+      return result;
+    },
+    
+    getGroupedRolesByMovie(roles) {
+      // Group roles by movie to avoid duplicate movie titles
+      const movieGroups = {};
+      
+      roles.forEach(role => {
+        const movieId = role.movie.id;
+        if (!movieGroups[movieId]) {
+          movieGroups[movieId] = {
+            movieId: movieId,
+            movieTitle: role.movie.title,
+            characters: []
+          };
+        }
+        if (role.character && !movieGroups[movieId].characters.includes(role.character)) {
+          movieGroups[movieId].characters.push(role.character);
+        }
+      });
+      
+      return Object.values(movieGroups);
+    },
+    
+    findActorInGrid(actorName) {
+      // Search through all visible actors in the grid to find profile image data
+      for (const movieGroup of this.eligibleOptionsByMovie) {
+        // Check loadedCast (visible actors)
+        if (movieGroup.loadedCast) {
+          const foundActor = movieGroup.loadedCast.find(actor => actor.name === actorName);
+          if (foundActor && foundActor.details && foundActor.details.profile_path) {
+            return foundActor;
+          }
+        }
+        // Also check allCast in case it has better data
+        if (movieGroup.allCast) {
+          const foundActor = movieGroup.allCast.find(actor => actor.name === actorName);
+          if (foundActor && foundActor.details && foundActor.details.profile_path) {
+            return foundActor;
+          }
+        }
+      }
+      return null;
     },
     getCategoryNomineeCount(categoryKey) {
       const categoryData = this.awardsData[categoryKey];
@@ -1664,6 +1917,11 @@ export default {
     },
     isActingCategory(categoryKey) {
       return categoryKey && (categoryKey.includes('Actor') || categoryKey.includes('Actress'));
+    },
+    shouldShowTextOverlay(categoryKey) {
+      // Show text overlay for Best Director and all acting categories
+      // Hide text overlay for all other categories (Best Picture, etc.)
+      return categoryKey === 'bestDirector' || this.isActingCategory(categoryKey);
     },
   }
 };
@@ -1926,6 +2184,12 @@ export default {
               overflow: hidden;
               text-overflow: ellipsis;
               white-space: nowrap;
+              
+              &.allow-wrap {
+                white-space: normal;
+                text-overflow: unset;
+                overflow: visible;
+              }
             }
             
             .nominee-subtitle {
@@ -2093,6 +2357,32 @@ export default {
               line-height: 1.2;
               margin-top: 4px;
               text-align: center;
+              
+              .actor-name {
+                font-weight: 600;
+                margin-bottom: 2px;
+              }
+              
+              .all-roles {
+                font-size: 0.9em;
+                opacity: 0.8;
+                margin-top: 2px;
+                
+                .role-entry {
+                  margin-bottom: 1px;
+                  
+                  .role-movie {
+                    font-size: 0.85em;
+                    font-weight: 500;
+                  }
+                  
+                  .role-character {
+                    font-size: 0.8em;
+                    font-style: italic;
+                    opacity: 0.9;
+                  }
+                }
+              }
             }
           }
         }
