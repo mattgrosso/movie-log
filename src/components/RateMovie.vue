@@ -575,6 +575,7 @@
 import axios from "axios";
 import addRating from "../assets/javascript/AddRating.js";
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
+import ErrorLogService from "../services/ErrorLogService.js";
 
 export default {
   data () {
@@ -1009,6 +1010,7 @@ export default {
         this.chatGPTKeywords = parsedResponse.keywords?.map(keyword => keyword.toLowerCase());
       } catch (error) {
         console.error('Failed to fetch ChatGPT keywords:', error);
+        ErrorLogService.logError(error, "Failed to fetch ChatGPT keywords");
         this.chatGPTKeywords = [];
       }
     },

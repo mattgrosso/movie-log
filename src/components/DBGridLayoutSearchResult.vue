@@ -258,6 +258,7 @@ import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import placeholderImage from '../assets/images/sheen.jpg';
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
+import ErrorLogService from '../services/ErrorLogService.js';
 
 export default {
   props: {
@@ -459,6 +460,7 @@ export default {
         });
       } catch (error) {
         console.error('Failed to get awards data:', error);
+        ErrorLogService.error('Failed to get awards data:', error);
       }
     },
     async checkLetterboxdData () {
@@ -492,6 +494,7 @@ export default {
         
       } catch (error) {
         console.error('Failed to get Letterboxd data:', error);
+        ErrorLogService.error('Failed to get Letterboxd data:', error);
         this.letterboxdData = null;
       }
     },
@@ -504,6 +507,7 @@ export default {
         }
       } catch (error) {
         console.error('Failed to parse names:', error);
+        ErrorLogService.error('Failed to parse names:', error);
         return null;
       }
     },
@@ -734,6 +738,7 @@ export default {
         
         if (!success) {
           console.error('Failed to open movie on Letterboxd for logging:', movie.title);
+          ErrorLogService.error('Failed to open movie on Letterboxd for logging:', movie.title);
         }
       }
     },

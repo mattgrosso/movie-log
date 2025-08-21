@@ -303,6 +303,7 @@
 <script>
 import Modal from './Modal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
+import ErrorLogService from '../services/ErrorLogService.js';
 
 export default {
   name: "PersonalAwardsModal",
@@ -368,6 +369,7 @@ export default {
             yearCounts[year] = (yearCounts[year] || 0) + 1;
           } catch (error) {
             console.error('Error processing entry for year calculation:', entry, error);
+            ErrorLogService.error('Error processing entry for year calculation:', entry, error);
           }
         });
 
@@ -384,11 +386,13 @@ export default {
             return !existingAwards?.completed || this.hasNewMoviesForYear(year, existingAwards);
           } catch (error) {
             console.error('Error checking year eligibility:', year, error);
+            ErrorLogService.error('Error checking year eligibility:', year, error);
             return false;
           }
         });
       } catch (error) {
         console.error('Error in yearsEligibleForAwards:', error);
+        ErrorLogService.error('Error in yearsEligibleForAwards:', error);
         return [];
       }
     },
@@ -463,6 +467,7 @@ export default {
                 return movieDate.getTime() > existingAwards.lastUpdated;
               } catch (error) {
                 console.error('Error checking new movies for year:', year, entry, error);
+                ErrorLogService.error('Error checking new movies for year:', year, entry, error);
                 return false;
               }
             });
@@ -470,6 +475,7 @@ export default {
             return newMovies.length > 0;
           } catch (error) {
             console.error('Error filtering incomplete years:', year, error);
+            ErrorLogService.error('Error filtering incomplete years:', year, error);
             return false;
           }
         });
@@ -509,6 +515,7 @@ export default {
             );
           } catch (error) {
             console.error('Error checking partial progress for year:', year, error);
+            ErrorLogService.error('Error checking partial progress for year:', year, error);
             return false;
           }
         });
@@ -537,11 +544,13 @@ export default {
           });
         } catch (error) {
           console.error('Error persisting daily selection:', error);
+          ErrorLogService.error('Error persisting daily selection:', error);
         }
         
         return selectedYear;
       } catch (error) {
         console.error('Error in firstEligibleYear:', error);
+        ErrorLogService.error('Error in firstEligibleYear:', error);
         return null;
       }
     },
@@ -600,6 +609,7 @@ export default {
         this.closeModal();
       } catch (error) {
         console.error('🚨 COMPLETE YEAR FAILED:', error.message);
+        ErrorLogService.error('Error completing year:', error);
         // Still close even if save fails
         this.closeModal();
       } finally {
@@ -621,6 +631,7 @@ export default {
         
       } catch (error) {
         console.error('🚨 MODAL OPEN FAILED:', error.message);
+        ErrorLogService.error('Error opening Personal Awards modal:', error);
       }
     },
     closeModal() {
@@ -631,6 +642,7 @@ export default {
         this.eligibleOptions = [];
       } catch (error) {
         console.error('🚨 MODAL CLOSE FAILED:', error.message);
+        ErrorLogService.error('Error closing Personal Awards modal:', error);
       }
     },
     async saveCurrentState() {
@@ -681,6 +693,7 @@ export default {
         this.savingState = false;
       } catch (error) {
         console.error('🚨 SAVE PREPARATION FAILED:', error.message);
+        ErrorLogService.error('Error saving Personal Awards state:', error);
       }
     },
     initializeAwardsData() {
@@ -704,6 +717,7 @@ export default {
         }
       } catch (error) {
         console.error('🚨 INIT FAILED:', error.message);
+        ErrorLogService.error('Error initializing awards data:', error);
         this.awardsData = {};
       }
     },
@@ -713,6 +727,7 @@ export default {
       try {
         this.eligibleOptions = await this.getEligibleOptionsByMovie();
       } catch (error) {
+        ErrorLogService.error('Error fetching eligible options:', error);
         this.eligibleOptions = []; // Fallback to empty array
       } finally {
         this.loadingOptions = false;
@@ -772,11 +787,13 @@ export default {
             return yearMatch && notShort;
           } catch (error) {
             console.error('Error processing movie entry:', entry, error);
+            ErrorLogService.error('Error processing movie entry:', entry, error);
             return false;
           }
         });
       } catch (error) {
         console.error('Error in getMoviesForYear:', error);
+        ErrorLogService.error('Error in getMoviesForYear:', error);
         return [];
       }
     },
@@ -1011,6 +1028,8 @@ export default {
           }
         } catch (error) {
           console.error('Error filtering cast member by gender:', person.name, error);
+          ErrorLogService.error('Error filtering cast member by gender:', person.name, error);
+        // Note: ErrorLogService will be imported if needed for production logging
         }
       }
       
@@ -1062,6 +1081,7 @@ export default {
         movieGroup.hasMore = movieGroup.processedIndex < movieGroup.allCast.length;
       } catch (error) {
         console.error('Error loading more cast for movie:', movieId, error);
+        ErrorLogService.error('Error loading more cast for movie:', movieId, error);
       } finally {
         movieGroup.isLoading = false;
       }
@@ -1178,6 +1198,7 @@ export default {
         return personDetails;
       } catch (error) {
         console.error('Error fetching TMDB person:', error);
+        ErrorLogService.error('Error fetching TMDB person:', error);
         // Cache the null result to avoid retrying failed requests
         this.personDetailsCache[actorName] = null;
         
@@ -1266,6 +1287,7 @@ export default {
           }
         } catch (error) {
           console.error('Error filtering person by gender:', person.name, error);
+          ErrorLogService.error('Error filtering person by gender:', person.name, error);
           // Continue with next person - don't let one API failure crash everything
         }
       }
@@ -1285,6 +1307,7 @@ export default {
         }
       } catch (error) {
         console.error('Error getting option ID:', option, error);
+        ErrorLogService.error('Error getting option ID:', option, error);
         return 'error';
       }
     },
@@ -1301,6 +1324,7 @@ export default {
         }
       } catch (error) {
         console.error('Error getting option title:', option, error);
+        ErrorLogService.error('Error getting option title:', option, error);
         return 'Error';
       }
     },
@@ -1535,6 +1559,7 @@ export default {
         return getRating(media) || { calculatedTotal: 0 };
       } catch (error) {
         console.error('Error getting most recent rating:', media, error);
+        ErrorLogService.error('Error getting most recent rating:', media, error);
         return { calculatedTotal: 0 };
       }
     },

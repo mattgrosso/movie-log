@@ -55,6 +55,8 @@
 
 <script>
 import { getRating } from "../assets/javascript/GetRating.js";
+import ErrorLogService from '../services/ErrorLogService.js';
+
 export default {
   props: {
     allEntriesWithFlatKeywordsAdded: {
@@ -210,6 +212,7 @@ export default {
         return data.results && data.results.length > 0 ? data.results[0] : null;
       } catch (error) {
         console.error('Error fetching TMDB person:', error);
+        ErrorLogService.error('Error fetching TMDB person:', error);
         return null;
       }
     },

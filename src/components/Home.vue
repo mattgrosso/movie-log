@@ -352,6 +352,63 @@
                 <input class="form-check-input" type="checkbox" id="randomSearchToggle" v-model="enableRandomSearch" @change="saveRandomSearchSetting">
                 <label class="form-check-label" for="randomSearchToggle">Show random search on page load</label>
               </div>
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="errorLogsToggle" v-model="showErrorLogs">
+                <label class="form-check-label" for="errorLogsToggle">Show error logs</label>
+              </div>
+              <div v-if="showErrorLogs" class="mb-3">
+                <button @click="testErrorLogging" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-bug"></i> Test Error Logging
+                </button>
+              </div>
+              
+              <!-- Inline Error Log Viewer -->
+              <div v-if="showErrorLogs" class="error-logs-section mt-3 p-3 border rounded">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="mb-0">
+                    <i class="bi bi-bug me-2"></i>Error Logs ({{ errorLogs.length }})
+                  </h6>
+                  <div>
+                    <button @click="copyErrorLogs" class="btn btn-sm btn-outline-primary me-2" :disabled="errorLogs.length === 0">
+                      <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                    <button @click="clearErrorLogs" class="btn btn-sm btn-outline-danger" :disabled="errorLogs.length === 0">
+                      <i class="bi bi-trash"></i> Clear
+                    </button>
+                  </div>
+                </div>
+                
+                <div v-if="errorLogs.length === 0" class="text-center text-muted py-3">
+                  <i class="bi bi-check-circle"></i> No logs to display
+                </div>
+                
+                <div v-else class="error-logs-list" style="max-height: 300px; overflow-y: auto;">
+                  <div 
+                    v-for="log in errorLogs.slice(0, 20)" 
+                    :key="log.id" 
+                    :class="['log-entry', 'p-2', 'mb-2', 'rounded', `log-${log.level}`]"
+                    style="font-size: 0.8rem; border-left: 3px solid;"
+                  >
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                      <span :class="['badge', `bg-${log.level === 'error' ? 'danger' : log.level === 'warn' ? 'warning' : log.level === 'info' ? 'info' : 'secondary'}`]">
+                        {{ log.level.toUpperCase() }}
+                      </span>
+                      <small class="text-muted">{{ formatLogTime(log.timestamp) }}</small>
+                    </div>
+                    <div class="log-message">{{ log.message }}</div>
+                    <div v-if="log.context && Object.keys(log.context).length > 0" class="mt-1">
+                      <small class="text-muted">Context: {{ JSON.stringify(log.context) }}</small>
+                    </div>
+                  </div>
+                  <div v-if="errorLogs.length > 20" class="text-center text-muted mt-2">
+                    <small>Showing first 20 of {{ errorLogs.length }} logs</small>
+                  </div>
+                </div>
+                
+                <div v-if="copySuccess" class="alert alert-success mt-2 py-2">
+                  <i class="bi bi-check-circle"></i> Copied to clipboard!
+                </div>
+              </div>
               <div class="mb-3">
                 <label for="normalizationTweak" class="form-label">Normalization offset:</label>
                 <input
@@ -716,6 +773,7 @@ import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
+import ErrorLogService from '../services/ErrorLogService.js';
 
 export default {
   components: {
@@ -767,6 +825,10 @@ export default {
       showOverridePanel: false,
       showSettingsPanel: false, // controls settings panel visibility
       showShorts: false, // shorts toggle, default to off
+      showErrorLogs: false, // error log visibility toggle
+      errorLogs: [], // error log entries
+      copySuccess: false, // copy to clipboard success indicator
+      errorLogRefreshInterval: null, // interval for refreshing error logs
       showSuggestionsOnly: false,
       showViewCount: false,
       sortOrder: "bestOrNewestOnTop",
@@ -837,6 +899,16 @@ export default {
           this.showShorts = newVal;
         } else {
           this.showShorts = false;
+        }
+      },
+      immediate: true
+    },
+    '$store.state.settings.showErrorLogs': {
+      handler(newVal) {
+        if (typeof newVal === 'boolean') {
+          this.showErrorLogs = newVal;
+        } else {
+          this.showErrorLogs = false;
         }
       },
       immediate: true
@@ -924,6 +996,16 @@ export default {
     showShorts(newVal) {
       this.$store.dispatch('setDBValue', { path: 'settings/includeShorts', value: newVal });
     },
+    showErrorLogs(newVal) {
+      this.$store.dispatch('setDBValue', { path: 'settings/showErrorLogs', value: newVal });
+      if (newVal) {
+        this.refreshErrorLogs();
+        // Start auto-refresh when logs are visible
+        this.startErrorLogRefresh();
+      } else {
+        this.stopErrorLogRefresh();
+      }
+    },
     effectiveSearchFilter(newVal, oldVal) {
       // Fetch unrated movies for any non-empty search term (from input or chips)
       if (newVal && (!oldVal || newVal.value !== oldVal.value)) {        
@@ -980,11 +1062,21 @@ export default {
     if (this.$store.state.settings.letterboxdOverrides) {
       this.letterboxdOverrides = this.$store.state.settings.letterboxdOverrides;
     }
+    
+    // Initialize error logs
+    this.refreshErrorLogs();
+    if (this.showErrorLogs) {
+      this.startErrorLogRefresh();
+    }
   },
   beforeRouteLeave () {
     this.sortOrder = "bestOrNewestOnTop";
     this.setSortValue(null);
     this.$store.commit("setDBSortValue", this.sortValue);
+  },
+  beforeUnmount() {
+    // Clean up error log refresh interval
+    this.stopErrorLogRefresh();
   },
   computed: {
     activeFiltersMinusTemps() {
@@ -2260,6 +2352,11 @@ export default {
         
       } catch (error) {
         console.error('Error fetching Letterboxd data:', error);
+        ErrorLogService.error('Failed to fetch Letterboxd data', { 
+          username, 
+          error: error.message,
+          stack: error.stack 
+        });
         this.letterboxdUserData = null;
       }
     },
@@ -2710,6 +2807,11 @@ export default {
         this.scrapingTest.error = error.message || 'Scraping failed';
         this.scrapingTest.success = false;
         this.scrapingTest.loading = false;
+        ErrorLogService.error('Letterboxd scraping test failed', { 
+          username, 
+          error: error.message,
+          stack: error.stack 
+        });
       }
     },
     addLetterboxdOverride() {
@@ -3270,6 +3372,11 @@ export default {
         
       } catch (error) {
         console.error('Error fetching movies by director:', error);
+        ErrorLogService.error('Failed to fetch movies by director', { 
+          director, 
+          error: error.message,
+          stack: error.stack 
+        });
         return [];
       }
     },
@@ -3383,6 +3490,11 @@ export default {
         return allResults;
       } catch (error) {
         console.error('Error fetching movies by company:', error);
+        ErrorLogService.error('Failed to fetch movies by company', { 
+          company, 
+          error: error.message,
+          stack: error.stack 
+        });
         return [];
       }
     },
@@ -3470,7 +3582,78 @@ export default {
         
       } catch (err) {
         console.error('Error fetching unrated movies:', err);
+        ErrorLogService.error('Failed to fetch unrated movies', { 
+          searchFilter, 
+          error: err.message,
+          stack: err.stack 
+        });
         this.unratedMoviesError = 'Error fetching from TMDB.';
+      }
+    },
+    // Test function for error logging (for development)
+    testErrorLogging() {
+      ErrorLogService.info('Test info message', { timestamp: Date.now() });
+      ErrorLogService.warn('Test warning message', { component: 'Home' });
+      ErrorLogService.error('Test error message', { testData: 'sample error' });
+      ErrorLogService.debug('Test debug message', { debugInfo: 'detailed information' });
+    },
+    // Error log management methods
+    refreshErrorLogs() {
+      this.errorLogs = ErrorLogService.getLogs();
+    },
+    clearErrorLogs() {
+      ErrorLogService.clearLogs();
+      this.refreshErrorLogs();
+    },
+    async copyErrorLogs() {
+      try {
+        const logText = ErrorLogService.getLogsAsText();
+        await navigator.clipboard.writeText(logText);
+        this.showCopySuccess();
+      } catch (error) {
+        // Fallback for older browsers
+        this.fallbackCopyToClipboard(ErrorLogService.getLogsAsText());
+      }
+    },
+    fallbackCopyToClipboard(text) {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        this.showCopySuccess();
+      } catch (error) {
+        console.error('Failed to copy logs:', error);
+        ErrorLogService.error('Failed to copy logs to clipboard', { error: error.message });
+      } finally {
+        document.body.removeChild(textArea);
+      }
+    },
+    showCopySuccess() {
+      this.copySuccess = true;
+      setTimeout(() => {
+        this.copySuccess = false;
+      }, 2000);
+    },
+    formatLogTime(timestamp) {
+      return new Date(timestamp).toLocaleTimeString();
+    },
+    startErrorLogRefresh() {
+      if (this.errorLogRefreshInterval) return; // Already running
+      this.errorLogRefreshInterval = setInterval(() => {
+        this.refreshErrorLogs();
+      }, 1000); // Refresh every second
+    },
+    stopErrorLogRefresh() {
+      if (this.errorLogRefreshInterval) {
+        clearInterval(this.errorLogRefreshInterval);
+        this.errorLogRefreshInterval = null;
       }
     },
   },
@@ -4007,6 +4190,66 @@ export default {
     transform: translateY(-50%);
     white-space: nowrap;
   }
+}
+
+/* Error logs styling */
+.error-logs-section {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: #444 !important;
+  color: #ffffff !important;
+}
+
+.settings-panel-inline.dark .error-logs-section {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff !important;
+}
+
+.error-logs-section h6,
+.error-logs-section .text-muted,
+.error-logs-section small {
+  color: #ffffff !important;
+}
+
+.log-entry {
+  color: #ffffff !important;
+}
+
+.log-entry.log-error {
+  border-left-color: #dc3545 !important;
+  background: rgba(220, 53, 69, 0.1);
+  color: #ffffff !important;
+}
+
+.log-entry.log-warn {
+  border-left-color: #ffc107 !important;
+  background: rgba(255, 193, 7, 0.1);
+  color: #ffffff !important;
+}
+
+.log-entry.log-info {
+  border-left-color: #0dcaf0 !important;
+  background: rgba(13, 202, 240, 0.1);
+  color: #ffffff !important;
+}
+
+.log-entry.log-debug {
+  border-left-color: #6c757d !important;
+  background: rgba(108, 117, 125, 0.1);
+  color: #ffffff !important;
+}
+
+.log-message {
+  word-break: break-word;
+  line-height: 1.3;
+  color: #ffffff !important;
+}
+
+.log-entry .text-muted {
+  color: #cccccc !important;
+}
+
+.error-logs-section .text-center {
+  color: #ffffff !important;
 }
 </style>
 

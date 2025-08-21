@@ -44,6 +44,7 @@
 
 <script>
 import LetterboxdService from '../services/LetterboxdService.js';
+import ErrorLogService from '../services/ErrorLogService.js';
 
 export default {
   name: 'LetterboxdAuth',
@@ -98,6 +99,7 @@ export default {
         window.location.href = authUrl;
       } catch (error) {
         console.error('Error starting auth flow:', error);
+        ErrorLogService.error('Error starting Letterboxd auth flow:', error);
         this.authError = 'Failed to start authentication process';
         this.authInProgress = false;
       }
@@ -155,6 +157,7 @@ export default {
           
         } catch (error) {
           console.error('Error exchanging code for token:', error);
+          ErrorLogService.error('Error exchanging Letterboxd code for token:', error);
           this.authError = 'Failed to complete authentication';
         } finally {
           this.authInProgress = false;
@@ -182,6 +185,7 @@ export default {
         
       } catch (error) {
         console.error('Error disconnecting:', error);
+        ErrorLogService.error('Error disconnecting from Letterboxd:', error);
         this.authError = 'Failed to disconnect';
       }
     }

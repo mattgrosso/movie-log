@@ -6,6 +6,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import * as Sentry from "@sentry/vue";
 import { getRating } from "../assets/javascript/GetRating";
 import router from '@/router';
+import ErrorLogService from "../services/ErrorLogService.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -210,10 +211,12 @@ export default createStore({
             router.push('/');
           } else {
             console.error("Login attempted but the user data didn't work");
+            ErrorLogService.error("Login attempted but the user data didn't work", userData);
           }
         }
       } catch (error) {
         console.error(error);
+        ErrorLogService.error('Error during login:', error);
       }
     },
     async resetLocalDB (context) {
@@ -270,12 +273,14 @@ export default createStore({
               });
             } catch (error) {
               console.error(error);
+              ErrorLogService.error('Error fetching movie data for Academy Award winner:', movieEntry, error);
             }
           }
 
           context.commit('setAcademyAwardWinners', { bestPicture: bestPictureWinners });
         } catch (error) {
           console.error('Failed to get awards data:', error);
+          ErrorLogService.error('Failed to get awards data:', error);
         }
       }
     },
@@ -313,6 +318,8 @@ export default createStore({
         const cleanedValue = removeNaNAndUndefined(dbEntry.value);
         await set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedValue);
       } catch (error) {
+        console.error('Error setting database value:', error);
+        ErrorLogService.error('Error setting database value:', dbEntry.path, error);
         throw error;
       }
     },
