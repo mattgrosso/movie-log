@@ -345,7 +345,7 @@
             <hr class="mt-0 mb-3">
             <div class="settings-panel-body">
               <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="shortsToggle" v-model="showShorts">
+                <input class="form-check-input" type="checkbox" id="shortsToggle" :checked="showShorts" @change="updateShowShorts">
                 <label class="form-check-label" for="shortsToggle">Include short films</label>
               </div>
               <div class="form-check form-switch mb-3">
@@ -353,7 +353,7 @@
                 <label class="form-check-label" for="randomSearchToggle">Show random search on page load</label>
               </div>
               <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="errorLogsToggle" v-model="showErrorLogs">
+                <input class="form-check-input" type="checkbox" id="errorLogsToggle" :checked="showErrorLogs" @change="updateShowErrorLogs">
                 <label class="form-check-label" for="errorLogsToggle">Show error logs</label>
               </div>
               <div v-if="showErrorLogs" class="mb-3">
@@ -793,20 +793,16 @@ export default {
       debouncedSetSearchValue: debounce(function(value) {
         this.searchValue = value;
       }, 300),
-      enableRandomSearch: null, // random search on page load toggle, will be set from store
       filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword'],
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
       hasCalledFindFilter: false,
       inputValue: "", // Visual input value (can be different from internal value)
       insetBrowserUrl: "",
-      letterboxdConnected: false, // Letterboxd integration toggle
       letterboxdOverrides: {},
       letterboxdUserData: null,
-      letterboxdUsername: '', // Letterboxd username
       newOverrideTitle: '',
       newOverrideYear: null,
       noResults: false, // Show no results message for TMDB search
-      normalizationTweak: 0.25, // default, will be set from store
       numberOfResultsToShow: 25,
       quickLinksSortType: "count",
       scrapingTest: {
@@ -824,8 +820,6 @@ export default {
       showMovieInfoModal: false, // Show/hide movie info modal
       showOverridePanel: false,
       showSettingsPanel: false, // controls settings panel visibility
-      showShorts: false, // shorts toggle, default to off
-      showErrorLogs: false, // error log visibility toggle
       errorLogs: [], // error log entries
       copySuccess: false, // copy to clipboard success indicator
       errorLogRefreshInterval: null, // interval for refreshing error logs
@@ -833,180 +827,52 @@ export default {
       showViewCount: false,
       sortOrder: "bestOrNewestOnTop",
       sortValue: null,
-      tieBreakTweak: 1, // default, will be set from store
-      personalAwardName: 'The Oscars', // default, will be set from store
       unratedMovies: [],
       unratedMoviesDebounceTimeout: null,
       unratedMoviesError: null,
       unratedMoviesQuery: '',
       unratedMoviesSearchType: null, // 'person', 'year', 'yearRange', 'genre', 'general'
       value: "",
-      // Matt-only dev settings
-      stickinessPromptState: 'normal',
-      tieBreakPromptState: 'normal',
-      awardsPromptState: 'normal',
     }
   },
   watch: {
-    DBSortValue (newVal) {
-      if (newVal) {
-        this.setSortValue(newVal)
-      }
-    },
     paginatedSortedResults (newVal, oldVal) {
+      ErrorLogService.debug('paginatedSortedResults watcher fired', { 
+        newLength: newVal?.length, 
+        oldLength: oldVal?.length, 
+        component: 'Home' 
+      });
       if (!oldVal.length && newVal.length) {
         this.checkResultsAndFindFilter();
       }
     },
     allEntriesWithFlatKeywordsAdded (newVal, oldval) {
+      ErrorLogService.debug('allEntriesWithFlatKeywordsAdded watcher fired', { 
+        newLength: newVal?.length, 
+        oldLength: oldval?.length, 
+        component: 'Home' 
+      });
       if (!oldval.length && newVal.length) {
         this.buildCastMembersCache();
       }
     },
-    '$store.state.settings.normalizationTweak': {
-      handler(newVal) {
-        if (typeof newVal === 'number') {
-          this.normalizationTweak = newVal;
-        } else {
-          this.normalizationTweak = 0.25;
-        }
-      },
-      immediate: true
-    },
-    '$store.state.settings.tieBreakTweak': {
-      handler(newVal) {
-        if (typeof newVal === 'number') {
-          this.tieBreakTweak = newVal;
-        } else {
-          this.tieBreakTweak = 1;
-        }
-      },
-      immediate: true
-    },
-    '$store.state.settings.personalAwardName': {
-      handler(newVal) {
-        if (typeof newVal === 'string' && newVal.length > 0) {
-          this.personalAwardName = newVal;
-        } else {
-          this.personalAwardName = 'Oscar';
-        }
-      },
-      immediate: true
-    },
-    '$store.state.settings.includeShorts': {
-      handler(newVal) {
-        if (typeof newVal === 'boolean') {
-          this.showShorts = newVal;
-        } else {
-          this.showShorts = false;
-        }
-      },
-      immediate: true
-    },
-    '$store.state.settings.showErrorLogs': {
-      handler(newVal) {
-        if (typeof newVal === 'boolean') {
-          this.showErrorLogs = newVal;
-        } else {
-          this.showErrorLogs = false;
-        }
-      },
-      immediate: true
-    },
-    '$store.state.settings': {
-      handler(newSettings) {
-        if (!newSettings) return;
-        
-        const wasNull = this.enableRandomSearch === null;
-        const settingValue = newSettings.enableRandomSearch;
-        const settingsKeys = Object.keys(newSettings);
-        
-        if (typeof settingValue === 'boolean') {
-          // We have a definitive boolean value from the user's settings
-          this.enableRandomSearch = settingValue;
-        } else if (settingsKeys.length > 5) {
-          // Settings object is fully loaded but doesn't have enableRandomSearch property
-          // This indicates a user who hasn't set this preference yet - default to true
-          this.enableRandomSearch = true;
-        } else {
-          // Settings object is empty or only partially loaded - wait for complete load
-          return;
-        }
-        
-        // If this is the first time setting is loaded, trigger random search check
-        if (wasNull && this.enableRandomSearch !== null) {
-          this.$nextTick(() => {
-            this.checkResultsAndFindFilter();
-          });
-        }
-      },
-      immediate: true,
-      deep: true
-    },
-    '$store.state.settings.letterboxdConnected': {
-      handler(newVal) {
-        if (typeof newVal === 'boolean') {
-          this.letterboxdConnected = newVal;
-        } else {
-          this.letterboxdConnected = false;
-        }
-      },
-      immediate: true
-    },
-    '$store.state.settings.letterboxdUsername': {
-      handler(newVal) {
-        if (typeof newVal === 'string') {
-          this.letterboxdUsername = newVal;
-        } else {
-          this.letterboxdUsername = '';
-        }
-      },
-      immediate: true
-    },
-    '$store.state.settings.stickinessPromptState': {
-      handler(newVal) {
-        if (typeof newVal === 'string' && ['disabled', 'normal', 'forced'].includes(newVal)) {
-          this.stickinessPromptState = newVal;
-        } else {
-          this.stickinessPromptState = 'normal';
-        }
-      },
-      immediate: true
-    },
-    '$store.state.settings.tieBreakPromptState': {
-      handler(newVal) {
-        if (typeof newVal === 'string' && ['disabled', 'normal', 'forced'].includes(newVal)) {
-          this.tieBreakPromptState = newVal;
-        } else {
-          this.tieBreakPromptState = 'normal';
-        }
-      },
-      immediate: true
-    },
-    '$store.state.settings.awardsPromptState': {
-      handler(newVal) {
-        if (typeof newVal === 'string' && ['disabled', 'normal', 'forced'].includes(newVal)) {
-          this.awardsPromptState = newVal;
-        } else {
-          this.awardsPromptState = 'normal';
-        }
-      },
-      immediate: true
-    },
-    showShorts(newVal) {
-      this.$store.dispatch('setDBValue', { path: 'settings/includeShorts', value: newVal });
-    },
-    showErrorLogs(newVal) {
-      this.$store.dispatch('setDBValue', { path: 'settings/showErrorLogs', value: newVal });
-      if (newVal) {
-        this.refreshErrorLogs();
-        // Start auto-refresh when logs are visible
-        this.startErrorLogRefresh();
-      } else {
-        this.stopErrorLogRefresh();
+    // Handle initial enableRandomSearch loading (replaces deep settings watcher logic)
+    enableRandomSearch(newVal, oldVal) {
+      ErrorLogService.debug('enableRandomSearch computed watcher fired', { newVal, oldVal, component: 'Home' });
+      // Only trigger on first load when transitioning from null to a value
+      if (oldVal === null && newVal !== null) {
+        ErrorLogService.info('enableRandomSearch first load - triggering checkResultsAndFindFilter');
+        this.$nextTick(() => {
+          this.checkResultsAndFindFilter();
+        });
       }
     },
     effectiveSearchFilter(newVal, oldVal) {
+      ErrorLogService.debug('effectiveSearchFilter watcher fired', { 
+        newVal: newVal?.value, 
+        oldVal: oldVal?.value, 
+        component: 'Home' 
+      });
       // Fetch unrated movies for any non-empty search term (from input or chips)
       if (newVal && (!oldVal || newVal.value !== oldVal.value)) {        
         this.debouncedFetchUnratedMoviesBySearchFilter(newVal);
@@ -1015,11 +881,6 @@ export default {
         this.unratedMoviesError = null;
       }
     },
-    '$store.state.dbLoaded'(newVal) {
-      if (newVal) {
-        this.checkResultsAndFindFilter();
-      }
-    }
   },
   mounted () {
     window.scroll({
@@ -1031,6 +892,12 @@ export default {
     if (this.$route.query.search) {
       this.inputValue = decodeURIComponent(this.$route.query.search);
     } else {
+      this.checkResultsAndFindFilter();
+    }
+    
+    // Handle dbLoaded state (replaces watcher)
+    if (this.$store.state.dbLoaded) {
+      ErrorLogService.debug('DB already loaded in mounted, triggering checkResultsAndFindFilter');
       this.checkResultsAndFindFilter();
     }
 
@@ -1045,18 +912,7 @@ export default {
       this.sortOrder = "bestOrNewestOnTop";
     }
 
-    // Initialize showShorts from store
-    if (typeof this.$store.state.settings.includeShorts === 'boolean') {
-      this.showShorts = this.$store.state.settings.includeShorts;
-    } else {
-      this.showShorts = false;
-    }
-    
-    // Initialize enableRandomSearch from store - let the watcher handle defaults
-    if (typeof this.$store.state.settings.enableRandomSearch === 'boolean') {
-      this.enableRandomSearch = this.$store.state.settings.enableRandomSearch;
-    }
-    // Note: Don't set a default here - let the settings watcher handle it properly
+    // Note: showShorts, showErrorLogs, and enableRandomSearch are now computed properties
     
     // Initialize letterboxdOverrides from store
     if (this.$store.state.settings.letterboxdOverrides) {
@@ -1079,6 +935,57 @@ export default {
     this.stopErrorLogRefresh();
   },
   computed: {
+    // Settings computed properties (replaces watchers for better performance)
+    enableRandomSearch() {
+      const settingValue = this.$store.state.settings?.enableRandomSearch;
+      if (typeof settingValue === 'boolean') {
+        return settingValue;
+      }
+      // Default to true for users who haven't set this preference
+      const settingsKeys = this.$store.state.settings ? Object.keys(this.$store.state.settings) : [];
+      return settingsKeys.length > 5 ? true : null;
+    },
+    normalizationTweak() {
+      const value = this.$store.state.settings?.normalizationTweak;
+      return typeof value === 'number' ? value : 0.25;
+    },
+    tieBreakTweak() {
+      const value = this.$store.state.settings?.tieBreakTweak;
+      return typeof value === 'number' ? value : 1;
+    },
+    personalAwardName() {
+      const value = this.$store.state.settings?.personalAwardName;
+      return (typeof value === 'string' && value.length > 0) ? value : 'Oscar';
+    },
+    showShorts() {
+      const value = this.$store.state.settings?.includeShorts;
+      return typeof value === 'boolean' ? value : false;
+    },
+    showErrorLogs() {
+      const value = this.$store.state.settings?.showErrorLogs;
+      return typeof value === 'boolean' ? value : false;
+    },
+    letterboxdConnected() {
+      const value = this.$store.state.settings?.letterboxdConnected;
+      return typeof value === 'boolean' ? value : false;
+    },
+    letterboxdUsername() {
+      const value = this.$store.state.settings?.letterboxdUsername;
+      return typeof value === 'string' ? value : '';
+    },
+    stickinessPromptState() {
+      const value = this.$store.state.settings?.stickinessPromptState;
+      return (typeof value === 'string' && ['disabled', 'normal', 'forced'].includes(value)) ? value : 'normal';
+    },
+    tieBreakPromptState() {
+      const value = this.$store.state.settings?.tieBreakPromptState;
+      return (typeof value === 'string' && ['disabled', 'normal', 'forced'].includes(value)) ? value : 'normal';
+    },
+    awardsPromptState() {
+      const value = this.$store.state.settings?.awardsPromptState;
+      return (typeof value === 'string' && ['disabled', 'normal', 'forced'].includes(value)) ? value : 'normal';
+    },
+    
     activeFiltersMinusTemps() {
       // Return only non-temporary filters
       return this.activeFilters.filter((filter) => !filter.temp);
@@ -2089,6 +1996,25 @@ export default {
     }
   },
   methods: {
+    // Event handlers for form changes (replaces watchers)
+    updateShowShorts(event) {
+      const newVal = event.target.checked;
+      ErrorLogService.debug('updateShowShorts handler fired', { newVal, component: 'Home' });
+      this.$store.dispatch('setDBValue', { path: 'settings/includeShorts', value: newVal });
+    },
+    updateShowErrorLogs(event) {
+      const newVal = event.target.checked;
+      ErrorLogService.debug('updateShowErrorLogs handler fired', { newVal, component: 'Home' });
+      this.$store.dispatch('setDBValue', { path: 'settings/showErrorLogs', value: newVal });
+      if (newVal) {
+        this.refreshErrorLogs();
+        // Start auto-refresh when logs are visible
+        this.startErrorLogRefresh();
+      } else {
+        this.stopErrorLogRefresh();
+      }
+    },
+    
     buildCastMembersCache() {
       // Clear any existing cache
       this.cachedCastMembers = new Set();
