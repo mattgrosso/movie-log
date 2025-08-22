@@ -336,6 +336,7 @@
             :personalAwardName="personalAwardName"
             :awardNameWithThe="getAwardNameWithThe()"
             :awardNameSingular="getAwardNameSingular()"
+            :selectedYear="dailyAwardsYear"
           />
           <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
           <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">
@@ -837,31 +838,19 @@ export default {
   },
   watch: {
     paginatedSortedResults (newVal, oldVal) {
-      ErrorLogService.debug('paginatedSortedResults watcher fired', { 
-        newLength: newVal?.length, 
-        oldLength: oldVal?.length, 
-        component: 'Home' 
-      });
       if (!oldVal.length && newVal.length) {
         this.checkResultsAndFindFilter();
       }
     },
     allEntriesWithFlatKeywordsAdded (newVal, oldval) {
-      ErrorLogService.debug('allEntriesWithFlatKeywordsAdded watcher fired', { 
-        newLength: newVal?.length, 
-        oldLength: oldval?.length, 
-        component: 'Home' 
-      });
       if (!oldval.length && newVal.length) {
         this.buildCastMembersCache();
       }
     },
     // Handle initial enableRandomSearch loading (replaces deep settings watcher logic)
     enableRandomSearch(newVal, oldVal) {
-      ErrorLogService.debug('enableRandomSearch computed watcher fired', { newVal, oldVal, component: 'Home' });
       // Only trigger on first load when transitioning from null to a value
       if (oldVal === null && newVal !== null) {
-        ErrorLogService.info('enableRandomSearch first load - triggering checkResultsAndFindFilter');
         this.$nextTick(() => {
           this.checkResultsAndFindFilter();
         });
@@ -897,7 +886,6 @@ export default {
     
     // Handle dbLoaded state (replaces watcher)
     if (this.$store.state.dbLoaded) {
-      ErrorLogService.debug('DB already loaded in mounted, triggering checkResultsAndFindFilter');
       this.checkResultsAndFindFilter();
     }
 
@@ -984,6 +972,9 @@ export default {
     awardsPromptState() {
       const value = this.$store.state.settings?.awardsPromptState;
       return (typeof value === 'string' && ['disabled', 'normal', 'forced'].includes(value)) ? value : 'normal';
+    },
+    dailyAwardsYear() {
+      return this.$store.state.settings?.dailyAwardsYear;
     },
     
     activeFiltersMinusTemps() {
@@ -1774,28 +1765,40 @@ export default {
     showAwardsModal () {
       // Check three-state setting
       if (this.awardsPromptState === 'forced') {
+        console.log('✅ Awards modal forced');
         return true;
       }
       if (this.awardsPromptState === 'disabled') {
+        console.log('❌ Awards modal disabled');
         return false;
       }
       // Normal behavior (awardsPromptState === 'normal')
       // Don't show until database is loaded to prevent flash
       if (!this.$store.state.dbLoaded) {
+        console.log('❌ Database not loaded yet');
         return false;
       }
       
       if (this.showStickinessModal || this.showTweakModal) {
+        console.log('❌ Other modals are showing');
         return false;
       }
       
-      // Check daily limit - only show awards once per day unless manually overridden
+      // Check if a specific year is manually requested (e.g., from Resume Awards button)
       const settings = this.$store.state.settings;
       if (!settings) {
         return false; // Settings not loaded yet
       }
       
       const today = new Date().toDateString();
+      const dailyAwardsYear = settings.dailyAwardsYear;
+      const dailyAwardsYearDate = settings.dailyAwardsYearDate;
+      
+      // If a specific year is requested for today, bypass the daily limit
+      if (dailyAwardsYear && dailyAwardsYearDate === today) {
+        return true;
+      }
+      
       const lastAwardDate = settings.lastAwardCompletionDate;
       
       
@@ -1865,6 +1868,7 @@ export default {
         return newMovies.length > 0;
       });
 
+      console.log('🎯 Final showAwardsModal result:', hasEligibleYears);
       return hasEligibleYears;
     },
     sortedByRating () {

@@ -340,6 +340,10 @@ export default {
     awardNameSingular: {
       type: String,
       default: 'Oscar'
+    },
+    selectedYear: {
+      type: Number,
+      default: null
     }
   },
   components: {
@@ -349,6 +353,7 @@ export default {
     return {
       showModal: false,
       savingState: false,
+      completingYear: false, // Flag to prevent saves after completion starts
       selectedCategory: null,
       currentYear: null,
       awardsData: {},
@@ -549,19 +554,22 @@ export default {
         }
         
         // Persist the daily selection (don't await to avoid blocking UI)
-        // Wrap in try-catch to prevent dispatch errors from crashing
-        try {
-          this.$store.dispatch('setDBValue', { 
-            path: 'settings/dailyAwardsYear',
-            value: selectedYear
-          });
-          this.$store.dispatch('setDBValue', {
-            path: 'settings/dailyAwardsYearDate',
-            value: today
-          });
-        } catch (error) {
-          console.error('Error persisting daily selection:', error);
-          ErrorLogService.error('Error persisting daily selection:', error);
+        // Only persist if no selectedYear prop was provided (don't override Resume/Edit actions)
+        if (!this.selectedYear) {
+          // Wrap in try-catch to prevent dispatch errors from crashing
+          try {
+            this.$store.dispatch('setDBValue', { 
+              path: 'settings/dailyAwardsYear',
+              value: selectedYear
+            });
+            this.$store.dispatch('setDBValue', {
+              path: 'settings/dailyAwardsYearDate',
+              value: today
+            });
+          } catch (error) {
+            console.error('Error persisting daily selection:', error);
+            ErrorLogService.error('Error persisting daily selection:', error);
+          }
         }
         
         return selectedYear;
@@ -577,6 +585,19 @@ export default {
         return this.eligibleOptions;
       }
       return [];
+    }
+  },
+  created() {
+    // If we reach this point, it means Home.vue has decided to show the awards modal
+    // For Resume/Edit actions, we should automatically open the modal
+    const settings = this.$store.state.settings;
+    const today = new Date().toDateString();
+    
+    // Check if this is a Resume/Edit action (bypass was triggered)
+    if (settings && settings.dailyAwardsYear && settings.dailyAwardsYearDate === today) {
+      this.$nextTick(() => {
+        this.openModal();
+      });
     }
   },
   methods: {
@@ -605,6 +626,7 @@ export default {
     },
     async completeYearAndClose() {      
       try {
+        this.completingYear = true; // Set flag to prevent further saves
         // Record completion date
         await this.$store.dispatch('setDBValue', {
           path: 'settings/lastAwardCompletionDate',
@@ -617,12 +639,17 @@ export default {
           value: null
         });
 
-        // Queue save in background - store handles deduplication and sequencing
-        setTimeout(() => {
-          this.saveCurrentState()
-        }, 0);
+        // Before completing, ensure all disabled categories are marked as noNominees
+        this.ensureDisabledCategoriesMarked();
+
+        // Temporarily allow save during completion by clearing the flag
+        this.completingYear = false;
         
-        // Close modal
+        // Save state first, then close modal  
+        await this.saveCurrentState();
+        
+        // Restore the completing flag and close modal
+        this.completingYear = true;
         this.closeModal();
       } catch (error) {
         console.error('🚨 COMPLETE YEAR FAILED:', error.message);
@@ -636,7 +663,7 @@ export default {
     openModal() {
       try {
         this.showModal = true;
-        this.currentYear = this.firstEligibleYear;
+        this.currentYear = this.selectedYear || this.firstEligibleYear;
         this.initializeAwardsData();
         
         // Clear options cache for new session
@@ -655,7 +682,11 @@ export default {
       try {
         this.showModal = false;
         this.selectedCategory = null;
-        this.awardsData = {};
+        // Don't clear awardsData if we're in the middle of saving (completing)
+        if (!this.savingState) {
+          this.awardsData = {};
+        }
+
         this.eligibleOptions = [];
       } catch (error) {
         console.error('🚨 MODAL CLOSE FAILED:', error.message);
@@ -663,8 +694,10 @@ export default {
       }
     },
     async saveCurrentState() {
-      // Prevent multiple clicks
-      if (this.savingState) return;
+      // Prevent multiple clicks or saves after completion
+      if (this.savingState || this.completingYear) {
+        return;
+      }
       this.savingState = true;
 
       try {
@@ -699,6 +732,7 @@ export default {
           availableMovieIds: movieIds,
           categories: cleanedCategories
         };
+        
 
         
         // Queue the save - store handles deduplication and sequencing
@@ -743,9 +777,15 @@ export default {
       this.loadingOptions = true;
       try {
         this.eligibleOptions = await this.getEligibleOptionsByMovie();
+        
+        // Auto-detect empty categories and manage noNominees flag
+        this.updateNoNomineesFlag(categoryKey);
       } catch (error) {
         ErrorLogService.error('Error fetching eligible options:', error);
         this.eligibleOptions = []; // Fallback to empty array
+        
+        // Still check for empty category even on error
+        this.updateNoNomineesFlag(categoryKey);
       } finally {
         this.loadingOptions = false;
       }
@@ -753,6 +793,56 @@ export default {
     getCurrentCategoryName() {
       const category = this.categories.find(cat => cat.key === this.selectedCategory);
       return category ? category.name : '';
+    },
+    updateNoNomineesFlag(categoryKey) {
+      // Safely manage the noNominees flag based on available options and existing nominees
+      try {
+        // Initialize category data if it doesn't exist
+        if (!this.awardsData[categoryKey]) {
+          this.awardsData[categoryKey] = { nominees: [], winner: null };
+        }
+        
+        const categoryData = this.awardsData[categoryKey];
+        const hasEligibleOptions = this.eligibleOptions && this.eligibleOptions.length > 0;
+        const hasExistingNominees = categoryData.nominees && categoryData.nominees.length > 0;
+        
+        if (!hasEligibleOptions && !hasExistingNominees) {
+          // No eligible options AND no existing nominees = auto-set noNominees to true
+          if (!categoryData.noNominees) {
+            categoryData.noNominees = true;
+          }
+        } else if (hasExistingNominees && categoryData.noNominees) {
+          // Has nominees but noNominees is still true = clear the flag
+          categoryData.noNominees = false;
+        }
+        // If there are eligible options but no nominees yet, leave noNominees as-is (user can choose)
+      } catch (error) {
+        console.error('🚨 Error updating noNominees flag:', error);
+        ErrorLogService.error('Error updating noNominees flag:', error);
+      }
+    },
+    ensureDisabledCategoriesMarked() {
+      // Check all categories and mark disabled ones as noNominees during completion
+      try {
+        this.categories.forEach(category => {
+          if (this.isCategoryDisabled(category.key)) {
+            // Initialize category data if it doesn't exist
+            if (!this.awardsData[category.key]) {
+              this.awardsData[category.key] = { nominees: [], winner: null };
+            }
+            
+            const categoryData = this.awardsData[category.key];
+            
+            // Only set noNominees if it's not already set and there are no nominees
+            if (!categoryData.noNominees && (!categoryData.nominees || categoryData.nominees.length === 0)) {
+              categoryData.noNominees = true;
+            }
+          }
+        });
+      } catch (error) {
+        console.error('🚨 Error marking disabled categories:', error);
+        ErrorLogService.error('Error marking disabled categories:', error);
+      }
     },
     isCategoryCompleted(categoryKey) {
       const categoryData = this.awardsData[categoryKey];
@@ -954,10 +1044,6 @@ export default {
           
           // Use full cast list - no artificial limits
           const eligibleCast = cast.map((person, index) => {
-            // Debug logging for actor ID issues
-            if (person.name === 'Jeff Daniels') {
-              console.log(`Jeff Daniels in ${entry.movie.title}: TMDb ID = ${person.id}, using ID = ${person.id || person.name}`);
-            }
             
             return {
               id: person.id || person.name, // Use name as fallback for grouping
@@ -1152,10 +1238,6 @@ export default {
             }
             
             if (eligible && !people.find(p => p.name === person.name && p.movieId === entry.movie.id)) {
-              // Debug logging for actor ID issues
-              if (person.name === 'Jeff Daniels') {
-                console.log(`Adding Jeff Daniels from ${entry.movie.title}: TMDb ID = ${person.id}, using ID = ${person.id || person.name}`);
-              }
               
               people.push({
                 id: person.id || person.name, // Use name as fallback for grouping
@@ -1412,13 +1494,10 @@ export default {
     toggleActorNomination(option, categoryData) {
       const actorId = option.id; // The person's TMDb ID
       
-      console.log(`Toggling nomination for actor ${actorId} (${option.name})`);
-      console.log('Full option object:', option);
       
       // Find all roles for this actor in the current year
       const allActorRoles = this.getAllActorRolesInYear(actorId);
       
-      console.log(`Found ${allActorRoles.length} roles for this actor`);
       
       // Check if any role for this actor is already nominated
       const hasAnyNomination = allActorRoles.some(role => 
@@ -1522,11 +1601,6 @@ export default {
         });
       }
       
-      // Debug logging
-      console.log(`🔍 Searching for actor ${actorId} across ${this.eligibleOptionsByMovie.length} movie groups`);
-      allRoles.forEach((role, index) => {
-        console.log(`  Role ${index + 1}: ${role.movie.title} as "${role.character || 'unnamed'}" (Movie ID: ${role.movie.id})`);
-      });
       
       return allRoles;
     },
@@ -1613,7 +1687,6 @@ export default {
           // If this nominee has a better profile image, use it as the base
           if (nominee.details && nominee.details.profile_path && 
               (!groupedByActor[actorId].details || !groupedByActor[actorId].details.profile_path)) {
-            console.log(`Updating Jeff Daniels profile image from ${nominee.movie.title}`);
             groupedByActor[actorId].details = nominee.details;
           }
         }

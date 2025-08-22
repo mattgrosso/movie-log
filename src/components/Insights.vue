@@ -100,32 +100,56 @@
       </div>
     </InsightsPane>
 
-    <InsightsPane v-if="completedAwardsYears.length > 0">
+    <InsightsPane v-if="allAwardsYears.length > 0">
       <div class="insights-pane-header">
         <p>Personal Awards Results</p>
       </div>
       <div class="awards-year-selector mb-3 w-100">
         <div class="form-floating" data-bs-theme="dark">
           <select id="awards-year-select" class="form-select w-100" v-model="selectedAwardsYear">
-            <option v-for="year in completedAwardsYears" :key="year" :value="year">
-              {{ year }}
+            <option v-for="yearData in allAwardsYears" :key="yearData.year" :value="yearData.year">
+              {{ yearData.year }}
+              <span v-if="yearData.completedCategories < yearData.totalCategories"> ({{ yearData.completedCategories }}/{{ yearData.totalCategories }} complete)</span>
             </option>
           </select>
           <label for="awards-year-select">Select Year</label>
         </div>
-        <button 
-          v-if="hasEligibleYears && isWithinDailyLimit" 
-          class="btn btn-outline-warning btn-sm mt-2 w-100"
-          @click="startNewAwards"
-        >
-          <span v-if="startingNewAwards" class="spinner-border spinner-border-sm me-2" role="status"></span>
-          <i v-else class="fas fa-trophy"></i>
-          <span v-if="startingNewAwards">Starting Awards...</span>
-          <span v-else>Start New Awards (Override Daily Limit)</span>
-        </button>
+        
+        <!-- Edit/Resume button -->
+        <div class="d-flex gap-2 mt-2">
+          <button 
+            v-if="selectedYearData && !selectedYearData.completed"
+            class="btn btn-outline-primary btn-sm flex-fill"
+            @click="resumeAwards(selectedAwardsYear)"
+          >
+            <i class="fas fa-edit me-1"></i>
+            Resume Awards
+          </button>
+          
+          <button 
+            v-else-if="selectedYearData && selectedYearData.completed"
+            class="btn btn-outline-secondary btn-sm flex-fill"
+            @click="resumeAwards(selectedAwardsYear)"
+          >
+            <i class="fas fa-edit me-1"></i>
+            Edit Awards
+          </button>
+          
+          <button 
+            v-if="hasEligibleYears && isWithinDailyLimit" 
+            class="btn btn-outline-warning btn-sm"
+            @click="startNewAwards"
+          >
+            <span v-if="startingNewAwards" class="spinner-border spinner-border-sm me-2" role="status"></span>
+            <i v-else class="fas fa-refresh"></i>
+            <span v-if="startingNewAwards">Resetting...</span>
+            <span v-else>Reset daily limit</span>
+          </button>
+        </div>
       </div>
       <div v-if="selectedAwardsData" class="awards-results">
-        <div v-for="category in awardCategories" :key="category.key" class="award-category mb-3">
+        <template v-for="category in awardCategories" :key="category.key">
+          <div v-if="shouldShowCategory(category.key)" class="award-category mb-3">
           <h6 class="category-title mb-2">{{ category.name }}</h6>
           <div v-if="selectedAwardsData[category.key]" class="category-results">
             <div class="award-display d-flex align-items-start">
@@ -166,7 +190,8 @@
           <div v-else class="no-data">
             <em>No data for this category</em>
           </div>
-        </div>
+          </div>
+        </template>
       </div>
     </InsightsPane>
 
@@ -276,44 +301,6 @@
       <YearlyAverage :resultsWithRatings="resultsWithRatings"/>
     </InsightsPane>
 
-    <InsightsPane v-if="partialAwardsYears.length > 0">
-      <div class="insights-pane-header">
-        <p>Resume Awards</p>
-      </div>
-      <div class="partial-awards-section">
-        <p class="mb-3" style="font-size: 0.9rem; opacity: 0.8;">
-          You have partially completed awards for these years:
-        </p>
-        <div v-for="yearData in partialAwardsYears" :key="yearData.year" class="partial-award-item mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>{{ yearData.year }}</strong>
-              <span class="ms-2 text-muted">
-                {{ yearData.completedCategories }}/{{ yearData.totalCategories }} categories complete
-              </span>
-              <div v-if="yearData.hasNewMovies" class="text-warning small mt-1">
-                <i class="fas fa-star"></i>
-                {{ yearData.newMoviesCount }} new movies to consider
-              </div>
-            </div>
-            <button 
-              class="btn btn-primary btn-sm"
-              @click="resumeAwards(yearData.year)"
-              :title="`Resume ${yearData.year} awards`"
-            >
-              <i class="fas fa-trophy me-1"></i>
-              Resume
-            </button>
-          </div>
-          <div class="progress mt-2" style="height: 6px;">
-            <div 
-              class="progress-bar" 
-              :style="`width: ${(yearData.completedCategories / yearData.totalCategories) * 100}%`"
-            ></div>
-          </div>
-        </div>
-      </div>
-    </InsightsPane>
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Outliers</p>
@@ -413,6 +400,80 @@ export default {
     this.randomizeAxes();
   },
   computed: {
+    allAwardsYears() {
+      // Calculate completion status for all years with award data
+      const personalAwards = this.$store.state.settings.personalAwards;
+      if (!personalAwards) return [];
+      
+      const allYears = [];
+      
+      // Get all years that have enough movies (10+) for awards
+      const yearCounts = {};
+      this.filteredEntriesWithFlatKeywordsAdded.forEach(entry => {
+        if (entry.movie.runtime && entry.movie.runtime <= 40) return; // Exclude shorts
+        const year = new Date(entry.movie.release_date).getFullYear();
+        yearCounts[year] = (yearCounts[year] || 0) + 1;
+      });
+      
+      const eligibleYears = Object.keys(yearCounts)
+        .filter(year => yearCounts[year] >= 10)
+        .map(year => parseInt(year));
+      
+      // Process each eligible year
+      eligibleYears.forEach(year => {
+        const awardData = personalAwards[year];
+
+        if (!awardData) {
+          return;
+        }
+        
+        // Handle missing categories (treat as 0 completed categories)
+        if (!awardData.categories) {
+          allYears.push({
+            year: year,
+            completed: awardData.completed === true,
+            completedCategories: 0,
+            totalCategories: 13,
+            hasNewMovies: false
+          });
+          return;
+        }
+        
+        // Count completed categories
+        const categories = Object.values(awardData.categories);
+        const completedCategories = categories.filter(cat => 
+          (cat.nominees?.length > 0 && cat.winner) || cat.noNominees === true
+        ).length;
+        
+        // Determine if year is completed: either all 13 categories done OR explicitly marked complete
+        const isCompleted = completedCategories === 13 || awardData.completed === true;
+        
+        allYears.push({
+          year: year,
+          completed: isCompleted,
+          completedCategories: completedCategories,
+          totalCategories: 13,
+          hasNewMovies: false // Could add new movies logic here if needed
+        });
+      });
+      
+      // Sort by year (most recent first)
+      const sortedYears = allYears.sort((a, b) => b.year - a.year);
+      
+      // Set default selected year to random year if not already set
+      if (sortedYears.length > 0 && !this.selectedAwardsYear) {
+        const randomIndex = Math.floor(Math.random() * sortedYears.length);
+        this.selectedAwardsYear = sortedYears[randomIndex].year;
+      }
+      
+      return sortedYears;
+    },
+    
+    selectedYearData() {
+      // Get data for the currently selected year
+      return this.allAwardsYears.find(yearData => yearData.year === this.selectedAwardsYear);
+    },
+    
     completedAwardsYears() {
       // Get all years that have completed personal awards
       const personalAwards = this.$store.state.settings.personalAwards;
@@ -490,7 +551,25 @@ export default {
     },
     selectedAwardsData() {
       if (!this.selectedAwardsYear) return null;
-      return this.$store.state.settings.personalAwards?.[this.selectedAwardsYear]?.categories;
+      const rawCategories = this.$store.state.settings.personalAwards?.[this.selectedAwardsYear]?.categories;
+      if (!rawCategories) return null;
+      
+      // Expand minimal data back to full objects for display
+      const expandedCategories = {};
+      Object.keys(rawCategories).forEach(categoryKey => {
+        const categoryData = rawCategories[categoryKey];
+        if (categoryData) {
+          expandedCategories[categoryKey] = {
+            nominees: (categoryData.nominees || [])
+              .map(nominee => this.expandNomineeFromMinimal(nominee))
+              .filter(nominee => nominee !== null),
+            winner: categoryData.winner ? this.expandNomineeFromMinimal(categoryData.winner) : null,
+            noNominees: categoryData.noNominees || false
+          };
+        }
+      });
+      
+      return expandedCategories;
     },
     awardCategories() {
       return [
@@ -1083,6 +1162,79 @@ export default {
     },
   },
   methods: {
+    expandNomineeFromMinimal(minimalNominee) {
+      // Convert minimal storage back to full nominee for display
+      if (!minimalNominee) return null;
+      
+      // Handle legacy data - if it already has a movie object, it's not minimal
+      if (minimalNominee.movie) {
+        return minimalNominee; // Already expanded/legacy format
+      }
+      
+      if (minimalNominee.type === 'person') {
+        // Find the movie from our movie log
+        const movieEntry = this.filteredEntriesWithFlatKeywordsAdded.find(entry => 
+          entry.movie.id === minimalNominee.movieId
+        );
+        
+        if (!movieEntry) {
+          console.warn('⚠️ Could not find movie for person nominee:', minimalNominee);
+          return null;
+        }
+        
+        // Reconstruct person nominee
+        const expanded = {
+          id: minimalNominee.id,
+          name: minimalNominee.name,
+          movieId: minimalNominee.movieId,
+          movie: movieEntry.movie // Add back the movie object for display
+        };
+        
+        // Restore role-specific data
+        if (minimalNominee.character) {
+          expanded.character = minimalNominee.character;
+        }
+        if (minimalNominee.directors) {
+          expanded.directors = minimalNominee.directors;
+        }
+        if (minimalNominee.profilePath) {
+          expanded.details = { profile_path: minimalNominee.profilePath };
+        }
+        
+        return expanded;
+      } else if (minimalNominee.type === 'movie') {
+        // Find the full movie entry
+        const movieEntry = this.filteredEntriesWithFlatKeywordsAdded.find(entry => 
+          entry.movie.id === minimalNominee.movieId
+        );
+        
+        if (!movieEntry) {
+          console.warn('⚠️ Could not find movie entry:', minimalNominee);
+          return null;
+        }
+        
+        return movieEntry; // Return the full entry for movie nominees
+      }
+      
+      // Fallback for unknown types or legacy data
+      return minimalNominee;
+    },
+    shouldShowCategory(categoryKey) {
+      // Hide categories that have no nominees (marked as noNominees)
+      if (!this.selectedAwardsData || !this.selectedAwardsData[categoryKey]) {
+        return false;
+      }
+      
+      const categoryData = this.selectedAwardsData[categoryKey];
+      
+      // Don't show if explicitly marked as no nominees
+      if (categoryData.noNominees === true) {
+        return false;
+      }
+      
+      // Show if there's a winner or nominees
+      return categoryData.winner || (categoryData.nominees && categoryData.nominees.length > 0);
+    },
     returnHome () {
       this.$store.commit("setShowHeader", true);
       this.$router.push({ path: '/', query: { movieDbKey: this.dbEntry?.path?.split("movieLog/")[1] } });
