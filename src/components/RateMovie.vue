@@ -518,8 +518,6 @@
       </button>
     </div>
 
-    <hr>
-
     <div v-if="getAllRatings(previousEntry)" class="previous-ratings my-3 mb-5 px-4 pt-3 pb-5">
       <label class="fs-4">Previous Viewings</label>
       <div class="accordion" id="previous-ratings-accordion">
@@ -1100,7 +1098,7 @@ export default {
       background: #212529;
       border-bottom: 1px solid white;
       border-top: 1px solid white;
-      bottom: 27px;
+      bottom: 0;
       display: flex;
       justify-content: space-between;
       margin: 0 -24px;

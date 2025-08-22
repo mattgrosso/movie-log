@@ -52,8 +52,6 @@ export default {
     color: white;
     font-size: 0.6rem;
     padding: 6px 12px;
-    position: fixed;
-    bottom: 0;
 
     span,
     a {
