@@ -2,7 +2,7 @@
   <div class="cinema-roll">
     <Header/>
     <router-view></router-view>
-    <Footer/>
+    <Footer v-if="$store.state.dbLoaded"/>
   </div>
 </template>
 
@@ -41,5 +41,17 @@ export default {
     &.no-scroll {
       overflow: hidden;
     }
+  }
+
+  .cinema-roll {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cinema-roll > router-view {
+    flex: 1 1 auto;
+    width: 100%;
   }
 </style>

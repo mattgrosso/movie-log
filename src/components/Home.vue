@@ -857,11 +857,6 @@ export default {
       }
     },
     effectiveSearchFilter(newVal, oldVal) {
-      ErrorLogService.debug('effectiveSearchFilter watcher fired', { 
-        newVal: newVal?.value, 
-        oldVal: oldVal?.value, 
-        component: 'Home' 
-      });
       // Fetch unrated movies for any non-empty search term (from input or chips)
       if (newVal && (!oldVal || newVal.value !== oldVal.value)) {        
         this.debouncedFetchUnratedMoviesBySearchFilter(newVal);
@@ -3592,9 +3587,12 @@ export default {
 
 <style lang="scss">
   .home {
+    width: 100%;
     max-width: 832px;
+    min-height: calc(100vh - 140px);
 
     .search-bar {
+      width: 100%;
       max-width: 416px;
 
       input#search {
