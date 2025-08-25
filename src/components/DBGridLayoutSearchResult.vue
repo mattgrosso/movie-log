@@ -450,7 +450,7 @@ export default {
   methods: {
     async getAwardsData () {
       try {
-        const response = await axios.get(`https://pacific-journey-63469-f4b691e852c6.herokuapp.com/awards/tmdb/${this.topStructure(this.result).id}`);
+        const response = await axios.get(`https://web-production-b8145.up.railway.app/awards/tmdb/${this.topStructure(this.result).id}`);
         this.awardsData = response.data.map((item) => {
           return {
             ...item,

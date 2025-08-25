@@ -254,7 +254,7 @@ export default createStore({
       const academyAwardWinnersHasData = Boolean(Object.keys(context.state.academyAwardWinners).length);
       if (!academyAwardWinnersHasData) {
         try {
-          const response = await axios.get(`https://pacific-journey-63469-f4b691e852c6.herokuapp.com/awards?category=Best%20Picture`);
+          const response = await axios.get(`https://web-production-b8145.up.railway.app/awards?category=Best%20Picture`);
           const data = response.data.map((item) => {
             return {
               ...item,
