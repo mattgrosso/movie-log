@@ -74,7 +74,30 @@
                 <button class="btn btn-sm btn-outline-secondary" @click="backToCategories">
                   ← Back
                 </button>
-                <h5 class="mb-0 text-center flex-grow-1">{{ getCurrentCategoryName() }}</h5>
+                
+                <!-- Clickable title for Matt with trash reveal -->
+                <div v-if="isMatt" class="flex-grow-1 text-center position-relative">
+                  <h5 
+                    class="mb-0 category-title-clickable" 
+                    @click="showTrashIcon = !showTrashIcon"
+                    :class="{'clicked': showTrashIcon}"
+                  >
+                    {{ getCurrentCategoryName() }}
+                  </h5>
+                  <button 
+                    v-show="showTrashIcon" 
+                    class="btn btn-sm trash-icon"
+                    @click="resetCategory"
+                    title="Clear all nominees"
+                  >
+                    <i class="bi bi-trash3"></i>
+                  </button>
+                </div>
+                
+                <!-- Regular title for non-Matt users -->
+                <h5 v-else class="mb-0 text-center flex-grow-1">{{ getCurrentCategoryName() }}</h5>
+                
+                <div></div> <!-- Spacer for flex layout -->
               </div>
               
               <!-- Current Nominees - Always visible -->
@@ -359,6 +382,7 @@ export default {
       awardsData: {},
       eligibleOptions: [], // For movie categories: simple array. For acting: movie-grouped array
       loadingOptions: false,
+      showTrashIcon: false, // For Matt's category reset functionality
       // Cache expensive operations per year/category
       optionsCache: {}, // Format: { "1994-bestActor": [{ movieId, movie, loadedCast, hasMore }] }
       // Cache TMDb person details across all categories
@@ -366,6 +390,9 @@ export default {
     };
   },
   computed: {
+    isMatt () {
+      return this.$store.state.databaseTopKey === "mattgrosso-gmail-com" || !this.$store.state.databaseTopKey;
+    },
     yearsEligibleForAwards() {
       try {
         if (!this.allEntriesWithFlatKeywordsAdded || !Array.isArray(this.allEntriesWithFlatKeywordsAdded)) {
@@ -616,8 +643,33 @@ export default {
       // Navigate back to category grid to show updated status
       this.selectedCategory = null;
     },
+    
+    resetCategory() {
+      if (this.awardsData[this.selectedCategory]) {
+        this.awardsData[this.selectedCategory].nominees = [];
+        this.awardsData[this.selectedCategory].winner = null;
+        this.awardsData[this.selectedCategory].noNominees = false;
+      }
+      
+      // Save the reset
+      this.saveCurrentState();
+    },
+    
+    resetYear() {
+      if (!confirm(`Reset ALL awards data for ${this.currentYear}? This cannot be undone.`)) return;
+      
+      // Clear all awards data for this year
+      this.awardsData = {};
+      
+      // Navigate back to category grid
+      this.selectedCategory = null;
+      
+      // Save the reset
+      this.saveCurrentState();
+    },
     async backToCategories() {
       this.selectedCategory = null;
+      this.showTrashIcon = false; // Reset trash icon when going back
       
       // Queue save in background - store handles deduplication and sequencing
       setTimeout(() => {
@@ -774,6 +826,7 @@ export default {
     },
     async selectCategory(categoryKey) {
       this.selectedCategory = categoryKey;
+      this.showTrashIcon = false; // Reset trash icon when changing categories
       this.loadingOptions = true;
       try {
         this.eligibleOptions = await this.getEligibleOptionsByMovie();
@@ -2305,6 +2358,46 @@ export default {
         
         .category-header h5 {
           color: white;
+        }
+        
+        .category-title-clickable {
+          cursor: pointer;
+          transition: color 0.2s;
+          
+          &:hover {
+            color: #ccc;
+          }
+          
+          &.clicked {
+            color: #ffc107;
+          }
+        }
+        
+        .trash-icon {
+          position: absolute;
+          top: 0;
+          right: 0;
+          font-size: 0.8rem;
+          padding: 2px 6px;
+          transition: all 0.2s;
+          animation: fadeInScale 0.2s ease-out;
+          color: white;
+          
+          &:hover {
+            transform: scale(1.1);
+            color: #ff6b6b;
+          }
+        }
+        
+        @keyframes fadeInScale {
+          from {
+            opacity: 0;
+            transform: scale(0.8);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
         }
         
         .section-title {

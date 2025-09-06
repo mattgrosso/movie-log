@@ -70,7 +70,7 @@ export default {
     top: 0;
     left: 0;
     width: 100%;
-    height: 44px; /* iOS status bar height */
+    height: 20px;
     z-index: 9999;
     background: transparent;
     cursor: pointer;
