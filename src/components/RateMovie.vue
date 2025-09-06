@@ -1,5 +1,5 @@
 <template>
-  <div class="rate-movie mx-auto">
+  <div class="rate-movie">
     <div class="rate-movie-header">
       <div class="home-link" @click="returnHome">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
@@ -9,68 +9,43 @@
           Home
         </span>
       </div>
-      <img v-if="rateBannerUrl" class="col-12" :src="rateBannerUrl">
-      <h1 class="text-light col-12 m-0 px-3 py-2">Rate {{title}}</h1>
+      <img v-if="rateBannerUrl" class="w-100" :src="rateBannerUrl">
+      <h1 class="text-light m-0 px-3 py-2">Rate {{title}}</h1>
     </div>
-    <div class="p-4">
+    <div class="container-fluid">
+      <div class="row p-3">
       <div class="col-12 mb-4">
         <label class="form-label fs-4" for="title">Title</label>
         <input class="form-control" name="title" type="text" id="title" v-model="title">
       </div>
 
-      <div class="year-medium-date col-12 my-4 d-flex justify-content-between">
-        <div class="year col-2">
-          <label class="form-label fs-4" for="year">Year</label>
-          <input class="form-control" name="year" id="year" type="text" v-model="year">
-        </div>
-        <div class="medium col-3">
-          <label class="form-label fs-4" for="medium">Medium</label>
-          <select class="form-select" name="medium" id="medium" v-model="medium">
-            <option value=""></option>
-            <option value="Theater">Theater</option>
-            <option value="Physical Media">Physical Media</option>
-            <option value="Streaming">Streaming</option>
-            <option value="Download">Download</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="date col-5">
-          <label class="form-label fs-4" for="date">Date</label>
-          <input class="form-control" name="date" id="date" type="datetime-local" v-model="date">
-        </div>
-      </div>
-
-      <div class="col-12 mt-4 mb-3 movie-tags collapsed" ref="movieTagList">
-        <div class="movie-tags-toggle d-flex justify-content-between align-items-center" @click="toggleMovieTagList">
-          <label class="form-label">Tags for the movie itself
-            <span v-if="selectedMovieTagNames.length">({{ selectedMovieTagNames.length }})</span>
-          </label>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-right" viewBox="0 0 16 16">
-            <path d="M6 12.796V3.204L11.481 8 6 12.796zm.659.753 5.48-4.796a1 1 0 0 0 0-1.506L6.66 2.451C6.011 1.885 5 2.345 5 3.204v9.592a1 1 0 0 0 1.659.753z"/>
-          </svg>
-        </div>
-        <div class="movie-tags-content">
-          <div class="tag-list d-flex flex-wrap">
-            <div v-for="(tag, index) in movieTags" :key="index" class='form-check mx-2 mb-2'>
-              <input class='form-check-input' :checked="movieTagChecked(tag)" type='checkbox' :id="`tag-${index}`" @click="toggleMovieTag(tag)">
-              <label class="form-check-label" :for="`tag-${index}`">
-                {{tag.title}}
-              </label>
-            </div>
+      <div class="col-12 my-3">
+        <div class="row g-3">
+          <div class="col-3">
+            <label class="form-label fs-4" for="year">Year</label>
+            <input class="form-control" name="year" id="year" type="text" v-model="year">
           </div>
-
-          <div class="input-group">
-            <input type="text" class="form-control" placeholder="new tag" v-model="newMovieTagTitle" @keyup.enter.prevent>
-            <button class="btn btn-dark" type="button" @click.prevent="addMovieTag">
-              add
-            </button>
+          <div class="col-4">
+            <label class="form-label fs-4" for="medium">Medium</label>
+            <select class="form-select" name="medium" id="medium" v-model="medium">
+              <option value=""></option>
+              <option value="Theater">Theater</option>
+              <option value="Physical Media">Physical Media</option>
+              <option value="Streaming">Streaming</option>
+              <option value="Download">Download</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="col-5">
+            <label class="form-label fs-4" for="date">Date</label>
+            <input class="form-control" name="date" id="date" type="datetime-local" v-model="date">
           </div>
         </div>
       </div>
 
       <hr>
 
-      <div class="col-12 my-5">
+      <div class="col-12 my-3">
         <label class="form-label fs-4 mb-0" for="direction">Direction</label>
         <p class="fs-6 fst-italic">Rate the film's directing and editing. Does the film seem to have a consistent and intentional voice?</p>
         <select class="form-select" name="direction" id="direction" v-model="direction">
@@ -111,7 +86,7 @@
         </select>
       </div>
 
-      <div class="col-12 my-5">
+      <div class="col-12 my-3">
         <label class="form-label fs-4 mb-0" for="imagery">Imagery</label>
         <p class="fs-6 fst-italic">
           Rate the film's cinematography, visual effects, production design, costume design, and/or animation.
@@ -154,7 +129,7 @@
         </select>
       </div>
 
-      <div class="col-12 my-5">
+      <div class="col-12 my-3">
         <label class="form-label fs-4 mb-0" for="story">Story</label>
         <p class="fs-6 fst-italic">
           Rate the film's story, screenplay, and writing.
@@ -197,7 +172,7 @@
         </select>
       </div>
 
-      <div class="col-12 my-5">
+      <div class="col-12 my-3">
         <label class="form-label fs-4 mb-0" for="performance">Performance</label>
         <p class="fs-6 fst-italic">
           Rate the performances in the film. In the case of documentaries, rate the interest of the subject matter.
@@ -240,7 +215,7 @@
         </select>
       </div>
 
-      <div class="col-12 my-5">
+      <div class="col-12 my-3">
         <label class="form-label fs-4 mb-0" for="soundtrack">Soundtrack</label>
         <p class="fs-6 fst-italic">
           Rate the film's score, songs, and sound design.
@@ -283,7 +258,7 @@
         </select>
       </div>
 
-      <div class="col-12 my-5">
+      <div class="col-12 my-3">
         <label class="form-label fs-4 mb-0" for="stickiness">Stickiness</label>
         <p class="fs-6 fst-italic">
           How much of a lasting impression do you think the film will have?
@@ -311,7 +286,7 @@
         </select>
       </div>
 
-      <div class="col-12 my-5">
+      <div class="col-12 my-3">
         <label class="form-label fs-4 mb-0" for="love">Love</label>
         <p class="fs-6 fst-italic">
           The intangible quality of a film that seems to speak to you specifically.
@@ -354,7 +329,7 @@
         </select>
       </div>
 
-      <div class="col-12 my-5">
+      <div class="col-12 my-3">
         <label class="form-label fs-4 mb-0" for="overall">Overall</label>
         <p class="fs-6 fst-italic">
           Gut sense of the film's overall rating.
@@ -399,14 +374,16 @@
 
       <hr>
 
-      <p class="rating col-12 my-3 d-flex justify-content-center align-items-center" id="rating">
-        Rating: {{rating.calculatedTotal}}
-        <i class="bi bi-info-circle ms-2" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseRatingBreakdown" aria-expanded="true" aria-controls="panelsStayOpen-collapseRatingBreakdown"></i>
-        <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked) + 1}}/{{numberOfMoviesAfterRating}}
-        <span class="mx-3 d-flex justify-content-center align-items-center">|</span>
-        #{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear) + 1}} in {{movieYear(movieToRate)}}
-      </p>
+      <div class="col-12 my-3">
+        <p class="rating text-center mb-0" id="rating">
+          <span class="fw-bold">Rating: {{rating.calculatedTotal}}</span>
+          <i class="bi bi-info-circle ms-2" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseRatingBreakdown" aria-expanded="true" aria-controls="panelsStayOpen-collapseRatingBreakdown"></i>
+          <span class="mx-2">|</span>
+          <span>#{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked) + 1}}/{{numberOfMoviesAfterRating}}</span>
+          <span class="mx-2">|</span>
+          <span>#{{indexIfSortedIntoArray(movieAsRatedOnPage, moviesRankedFromYear) + 1}} in {{movieYear(movieToRate)}}</span>
+        </p>
+      </div>
 
       <div class="rating-breakdown-accordion accordion" id="ratingBreakdownAccordion">
         <div class="accordion-item" >
@@ -460,45 +437,56 @@
         </p>
       </div>
 
-      <div v-if="movieToRate" ref="neighbors" class="neighbors">
-        <div class="hide-neighbors" @click="toggleNeighbors">
-          <i class="bi bi-arrow-bar-down"/>
-          <i class="bi bi-arrow-bar-up"/>
-        </div>
-        <div v-if="neighborTwoAhead" class="neighbor-two-ahead">
-          <img :src="posterUrl(neighborTwoAhead.movie)" :alt="`${neighborTwoAhead.movie.title} poster`">
-        </div>
-        <div v-if="neighborAhead" class="neighbor-ahead">
-          <img :src="posterUrl(neighborAhead.movie)" :alt="`${neighborAhead.movie.title} poster`">
-        </div>
-        <div v-if="movieToRate" class="current-movie">
-          <img :src="posterUrl(movieToRate)" :alt="`${movieToRate.title} poster`">
-        </div>
-        <div v-if="neighborBehind" class="neighbor-behind">
-          <img :src="posterUrl(neighborBehind.movie)" :alt="`${neighborBehind.movie.title} poster`">
-        </div>
-        <div v-if="neighborTwoBehind" class="neighbor-two-behind">
-          <img :src="posterUrl(neighborTwoBehind.movie)" :alt="`${neighborTwoBehind.movie.title} poster`">
+      <div v-if="movieToRate" class="col-12">
+        <div ref="neighbors" class="neighbors">
+          <div class="hide-neighbors" @click="toggleNeighbors">
+            <i class="bi bi-arrow-bar-down"/>
+            <i class="bi bi-arrow-bar-up"/>
+          </div>
+          <div v-if="neighborTwoAhead" class="neighbor-two-ahead">
+            <img :src="posterUrl(neighborTwoAhead.movie)" :alt="`${neighborTwoAhead.movie.title} poster`">
+          </div>
+          <div v-if="neighborAhead" class="neighbor-ahead">
+            <img :src="posterUrl(neighborAhead.movie)" :alt="`${neighborAhead.movie.title} poster`">
+          </div>
+          <div v-if="movieToRate" class="current-movie">
+            <img :src="posterUrl(movieToRate)" :alt="`${movieToRate.title} poster`">
+          </div>
+          <div v-if="neighborBehind" class="neighbor-behind">
+            <img :src="posterUrl(neighborBehind.movie)" :alt="`${neighborBehind.movie.title} poster`">
+          </div>
+          <div v-if="neighborTwoBehind" class="neighbor-two-behind">
+            <img :src="posterUrl(neighborTwoBehind.movie)" :alt="`${neighborTwoBehind.movie.title} poster`">
+          </div>
         </div>
       </div>
 
       <hr>
 
-      <div class="col-12 my-5 viewing-tags">
+      <div class="col-12 my-3 viewing-tags">
         <label class="form-label">Tags for this viewing</label>
-        <div class="tag-list d-flex flex-wrap">
-          <div v-for="(tag, index) in viewingTags" :key="index" class='form-check mx-2 mb-2'>
-            <input class='form-check-input' type='checkbox' :id="`tag-${index}`" @click="toggleViewingTag(tag)">
-            <label class="form-check-label" :for="`tag-${index}`">
+        <div class="tag-list d-flex flex-wrap column-gap-2 row-gap-1">
+          <div v-for="(tag, index) in viewingTags" :key="index" class="tag-pill-container">
+            <span 
+              class="badge me-1 mb-1 d-inline-flex align-items-center"
+              :class="viewingTagChecked(tag) ? 'text-bg-primary' : 'text-bg-secondary'"
+              @click="toggleViewingTag(tag)"
+              style="cursor: pointer;">
               {{tag.title}}
-            </label>
+              <button 
+                class="btn-close btn-close-white ms-1" 
+                @click.stop="deleteViewingTag(tag)"
+                title="Delete tag"
+                style="font-size: 0.5rem; opacity: 0.6;">
+              </button>
+            </span>
           </div>
         </div>
 
-        <div class="input-group">
-          <input type="text" class="form-control" placeholder="new tag" v-model="newViewingTagTitle" @keyup.enter.prevent>
-          <button class="btn btn-dark" type="button" @click.prevent="addViewingTag">
-            add
+        <div class="input-group mt-2">
+          <input type="text" class="form-control" placeholder="Add new tag" v-model="newViewingTagTitle" @keyup.enter.prevent="addViewingTag">
+          <button class="btn btn-outline-primary" type="button" @click.prevent="addViewingTag">
+            <i class="bi bi-plus"></i> Add
           </button>
         </div>
       </div>
@@ -565,6 +553,27 @@
           </div>
         </div>
       </div>
+      </div><!-- end row -->
+    </div><!-- end container-fluid -->
+
+    <!-- Delete Tag Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+      <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content bg-dark text-light">
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title text-light">Delete Tag</h5>
+            <button type="button" class="btn-close btn-close-white" @click="showDeleteModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-light">Are you sure you want to delete the tag <strong>"{{ tagToDelete?.title }}"</strong>?</p>
+            <p class="text-muted small mb-0">This will remove it from your tag list permanently.</p>
+          </div>
+          <div class="modal-footer border-secondary">
+            <button class="btn btn-secondary" @click="showDeleteModal = false">Cancel</button>
+            <button class="btn btn-danger" @click="confirmDeleteTag">Delete Tag</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -598,7 +607,10 @@ export default {
       year: null,
       getAllRatings: getAllRatings,
       dbEntry: null,
-      chatGPTKeywords: []
+      chatGPTKeywords: [],
+      showDeleteModal: false,
+      tagToDelete: null,
+      tagType: null
     }
   },
   mounted () {
@@ -717,14 +729,20 @@ export default {
         return [];
       }
 
-      return this.settings.tags["viewing-tags"];
+      // Convert to array and sort alphabetically by title
+      return Object.values(this.settings.tags["viewing-tags"] || {}).sort((a, b) => 
+        a.title.localeCompare(b.title)
+      );
     },
     movieTags () {
       if (!this.settings || !this.settings.tags) {
         return [];
       }
 
-      return this.settings.tags["movie-tags"];
+      // Convert to array and sort alphabetically by title
+      return Object.values(this.settings.tags["movie-tags"] || {}).sort((a, b) => 
+        a.title.localeCompare(b.title)
+      );
     },
     rateBannerUrl () {
       if (this.movieToRate) {
@@ -964,12 +982,59 @@ export default {
 
       return this.selectedViewingTagNames.includes(tag.title);
     },
+    deleteViewingTag(tag) {
+      this.tagToDelete = tag;
+      this.tagType = 'viewing';
+      this.showDeleteModal = true;
+    },
     movieTagChecked (tag) {
       if (!this.selectedMovieTagNames) {
         return false;
       }
 
       return this.selectedMovieTagNames.includes(tag.title);
+    },
+    deleteMovieTag(tag) {
+      this.tagToDelete = tag;
+      this.tagType = 'movie';
+      this.showDeleteModal = true;
+    },
+    confirmDeleteTag() {
+      if (!this.tagToDelete || !this.tagType) return;
+      
+      const tag = this.tagToDelete;
+      const isViewingTag = this.tagType === 'viewing';
+      const tagCategory = isViewingTag ? 'viewing-tags' : 'movie-tags';
+      
+      // Remove from settings
+      if (this.settings.tags && this.settings.tags[tagCategory]) {
+        const tagKey = Object.keys(this.settings.tags[tagCategory]).find(
+          key => this.settings.tags[tagCategory][key].title === tag.title
+        );
+        if (tagKey) {
+          delete this.settings.tags[tagCategory][tagKey];
+          this.$store.dispatch('setDBValue', { 
+            path: `settings/tags/${tagCategory}`, 
+            value: this.settings.tags[tagCategory] 
+          });
+        }
+      }
+      
+      // Remove from selected tags if it was selected
+      if (isViewingTag) {
+        if (this.selectedViewingTagNames && this.selectedViewingTagNames.includes(tag.title)) {
+          this.selectedViewingTags = this.selectedViewingTags.filter(t => t.title !== tag.title);
+        }
+      } else {
+        if (this.selectedMovieTagNames && this.selectedMovieTagNames.includes(tag.title)) {
+          this.selectedMovieTags = this.selectedMovieTags.filter(t => t.title !== tag.title);
+        }
+      }
+      
+      // Close modal and reset state
+      this.showDeleteModal = false;
+      this.tagToDelete = null;
+      this.tagType = null;
     },
     toggleMovieTagList () {
       this.$refs.movieTagList.classList.toggle("collapsed");
@@ -1069,9 +1134,6 @@ export default {
       }
     }
 
-    .year-medium-date {
-      column-gap: 1rem;
-    }
 
     .rating {
       i {
@@ -1098,12 +1160,11 @@ export default {
       background: #212529;
       border-bottom: 1px solid white;
       border-top: 1px solid white;
-      bottom: 0;
       display: flex;
       justify-content: space-between;
-      margin: 0 -24px;
+      margin: 0 -1rem; /* Extend to edges, counteracting parent p-3 padding */
       padding: 6px;
-      position: sticky;
+      position: relative;
 
       &.unstuck {
         bottom: 0;

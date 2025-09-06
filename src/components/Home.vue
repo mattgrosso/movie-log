@@ -892,6 +892,7 @@ export default {
 
     if (this.$route.query.movieDbKey) {
       this.$store.commit("setDBSortValue", "watched");
+      this.setSortValue("watched");
       this.sortOrder = "bestOrNewestOnTop";
     }
 
@@ -3017,15 +3018,8 @@ export default {
         return { type: 'person', value: exactDirectorMatch.name, display: `${exactDirectorMatch.name}` };
       }
 
-      // Check for partial director match (whole words only)
-      const partialDirectorMatch = allDirectors.find(director => {
-        if (!director.name) return false;
-        const directorWords = director.name.toLowerCase().split(' ');
-        return directorWords.some(word => word === lowerValue);
-      });
-      if (partialDirectorMatch) {
-        return { type: 'person', value: partialDirectorMatch.name, display: `${partialDirectorMatch.name}`};
-      }
+      // For partial matches, don't classify as person type - let it fall through to general search
+      // This ensures the search value works the same in chips as it does in the input
 
       // If no director types matched, return null
       return null;
@@ -3081,26 +3075,19 @@ export default {
       return null;
     },
     detectProductionCompanyTypes(searchValue, lowerValue) {
-      // Check for exact director match
+      // Check for exact company match
       const allStudios = this.allStudios || [];
       const exactStudioMatch = allStudios.find(studio => 
         studio.name && studio.name.toLowerCase() === lowerValue
       );
       if (exactStudioMatch) {
-        return { type: 'person', value: exactStudioMatch.name, display: `${exactStudioMatch.name}` };
+        return { type: 'company', value: exactStudioMatch.name, display: `${exactStudioMatch.name}` };
       }
 
-      // Check for partial director match (whole words only)
-      const partialStudioMatch = allStudios.find(studio => {
-        if (!studio.name) return false;
-        const studioWords = studio.name.toLowerCase().split(' ');
-        return studioWords.some(word => word === lowerValue);
-      });
-      if (partialStudioMatch) {
-        return { type: 'person', value: partialStudioMatch.name, display: `${partialStudioMatch.name}`};
-      }
+      // For partial matches, don't classify as company type - let it fall through to general search
+      // This ensures the search value works the same in chips as it does in the input
 
-      // If no director types matched, return null
+      // If no company types matched, return null
       return null;
     },
     createFilterByType(expectedType, value) {
