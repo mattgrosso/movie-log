@@ -1,5 +1,7 @@
 <template>
   <div class="cinema-roll">
+    <!-- Invisible scroll-to-top trigger area -->
+    <div class="scroll-to-top-trigger" @click="scrollToTop"></div>
     <Header/>
     <router-view></router-view>
     <Footer v-if="$store.state.dbLoaded"/>
@@ -15,6 +17,14 @@ export default {
   components: {
     Footer,
     Header
+  },
+  methods: {
+    scrollToTop() {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
   },
   async mounted () {
     document.addEventListener('visibilitychange', async () => {
@@ -53,5 +63,25 @@ export default {
   .cinema-roll > router-view {
     flex: 1 1 auto;
     width: 100%;
+  }
+
+  .scroll-to-top-trigger {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 44px; /* iOS status bar height */
+    z-index: 9999;
+    background: transparent;
+    cursor: pointer;
+    
+    /* Only show on mobile devices */
+    @media (min-width: 768px) {
+      display: none;
+    }
+    
+    /* Add subtle visual feedback on touch */
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+    touch-action: manipulation;
   }
 </style>
