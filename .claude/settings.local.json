@@ -49,7 +49,8 @@
       "WebFetch(domain:www.superheroapi.com)",
       "WebFetch(domain:developers.google.com)",
       "Bash(PATCH=true yarn build)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "WebFetch(domain:stackoverflow.com)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

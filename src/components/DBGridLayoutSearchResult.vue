@@ -1,7 +1,7 @@
 <template>
   <li
     class="grid-layout-media-result"
-    :class="{'not-rated': result.falseEntry}"
+    :class="{'not-rated': result.falseEntry, 'loading': isLoading}"
     :id="sanitizeId(result.dbKey)"
     @click="showDetails(`Info-${this.topStructure(result).id}`)"
   >
@@ -12,6 +12,14 @@
         loading: placeholderImage
       }"
     >
+    
+    <!-- Loading overlay -->
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="spinner-border spinner-border-sm text-light" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+    
     <div class="details">
       <span v-if="activeQuickLinkList === 'bestPicture'">
         {{topStructure(result).academyAwardsYear}}
@@ -297,18 +305,22 @@ export default {
   data () {
     return {
       getAllRatings: getAllRatings,
-      showDetailsModal: false,
-      showInsetBrowserModal: false,
+        showInsetBrowserModal: false,
       insetBrowserUrl: "",
       awardsData: null,
       letterboxdData: null,
-      placeholderImage
+      placeholderImage,
+      isLoading: false
     }
   },
   components: {
     Modal,
     InsetBrowserModal,
     ToggleableRating
+  },
+  mounted() {
+    // Reset loading state when component mounts (when returning from movie detail)
+    this.isLoading = false;
   },
   watch: {
     async showDetailsModal (val) {
@@ -528,7 +540,19 @@ export default {
         return;
       }
 
-      this.showDetailsModal = true;
+      // Show loading state immediately
+      this.isLoading = true;
+
+      // Save current home page state before navigating
+      this.$store.commit('setHomePageScrollPosition', window.pageYOffset);
+      // We'll need to get search chips and search value from the Home component
+      // This will be handled by the Home component when the navigation happens
+
+      // Small delay to ensure loading state renders before navigation
+      setTimeout(() => {
+        const tmdbId = this.topStructure(this.result).id;
+        this.$router.push(`/movie/${tmdbId}`);
+      }, 50);
     },
     async goToWikipedia (searchValue) {
       let value;
@@ -762,6 +786,28 @@ export default {
 </script>
 
 <style lang="scss">
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+
+  .grid-layout-media-result {
+    position: relative;
+    
+    &.loading {
+      pointer-events: none;
+      opacity: 0.8;
+    }
+  }
+
   .letterboxd-status-button {
     width: 32px;
     height: 32px;

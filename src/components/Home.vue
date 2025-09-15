@@ -867,16 +867,64 @@ export default {
     },
   },
   mounted () {
-    window.scroll({
-      top: 0,
-      left: 0,
-      behavior: 'instant'
-    });
+    // Check if we have any state to restore
+    const hasStateToRestore = this.$store.state.homePageScrollPosition > 0 || 
+                             this.$store.state.homePageSearchChips.length > 0 ||
+                             this.$store.state.homePageSearchValue ||
+                             this.$store.state.homePageNumberOfResults > 25;
+
+    if (hasStateToRestore) {
+      // Restore search state
+      if (this.$store.state.homePageSearchChips.length > 0) {
+        this.activeFilters = [...this.$store.state.homePageSearchChips];
+      }
+      if (this.$store.state.homePageSearchValue) {
+        this.inputValue = this.$store.state.homePageSearchValue;
+      }
+      if (this.$store.state.homePageNumberOfResults > 25) {
+        this.numberOfResultsToShow = this.$store.state.homePageNumberOfResults;
+      }
+      
+      // Restore scroll position after DOM updates and result rendering
+      this.$nextTick(() => {
+        if (this.$store.state.homePageScrollPosition > 0) {
+          document.documentElement.scrollTop = this.$store.state.homePageScrollPosition;
+          document.body.scrollTop = this.$store.state.homePageScrollPosition; // For Safari
+        }
+      });
+      
+      // Clear stored state after restoring (unless it's a new search from MovieDetail)
+      const isNewSearch = this.$store.state.homePageSearchValue && this.$store.state.homePageSearchChips.length === 0;
+      if (!isNewSearch) {
+        this.$store.commit('setHomePageScrollPosition', 0);
+        this.$store.commit('setHomePageSearchChips', []);
+        this.$store.commit('setHomePageSearchValue', '');
+        // Don't reset numberOfResults - preserve the expanded results
+        // this.$store.commit('setHomePageNumberOfResults', 25);
+      } else if (isNewSearch) {
+        // Handle new search from MovieDetail - convert search value to chip immediately
+        this.convertSearchToChip();
+        // Clear the stored state after conversion
+        this.$store.commit('setHomePageScrollPosition', 0);
+        this.$store.commit('setHomePageSearchChips', []);
+        this.$store.commit('setHomePageSearchValue', '');
+      }
+    } else {
+      // Normal behavior - scroll to top instantly
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
 
     if (this.$route.query.search) {
       this.inputValue = decodeURIComponent(this.$route.query.search);
-    } else {
+    } else if (!hasStateToRestore) {
       this.checkResultsAndFindFilter();
+    }
+    
+    // Handle new search from MovieDetail page
+    if (this.$store.state.homePageSearchValue && this.$store.state.homePageSearchChips.length === 0) {
+      // Clear the search state from store after processing
+      this.$store.commit('setHomePageSearchValue', '');
     }
     
     // Handle dbLoaded state (replaces watcher)
@@ -909,14 +957,26 @@ export default {
       this.startErrorLogRefresh();
     }
   },
-  beforeRouteLeave () {
-    this.sortOrder = "bestOrNewestOnTop";
-    this.setSortValue(null);
-    this.$store.commit("setDBSortValue", this.sortValue);
-  },
   beforeUnmount() {
     // Clean up error log refresh interval
     this.stopErrorLogRefresh();
+  },
+  
+  // Combined beforeRouteLeave method
+  beforeRouteLeave(to, from, next) {
+    // Reset sorting when leaving (original functionality)
+    this.sortOrder = "bestOrNewestOnTop";
+    this.setSortValue(null);
+    this.$store.commit("setDBSortValue", this.sortValue);
+    
+    // Save state when navigating to movie detail page
+    if (to.name === 'MovieDetail') {
+      this.$store.commit('setHomePageScrollPosition', window.pageYOffset);
+      this.$store.commit('setHomePageSearchChips', [...this.activeFilters]);
+      this.$store.commit('setHomePageSearchValue', this.inputValue);
+      this.$store.commit('setHomePageNumberOfResults', this.numberOfResultsToShow);
+    }
+    next();
   },
   computed: {
     // Settings computed properties (replaces watchers for better performance)
@@ -1776,7 +1836,6 @@ export default {
       }
       
       if (this.showStickinessModal || this.showTweakModal) {
-        console.log('❌ Other modals are showing');
         return false;
       }
       
@@ -1864,7 +1923,6 @@ export default {
         return newMovies.length > 0;
       });
 
-      console.log('🎯 Final showAwardsModal result:', hasEligibleYears);
       return hasEligibleYears;
     },
     sortedByRating () {

@@ -99,6 +99,11 @@ export default createStore({
     // devModeTopKey: 'brianpatrick1-gmail-com',
     dbLoaded: false,
     filteredResults: [],
+    // Home page navigation state preservation
+    homePageScrollPosition: 0,
+    homePageSearchChips: [],
+    homePageSearchValue: '',
+    homePageNumberOfResults: 25,
     // Simple save debouncing
     lastSavePath: null,
     lastSaveTime: 0,
@@ -189,6 +194,19 @@ export default createStore({
     updateLastSave (state, { path, time }) {
       state.lastSavePath = path;
       state.lastSaveTime = time;
+    },
+    // Home page navigation state mutations
+    setHomePageScrollPosition (state, value) {
+      state.homePageScrollPosition = value;
+    },
+    setHomePageSearchChips (state, value) {
+      state.homePageSearchChips = value;
+    },
+    setHomePageSearchValue (state, value) {
+      state.homePageSearchValue = value;
+    },
+    setHomePageNumberOfResults (state, value) {
+      state.homePageNumberOfResults = value;
     }
   },
   actions: {

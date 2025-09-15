@@ -7,6 +7,7 @@ const PickMedia = () => import(/* webpackChunkName: "pick-media" */ "../componen
 const RateMovie = () => import(/* webpackChunkName: "rate-movie" */ "../components/RateMovie.vue");
 const Insights = () => import(/* webpackChunkName: "insights" */ "../components/Insights.vue");
 const ShareDBResults = () => import(/* webpackChunkName: "share-db-results" */ "../components/ShareDBResults.vue");
+const MovieDetail = () => import(/* webpackChunkName: "movie-detail" */ "../components/MovieDetail.vue");
 
 // Router
 const loggedIn = () => {
@@ -96,6 +97,21 @@ const routes = [
     component: ShareDBResults,
     meta: {
       requiresLogin: false
+    }
+  },
+  {
+    path: '/movie/:tmdbId',
+    name: 'MovieDetail',
+    component: MovieDetail,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
     }
   },
 ]
