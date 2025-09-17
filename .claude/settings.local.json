@@ -50,7 +50,8 @@
       "WebFetch(domain:developers.google.com)",
       "Bash(PATCH=true yarn build)",
       "Bash(git log:*)",
-      "WebFetch(domain:stackoverflow.com)"
+      "WebFetch(domain:stackoverflow.com)",
+      "Read(//tmp/**)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

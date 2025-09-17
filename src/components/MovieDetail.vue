@@ -250,6 +250,8 @@ import minBy from 'lodash/minBy';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
+import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
+import uniq from 'lodash/uniq';
 
 export default {
   name: 'MovieDetail',
@@ -262,6 +264,7 @@ export default {
       result: null, // Will be constructed from movie data
       previousEntry: null,
       awardsData: null,
+      letterboxdData: null,
       getAllRatings: getAllRatings,
       isLoading: false
     };
@@ -384,10 +387,113 @@ export default {
     },
     keywordCounts() {
       const counts = {};
-      this.topStructure(this.result)?.flatKeywords?.forEach(keyword => {
-        // Count logic would go here - simplified for now
-        counts[keyword] = 1;
+
+      // Count how many times each keyword appears across all movies in the database
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const flatKeywords = result.movie.flatKeywords || [];
+        flatKeywords.forEach((keyword) => {
+          if (counts[keyword]) {
+            counts[keyword]++;
+          } else if (keyword) {
+            counts[keyword] = 1;
+          }
+        });
       });
+
+      return counts;
+    },
+
+    // Count computed properties for proper tracking
+    allEntriesWithFlatKeywordsAdded() {
+      return this.$store.getters.allMediaAsArray.map((result) => {
+        const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
+        const flatChatGPTKeywords = result.movie.chatGPTKeywords || [];
+        const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
+        return {
+          ...result,
+          movie: {
+            ...result.movie,
+            flatKeywords: flatKeywords || []
+          }
+        }
+      });
+    },
+
+    countsDirectors() {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const crew = result.movie.crew;
+        const director = Array.isArray(crew) ? crew.find((person) => person.job === "Director")?.name : null;
+
+        if (director) {
+          if (counts[director]) {
+            counts[director]++;
+          } else if (director) {
+            counts[director] = 1;
+          }
+        }
+      })
+
+      return counts;
+    },
+
+    countsCastCrew() {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const castData = result.movie.cast;
+        const crewData = result.movie.crew;
+        const cast = Array.isArray(castData) ? castData.filter((person, index) => index < 10).map(person => person.name) : [];
+        const crew = Array.isArray(crewData) ? crewData.filter((person, index) => index < 10).map(person => person.name) : [];
+        const castCrewCombined = uniq([...cast, ...crew]);
+
+        castCrewCombined.forEach((person) => {
+          if (counts[person]) {
+            counts[person]++;
+          } else if (person) {
+            counts[person] = 1;
+          }
+        })
+      })
+
+      return counts;
+    },
+
+    countsGenres() {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const genres = result.movie.genres;
+        if (Array.isArray(genres)) {
+          genres.forEach((genre) => {
+            if (counts[genre.name]) {
+              counts[genre.name]++;
+            } else if (genre.name) {
+              counts[genre.name] = 1;
+            }
+          })
+        }
+      })
+
+      return counts;
+    },
+
+    countsStudios() {
+      const counts = {};
+
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const productionCompanies = result.movie.production_companies?.map(company => company.name) || [];
+
+        productionCompanies.forEach((company) => {
+          if (counts[company]) {
+            counts[company]++;
+          } else if (company) {
+            counts[company] = 1;
+          }
+        })
+      })
+
       return counts;
     }
   },
@@ -429,6 +535,9 @@ export default {
         if (!this.awardsData) {
           await this.getAwardsData();
         }
+
+        // Load Letterboxd data if available
+        await this.checkLetterboxdData();
       } catch (error) {
         console.error('Error loading movie data:', error);
         this.$router.push('/');
@@ -532,26 +641,6 @@ export default {
       }
     },
 
-    // Counting methods - these would need the full store data
-    countDirector(name) {
-      // Implementation to count director appearances
-      return 0;
-    },
-
-    countGenre(name) {
-      // Implementation to count genre appearances  
-      return 0;
-    },
-
-    countCastCrew(name) {
-      // Implementation to count cast/crew appearances
-      return 0;
-    },
-
-    countStudios(name) {
-      // Implementation to count studio appearances
-      return 0;
-    },
 
     parseNamesToList(names) {
       return Array.isArray(names) ? names.join(', ') : names;
@@ -559,11 +648,85 @@ export default {
 
     // Letterboxd integration methods
     isMovieLoggedOnLetterboxd() {
-      return false; // Implementation needed
+      // First check manual overrides
+      const movie = this.topStructure(this.result);
+      const overrides = this.$store.state.settings.letterboxdOverrides || {};
+
+      // Create override key to match what we use in Settings
+      const overrideKey = `${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '')}_${this.getYear(this.result)}`;
+
+      if (overrides[overrideKey]) {
+        return true; // Manual override says this movie is logged
+      }
+
+      // Fall back to automatic detection
+      return this.letterboxdData && this.letterboxdData.length > 0;
     },
 
     logOnLetterboxd() {
-      // Implementation needed
+      const movie = this.topStructure(this.result);
+
+      // Check if movie is already logged on Letterboxd
+      if (this.isMovieLoggedOnLetterboxd() && this.letterboxdData && this.letterboxdData.length > 0) {
+        // Movie is logged - open the movie's Letterboxd page where user can see their diary entries
+        const urls = LetterboxdUrlService.generateUrls(movie.title, this.getYear(this.result));
+
+        if (urls && urls.webUrl) {
+          // Open the movie's page on Letterboxd - use location.href to avoid white screen on return
+          window.location.href = urls.webUrl;
+        } else {
+          // Fallback: open user's diary page
+          const username = this.$store.state.settings.letterboxdUsername;
+          if (username) {
+            const diaryUrl = `https://letterboxd.com/${username}/films/diary/`;
+            window.location.href = diaryUrl;
+          }
+        }
+      } else {
+        // Movie not logged - use the log action to open rating/review interface
+        const success = LetterboxdUrlService.logMovie(movie.title, this.getYear(this.result));
+
+        if (!success) {
+          console.error('Failed to open movie on Letterboxd for logging:', movie.title);
+          ErrorLogService.error('Failed to open movie on Letterboxd for logging:', movie.title);
+        }
+      }
+    },
+
+    async checkLetterboxdData() {
+      if (!this.$store.state.settings.letterboxdConnected) {
+        return;
+      }
+
+      try {
+        const movie = this.topStructure(this.result);
+        const username = this.$store.state.settings.letterboxdUsername;
+
+        if (!username) {
+          console.log('No Letterboxd username provided');
+          return;
+        }
+
+        // Use the scraping service to get user's film data
+        const LetterboxdScrapingService = (await import('../services/LetterboxdScrapingService.js')).default;
+        const userData = await LetterboxdScrapingService.getUserData(username);
+
+        // Filter to just this movie's entries
+        if (userData && userData.films) {
+          const movieEntries = userData.films.filter(film => {
+            const normalizedFilmTitle = LetterboxdScrapingService.normalizeMovieTitle(film.title);
+            const normalizedSearchTitle = LetterboxdScrapingService.normalizeMovieTitle(movie.title);
+            return normalizedFilmTitle === normalizedSearchTitle;
+          });
+
+          this.letterboxdData = movieEntries;
+        }
+
+      } catch (error) {
+        console.error('Failed to get Letterboxd data:', error);
+        ErrorLogService.error('Failed to get Letterboxd data:', error);
+        this.letterboxdData = null;
+      }
     },
 
     goToWikipedia(query) {
@@ -577,15 +740,63 @@ export default {
 
     // Rating deletion methods
     showConfimDeleteButton(dbKey, index) {
-      // Implementation needed
+      const deleteButton = document.getElementById(`delete-button-${dbKey}-${index}`);
+      const confirmDeleteButton = document.getElementById(`confirm-delete-button-${dbKey}-${index}`);
+
+      deleteButton.classList.add('d-none');
+      confirmDeleteButton.classList.remove('d-none');
     },
 
     showDeleteButton(dbKey, index) {
-      // Implementation needed  
+      const deleteButton = document.getElementById(`delete-button-${dbKey}-${index}`);
+      const confirmDeleteButton = document.getElementById(`confirm-delete-button-${dbKey}-${index}`);
+
+      deleteButton.classList.remove('d-none');
+      confirmDeleteButton.classList.add('d-none');
     },
 
     deleteRating(entry, index) {
-      // Implementation needed
+      let scratch = { ...entry };
+      scratch.ratings.splice(index, 1);
+
+      if (!scratch.ratings.length) {
+        scratch = null;
+      }
+
+      const dbEntry = {
+        path: `movieLog/${entry.dbKey}`,
+        value: scratch
+      }
+
+      this.$store.dispatch('setDBValue', dbEntry);
+      document.querySelectorAll('.confirm-delete-button').forEach((button) => button.classList.add('d-none'));
+      document.querySelectorAll('.delete-button').forEach((button) => button.classList.remove('d-none'));
+
+      // Update local data to reflect the deletion
+      if (scratch === null) {
+        // Movie was completely removed, navigate back to home
+        this.$router.push('/');
+      } else {
+        // Update local previousEntry data
+        this.previousEntry = scratch;
+      }
+    },
+
+    // Count methods using computed properties
+    countDirector(name) {
+      return this.countsDirectors[name] || 0;
+    },
+
+    countCastCrew(name) {
+      return this.countsCastCrew[name] || 0;
+    },
+
+    countGenre(genre) {
+      return this.countsGenres[genre] || 0;
+    },
+
+    countStudios(studio) {
+      return this.countsStudios[studio] || 0;
     }
   }
 };
