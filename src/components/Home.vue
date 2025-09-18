@@ -320,18 +320,19 @@
               </div>
             </div>
           </div>
-          <StickinessModal
-            v-if="showStickinessModal"
+          <!-- Stickiness Inline Content -->
+          <StickinessInline
+            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
             :showStickinessModal="showStickinessModal"
-            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"Add commentMore actions
+            @stickiness-updated="onStickinessUpdated"
           />
           <TweakModal
-            v-else-if="showTweakModal"
+            v-if="showTweakModal"
             :showTweakModal="showTweakModal"
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
           />
           <PersonalAwardsModal
-            v-else-if="showAwardsModal"
+            v-if="showAwardsModal"
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
             :personalAwardName="personalAwardName"
             :awardNameWithThe="getAwardNameWithThe()"
@@ -766,9 +767,10 @@ import axios from 'axios';
 import uniq from 'lodash/uniq';
 import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
+import cloneDeep from 'lodash/cloneDeep';
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
-import StickinessModal from "./StickinessModal.vue";
 import TweakModal from "./TweakModal.vue";
+import StickinessInline from "./StickinessInline.vue";
 import PersonalAwardsModal from "./PersonalAwardsModal.vue";
 import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
@@ -780,8 +782,8 @@ export default {
   components: {
     DBGridLayoutSearchResult,
     InsetBrowserModal,
-    StickinessModal,
     TweakModal,
+    StickinessInline,
     PersonalAwardsModal,
     NoResults,
     ThreeStateToggle,
@@ -1760,6 +1762,67 @@ export default {
         return dateB - dateA;
       });
     },
+    // Stickiness inline computed properties
+    firstStickinessResult () {
+      return this.resultsThatNeedStickiness[0];
+    },
+    allMoviesRanked () {
+      const movies = [...this.$store.getters.allMoviesAsArray];
+      return movies.sort(this.sortByRating);
+    },
+    ratingWithoutStickiness () {
+      if (!this.firstStickinessResult) return null;
+      const tempResult = cloneDeep(this.firstStickinessResult);
+      tempResult.ratings[this.mostRecentRatingIndex].stickiness = null;
+      return getRating(this.firstStickinessResult).calculatedTotal;
+    },
+    ratingWithStickiness () {
+      if (!this.stickinessRating && this.stickinessRating !== 0 && this.stickinessRating !== "0") {
+        return null;
+      }
+      if (!this.firstStickinessResult) return null;
+      const tempResult = cloneDeep(this.firstStickinessResult);
+      tempResult.ratings[this.mostRecentRatingIndex].stickiness = parseFloat(this.stickinessRating);
+      return getRating(tempResult).calculatedTotal;
+    },
+    rankWithoutStickiness () {
+      if (!this.firstStickinessResult) return null;
+      return this.allMoviesRanked.findIndex((movie) => movie.dbKey === this.firstStickinessResult.dbKey) + 1;
+    },
+    rankWithStickiness () {
+      if (!this.firstStickinessResult || !this.stickinessRating) return null;
+      const tempResult = cloneDeep(this.firstStickinessResult);
+      tempResult.ratings[this.mostRecentRatingIndex].stickiness = parseFloat(this.stickinessRating);
+      const movies = [...this.$store.getters.allMoviesAsArray];
+      const movieIndex = movies.findIndex((movie) => movie.dbKey === this.firstStickinessResult.dbKey);
+      movies[movieIndex] = tempResult;
+      const sortedMovies = movies.sort(this.sortByRating);
+      return sortedMovies.findIndex((movie) => movie.dbKey === tempResult.dbKey) + 1;
+    },
+    mostRecentRatingIndex () {
+      if (!this.firstStickinessResult) return 0;
+      let mostRecentRating = this.firstStickinessResult.ratings[0];
+      let mostRecentRatingIndex = 0;
+      this.firstStickinessResult.ratings.forEach((rating, index) => {
+        const ratingDate = rating.date ? new Date(rating.date).getTime() : 0;
+        const mostRecentRatingDate = mostRecentRating.date ? new Date(mostRecentRating.date).getTime() : 0;
+        if (!mostRecentRating.date) {
+          mostRecentRating = rating;
+          mostRecentRatingIndex = index;
+        } else if (ratingDate && ratingDate > mostRecentRatingDate) {
+          mostRecentRating = rating;
+          mostRecentRatingIndex = index;
+        }
+      })
+      return mostRecentRatingIndex;
+    },
+    showSixMonthMessage () {
+      if (!this.firstStickinessResult) return false;
+      return this.mostRecentRating(this.firstStickinessResult).userAddedStickiness;
+    },
+    currentLogIsTVLog () {
+      return this.$store.state.currentLog === "tvLog";
+    },
     showResultsList () {
       return Boolean(this.paginatedSortedResults.length) || this.activeQuickLinkList !== "title";
     },
@@ -2055,6 +2118,10 @@ export default {
   },
   methods: {
     // Event handlers for form changes (replaces watchers)
+    onStickinessUpdated() {
+      // Force reactivity update for stickiness-related computed properties
+      this.$forceUpdate();
+    },
     updateShowShorts(event) {
       const newVal = event.target.checked;
       ErrorLogService.debug('updateShowShorts handler fired', { newVal, component: 'Home' });
@@ -3626,6 +3693,28 @@ export default {
         this.errorLogRefreshInterval = null;
       }
     },
+
+    // Stickiness inline methods
+    topStructure(result) {
+      if (this.currentLogIsTVLog) {
+        return result.tvShow;
+      } else {
+        return result.movie;
+      }
+    },
+    sortByRating(a, b) {
+      const aRating = getRating(a)?.calculatedTotal;
+      const bRating = getRating(b)?.calculatedTotal;
+
+      if (aRating < bRating) {
+        return 1;
+      }
+      if (aRating > bRating) {
+        return -1;
+      }
+
+      return 0;
+    },
   },
 }
 </script>
@@ -4427,4 +4516,5 @@ export default {
 .unrated-movie-poster:hover {
   opacity: 0.8;
 }
+
 </style>
