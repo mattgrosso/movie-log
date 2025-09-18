@@ -326,10 +326,10 @@
             :showStickinessModal="showStickinessModal"
             @stickiness-updated="onStickinessUpdated"
           />
-          <TweakModal
-            v-if="showTweakModal"
-            :showTweakModal="showTweakModal"
+          <TweakInline
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+            :showTweakModal="showTweakModal"
+            @tweak-updated="onTweakUpdated"
           />
           <PersonalAwardsModal
             v-if="showAwardsModal"
@@ -769,7 +769,7 @@ import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
 import cloneDeep from 'lodash/cloneDeep';
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
-import TweakModal from "./TweakModal.vue";
+import TweakInline from "./TweakInline.vue";
 import StickinessInline from "./StickinessInline.vue";
 import PersonalAwardsModal from "./PersonalAwardsModal.vue";
 import NoResults from "./NoResults.vue";
@@ -782,7 +782,7 @@ export default {
   components: {
     DBGridLayoutSearchResult,
     InsetBrowserModal,
-    TweakModal,
+    TweakInline,
     StickinessInline,
     PersonalAwardsModal,
     NoResults,
@@ -2120,6 +2120,10 @@ export default {
     // Event handlers for form changes (replaces watchers)
     onStickinessUpdated() {
       // Force reactivity update for stickiness-related computed properties
+      this.$forceUpdate();
+    },
+    onTweakUpdated() {
+      // Force reactivity update for tweak-related computed properties
       this.$forceUpdate();
     },
     updateShowShorts(event) {
