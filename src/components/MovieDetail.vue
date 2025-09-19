@@ -643,7 +643,33 @@ export default {
 
 
     parseNamesToList(names) {
-      return Array.isArray(names) ? names.join(', ') : names;
+      try {
+        if (!names) return '';
+
+        // If it's a string, return as-is
+        if (typeof names === 'string') {
+          return names;
+        }
+
+        // If it's an array
+        if (Array.isArray(names)) {
+          if (names.length === 0) return '';
+
+          // Check if array contains objects with name property
+          if (names[0] && typeof names[0] === 'object' && names[0].name) {
+            return names.map((name) => name.name).join(', ');
+          }
+
+          // Array of strings
+          return names.join(', ');
+        }
+
+        // Fallback for other types
+        return String(names);
+      } catch (error) {
+        console.error('Failed to parse names:', error);
+        return '';
+      }
     },
 
     // Letterboxd integration methods
