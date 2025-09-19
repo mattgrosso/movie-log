@@ -900,6 +900,8 @@ export default {
 }
 
 .movie-content {
+  margin: 0 auto;
+  max-width: 650px;
   padding: 1rem;
   
   a {
@@ -917,7 +919,7 @@ export default {
     font-size: 1rem;
     margin-bottom: 1rem;
   }
-  
+
   .rating-runtime-and-date {
     margin-bottom: 1rem;
     

@@ -9,10 +9,13 @@
           Home
         </span>
       </div>
-      <img v-if="rateBannerUrl" class="w-100" :src="rateBannerUrl">
+      <img v-if="rateBannerUrl" 
+           :src="rateBannerUrl" 
+           :alt="`${title} backdrop`"
+           class="backdrop-image">
       <h1 class="text-light m-0 px-3 py-2">Rate {{title}}</h1>
     </div>
-    <div class="container-fluid">
+    <div class="rate-movie-content container-fluid">
       <div class="row p-3">
       <div class="col-12 mb-4">
         <label class="form-label fs-4" for="title">Title</label>
@@ -1106,10 +1109,10 @@ export default {
 
 <style lang="scss">
   .rate-movie {
-    max-width: 832px;
-
     .rate-movie-header {
       position: relative;
+      height: 200px;
+      overflow: hidden;
 
       .home-link {
         align-items: center;
@@ -1132,8 +1135,18 @@ export default {
         bottom: 0;
         position: absolute;
       }
+
+      .backdrop-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
     }
 
+    .rate-movie-content {
+      margin: 0 auto;
+      max-width: 650px;
+    }
 
     .rating {
       i {
