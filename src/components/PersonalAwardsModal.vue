@@ -615,17 +615,8 @@ export default {
     }
   },
   created() {
-    // If we reach this point, it means Home.vue has decided to show the awards modal
-    // For Resume/Edit actions, we should automatically open the modal
-    const settings = this.$store.state.settings;
-    const today = new Date().toDateString();
-    
-    // Check if this is a Resume/Edit action (bypass was triggered)
-    if (settings && settings.dailyAwardsYear && settings.dailyAwardsYearDate === today) {
-      this.$nextTick(() => {
-        this.openModal();
-      });
-    }
+    // Show the prompt, but don't auto-open the modal
+    // User should always click the prompt first
   },
   methods: {
     markCategoryAsNoNominees() {

@@ -564,7 +564,7 @@ export default {
     },
 
     rateMedia(movie) {
-      this.$store.commit('setMovieToRate', this.result);
+      this.$store.commit('setMovieToRate', movie);
       this.$router.push('/rate-movie');
     },
 

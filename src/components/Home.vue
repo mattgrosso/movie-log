@@ -1826,39 +1826,50 @@ export default {
     showResultsList () {
       return Boolean(this.paginatedSortedResults.length) || this.activeQuickLinkList !== "title";
     },
-    showStickinessModal () {
-      // Check three-state setting
+    // Determine which modal should be active (eliminates circular dependencies)
+    activeModalType () {
+      // Check forced states first (highest priority)
       if (this.stickinessPromptState === 'forced') {
-        return true;
+        return 'stickiness';
       }
-      if (this.stickinessPromptState === 'disabled') {
-        return false;
-      }
-      // Normal behavior (stickinessPromptState === 'normal')
-      // Don't interrupt awards workflow
-      if (this.showAwardsModal) {
-        return false;
-      }
-      return Boolean(this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
-    },
-    showTweakModal () {
-      // Check three-state setting
       if (this.tieBreakPromptState === 'forced') {
-        return true;
+        return 'tieBreak';
       }
-      if (this.tieBreakPromptState === 'disabled') {
-        return false;
-      }
-      // Normal behavior (tieBreakPromptState === 'normal')
-      if (this.showStickinessModal) {
-        return false;
-      }
-      
-      // Don't interrupt awards workflow
-      if (this.showAwardsModal) {
-        return false;
+      if (this.awardsPromptState === 'forced') {
+        return 'awards';
       }
 
+      // Check disabled states
+      const stickinessDisabled = this.stickinessPromptState === 'disabled';
+      const tieBreakDisabled = this.tieBreakPromptState === 'disabled';
+      const awardsDisabled = this.awardsPromptState === 'disabled';
+
+      // Check if stickiness should show (highest priority in normal mode)
+      const shouldShowStickiness = !stickinessDisabled &&
+        Boolean(this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
+
+      // Check if tie break should show (second priority)
+      const shouldShowTieBreak = !tieBreakDisabled && this.shouldShowTieBreakModal;
+
+      // Check if awards should show (lowest priority)
+      const shouldShowAwards = !awardsDisabled && this.shouldShowAwardsModal;
+
+      // Return the highest priority modal that should be shown
+      if (shouldShowStickiness) return 'stickiness';
+      if (shouldShowTieBreak) return 'tieBreak';
+      if (shouldShowAwards) return 'awards';
+
+      return null;
+    },
+
+    showStickinessModal () {
+      return this.activeModalType === 'stickiness';
+    },
+    showTweakModal () {
+      return this.activeModalType === 'tieBreak';
+    },
+
+    shouldShowTieBreakModal () {
       const firstTiedPairIndex = this.sortedByRating.findIndex((movie, index) => {
         const nextMovie = this.sortedByRating[index + 1];
 
@@ -1882,23 +1893,13 @@ export default {
       return hasTiedResults && noTieBreakYetToday;
     },
     showAwardsModal () {
-      // Check three-state setting
-      if (this.awardsPromptState === 'forced') {
-        console.log('✅ Awards modal forced');
-        return true;
-      }
-      if (this.awardsPromptState === 'disabled') {
-        console.log('❌ Awards modal disabled');
-        return false;
-      }
-      // Normal behavior (awardsPromptState === 'normal')
+      return this.activeModalType === 'awards';
+    },
+
+    shouldShowAwardsModal () {
       // Don't show until database is loaded to prevent flash
       if (!this.$store.state.dbLoaded) {
         console.log('❌ Database not loaded yet');
-        return false;
-      }
-      
-      if (this.showStickinessModal || this.showTweakModal) {
         return false;
       }
       
