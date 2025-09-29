@@ -1,0 +1,7 @@
+{
+  "name": "chatgpt-keywords-lambda",
+  "version": "1.0.0",
+  "description": "AWS Lambda function for ChatGPT keywords API",
+  "main": "chatgpt-keywords.js",
+  "dependencies": {}
+}

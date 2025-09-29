@@ -1044,39 +1044,28 @@ export default {
     },
     async getChatGPTKeywords () {
       try {
-        const apiKey = process.env.VUE_APP_chatGPTAPIKey;
-        const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
         const title = this.movieToRate.title;
-        const date = new Date(this.movieToRate.release_date).getFullYear() || "";
-        const prompt = `Please give me a list of keywords for the movie ${title} from ${date} as a JSON array.
-        Please try to include keywords for the location or locations where the movie takes place.
-        Make sure the array is under the key "keywords".`;
+        const year = new Date(this.movieToRate.release_date).getFullYear() || "";
+
+        const apiUrl = process.env.VUE_APP_CHATGPT_API_URL;
 
         const response = await axios.post(
-          apiEndpoint,
+          apiUrl,
           {
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: "user",
-                content: prompt
-              }
-            ],
-            response_format: { type: "json_object" }
+            title,
+            year
           },
           {
             headers: {
-              Authorization: `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
             }
-          });
+          }
+        );
 
-        const parsedResponse = JSON.parse(response.data.choices[0].message.content);
-
-        this.chatGPTKeywords = parsedResponse.keywords?.map(keyword => keyword.toLowerCase());
+        this.chatGPTKeywords = response.data.keywords || [];
       } catch (error) {
         console.error('Failed to fetch ChatGPT keywords:', error);
-        ErrorLogService.logError(error, "Failed to fetch ChatGPT keywords");
+        ErrorLogService.error("Failed to fetch ChatGPT keywords", { error });
         this.chatGPTKeywords = [];
       }
     },

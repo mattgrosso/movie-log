@@ -51,7 +51,10 @@
       "Bash(PATCH=true yarn build)",
       "Bash(git log:*)",
       "WebFetch(domain:stackoverflow.com)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(git show:*)",
+      "Bash(vue-cli-service:*)",
+      "Bash(yes)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
