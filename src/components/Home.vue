@@ -3001,15 +3001,15 @@ export default {
     overwriteCurrentlyTypingSearchFilter (value) {
       // Find any existing temp filter and remove it
       this.activeFilters = this.activeFilters.filter(filter => !filter.temp);
-      
+
       if (value.trim()) {
-        // Always use general search while typing for consistent results
-        // Type detection only happens when converting to permanent chips
+        // Detect filter type while typing for consistent results
+        const searchType = this.detectFilterType(value.trim());
         const tempFilter = {
           id: `temp-${Date.now()}`,
-          type: 'general',
-          value: value.trim(),
-          display: value.trim(),
+          type: searchType.type,
+          value: searchType.value,
+          display: searchType.display,
           temp: true  // Mark as temporary
         };
 

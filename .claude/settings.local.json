@@ -54,7 +54,8 @@
       "Read(//tmp/**)",
       "Bash(git show:*)",
       "Bash(vue-cli-service:*)",
-      "Bash(yes)"
+      "Bash(yes)",
+      "Bash(yarn test:run:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
