@@ -869,13 +869,19 @@ export default {
     },
   },
   mounted () {
+    // Capture navigation intent at the start - needed for various logic below
+    const navigationIntent = this.$store.state.homePageNavigationIntent;
+
     // Check if we have any state to restore
-    const hasStateToRestore = this.$store.state.homePageScrollPosition > 0 || 
+    const hasStateToRestore = this.$store.state.homePageScrollPosition > 0 ||
                              this.$store.state.homePageSearchChips.length > 0 ||
                              this.$store.state.homePageSearchValue ||
-                             this.$store.state.homePageNumberOfResults > 25;
+                             this.$store.state.homePageNumberOfResults > 25 ||
+                             this.$store.state.homePageSortOrder ||
+                             this.$store.state.homePageSortValue;
 
     if (hasStateToRestore) {
+
       // Restore search state
       if (this.$store.state.homePageSearchChips.length > 0) {
         this.activeFilters = [...this.$store.state.homePageSearchChips];
@@ -886,12 +892,31 @@ export default {
       if (this.$store.state.homePageNumberOfResults > 25) {
         this.numberOfResultsToShow = this.$store.state.homePageNumberOfResults;
       }
-      
+
+      // Restore sort values based on navigation intent
+      if (navigationIntent === 'close') {
+        // Only restore sort values for 'close' navigation, not 'search'
+        if (this.$store.state.homePageSortValue) {
+          this.sortValue = this.$store.state.homePageSortValue;
+        }
+        if (this.$store.state.homePageSortOrder) {
+          this.sortOrder = this.$store.state.homePageSortOrder;
+        }
+      }
+
       // Restore scroll position after DOM updates and result rendering
       this.$nextTick(() => {
-        if (this.$store.state.homePageScrollPosition > 0) {
-          document.documentElement.scrollTop = this.$store.state.homePageScrollPosition;
-          document.body.scrollTop = this.$store.state.homePageScrollPosition; // For Safari
+        // Use captured navigation intent
+        if (navigationIntent === 'search') {
+          // For search navigation, always scroll to top
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+        } else if (navigationIntent === 'close' || navigationIntent === null) {
+          // For close navigation or normal restoration, restore saved position
+          if (this.$store.state.homePageScrollPosition > 0) {
+            document.documentElement.scrollTop = this.$store.state.homePageScrollPosition;
+            document.body.scrollTop = this.$store.state.homePageScrollPosition; // For Safari
+          }
         }
       });
       
@@ -901,6 +926,9 @@ export default {
         this.$store.commit('setHomePageScrollPosition', 0);
         this.$store.commit('setHomePageSearchChips', []);
         this.$store.commit('setHomePageSearchValue', '');
+        this.$store.commit('setHomePageNavigationIntent', null); // Clear navigation intent
+        this.$store.commit('setHomePageSortOrder', null); // Clear sort order
+        this.$store.commit('setHomePageSortValue', null); // Clear sort value
         // Don't reset numberOfResults - preserve the expanded results
         // this.$store.commit('setHomePageNumberOfResults', 25);
       } else if (isNewSearch) {
@@ -910,11 +938,18 @@ export default {
         this.$store.commit('setHomePageScrollPosition', 0);
         this.$store.commit('setHomePageSearchChips', []);
         this.$store.commit('setHomePageSearchValue', '');
+        this.$store.commit('setHomePageNavigationIntent', null); // Clear navigation intent
+        this.$store.commit('setHomePageSortOrder', null); // Clear sort order
+        this.$store.commit('setHomePageSortValue', null); // Clear sort value
       }
     } else {
       // Normal behavior - scroll to top instantly
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
+      // Clear navigation intent and sort order
+      this.$store.commit('setHomePageNavigationIntent', null);
+      this.$store.commit('setHomePageSortOrder', null);
+      this.$store.commit('setHomePageSortValue', null);
     }
 
     if (this.$route.query.search) {
@@ -934,16 +969,22 @@ export default {
       this.checkResultsAndFindFilter();
     }
 
-    if (this.DBSortValue) {
-      this.setSortValue(this.DBSortValue)
-    } else {
-      this.setSortValue("rating")
+    // Only initialize sort value if we're not restoring state from a 'close' navigation
+    if (navigationIntent !== 'close' || !hasStateToRestore) {
+      if (this.DBSortValue) {
+        this.setSortValue(this.DBSortValue)
+      } else {
+        this.setSortValue("rating")
+      }
     }
 
     if (this.$route.query.movieDbKey) {
-      this.$store.commit("setDBSortValue", "watched");
-      this.setSortValue("watched");
-      this.sortOrder = "bestOrNewestOnTop";
+      // Only override sort if this isn't a 'close' navigation with restored state
+      if (navigationIntent !== 'close' || !hasStateToRestore) {
+        this.$store.commit("setDBSortValue", "watched");
+        this.setSortValue("watched");
+        this.sortOrder = "bestOrNewestOnTop";
+      }
     }
 
     // Note: showShorts, showErrorLogs, and enableRandomSearch are now computed properties
@@ -966,17 +1007,19 @@ export default {
   
   // Combined beforeRouteLeave method
   beforeRouteLeave(to, from, next) {
-    // Reset sorting when leaving (original functionality)
-    this.sortOrder = "bestOrNewestOnTop";
-    this.setSortValue(null);
-    this.$store.commit("setDBSortValue", this.sortValue);
-    
     // Save state when navigating to movie detail page
     if (to.name === 'MovieDetail') {
       this.$store.commit('setHomePageScrollPosition', window.pageYOffset);
       this.$store.commit('setHomePageSearchChips', [...this.activeFilters]);
       this.$store.commit('setHomePageSearchValue', this.inputValue);
       this.$store.commit('setHomePageNumberOfResults', this.numberOfResultsToShow);
+      this.$store.commit('setHomePageSortValue', this.sortValue);
+      this.$store.commit('setHomePageSortOrder', this.sortOrder);
+    } else {
+      // Reset sorting when leaving to other pages (original functionality)
+      this.sortOrder = "bestOrNewestOnTop";
+      this.setSortValue(null);
+      this.$store.commit("setDBSortValue", this.sortValue);
     }
     next();
   },
@@ -2580,6 +2623,8 @@ export default {
       } else {
         this.setSortOrder("bestOrNewestOnTop");
       }
+      // Save sort order to store for potential restoration
+      this.$store.commit('setHomePageSortOrder', this.sortOrder);
     },
     setSortOrder (order) {
       this.sortOrder = order;
@@ -2594,6 +2639,9 @@ export default {
         this.setSortValue(value);
         this.setSortOrder("bestOrNewestOnTop");
       }
+      // Save sort state to store for potential restoration
+      this.$store.commit('setHomePageSortValue', this.sortValue);
+      this.$store.commit('setHomePageSortOrder', this.sortOrder);
     },
     getSortValue (item, key) {
       if (key === "rating") {

@@ -104,6 +104,9 @@ export default createStore({
     homePageSearchChips: [],
     homePageSearchValue: '',
     homePageNumberOfResults: 25,
+    homePageNavigationIntent: null, // 'close' | 'search' | null
+    homePageSortValue: null, // preserve sort value for 'close' navigation
+    homePageSortOrder: null, // preserve sort order for 'close' navigation
     // Simple save debouncing
     lastSavePath: null,
     lastSaveTime: 0,
@@ -207,6 +210,15 @@ export default createStore({
     },
     setHomePageNumberOfResults (state, value) {
       state.homePageNumberOfResults = value;
+    },
+    setHomePageNavigationIntent (state, value) {
+      state.homePageNavigationIntent = value;
+    },
+    setHomePageSortValue (state, value) {
+      state.homePageSortValue = value;
+    },
+    setHomePageSortOrder (state, value) {
+      state.homePageSortOrder = value;
     }
   },
   actions: {

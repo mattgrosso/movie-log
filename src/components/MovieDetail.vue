@@ -547,7 +547,10 @@ export default {
     goBack() {
       // Show loading state immediately
       this.isLoading = true;
-      
+
+      // Set navigation intent to preserve scroll position
+      this.$store.commit('setHomePageNavigationIntent', 'close');
+
       // Small delay to ensure loading state renders before navigation
       setTimeout(() => {
         // Use router to go back to previous page (which should be home)
@@ -556,6 +559,9 @@ export default {
     },
 
     searchFor(query) {
+      // Set navigation intent to scroll to top
+      this.$store.commit('setHomePageNavigationIntent', 'search');
+
       // Save the search query in store and navigate back to home
       this.$store.commit('setHomePageSearchValue', query);
       this.$store.commit('setHomePageSearchChips', []); // Clear existing chips
