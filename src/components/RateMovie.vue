@@ -617,6 +617,11 @@ export default {
     }
   },
   mounted () {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+
     this.$store.commit("setShowHeader", false);
     this.title = this.movieToRate.title;
     this.year = new Date(this.movieToRate.release_date).getFullYear();
