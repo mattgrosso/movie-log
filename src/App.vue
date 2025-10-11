@@ -1,7 +1,7 @@
 <template>
   <div class="cinema-roll">
     <!-- Invisible scroll-to-top trigger area -->
-    <div class="scroll-to-top-trigger" @click="scrollToTop"></div>
+    <div class="scroll-to-top-trigger" @click.stop="scrollToTop"></div>
     <Header/>
     <router-view></router-view>
     <Footer v-if="$store.state.dbLoaded"/>
@@ -68,9 +68,9 @@ export default {
   .scroll-to-top-trigger {
     position: fixed;
     top: 0;
-    left: 0;
-    width: 100%;
-    height: 20px;
+    left: 75px;
+    right: 75px;
+    height: 40px;
     z-index: 9999;
     background: transparent;
     cursor: pointer;
