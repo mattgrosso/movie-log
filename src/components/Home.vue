@@ -1,5 +1,18 @@
 <template>
   <div class="home p-3 pt-4 mx-auto">
+
+    <!-- Pull to Refresh Indicator - positioned behind header -->
+    <div v-if="showPullIndicator && $store.state.showHeader"
+         class="pull-to-refresh-indicator"
+         :class="{ 'refreshing': isRefreshing }">
+      <div v-if="isRefreshing" class="spinner-border spinner-border-sm text-light" role="status">
+        <span class="visually-hidden">Refreshing...</span>
+      </div>
+      <i v-else class="bi bi-arrow-down-circle"></i>
+      <span class="ms-2">
+        {{ isRefreshing ? 'Checking for updates...' : 'Pull down to check for updates' }}
+      </span>
+    </div>
     <div v-if="$store.state.dbLoaded" class="search-bar mx-auto">
       <div class="input-group mb-1 col-12 md-col-6">
         <input
@@ -801,6 +814,8 @@ export default {
       hasCalledFindFilter: false,
       inputValue: "", // Visual input value (can be different from internal value)
       insetBrowserUrl: "",
+      isRefreshing: false,
+      isPulling: false,
       letterboxdOverrides: {},
       letterboxdUserData: null,
       newOverrideTitle: '',
@@ -2158,9 +2173,76 @@ export default {
     },
     userTags() {
       return this.tags.slice(0, 20); // Limit to 20 most recent tags
+    },
+    showPullIndicator() {
+      return this.isPulling || this.isRefreshing;
     }
   },
+  mounted() {
+    // Set up pull-to-refresh using touchstart/touchmove/touchend
+    let startY = 0;
+    let currentY = 0;
+    let triggered = false;
+    let hasMoved = false;
+
+    document.addEventListener('touchstart', (e) => {
+      if (window.pageYOffset === 0 && !this.isRefreshing) {
+        startY = e.touches[0].pageY;
+        currentY = startY;
+        triggered = false;
+        hasMoved = false;
+        // Don't set isPulling yet - wait for movement
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (window.pageYOffset === 0 && startY > 0) {
+        currentY = e.touches[0].pageY;
+        // Check if user has pulled down at least 1px
+        if (currentY - startY > 1) {
+          hasMoved = true;
+          this.isPulling = true; // Now show the indicator
+        }
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchend', async () => {
+      if (this.isPulling && !triggered && !this.isRefreshing && hasMoved) {
+        triggered = true;
+        this.isPulling = false;
+        this.isRefreshing = true;
+        await this.checkForUpdates();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        this.isRefreshing = false;
+      } else {
+        this.isPulling = false;
+      }
+      hasMoved = false;
+    }, { passive: true });
+  },
   methods: {
+
+    async checkForUpdates() {
+      // Force re-evaluation of modal conditions by resetting prompt states
+      // This will trigger the computed properties to recalculate
+
+      // Reset tie break state if needed
+      if (this.shouldShowTieBreakModal) {
+        this.tieBreakPromptState = 'normal';
+      }
+
+      // Reset stickiness state if needed
+      if (this.shouldShowStickinessModal) {
+        this.stickinessPromptState = 'normal';
+      }
+
+      // The activeModalType computed will automatically show the appropriate modal
+      // based on the current state
+
+      // Give visual feedback that check is complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+    },
+
     // Event handlers for form changes (replaces watchers)
     onStickinessUpdated() {
       // Force reactivity update for stickiness-related computed properties
@@ -4568,6 +4650,37 @@ export default {
 
 .unrated-movie-poster:hover {
   opacity: 0.8;
+}
+
+/* Pull to Refresh */
+.pull-to-refresh-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  font-size: 0.875rem;
+  z-index: 999; /* Behind header (which is 1000+) */
+  pointer-events: none;
+  transition: opacity 0.2s ease, background 0.2s ease;
+
+  i {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  span {
+    white-space: nowrap;
+  }
+
+  &.refreshing {
+    opacity: 1 !important;
+  }
 }
 
 </style>
