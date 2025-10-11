@@ -39,7 +39,8 @@ export default {
     allPostersRanked () {
       const media = [...this.$store.getters.allMediaAsArray];
       return media.sort(this.sortByRating).map((media) => {
-        return `https://image.tmdb.org/t/p/w94_and_h141_bestv2${this.topStructure(media).poster_path}`;
+        const posterPath = media.customPosterPath || this.topStructure(media).poster_path;
+        return `https://image.tmdb.org/t/p/w94_and_h141_bestv2${posterPath}`;
       });
     },
     devMode () {
@@ -73,8 +74,10 @@ export default {
 
       const topStructure = this.topStructure(randomMedia);
       let newBannerUrl;
-      if (topStructure && topStructure.backdrop_path) {
-        newBannerUrl = `https://image.tmdb.org/t/p/w500${topStructure.backdrop_path}`;
+      // Check for custom backdrop first, then default backdrop
+      const backdropPath = randomMedia.customBackdropPath || topStructure?.backdrop_path;
+      if (backdropPath) {
+        newBannerUrl = `https://image.tmdb.org/t/p/w500${backdropPath}`;
       } else {
         newBannerUrl = "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
       }

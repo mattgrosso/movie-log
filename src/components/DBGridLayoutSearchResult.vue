@@ -8,7 +8,7 @@
     <img
       class="poster"
       v-lazy="{
-        src: `https://image.tmdb.org/t/p/w500${topStructure(result).poster_path}`,
+        src: `https://image.tmdb.org/t/p/w500${getPosterPath(result)}`,
         loading: placeholderImage
       }"
     >
@@ -44,7 +44,7 @@
   <Modal class="details-modal" :show="showDetailsModal" @close="showDetailsModal = false">
     <template v-slot:header>
       <h2>{{topStructure(result).title}}</h2>
-      <img :src="`https://image.tmdb.org/t/p/w500${topStructure(result).backdrop_path}`" alt="Movie backdrop">
+      <img :src="`https://image.tmdb.org/t/p/w500${getBackdropPath(result)}`" alt="Movie backdrop">
     </template>
     <template v-slot:body>
       <div class="details-modal-body col-12">
@@ -770,16 +770,24 @@ export default {
       // First check manual overrides
       const movie = this.topStructure(this.result);
       const overrides = this.$store.state.settings.letterboxdOverrides || {};
-      
+
       // Create override key to match what we use in Settings
       const overrideKey = `${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '')}_${this.getYear(this.result)}`;
-      
+
       if (overrides[overrideKey]) {
         return true; // Manual override says this movie is logged
       }
-      
+
       // Fall back to automatic detection
       return this.letterboxdData && this.letterboxdData.length > 0;
+    },
+    getPosterPath(result) {
+      // Check if user has selected a custom poster
+      return result.customPosterPath || this.topStructure(result).poster_path;
+    },
+    getBackdropPath(result) {
+      // Check if user has selected a custom backdrop
+      return result.customBackdropPath || this.topStructure(result).backdrop_path;
     }
   }
 };

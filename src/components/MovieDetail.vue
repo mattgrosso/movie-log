@@ -8,8 +8,8 @@
         </div>
         <i v-else class="bi bi-x-lg"></i>
       </div>
-      <img v-if="movie && movie.backdrop_path" 
-           :src="`https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`" 
+      <img v-if="movie && getBackdropPath()"
+           :src="`https://image.tmdb.org/t/p/w1280${getBackdropPath()}`"
            :alt="`${movie.title} backdrop`"
            class="backdrop-image">
       <div class="header-overlay">
@@ -231,6 +231,60 @@
             </a>
           </p>
         </div>
+
+        <!-- Choose Alternate Poster & Backdrop Section -->
+        <div class="alternate-media-section mt-4 mb-4">
+          <div class="text-center mb-3 d-flex justify-content-center gap-2">
+            <button class="btn btn-sm btn-secondary" @click="togglePosterOptions">
+              {{ showPosterOptions ? 'Hide' : 'Choose' }} Alternate Poster
+            </button>
+            <button class="btn btn-sm btn-secondary" @click="toggleBackdropOptions">
+              {{ showBackdropOptions ? 'Hide' : 'Choose' }} Alternate Backdrop
+            </button>
+          </div>
+
+          <!-- Poster Options Grid -->
+          <div v-if="showPosterOptions">
+            <div v-if="loadingPosters" class="text-center">
+              <div class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+            <div v-else-if="posterOptions.length === 0" class="text-center text-light">
+              <p>No alternate posters available for this movie.</p>
+            </div>
+            <div v-else class="poster-options-grid">
+              <div v-for="(poster, index) in posterOptions" :key="index"
+                   class="poster-option"
+                   :class="{ 'selected': isSelectedPoster(poster.file_path) }"
+                   @click="selectPoster(poster.file_path)">
+                <img :src="`https://image.tmdb.org/t/p/w342${poster.file_path}`"
+                     :alt="`Poster option ${index + 1}`">
+              </div>
+            </div>
+          </div>
+
+          <!-- Backdrop Options Grid -->
+          <div v-if="showBackdropOptions">
+            <div v-if="loadingBackdrops" class="text-center">
+              <div class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+            <div v-else-if="backdropOptions.length === 0" class="text-center text-light">
+              <p>No alternate backdrops available for this movie.</p>
+            </div>
+            <div v-else class="backdrop-options-grid">
+              <div v-for="(backdrop, index) in backdropOptions" :key="index"
+                   class="backdrop-option"
+                   :class="{ 'selected': isSelectedBackdrop(backdrop.file_path) }"
+                   @click="selectBackdrop(backdrop.file_path)">
+                <img :src="`https://image.tmdb.org/t/p/w780${backdrop.file_path}`"
+                     :alt="`Backdrop option ${index + 1}`">
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -245,8 +299,6 @@
 
 <script>
 import axios from 'axios';
-import ordinal from "ordinal-js";
-import minBy from 'lodash/minBy';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
@@ -266,7 +318,13 @@ export default {
       awardsData: null,
       letterboxdData: null,
       getAllRatings: getAllRatings,
-      isLoading: false
+      isLoading: false,
+      showPosterOptions: false,
+      loadingPosters: false,
+      posterOptions: [],
+      showBackdropOptions: false,
+      loadingBackdrops: false,
+      backdropOptions: []
     };
   },
   created() {
@@ -770,6 +828,11 @@ export default {
       return result?.movie;
     },
 
+    getBackdropPath() {
+      // Check if user has selected a custom backdrop
+      return this.result?.customBackdropPath || this.movie?.backdrop_path;
+    },
+
     // Rating deletion methods
     showConfimDeleteButton(dbKey, index) {
       const deleteButton = document.getElementById(`delete-button-${dbKey}-${index}`);
@@ -829,6 +892,207 @@ export default {
 
     countStudios(studio) {
       return this.countsStudios[studio] || 0;
+    },
+
+    // Poster selection methods
+    async togglePosterOptions() {
+      this.showPosterOptions = !this.showPosterOptions;
+
+      // If showing posters, hide backdrops
+      if (this.showPosterOptions) {
+        this.showBackdropOptions = false;
+
+        if (this.posterOptions.length === 0) {
+          await this.loadPosterOptions();
+        }
+
+        // Scroll to bring the poster options into view
+        this.$nextTick(() => {
+          const posterSection = document.querySelector('.poster-options-grid');
+          if (posterSection) {
+            const rect = posterSection.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const targetPosition = rect.top + scrollTop - 100;
+
+            window.scrollTo({
+              top: targetPosition,
+              behavior: 'smooth'
+            });
+          }
+        });
+      }
+    },
+
+    async loadPosterOptions() {
+      this.loadingPosters = true;
+
+      try {
+        const tmdbId = this.movie?.id;
+        const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+        const imagesUrl = `https://api.themoviedb.org/3/movie/${tmdbId}/images?api_key=${apiKey}`;
+
+        const response = await axios.get(imagesUrl);
+        const posters = response.data.posters || [];
+
+        // Detect user's language preference
+        const userLanguage = this.getUserLanguage();
+
+        // Filter posters by language - prioritize user's language, then null (no text), then others
+        const languageFilteredPosters = posters.filter(poster =>
+          poster.iso_3166_1 === userLanguage || poster.iso_3166_1 === null || poster.iso_3166_1 === 'null'
+        );
+
+        // Use filtered list if we have enough, otherwise fall back to all posters
+        const postersToSort = languageFilteredPosters.length >= 6 ? languageFilteredPosters : posters;
+
+        // Sort by vote_count (descending) and take top 6
+        this.posterOptions = postersToSort
+          .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
+          .slice(0, 6);
+
+      } catch (error) {
+        console.error('Error fetching poster options:', error);
+        ErrorLogService.error('Error fetching poster options:', error);
+      } finally {
+        this.loadingPosters = false;
+      }
+    },
+
+    getUserLanguage() {
+      // Get user's language from browser
+      const browserLang = navigator.language || navigator.userLanguage;
+      // Extract country code (e.g., "en-US" -> "US", "en-GB" -> "GB")
+      const countryCode = browserLang.includes('-') ? browserLang.split('-')[1].toUpperCase() : 'US';
+      return countryCode;
+    },
+
+    isSelectedPoster(posterPath) {
+      const customPoster = this.result?.customPosterPath;
+      return customPoster === posterPath || (!customPoster && posterPath === this.movie?.poster_path);
+    },
+
+    async selectPoster(posterPath) {
+      try {
+        // Update the movie entry in the database with the custom poster path
+        const dbEntry = {
+          path: `movieLog/${this.result.dbKey}`,
+          value: {
+            ...this.result,
+            customPosterPath: posterPath
+          }
+        };
+
+        await this.$store.dispatch('setDBValue', dbEntry);
+
+        // Update local data
+        this.result.customPosterPath = posterPath;
+        if (this.previousEntry) {
+          this.previousEntry.customPosterPath = posterPath;
+        }
+
+      } catch (error) {
+        console.error('Error saving custom poster:', error);
+        ErrorLogService.error('Error saving custom poster:', error);
+      }
+    },
+
+    // Backdrop selection methods
+    async toggleBackdropOptions() {
+      this.showBackdropOptions = !this.showBackdropOptions;
+
+      // If showing backdrops, hide posters
+      if (this.showBackdropOptions) {
+        this.showPosterOptions = false;
+
+        if (this.backdropOptions.length === 0) {
+          await this.loadBackdropOptions();
+        }
+
+        // Scroll to bring the backdrop options into view
+        this.$nextTick(() => {
+          const backdropSection = document.querySelector('.backdrop-options-grid');
+          if (backdropSection) {
+            const rect = backdropSection.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const targetPosition = rect.top + scrollTop - 100;
+
+            window.scrollTo({
+              top: targetPosition,
+              behavior: 'smooth'
+            });
+          }
+        });
+      }
+    },
+
+    async loadBackdropOptions() {
+      this.loadingBackdrops = true;
+
+      try {
+        const tmdbId = this.movie?.id;
+        const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+        const imagesUrl = `https://api.themoviedb.org/3/movie/${tmdbId}/images?api_key=${apiKey}`;
+
+        const response = await axios.get(imagesUrl);
+        const backdrops = response.data.backdrops || [];
+
+        // Detect user's language preference
+        const userLanguage = this.getUserLanguage();
+
+        // Filter backdrops by language - prioritize user's language, then null (no text), then others
+        const languageFilteredBackdrops = backdrops.filter(backdrop =>
+          backdrop.iso_3166_1 === userLanguage || backdrop.iso_3166_1 === null || backdrop.iso_3166_1 === 'null'
+        );
+
+        // Use filtered list if we have enough, otherwise fall back to all backdrops
+        const backdropsToSort = languageFilteredBackdrops.length >= 6 ? languageFilteredBackdrops : backdrops;
+
+        // Sort by vote_count (descending) and take top 6
+        this.backdropOptions = backdropsToSort
+          .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
+          .slice(0, 6);
+
+      } catch (error) {
+        console.error('Error fetching backdrop options:', error);
+        ErrorLogService.error('Error fetching backdrop options:', error);
+      } finally {
+        this.loadingBackdrops = false;
+      }
+    },
+
+    isSelectedBackdrop(backdropPath) {
+      const customBackdrop = this.result?.customBackdropPath;
+      return customBackdrop === backdropPath || (!customBackdrop && backdropPath === this.movie?.backdrop_path);
+    },
+
+    async selectBackdrop(backdropPath) {
+      try {
+        // Update the movie entry in the database with the custom backdrop path
+        const dbEntry = {
+          path: `movieLog/${this.result.dbKey}`,
+          value: {
+            ...this.result,
+            customBackdropPath: backdropPath
+          }
+        };
+
+        await this.$store.dispatch('setDBValue', dbEntry);
+
+        // Update local data
+        this.result.customBackdropPath = backdropPath;
+        if (this.previousEntry) {
+          this.previousEntry.customBackdropPath = backdropPath;
+        }
+
+        // Update the movie data to immediately reflect the change
+        if (this.movie) {
+          this.movie.backdrop_path = backdropPath;
+        }
+
+      } catch (error) {
+        console.error('Error saving custom backdrop:', error);
+        ErrorLogService.error('Error saving custom backdrop:', error);
+      }
     }
   }
 };
@@ -1086,5 +1350,58 @@ export default {
   justify-content: center;
   align-items: center;
   min-height: 50vh;
+}
+
+// Alternate Media Section (Posters & Backdrops)
+.alternate-media-section {
+  .poster-options-grid,
+  .backdrop-options-grid {
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+    min-height: 400px; // Fixed height to prevent jumping
+  }
+
+  .poster-options-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .backdrop-options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.poster-option,
+.backdrop-option {
+  position: relative;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #666;
+  }
+
+  &.selected {
+    border-color: #6c757d;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+.poster-option {
+  aspect-ratio: 2/3;
+}
+
+.backdrop-option {
+  aspect-ratio: 16/9;
 }
 </style>

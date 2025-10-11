@@ -121,7 +121,9 @@ export default {
     },
     shareBannerUrl () {
       if (this.shareObject.results) {
-        return `https://image.tmdb.org/t/p/w500${this.shareObject.results[0].movie.backdrop_path}`;
+        const firstResult = this.shareObject.results[0];
+        const backdropPath = firstResult.customBackdropPath || firstResult.movie.backdrop_path;
+        return `https://image.tmdb.org/t/p/w500${backdropPath}`;
       } else {
         return false;
       }

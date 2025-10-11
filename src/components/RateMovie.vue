@@ -447,19 +447,19 @@
             <i class="bi bi-arrow-bar-up"/>
           </div>
           <div v-if="neighborTwoAhead" class="neighbor-two-ahead">
-            <img :src="posterUrl(neighborTwoAhead.movie)" :alt="`${neighborTwoAhead.movie.title} poster`">
+            <img :src="posterUrl(neighborTwoAhead.movie, neighborTwoAhead)" :alt="`${neighborTwoAhead.movie.title} poster`">
           </div>
           <div v-if="neighborAhead" class="neighbor-ahead">
-            <img :src="posterUrl(neighborAhead.movie)" :alt="`${neighborAhead.movie.title} poster`">
+            <img :src="posterUrl(neighborAhead.movie, neighborAhead)" :alt="`${neighborAhead.movie.title} poster`">
           </div>
           <div v-if="movieToRate" class="current-movie">
-            <img :src="posterUrl(movieToRate)" :alt="`${movieToRate.title} poster`">
+            <img :src="posterUrl(movieToRate, previousEntry)" :alt="`${movieToRate.title} poster`">
           </div>
           <div v-if="neighborBehind" class="neighbor-behind">
-            <img :src="posterUrl(neighborBehind.movie)" :alt="`${neighborBehind.movie.title} poster`">
+            <img :src="posterUrl(neighborBehind.movie, neighborBehind)" :alt="`${neighborBehind.movie.title} poster`">
           </div>
           <div v-if="neighborTwoBehind" class="neighbor-two-behind">
-            <img :src="posterUrl(neighborTwoBehind.movie)" :alt="`${neighborTwoBehind.movie.title} poster`">
+            <img :src="posterUrl(neighborTwoBehind.movie, neighborTwoBehind)" :alt="`${neighborTwoBehind.movie.title} poster`">
           </div>
         </div>
       </div>
@@ -754,7 +754,9 @@ export default {
     },
     rateBannerUrl () {
       if (this.movieToRate) {
-        return `https://image.tmdb.org/t/p/w500${this.movieToRate.backdrop_path}`;
+        // Check for custom backdrop in previousEntry
+        const backdropPath = this.previousEntry?.customBackdropPath || this.movieToRate.backdrop_path;
+        return `https://image.tmdb.org/t/p/w500${backdropPath}`;
       } else {
         return false;
       }
@@ -935,8 +937,10 @@ export default {
         this.selectedMovieTags.push(tag);
       }
     },
-    posterUrl (movie) {
-      return `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+    posterUrl (movie, result) {
+      // Check if user has selected a custom poster in the result object
+      const posterPath = result?.customPosterPath || movie.poster_path;
+      return `https://image.tmdb.org/t/p/w500${posterPath}`;
     },
     async addRating () {
       this.loading = true;
