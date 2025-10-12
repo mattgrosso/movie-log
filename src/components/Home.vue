@@ -816,6 +816,7 @@ export default {
       insetBrowserUrl: "",
       isRefreshing: false,
       isPulling: false,
+      forceModalReevaluation: 0, // Dummy value to force modal computed properties to recalculate
       letterboxdOverrides: {},
       letterboxdUserData: null,
       newOverrideTitle: '',
@@ -1014,6 +1015,47 @@ export default {
     if (this.showErrorLogs) {
       this.startErrorLogRefresh();
     }
+
+    // Set up pull-to-refresh using touchstart/touchmove/touchend
+    let startY = 0;
+    let currentY = 0;
+    let triggered = false;
+    let hasMoved = false;
+
+    document.addEventListener('touchstart', (e) => {
+      if (window.pageYOffset === 0 && !this.isRefreshing) {
+        startY = e.touches[0].pageY;
+        currentY = startY;
+        triggered = false;
+        hasMoved = false;
+        // Don't set isPulling yet - wait for movement
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (window.pageYOffset === 0 && startY > 0) {
+        currentY = e.touches[0].pageY;
+        // Check if user has pulled down at least 1px
+        if (currentY - startY > 1) {
+          hasMoved = true;
+          this.isPulling = true; // Now show the indicator
+        }
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchend', async () => {
+      if (this.isPulling && !triggered && !this.isRefreshing && hasMoved) {
+        triggered = true;
+        this.isPulling = false;
+        this.isRefreshing = true;
+        await this.checkForUpdates();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        this.isRefreshing = false;
+      } else {
+        this.isPulling = false;
+      }
+      hasMoved = false;
+    }, { passive: true });
   },
   beforeUnmount() {
     // Clean up error log refresh interval
@@ -1928,6 +1970,10 @@ export default {
     },
 
     shouldShowTieBreakModal () {
+      // Include forceModalReevaluation to make this computed reactive to pull-to-refresh
+      // eslint-disable-next-line no-unused-vars
+      const _ = this.forceModalReevaluation;
+
       const firstTiedPairIndex = this.sortedByRating.findIndex((movie, index) => {
         const nextMovie = this.sortedByRating[index + 1];
 
@@ -1946,21 +1992,25 @@ export default {
       const lastTweak = this.$store.state.settings.lastTweak || Date.now();
       const oneDay = 24 * 60 * 60 * 1000;
       const maxDailyTieBreaks = this.$store.state.settings.tieBreakTweak || 1;
-      const noTieBreakYetToday = Date.now() - lastTweak > (oneDay / maxDailyTieBreaks);
+      const dueForTieBreak = Date.now() - lastTweak > (oneDay / maxDailyTieBreaks);
 
-      return hasTiedResults && noTieBreakYetToday;
+      return hasTiedResults && dueForTieBreak;
     },
     showAwardsModal () {
       return this.activeModalType === 'awards';
     },
 
     shouldShowAwardsModal () {
+      // Include forceModalReevaluation to make this computed reactive to pull-to-refresh
+      // eslint-disable-next-line no-unused-vars
+      const _ = this.forceModalReevaluation;
+
       // Don't show until database is loaded to prevent flash
       if (!this.$store.state.dbLoaded) {
         console.log('❌ Database not loaded yet');
         return false;
       }
-      
+
       // Check if a specific year is manually requested (e.g., from Resume Awards button)
       const settings = this.$store.state.settings;
       if (!settings) {
@@ -2178,53 +2228,12 @@ export default {
       return this.isPulling || this.isRefreshing;
     }
   },
-  mounted() {
-    // Set up pull-to-refresh using touchstart/touchmove/touchend
-    let startY = 0;
-    let currentY = 0;
-    let triggered = false;
-    let hasMoved = false;
-
-    document.addEventListener('touchstart', (e) => {
-      if (window.pageYOffset === 0 && !this.isRefreshing) {
-        startY = e.touches[0].pageY;
-        currentY = startY;
-        triggered = false;
-        hasMoved = false;
-        // Don't set isPulling yet - wait for movement
-      }
-    }, { passive: true });
-
-    document.addEventListener('touchmove', (e) => {
-      if (window.pageYOffset === 0 && startY > 0) {
-        currentY = e.touches[0].pageY;
-        // Check if user has pulled down at least 1px
-        if (currentY - startY > 1) {
-          hasMoved = true;
-          this.isPulling = true; // Now show the indicator
-        }
-      }
-    }, { passive: true });
-
-    document.addEventListener('touchend', async () => {
-      if (this.isPulling && !triggered && !this.isRefreshing && hasMoved) {
-        triggered = true;
-        this.isPulling = false;
-        this.isRefreshing = true;
-        await this.checkForUpdates();
-        await new Promise(resolve => setTimeout(resolve, 500));
-        this.isRefreshing = false;
-      } else {
-        this.isPulling = false;
-      }
-      hasMoved = false;
-    }, { passive: true });
-  },
   methods: {
 
     async checkForUpdates() {
-      // Force re-evaluation of modal conditions by resetting prompt states
-      // This will trigger the computed properties to recalculate
+      // Force computed properties to recalculate by changing dummy reactive value
+      // This makes time-based computeds (using Date.now()) re-evaluate
+      this.forceModalReevaluation++;
 
       // Reset tie break state if needed
       if (this.shouldShowTieBreakModal) {
