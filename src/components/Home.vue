@@ -817,6 +817,7 @@ export default {
       isRefreshing: false,
       isPulling: false,
       forceModalReevaluation: 0, // Dummy value to force modal computed properties to recalculate
+      modalReevalInterval: null, // Timer for automatic modal re-evaluation
       letterboxdOverrides: {},
       letterboxdUserData: null,
       newOverrideTitle: '',
@@ -1056,10 +1057,22 @@ export default {
       }
       hasMoved = false;
     }, { passive: true });
+
+    // Set up automatic modal re-evaluation every 30 minutes
+    // This keeps time-based modals (tie breaks, awards) responsive without manual refresh
+    this.modalReevalInterval = setInterval(() => {
+      this.forceModalReevaluation++;
+    }, 1800000); // 30 minutes (1800 seconds)
   },
   beforeUnmount() {
     // Clean up error log refresh interval
     this.stopErrorLogRefresh();
+
+    // Clean up modal re-evaluation interval
+    if (this.modalReevalInterval) {
+      clearInterval(this.modalReevalInterval);
+      this.modalReevalInterval = null;
+    }
   },
   
   // Combined beforeRouteLeave method
