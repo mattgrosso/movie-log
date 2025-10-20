@@ -55,7 +55,8 @@
       "Bash(git show:*)",
       "Bash(vue-cli-service:*)",
       "Bash(yes)",
-      "Bash(yarn test:run:*)"
+      "Bash(yarn test:run:*)",
+      "Bash(yarn lint --no-fix src/components/MovieDetail.vue)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

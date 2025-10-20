@@ -46,62 +46,76 @@
         </div>
 
         <!-- Previous ratings if any -->
-        <div v-if="getAllRatings(previousEntry)" class="previous-ratings mb-3">
-          <h4>Ratings</h4>
-          <div class="accordion mt-2">
-            <div class="accordion-item" v-for="(rating, index) in getAllRatings(previousEntry)" :key="index">
-              <h2 class="accordion-header" :id="`heading-${index}`">
-                <button class="accordion-button col-12 d-flex" type="button" data-bs-toggle="collapse" :data-bs-target="`#collapse-${index}`" aria-expanded="false" :aria-controls="`collapse-${index}`">
-                  <span class="medium-and-date col-9">
-                    <span>{{rating.medium}}</span>
-                    <span v-if="rating.medium && rating.date">&nbsp;on&nbsp;</span>
-                    <span v-else-if="rating.date">On&nbsp;</span>
-                    <span>{{formattedDate(rating.date)}}</span>
-                  </span>
-                  <p class="col-3 m-0 text-center border-start">{{rating.calculatedTotal}}</p>
-                </button>
-              </h2>
-              <div :id="`collapse-${index}`" class="accordion-collapse collapse" :aria-labelledby="`heading-${index}`">
-                <div class="accordion-body">
-                  <table class="table mb-0 table-striped-columns">
-                    <thead>
-                      <tr>
-                        <th><span>dir</span></th>
-                        <th><span>img</span></th>
-                        <th><span>stry</span></th>
-                        <th><span>perf</span></th>
-                        <th><span>sndtk</span></th>
-                        <th><span>stick</span></th>
-                        <th><span>love</span></th>
-                        <th><span>ovral</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr class="table-secondary">
-                        <td>{{rating.direction}}</td>
-                        <td>{{rating.imagery}}</td>
-                        <td>{{rating.story}}</td>
-                        <td>{{rating.performance}}</td>
-                        <td>{{rating.soundtrack}}</td>
-                        <td>{{rating.stickiness && rating.stickiness !== 0 ? rating.stickiness : 1}}</td>
-                        <td>{{rating.love}}</td>
-                        <td>{{rating.overall}}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div class="d-flex justify-content-end mt-2">
-                    <div :id="`delete-button-${result.dbKey}-${index}`" class="delete-button btn btn-sm btn-warning" @click="showConfimDeleteButton(result.dbKey, index)">Delete Rating</div>
-                    <div :id="`confirm-delete-button-${result.dbKey}-${index}`" class="confirm-delete-button d-none col-12 d-flex justify-content-between align-items-center">
-                      <p class="m-0">Are you sure?</p>
-                      <div>
-                        <div class="btn btn-sm btn-info me-1" @click="showDeleteButton(result.dbKey, index)">Nevermind</div>
-                        <div class="btn btn-sm btn-danger" @click="deleteRating(previousEntry, index)">Yes, Delete</div>
+        <div v-if="getAllRatings(previousEntry)" class="ratings-and-comparison-wrapper mb-3">
+          <div class="ratings-section">
+            <h4>Ratings</h4>
+            <div class="accordion mt-2">
+              <div class="accordion-item" v-for="(rating, index) in getAllRatings(previousEntry)" :key="index">
+                <h2 class="accordion-header" :id="`heading-${index}`">
+                  <button class="accordion-button col-12 d-flex" type="button" data-bs-toggle="collapse" :data-bs-target="`#collapse-${index}`" aria-expanded="false" :aria-controls="`collapse-${index}`">
+                    <span class="medium-and-date col-9">
+                      <span>{{rating.medium}}</span>
+                      <span v-if="rating.medium && rating.date">&nbsp;on&nbsp;</span>
+                      <span v-else-if="rating.date">On&nbsp;</span>
+                      <span>{{formattedDate(rating.date)}}</span>
+                    </span>
+                    <p class="col-3 m-0 text-center border-start">{{rating.calculatedTotal}}</p>
+                  </button>
+                </h2>
+                <div :id="`collapse-${index}`" class="accordion-collapse collapse" :aria-labelledby="`heading-${index}`">
+                  <div class="accordion-body">
+                    <table class="table mb-0 table-striped-columns">
+                      <thead>
+                        <tr>
+                          <th><span>dir</span></th>
+                          <th><span>img</span></th>
+                          <th><span>stry</span></th>
+                          <th><span>perf</span></th>
+                          <th><span>sndtk</span></th>
+                          <th><span>stick</span></th>
+                          <th><span>love</span></th>
+                          <th><span>ovral</span></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="table-secondary">
+                          <td>{{rating.direction}}</td>
+                          <td>{{rating.imagery}}</td>
+                          <td>{{rating.story}}</td>
+                          <td>{{rating.performance}}</td>
+                          <td>{{rating.soundtrack}}</td>
+                          <td>{{rating.stickiness && rating.stickiness !== 0 ? rating.stickiness : 1}}</td>
+                          <td>{{rating.love}}</td>
+                          <td>{{rating.overall}}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div class="d-flex justify-content-end mt-2">
+                      <div :id="`delete-button-${result.dbKey}-${index}`" class="delete-button btn btn-sm btn-warning" @click="showConfimDeleteButton(result.dbKey, index)">Delete Rating</div>
+                      <div :id="`confirm-delete-button-${result.dbKey}-${index}`" class="confirm-delete-button d-none col-12 d-flex justify-content-between align-items-center">
+                        <p class="m-0">Are you sure?</p>
+                        <div>
+                          <div class="btn btn-sm btn-info me-1" @click="showDeleteButton(result.dbKey, index)">Nevermind</div>
+                          <div class="btn btn-sm btn-danger" @click="deleteRating(previousEntry, index)">Yes, Delete</div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- Last Higher Rated Movie Poster -->
+          <div v-if="lastHigherRatedMovie" class="comparison-poster-section">
+            <h4>Best since</h4>
+            <div class="poster-with-overlay" @click="navigateToMovie(lastHigherRatedMovie.movie.id)">
+              <img
+                :src="`https://image.tmdb.org/t/p/w342${getPosterPath(lastHigherRatedMovie)}`"
+                :alt="lastHigherRatedMovie.movie.title"
+                class="comparison-poster">
+            </div>
+            <div class="time-below-poster">({{ formatTimeDifference(lastHigherRatedMovie.movie.release_date, movie.release_date) }} prior)</div>
           </div>
         </div>
 
@@ -344,6 +358,19 @@ export default {
     // Show header again when leaving this page
     this.$store.commit('setShowHeader', true);
   },
+  watch: {
+    '$route.params.tmdbId': {
+      handler(newId) {
+        if (newId) {
+          // Scroll to top
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+          // Reload movie data for new movie
+          this.loadMovieData(newId);
+        }
+      }
+    }
+  },
   computed: {
     academyAwardWins() {
       if (!Array.isArray(this.awardsData)) {
@@ -553,6 +580,42 @@ export default {
       })
 
       return counts;
+    },
+
+    lastHigherRatedMovie() {
+      // Get the current movie's release date and rating
+      const currentReleaseDate = this.movie?.release_date;
+      const currentRating = this.ratingForMedia(this.result);
+
+      if (!currentReleaseDate || !currentRating) {
+        return null;
+      }
+
+      const currentDate = new Date(currentReleaseDate);
+
+      // Get all movies released before this one
+      const earlierMovies = this.allEntriesWithFlatKeywordsAdded
+        .filter((result) => {
+          const releaseDate = result.movie?.release_date;
+          if (!releaseDate) return false;
+
+          const movieDate = new Date(releaseDate);
+          return movieDate < currentDate;
+        })
+        .filter((result) => {
+          // Only include movies with a rating higher than current movie
+          const rating = this.ratingForMedia(result);
+          return rating > currentRating;
+        })
+        .sort((a, b) => {
+          // Sort by release date descending (most recent first)
+          const dateA = new Date(a.movie.release_date);
+          const dateB = new Date(b.movie.release_date);
+          return dateB - dateA;
+        });
+
+      // Return the most recent movie (first in the sorted array) that has a higher rating
+      return earlierMovies.length > 0 ? earlierMovies[0] : null;
     }
   },
   methods: {
@@ -609,11 +672,9 @@ export default {
       // Set navigation intent to preserve scroll position
       this.$store.commit('setHomePageNavigationIntent', 'close');
 
-      // Small delay to ensure loading state renders before navigation
-      setTimeout(() => {
-        // Use router to go back to previous page (which should be home)
-        this.$router.go(-1);
-      }, 50);
+      // Navigate directly to home instead of using browser back
+      // This prevents issues when navigating between movie detail pages
+      this.$router.push('/');
     },
 
     searchFor(query) {
@@ -892,6 +953,43 @@ export default {
 
     countStudios(studio) {
       return this.countsStudios[studio] || 0;
+    },
+
+    formatTimeDifference(earlierDate, laterDate) {
+      const earlier = new Date(earlierDate);
+      const later = new Date(laterDate);
+      const diffMs = later - earlier;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      // Less than 7 days: show in days
+      if (diffDays < 7) {
+        return diffDays === 1 ? '1 day' : `${diffDays} days`;
+      }
+
+      // Less than 60 days: show in weeks
+      if (diffDays < 60) {
+        const weeks = Math.round(diffDays / 7);
+        return weeks === 1 ? '1 week' : `${weeks} weeks`;
+      }
+
+      // Less than 730 days (2 years): show in months
+      if (diffDays < 730) {
+        const months = Math.round(diffDays / 30);
+        return months === 1 ? '1 month' : `${months} months`;
+      }
+
+      // Otherwise: show in years
+      const years = Math.round(diffDays / 365);
+      return years === 1 ? '1 year' : `${years} years`;
+    },
+
+    getPosterPath(result) {
+      return result?.customPosterPath || result?.movie?.poster_path;
+    },
+
+    navigateToMovie(tmdbId) {
+      // Navigate to the new movie detail page
+      this.$router.push(`/movie/${tmdbId}`);
     },
 
     // Poster selection methods
@@ -1192,17 +1290,17 @@ export default {
 
   .rating-runtime-and-date {
     margin-bottom: 1rem;
-    
+
     .line-one {
       display: flex;
       justify-content: space-between;
-      
+
       h3 {
         margin: 0;
       }
     }
   }
-  
+
   .details-actions {
     display: flex;
     justify-content: flex-end;
@@ -1235,28 +1333,76 @@ export default {
     }
   }
   
-  .previous-ratings {
+  .ratings-and-comparison-wrapper {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+
+    .ratings-section {
+      flex: 1;
+      min-width: 0; // Allow flex item to shrink below content size
+    }
+
+    .comparison-poster-section {
+      flex-shrink: 0;
+      width: 65px;
+
+      h4 {
+        margin-bottom: 0.35rem;
+        font-size: 0.6rem;
+      }
+
+      .poster-with-overlay {
+        cursor: pointer;
+        border-radius: 3px;
+        overflow: hidden;
+        transition: transform 0.2s;
+        margin-bottom: 0.25rem;
+
+        &:hover {
+          transform: scale(1.02);
+        }
+
+        .comparison-poster {
+          width: 100%;
+          display: block;
+          aspect-ratio: 2/3;
+          object-fit: cover;
+        }
+      }
+
+      .time-below-poster {
+        font-size: 0.5rem;
+        color: #fff;
+        text-align: right;
+        line-height: 1.2;
+      }
+    }
+  }
+
+  .previous-ratings,
+  .ratings-section {
     .accordion-button {
       background-color: white;
       color: black;
       padding: 8px 12px;
-      
+
       &:focus {
         box-shadow: none;
       }
-      
+
       &::after {
         display: none;
       }
     }
-    
+
     .accordion-body {
       padding: 6px;
-      
+
       table {
         table-layout: fixed;
         width: 100%;
-        
+
         th {
           span {
             display: inline-block;
@@ -1264,7 +1410,7 @@ export default {
             transform: rotate(60deg);
           }
         }
-        
+
         td {
           font-size: 0.6rem;
         }
