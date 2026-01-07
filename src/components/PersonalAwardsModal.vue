@@ -745,13 +745,15 @@ export default {
 
       try {
         const isNowComplete = this.completedCategories === this.totalCategories;
-        
-        // Optimize: Only get movie IDs if we don't already have them
+
+        // Get current movie IDs - always refresh when completing, use cached for intermediate saves
         let movieIds = [];
         const existingData = this.$store.state.settings.personalAwards?.[this.currentYear];
-        if (existingData?.availableMovieIds) {
+        if (existingData?.availableMovieIds && !isNowComplete) {
+          // Optimization: Reuse existing IDs for intermediate saves (not completion)
           movieIds = existingData.availableMovieIds;
         } else {
+          // Always get fresh list when completing or if no previous list exists
           const moviesForYear = this.getMoviesForYear();
           movieIds = moviesForYear.map(entry => entry?.movie?.id).filter(id => id);
         }
