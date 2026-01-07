@@ -61,8 +61,8 @@
               <span v-else>1 - I forgot it immediately</span>
             </option>
             <option value="2">
-              <span v-if="showSixMonthMessage">2 - I remember it fondly</span>
-              <span v-else>2 - I've been mentioning it fondly to people</span>
+              <span v-if="showSixMonthMessage">2 - Good or bad, it comes to mind</span>
+              <span v-else>2 - I've been thinking about it and mentioning it</span>
             </option>
             <option value="3">
               <span v-if="showSixMonthMessage">3 - I think about it often</span>

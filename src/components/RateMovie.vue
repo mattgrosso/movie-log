@@ -275,7 +275,7 @@
             1 - I doubt I'll think of it or recommend it to anyone
           </option>
           <option value="2">
-            2 - I think I'll mention it fondly to some people
+            2 - I think I'll mention it to some people
           </option>
           <option value="3">
             3 - I'm going to think about it often and will look for chances to bring it up
