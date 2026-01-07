@@ -706,7 +706,10 @@ export default {
     openModal() {
       try {
         this.showModal = true;
-        this.currentYear = this.selectedYear || this.firstEligibleYear;
+        // Use the daily selection if available (which is what's shown in the banner),
+        // otherwise fall back to selectedYear prop or firstEligibleYear
+        const dailySelection = this.$store.state.settings?.dailyAwardsYear;
+        this.currentYear = this.selectedYear || dailySelection || this.firstEligibleYear;
         this.initializeAwardsData();
         
         // Clear options cache for new session
