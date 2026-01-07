@@ -809,7 +809,7 @@ export default {
       debouncedSetSearchValue: debounce(function(value) {
         this.searchValue = value;
       }, 300),
-      filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword'],
+      filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'tag'],
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
       hasCalledFindFilter: false,
       inputValue: "", // Visual input value (can be different from internal value)
@@ -2372,6 +2372,12 @@ export default {
         case 'keyword':
           return movie.flatKeywords && movie.flatKeywords.includes(filter.value.toLowerCase());
 
+        case 'tag':
+          // Check if this movie has ratings with the specified tag
+          return result.ratings && result.ratings.some(rating =>
+            rating.tags && rating.tags.some(tag => tag.title === filter.value)
+          );
+
         case 'title':
           // Title-only search
           return movie.title && movie.title.toLowerCase().includes(filter.value.toLowerCase());
@@ -2638,10 +2644,14 @@ export default {
         this.updateSearchValue("");
         this.$refs.QuickLinksAccordion?.classList.remove("show");
       } else if (this.tags?.includes(value)) {
-        this.activeQuickLinkList = value;
+        // Add tag as a chip instead of using activeQuickLinkList for multi-tag support
+        this.activeFilters.push({
+          id: `tag-${Date.now()}`,
+          type: 'tag',
+          value: value,
+          display: `${value}`
+        });
         this.sortOrder = "bestOrNewestOnTop";
-
-        this.updateSearchValue(value);
       } else {
         this.activeQuickLinkList = value;
 
