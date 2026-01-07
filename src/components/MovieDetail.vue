@@ -186,6 +186,16 @@
           </p>
         </div>
 
+        <!-- Tags -->
+        <div v-if="movieTags && movieTags.length" class="tags mb-3">
+          <h4>Tag<span v-if="multipleEntries(movieTags)">s</span></h4>
+          <p class="long-list">
+            <a v-for="(tag, index) in sortedTags" :key="index" class="link" @click.stop="searchForTag(tag)">
+              {{tag}}<span class="small-count-bubble">&nbsp;({{ tagCounts[tag] }})</span><span v-if="index !== movieTags.length - 1">&nbsp;&nbsp;</span>
+            </a>
+          </p>
+        </div>
+
         <!-- Writers -->
         <div v-if="getCrewMember('Writer', false)" class="writers mb-3">
           <h4>Writer<span v-if="multipleEntries(getCrewMember('Writer', false))">s</span></h4>
@@ -487,6 +497,49 @@ export default {
 
       return counts;
     },
+    movieTags() {
+      // Get all tags from all ratings for this movie
+      if (!this.result || !this.result.ratings) return [];
+
+      const allTags = this.result.ratings
+        .flatMap(rating => rating.tags || [])
+        .map(tag => tag.title)
+        .filter(Boolean);
+
+      // Return unique tags
+      return [...new Set(allTags)];
+    },
+    sortedTags() {
+      if (!this.movieTags || !this.movieTags.length) return [];
+      return [...this.movieTags].sort((a, b) => {
+        const countA = this.tagCounts[a] || 0;
+        const countB = this.tagCounts[b] || 0;
+        return countB - countA;
+      });
+    },
+    tagCounts() {
+      const counts = {};
+
+      // Count how many times each tag appears across all movies in the database
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        if (!result.ratings) return;
+
+        const tags = result.ratings
+          .flatMap(rating => rating.tags || [])
+          .map(tag => tag.title)
+          .filter(Boolean);
+
+        tags.forEach((tag) => {
+          if (counts[tag]) {
+            counts[tag]++;
+          } else {
+            counts[tag] = 1;
+          }
+        });
+      });
+
+      return counts;
+    },
 
     // Count computed properties for proper tracking
     allEntriesWithFlatKeywordsAdded() {
@@ -684,6 +737,23 @@ export default {
       // Save the search query in store and navigate back to home
       this.$store.commit('setHomePageSearchValue', query);
       this.$store.commit('setHomePageSearchChips', []); // Clear existing chips
+      this.$store.commit('setHomePageScrollPosition', 0); // Scroll to top for new search
+      this.$router.push('/');
+    },
+
+    searchForTag(tag) {
+      // Set navigation intent to scroll to top
+      this.$store.commit('setHomePageNavigationIntent', 'search');
+
+      // Create a tag chip and navigate back to home
+      const tagChip = {
+        id: `tag-${Date.now()}`,
+        type: 'tag',
+        value: tag,
+        display: `Tag: ${tag}`
+      };
+      this.$store.commit('setHomePageSearchValue', ''); // Clear search input
+      this.$store.commit('setHomePageSearchChips', [tagChip]); // Set tag chip
       this.$store.commit('setHomePageScrollPosition', 0); // Scroll to top for new search
       this.$router.push('/');
     },
