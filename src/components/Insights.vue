@@ -98,6 +98,11 @@
           <p class="insights-pane-item-value">{{moviesWatchedLastYear}}</p>
         </div>
       </div>
+      <div class="col-12 mt-3">
+        <button class="btn btn-outline-info btn-sm flex-fill w-100" @click="goToYearInReview">
+          See Your Year in Review
+        </button>
+      </div>
     </InsightsPane>
 
     <InsightsPane v-if="allAwardsYears.length > 0">
@@ -1238,6 +1243,9 @@ export default {
     returnHome () {
       this.$store.commit("setShowHeader", true);
       this.$router.push({ path: '/', query: { movieDbKey: this.dbEntry?.path?.split("movieLog/")[1] } });
+    },
+    goToYearInReview() {
+      this.$router.push('/year-in-review');
     },
     randomizeAxes() {
       const availableOptions = this.axisOptions.map(opt => opt.key);

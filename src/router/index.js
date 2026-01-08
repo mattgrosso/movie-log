@@ -8,6 +8,7 @@ const RateMovie = () => import(/* webpackChunkName: "rate-movie" */ "../componen
 const Insights = () => import(/* webpackChunkName: "insights" */ "../components/Insights.vue");
 const ShareDBResults = () => import(/* webpackChunkName: "share-db-results" */ "../components/ShareDBResults.vue");
 const MovieDetail = () => import(/* webpackChunkName: "movie-detail" */ "../components/MovieDetail.vue");
+const YearInReview = () => import(/* webpackChunkName: "year-in-review" */ "../components/YearInReview.vue");
 
 // Router
 const loggedIn = () => {
@@ -103,6 +104,21 @@ const routes = [
     path: '/movie/:tmdbId',
     name: 'MovieDetail',
     component: MovieDetail,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/year-in-review',
+    name: 'YearInReview',
+    component: YearInReview,
     meta: {
       requiresLogin: true
     },
