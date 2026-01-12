@@ -34,7 +34,8 @@
         {{result.ratings.length}} view<span v-if="result.ratings.length > 1" >s</span>
       </span>
       <span v-else class="rank">
-        {{getOrdinal(overAllRank)}}
+        <span v-if="resultsAreFiltered">{{getOrdinal(index + 1)}} ({{getOrdinal(overAllRank)}})</span>
+        <span v-else>{{getOrdinal(overAllRank)}}</span>
       </span>
       <span v-if="!result.falseEntry" class="rating">
         {{parseFloat(ratingForMedia(result)).toFixed(2)}}
