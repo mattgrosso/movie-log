@@ -15,6 +15,27 @@ const response = (statusCode, body) => ({
   body: JSON.stringify(body)
 });
 
+const getContext = async ({ title, year }) => {
+  if (!title) {
+    return response(400, { error: 'Title is required' });
+  }
+
+  const message = await client.messages.create({
+    model: 'claude-opus-4-5',
+    max_tokens: 512,
+    messages: [
+      {
+        role: 'user',
+        content: `Give me some brief critical and historical context for the movie "${title}"${year ? ` (${year})` : ''}.
+Cover how it was received at the time of release, its cultural or historical significance, and any notable influences or legacy. Are there any interesting production details?
+Keep it to 3-4 sentences. Be direct and informative, not promotional.`
+      }
+    ]
+  });
+
+  return response(200, { context: message.content[0].text });
+};
+
 const getKeywords = async ({ title, year }) => {
   if (!title) {
     return response(400, { error: 'Title is required' });
@@ -63,6 +84,10 @@ exports.handler = async (event) => {
   try {
     if (route.endsWith('/keywords')) {
       return await getKeywords(body);
+    }
+
+    if (route.endsWith('/context')) {
+      return await getContext(body);
     }
 
     return response(404, { error: 'Unknown route' });
