@@ -363,10 +363,7 @@
                 <input class="form-check-input" type="checkbox" id="shortsToggle" :checked="showShorts" @change="updateShowShorts">
                 <label class="form-check-label" for="shortsToggle">Include short films</label>
               </div>
-              <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="randomSearchToggle" v-model="enableRandomSearch" @change="saveRandomSearchSetting">
-                <label class="form-check-label" for="randomSearchToggle">Show random search on page load</label>
-              </div>
+
               <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" id="errorLogsToggle" :checked="showErrorLogs" @change="updateShowErrorLogs">
                 <label class="form-check-label" for="errorLogsToggle">Show error logs</label>
@@ -811,7 +808,7 @@ export default {
       }, 300),
       filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'tag'],
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
-      hasCalledFindFilter: false,
+
       inputValue: "", // Visual input value (can be different from internal value)
       insetBrowserUrl: "",
       isRefreshing: false,
@@ -856,23 +853,9 @@ export default {
     }
   },
   watch: {
-    paginatedSortedResults (newVal, oldVal) {
-      if (!oldVal.length && newVal.length) {
-        this.checkResultsAndFindFilter();
-      }
-    },
     allEntriesWithFlatKeywordsAdded (newVal, oldval) {
       if (!oldval.length && newVal.length) {
         this.buildCastMembersCache();
-      }
-    },
-    // Handle initial enableRandomSearch loading (replaces deep settings watcher logic)
-    enableRandomSearch(newVal, oldVal) {
-      // Only trigger on first load when transitioning from null to a value
-      if (oldVal === null && newVal !== null) {
-        this.$nextTick(() => {
-          this.checkResultsAndFindFilter();
-        });
       }
     },
     effectiveSearchFilter(newVal, oldVal) {
@@ -971,21 +954,14 @@ export default {
 
     if (this.$route.query.search) {
       this.inputValue = decodeURIComponent(this.$route.query.search);
-    } else if (!hasStateToRestore) {
-      this.checkResultsAndFindFilter();
     }
-    
+
     // Handle new search from MovieDetail page
     if (this.$store.state.homePageSearchValue && this.$store.state.homePageSearchChips.length === 0) {
       // Clear the search state from store after processing
       this.$store.commit('setHomePageSearchValue', '');
     }
     
-    // Handle dbLoaded state (replaces watcher)
-    if (this.$store.state.dbLoaded) {
-      this.checkResultsAndFindFilter();
-    }
-
     // Only initialize sort value if we're not restoring state from a 'close' navigation
     if (navigationIntent !== 'close' || !hasStateToRestore) {
       if (this.DBSortValue) {
@@ -1094,16 +1070,6 @@ export default {
     next();
   },
   computed: {
-    // Settings computed properties (replaces watchers for better performance)
-    enableRandomSearch() {
-      const settingValue = this.$store.state.settings?.enableRandomSearch;
-      if (typeof settingValue === 'boolean') {
-        return settingValue;
-      }
-      // Default to true for users who haven't set this preference
-      const settingsKeys = this.$store.state.settings ? Object.keys(this.$store.state.settings) : [];
-      return settingsKeys.length > 5 ? true : null;
-    },
     normalizationTweak() {
       const value = this.$store.state.settings?.normalizationTweak;
       return typeof value === 'number' ? value : 0.25;
@@ -2433,22 +2399,6 @@ export default {
         "count-more-than-4-remainder-3": count > 4 & count % 4 === 3
       }
     },
-    checkResultsAndFindFilter () {
-      // Don't trigger random search until settings are loaded and we have a definitive value
-      if (this.enableRandomSearch === null) {
-        return; // Settings not loaded yet, wait
-      }
-      
-      const allowRandomFromSetting = this.enableRandomSearch;
-      const allowRandom = allowRandomFromSetting;
-      const hasResults = this.paginatedSortedResults?.length > 0;
-      const hasNotCalledFindFilter = !this.hasCalledFindFilter;
-
-      if (allowRandom && hasResults && hasNotCalledFindFilter) {
-        this.findRandomSearchValue();
-        this.hasCalledFindFilter = true;
-      }
-    },
     findRandomSearchValue () {
       this.$router.push({ query: { ...this.$route.query, returnFromRating: undefined } });
       const countedLists = ["keyword", "genre", "year", "director", "cast/crew", "studios"];
@@ -2489,18 +2439,16 @@ export default {
       } while (counts[randomValue] <= minimumCount && safetyLimit > 0);
 
       if (randomValue && safetyLimit > 0) {
-        // Clear existing chips first, then add the random search
         this.clearAllFilters();
         this.updateSearchValue(randomValue, false, randomList);
         this.sortOrder = "bestOrNewestOnTop";
       } else {
-        // If we couldn't find a value with minimum count, try with any count > 0
         const allValues = Object.keys(counts || {}).filter(key => counts[key] > 0);
         if (allValues.length > 0) {
           const randomIndex = Math.floor(Math.random() * allValues.length);
           const fallbackValue = allValues[randomIndex];
           this.clearAllFilters();
-          this.updateSearchValue(fallbackValue, true, randomList); // Pass the category
+          this.updateSearchValue(fallbackValue, true, randomList);
           this.sortOrder = "bestOrNewestOnTop";
         } else {
           this.clearInput();
@@ -2981,9 +2929,6 @@ export default {
         this.letterboxdConnected = true;
         this.saveLetterboxdConnection();
       }
-    },
-    saveRandomSearchSetting() {
-      this.$store.dispatch('setDBValue', { path: 'settings/enableRandomSearch', value: this.enableRandomSearch });
     },
     saveStickinessPromptState(value) {
       this.stickinessPromptState = value;

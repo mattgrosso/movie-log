@@ -104,8 +104,7 @@ describe('Chip Filtering System', () => {
           normalizationTweak: 0.25,
           tieBreakTweak: 1,
           includeShorts: false,
-          tags: { 'viewing-tags': {} },
-          enableRandomSearch: false
+          tags: { 'viewing-tags': {} }
         },
         filteredResults: []
       },

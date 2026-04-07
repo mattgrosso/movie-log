@@ -148,8 +148,7 @@ describe('Quick Links Filtering System', () => {
           tags: { 'viewing-tags': {
             'family-friendly': { title: 'family-friendly' },
             'date-night': { title: 'date-night' }
-          }},
-          enableRandomSearch: false
+          }}
         },
         filteredResults: []
       },
