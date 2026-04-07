@@ -1056,7 +1056,8 @@ export default {
         const title = this.movieToRate.title;
         const year = new Date(this.movieToRate.release_date).getFullYear() || "";
 
-        const apiUrl = process.env.VUE_APP_CHATGPT_API_URL;
+        const apiUrl = `${process.env.VUE_APP_AI_API_URL}/keywords`;
+        console.log('[AI Keywords] Fetching from:', apiUrl, { title, year });
 
         const response = await axios.post(
           apiUrl,
@@ -1071,9 +1072,11 @@ export default {
           }
         );
 
+        console.log('[AI Keywords] Response:', response.data);
         this.chatGPTKeywords = response.data.keywords || [];
+        console.log('[AI Keywords] Saved to rating:', this.chatGPTKeywords);
       } catch (error) {
-        console.error('Failed to fetch ChatGPT keywords:', error);
+        console.error('[AI Keywords] Failed:', error);
         ErrorLogService.error("Failed to fetch ChatGPT keywords", { error });
         this.chatGPTKeywords = [];
       }

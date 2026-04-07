@@ -956,7 +956,13 @@ export default {
     },
 
     topStructure(result) {
-      return result?.movie;
+      if (!result?.movie) return null;
+      const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((k) => k.name) : [];
+      const flatChatGPTKeywords = result.movie.chatGPTKeywords || [];
+      return {
+        ...result.movie,
+        flatKeywords: uniq([...flatTMDBKeywords, ...flatChatGPTKeywords])
+      };
     },
 
     getBackdropPath() {

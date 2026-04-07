@@ -1,7 +1,9 @@
 {
-  "name": "chatgpt-keywords-lambda",
+  "name": "cinemaroll-ai-lambda",
   "version": "1.0.0",
-  "description": "AWS Lambda function for ChatGPT keywords API",
-  "main": "chatgpt-keywords.js",
-  "dependencies": {}
+  "description": "AWS Lambda function for Claude AI integration",
+  "main": "claude-ai.js",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  }
 }
