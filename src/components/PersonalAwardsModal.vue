@@ -538,12 +538,12 @@ export default {
         const dailySelection = settings.dailyAwardsYear;
         const dailySelectionDate = settings.dailyAwardsYearDate;
         
-        // If we have a selection from today, use it (don't re-check if it's incomplete)
-        // Only override if the year is actually completed
-        if (dailySelection && dailySelectionDate === today) {
+        // If we have a valid (non-null) selection from today, use it.
+        // Only override if the year is actually completed.
+        if (dailySelection != null && dailySelectionDate === today) {
           const existingAwards = settings.personalAwards?.[dailySelection];
           const isCompleted = existingAwards && existingAwards.completed;
-          
+
           if (!isCompleted) {
             return dailySelection; // Always return today's selection unless it's completed
           }
@@ -555,10 +555,10 @@ export default {
           try {
             const existingAwards = this.$store.state.settings?.personalAwards?.[year];
             if (!existingAwards || !existingAwards.categories) return false;
-            
+
             // Check if any category has nominees or winners
-            return Object.values(existingAwards.categories).some(categoryData => 
-              (categoryData.nominees && categoryData.nominees.length > 0) || 
+            return Object.values(existingAwards.categories).some(categoryData =>
+              (categoryData.nominees && categoryData.nominees.length > 0) ||
               categoryData.winner ||
               categoryData.noNominees
             );
@@ -568,7 +568,7 @@ export default {
             return false;
           }
         });
-        
+
         let selectedYear;
         if (yearsWithPartialProgress.length > 0) {
           // Prioritize years with partial progress
@@ -579,13 +579,13 @@ export default {
           const randomIndex = Math.floor(Math.random() * incompleteYears.length);
           selectedYear = incompleteYears[randomIndex];
         }
-        
-        // Persist the daily selection (don't await to avoid blocking UI)
-        // Only persist if no selectedYear prop was provided (don't override Resume/Edit actions)
-        if (!this.selectedYear) {
-          // Wrap in try-catch to prevent dispatch errors from crashing
+
+        // Persist the daily selection so openModal() reads the same year shown in the banner.
+        // Only persist if no selectedYear prop was provided (don't override Resume/Edit actions).
+        // Guard against re-saving the same value to avoid unnecessary Firebase writes.
+        if (!this.selectedYear && dailySelection !== selectedYear) {
           try {
-            this.$store.dispatch('setDBValue', { 
+            this.$store.dispatch('setDBValue', {
               path: 'settings/dailyAwardsYear',
               value: selectedYear
             });
@@ -598,7 +598,7 @@ export default {
             ErrorLogService.error('Error persisting daily selection:', error);
           }
         }
-        
+
         return selectedYear;
       } catch (error) {
         console.error('Error in firstEligibleYear:', error);
@@ -706,10 +706,9 @@ export default {
     openModal() {
       try {
         this.showModal = true;
-        // Use the daily selection if available (which is what's shown in the banner),
-        // otherwise fall back to selectedYear prop or firstEligibleYear
-        const dailySelection = this.$store.state.settings?.dailyAwardsYear;
-        this.currentYear = this.selectedYear || dailySelection || this.firstEligibleYear;
+        // firstEligibleYear already accounts for dailyAwardsYear and selectedYear prop,
+        // so use it directly to guarantee the modal opens on the same year shown in the banner.
+        this.currentYear = this.selectedYear || this.firstEligibleYear;
         this.initializeAwardsData();
         
         // Clear options cache for new session
