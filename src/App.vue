@@ -74,14 +74,12 @@ export default {
     z-index: 9999;
     background: transparent;
     cursor: pointer;
-    
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+    touch-action: manipulation;
+
     /* Only show on mobile devices */
     @media (min-width: 768px) {
       display: none;
     }
-    
-    /* Add subtle visual feedback on touch */
-    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
-    touch-action: manipulation;
   }
 </style>
