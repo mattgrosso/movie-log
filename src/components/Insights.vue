@@ -153,50 +153,84 @@
         </div>
       </div>
       <div v-if="selectedAwardsData" class="awards-results">
-        <template v-for="category in awardCategories" :key="category.key">
-          <div v-if="shouldShowCategory(category.key)" class="award-category mb-3">
-          <h6 class="category-title mb-2">{{ category.name }}</h6>
-          <div v-if="selectedAwardsData[category.key]" class="category-results">
-            <div class="award-display d-flex align-items-start">
-              <!-- Winner Poster -->
-              <div v-if="selectedAwardsData[category.key].winner" class="winner-section me-3">
-                <div class="winner-poster">
-                  <img 
-                    v-if="getMoviePoster(selectedAwardsData[category.key].winner)"
-                    :src="getMoviePoster(selectedAwardsData[category.key].winner)" 
-                    :alt="getOptionTitle(selectedAwardsData[category.key].winner)"
-                    class="poster-img"
-                  >
-                  <div v-else class="poster-placeholder">
-                    {{ getOptionTitle(selectedAwardsData[category.key].winner).charAt(0) }}
+
+        <!-- Compact view: just category + winner -->
+        <div v-if="compactAwardsView">
+          <table class="table table-sm table-dark mb-2 text-light">
+            <tbody>
+              <template v-for="category in awardCategories" :key="category.key">
+                <tr v-if="shouldShowCategory(category.key)">
+                  <td class="text-secondary small" style="width: 45%">{{ category.name }}</td>
+                  <td class="text-light small">
+                    <span v-if="selectedAwardsData[category.key] && selectedAwardsData[category.key].winner">
+                      <span v-if="isPersonCategory(category.key)">
+                        <span class="text-light">{{ getPersonTitle(selectedAwardsData[category.key].winner) }}</span>
+                        <span class="text-secondary"> for </span>
+                        <span class="text-light">{{ getMovieTitle(selectedAwardsData[category.key].winner) }}</span>
+                      </span>
+                      <span v-else>{{ getOptionTitle(selectedAwardsData[category.key].winner) }}</span>
+                    </span>
+                    <span v-else class="text-secondary fst-italic">—</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <button class="btn btn-outline-secondary btn-sm w-100" @click="compactAwardsView = false">
+            Show full results
+          </button>
+        </div>
+
+        <!-- Full view: posters + nominees -->
+        <div v-else>
+          <template v-for="category in awardCategories" :key="category.key">
+            <div v-if="shouldShowCategory(category.key)" class="award-category mb-3">
+              <h6 class="category-title mb-2">{{ category.name }}</h6>
+              <div v-if="selectedAwardsData[category.key]" class="category-results">
+                <div class="award-display d-flex align-items-start">
+                  <!-- Winner Poster -->
+                  <div v-if="selectedAwardsData[category.key].winner" class="winner-section me-3">
+                    <div class="winner-poster">
+                      <img
+                        v-if="getMoviePoster(selectedAwardsData[category.key].winner)"
+                        :src="getMoviePoster(selectedAwardsData[category.key].winner)"
+                        :alt="getOptionTitle(selectedAwardsData[category.key].winner)"
+                        class="poster-img"
+                      >
+                      <div v-else class="poster-placeholder">
+                        {{ getOptionTitle(selectedAwardsData[category.key].winner).charAt(0) }}
+                      </div>
+                      <div class="winner-badge">WINNER</div>
+                    </div>
+                    <div v-if="isPersonCategory(category.key)" class="winner-title mt-1">
+                      {{ getPersonTitle(selectedAwardsData[category.key].winner) }}<br/>
+                      ({{ getMovieTitle(selectedAwardsData[category.key].winner) }})
+                    </div>
                   </div>
-                  <div class="winner-badge">WINNER</div>
-                </div>
-                <div v-if="isPersonCategory(category.key)" class="winner-title mt-1">
-                  {{ getPersonTitle(selectedAwardsData[category.key].winner) }}<br/>
-                  ({{ getMovieTitle(selectedAwardsData[category.key].winner) }})
+                  <!-- Nominees List -->
+                  <div v-if="getNomineesExcludingWinner(selectedAwardsData[category.key]).length > 0" class="nominees-section flex-grow-1">
+                    <div class="nominees-label">Also nominated:</div>
+                    <ul class="nominees-list mb-0">
+                      <li v-for="nominee in getNomineesExcludingWinner(selectedAwardsData[category.key])"
+                          :key="getOptionId(nominee)"
+                          class="nominee-item">
+                        <span v-if="isPersonCategory(category.key)">{{ getPersonTitle(nominee) }} ({{ getMovieTitle(nominee) }})</span>
+                        <span v-else>{{ getOptionTitle(nominee) }}</span>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
-
-              <!-- Nominees List -->
-              <div v-if="getNomineesExcludingWinner(selectedAwardsData[category.key]).length > 0" class="nominees-section flex-grow-1">
-                <div class="nominees-label">Also nominated:</div>
-                <ul class="nominees-list mb-0">
-                  <li v-for="nominee in getNomineesExcludingWinner(selectedAwardsData[category.key])" 
-                      :key="getOptionId(nominee)"
-                      class="nominee-item">
-                    <span v-if="isPersonCategory(category.key)">{{ getPersonTitle(nominee) }} ({{ getMovieTitle(nominee) }})</span>
-                    <span v-else>{{ getOptionTitle(nominee) }}</span>
-                  </li>
-                </ul>
+              <div v-else class="no-data">
+                <em>No data for this category</em>
               </div>
             </div>
-          </div>
-          <div v-else class="no-data">
-            <em>No data for this category</em>
-          </div>
-          </div>
-        </template>
+          </template>
+          <button class="btn btn-outline-secondary btn-sm w-100 mt-2" @click="compactAwardsView = true">
+            Show compact view
+          </button>
+        </div>
+
       </div>
     </InsightsPane>
 
@@ -361,6 +395,7 @@ export default {
       selectedXAxis: 'runtime', // Will be randomized on mount
       selectedYAxis: 'userRating', // Will be randomized on mount
       selectedAwardsYear: null,
+      compactAwardsView: true,
       axisOptions: [
         { key: 'runtime', label: 'Runtime (minutes)' },
         { key: 'releaseYear', label: 'Release Year' },
@@ -403,6 +438,11 @@ export default {
   mounted() {
     // Set random axes on page load
     this.randomizeAxes();
+  },
+  watch: {
+    selectedAwardsYear() {
+      this.compactAwardsView = true;
+    }
   },
   computed: {
     allAwardsYears() {
@@ -1336,18 +1376,21 @@ export default {
       this.$router.push({ name: 'Home', query: { search: encodeURIComponent(value) } });
     },
     async resumeAwards(year) {
-      // Set the daily awards year to force the awards modal to show for this specific year
+      // Set the daily awards year and force the modal open immediately on Home
       await this.$store.dispatch('setDBValue', {
         path: 'settings/dailyAwardsYear',
         value: year
       });
-      
       await this.$store.dispatch('setDBValue', {
         path: 'settings/dailyAwardsYearDate',
         value: new Date().toDateString()
       });
-      
-      // Navigate to home where the awards modal will appear
+      await this.$store.dispatch('setDBValue', {
+        path: 'settings/awardsPromptState',
+        value: 'forced'
+      });
+
+      // Navigate to home — awardsPromptState 'forced' will open the modal automatically
       this.$router.push({ name: 'Home' });
     },
     getYear (media) {

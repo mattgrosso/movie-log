@@ -351,6 +351,7 @@
             :awardNameWithThe="getAwardNameWithThe()"
             :awardNameSingular="getAwardNameSingular()"
             :selectedYear="dailyAwardsYear"
+            :autoOpen="awardsPromptState === 'forced'"
           />
           <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
           <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">

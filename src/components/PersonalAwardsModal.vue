@@ -1,6 +1,6 @@
 <template>
   <div class="personal-awards">
-    <div class="awards-notice alert alert-warning my-2" role="alert">
+    <div v-if="firstEligibleYear != null" class="awards-notice alert alert-warning my-2" role="alert">
       <a class="alert-link" @click.stop="openModal">
         {{ firstEligibleYear }} is ready for your {{ awardNameSingular }} choices
       </a>
@@ -367,6 +367,10 @@ export default {
     selectedYear: {
       type: Number,
       default: null
+    },
+    autoOpen: {
+      type: Boolean,
+      default: false
     }
   },
   components: {
@@ -614,9 +618,12 @@ export default {
       return [];
     }
   },
-  created() {
-    // Show the prompt, but don't auto-open the modal
-    // User should always click the prompt first
+  mounted() {
+    if (this.autoOpen) {
+      this.openModal();
+      // Reset forced state so it doesn't re-trigger on next visit
+      this.$store.dispatch('setDBValue', { path: 'settings/awardsPromptState', value: null });
+    }
   },
   methods: {
     markCategoryAsNoNominees() {
@@ -1940,7 +1947,19 @@ export default {
     convertNomineeToMinimal(nominee) {
       // Convert nominees to minimal storage format while preserving role data
       if (!nominee) return null;
-      
+
+      // Handle director movie-group structure: { allCast: [{name, directors, movieId}], movie: {...} }
+      if (nominee.allCast && nominee.allCast.length > 0 && nominee.movie) {
+        const director = nominee.allCast[0];
+        return {
+          type: 'person',
+          id: director.id,
+          name: director.name,
+          movieId: nominee.movie.id,
+          directors: director.directors
+        };
+      }
+
       // Check if this is a person nominee (has name and movieId)
       if (nominee.name && nominee.movieId) {
         // This is a person (actor/actress/director)
