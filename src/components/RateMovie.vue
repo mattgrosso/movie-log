@@ -608,6 +608,7 @@ import axios from "axios";
 import addRating from "../assets/javascript/AddRating.js";
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
+import { countViewingTagUsage, sortVocabularyByUsage } from "../utils/tags.js";
 
 export default {
   data () {
@@ -624,9 +625,7 @@ export default {
       id: null,
       loading: false,
       medium: "",
-      newMovieTagTitle: null,
       newViewingTagTitle: null,
-      selectedMovieTags: [],
       selectedViewingTags: [],
       title: null,
       year: null,
@@ -636,8 +635,7 @@ export default {
       movieContext: null,
       movieContextLoading: false,
       showDeleteModal: false,
-      tagToDelete: null,
-      tagType: null
+      tagToDelete: null
     }
   },
   mounted () {
@@ -651,7 +649,6 @@ export default {
     this.year = new Date(this.movieToRate.release_date).getFullYear();
     this.id = this.movieToRate.id;
 
-    this.selectedMovieTags = this.previousEntry ? this.previousEntry.movie.tags || [] : [];
     this.getChatGPTKeywords();
   },
   beforeRouteLeave () {
@@ -757,25 +754,16 @@ export default {
         return entry.movie.id === this.id;
       })
     },
+    viewingTagUsageCounts () {
+      return countViewingTagUsage(this.$store.getters.allMoviesAsArray);
+    },
     viewingTags () {
       if (!this.settings || !this.settings.tags) {
         return [];
       }
-
-      // Convert to array and sort alphabetically by title
-      return Object.values(this.settings.tags["viewing-tags"] || {}).sort((a, b) => 
-        a.title.localeCompare(b.title)
-      );
-    },
-    movieTags () {
-      if (!this.settings || !this.settings.tags) {
-        return [];
-      }
-
-      // Convert to array and sort alphabetically by title
-      return Object.values(this.settings.tags["movie-tags"] || {}).sort((a, b) => 
-        a.title.localeCompare(b.title)
-      );
+      const vocabulary = Object.values(this.settings.tags["viewing-tags"] || {})
+        .filter((tag) => tag && tag.title);
+      return sortVocabularyByUsage(vocabulary, this.viewingTagUsageCounts);
     },
     rateBannerUrl () {
       if (this.movieToRate) {
@@ -791,9 +779,6 @@ export default {
     },
     selectedViewingTagNames () {
       return this.selectedViewingTags.map((tag) => tag.title);
-    },
-    selectedMovieTagNames () {
-      return this.selectedMovieTags.map((tag) => tag.title);
     },
     lastHigherRatedMovie() {
       // Get all movies as array, including the current one as rated on page
@@ -891,8 +876,7 @@ export default {
           path: `settings`,
           value: {
             tags: {
-              "viewing-tags": { title: "default viewing tag" },
-              "movie-tags": { title: "default movie tag" },
+              "viewing-tags": { title: "default viewing tag" }
             }
           }
         }
@@ -911,8 +895,7 @@ export default {
               tags: {
                 "viewing-tags": {
                   [dbKey]: { title: this.newViewingTagTitle }
-                },
-                "movie-tags": { title: "default movie tag" }
+                }
               }
             }
           }
@@ -928,38 +911,11 @@ export default {
 
       this.newViewingTagTitle = null;
     },
-    async addMovieTag () {
-      if (!this.settings.tags || !this.settings.tags["movie-tags"]) {
-        return;
-      }
-
-      const movieTagsArray = Object.keys(this.settings.tags["movie-tags"]).map((key) => this.settings.tags["movie-tags"][key]);
-
-      if (!movieTagsArray.find((tag) => tag.title === this.newMovieTagTitle)) {
-        const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
-
-        const dbEntry = {
-          path: `settings/tags/movie-tags/${dbKey}`,
-          value: { title: this.newMovieTagTitle }
-        }
-
-        this.$store.dispatch('setDBValue', dbEntry);
-      }
-
-      this.newMovieTagTitle = null;
-    },
     toggleViewingTag (tag) {
       if (this.viewingTagChecked(tag)) {
         this.selectedViewingTags.splice(this.selectedViewingTags.indexOf(tag), 1);
       } else {
         this.selectedViewingTags.push(tag);
-      }
-    },
-    toggleMovieTag (tag) {
-      if (this.movieTagChecked(tag)) {
-        this.selectedMovieTags.splice(this.selectedMovieTags.indexOf(tag), 1);
-      } else {
-        this.selectedMovieTags.push(tag);
       }
     },
     posterUrl (movie, result) {
@@ -997,7 +953,7 @@ export default {
 
       ratings.push(rating);
 
-      const dbEntry = await addRating(ratings, this.selectedMovieTags);
+      const dbEntry = await addRating(ratings);
       this.dbEntry = dbEntry;
 
       window.scroll({
@@ -1021,60 +977,32 @@ export default {
     },
     deleteViewingTag(tag) {
       this.tagToDelete = tag;
-      this.tagType = 'viewing';
-      this.showDeleteModal = true;
-    },
-    movieTagChecked (tag) {
-      if (!this.selectedMovieTagNames) {
-        return false;
-      }
-
-      return this.selectedMovieTagNames.includes(tag.title);
-    },
-    deleteMovieTag(tag) {
-      this.tagToDelete = tag;
-      this.tagType = 'movie';
       this.showDeleteModal = true;
     },
     confirmDeleteTag() {
-      if (!this.tagToDelete || !this.tagType) return;
-      
+      if (!this.tagToDelete) return;
+
       const tag = this.tagToDelete;
-      const isViewingTag = this.tagType === 'viewing';
-      const tagCategory = isViewingTag ? 'viewing-tags' : 'movie-tags';
-      
-      // Remove from settings
-      if (this.settings.tags && this.settings.tags[tagCategory]) {
-        const tagKey = Object.keys(this.settings.tags[tagCategory]).find(
-          key => this.settings.tags[tagCategory][key].title === tag.title
+
+      if (this.settings.tags && this.settings.tags["viewing-tags"]) {
+        const tagKey = Object.keys(this.settings.tags["viewing-tags"]).find(
+          (key) => this.settings.tags["viewing-tags"][key].title === tag.title
         );
         if (tagKey) {
-          delete this.settings.tags[tagCategory][tagKey];
-          this.$store.dispatch('setDBValue', { 
-            path: `settings/tags/${tagCategory}`, 
-            value: this.settings.tags[tagCategory] 
+          delete this.settings.tags["viewing-tags"][tagKey];
+          this.$store.dispatch('setDBValue', {
+            path: `settings/tags/viewing-tags`,
+            value: this.settings.tags["viewing-tags"]
           });
         }
       }
-      
-      // Remove from selected tags if it was selected
-      if (isViewingTag) {
-        if (this.selectedViewingTagNames && this.selectedViewingTagNames.includes(tag.title)) {
-          this.selectedViewingTags = this.selectedViewingTags.filter(t => t.title !== tag.title);
-        }
-      } else {
-        if (this.selectedMovieTagNames && this.selectedMovieTagNames.includes(tag.title)) {
-          this.selectedMovieTags = this.selectedMovieTags.filter(t => t.title !== tag.title);
-        }
+
+      if (this.selectedViewingTagNames && this.selectedViewingTagNames.includes(tag.title)) {
+        this.selectedViewingTags = this.selectedViewingTags.filter((t) => t.title !== tag.title);
       }
-      
-      // Close modal and reset state
+
       this.showDeleteModal = false;
       this.tagToDelete = null;
-      this.tagType = null;
-    },
-    toggleMovieTagList () {
-      this.$refs.movieTagList.classList.toggle("collapsed");
     },
     async getMovieContext () {
       this.movieContextLoading = true;
@@ -1302,45 +1230,6 @@ export default {
           td {
             font-weight: bold;
           }
-        }
-      }
-    }
-
-    .movie-tags {
-      .movie-tags-toggle {
-        align-items: center;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 0.5rem;
-
-        label {
-          cursor: pointer;
-          line-height: 16px;
-          margin: 0;
-        }
-
-        svg {
-          transform: rotate(90deg);
-          transition: all 0.3s ease;
-        }
-      }
-
-      .movie-tags-content {
-        max-height: 500px;
-        overflow: hidden;
-        transition: all 0.3s ease;
-      }
-
-      &.collapsed {
-        .movie-tags-toggle {
-          svg {
-            transform: rotate(0deg);
-          }
-        }
-
-        .movie-tags-content {
-          max-height: 0;
         }
       }
     }

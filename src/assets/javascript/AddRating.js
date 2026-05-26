@@ -112,7 +112,7 @@ const createTVShowRatingFromEpisodeRatings = (ratings) => {
 };
 
 
-const addMovieRating = async (ratings, movieTags) => {
+const addMovieRating = async (ratings) => {
   if (!ratings[0].id) {
     return;
   }
@@ -162,7 +162,6 @@ const addMovieRating = async (ratings, movieTags) => {
     release_date: tmdbData ? tmdbData.release_date : null,
     runtime: tmdbData ? tmdbData.runtime : null,
     title: tmdbData ? tmdbData.title : "",
-    tags: movieTags || [],
     keywords: tmdbData ? tmdbData.keywords : [],
     chatGPTKeywords: chatGPTKeywords
   };
@@ -189,8 +188,8 @@ const addMovieRating = async (ratings, movieTags) => {
   }
 }
 
-const addRating = async (ratings, movieTags) => {
-  const dbEntry = await addMovieRating(ratings, movieTags);
+const addRating = async (ratings) => {
+  const dbEntry = await addMovieRating(ratings);
   store.dispatch('setDBValue', dbEntry);
   return dbEntry;
 }

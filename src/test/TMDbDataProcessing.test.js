@@ -31,7 +31,6 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
   let mockCreditsData
   let mockKeywordsData
   let mockRatings
-  let mockMovieTags
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -94,11 +93,6 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       }
     ]
 
-    mockMovieTags = [
-      { title: 'dark-themes' },
-      { title: 'masterpiece' }
-    ]
-
     // Setup default axios mock responses
     axios.get.mockImplementation((url) => {
       if (url.includes('/movie/550?')) {
@@ -142,7 +136,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
 
   describe('TMDb API Data Fetching', () => {
     it('should fetch movie data, credits, and keywords from TMDb API', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       expect(axios.get).toHaveBeenCalledTimes(3)
       expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/movie/550?'))
@@ -173,7 +167,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
         return Promise.reject(new Error('Unknown URL'))
       })
 
-      await addRating(tvRatings, mockMovieTags)
+      await addRating(tvRatings)
 
       expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/tv/550?'))
       expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/tv/550/credits'))
@@ -183,7 +177,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     it('should handle API errors gracefully', async () => {
       axios.get.mockRejectedValue(new Error('API Error'))
 
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       expect(result).toBeDefined()
       expect(result.value.movie.title).toBe('') // Should use empty string when no TMDb data
@@ -194,14 +188,14 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     it('should handle missing ratings gracefully', async () => {
       // The actual implementation will throw an error when accessing ratings[0] on empty array
       // This is expected behavior that should be handled by the calling code
-      await expect(addRating([], mockMovieTags)).rejects.toThrow()
+      await expect(addRating([])).rejects.toThrow()
       expect(axios.get).not.toHaveBeenCalled()
     })
 
     it('should handle ratings without id', async () => {
       const ratingsWithoutId = [{ love: 8, overall: 7 }]
 
-      const result = await addRating(ratingsWithoutId, mockMovieTags)
+      const result = await addRating(ratingsWithoutId)
 
       expect(result).toBeUndefined()
       expect(axios.get).not.toHaveBeenCalled()
@@ -210,7 +204,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
 
   describe('Data Transformation and Processing', () => {
     it('should correctly transform TMDb data for storage', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       const movieData = result.value.movie
 
@@ -224,7 +218,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     })
 
     it('should process cast data correctly', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       const cast = result.value.movie.cast
 
@@ -244,7 +238,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     })
 
     it('should process crew data correctly', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       const crew = result.value.movie.crew
 
@@ -264,7 +258,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     })
 
     it('should process genres and production companies', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       const movieData = result.value.movie
 
@@ -279,7 +273,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     })
 
     it('should process keywords correctly', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       const keywords = result.value.movie.keywords
 
@@ -313,7 +307,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
         return Promise.reject(new Error('Unknown URL'))
       })
 
-      const result = await addRating(tvRatings, mockMovieTags)
+      const result = await addRating(tvRatings)
 
       expect(result.value.movie.keywords).toEqual(originalKeywords)
     })
@@ -332,7 +326,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
         }
       ]
 
-      const result = await addRating(multipleRatings, mockMovieTags)
+      const result = await addRating(multipleRatings)
 
       const chatGPTKeywords = result.value.movie.chatGPTKeywords
 
@@ -341,31 +335,17 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     })
 
     it('should remove ownership from ratings but preserve in movie data', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       expect(result.value.movie.ownership).toBe('Digital')
       expect(result.value.ratings[0].ownership).toBeUndefined()
     })
 
-    it('should process movie tags correctly', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
-
-      expect(result.value.movie.tags).toEqual([
-        { title: 'dark-themes' },
-        { title: 'masterpiece' }
-      ])
-    })
-
-    it('should handle empty or missing movie tags', async () => {
-      const result = await addRating(mockRatings, null)
-
-      expect(result.value.movie.tags).toEqual([])
-    })
   })
 
   describe('Database Key Generation', () => {
     it('should generate new key when movie not in database', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       expect(result.path).toMatch(/^movieLog\/\d+-[a-f0-9-]+-Fight Club$/)
       expect(result.path).toContain('Fight Club') // Title preserved with space
@@ -380,7 +360,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
         }
       }
 
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       expect(result.path).toBe('movieLog/existing-key-fight-club')
     })
@@ -388,7 +368,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     it('should sanitize title for safe key generation', async () => {
       mockTMDbData.title = 'Movie: With/Special\\Characters!@#$%^&*()_+{}[]|;\':"<>?,./'
 
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       // Check that special characters are replaced with dashes
       expect(result.path).toContain('Movie- With-Special')
@@ -400,7 +380,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     it('should handle empty title gracefully', async () => {
       mockTMDbData.title = ''
 
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       expect(result.path).toMatch(/^movieLog\/\d+-[a-f0-9-]+-$/)
     })
@@ -417,7 +397,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       mockCreditsData = { cast: [], crew: [] }
       mockKeywordsData = { keywords: [] }
 
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       const movieData = result.value.movie
 
@@ -441,7 +421,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
         return Promise.reject(new Error('API Error'))
       })
 
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       // When any API call fails, getTMDBData returns undefined, so we get fallback values
       expect(result).toBeDefined()
@@ -467,7 +447,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       })
 
       // The function will throw an error when trying to map over null values
-      await expect(addRating(mockRatings, mockMovieTags)).rejects.toThrow()
+      await expect(addRating(mockRatings)).rejects.toThrow()
     })
 
     it('should handle very large datasets', async () => {
@@ -483,7 +463,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
 
       mockCreditsData = { cast: largeCast, crew: largeCrew }
 
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       expect(result.value.movie.cast).toHaveLength(100)
       expect(result.value.movie.crew).toHaveLength(100)
@@ -508,7 +488,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
         }
       ]
 
-      const result = await addRating(multipleRatings, mockMovieTags)
+      const result = await addRating(multipleRatings)
 
       expect(result.value.movie.chatGPTKeywords).toEqual(['psychological', 'underground', 'consumerism'])
     })
@@ -516,13 +496,13 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
 
   describe('Store Integration', () => {
     it('should dispatch setDBValue action with correct data', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       expect(store.dispatch).toHaveBeenCalledWith('setDBValue', result)
     })
 
     it('should return database entry structure', async () => {
-      const result = await addRating(mockRatings, mockMovieTags)
+      const result = await addRating(mockRatings)
 
       expect(result).toHaveProperty('path')
       expect(result).toHaveProperty('value')
@@ -536,7 +516,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       const originalApiKey = process.env.VUE_APP_TMDB_API_KEY
       delete process.env.VUE_APP_TMDB_API_KEY
 
-      await addRating(mockRatings, mockMovieTags)
+      await addRating(mockRatings)
 
       expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('api_key=undefined'))
 

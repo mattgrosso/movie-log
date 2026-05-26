@@ -177,23 +177,157 @@
         </div>
 
         <!-- Keywords -->
-        <div v-if="topStructure(result).flatKeywords && topStructure(result).flatKeywords.length" class="keywords mb-3">
-          <h4>Keyword<span v-if="multipleEntries(topStructure(result).flatKeywords)">s</span></h4>
-          <p class="long-list">
+        <div v-if="(topStructure(result).flatKeywords && topStructure(result).flatKeywords.length) || isEditingKeywords" class="keywords mb-3">
+          <div class="keywords-header d-flex align-items-center">
+            <h4 class="mb-0 me-2">Keyword<span v-if="multipleEntries(topStructure(result).flatKeywords)">s</span></h4>
+            <button
+              type="button"
+              class="keyword-edit-toggle btn btn-sm btn-link p-0"
+              :aria-label="isEditingKeywords ? 'Close keyword editor' : 'Edit keywords'"
+              @click.stop="toggleKeywordEditor">
+              <i :class="isEditingKeywords ? 'bi bi-check-lg' : 'bi bi-pencil'"></i>
+            </button>
+          </div>
+
+          <p v-if="!isEditingKeywords" class="long-list">
             <a v-for="(keyword, index) in sortedFlatKeywords" :key="index" class="link" @click.stop="searchFor(keyword)">
               {{keyword}}<span class="small-count-bubble">&nbsp;({{ keywordCounts[keyword] }})</span><span v-if="index !== topStructure(result).flatKeywords.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
+
+          <div v-else class="keyword-editor">
+            <div class="keyword-chip-list">
+              <span v-for="(keyword, index) in sortedFlatKeywords" :key="`chip-${index}`" class="keyword-chip">
+                <span class="keyword-chip-label">{{ keyword }}</span>
+                <button
+                  type="button"
+                  class="keyword-chip-remove"
+                  :aria-label="`Remove ${keyword}`"
+                  @click.stop="removeKeyword(keyword)">
+                  <i class="bi bi-x"></i>
+                </button>
+              </span>
+              <span v-if="!sortedFlatKeywords.length" class="text-muted small">No keywords yet — add one below.</span>
+            </div>
+
+            <div class="keyword-add-row">
+              <input
+                v-model="keywordInput"
+                type="text"
+                class="form-control form-control-sm keyword-add-input"
+                placeholder="Add keyword…"
+                autocomplete="off"
+                @keydown.enter.prevent="addTypedKeyword"
+                @keydown.esc.prevent="closeKeywordEditor"/>
+            </div>
+
+            <ul v-if="keywordSuggestions.length" class="keyword-suggestion-list">
+              <li
+                v-for="suggestion in keywordSuggestions"
+                :key="`sug-${suggestion.name}`"
+                class="keyword-suggestion-item"
+                @click.stop="addKeyword(suggestion.name)">
+                <span class="keyword-suggestion-name">{{ suggestion.name }}</span>
+                <span class="small-count-bubble">({{ suggestion.count }})</span>
+              </li>
+            </ul>
+
+            <button
+              v-if="canCreateTypedKeyword"
+              type="button"
+              class="btn btn-sm btn-outline-light keyword-create-new"
+              @click.stop="addTypedKeyword">
+              Add new keyword "{{ trimmedKeywordInput }}"
+            </button>
+          </div>
         </div>
 
         <!-- Tags -->
-        <div v-if="movieTags && movieTags.length" class="tags mb-3">
-          <h4>Tag<span v-if="multipleEntries(movieTags)">s</span></h4>
-          <p class="long-list">
+        <div v-if="(viewingTags && viewingTags.length) || isEditingTags" class="tags mb-3">
+          <div class="tags-header d-flex align-items-center">
+            <h4 class="mb-0 me-2">Tag<span v-if="multipleEntries(viewingTags)">s</span></h4>
+            <button
+              v-if="result && result.ratings && result.ratings.length"
+              type="button"
+              class="tag-edit-toggle btn btn-sm btn-link p-0"
+              :aria-label="isEditingTags ? 'Close tag editor' : 'Edit tags'"
+              @click.stop="toggleTagEditor">
+              <i :class="isEditingTags ? 'bi bi-check-lg' : 'bi bi-pencil'"></i>
+            </button>
+          </div>
+
+          <p v-if="!isEditingTags && viewingTags.length" class="long-list">
             <a v-for="(tag, index) in sortedTags" :key="index" class="link" @click.stop="searchForTag(tag)">
-              {{tag}}<span class="small-count-bubble">&nbsp;({{ tagCounts[tag] }})</span><span v-if="index !== movieTags.length - 1">&nbsp;&nbsp;</span>
+              {{tag}}<span class="small-count-bubble">&nbsp;({{ tagCounts[tag] }})</span><span v-if="index !== viewingTags.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
+
+          <div v-else-if="isEditingTags" class="tag-editor">
+            <div v-for="(rating, ratingIndex) in orderedRatingsForEditor" :key="rating._editorKey" class="viewing-block">
+              <button
+                type="button"
+                class="viewing-header"
+                :aria-expanded="expandedViewingKeys[rating._editorKey] ? 'true' : 'false'"
+                @click.stop="toggleViewingExpansion(rating._editorKey)">
+                <span class="viewing-header-label">
+                  <i :class="expandedViewingKeys[rating._editorKey] ? 'bi bi-chevron-down' : 'bi bi-chevron-right'"></i>
+                  <span v-if="rating.medium" class="viewing-medium">{{ rating.medium }}</span>
+                  <span v-if="rating.medium && rating.date">&nbsp;on&nbsp;</span>
+                  <span v-if="rating.date">{{ formattedDate(rating.date) }}</span>
+                  <span v-if="!rating.medium && !rating.date">Viewing {{ ratingIndex + 1 }}</span>
+                </span>
+                <span v-if="!expandedViewingKeys[rating._editorKey] && tagsForRating(rating).length" class="viewing-tag-preview">
+                  {{ tagsForRating(rating).join(', ') }}
+                </span>
+              </button>
+
+              <div v-if="expandedViewingKeys[rating._editorKey]" class="viewing-body">
+                <div class="tag-chip-list">
+                  <span v-for="tagTitle in tagsForRating(rating)" :key="`chip-${rating._editorKey}-${tagTitle}`" class="tag-chip">
+                    <span class="tag-chip-label">{{ tagTitle }}</span>
+                    <button
+                      type="button"
+                      class="tag-chip-remove"
+                      :aria-label="`Remove ${tagTitle}`"
+                      @click.stop="removeTagFromViewing(rating._editorKey, tagTitle)">
+                      <i class="bi bi-x"></i>
+                    </button>
+                  </span>
+                  <span v-if="!tagsForRating(rating).length" class="text-muted small">No tags on this viewing yet.</span>
+                </div>
+
+                <div class="tag-add-row">
+                  <input
+                    v-model="tagInputs[rating._editorKey]"
+                    type="text"
+                    class="form-control form-control-sm tag-add-input"
+                    placeholder="Add tag…"
+                    autocomplete="off"
+                    @keydown.enter.prevent="addTypedTag(rating._editorKey)"
+                    @keydown.esc.prevent="closeTagEditor"/>
+                </div>
+
+                <ul v-if="tagSuggestionsFor(rating._editorKey).length" class="tag-suggestion-list">
+                  <li
+                    v-for="suggestion in tagSuggestionsFor(rating._editorKey)"
+                    :key="`sug-${rating._editorKey}-${suggestion.name}`"
+                    class="tag-suggestion-item"
+                    @click.stop="addTagToViewing(rating._editorKey, suggestion.name)">
+                    <span class="tag-suggestion-name">{{ suggestion.name }}</span>
+                    <span v-if="suggestion.count" class="small-count-bubble">({{ suggestion.count }})</span>
+                  </li>
+                </ul>
+
+                <button
+                  v-if="canCreateTypedTagFor(rating._editorKey)"
+                  type="button"
+                  class="btn btn-sm btn-outline-light tag-create-new"
+                  @click.stop="addTypedTag(rating._editorKey)">
+                  Add new tag "{{ trimmedTagInputFor(rating._editorKey) }}"
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Writers -->
@@ -328,6 +462,8 @@ import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 import uniq from 'lodash/uniq';
+import { computeFlatKeywords } from '../utils/keywords.js';
+import { buildTagSuggestions, canCreateNewTag } from '../utils/tags.js';
 
 export default {
   name: 'MovieDetail',
@@ -348,7 +484,12 @@ export default {
       posterOptions: [],
       showBackdropOptions: false,
       loadingBackdrops: false,
-      backdropOptions: []
+      backdropOptions: [],
+      isEditingKeywords: false,
+      keywordInput: '',
+      isEditingTags: false,
+      tagInputs: {},
+      expandedViewingKeys: {}
     };
   },
   created() {
@@ -497,8 +638,8 @@ export default {
 
       return counts;
     },
-    movieTags() {
-      // Get all tags from all ratings for this movie
+    viewingTags() {
+      // Unique viewing-tags across all ratings of this movie.
       if (!this.result || !this.result.ratings) return [];
 
       const allTags = this.result.ratings
@@ -506,12 +647,11 @@ export default {
         .map(tag => tag.title)
         .filter(Boolean);
 
-      // Return unique tags
       return [...new Set(allTags)];
     },
     sortedTags() {
-      if (!this.movieTags || !this.movieTags.length) return [];
-      return [...this.movieTags].sort((a, b) => {
+      if (!this.viewingTags || !this.viewingTags.length) return [];
+      return [...this.viewingTags].sort((a, b) => {
         const countA = this.tagCounts[a] || 0;
         const countB = this.tagCounts[b] || 0;
         return countB - countA;
@@ -541,17 +681,64 @@ export default {
       return counts;
     },
 
+    trimmedKeywordInput() {
+      return (this.keywordInput || '').trim();
+    },
+
+    orderedRatingsForEditor() {
+      if (!this.result || !Array.isArray(this.result.ratings)) return [];
+      // Most-recent first; stable index-based key so list reorders don't break v-for state.
+      return this.result.ratings
+        .map((rating, index) => ({ ...rating, _editorKey: `viewing-${index}`, _originalIndex: index }))
+        .sort((a, b) => {
+          const dateA = a.date ? new Date(a.date).getTime() : 0;
+          const dateB = b.date ? new Date(b.date).getTime() : 0;
+          return dateB - dateA;
+        });
+    },
+
+    viewingTagVocabularyTitles() {
+      const tagsByCategory = this.$store.state.settings && this.$store.state.settings.tags;
+      const viewingTags = tagsByCategory && tagsByCategory['viewing-tags'];
+      if (!viewingTags) return [];
+      return Object.values(viewingTags)
+        .map((t) => t && t.title)
+        .filter(Boolean);
+    },
+
+    currentKeywordsLowercase() {
+      return new Set(this.sortedFlatKeywords.map((k) => k.toLowerCase()));
+    },
+
+    keywordSuggestions() {
+      const query = this.trimmedKeywordInput.toLowerCase();
+      if (!query) return [];
+      const currentSet = this.currentKeywordsLowercase;
+      return Object.keys(this.keywordCounts)
+        .filter((name) => name.toLowerCase().includes(query) && !currentSet.has(name.toLowerCase()))
+        .sort((a, b) => (this.keywordCounts[b] || 0) - (this.keywordCounts[a] || 0))
+        .slice(0, 10)
+        .map((name) => ({ name, count: this.keywordCounts[name] || 0 }));
+    },
+
+    canCreateTypedKeyword() {
+      const typed = this.trimmedKeywordInput;
+      if (!typed) return false;
+      if (this.currentKeywordsLowercase.has(typed.toLowerCase())) return false;
+      const existsInLibrary = Object.keys(this.keywordCounts).some(
+        (name) => name.toLowerCase() === typed.toLowerCase()
+      );
+      return !existsInLibrary;
+    },
+
     // Count computed properties for proper tracking
     allEntriesWithFlatKeywordsAdded() {
       return this.$store.getters.allMediaAsArray.map((result) => {
-        const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
-        const flatChatGPTKeywords = result.movie.chatGPTKeywords || [];
-        const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
         return {
           ...result,
           movie: {
             ...result.movie,
-            flatKeywords: flatKeywords || []
+            flatKeywords: this.computeFlatKeywords(result.movie)
           }
         }
       });
@@ -957,12 +1144,261 @@ export default {
 
     topStructure(result) {
       if (!result?.movie) return null;
-      const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((k) => k.name) : [];
-      const flatChatGPTKeywords = result.movie.chatGPTKeywords || [];
       return {
         ...result.movie,
-        flatKeywords: uniq([...flatTMDBKeywords, ...flatChatGPTKeywords])
+        flatKeywords: this.computeFlatKeywords(result.movie)
       };
+    },
+
+    computeFlatKeywords,
+
+    toggleKeywordEditor() {
+      this.isEditingKeywords = !this.isEditingKeywords;
+      if (!this.isEditingKeywords) {
+        this.keywordInput = '';
+      }
+    },
+
+    closeKeywordEditor() {
+      this.isEditingKeywords = false;
+      this.keywordInput = '';
+    },
+
+    async persistKeywordChange({ customKeywords, removedKeywords }) {
+      if (!this.result?.dbKey) return;
+      const updated = {
+        ...this.result,
+        movie: {
+          ...this.result.movie,
+          customKeywords,
+          removedKeywords
+        }
+      };
+
+      try {
+        await this.$store.dispatch('setDBValue', {
+          path: `movieLog/${this.result.dbKey}`,
+          value: updated
+        });
+        this.result = updated;
+        if (this.previousEntry && this.previousEntry.dbKey === updated.dbKey) {
+          this.previousEntry = updated;
+        }
+      } catch (error) {
+        console.error('Error saving keyword change:', error);
+        ErrorLogService.error('Error saving keyword change:', error);
+      }
+    },
+
+    async removeKeyword(keyword) {
+      if (!keyword || !this.result?.movie) return;
+      const existingRemoved = this.result.movie.removedKeywords || [];
+      const existingCustom = this.result.movie.customKeywords || [];
+
+      const nextCustom = existingCustom.filter((k) => k !== keyword);
+      const nextRemoved = existingRemoved.includes(keyword)
+        ? existingRemoved
+        : [...existingRemoved, keyword];
+
+      await this.persistKeywordChange({
+        customKeywords: nextCustom,
+        removedKeywords: nextRemoved
+      });
+    },
+
+    async addKeyword(keyword) {
+      const trimmed = (keyword || '').trim();
+      if (!trimmed || !this.result?.movie) return;
+
+      const existingRemoved = this.result.movie.removedKeywords || [];
+      const existingCustom = this.result.movie.customKeywords || [];
+
+      const nextRemoved = existingRemoved.filter(
+        (k) => k.toLowerCase() !== trimmed.toLowerCase()
+      );
+
+      const alreadyVisible = this.currentKeywordsLowercase.has(trimmed.toLowerCase());
+      let nextCustom = existingCustom;
+      if (!alreadyVisible && !existingCustom.some((k) => k.toLowerCase() === trimmed.toLowerCase())) {
+        nextCustom = [...existingCustom, trimmed];
+      }
+
+      this.keywordInput = '';
+
+      await this.persistKeywordChange({
+        customKeywords: nextCustom,
+        removedKeywords: nextRemoved
+      });
+    },
+
+    addTypedKeyword() {
+      const typed = this.trimmedKeywordInput;
+      if (!typed) return;
+      // Match any existing keyword case-insensitively so we don't create dupes
+      const match = Object.keys(this.keywordCounts).find(
+        (name) => name.toLowerCase() === typed.toLowerCase()
+      );
+      this.addKeyword(match || typed);
+    },
+
+    // --- Tag editor ---
+    toggleTagEditor() {
+      this.isEditingTags = !this.isEditingTags;
+      if (this.isEditingTags) {
+        // Auto-expand the most recent viewing
+        const first = this.orderedRatingsForEditor[0];
+        if (first) {
+          this.expandedViewingKeys = { [first._editorKey]: true };
+        }
+      } else {
+        this.tagInputs = {};
+        this.expandedViewingKeys = {};
+      }
+    },
+
+    closeTagEditor() {
+      this.isEditingTags = false;
+      this.tagInputs = {};
+      this.expandedViewingKeys = {};
+    },
+
+    toggleViewingExpansion(editorKey) {
+      this.expandedViewingKeys = {
+        ...this.expandedViewingKeys,
+        [editorKey]: !this.expandedViewingKeys[editorKey]
+      };
+    },
+
+    tagsForRating(rating) {
+      if (!rating || !Array.isArray(rating.tags)) return [];
+      return rating.tags.map((t) => t && t.title).filter(Boolean);
+    },
+
+    trimmedTagInputFor(editorKey) {
+      return ((this.tagInputs && this.tagInputs[editorKey]) || '').trim();
+    },
+
+    tagSuggestionsFor(editorKey) {
+      const rating = this.orderedRatingsForEditor.find((r) => r._editorKey === editorKey);
+      if (!rating) return [];
+      return buildTagSuggestions({
+        query: this.trimmedTagInputFor(editorKey),
+        alreadyOnViewing: this.tagsForRating(rating),
+        globalTagCounts: this.tagCounts,
+        vocabularyTitles: this.viewingTagVocabularyTitles
+      });
+    },
+
+    canCreateTypedTagFor(editorKey) {
+      const rating = this.orderedRatingsForEditor.find((r) => r._editorKey === editorKey);
+      if (!rating) return false;
+      return canCreateNewTag({
+        query: this.trimmedTagInputFor(editorKey),
+        alreadyOnViewing: this.tagsForRating(rating),
+        globalTagCounts: this.tagCounts,
+        vocabularyTitles: this.viewingTagVocabularyTitles
+      });
+    },
+
+    async persistRatingsChange(nextRatings) {
+      if (!this.result || !this.result.dbKey) return;
+      const updated = {
+        ...this.result,
+        ratings: nextRatings
+      };
+      try {
+        await this.$store.dispatch('setDBValue', {
+          path: `movieLog/${this.result.dbKey}`,
+          value: updated
+        });
+        this.result = updated;
+        if (this.previousEntry && this.previousEntry.dbKey === updated.dbKey) {
+          this.previousEntry = updated;
+        }
+      } catch (error) {
+        console.error('Error saving tag change:', error);
+        ErrorLogService.error('Error saving tag change:', error);
+      }
+    },
+
+    async addVocabularyTagIfNew(title) {
+      const trimmed = (title || '').trim();
+      if (!trimmed) return;
+      const exists = this.viewingTagVocabularyTitles.some(
+        (n) => n.toLowerCase() === trimmed.toLowerCase()
+      );
+      if (exists) return;
+
+      const newDbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
+      try {
+        await this.$store.dispatch('setDBValue', {
+          path: `settings/tags/viewing-tags/${newDbKey}`,
+          value: { title: trimmed }
+        });
+      } catch (error) {
+        console.error('Error adding tag to vocabulary:', error);
+        ErrorLogService.error('Error adding tag to vocabulary:', error);
+      }
+    },
+
+    findRatingIndexByEditorKey(editorKey) {
+      const found = this.orderedRatingsForEditor.find((r) => r._editorKey === editorKey);
+      return found ? found._originalIndex : -1;
+    },
+
+    async addTagToViewing(editorKey, tagTitle) {
+      const trimmed = (tagTitle || '').trim();
+      if (!trimmed) return;
+      const idx = this.findRatingIndexByEditorKey(editorKey);
+      if (idx < 0 || !this.result || !Array.isArray(this.result.ratings)) return;
+
+      const existing = this.result.ratings[idx].tags || [];
+      const already = existing.some((t) => t && t.title && t.title.toLowerCase() === trimmed.toLowerCase());
+      if (already) {
+        this.tagInputs = { ...this.tagInputs, [editorKey]: '' };
+        return;
+      }
+
+      const nextRatings = this.result.ratings.map((rating, i) => {
+        if (i !== idx) return rating;
+        return { ...rating, tags: [...existing, { title: trimmed }] };
+      });
+
+      this.tagInputs = { ...this.tagInputs, [editorKey]: '' };
+
+      await this.addVocabularyTagIfNew(trimmed);
+      await this.persistRatingsChange(nextRatings);
+    },
+
+    addTypedTag(editorKey) {
+      const typed = this.trimmedTagInputFor(editorKey);
+      if (!typed) return;
+      const matchInCounts = Object.keys(this.tagCounts).find(
+        (name) => name.toLowerCase() === typed.toLowerCase()
+      );
+      const matchInVocab = this.viewingTagVocabularyTitles.find(
+        (name) => name.toLowerCase() === typed.toLowerCase()
+      );
+      this.addTagToViewing(editorKey, matchInCounts || matchInVocab || typed);
+    },
+
+    async removeTagFromViewing(editorKey, tagTitle) {
+      if (!tagTitle) return;
+      const idx = this.findRatingIndexByEditorKey(editorKey);
+      if (idx < 0 || !this.result || !Array.isArray(this.result.ratings)) return;
+
+      const existing = this.result.ratings[idx].tags || [];
+      const nextTags = existing.filter(
+        (t) => !(t && t.title && t.title.toLowerCase() === tagTitle.toLowerCase())
+      );
+      if (nextTags.length === existing.length) return;
+
+      const nextRatings = this.result.ratings.map((rating, i) => {
+        if (i !== idx) return rating;
+        return { ...rating, tags: nextTags };
+      });
+
+      await this.persistRatingsChange(nextRatings);
     },
 
     getBackdropPath() {
@@ -1398,14 +1834,279 @@ export default {
     overflow-y: auto;
     padding: 6px;
     box-shadow: inset 0 0 5px -2px rgb(0 0 0 / 50%);
-    
+
     a {
       white-space: nowrap;
-      
+
       span {
         display: inline-block;
         text-decoration: none;
       }
+    }
+  }
+
+  .keywords-header {
+    margin-bottom: 2px;
+
+    .keyword-edit-toggle {
+      color: #fff;
+      line-height: 1;
+      min-width: 32px;
+      min-height: 32px;
+
+      i {
+        font-size: 1rem;
+      }
+    }
+  }
+
+  .keyword-editor {
+    padding: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+
+    .keyword-chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .keyword-chip {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 4px 4px 4px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      line-height: 1.2;
+
+      .keyword-chip-label {
+        margin-right: 4px;
+      }
+
+      .keyword-chip-remove {
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        border: 0;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+
+        i {
+          font-size: 0.9rem;
+          line-height: 1;
+        }
+      }
+    }
+
+    .keyword-add-row {
+      margin-bottom: 8px;
+    }
+
+    .keyword-add-input {
+      background: #1a1a1a;
+      color: #fff;
+      border: 1px solid #444;
+
+      &::placeholder {
+        color: #888;
+      }
+    }
+
+    .keyword-suggestion-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 8px 0;
+      max-height: 180px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      border-radius: 4px;
+    }
+
+    .keyword-suggestion-item {
+      padding: 8px 10px;
+      color: #fff;
+      border-bottom: 1px solid #2a2a2a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      &:last-child {
+        border-bottom: 0;
+      }
+
+      &:active {
+        background: rgba(255, 255, 255, 0.1);
+      }
+    }
+
+    .keyword-create-new {
+      width: 100%;
+    }
+  }
+
+  .tags-header {
+    margin-bottom: 2px;
+
+    .tag-edit-toggle {
+      color: #fff;
+      line-height: 1;
+      min-width: 32px;
+      min-height: 32px;
+
+      i {
+        font-size: 1rem;
+      }
+    }
+  }
+
+  .tag-editor {
+    padding: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+
+    .viewing-block {
+      border: 1px solid #2a2a2a;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      background: rgba(0, 0, 0, 0.25);
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    .viewing-header {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: #fff;
+      border: 0;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 44px;
+
+      .viewing-header-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.9rem;
+
+        i {
+          font-size: 0.85rem;
+        }
+      }
+
+      .viewing-medium {
+        font-weight: 600;
+      }
+
+      .viewing-tag-preview {
+        font-size: 0.75rem;
+        color: #ccc;
+        padding-left: 20px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+    }
+
+    .viewing-body {
+      padding: 0 10px 10px 10px;
+    }
+
+    .tag-chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 4px 4px 4px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      line-height: 1.2;
+
+      .tag-chip-label {
+        margin-right: 4px;
+      }
+
+      .tag-chip-remove {
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        border: 0;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+
+        i {
+          font-size: 0.9rem;
+          line-height: 1;
+        }
+      }
+    }
+
+    .tag-add-row {
+      margin-bottom: 8px;
+    }
+
+    .tag-add-input {
+      background: #1a1a1a;
+      color: #fff;
+      border: 1px solid #444;
+
+      &::placeholder {
+        color: #888;
+      }
+    }
+
+    .tag-suggestion-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 8px 0;
+      max-height: 180px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      border-radius: 4px;
+    }
+
+    .tag-suggestion-item {
+      padding: 8px 10px;
+      color: #fff;
+      border-bottom: 1px solid #2a2a2a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      &:last-child {
+        border-bottom: 0;
+      }
+
+      &:active {
+        background: rgba(255, 255, 255, 0.1);
+      }
+    }
+
+    .tag-create-new {
+      width: 100%;
     }
   }
   

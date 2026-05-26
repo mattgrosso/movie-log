@@ -325,7 +325,6 @@ export default createStore({
         settings: {
           tags: {
             "viewing-tags": { title: "default viewing tag" },
-            "movie-tags": { title: "default movie tag" },
           }
         }
       }
