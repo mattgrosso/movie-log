@@ -344,6 +344,7 @@
 import Modal from './Modal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import ErrorLogService from '../services/ErrorLogService.js';
+import { pickEligibleAwardsYear } from '../utils/awards.js';
 
 export default {
   name: "PersonalAwardsModal",
@@ -489,33 +490,27 @@ export default {
     hasNewMovies() {
       return this.newMoviesForCurrentYear.length > 0;
     },
-    firstEligibleYear() {
+    incompleteYears() {
       try {
-        if (!this.yearsEligibleForAwards || this.yearsEligibleForAwards.length === 0) return null;
-        
-        // Filter to only incomplete years (years that need awards or have new movies)
-        const incompleteYears = this.yearsEligibleForAwards.filter(year => {
+        if (!this.yearsEligibleForAwards || this.yearsEligibleForAwards.length === 0) return [];
+
+        return this.yearsEligibleForAwards.filter((year) => {
           try {
             const existingAwards = this.$store.state.settings?.personalAwards?.[year];
-            if (!existingAwards) return true; // New year needs awards
-            
-            // CRITICAL FIX: If awards exist but were NOT explicitly completed via "Complete Awards" button,
-            // the year should still be considered incomplete (this covers partial progress)
-            if (!existingAwards.completed) {
-              return true;
-            }
-            
-            // If explicitly completed, check if there are new movies since last awards update
+            if (!existingAwards) return true;
+
+            // Awards exist but were not explicitly completed → still incomplete (partial progress).
+            if (!existingAwards.completed) return true;
+
+            // Explicitly completed: still incomplete if new movies have been rated since last update.
             if (!existingAwards.lastUpdated) return true;
-            
             if (!this.allEntriesWithFlatKeywordsAdded) return false;
-            
-            const newMovies = this.allEntriesWithFlatKeywordsAdded.filter(entry => {
+
+            const newMovies = this.allEntriesWithFlatKeywordsAdded.filter((entry) => {
               try {
                 if (!entry || !entry.movie || !entry.movie.release_date) return false;
                 const entryYear = new Date(entry.movie.release_date).getFullYear();
                 if (entryYear !== year) return false;
-                
                 const movieDate = new Date(entry.ratings?.[0]?.date || entry.movie.release_date);
                 return movieDate.getTime() > existingAwards.lastUpdated;
               } catch (error) {
@@ -524,7 +519,7 @@ export default {
                 return false;
               }
             });
-            
+
             return newMovies.length > 0;
           } catch (error) {
             console.error('Error filtering incomplete years:', year, error);
@@ -532,78 +527,23 @@ export default {
             return false;
           }
         });
-        
-        // Only return a year if there are incomplete years - don't show message if all years are complete
-        if (incompleteYears.length === 0) return null;
-        
-        // Check if we have a daily selected year that's still valid
+      } catch (error) {
+        console.error('Error in incompleteYears:', error);
+        ErrorLogService.error('Error in incompleteYears:', error);
+        return [];
+      }
+    },
+    firstEligibleYear() {
+      try {
         const settings = this.$store.state.settings || {};
-        const today = new Date().toDateString();
-        const dailySelection = settings.dailyAwardsYear;
-        const dailySelectionDate = settings.dailyAwardsYearDate;
-        
-        // If we have a valid (non-null) selection from today, use it.
-        // Only override if the year is actually completed.
-        if (dailySelection != null && dailySelectionDate === today) {
-          const existingAwards = settings.personalAwards?.[dailySelection];
-          const isCompleted = existingAwards && existingAwards.completed;
-
-          if (!isCompleted) {
-            return dailySelection; // Always return today's selection unless it's completed
-          }
-        }
-        
-        // Otherwise, pick a new year and persist it
-        // Prioritize years with partial progress (some categories have nominees/winners)
-        const yearsWithPartialProgress = incompleteYears.filter(year => {
-          try {
-            const existingAwards = this.$store.state.settings?.personalAwards?.[year];
-            if (!existingAwards || !existingAwards.categories) return false;
-
-            // Check if any category has nominees or winners
-            return Object.values(existingAwards.categories).some(categoryData =>
-              (categoryData.nominees && categoryData.nominees.length > 0) ||
-              categoryData.winner ||
-              categoryData.noNominees
-            );
-          } catch (error) {
-            console.error('Error checking partial progress for year:', year, error);
-            ErrorLogService.error('Error checking partial progress for year:', year, error);
-            return false;
-          }
+        return pickEligibleAwardsYear({
+          incompleteYears: this.incompleteYears,
+          personalAwards: settings.personalAwards,
+          dailyAwardsYear: settings.dailyAwardsYear,
+          dailyAwardsYearDate: settings.dailyAwardsYearDate,
+          todayString: new Date().toDateString(),
+          selectedYearProp: this.selectedYear
         });
-
-        let selectedYear;
-        if (yearsWithPartialProgress.length > 0) {
-          // Prioritize years with partial progress
-          const randomIndex = Math.floor(Math.random() * yearsWithPartialProgress.length);
-          selectedYear = yearsWithPartialProgress[randomIndex];
-        } else {
-          // Fall back to any incomplete year
-          const randomIndex = Math.floor(Math.random() * incompleteYears.length);
-          selectedYear = incompleteYears[randomIndex];
-        }
-
-        // Persist the daily selection so openModal() reads the same year shown in the banner.
-        // Only persist if no selectedYear prop was provided (don't override Resume/Edit actions).
-        // Guard against re-saving the same value to avoid unnecessary Firebase writes.
-        if (!this.selectedYear && dailySelection !== selectedYear) {
-          try {
-            this.$store.dispatch('setDBValue', {
-              path: 'settings/dailyAwardsYear',
-              value: selectedYear
-            });
-            this.$store.dispatch('setDBValue', {
-              path: 'settings/dailyAwardsYearDate',
-              value: today
-            });
-          } catch (error) {
-            console.error('Error persisting daily selection:', error);
-            ErrorLogService.error('Error persisting daily selection:', error);
-          }
-        }
-
-        return selectedYear;
       } catch (error) {
         console.error('Error in firstEligibleYear:', error);
         ErrorLogService.error('Error in firstEligibleYear:', error);
@@ -616,6 +556,31 @@ export default {
         return this.eligibleOptions;
       }
       return [];
+    }
+  },
+  watch: {
+    firstEligibleYear: {
+      immediate: true,
+      handler(newYear) {
+        // Persist the daily selection so the banner and openModal() agree on the same year.
+        // Skip when an explicit selectedYear prop is in play (Resume/Edit actions own that state).
+        if (this.selectedYear != null) return;
+        if (newYear == null) return;
+
+        const settings = this.$store.state.settings || {};
+        const today = new Date().toDateString();
+        const alreadyPersisted =
+          settings.dailyAwardsYear === newYear && settings.dailyAwardsYearDate === today;
+        if (alreadyPersisted) return;
+
+        try {
+          this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYear', value: newYear });
+          this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYearDate', value: today });
+        } catch (error) {
+          console.error('Error persisting daily awards selection:', error);
+          ErrorLogService.error('Error persisting daily awards selection:', error);
+        }
+      }
     }
   },
   mounted() {
