@@ -106,10 +106,19 @@ describe('Chip Filtering System', () => {
           includeShorts: false,
           tags: { 'viewing-tags': {} }
         },
-        filteredResults: []
+        filteredResults: [],
+        homePageScrollPosition: 0,
+        homePageSearchChips: [],
+        homePageSearchValue: '',
+        homePageNumberOfResults: 25,
+        homePageNavigationIntent: null,
+        homePageSortValue: null,
+        homePageSortOrder: null,
+        homePagePromoteGroup: null
       },
       getters: {
         allMediaAsArray: mockMovies,
+        allMoviesAsArray: mockMovies,
         allMediaSortedByRating: [...mockMovies].sort((a, b) => b.ratings[0].calculatedTotal - a.ratings[0].calculatedTotal)
       },
       commit: vi.fn(),
@@ -276,6 +285,22 @@ describe('Chip Filtering System', () => {
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true) // Heat (has 'crime' keyword)
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(true) // The Godfather (has 'crime' keyword)
       expect(wrapper.vm.applyFilter(mockMovies[2], filter)).toBe(false) // Jaws (no 'crime' keyword)
+    })
+
+    it('should match keywords case-insensitively', () => {
+      // flatKeywords are rebuilt from TMDb keyword names, which keep their
+      // original mixed casing (e.g. "Star Wars"). A clicked/typed keyword is
+      // lowercased, so the comparison must be case-insensitive on both sides.
+      const mixedCaseMovie = {
+        movie: {
+          ...mockMovies[0].movie,
+          flatKeywords: ['Star Wars', 'Space Opera']
+        }
+      }
+
+      expect(wrapper.vm.applyFilter(mixedCaseMovie, { type: 'keyword', value: 'star wars' })).toBe(true)
+      expect(wrapper.vm.applyFilter(mixedCaseMovie, { type: 'general', value: 'Star Wars' })).toBe(true)
+      expect(wrapper.vm.applyFilter(mixedCaseMovie, { type: 'keyword', value: 'jedi' })).toBe(false)
     })
 
     it('should handle general search across multiple fields', () => {

@@ -212,6 +212,19 @@ This fixes the fragility issue where the modal would disappear unexpectedly and 
 - **New Methods**: `getOptionMovie()` and `getOptionRole()` for cleaner data separation
 - **Styling**: Role text is smaller, italicized, and slightly more transparent for visual hierarchy
 
+## Grouped Result Hierarchy (Jun 2026)
+
+The grouped search view (`groupedByAllCategories` in `Home.vue`) buckets results into categories (Title, Director, Cast, Producer, Company, Keywords, plus role-detected Writer/Music/Editor/Cinematographer/Crew, and Other). **Group order is also matching priority** — via `usedMovieIds`, a movie matching multiple categories lands in whichever group comes first.
+
+- **Order is data-driven**: `DEFAULT_GROUP_ORDER` constant + a `groupOrder` computed. Candidate matches are computed per-group first, then claimed in `groupOrder` priority.
+- **Manual reorder UI**: The old (non-working) Share button was replaced by a group-order button (`bi-list-ol`) that opens a panel listing the currently-present groups with ▲/▼ controls. Moving a present group swaps it within the full master order, so absent groups keep their slots and the whole hierarchy stays intact.
+- **Click-to-promote**: Clicking a typed value on a movie detail page (keyword, director, cast, etc.) promotes that group to the top. `MovieDetail.searchFor(query, type)` maps the type to a group key and sets `homePagePromoteGroup` in the store; `Home.applyPromoteGroup()` applies it on load.
+- **Daily persistence**: Stored at `settings/groupOrderOverride = { order, date: toDateString() }` in Firebase (same pattern as `dailyAwardsYear`). The `groupOrder` computed ignores overrides whose `date` isn't today, so it reverts to default the next day. Clicks and manual edits share this override; clicks win.
+- **Count fix**: The result count badge uses `displayedResults` (the unique movies actually rendered, summed across grouped categories) instead of `unifiedFilteredResults.length`, which previously diverged from the visible cards.
+- **Keyword case fix**: `applyFilter` keyword/general matching is now case-insensitive (`flatKeywords` keep TMDb's original casing like "Star Wars" while search values are lowercased).
+
+Tests: `src/test/GroupOrdering.test.js`. Note: the `ChipFiltering`/`QuickLinksFiltering` mocks were missing `allMoviesAsArray` getter and the `homePage*` state fields, which broke their `mount()`; both are now fixed.
+
 ## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
 

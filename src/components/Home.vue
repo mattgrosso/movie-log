@@ -95,13 +95,13 @@
               <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel">
                 <i class="bi bi-gear"></i>
               </button>
-              <button class="results-actions-button btn btn-warning" @click="shareResults">
-                <span v-if="!sharing">
-                  <i class="bi bi-share"/>
-                </span>
-                <div v-else class="spinner-border text-light" role="status">
-                  <span class="visually-hidden">Loading...</span>
-                </div>
+              <button
+                class="results-actions-button btn btn-warning"
+                :class="{ active: showGroupOrderPanel }"
+                @click="groupedByAllCategories && toggleGroupOrderPanel()"
+                :title="groupedByAllCategories ? 'Reorder result groups' : 'No groups to reorder'"
+              >
+                <i class="bi" :class="groupedByAllCategories ? 'bi-collection' : 'bi-app'"/>
               </button>
               <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage">
                 <span v-if="showAverage">
@@ -573,6 +573,40 @@
             </div>
           </div>
           <!-- Results list follows the settings panel -->
+          <!-- Group order panel: reorder the grouped result hierarchy for the day -->
+          <div v-if="showGroupOrderPanel && groupedByAllCategories" class="group-order-panel card card-body mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0 text-light">Group order</h6>
+              <button class="btn btn-sm btn-outline-light" @click="toggleGroupOrderPanel">Done</button>
+            </div>
+            <ul class="list-unstyled mb-0">
+              <li
+                v-for="(group, index) in reorderableGroups"
+                :key="group.category"
+                class="group-order-row d-flex justify-content-between align-items-center py-1"
+              >
+                <span class="text-light">{{ group.categoryDisplay }} <span class="text-muted">({{ group.count }})</span></span>
+                <span class="group-order-controls">
+                  <button
+                    class="btn btn-sm btn-secondary me-1"
+                    :disabled="index === 0"
+                    @click="moveGroupUp(group.category)"
+                    aria-label="Move group up"
+                  >
+                    <i class="bi bi-arrow-up"/>
+                  </button>
+                  <button
+                    class="btn btn-sm btn-secondary"
+                    :disabled="index === reorderableGroups.length - 1"
+                    @click="moveGroupDown(group.category)"
+                    aria-label="Move group down"
+                  >
+                    <i class="bi bi-arrow-down"/>
+                  </button>
+                </span>
+              </li>
+            </ul>
+          </div>
           <!-- Multi-category grouped results -->
           <div v-if="groupedByAllCategories" class="pb-3">
             <div v-for="group in groupedByAllCategories" :key="group.category" class="my-4 role-section">
@@ -788,6 +822,42 @@ import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 import ErrorLogService from '../services/ErrorLogService.js';
+import { computeFlatKeywords } from '../utils/keywords.js';
+
+// Default priority order for the grouped search view. The order decides which
+// group claims a movie that matches multiple categories. Users can reorder this
+// for the day via the group-order panel; it reverts to this default next day.
+const DEFAULT_GROUP_ORDER = [
+  'title',
+  'director',
+  'cast',
+  'producer',
+  'company',
+  'keyword-genre',
+  'writer',
+  'music',
+  'editor',
+  'cinematographer',
+  'crew',
+  'other'
+];
+
+// Display labels for groups in the reorder panel. Used for groups that are not
+// currently rendered (and so have no live categoryDisplay to read).
+const GROUP_DISPLAY_NAMES = {
+  title: 'Title Matches',
+  director: 'Director',
+  cast: 'Cast',
+  producer: 'Producer',
+  company: 'Production Companies',
+  'keyword-genre': 'Keywords & Genres',
+  writer: 'Writer',
+  music: 'Music',
+  editor: 'Editor',
+  cinematographer: 'Cinematographer',
+  crew: 'Crew',
+  other: 'Other'
+};
 
 export default {
   components: {
@@ -831,9 +901,9 @@ export default {
       },
       searchValue: '',
       selectedMovieInfo: null, // Movie data for the info modal
-      sharing: false,
       showAddFilterModal: false,
       showAverage: false,
+      showGroupOrderPanel: false,
       showInsetBrowserModal: false,
       showMovieInfoModal: false, // Show/hide movie info modal
       showOverridePanel: false,
@@ -935,6 +1005,9 @@ export default {
       } else if (isNewSearch) {
         // Handle new search from MovieDetail - convert search value to chip immediately
         this.convertSearchToChip();
+        // If the clicked value carried a group type, promote that group to the
+        // top of the hierarchy for the day (clicks win over manual ordering).
+        this.applyPromoteGroup();
         // Clear the stored state after conversion
         this.$store.commit('setHomePageScrollPosition', 0);
         this.$store.commit('setHomePageSearchChips', []);
@@ -1179,14 +1252,15 @@ export default {
     },
     allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
-        const flatTMDBKeywords = result.movie.keywords ? result.movie.keywords.map((keyword) => keyword.name) : [];
-        const flatChatGPTKeywords = result.movie.chatGPTKeywords || [];
-        const flatKeywords = uniq([...flatTMDBKeywords, ...flatChatGPTKeywords]);
+        // Use the shared keyword util so Home matches the detail page exactly,
+        // including manually-added (customKeywords) and removed (removedKeywords)
+        // keywords. An inline version here previously omitted those, so e.g. a
+        // user-added "Star Wars" keyword was invisible to grouping/filtering.
         return {
           ...result,
           movie: {
             ...result.movie,
-            flatKeywords: flatKeywords || []
+            flatKeywords: computeFlatKeywords(result.movie)
           }
         }
       });
@@ -1475,6 +1549,24 @@ export default {
         return '';
       }
     },
+    groupOrder() {
+      // Returns the active group hierarchy. Uses the user's daily override from
+      // settings if it was saved today (local calendar day); otherwise reverts
+      // to the default. Always returns every known group key so the full
+      // hierarchy is preserved even when only some groups are reordered.
+      const override = this.$store.state.settings.groupOrderOverride;
+
+      if (override && Array.isArray(override.order) && override.date === new Date().toDateString()) {
+        // Start from the saved order, then append any default keys it is missing
+        // (e.g. a group type added after the override was saved) so nothing is
+        // stranded out of the hierarchy.
+        const saved = override.order.filter(key => DEFAULT_GROUP_ORDER.includes(key));
+        const missing = DEFAULT_GROUP_ORDER.filter(key => !saved.includes(key));
+        return [...saved, ...missing];
+      }
+
+      return [...DEFAULT_GROUP_ORDER];
+    },
     groupedByAllCategories() {
       // Use debounced search for typing performance, but fall back to effectiveSearchTerm for chips
       let searchTerm;
@@ -1519,96 +1611,64 @@ export default {
       }
       
       
-      const categories = [];
       const allResults = this.allEntriesWithFlatKeywordsAdded;
-      const usedMovieIds = new Set(); // Track movies already used in previous categories
-      
-      // Define category filters in priority order
-      const categoryFilters = [
-        { type: 'title', displayName: 'Title Matches' },
-        { type: 'director', displayName: 'Director' },
-        { type: 'cast', displayName: 'Cast' },
-        { type: 'producer', displayName: 'Producer' }
+
+      // Step 1: Compute candidate matches for each fixed-type group independently
+      // (no claiming yet). Claiming happens later in groupOrder priority, so the
+      // user's chosen hierarchy decides which group a dual-match movie lands in.
+      const groupConfigs = [
+        { key: 'title', displayName: 'Title Matches', filter: { type: 'title', value: searchTerm } },
+        { key: 'director', displayName: 'Director', filter: { type: 'director', value: searchTerm } },
+        { key: 'cast', displayName: 'Cast', filter: { type: 'cast', value: searchTerm } },
+        { key: 'producer', displayName: 'Producer', filter: { type: 'producer', value: searchTerm } },
+        { key: 'company', displayName: 'Production Companies', filter: { type: 'company', value: searchTerm } }
       ];
-      
-      // Process each category
-      categoryFilters.forEach(categoryConfig => {
-        const filter = { type: categoryConfig.type, value: searchTerm };
-        
-        const matches = allResults.filter(media => 
-          !usedMovieIds.has(media.movie.id) &&
-          this.applyFilter(media, filter)
-        );
-        
+
+      const candidatesByKey = {};
+      groupConfigs.forEach(config => {
+        candidatesByKey[config.key] = {
+          displayName: config.displayName,
+          movies: allResults.filter(media => this.applyFilter(media, config.filter))
+        };
+      });
+
+      // Keywords and Genres are merged into a single "Keywords & Genres" group.
+      const keywordGenreMatches = allResults.filter(media =>
+        this.applyFilter(media, { type: 'keyword', value: searchTerm }) ||
+        this.applyFilter(media, { type: 'genre', value: searchTerm })
+      );
+      candidatesByKey['keyword-genre'] = {
+        displayName: 'Keywords & Genres',
+        movies: keywordGenreMatches
+      };
+
+      // Step 2: Walk groupOrder and claim movies in priority order. A movie claimed
+      // by an earlier group will not appear in a later one.
+      const categories = [];
+      const usedMovieIds = new Set();
+
+      this.groupOrder.forEach(key => {
+        const candidate = candidatesByKey[key];
+        if (!candidate) return; // role-detected keys (writer/music/etc.) handled below
+
+        const matches = candidate.movies.filter(media => !usedMovieIds.has(media.movie.id));
         if (matches.length > 0) {
           const sortedMatches = [...matches].sort(this.sortResults);
           categories.push({
-            category: categoryConfig.type,
-            categoryDisplay: categoryConfig.displayName,
+            category: key,
+            categoryDisplay: candidate.displayName,
             movies: sortedMatches
           });
-          // Mark these movies as used
           sortedMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
         }
       });
-      
-      // Production Companies - check first since they're most specific
-      const companyFilter = { type: 'company', value: searchTerm };
-      const companyMatches = allResults.filter(media => 
-        !usedMovieIds.has(media.movie.id) &&
-        this.applyFilter(media, companyFilter)
-      );
-      
-      if (companyMatches.length > 0) {
-        const sortedMatches = [...companyMatches].sort(this.sortResults);
-        categories.push({
-          category: 'company',
-          categoryDisplay: 'Production Companies',
-          movies: sortedMatches
-        });
-        // Mark these movies as used
-        sortedMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-      } else {
-        // Combine Keywords and Genres into a single chunk
-        const keywordFilter = { type: 'keyword', value: searchTerm };
-        const genreFilter = { type: 'genre', value: searchTerm };
-        
-        const keywordMatches = allResults.filter(media => 
-          !usedMovieIds.has(media.movie.id) &&
-          this.applyFilter(media, keywordFilter)
-        );
-        
-        const genreMatches = allResults.filter(media => 
-          !usedMovieIds.has(media.movie.id) &&
-          this.applyFilter(media, genreFilter)
-        );
-        
-        // Combine both arrays and remove duplicates
-        const combinedMatches = [...keywordMatches];
-        genreMatches.forEach(genreMatch => {
-          if (!combinedMatches.some(existing => existing.movie.id === genreMatch.movie.id)) {
-            combinedMatches.push(genreMatch);
-          }
-        });
-        
-        if (combinedMatches.length > 0) {
-          const sortedMatches = [...combinedMatches].sort(this.sortResults);
-          categories.push({
-            category: 'keyword-genre',
-            categoryDisplay: 'Keywords',
-            movies: sortedMatches
-          });
-          // Mark these movies as used
-          sortedMatches.forEach(movie => usedMovieIds.add(movie.movie.id));
-        }
-      }
-      
+
       // Add catchall section with intelligent role detection for remaining movies
-      const uncategorizedMovies = allResults.filter(media => 
+      const uncategorizedMovies = allResults.filter(media =>
         !usedMovieIds.has(media.movie.id) &&
         this.applyFilter(media, { type: 'general', value: searchTerm })
       );
-      
+
       if (uncategorizedMovies.length > 0) {
         // Try to intelligently categorize the uncategorized movies by person role
         const adHocCategories = {};
@@ -1716,8 +1776,82 @@ export default {
         }
       }
       
-      // Show grouped results if we have any categories
-      return categories.length > 0 ? categories : null;
+      if (categories.length === 0) {
+        return null;
+      }
+
+      // Order all categories (including role-detected ones) by the user's
+      // chosen hierarchy. Any key not present in groupOrder sorts to the end.
+      const orderIndex = (key) => {
+        const idx = this.groupOrder.indexOf(key);
+        return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+      };
+      categories.sort((a, b) => orderIndex(a.category) - orderIndex(b.category));
+
+      return categories;
+    },
+    reorderableGroups() {
+      // The list shown in the reorder panel. It must include every group that
+      // COULD be visible under some ordering — not just the ones that survived
+      // claiming under the current order — otherwise a group that another group
+      // emptied would vanish from the panel and you couldn't move it back up.
+      const grouped = this.groupedByAllCategories;
+      if (!grouped) {
+        return [];
+      }
+
+      // Counts for the groups that are actually rendered right now.
+      const currentCountByKey = {};
+      grouped.forEach(group => {
+        currentCountByKey[group.category] = group.movies.length;
+      });
+
+      // Fixed-type groups (title/director/cast/producer/company/keyword-genre)
+      // have order-independent candidate sets, so any with candidates could be
+      // shown if prioritized. We surface all of them; role-detected groups
+      // (writer/music/etc./other) are leftover-derived and naturally reappear
+      // when movies free up, so we include those only while currently present.
+      const searchTerm = this.searchValue || this.effectiveSearchTerm;
+      const fixedCandidateKeys = new Set();
+      if (searchTerm) {
+        const allResults = this.allEntriesWithFlatKeywordsAdded;
+        const fixedFilters = [
+          { key: 'title', filter: { type: 'title', value: searchTerm } },
+          { key: 'director', filter: { type: 'director', value: searchTerm } },
+          { key: 'cast', filter: { type: 'cast', value: searchTerm } },
+          { key: 'producer', filter: { type: 'producer', value: searchTerm } },
+          { key: 'company', filter: { type: 'company', value: searchTerm } }
+        ];
+        fixedFilters.forEach(({ key, filter }) => {
+          if (allResults.some(media => this.applyFilter(media, filter))) {
+            fixedCandidateKeys.add(key);
+          }
+        });
+        const hasKeywordOrGenre = allResults.some(media =>
+          this.applyFilter(media, { type: 'keyword', value: searchTerm }) ||
+          this.applyFilter(media, { type: 'genre', value: searchTerm })
+        );
+        if (hasKeywordOrGenre) {
+          fixedCandidateKeys.add('keyword-genre');
+        }
+      }
+
+      // Union: every currently-rendered group + every fixed group with candidates.
+      const keys = new Set([...Object.keys(currentCountByKey), ...fixedCandidateKeys]);
+
+      const displayName = (key) => {
+        const present = grouped.find(g => g.category === key);
+        if (present) return present.categoryDisplay;
+        return GROUP_DISPLAY_NAMES[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+      };
+
+      return [...keys]
+        .sort((a, b) => this.groupOrder.indexOf(a) - this.groupOrder.indexOf(b))
+        .map(key => ({
+          category: key,
+          categoryDisplay: displayName(key),
+          count: currentCountByKey[key] || 0
+        }));
     },
     isMatt () {
       return this.$store.state.databaseTopKey === "mattgrosso-gmail-com" || !this.$store.state.databaseTopKey;
@@ -2307,7 +2441,7 @@ export default {
         case 'general':
           const searchValue = filter.value.toLowerCase();
           return (movie.title && movie.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(searchValue)) ||
-            (movie.flatKeywords && movie.flatKeywords.includes(searchValue)) ||
+            (movie.flatKeywords && movie.flatKeywords.some((keyword) => keyword && keyword.toLowerCase() === searchValue)) ||
             (movie.genres && movie.genres.some((genre) => genre.name && genre.name.toLowerCase() === searchValue)) ||
             (movie.cast && movie.cast.flatMap((person) => {
               const names = person.name ? person.name.toLowerCase().split(' ') : [];
@@ -2357,7 +2491,7 @@ export default {
           );
 
         case 'keyword':
-          return movie.flatKeywords && movie.flatKeywords.includes(filter.value.toLowerCase());
+          return movie.flatKeywords && movie.flatKeywords.some((keyword) => keyword && keyword.toLowerCase() === filter.value.toLowerCase());
 
         case 'tag':
           // Check if this movie has ratings with the specified tag
@@ -2407,6 +2541,66 @@ export default {
     },
     toggleSettingsPanel () {
       this.showSettingsPanel = !this.showSettingsPanel;
+    },
+    toggleGroupOrderPanel () {
+      this.showGroupOrderPanel = !this.showGroupOrderPanel;
+    },
+    moveGroupUp (categoryKey) {
+      this.swapGroupWithNeighbor(categoryKey, -1);
+    },
+    moveGroupDown (categoryKey) {
+      this.swapGroupWithNeighbor(categoryKey, 1);
+    },
+    swapGroupWithNeighbor (categoryKey, direction) {
+      // The panel shows every group that could be visible under some ordering
+      // (reorderableGroups), so moving swaps within that list and absent master
+      // keys keep their slots. direction: -1 = up, 1 = down.
+      const presentKeys = this.reorderableGroups.map(group => group.category);
+      const presentIndex = presentKeys.indexOf(categoryKey);
+      const neighborIndex = presentIndex + direction;
+      if (presentIndex === -1 || neighborIndex < 0 || neighborIndex >= presentKeys.length) {
+        return; // already at an edge of the visible list
+      }
+      const neighborKey = presentKeys[neighborIndex];
+
+      const newOrder = [...this.groupOrder];
+      const from = newOrder.indexOf(categoryKey);
+      const to = newOrder.indexOf(neighborKey);
+      if (from === -1 || to === -1) {
+        return;
+      }
+      newOrder.splice(from, 1);
+      newOrder.splice(to, 0, categoryKey);
+
+      this.persistGroupOrder(newOrder);
+    },
+    applyPromoteGroup () {
+      const promoteKey = this.$store.state.homePagePromoteGroup;
+      this.$store.commit('setHomePagePromoteGroup', null); // consume it
+      if (!promoteKey || !DEFAULT_GROUP_ORDER.includes(promoteKey)) {
+        return;
+      }
+      // Move the promoted key to the front of the current order and persist it
+      // as today's override.
+      const newOrder = [promoteKey, ...this.groupOrder.filter(key => key !== promoteKey)];
+      this.persistGroupOrder(newOrder);
+    },
+    persistGroupOrder (order) {
+      // Save as a daily override in settings. Reverts to default automatically
+      // tomorrow because groupOrder ignores overrides whose date isn't today.
+      const override = { order, date: new Date().toDateString() };
+
+      // Update local store state optimistically so the grouped view re-evaluates
+      // immediately, rather than waiting for the Firebase write to echo back.
+      this.$store.commit('setSettings', {
+        ...this.$store.state.settings,
+        groupOrderOverride: override
+      });
+
+      this.$store.dispatch('setDBValue', {
+        path: 'settings/groupOrderOverride',
+        value: override
+      });
     },
     getGridClassesForGroup (count) {
       return {
@@ -2866,9 +3060,6 @@ export default {
           behavior: 'smooth'
         })
       });
-    },
-    async shareResults () {
-      console.error('Sharing is disabled for now');
     },
     titleCase (input) {
       const string = input.toString();
@@ -4384,6 +4575,25 @@ export default {
     top: -2px;
     transform: translateY(-50%);
     white-space: nowrap;
+  }
+}
+
+/* Group order panel */
+.group-order-panel {
+  background: #2b3035;
+  border: 1px solid #444;
+
+  .group-order-row {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  // Always-visible controls (no hover) for mobile-first use.
+  .group-order-controls .btn:disabled {
+    opacity: 0.35;
   }
 }
 

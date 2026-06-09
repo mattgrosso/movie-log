@@ -125,7 +125,7 @@
             Director<span v-if="multipleEntries(getCrewMember('Director', true))">s</span>
           </h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor(name)">
+            <a v-for="(name, index) in getCrewMember('Director', 'strict')" :key="index" class="link" @click.stop="searchFor(name, 'director')">
               {{name}}<span v-if="countDirector(name)" class="small-count-bubble">&nbsp;({{ countDirector(name) }})</span><span v-if="index !== getCrewMember('Director', 'strict').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -139,7 +139,7 @@
               v-for="(genre, index) in topStructure(result).genres"
               :key="index"
               class="link me-2"
-              @click.stop="searchFor(genre.name)"
+              @click.stop="searchFor(genre.name, 'genre')"
             >
               {{genre.name}}<span v-if="countGenre(genre.name)" class="small-count-bubble">&nbsp;({{ countGenre(genre.name) }})</span>
             </a>
@@ -170,7 +170,7 @@
         <div v-if="topStructure(result).cast && topStructure(result).cast.length" class="cast mb-3">
           <h4>Cast</h4>
           <p class="long-list">
-            <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor(castMember.name)">
+            <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor(castMember.name, 'cast')">
               {{castMember.name}}<span v-if="countCastCrew(castMember.name)" class="small-count-bubble">&nbsp;({{ countCastCrew(castMember.name) }})</span><span v-if="index !== topStructure(result).cast.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -190,7 +190,7 @@
           </div>
 
           <p v-if="!isEditingKeywords" class="long-list">
-            <a v-for="(keyword, index) in sortedFlatKeywords" :key="index" class="link" @click.stop="searchFor(keyword)">
+            <a v-for="(keyword, index) in sortedFlatKeywords" :key="index" class="link" @click.stop="searchFor(keyword, 'keyword')">
               {{keyword}}<span class="small-count-bubble">&nbsp;({{ keywordCounts[keyword] }})</span><span v-if="index !== topStructure(result).flatKeywords.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -334,7 +334,7 @@
         <div v-if="getCrewMember('Writer', false)" class="writers mb-3">
           <h4>Writer<span v-if="multipleEntries(getCrewMember('Writer', false))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Writer', false)" :key="index" class="link" @click.stop="searchFor(name)">
+            <a v-for="(name, index) in getCrewMember('Writer', false)" :key="index" class="link" @click.stop="searchFor(name, 'writer')">
               {{name}}<span v-if="countCastCrew(name)" class="small-count-bubble">&nbsp;({{ countCastCrew(name) }})</span><span v-if="index !== getCrewMember('Writer', false).length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -344,7 +344,7 @@
         <div v-if="getCrewMember('Composer')" class="composers mb-3">
           <h4>Composer<span v-if="multipleEntries(getCrewMember('Composer'))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Composer')" :key="index" class="link" @click.stop="searchFor(name)">
+            <a v-for="(name, index) in getCrewMember('Composer')" :key="index" class="link" @click.stop="searchFor(name, 'composer')">
               {{name}}<span v-if="countCastCrew(name)" class="small-count-bubble">&nbsp;({{ countCastCrew(name) }})</span><span v-if="index !== getCrewMember('Composer').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -354,7 +354,7 @@
         <div v-if="getCrewMember('Editor').length" class="editors mb-3">
           <h4>Editor<span v-if="multipleEntries(getCrewMember('Editor'))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Editor')" :key="index" class="link" @click.stop="searchFor(name)">
+            <a v-for="(name, index) in getCrewMember('Editor')" :key="index" class="link" @click.stop="searchFor(name, 'editor')">
               {{name}}<span v-if="countCastCrew(name)" class="small-count-bubble">&nbsp;({{ countCastCrew(name) }})</span><span v-if="index !== getCrewMember('Editor').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -364,7 +364,7 @@
         <div v-if="getCrewMember('Photo').length" class="cinematographers mb-3">
           <h4>Cinematographer<span v-if="multipleEntries(getCrewMember('Photo'))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Photo')" :key="index" class="link" @click.stop="searchFor(name)">
+            <a v-for="(name, index) in getCrewMember('Photo')" :key="index" class="link" @click.stop="searchFor(name, 'photo')">
               {{name}}<span v-if="countCastCrew(name)" class="small-count-bubble">&nbsp;({{ countCastCrew(name) }})</span><span v-if="index !== getCrewMember('Photo').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -374,7 +374,7 @@
         <div v-if="topStructure(result).production_companies && topStructure(result).production_companies.length" class="production-companies mb-3">
           <h4>Production <span v-if="multipleEntries(turnArrayIntoList(topStructure(result).production_companies, 'name'))">Companies</span><span v-else>Company</span></h4>
           <p class="long-list">
-            <a v-for="(productionCompany, index) in topStructure(result).production_companies" :key="index" class="link" @click.stop="searchFor(productionCompany.name)">
+            <a v-for="(productionCompany, index) in topStructure(result).production_companies" :key="index" class="link" @click.stop="searchFor(productionCompany.name, 'company')">
               {{productionCompany.name}}<span v-if="countStudios(productionCompany.name)" class="small-count-bubble">&nbsp;({{ countStudios(productionCompany.name) }})</span><span v-if="index !== topStructure(result).production_companies.length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -384,7 +384,7 @@
         <div v-if="getCrewMember('Producer').length" class="producers mb-3">
           <h4>Producer<span v-if="multipleEntries(getCrewMember('Producer'))">s</span></h4>
           <p class="long-list">
-            <a v-for="(name, index) in getCrewMember('Producer')" :key="index" class="link" @click.stop="searchFor(name)">
+            <a v-for="(name, index) in getCrewMember('Producer')" :key="index" class="link" @click.stop="searchFor(name, 'producer')">
               {{name}}<span v-if="countCastCrew(name)" class="small-count-bubble">&nbsp;({{ countCastCrew(name) }})</span><span v-if="index !== getCrewMember('Producer').length - 1">&nbsp;&nbsp;</span>
             </a>
           </p>
@@ -917,15 +917,38 @@ export default {
       this.$router.push('/');
     },
 
-    searchFor(query) {
+    searchFor(query, type) {
       // Set navigation intent to scroll to top
       this.$store.commit('setHomePageNavigationIntent', 'search');
+
+      // If the clicked value has a known type, promote its group to the top of
+      // the grouped result hierarchy (e.g. clicking a keyword puts Keywords first).
+      const groupKey = this.groupKeyForClickType(type);
+      this.$store.commit('setHomePagePromoteGroup', groupKey);
 
       // Save the search query in store and navigate back to home
       this.$store.commit('setHomePageSearchValue', query);
       this.$store.commit('setHomePageSearchChips', []); // Clear existing chips
       this.$store.commit('setHomePageScrollPosition', 0); // Scroll to top for new search
       this.$router.push('/');
+    },
+    groupKeyForClickType(type) {
+      // Maps the type of value clicked on the detail page to a grouped-result
+      // group key. Returns null for unknown/typeless clicks (e.g. year).
+      const map = {
+        keyword: 'keyword-genre',
+        genre: 'keyword-genre',
+        director: 'director',
+        cast: 'cast',
+        producer: 'producer',
+        company: 'company',
+        title: 'title',
+        writer: 'writer',
+        composer: 'music',
+        editor: 'editor',
+        photo: 'cinematographer'
+      };
+      return map[type] || null;
     },
 
     searchForTag(tag) {

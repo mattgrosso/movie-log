@@ -150,10 +150,19 @@ describe('Quick Links Filtering System', () => {
             'date-night': { title: 'date-night' }
           }}
         },
-        filteredResults: []
+        filteredResults: [],
+        homePageScrollPosition: 0,
+        homePageSearchChips: [],
+        homePageSearchValue: '',
+        homePageNumberOfResults: 25,
+        homePageNavigationIntent: null,
+        homePageSortValue: null,
+        homePageSortOrder: null,
+        homePagePromoteGroup: null
       },
       getters: {
         allMediaAsArray: mockMovies,
+        allMoviesAsArray: mockMovies,
         allMediaSortedByRating: [...mockMovies].sort((a, b) => b.ratings[0].calculatedTotal - a.ratings[0].calculatedTotal)
       },
       commit: vi.fn(),

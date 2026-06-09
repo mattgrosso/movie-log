@@ -107,6 +107,7 @@ export default createStore({
     homePageNavigationIntent: null, // 'close' | 'search' | null
     homePageSortValue: null, // preserve sort value for 'close' navigation
     homePageSortOrder: null, // preserve sort order for 'close' navigation
+    homePagePromoteGroup: null, // group key to promote to top when navigating from a clicked value
     // Simple save debouncing
     lastSavePath: null,
     lastSaveTime: 0,
@@ -219,6 +220,9 @@ export default createStore({
     },
     setHomePageSortOrder (state, value) {
       state.homePageSortOrder = value;
+    },
+    setHomePagePromoteGroup (state, value) {
+      state.homePagePromoteGroup = value;
     }
   },
   actions: {
