@@ -106,14 +106,14 @@
               <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage">
                 <span v-if="showAverage">
                   <span class="average-label">(avg)</span>
-                  <span class="average-value">{{averageRating(unifiedFilteredResults)}}</span>
+                  <span class="average-value">{{averageRating(displayedResults)}}</span>
                 </span>
                 <span v-else-if="showViewCount">
                   <span class="average-label">(views)</span>
-                  <span class="average-value">{{viewsCount(unifiedFilteredResults)}}</span>
+                  <span class="average-value">{{viewsCount(displayedResults)}}</span>
                 </span>
                 <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{unifiedFilteredResults.length}}</span>
-                <span v-else>{{unifiedFilteredResults.length}}</span>
+                <span v-else>{{displayedResults.length}}</span>
               </button>
               <button class="results-actions-button btn btn-info" type="button" @click="goToInsights">
                 <i class="bi bi-lightbulb"/>
@@ -2151,6 +2151,26 @@ export default {
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 20);
+    },
+    displayedResults() {
+      // The cards actually on screen. When the grouped view is active the grid
+      // renders groupedByAllCategories (which layers in title/cast matches on
+      // top of the keyword chip), so the badge/avg/views should reflect those
+      // unique movies. Otherwise fall back to the filtered set.
+      if (this.groupedByAllCategories) {
+        const seen = new Set();
+        const unique = [];
+        this.groupedByAllCategories.forEach(group => {
+          group.movies.forEach(result => {
+            if (!seen.has(result.movie.id)) {
+              seen.add(result.movie.id);
+              unique.push(result);
+            }
+          });
+        });
+        return unique;
+      }
+      return this.unifiedFilteredResults;
     },
     unifiedFilteredResults() {
       // Step 1: Get base results (from quick links or all entries)
