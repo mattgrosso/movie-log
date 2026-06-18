@@ -676,12 +676,29 @@
           <button class="btn btn-link col-12" @click="toggleQuickLinksList(null)">Clear quick filters?</button>
         </div>
       </div>
-      <NoResults 
-        v-else-if="$store.state.dbLoaded"
-        :class="{'no-results-buffer': !activeFiltersMinusTemps.length}"
-        :value="searchValue || effectiveSearchTerm"
-        @startNewSearch="startNewSearch"
-      />
+      <div v-else-if="$store.state.dbLoaded">
+        <!-- Fuzzy "Did you mean...?" suggestions from the user's own rated data.
+             Shown above NoResults so the "Search TMDB for X" new-rating path stays intact. -->
+        <div v-if="didYouMeanSuggestions.length" class="did-you-mean text-center mb-3">
+          <p class="text-light mb-2" style="opacity: 0.85;">Did you mean:</p>
+          <div class="d-inline-flex flex-wrap justify-content-center">
+            <button
+              v-for="suggestion in didYouMeanSuggestions"
+              :key="`${suggestion.typeLabel}-${suggestion.value}`"
+              class="btn btn-outline-light btn-sm me-2 mb-2 did-you-mean-chip"
+              @click="applyDidYouMeanSuggestion(suggestion)"
+            >
+              {{ suggestion.value }}
+              <span class="did-you-mean-type">{{ suggestion.typeLabel }}</span>
+            </button>
+          </div>
+        </div>
+        <NoResults
+          :class="{'no-results-buffer': !activeFiltersMinusTemps.length}"
+          :value="searchValue || effectiveSearchTerm"
+          @startNewSearch="startNewSearch"
+        />
+      </div>
       <div v-else class="loading-screen d-flex justify-content-center align-items-center my-5">
         <div class="spinner-border text-light" role="status">
           <span class="visually-hidden">Loading...</span>
@@ -813,6 +830,7 @@ import uniq from 'lodash/uniq';
 import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
 import cloneDeep from 'lodash/cloneDeep';
+import Fuse from 'fuse.js';
 import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import TweakInline from "./TweakInline.vue";
 import StickinessInline from "./StickinessInline.vue";
@@ -1544,10 +1562,104 @@ export default {
     },
     effectiveSearchTerm() {
       if (this.effectiveSearchFilter) {
-        return this.effectiveSearchFilter.value;      
+        return this.effectiveSearchFilter.value;
       } else {
         return '';
       }
+    },
+    searchableTerms() {
+      // The fuzzy-match index: every distinct, typed term drawn from the user's
+      // OWN rated library. Reuses the count maps that are already computed for
+      // the counts/filtering features, so building this is cheap. Each entry
+      // carries the `expectedType` string that createFilterByType() understands
+      // (NOT the internal applyFilter type), so a tapped suggestion builds the
+      // correct chip. Titles have no expectedType and commit as a general chip,
+      // matching how a typed title behaves today.
+      const terms = [];
+      const pushKeys = (countMap, expectedType, typeLabel) => {
+        Object.keys(countMap || {}).forEach((value) => {
+          if (value) {
+            terms.push({ value, expectedType, typeLabel });
+          }
+        });
+      };
+
+      pushKeys(this.countDirectors, 'director', 'director');
+      pushKeys(this.countCastCrew, 'cast/crew', 'cast/crew');
+      pushKeys(this.countedKeywords, 'keyword', 'keyword');
+      pushKeys(this.countedGenres, 'genre', 'genre');
+      pushKeys(this.countStudios, 'studios', 'company');
+
+      // Titles: distinct, committed as general (expectedType null).
+      const seenTitles = new Set();
+      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
+        const title = result.movie.title;
+        if (title && !seenTitles.has(title)) {
+          seenTitles.add(title);
+          terms.push({ value: title, expectedType: null, typeLabel: 'title' });
+        }
+      });
+
+      return terms;
+    },
+    fuzzyIndex() {
+      // Build the Fuse index ONCE per library change, not per keystroke. Vue
+      // memoizes this computed, so it only rebuilds when searchableTerms changes
+      // (i.e. when the rated library changes), turning a ~40ms-per-keystroke cost
+      // into a one-time cost. didYouMeanSuggestions reuses this instance.
+      if (this.searchableTerms.length === 0) {
+        return null;
+      }
+      return new Fuse(this.searchableTerms, {
+        keys: ['value'],
+        threshold: 0.4, // Fuse default; loose enough for typos, tight enough to avoid noise
+        ignoreLocation: true,
+        minMatchCharLength: 3
+      });
+    },
+    didYouMeanSuggestions() {
+      // Typo-tolerant "Did you mean...?" fallback. Deliberately gated so the
+      // fuzzy work NEVER runs on the common (has-results) path: it only fires
+      // when the user has typed a non-trivial term that produced zero local
+      // results. This keeps search fast and leaves the exact-match behavior of
+      // groupedByAllCategories / unifiedFilteredResults completely unchanged.
+      const term = (this.searchValue || this.effectiveSearchTerm || '').trim();
+
+      if (term.length < 3) {
+        return [];
+      }
+      // Only suggest when there are no local results to show. (showResultsList
+      // is false here, which is the same branch that renders the "Search TMDB"
+      // button — suggestions sit above it, never replacing it.)
+      if (this.paginatedSortedResults.length > 0 || this.activeQuickLinkList !== 'title') {
+        return [];
+      }
+      const fuse = this.fuzzyIndex;
+      if (!fuse) {
+        return [];
+      }
+
+      const results = fuse.search(term);
+      const suggestions = [];
+      const seen = new Set();
+
+      for (const { item } of results) {
+        // Skip a "suggestion" identical to what was typed (case-insensitive).
+        if (item.value.toLowerCase() === term.toLowerCase()) {
+          continue;
+        }
+        const dedupeKey = `${item.expectedType || 'title'}:${item.value.toLowerCase()}`;
+        if (seen.has(dedupeKey)) {
+          continue;
+        }
+        seen.add(dedupeKey);
+        suggestions.push(item);
+        if (suggestions.length >= 5) {
+          break;
+        }
+      }
+
+      return suggestions;
     },
     groupOrder() {
       // Returns the active group hierarchy. Uses the user's daily override from
@@ -3349,10 +3461,19 @@ export default {
       // Find any existing temp filter and remove it
       this.activeFilters = this.activeFilters.filter(filter => !filter.temp);
 
+      // If we're offering fuzzy "Did you mean?" suggestions, the raw text is a
+      // probable typo that matched nothing. Do NOT auto-convert it into a chip
+      // (e.g. on blur) — the user is meant to tap a suggestion instead, which
+      // commits the corrected, typed value. Auto-chipping the typo would create
+      // a dead chip and then bounce through the new-rating reset flow.
+      if (this.didYouMeanSuggestions.length > 0) {
+        return;
+      }
+
       const currentSearch = this.inputValue;
       if (currentSearch && currentSearch.trim()) {
         const searchTerm = currentSearch.trim();
-        
+
         // Add the chip immediately and clear the input
         this.addSearchFilter(searchTerm);
       }
@@ -3392,6 +3513,13 @@ export default {
 
       // Track if this chip was added by automatic random search
       this.hasAutoRandomChip = isAutoRandom;
+    },
+    applyDidYouMeanSuggestion(suggestion) {
+      // Commit a tapped fuzzy suggestion as a real chip. We pass the known
+      // expectedType so addSearchFilter -> createFilterByType builds the exact
+      // chip with no re-guessing. Titles have a null expectedType and commit
+      // through detectFilterType (i.e. as a general chip), matching a typed title.
+      this.addSearchFilter(suggestion.value, false, suggestion.expectedType);
     },
     clearAllFilters() {
       // Blur the search input first to prevent layout shifts
@@ -4659,6 +4787,21 @@ export default {
 </style>
 
 <style scoped>
+.did-you-mean-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.did-you-mean-chip:active {
+  /* Mobile-first: no-hover affordance, visible press feedback */
+  transform: scale(0.97);
+}
+.did-you-mean-type {
+  font-size: 0.7rem;
+  opacity: 0.65;
+  font-style: italic;
+  text-transform: lowercase;
+}
 .settings-panel-inline {
   background: var(--bs-light, #fff);
   border: 1px solid var(--bs-border-color, #dee2e6);

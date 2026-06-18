@@ -225,6 +225,20 @@ The grouped search view (`groupedByAllCategories` in `Home.vue`) buckets results
 
 Tests: `src/test/GroupOrdering.test.js`. Note: the `ChipFiltering`/`QuickLinksFiltering` mocks were missing `allMoviesAsArray` getter and the `homePage*` state fields, which broke their `mount()`; both are now fixed.
 
+## Fuzzy "Did you mean?" Search Suggestions (Jun 2026)
+
+Typo-tolerant search suggestions powered by `fuse.js`, scoped to the user's OWN rated library (no TMDB-catalog matching). Built to **suggest, never auto-correct** — the user taps a suggestion to commit it, so a wrong guess never silently builds a chip.
+
+- **Index** (`searchableTerms` computed in `Home.vue`): distinct typed terms reused from the existing count maps (`countDirectors`, `countCastCrew`, `countedKeywords`, `countedGenres`, `countStudios`) plus distinct titles. Each entry carries an `expectedType` string that `createFilterByType()` understands (`director`, `cast/crew`, `keyword`, `genre`, `studios`); titles use `expectedType: null` and commit as a `general` chip, matching how a typed title behaves.
+- **Index build is memoized** (`fuzzyIndex` computed): the Fuse instance is built ONCE per library change, not per keystroke. The index is large (tens of thousands of terms across all cast/crew/keywords/etc.), so building it cost ~40ms; doing that on every keystroke was a measurable typing lag. `didYouMeanSuggestions` reuses `this.fuzzyIndex`. Do NOT inline `new Fuse(...)` back into `didYouMeanSuggestions`.
+- **Ranking** (`didYouMeanSuggestions` computed): reuses `fuzzyIndex` (threshold 0.4, `ignoreLocation`, `minMatchCharLength: 3`) and returns up to 5 deduped suggestions. **Gated to the zero-results state**: returns `[]` unless term ≥ 3 chars AND `paginatedSortedResults.length === 0` AND no quick link active — so fuzzy work never runs on the common (has-results) path, and exact-match search (`groupedByAllCategories`/`unifiedFilteredResults`) is unchanged.
+- **Important interaction**: the existing search already does substring matching, so partial spellings like "villeneuv"/"speilberg-as-substring" are found by normal search and fuzzy never fires. Fuzzy only kicks in on *genuine* typos (transpositions, wrong letters) that aren't substrings, e.g. "villenueve" → "Denis Villeneuve". Tests must use real non-substring typos.
+- **UI**: rendered in the `v-else-if="$store.state.dbLoaded"` branch (`Home.vue` ~line 679) ABOVE the `NoResults`/`NewRatingSearch` component. Tap calls `applyDidYouMeanSuggestion()` → `addSearchFilter(value, false, expectedType)`. Styled with `:active` press feedback (mobile-first, no-hover).
+- **Blur-guard (important)**: `convertSearchToChip()` bails when `didYouMeanSuggestions.length > 0`. Without this, blurring the input (`@blur="blurSearchBar"` → `convertSearchToChip`) auto-converted the raw typo into a dead `general` chip, which then flowed into `NewRatingSearch` and bounced through its no-results reset back to an empty input. The user is meant to tap a suggestion (committing the corrected value) rather than have the typo chipped.
+- **Zero-results / TMDB**: this path renders `NewRatingSearch`, which AUTO-searches TMDB (no button) and either redirects to pick-media or shows the "doesn't exist" message. There is no manual "Search TMDB" button on the zero-local-results screen by design (the button at `Home.vue:670` only renders when ≥1 local result exists). A misspelled-but-real new movie is usually still found by TMDB's own fuzzy search and redirects. Suggestions only correct against the user's OWN rated library.
+
+Tests: `src/test/FuzzySuggestions.test.js`.
+
 ## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
 
