@@ -1725,9 +1725,12 @@ export default {
       
       const allResults = this.allEntriesWithFlatKeywordsAdded;
 
-      // Step 1: Compute candidate matches for each fixed-type group independently
-      // (no claiming yet). Claiming happens later in groupOrder priority, so the
-      // user's chosen hierarchy decides which group a dual-match movie lands in.
+      // Step 1: Compute candidate matches for each fixed-type group. Done in a
+      // SINGLE pass over the library instead of one full filter() pass per group
+      // (previously ~7 passes). The candidate SETS are identical to before — a
+      // movie is still a candidate in every group whose filter it matches — so
+      // the later priority-claiming behavior is unchanged. We only collapse the
+      // iteration so applyFilter is evaluated per movie in one loop.
       const groupConfigs = [
         { key: 'title', displayName: 'Title Matches', filter: { type: 'title', value: searchTerm } },
         { key: 'director', displayName: 'Director', filter: { type: 'director', value: searchTerm } },
@@ -1738,21 +1741,24 @@ export default {
 
       const candidatesByKey = {};
       groupConfigs.forEach(config => {
-        candidatesByKey[config.key] = {
-          displayName: config.displayName,
-          movies: allResults.filter(media => this.applyFilter(media, config.filter))
-        };
+        candidatesByKey[config.key] = { displayName: config.displayName, movies: [] };
       });
+      candidatesByKey['keyword-genre'] = { displayName: 'Keywords & Genres', movies: [] };
 
-      // Keywords and Genres are merged into a single "Keywords & Genres" group.
-      const keywordGenreMatches = allResults.filter(media =>
-        this.applyFilter(media, { type: 'keyword', value: searchTerm }) ||
-        this.applyFilter(media, { type: 'genre', value: searchTerm })
-      );
-      candidatesByKey['keyword-genre'] = {
-        displayName: 'Keywords & Genres',
-        movies: keywordGenreMatches
-      };
+      const keywordFilter = { type: 'keyword', value: searchTerm };
+      const genreFilter = { type: 'genre', value: searchTerm };
+
+      allResults.forEach(media => {
+        groupConfigs.forEach(config => {
+          if (this.applyFilter(media, config.filter)) {
+            candidatesByKey[config.key].movies.push(media);
+          }
+        });
+        // Keywords and Genres are merged into a single "Keywords & Genres" group.
+        if (this.applyFilter(media, keywordFilter) || this.applyFilter(media, genreFilter)) {
+          candidatesByKey['keyword-genre'].movies.push(media);
+        }
+      });
 
       // Step 2: Walk groupOrder and claim movies in priority order. A movie claimed
       // by an earlier group will not appear in a later one.
@@ -1765,7 +1771,7 @@ export default {
 
         const matches = candidate.movies.filter(media => !usedMovieIds.has(media.movie.id));
         if (matches.length > 0) {
-          const sortedMatches = [...matches].sort(this.sortResults);
+          const sortedMatches = this.sortResultsFast(matches);
           categories.push({
             category: key,
             categoryDisplay: candidate.displayName,
@@ -1864,10 +1870,10 @@ export default {
               // Merge movies into existing category
               existingCategory.movies.push(...movies);
               // Re-sort the combined movies
-              existingCategory.movies.sort(this.sortResults);
+              existingCategory.movies = this.sortResultsFast(existingCategory.movies);
             } else {
               // Create new category
-              const sortedMovies = [...movies].sort(this.sortResults);
+              const sortedMovies = this.sortResultsFast(movies);
               categories.push({
                 category: categoryKey,
                 categoryDisplay: roleCategory.charAt(0).toUpperCase() + roleCategory.slice(1),
@@ -1879,7 +1885,7 @@ export default {
         
         // Add truly uncategorized movies as "Other" if any remain
         if (trulyUncategorized.length > 0) {
-          const sortedUncategorized = [...trulyUncategorized].sort(this.sortResults);
+          const sortedUncategorized = this.sortResultsFast(trulyUncategorized);
           categories.push({
             category: 'other',
             categoryDisplay: 'Other',
@@ -2342,7 +2348,7 @@ export default {
       }
     },
     sortedResults () {
-      return [...this.unifiedFilteredResults].sort(this.sortResults);
+      return this.sortResultsFast(this.unifiedFilteredResults);
     },
     suggestionsButtonLabel() {
       return this.userRatedMovieCount === 0
@@ -3053,6 +3059,52 @@ export default {
         });
         return isKeyScoreHighestScore ? keyScore : 0;
       }
+    },
+    sortResultsFast (array) {
+      // Performance: decorate-sort-undecorate. sortResults(a, b) calls getRating
+      // (via getSortValue/mostRecentRating) ~3x per comparison, which is O(n log n)
+      // getRating calls — the dominant search-recompute cost. Here we compute each
+      // item's primary + secondary sort value ONCE (O(n)), then sort on the cached
+      // values using the EXACT same comparison semantics as sortResults. Output
+      // ordering is identical; only the redundant getRating calls are removed.
+      const key = this.sortValue || "rating";
+      const bestOnTop = this.sortOrder === "bestOrNewestOnTop";
+
+      const decorated = array.map((item) => {
+        // Compute the rating ONCE per item and derive both the secondary key and
+        // (for the default "rating" sort) the primary from it, so getRating runs
+        // once per item instead of twice. For other sort keys, getSortValue is
+        // still used for the primary — identical to the legacy comparator's
+        // output, just without the duplicate getRating for the common case.
+        const rating = this.mostRecentRating(item);
+        const secondary = rating.calculatedTotal;
+        const primary = key === "rating" ? rating.calculatedTotal : this.getSortValue(item, key);
+        return { item, primary, secondary };
+      });
+
+      decorated.sort((a, b) => {
+        // Mirror sortResults exactly, including the quirk that === on two Date
+        // objects is false (so date sorts skip the secondary tiebreak), because
+        // getSortValue returns Date objects for "release"/"watched".
+        if (a.primary === b.primary) {
+          if (a.secondary < b.secondary) {
+            return bestOnTop ? 1 : -1;
+          }
+          if (a.secondary > b.secondary) {
+            return bestOnTop ? -1 : 1;
+          }
+          return 0;
+        }
+        if (a.primary < b.primary) {
+          return bestOnTop ? 1 : -1;
+        }
+        if (a.primary > b.primary) {
+          return bestOnTop ? -1 : 1;
+        }
+        return 0;
+      });
+
+      return decorated.map((d) => d.item);
     },
     sortResults (a, b) {
       const sortValueA = this.getSortValue(a, this.sortValue || "rating");

@@ -225,6 +225,16 @@ The grouped search view (`groupedByAllCategories` in `Home.vue`) buckets results
 
 Tests: `src/test/GroupOrdering.test.js`. Note: the `ChipFiltering`/`QuickLinksFiltering` mocks were missing `allMoviesAsArray` getter and the `homePage*` state fields, which broke their `mount()`; both are now fixed.
 
+## Search Recompute Performance (Jun 2026)
+
+Profiled the per-recompute lag in the search/result chain (`getRating` call-counting + `performance.now()` probes, since removed). Findings and fixes:
+
+- **`getRating()` (in `GetRating.js`) is uncached and moderately expensive** (8 Vuex `weight` getter calls + `Math.min/max(...allRatings)` spreads per call). The legacy `sortResults(a, b)` comparator called it ~3x per comparison → O(n log n) `getRating` calls dominated the sort cost (measured ~224ms / ~3950 calls over ~1300 movies).
+- **Fix (landed): `sortResultsFast(array)`** — decorate-sort-undecorate. Computes each item's primary+secondary sort value ONCE (and reuses a single `getRating` per item for the default "rating" sort), then sorts on cached values with comparison semantics **identical** to `sortResults` (including the quirk that `===` on two Date objects is false, so date sorts skip the secondary tiebreak). Dropped to 1 `getRating`/item, ~76ms. `sortResults` is kept as the reference oracle for the equivalence test. All five `.sort(this.sortResults)` call sites now use `sortResultsFast`. **Note `sortResultsFast` returns a NEW array (does not mutate input)** — the in-place `existingCategory.movies.sort(...)` site was changed to reassign.
+- **Fix (landed): single-pass grouping** — `groupedByAllCategories` Step 1 previously did ~7 full `filter()` passes over the library (one per group type + 2 for keyword/genre). Collapsed to ONE loop building all candidate buckets. Candidate SETS and order are identical (movies pushed in library order), so claiming behavior is unchanged. Modest win — the dominant grouping cost is `applyFilter` work itself, not loop overhead.
+- **Equivalence is enforced by test**: `src/test/SortResultsFast.test.js` asserts `sortResultsFast` produces byte-identical ordering to `sortResults` across all sort keys × orders, including ties and non-mutation. **If you ever change sort logic, change BOTH or the test will catch the divergence.**
+- **Known remaining cost (NOT yet optimized)**: `unifiedFilteredResults` scans the full library via `applyFilter` each keystroke (~60ms, 0 `getRating` calls in dev). Much of the observed ms is dev-mode inflation (unminified Vue, forced-reflow violations); production is materially faster. Next lever if needed: reduce per-call `applyFilter` cost (hoist `searchTerm.toLowerCase()`, avoid re-deriving lowercased cast/crew strings). Deferred deliberately — higher risk to the matching core.
+
 ## Fuzzy "Did you mean?" Search Suggestions (Jun 2026)
 
 Typo-tolerant search suggestions powered by `fuse.js`, scoped to the user's OWN rated library (no TMDB-catalog matching). Built to **suggest, never auto-correct** — the user taps a suggestion to commit it, so a wrong guess never silently builds a chip.
