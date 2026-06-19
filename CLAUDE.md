@@ -72,6 +72,7 @@ Cinema Roll is a personal movie rating and tracking application built with Vue.j
 - **Username Configuration**: User can set their Letterboxd username for scraping
 - **Special Title Handling**: Enhanced normalization for problematic titles (F1, M, etc.)
 - **Filter Integration**: Manual overrides properly excluded from "Not on Letterboxd" quick filter
+- **Username persistence fix (Jun 2026)**: `letterboxdUsername`/`letterboxdConnected` in `Home.vue` were getter-only computeds but bound with `v-model` / assigned to (`this.letterboxdConnected = true`). Writes were silent no-ops, so a NEW user's typed username was dropped and saved as `''` on blur (existing users were unaffected because their value was already persisted). Fixed by giving both computeds a setter that commits to local settings (`setSettings`); the existing `@blur` handlers persist to Firebase. Letterboxd is username-only (no OAuth) — setting the username IS the "login".
 - **Deep-link log pre-fill** (`LetterboxdUrlService.generateUrls`): the `letterboxd://x-callback-url/log` link passes `date` (today, local `YYYY-MM-DD` via `todayLocalISODate()` — NOT `toISOString()`, which is UTC and rolls the day late at night) and `rating` (Cinema Roll's normalized 0–10 score → 0.5–5 stars via `normalizedRatingToStars`, i.e. `/2`, matching `ToggleableRating.vue`'s star math; 0/missing omits the param). Letterboxd stopped defaulting the viewing date to today after an app update, hence the explicit `date`. Callers: `DBGridLayoutSearchResult.vue` + `MovieDetail.vue` pass `{ normalizedRating: this.normalizedRatingForMedia(this.result) }`. Tests: `src/test/LetterboxdUrlService.test.js`.
 
 ## Database Structure
@@ -126,10 +127,18 @@ Based on recent commits and development:
 - **Race Condition Fix**: Resolved timing issues where random search triggered before user's setting loaded from database
 - **Null-Safe Logic**: Prevents random search execution until definitive user setting is available
 
-### Header Banner Stabilization
-- **Timer-Based Caching**: Header banner images now cached for 30 seconds to prevent constant swapping
-- **Filtered Results Integration**: Banner still reflects current search/filter context, just updates less frequently
-- **Performance Optimization**: Reduces visual noise while maintaining relevance to user's current view
+### Header Banner — Context-Driven (Jun 2026, replaced the 30s timer)
+The 30-second random-swap timer is GONE. The banner now changes only on meaningful navigation and reflects what the user just did.
+- **`Header.vue` is a pure renderer** of `store.state.bannerUrl` (mobile `.random-banner` only; desktop still shows the `topTenPosters` strip, left as-is — the cinematic backdrops aren't the right ratio for a wide desktop image).
+- **`Home.resolveBanner()`** picks the banner on each home arrival (called at the end of `mounted`, and once from the `allEntriesWithFlatKeywordsAdded` watcher when the library first loads). It reads `store.state.bannerRequest`:
+  - `{ type:'movie', movieId }` → feature that movie's backdrop (ignores the rating floor — you engaged with it).
+  - `{ type:'fromResults' }` → random pick from `displayedResults` (the visible filtered set). Runs after the incoming search/chip is applied in `mounted`, so results are ready.
+  - none → only if no banner is set yet, pick a random movie rated **> 6** (the floor applies to the no-context fresh pick only). Contextless returns to home do NOT re-randomize (no dizzy swapping).
+- **Sources set `bannerRequest`** (consumed once by `resolveBanner`): `MovieDetail.goBack` (the viewed movie), `MovieDetail.searchFor` (`fromResults`), `RateMovie.returnHome` (the just-rated movie via `this.id`).
+- Store: `bannerUrl`, `bannerRequest` state + `setBannerUrl`/`setBannerRequest` mutations. Note `store.state.filteredResults` is dead (never committed) — don't rely on it.
+
+### Unified Home/Back Affordance (Jun 2026)
+Full-screen takeover pages use one pattern: a **◀ Home** caret+label, top-left (`.home-link`). MovieDetail's old ✕ close button was converted to this (keeping its loading spinner), matching RateMovie and Insights. The global Header's "Cinema Roll" title remains an always-home click.
 
 ### Search & Filter Polish
 - **Production Companies Integration**: Full support for filtering by production companies

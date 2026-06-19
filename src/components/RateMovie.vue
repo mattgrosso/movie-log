@@ -968,6 +968,8 @@ export default {
     },
     returnHome () {
       this.$store.commit("setShowHeader", true);
+      // Feature the just-rated movie in the home banner.
+      this.$store.commit("setBannerRequest", { type: 'movie', movieId: this.id });
       this.$router.push({ path: '/', query: { movieDbKey: this.dbEntry?.path?.split("movieLog/")[1] } });
     },
     viewingTagChecked (tag) {

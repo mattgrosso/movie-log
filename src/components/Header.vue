@@ -2,7 +2,7 @@
   <div class="header col-12" :class="{'d-none': !$store.state.showHeader}">
     <div class="overflow-wrapper">
       <div class="random-banner">
-        <img :src="randomBannerUrl" :key="index">
+        <img v-if="bannerUrl" :src="bannerUrl">
       </div>
       <div class="top-posters">
         <img v-for="(poster, index) in topTenPosters" :src="poster" :key="index">
@@ -23,13 +23,12 @@ import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
   name: "Header",
-  data() {
-    return {
-      cachedBannerUrl: null,
-      lastBannerChangeTime: 0
-    }
-  },
   computed: {
+    // Home resolves the banner on arrival (context-aware) and stores the URL.
+    // Header is now a pure renderer; the old 30s random-swap timer is gone.
+    bannerUrl () {
+      return this.$store.state.bannerUrl;
+    },
     version () {
       return process.env.VUE_APP_VERSION;
     },
@@ -45,48 +44,6 @@ export default {
     },
     devMode () {
       return this.$store.getters.devMode;
-    },
-    randomBannerUrl () {
-      const now = Date.now();
-      const thirtySecondsInMs = 30 * 1000;
-      
-      // If we have a cached URL and it's less than 30 seconds old, use it
-      if (this.cachedBannerUrl && (now - this.lastBannerChangeTime) < thirtySecondsInMs) {
-        return this.cachedBannerUrl;
-      }
-      
-      // Otherwise, generate a new banner URL
-      const filteredResults = this.$store.state.filteredResults;
-      let mediaArray = filteredResults.length ? filteredResults : this.$store.getters.allMediaAsArray;
-      if (mediaArray.length === 0) return this.cachedBannerUrl || null; // Handle empty array case
-
-      const onlyRatedOverSix = mediaArray.filter((media) => {
-        const mostRecentRating = this.mostRecentRating(media);
-        return mostRecentRating && mostRecentRating.calculatedTotal > 6;
-      });
-
-      if (onlyRatedOverSix && onlyRatedOverSix.length > 0) {
-        mediaArray = onlyRatedOverSix;
-      }
-
-      const randomIndex = Math.floor(Math.random() * mediaArray.length);
-      const randomMedia = mediaArray[randomIndex];
-
-      const topStructure = this.topStructure(randomMedia);
-      let newBannerUrl;
-      // Check for custom backdrop first, then default backdrop
-      const backdropPath = randomMedia.customBackdropPath || topStructure?.backdrop_path;
-      if (backdropPath) {
-        newBannerUrl = `https://image.tmdb.org/t/p/w500${backdropPath}`;
-      } else {
-        newBannerUrl = "https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg";
-      }
-      
-      // Cache the new URL and update the timestamp
-      this.cachedBannerUrl = newBannerUrl;
-      this.lastBannerChangeTime = now;
-      
-      return newBannerUrl;
     },
     topTenPosters () {
       return this.allPostersRanked.slice(0, 10);

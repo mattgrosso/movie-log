@@ -99,6 +99,10 @@ export default createStore({
     // devModeTopKey: 'brianpatrick1-gmail-com',
     dbLoaded: false,
     filteredResults: [],
+    // Header banner: Home resolves bannerUrl on arrival based on bannerRequest
+    // (set by MovieDetail/RateMovie/search links). See Header.vue + Home.resolveBanner.
+    bannerUrl: null,
+    bannerRequest: null, // { type: 'movie', movieId } | { type: 'fromResults' } | null
     // Home page navigation state preservation
     homePageScrollPosition: 0,
     homePageSearchChips: [],
@@ -194,6 +198,12 @@ export default createStore({
     },
     setFilteredResults (state, value) {
       state.filteredResults = value;
+    },
+    setBannerUrl (state, value) {
+      state.bannerUrl = value;
+    },
+    setBannerRequest (state, value) {
+      state.bannerRequest = value;
     },
     updateLastSave (state, { path, time }) {
       state.lastSavePath = path;

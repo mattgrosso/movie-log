@@ -940,6 +940,7 @@ export default {
     allEntriesWithFlatKeywordsAdded (newVal, oldval) {
       if (!oldval.length && newVal.length) {
         this.buildCastMembersCache();
+        this.resolveBanner(); // data just loaded → set the initial banner
       }
     },
     effectiveSearchFilter(newVal, oldVal) {
@@ -1080,6 +1081,12 @@ export default {
       this.startErrorLogRefresh();
     }
 
+    // Pick the header banner based on how we arrived (context-aware). Runs after
+    // any incoming search/chip has been applied above so 'fromResults' can sample
+    // the visible results. If data isn't loaded yet this no-ops and the
+    // allEntriesWithFlatKeywordsAdded watcher resolves it once the library lands.
+    this.resolveBanner();
+
     // Set up automatic modal re-evaluation every 30 minutes
     // This keeps time-based modals (tie breaks, awards) responsive without manual refresh
     this.modalReevalInterval = setInterval(() => {
@@ -1136,13 +1143,28 @@ export default {
       const value = this.$store.state.settings?.showErrorLogs;
       return typeof value === 'boolean' ? value : false;
     },
-    letterboxdConnected() {
-      const value = this.$store.state.settings?.letterboxdConnected;
-      return typeof value === 'boolean' ? value : false;
+    letterboxdConnected: {
+      get () {
+        const value = this.$store.state.settings?.letterboxdConnected;
+        return typeof value === 'boolean' ? value : false;
+      },
+      set (value) {
+        // Writable so `this.letterboxdConnected = true` (auto-connect) takes effect;
+        // saveLetterboxdConnection() persists it to Firebase.
+        this.$store.commit('setSettings', { ...(this.$store.state.settings || {}), letterboxdConnected: value });
+      }
     },
-    letterboxdUsername() {
-      const value = this.$store.state.settings?.letterboxdUsername;
-      return typeof value === 'string' ? value : '';
+    letterboxdUsername: {
+      get () {
+        const value = this.$store.state.settings?.letterboxdUsername;
+        return typeof value === 'string' ? value : '';
+      },
+      set (value) {
+        // Was getter-only, so v-model on the settings input couldn't write back —
+        // a NEW user's typed username was dropped and saved as '' on blur. The
+        // setter stores it in local settings; @blur saveLetterboxdUsername persists.
+        this.$store.commit('setSettings', { ...(this.$store.state.settings || {}), letterboxdUsername: value });
+      }
     },
     stickinessPromptState() {
       const value = this.$store.state.settings?.stickinessPromptState;
@@ -2549,6 +2571,47 @@ export default {
       newOrder.splice(to, 0, categoryKey);
 
       this.persistGroupOrder(newOrder);
+    },
+    resolveBanner () {
+      // Pick the header banner from how the user arrived (store.bannerRequest, set
+      // by MovieDetail / RateMovie / search links). Runs on each home arrival and
+      // once when the library first loads. Context picks ignore the rating floor;
+      // the no-context fresh pick keeps the >6 floor and only fires when no banner
+      // is set yet, so contextless returns to home don't re-randomize.
+      const entries = this.allEntriesWithFlatKeywordsAdded;
+      if (!entries || !entries.length) return; // data not ready; watcher retries
+
+      const req = this.$store.state.bannerRequest;
+      this.$store.commit('setBannerRequest', null); // consume
+
+      let media = null;
+      if (req && req.type === 'movie' && req.movieId != null) {
+        media = entries.find(e => e.movie && e.movie.id === req.movieId) || null;
+      } else if (req && req.type === 'fromResults') {
+        const pool = this.displayedResults;
+        if (pool && pool.length) {
+          media = pool[Math.floor(Math.random() * pool.length)];
+        }
+      }
+
+      if (!media) {
+        // No resolvable context: keep the current banner if we have one (don't
+        // swap on a plain return home); otherwise pick a fresh movie rated > 6.
+        if (this.$store.state.bannerUrl) return;
+        const overSix = entries.filter(e => this.mostRecentRating(e).calculatedTotal > 6);
+        const pool = overSix.length ? overSix : entries;
+        if (pool.length) {
+          media = pool[Math.floor(Math.random() * pool.length)];
+        }
+      }
+
+      if (media && media.movie) {
+        const backdrop = media.movie.customBackdropPath || media.movie.backdrop_path;
+        const url = backdrop
+          ? `https://image.tmdb.org/t/p/w500${backdrop}`
+          : 'https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg';
+        this.$store.commit('setBannerUrl', url);
+      }
     },
     applyPromoteGroup () {
       const promoteKey = this.$store.state.homePagePromoteGroup;

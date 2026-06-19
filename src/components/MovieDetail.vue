@@ -919,6 +919,9 @@ export default {
       // Set navigation intent to preserve scroll position
       this.$store.commit('setHomePageNavigationIntent', 'close');
 
+      // Feature this movie in the home banner on the way back.
+      this.$store.commit('setBannerRequest', { type: 'movie', movieId: this.result && this.result.movie && this.result.movie.id });
+
       // Navigate directly to home instead of using browser back
       // This prevents issues when navigating between movie detail pages
       this.$router.push('/');
@@ -937,6 +940,8 @@ export default {
       this.$store.commit('setHomePageSearchValue', query);
       this.$store.commit('setHomePageSearchChips', []); // Clear existing chips
       this.$store.commit('setHomePageScrollPosition', 0); // Scroll to top for new search
+      // Feature a movie from the upcoming search results in the home banner.
+      this.$store.commit('setBannerRequest', { type: 'fromResults' });
       this.$router.push('/');
     },
     groupKeyForClickType(type) {
