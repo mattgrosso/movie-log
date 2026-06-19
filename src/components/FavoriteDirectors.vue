@@ -1,5 +1,6 @@
 <template>
   <div class="favorite-directors">
+    <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="openDirectorModal(entry)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -54,10 +55,23 @@
 </template>
 
 <script>
-import { getRating } from "../assets/javascript/GetRating.js";
-import ErrorLogService from '../services/ErrorLogService.js';
+import FavoriteTuner from "./FavoriteTuner.vue";
+import favoriteTuning from "../mixins/favoriteTuning.js";
+
+// Persisted under settings/favoriteTuning/<TUNING_KEY>. Each section uses its own
+// key so its levers stay independent of the others.
+const TUNING_KEY = 'director';
+const TUNING_DEFAULTS = Object.freeze({
+  minEntries: 4,
+  confidenceNumber: 1,
+  countWeight: 0.5,
+  knownForWeight: 0.2,
+  directionWeight: 0.5
+});
 
 export default {
+  components: { FavoriteTuner },
+  mixins: [favoriteTuning],
   props: {
     allEntriesWithFlatKeywordsAdded: {
       type: Array,
@@ -67,30 +81,22 @@ export default {
   data () {
     return {
       topTenList: [],
-      minEntries: 4,
+      tuningKey: TUNING_KEY,
+      tuningDefaults: TUNING_DEFAULTS,
+      minEntries: TUNING_DEFAULTS.minEntries,
       // minEntries: Minimum number of movies you must have seen from a director for them to be considered.
       //   Increase: Only directors you've seen more movies from will appear (list is more exclusive).
       //   Decrease: Directors with fewer movies seen can appear (list is more inclusive).
-      confidenceNumber: 1,
+      confidenceNumber: TUNING_DEFAULTS.confidenceNumber,
       // confidenceNumber: Controls how much the global average rating influences the Bayesian average.
-      //   Increase: Scores are pulled more toward the global average (less sensitive to outliers, more conservative).
-      //   Decrease: Scores reflect your ratings more strongly (more sensitive to high/low averages for directors with few movies).
-      countWeight: 0.5,
+      countWeight: TUNING_DEFAULTS.countWeight,
       // countWeight: Controls how much the number of movies seen from a director boosts their score.
-      //   Increase: Directors you've seen more often are favored, even if their average is lower.
-      //   Decrease: Number of movies seen matters less; average rating dominates.
-      knownForWeight: 0.2,
+      knownForWeight: TUNING_DEFAULTS.knownForWeight,
       // knownForWeight: Controls the bonus for rating a director's 'known_for' movies highly.
-      //   Increase: Directors whose most famous movies you rate highly get a bigger boost.
-      //   Decrease: 'Known_for' bonus has less effect; overall average matters more.
-      manualBoosts: {
-        // Example: 'Steven Spielberg': 1.2, 'Wes Anderson': 0.8
-      },
-      // manualBoosts: Lets you manually adjust a director's score (by name).
-      //   >1: Boosts the director's score (e.g. 1.2 = 20% higher).
-      //   <1: Reduces the director's score (e.g. 0.8 = 20% lower).
-      directionWeight: 0.5, // adjust as desired
-      // This gives the direction rating more weight in the final score.
+      // manualBoosts: dormant/unused scaffold (always empty → no effect). Left as a
+      // hook for a future per-person editor; not exposed in the tuner.
+      manualBoosts: {},
+      directionWeight: TUNING_DEFAULTS.directionWeight,
       showModal: false,
       selectedDirector: null,
     }
@@ -98,23 +104,38 @@ export default {
   computed: {
     overallWeight() {
       return 1 - this.directionWeight;
+    },
+    tunerLevers () {
+      return [
+        {
+          key: 'minEntries', label: 'Minimum films', value: this.minEntries,
+          min: 1, max: 15, step: 1,
+          help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
+        },
+        {
+          key: 'confidenceNumber', label: 'Small-sample caution', value: this.confidenceNumber,
+          min: 0, max: 10, step: 0.5,
+          help: "Pulls directors with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
+        },
+        {
+          key: 'countWeight', label: 'Reward for volume', value: this.countWeight,
+          min: 0, max: 2, step: 0.05,
+          help: "Boosts directors you've watched a lot. Higher = prolific favorites climb even if their average dips slightly."
+        },
+        {
+          key: 'knownForWeight', label: 'Signature-film bonus', value: this.knownForWeight,
+          min: 0, max: 1, step: 0.05,
+          help: "Extra credit when you've rated their best-known films highly. Higher = loving their famous work matters more."
+        },
+        {
+          key: 'directionWeight', label: 'Direction vs. overall', value: this.directionWeight,
+          min: 0, max: 1, step: 0.05,
+          help: 'Blends each film’s Direction score with its overall score. Higher = leans on your Direction ratings; 0 = pure overall.'
+        }
+      ];
     }
   },
-  async mounted () {
-    this.waitForDataAndBuildList();
-  },
   methods: {
-    async waitForDataAndBuildList() {
-      // Wait until allEntriesWithFlatKeywordsAdded is populated, then build the list
-      if (Array.isArray(this.allEntriesWithFlatKeywordsAdded) && this.allEntriesWithFlatKeywordsAdded.length > 0) {
-        await this.buildTopTwelveList();
-      } else {
-        setTimeout(this.waitForDataAndBuildList, 100);
-      }
-    },
-    updateSearchValue (value) {
-      this.$emit('updateSearchValue', value);
-    },
     averageRating(results, weights = null) {
       // For directors, blend overall and direction ratings
       const getBlendedRating = (result) => {
@@ -153,70 +174,10 @@ export default {
         return (total / ratings.length).toFixed(2);
       }
     },
-    bayesianAverage(list, weights = null) {
-      // Weighted Bayesian average
-      const n = weights ? weights.reduce((a, b) => a + b, 0) : list.length;
-      const c = this.confidenceNumber;
-      const avg = parseFloat(this.averageRating(list, weights));
-      const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
-      return (n / (n + c)) * avg + (c / (n + c)) * globalAvg;
-    },
-    compareTwoLists(listOne, listTwo) {
-      if (!listOne || !listTwo) {
-        return [];
-      }
-      const numberOfMoviesInFirstList = listOne.length;
-      const confidenceNumber = this.confidenceNumber;
-      const averageRatingForFirstList = this.averageRating(listOne);
-      const averageRatingForAllMovies = this.averageRating(this.allEntriesWithFlatKeywordsAdded);
-      const firstListBayesianAverage  = (numberOfMoviesInFirstList  / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForFirstList  + (confidenceNumber / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForAllMovies));
-      const numberOfMoviesInSecondList = listTwo.length;
-      const averageRatingForSecondList = this.averageRating(listTwo);
-      const secondListBayesianAverage = (numberOfMoviesInSecondList / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForSecondList + (confidenceNumber / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForAllMovies));
-      return {
-        firstListBayesianAverage: firstListBayesianAverage,
-        secondListBayesianAverage: secondListBayesianAverage
-      };
-    },
-    isListOneBetterThanListTwo(listOne, listTwo) {
-      if (!listOne || !listTwo) {
-        return false;
-      }
-      const comparison = this.compareTwoLists(listOne, listTwo);
-      return comparison.firstListBayesianAverage > comparison.secondListBayesianAverage;
-    },
-    isListTwoBetterThanListOne(listOne, listTwo) {
-      if (!listOne || !listTwo) {
-        return false;
-      }
-      const comparison = this.compareTwoLists(listOne, listTwo);
-      return comparison.secondListBayesianAverage > comparison.firstListBayesianAverage;
-    },
-    mostRecentRating(result) {
-      // Helper to get most recent rating for a result (legacy, not used in modal film list anymore)
-      if (result.ratings && result.ratings.length) {
-        return result.ratings[result.ratings.length - 1];
-      }
-      return {};
-    },
-    async getDetailsForCastMember(actorName) {
-      const query = encodeURIComponent(actorName);
-      const url = `https://api.themoviedb.org/3/search/person?api_key=${process.env.VUE_APP_TMDB_API_KEY}&query=${query}`;
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error('Failed to fetch from TMDB');
-        }
-        const data = await response.json();
-        // Return the first matching person or null if none found
-        return data.results && data.results.length > 0 ? data.results[0] : null;
-      } catch (error) {
-        console.error('Error fetching TMDB person:', error);
-        ErrorLogService.error('Error fetching TMDB person:', error);
-        return null;
-      }
-    },
     async buildTopTwelveList() {
+      // Phase 1 (runs once per data load): gather every director and their rated
+      // films into peopleData. No minEntries filter and no TMDB fetch here, so
+      // re-tuning never has to re-gather. Scoring + fetching happen in rescore().
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
 
@@ -232,87 +193,102 @@ export default {
         });
       });
 
-      // Filter by minimum entries and build list objects
-      const listObjs = await Promise.all(Object.entries(valueToMovies)
-        .filter(([, appearances]) => appearances.length >= this.minEntries)
-        .map(async ([name, appearances]) => {
-          // DETERMINISTIC SORT: sort by movie title, then billing
-          const sortedAppearances = appearances.slice().sort((a, b) => {
-            // Normalize titles for comparison
-            const titleA = (a.entry.movie.title || '').trim().toLowerCase();
-            const titleB = (b.entry.movie.title || '').trim().toLowerCase();
-            if (titleA < titleB) return -1;
-            if (titleA > titleB) return 1;
-            // Billing is always 0 for directors, but keep for future-proofing
-            if (a.billing !== b.billing) return a.billing - b.billing;
-            // Tiebreaker: movie ID (should be unique and stable)
-            const idA = a.entry.movie.id || 0;
-            const idB = b.entry.movie.id || 0;
-            return idA - idB;
-          });
-          const entries = sortedAppearances.map(a => a.entry);
-          const weights = sortedAppearances.map(a => 1); // All weights 1 for directors
+      this.peopleData = Object.entries(valueToMovies).map(([name, appearances]) => {
+        // DETERMINISTIC SORT: sort by movie title, then billing, then id.
+        const sortedAppearances = appearances.slice().sort((a, b) => {
+          const titleA = (a.entry.movie.title || '').trim().toLowerCase();
+          const titleB = (b.entry.movie.title || '').trim().toLowerCase();
+          if (titleA < titleB) return -1;
+          if (titleA > titleB) return 1;
+          if (a.billing !== b.billing) return a.billing - b.billing;
+          const idA = a.entry.movie.id || 0;
+          const idB = b.entry.movie.id || 0;
+          return idA - idB;
+        });
+        return {
+          name,
+          entries: sortedAppearances.map(a => a.entry),
+          weights: sortedAppearances.map(() => 1) // All weights 1 for directors
+        };
+      });
 
-          const bayesian = this.bayesianAverage(entries, weights);
-          const count = entries.length;
-          // Fetch TMDB details for known_for, popularity, etc.
-          const details = await this.getDetailsForCastMember(name);
-          // Known_for bonus: average blended rating of known_for movies you have rated
-          let knownForBonus = 0;
-          if (details && Array.isArray(details.known_for) && details.known_for.length) {
-            // Find your ratings for these movies
-            const knownForIds = details.known_for.map(m => m.id);
-            const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
-            if (ratedKnownFor.length) {
-              // Use blended rating for bonus as well
-              const ratings = ratedKnownFor.map(e => {
-                const mostRecent = this.mostRecentRating(e);
-                const overall = parseFloat(mostRecent.calculatedTotal);
-                const direction = typeof mostRecent.direction === 'number' && !isNaN(mostRecent.direction)
-                  ? parseFloat(mostRecent.direction)
-                  : null;
-                if (!isNaN(overall) && direction !== null) {
-                  return (this.overallWeight * overall) + (this.directionWeight * direction);
-                } else if (!isNaN(overall)) {
-                  return overall;
-                } else if (direction !== null) {
-                  return direction;
-                }
-                return NaN;
-              }).filter(r => !isNaN(r));
-              if (ratings.length) {
-                const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
-                knownForBonus = avgKnownFor * this.knownForWeight;
-              } else {
-                knownForBonus = 0;
-              }
-            } else {
-              knownForBonus = 0;
-            }
-          }
-          // Manual boost
-          const manualBoost = this.manualBoosts[name] || 1;
-          // Final score: bayesian * (1 + countWeight * log(count)) * manualBoost + knownForBonus
-          let finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
-          if (isNaN(finalScore)) finalScore = 0;
+      await this.rescore();
+    },
+    async getCachedDetails(name) {
+      // Cache by name so slider re-scores never re-hit TMDB.
+      if (Object.prototype.hasOwnProperty.call(this.detailsCache, name)) {
+        return this.detailsCache[name];
+      }
+      const details = await this.getDetailsForCastMember(name);
+      this.detailsCache[name] = details;
+      return details;
+    },
+    computeKnownForBonus(entries, details) {
+      // Average blended rating of the person's 'known_for' films you've rated,
+      // scaled by knownForWeight. Mirrors the original inline computation exactly.
+      if (!details || !Array.isArray(details.known_for) || !details.known_for.length) return 0;
+      const knownForIds = details.known_for.map(m => m.id);
+      const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
+      if (!ratedKnownFor.length) return 0;
+      const ratings = ratedKnownFor.map(e => {
+        const mostRecent = this.mostRecentRating(e);
+        const overall = parseFloat(mostRecent.calculatedTotal);
+        const direction = typeof mostRecent.direction === 'number' && !isNaN(mostRecent.direction)
+          ? parseFloat(mostRecent.direction)
+          : null;
+        if (!isNaN(overall) && direction !== null) {
+          return (this.overallWeight * overall) + (this.directionWeight * direction);
+        } else if (!isNaN(overall)) {
+          return overall;
+        } else if (direction !== null) {
+          return direction;
+        }
+        return NaN;
+      }).filter(r => !isNaN(r));
+      if (!ratings.length) return 0;
+      const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+      return avgKnownFor * this.knownForWeight;
+    },
+    async rescore() {
+      // Phase 2 (runs on every tuner change): score the eligible people using the
+      // CURRENT lever values, reusing cached entries + TMDB details. A sequence
+      // token drops stale results if a newer rescore started while we awaited.
+      const seq = ++this.rescoreSeq;
+      const eligible = this.peopleData.filter(p => p.entries.length >= this.minEntries);
 
-          return {
-            name,
-            entries,
-            weights,
-            bayesian,
-            count,
-            details,
-            finalScore,
-            knownForBonus,
-          };
-        })
-      );
+      // Lazily fetch details only for the currently-eligible people (cached).
+      await Promise.all(eligible.map(async (p) => {
+        if (!Object.prototype.hasOwnProperty.call(this.detailsCache, p.name)) {
+          await this.getCachedDetails(p.name);
+        }
+      }));
+      if (seq !== this.rescoreSeq) return; // superseded by a newer rescore
 
-      // Sort using finalScore
-      listObjs.sort((a, b) => b.finalScore - a.finalScore);
+      // Compute the lever-dependent global average once for this pass.
+      const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
 
-      this.topTenList = listObjs.slice(0, 12);
+      const scored = eligible.map((p) => {
+        const details = this.detailsCache[p.name];
+        const bayesian = this.bayesianAverage(p.entries, p.weights, globalAvg);
+        const count = p.entries.length;
+        const knownForBonus = this.computeKnownForBonus(p.entries, details);
+        const manualBoost = this.manualBoosts[p.name] || 1;
+        let finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
+        if (isNaN(finalScore)) finalScore = 0;
+        return {
+          name: p.name,
+          entries: p.entries,
+          weights: p.weights,
+          bayesian,
+          count,
+          details,
+          finalScore,
+          knownForBonus
+        };
+      });
+
+      scored.sort((a, b) => b.finalScore - a.finalScore);
+      this.topTenList = scored.slice(0, 12);
     },
     openDirectorModal(entry) {
       this.selectedDirector = entry;
@@ -324,17 +300,6 @@ export default {
       this.selectedDirector = null;
       document.body.classList.remove('no-scroll');
     },
-    getDirectorBreakdown(entry) {
-      if (!entry) return null;
-      // Build a breakdown of the director's score
-      const breakdown = [];
-      breakdown.push({ label: 'Final Score', value: entry.finalScore?.toFixed(2) });
-      breakdown.push({ label: 'Bayesian Average', value: entry.bayesian?.toFixed(2) });
-      breakdown.push({ label: 'Film Count', value: entry.count });
-      breakdown.push({ label: 'Known For Bonus', value: entry.knownForBonus?.toFixed(2) });
-      return breakdown;
-    },
-    getRating,
     searchForDirector() {
       const name = this.selectedDirector?.name;
       this.closeDirectorModal();
@@ -346,8 +311,10 @@ export default {
 
 <style lang="scss">
 .favorite-directors {
+  align-items: center;
   color: #fff;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   width: 100%;
 

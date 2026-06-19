@@ -1,5 +1,6 @@
 <template>
   <div class="favorite-actresses">
+    <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="openActressModal(entry)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -54,10 +55,21 @@
 </template>
 
 <script>
-import { getRating } from "../assets/javascript/GetRating.js";
-import ErrorLogService from '../services/ErrorLogService.js';
+import FavoriteTuner from "./FavoriteTuner.vue";
+import favoriteTuning from "../mixins/favoriteTuning.js";
+
+const TUNING_KEY = 'actress';
+const TUNING_DEFAULTS = Object.freeze({
+  minEntries: 3,
+  confidenceNumber: 2,
+  billingLimit: 12,
+  billingExponent: 4,
+  performanceWeight: 0.7
+});
 
 export default {
+  components: { FavoriteTuner },
+  mixins: [favoriteTuning],
   props: {
     allEntriesWithFlatKeywordsAdded: {
       type: Array,
@@ -66,14 +78,14 @@ export default {
   },
   data () {
     return {
-      count: 0, // Counter for debugging
       topTenList: [],
-      minEntries: 3, // Minimum number of entries for an actor to be included
-      confidenceNumber: 2, // This is the confidence number used in Bayesian average calculations
-      billingLimit: 12, // Only count actresses in the top 15 billing per film
-      billingExponent: 4, // Exponent for billing weight calculation
-      performanceWeight: 0.7, // adjust as desired
-      // This gives the performance rating more weight in the final score
+      tuningKey: TUNING_KEY,
+      tuningDefaults: TUNING_DEFAULTS,
+      minEntries: TUNING_DEFAULTS.minEntries,
+      confidenceNumber: TUNING_DEFAULTS.confidenceNumber,
+      billingLimit: TUNING_DEFAULTS.billingLimit, // Only count actresses in the top-N billing per film
+      billingExponent: TUNING_DEFAULTS.billingExponent, // Sharpness of the top-billing weighting
+      performanceWeight: TUNING_DEFAULTS.performanceWeight, // Blend of performance vs overall
       showModal: false,
       selectedActress: null,
     }
@@ -81,23 +93,38 @@ export default {
   computed: {
     overallWeight() {
       return 1 - this.performanceWeight;
+    },
+    tunerLevers () {
+      return [
+        {
+          key: 'minEntries', label: 'Minimum films', value: this.minEntries,
+          min: 1, max: 15, step: 1,
+          help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
+        },
+        {
+          key: 'confidenceNumber', label: 'Small-sample caution', value: this.confidenceNumber,
+          min: 0, max: 10, step: 0.5,
+          help: "Pulls actresses with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
+        },
+        {
+          key: 'billingLimit', label: 'Top-billing cutoff', value: this.billingLimit,
+          min: 1, max: 30, step: 1,
+          help: 'Only count an actress when they appear within the top-N billed cast of a film. Lower = leading roles only.'
+        },
+        {
+          key: 'billingExponent', label: 'Lead-role emphasis', value: this.billingExponent,
+          min: 0, max: 8, step: 0.5,
+          help: 'How sharply top billing outweighs lower billing. Higher = a #1 lead counts far more than a #8 supporting part; 0 = all counted equally.'
+        },
+        {
+          key: 'performanceWeight', label: 'Performance vs. overall', value: this.performanceWeight,
+          min: 0, max: 1, step: 0.05,
+          help: 'Blends each film’s Performance score with its overall score. Higher = leans on your Performance ratings; 0 = pure overall.'
+        }
+      ];
     }
   },
-  async mounted () {
-    this.waitForDataAndBuildList();
-  },
   methods: {
-    async waitForDataAndBuildList() {
-      // Wait until allEntriesWithFlatKeywordsAdded is populated, then build the list
-      if (Array.isArray(this.allEntriesWithFlatKeywordsAdded) && this.allEntriesWithFlatKeywordsAdded.length > 0) {
-        await this.buildTopTwelveList();
-      } else {
-        setTimeout(this.waitForDataAndBuildList, 100);
-      }
-    },
-    updateSearchValue (value) {
-      this.$emit('updateSearchValue', value);
-    },
     averageRating(results, weights = null) {
       // For actresses, blend overall and performance ratings
       const getBlendedRating = (result) => {
@@ -136,76 +163,15 @@ export default {
         return (total / ratings.length).toFixed(2);
       }
     },
-    bayesianAverage(list, weights = null) {
-      // Weighted Bayesian average using blended performance/overall rating for actresses
-      const n = weights ? weights.reduce((a, b) => a + b, 0) : list.length;
-      const c = this.confidenceNumber;
-      const avg = parseFloat(this.averageRating(list, weights));
-      const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
-      return (n / (n + c)) * avg + (c / (n + c)) * globalAvg;
-    },
-    compareTwoLists(listOne, listTwo) {
-      if (!listOne || !listTwo) {
-        return [];
-      }
-      const numberOfMoviesInFirstList = listOne.length;
-      const confidenceNumber = this.confidenceNumber;
-      const averageRatingForFirstList = this.averageRating(listOne);
-      const averageRatingForAllMovies = this.averageRating(this.allEntriesWithFlatKeywordsAdded);
-      const firstListBayesianAverage  = (numberOfMoviesInFirstList  / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForFirstList  + (confidenceNumber / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForAllMovies));
-      const numberOfMoviesInSecondList = listTwo.length;
-      const averageRatingForSecondList = this.averageRating(listTwo);
-      const secondListBayesianAverage = (numberOfMoviesInSecondList / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForSecondList + (confidenceNumber / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForAllMovies));
-      return {
-        firstListBayesianAverage: firstListBayesianAverage,
-        secondListBayesianAverage: secondListBayesianAverage
-      };
-    },
-    isListOneBetterThanListTwo(listOne, listTwo) {
-      if (!listOne || !listTwo) {
-        return false;
-      }
-      const comparison = this.compareTwoLists(listOne, listTwo);
-      return comparison.firstListBayesianAverage > comparison.secondListBayesianAverage;
-    },
-    isListTwoBetterThanListOne(listOne, listTwo) {
-      if (!listOne || !listTwo) {
-        return false;
-      }
-      const comparison = this.compareTwoLists(listOne, listTwo);
-      return comparison.secondListBayesianAverage > comparison.firstListBayesianAverage;
-    },
-    mostRecentRating(result) {
-      // Helper to get most recent rating for a result
-      if (result.ratings && result.ratings.length) {
-        return result.ratings[result.ratings.length - 1];
-      }
-      return {};
-    },
-    async getDetailsForCastMember(actorName) {
-      const query = encodeURIComponent(actorName);
-      const url = `https://api.themoviedb.org/3/search/person?api_key=${process.env.VUE_APP_TMDB_API_KEY}&query=${query}`;
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error('Failed to fetch from TMDB');
-        }
-        const data = await response.json();
-        // Return the first matching person or null if none found
-        return data.results && data.results.length > 0 ? data.results[0] : null;
-      } catch (error) {
-        console.error('Error fetching TMDB person:', error);
-        ErrorLogService.error('Error fetching TMDB person:', error);
-        return null;
-      }
-    },
-    async buildTopTwelveList() {
+    gatherCastPeople() {
+      // Gather cast appearances within the current billingLimit, weighting each
+      // by 1/(billing+1)^billingExponent. Re-run on each rescore because both
+      // levers change the gathered set/weights (cheap: no TMDB calls here).
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
-      const billingLimit = this.billingLimit; // Use from data
+      const billingLimit = this.billingLimit;
       allEntries.forEach(entry => {
-        const movie = entry.movie;
-        const value = movie.cast;
+        const value = entry.movie.cast;
         if (!value) return;
         if (Array.isArray(value)) {
           value.forEach((val, idx) => {
@@ -215,45 +181,59 @@ export default {
             valueToMovies[name].push({ entry, billing: idx });
           });
         } else {
-          // Single cast member (should be rare)
           const name = value.name || value;
           if (!valueToMovies[name]) valueToMovies[name] = [];
           valueToMovies[name].push({ entry, billing: 0 });
         }
       });
-      const listObjs = Object.entries(valueToMovies)
-        .filter(([, appearances]) => appearances.length >= this.minEntries)
-        .map(([name, appearances]) => {
-          // Sort appearances by movie title, then billing for deterministic order
-          const sortedAppearances = appearances.slice().sort((a, b) => {
-            const titleA = a.entry.movie.title || '';
-            const titleB = b.entry.movie.title || '';
-            if (titleA < titleB) return -1;
-            if (titleA > titleB) return 1;
-            return a.billing - b.billing;
-          });
-          const entries = sortedAppearances.map(a => a.entry);
-          const weights = sortedAppearances.map(a => 1 / Math.pow(a.billing + 1, this.billingExponent));
-          return {
-            name,
-            entries,
-            weights,
-            bayesian: this.bayesianAverage(entries, weights),
-            count: entries.length
-          };
+      return Object.entries(valueToMovies).map(([name, appearances]) => {
+        const sortedAppearances = appearances.slice().sort((a, b) => {
+          const titleA = a.entry.movie.title || '';
+          const titleB = b.entry.movie.title || '';
+          if (titleA < titleB) return -1;
+          if (titleA > titleB) return 1;
+          return a.billing - b.billing;
         });
-      listObjs.sort((a, b) => b.bayesian - a.bayesian);
-      const topTenActresses = [];
-      for (let i = 0; i < listObjs.length; i++) {
-        if (topTenActresses.length >= 12) break;
-        const entry = listObjs[i];
-        const details = await this.getDetailsForCastMember(entry.name);
+        return {
+          name,
+          entries: sortedAppearances.map(a => a.entry),
+          weights: sortedAppearances.map(a => 1 / Math.pow(a.billing + 1, this.billingExponent))
+        };
+      });
+    },
+    async buildTopTwelveList() {
+      // Cast levers (billingLimit/billingExponent) affect the gathered set, so
+      // rescore() re-gathers each pass. TMDB gender lookups are still cached.
+      await this.rescore();
+    },
+    async rescore() {
+      const seq = ++this.rescoreSeq;
+      const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
+      const ranked = this.gatherCastPeople()
+        .filter(p => p.entries.length >= this.minEntries)
+        .map(p => ({
+          name: p.name,
+          entries: p.entries,
+          weights: p.weights,
+          bayesian: this.bayesianAverage(p.entries, p.weights, globalAvg),
+          count: p.entries.length
+        }))
+        .sort((a, b) => b.bayesian - a.bayesian);
+
+      // Walk highest-bayesian first, fetching (cached) details to gender-gate,
+      // stopping once we have 12 actresses (gender === 1).
+      const top = [];
+      for (let i = 0; i < ranked.length && top.length < 12; i++) {
+        const cand = ranked[i];
+        const details = await this.getCachedDetails(cand.name);
+        if (seq !== this.rescoreSeq) return; // superseded by a newer rescore
         if (!details || typeof details.gender !== 'number') continue;
-        if (details.gender === 1 && topTenActresses.length < 12) {
-          topTenActresses.push({ ...entry, details });
+        if (details.gender === 1) {
+          top.push({ ...cand, details });
         }
       }
-      this.topTenList = topTenActresses;
+      if (seq !== this.rescoreSeq) return;
+      this.topTenList = top;
     },
     openActressModal(entry) {
       this.selectedActress = entry;
@@ -265,16 +245,6 @@ export default {
       this.selectedActress = null;
       document.body.classList.remove('no-scroll');
     },
-    getActressBreakdown(entry) {
-      if (!entry) return null;
-      const breakdown = [];
-      breakdown.push({ label: 'Final Score', value: entry.finalScore?.toFixed(2) });
-      breakdown.push({ label: 'Bayesian Average', value: entry.bayesian?.toFixed(2) });
-      breakdown.push({ label: 'Film Count', value: entry.count });
-      breakdown.push({ label: 'Known For Bonus', value: entry.knownForBonus?.toFixed(2) });
-      return breakdown;
-    },
-    getRating,
     searchForActress() {
       const name = this.selectedActress?.name;
       this.closeActressModal();
@@ -286,8 +256,10 @@ export default {
 
 <style lang="scss">
 .favorite-actresses {
+  align-items: center;
   color: #fff;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   width: 100%;
 

@@ -1114,8 +1114,11 @@ export default {
           }
         }
       } else {
-        // Movie not logged - use the log action to open rating/review interface
-        const success = LetterboxdUrlService.logMovie(movie.title, this.getYear(this.result));
+        // Movie not logged - use the log action to open rating/review interface,
+        // pre-filling the star rating from Cinema Roll's normalized score.
+        const success = LetterboxdUrlService.logMovie(movie.title, this.getYear(this.result), {
+          normalizedRating: this.normalizedRatingForMedia(this.result)
+        });
 
         if (!success) {
           console.error('Failed to open movie on Letterboxd for logging:', movie.title);

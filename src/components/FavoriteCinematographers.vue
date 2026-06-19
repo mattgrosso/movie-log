@@ -1,5 +1,6 @@
 <template>
   <div class="favorite-cinematographers">
+    <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="openCinematographerModal(entry)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -56,10 +57,21 @@
 </template>
 
 <script>
-import { getRating } from "../assets/javascript/GetRating.js";
-import ErrorLogService from '../services/ErrorLogService.js';
+import FavoriteTuner from "./FavoriteTuner.vue";
+import favoriteTuning from "../mixins/favoriteTuning.js";
+
+const TUNING_KEY = 'cinematographer';
+const TUNING_DEFAULTS = Object.freeze({
+  minEntries: 5,
+  confidenceNumber: 1,
+  countWeight: 0.25,
+  knownForWeight: 0.2,
+  imageryWeight: 0.5
+});
 
 export default {
+  components: { FavoriteTuner },
+  mixins: [favoriteTuning],
   props: {
     allEntriesWithFlatKeywordsAdded: {
       type: Array,
@@ -69,6 +81,8 @@ export default {
   data () {
     return {
       topTenList: [],
+      tuningKey: TUNING_KEY,
+      tuningDefaults: TUNING_DEFAULTS,
       minEntries: 5,
       // minEntries: Minimum number of movies you must have seen from a cinematographer for them to be considered.
       //   Increase: Only cinematographers you've seen more movies from will appear (list is more exclusive).
@@ -100,23 +114,38 @@ export default {
   computed: {
     overallWeight() {
       return 1 - this.imageryWeight;
+    },
+    tunerLevers () {
+      return [
+        {
+          key: 'minEntries', label: 'Minimum films', value: this.minEntries,
+          min: 1, max: 15, step: 1,
+          help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
+        },
+        {
+          key: 'confidenceNumber', label: 'Small-sample caution', value: this.confidenceNumber,
+          min: 0, max: 10, step: 0.5,
+          help: "Pulls cinematographers with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
+        },
+        {
+          key: 'countWeight', label: 'Reward for volume', value: this.countWeight,
+          min: 0, max: 2, step: 0.05,
+          help: "Boosts cinematographers you've watched a lot. Higher = prolific favorites climb even if their average dips slightly."
+        },
+        {
+          key: 'knownForWeight', label: 'Signature-film bonus', value: this.knownForWeight,
+          min: 0, max: 1, step: 0.05,
+          help: "Extra credit when you've rated their best-known films highly. Higher = loving their famous work matters more."
+        },
+        {
+          key: 'imageryWeight', label: 'Imagery vs. overall', value: this.imageryWeight,
+          min: 0, max: 1, step: 0.05,
+          help: 'Blends each film’s Imagery score with its overall score. Higher = leans on your Imagery ratings; 0 = pure overall.'
+        }
+      ];
     }
   },
-  async mounted () {
-    this.waitForDataAndBuildList();
-  },
   methods: {
-    async waitForDataAndBuildList() {
-      // Wait until allEntriesWithFlatKeywordsAdded is populated, then build the list
-      if (Array.isArray(this.allEntriesWithFlatKeywordsAdded) && this.allEntriesWithFlatKeywordsAdded.length > 0) {
-        await this.buildTopTwelveList();
-      } else {
-        setTimeout(this.waitForDataAndBuildList, 100);
-      }
-    },
-    updateSearchValue (value) {
-      this.$emit('updateSearchValue', value);
-    },
     averageRating(results, weights = null) {
       // For cinematographers, blend overall and imagery ratings
       const getBlendedRating = (result) => {
@@ -155,70 +184,8 @@ export default {
         return (total / ratings.length).toFixed(2);
       }
     },
-    bayesianAverage(list, weights = null) {
-      // Weighted Bayesian average using blended imagery/overall rating for cinematographers
-      const n = weights ? weights.reduce((a, b) => a + b, 0) : list.length;
-      const c = this.confidenceNumber;
-      const avg = parseFloat(this.averageRating(list, weights));
-      const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
-      return (n / (n + c)) * avg + (c / (n + c)) * globalAvg;
-    },
-    compareTwoLists(listOne, listTwo) {
-      if (!listOne || !listTwo) {
-        return [];
-      }
-      const numberOfMoviesInFirstList = listOne.length;
-      const confidenceNumber = this.confidenceNumber;
-      const averageRatingForFirstList = this.averageRating(listOne);
-      const averageRatingForAllMovies = this.averageRating(this.allEntriesWithFlatKeywordsAdded);
-      const firstListBayesianAverage  = (numberOfMoviesInFirstList  / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForFirstList  + (confidenceNumber / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForAllMovies));
-      const numberOfMoviesInSecondList = listTwo.length;
-      const averageRatingForSecondList = this.averageRating(listTwo);
-      const secondListBayesianAverage = (numberOfMoviesInSecondList / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForSecondList + (confidenceNumber / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForAllMovies));
-      return {
-        firstListBayesianAverage: firstListBayesianAverage,
-        secondListBayesianAverage: secondListBayesianAverage
-      };
-    },
-    isListOneBetterThanListTwo(listOne, listTwo) {
-      if (!listOne || !listTwo) {
-        return false;
-      }
-      const comparison = this.compareTwoLists(listOne, listTwo);
-      return comparison.firstListBayesianAverage > comparison.secondListBayesianAverage;
-    },
-    isListTwoBetterThanListOne(listOne, listTwo) {
-      if (!listOne || !listTwo) {
-        return false;
-      }
-      const comparison = this.compareTwoLists(listOne, listTwo);
-      return comparison.secondListBayesianAverage > comparison.firstListBayesianAverage;
-    },
-    mostRecentRating(result) {
-      // Helper to get most recent rating for a result
-      if (result.ratings && result.ratings.length) {
-        return result.ratings[result.ratings.length - 1];
-      }
-      return {};
-    },
-    async getDetailsForCastMember(actorName) {
-      const query = encodeURIComponent(actorName);
-      const url = `https://api.themoviedb.org/3/search/person?api_key=${process.env.VUE_APP_TMDB_API_KEY}&query=${query}`;
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error('Failed to fetch from TMDB');
-        }
-        const data = await response.json();
-        // Return the first matching person or null if none found
-        return data.results && data.results.length > 0 ? data.results[0] : null;
-      } catch (error) {
-        console.error('Error fetching TMDB person:', error);
-        ErrorLogService.error('Error fetching TMDB person:', error);
-        return null;
-      }
-    },
     async buildTopTwelveList() {
+      // Phase 1 (once per data load): gather every cinematographer + their films.
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
 
@@ -234,55 +201,59 @@ export default {
         });
       });
 
-      // Filter by minimum entries and build list objects
-      const listObjs = await Promise.all(Object.entries(valueToMovies)
-        .filter(([, appearances]) => appearances.length >= this.minEntries)
-        .map(async ([name, appearances]) => {
-          const sortedAppearances = appearances.slice().sort((a, b) => {
-            const titleA = a.entry.movie.title || '';
-            const titleB = b.entry.movie.title || '';
-            if (titleA < titleB) return -1;
-            if (titleA > titleB) return 1;
-            return a.billing - b.billing;
-          });
-          const entries = sortedAppearances.map(a => a.entry);
-          const weights = sortedAppearances.map(a => 1); // All weights 1 for cinematographers
-          const bayesian = this.bayesianAverage(entries, weights);
-          const count = entries.length;
-          // Fetch TMDB details for known_for, popularity, etc.
-          const details = await this.getDetailsForCastMember(name);
-          // Known_for bonus: average rating of known_for movies you have rated
-          let knownForBonus = 0;
-          if (details && Array.isArray(details.known_for) && details.known_for.length) {
-            // Find your ratings for these movies
-            const knownForIds = details.known_for.map(m => m.id);
-            const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
-            if (ratedKnownFor.length) {
-              const avgKnownFor = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).reduce((a, b) => a + b, 0) / ratedKnownFor.length;
-              knownForBonus = avgKnownFor * this.knownForWeight;
-            }
-          }
-          // Manual boost
-          const manualBoost = this.manualBoosts[name] || 1;
-          // Final score: bayesian * (1 + countWeight * log(count)) * manualBoost + knownForBonus
-          const finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
-          return {
-            name,
-            entries,
-            weights,
-            bayesian,
-            count,
-            details,
-            finalScore,
-            knownForBonus,
-          };
-        })
-      );
+      this.peopleData = Object.entries(valueToMovies).map(([name, appearances]) => {
+        const sortedAppearances = appearances.slice().sort((a, b) => {
+          const titleA = a.entry.movie.title || '';
+          const titleB = b.entry.movie.title || '';
+          if (titleA < titleB) return -1;
+          if (titleA > titleB) return 1;
+          return a.billing - b.billing;
+        });
+        return {
+          name,
+          entries: sortedAppearances.map(a => a.entry),
+          weights: sortedAppearances.map(() => 1) // All weights 1 for cinematographers
+        };
+      });
 
-      // Sort using finalScore
-      listObjs.sort((a, b) => b.finalScore - a.finalScore);
+      await this.rescore();
+    },
+    computeKnownForBonus(entries, details) {
+      // Average PLAIN overall rating of the cinematographer's 'known_for' films
+      // you've rated, scaled by knownForWeight. Preserves the original behavior.
+      if (!details || !Array.isArray(details.known_for) || !details.known_for.length) return 0;
+      const knownForIds = details.known_for.map(m => m.id);
+      const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
+      if (!ratedKnownFor.length) return 0;
+      const avgKnownFor = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).reduce((a, b) => a + b, 0) / ratedKnownFor.length;
+      return avgKnownFor * this.knownForWeight;
+    },
+    async rescore() {
+      const seq = ++this.rescoreSeq;
+      const eligible = this.peopleData.filter(p => p.entries.length >= this.minEntries);
 
-      this.topTenList = listObjs.slice(0, 12);
+      await Promise.all(eligible.map(async (p) => {
+        if (!Object.prototype.hasOwnProperty.call(this.detailsCache, p.name)) {
+          await this.getCachedDetails(p.name);
+        }
+      }));
+      if (seq !== this.rescoreSeq) return;
+
+      const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
+
+      const scored = eligible.map((p) => {
+        const details = this.detailsCache[p.name];
+        const bayesian = this.bayesianAverage(p.entries, p.weights, globalAvg);
+        const count = p.entries.length;
+        const knownForBonus = this.computeKnownForBonus(p.entries, details);
+        const manualBoost = this.manualBoosts[p.name] || 1;
+        let finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
+        if (isNaN(finalScore)) finalScore = 0;
+        return { name: p.name, entries: p.entries, weights: p.weights, bayesian, count, details, finalScore, knownForBonus };
+      });
+
+      scored.sort((a, b) => b.finalScore - a.finalScore);
+      this.topTenList = scored.slice(0, 12);
     },
     openCinematographerModal(entry) {
       this.selectedCinematographer = entry;
@@ -294,16 +265,6 @@ export default {
       this.selectedCinematographer = null;
       document.body.classList.remove('no-scroll');
     },
-    getCinematographerBreakdown(entry) {
-      if (!entry) return null;
-      const breakdown = [];
-      breakdown.push({ label: 'Final Score', value: entry.finalScore?.toFixed(2) });
-      breakdown.push({ label: 'Bayesian Average', value: entry.bayesian?.toFixed(2) });
-      breakdown.push({ label: 'Film Count', value: entry.count });
-      breakdown.push({ label: 'Known For Bonus', value: entry.knownForBonus?.toFixed(2) });
-      return breakdown;
-    },
-    getRating,
     searchForCinematographer() {
       const name = this.selectedCinematographer?.name;
       this.closeCinematographerModal();
@@ -315,8 +276,10 @@ export default {
 
 <style lang="scss">
 .favorite-cinematographers {
+  align-items: center;
   color: #fff;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   width: 100%;
 

@@ -32,20 +32,58 @@ class LetterboxdUrlService {
   }
 
   /**
-   * Generate full Letterboxd URLs
+   * Today's date as a local YYYY-MM-DD string (Letterboxd's `date` param format).
+   * Built from local date components — NOT toISOString(), which is UTC and would
+   * log the wrong day for late-evening viewings in western timezones.
    */
-  static generateUrls(title, year) {
+  static todayLocalISODate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * Letterboxd's `rating` deep-link param is a 0.5–5 star value in 0.5 steps.
+   * Cinema Roll's normalized rating is 0–10, and the app shows stars as
+   * normalizedRating / 2 (see ToggleableRating.vue), so that same /2 value maps
+   * directly onto Letterboxd's scale. Returns null for anything that isn't a
+   * loggable star rating (0 / missing / non-numeric) so we simply omit the param.
+   */
+  static normalizedRatingToStars(normalizedRating) {
+    const stars = parseFloat(normalizedRating) / 2;
+    if (!isFinite(stars) || stars < 0.5) return null;
+    const clamped = Math.min(5, stars);
+    // Snap to the nearest valid 0.5 increment Letterboxd accepts.
+    return Math.round(clamped * 2) / 2;
+  }
+
+  /**
+   * Generate full Letterboxd URLs.
+   * options.normalizedRating (0–10) is forwarded to the log link as a star rating.
+   */
+  static generateUrls(title, year, options = {}) {
     const slug = this.generateMovieSlug(title, year);
     if (!slug || !title) return null;
-    
+
     // URL encode the title for the app URL
     const encodedTitle = encodeURIComponent(title);
-    
+
+    // Letterboxd's log deep link no longer defaults the viewing date to today
+    // (an app update changed this), so we pass today's date explicitly. Without
+    // it, logs follow-through from Cinema Roll on mobile land with no date.
+    const today = this.todayLocalISODate();
+
+    // Pre-fill the star rating from Cinema Roll when we have one.
+    const stars = this.normalizedRatingToStars(options.normalizedRating);
+    const ratingParam = stars !== null ? `&rating=${stars}` : '';
+
     return {
       slug: slug,
       webUrl: `https://letterboxd.com/film/${slug}/`,
       appUrl: `letterboxd://x-callback-url/search?query=${encodedTitle}&type=film`,
-      appLogUrl: `letterboxd://x-callback-url/log?name=${encodedTitle}`,
+      appLogUrl: `letterboxd://x-callback-url/log?name=${encodedTitle}&date=${today}${ratingParam}`,
       reviewsUrl: `https://letterboxd.com/film/${slug}/reviews/`
     };
   }
@@ -76,26 +114,16 @@ class LetterboxdUrlService {
       return false;
     }
 
-    console.log('Opening Letterboxd movie:', {
-      title,
-      year,
-      slug: urls.slug,
-      appUrl: urls.appUrl,
-      webUrl: urls.webUrl
-    });
-
     // Try to open the app first with x-callback-url search
     try {
-      console.log('Attempting to open Letterboxd app with search...');
       window.location.href = urls.appUrl;
-      
+
       // Fallback to web after delay if app doesn't open
       const fallbackDelay = options.fallbackDelay || 1500;
       setTimeout(() => {
-        console.log('App did not open, falling back to web browser...');
         this.tryWebUrlWithFallback(title, urls.webUrl);
       }, fallbackDelay);
-      
+
       return true;
     } catch (error) {
       console.error('Error opening Letterboxd app, opening web instead:', error);
@@ -108,31 +136,22 @@ class LetterboxdUrlService {
    * Deep link to log/rate a movie in the Letterboxd app
    */
   static logMovie(title, year, options = {}) {
-    const urls = this.generateUrls(title, year);
+    const urls = this.generateUrls(title, year, options);
     if (!urls) {
       console.error('Could not generate Letterboxd URLs for:', title, year);
       return false;
     }
 
-    console.log('Opening Letterboxd movie for logging:', {
-      title,
-      year,
-      appLogUrl: urls.appLogUrl,
-      webUrl: urls.webUrl
-    });
-
     // Try to open the app first with x-callback-url log
     try {
-      console.log('Attempting to open Letterboxd app for logging...');
       window.location.href = urls.appLogUrl;
-      
+
       // Fallback to web after delay if app doesn't open
       const fallbackDelay = options.fallbackDelay || 1500;
       setTimeout(() => {
-        console.log('App did not open, falling back to web browser...');
         this.tryWebUrlWithFallback(title, urls.webUrl);
       }, fallbackDelay);
-      
+
       return true;
     } catch (error) {
       console.error('Error opening Letterboxd app for logging, opening web instead:', error);
@@ -153,11 +172,8 @@ class LetterboxdUrlService {
     document.body.appendChild(testLink);
     testLink.click();
     document.body.removeChild(testLink);
-    
-    // Note: We can't easily detect if the URL was a 404 in the browser
-    // The user will see the page and can use Letterboxd's search if needed
-    console.log(`Opened: ${primaryUrl}`);
-    console.log(`If that was a 404, search for "${title}" on Letterboxd`);
+    // Note: we can't detect a 404 in the browser; the user can fall back to
+    // Letterboxd's own search if the direct film URL misses.
   }
 
   /**
@@ -166,8 +182,7 @@ class LetterboxdUrlService {
   static openMovieReviews(title, year) {
     const urls = this.generateUrls(title, year);
     if (!urls) return false;
-    
-    console.log('Opening Letterboxd reviews for:', title);
+
     window.open(urls.reviewsUrl, '_blank');
     return true;
   }
@@ -179,37 +194,8 @@ class LetterboxdUrlService {
     if (!username) return false;
     
     const profileUrl = `https://letterboxd.com/${username}/`;
-    console.log('Opening Letterboxd profile:', profileUrl);
     window.open(profileUrl, '_blank');
     return true;
-  }
-
-  /**
-   * Test slug generation with known movies
-   */
-  static testSlugGeneration() {
-    const testMovies = [
-      { title: "Fight Club", year: 1999, expected: "fight-club" },
-      { title: "The Dark Knight", year: 2008, expected: "the-dark-knight" },
-      { title: "Pulp Fiction", year: 1994, expected: "pulp-fiction" },
-      { title: "The Shawshank Redemption", year: 1994, expected: "the-shawshank-redemption" },
-      { title: "Inception", year: 2010, expected: "inception" },
-      { title: "The Matrix", year: 1999, expected: "the-matrix" },
-      { title: "Goodfellas", year: 1990, expected: "goodfellas" },
-      { title: "The Godfather", year: 1972, expected: "the-godfather" }
-    ];
-
-    console.log('Testing Letterboxd slug generation:');
-    testMovies.forEach(movie => {
-      const generated = this.generateMovieSlug(movie.title, movie.year);
-      const match = generated === movie.expected;
-      console.log(`${match ? '✅' : '❌'} "${movie.title}" → "${generated}" ${match ? '' : `(expected: "${movie.expected}")`}`);
-      
-      // Also show the full URLs
-      const urls = this.generateUrls(movie.title, movie.year);
-      console.log(`   Web URL: ${urls.webUrl}`);
-      console.log(`   App URL: ${urls.appUrl}`);
-    });
   }
 }
 

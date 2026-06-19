@@ -72,6 +72,7 @@ Cinema Roll is a personal movie rating and tracking application built with Vue.j
 - **Username Configuration**: User can set their Letterboxd username for scraping
 - **Special Title Handling**: Enhanced normalization for problematic titles (F1, M, etc.)
 - **Filter Integration**: Manual overrides properly excluded from "Not on Letterboxd" quick filter
+- **Deep-link log pre-fill** (`LetterboxdUrlService.generateUrls`): the `letterboxd://x-callback-url/log` link passes `date` (today, local `YYYY-MM-DD` via `todayLocalISODate()` — NOT `toISOString()`, which is UTC and rolls the day late at night) and `rating` (Cinema Roll's normalized 0–10 score → 0.5–5 stars via `normalizedRatingToStars`, i.e. `/2`, matching `ToggleableRating.vue`'s star math; 0/missing omits the param). Letterboxd stopped defaulting the viewing date to today after an app update, hence the explicit `date`. Callers: `DBGridLayoutSearchResult.vue` + `MovieDetail.vue` pass `{ normalizedRating: this.normalizedRatingForMedia(this.result) }`. Tests: `src/test/LetterboxdUrlService.test.js`.
 
 ## Database Structure
 Firebase Realtime Database with user-specific data:
@@ -252,6 +253,21 @@ Typo-tolerant search suggestions powered by `fuse.js`, scoped to the user's OWN 
 - **Zero-results / TMDB**: this path renders `NewRatingSearch`, which AUTO-searches TMDB (no button) and either redirects to pick-media or shows the "doesn't exist" message. There is no manual "Search TMDB" button on the zero-local-results screen by design (the button at `Home.vue:670` only renders when ≥1 local result exists). A misspelled-but-real new movie is usually still found by TMDB's own fuzzy search and redirects. Suggestions only correct against the user's OWN rated library.
 
 Tests: `src/test/FuzzySuggestions.test.js`.
+
+## Favorite Sections — Live Tuning (Jun 2026)
+
+The 8 `Favorite*` sections on the Insights page (Directors, Writers, Composers, Cinematographers, Editors, Producers, Actors, Actresses) each rank people by a weighted Bayesian score. Each now has an inline **✏️ tuner**: a small icon-only button pinned to the right of the section's top-border title (absolutely positioned against `.insights-pane`, so the centered title is undisturbed) that opens a collapsing accordion of labeled sliders with plain-language help text.
+
+- **Shared machinery: `src/mixins/favoriteTuning.js`.** Holds ONLY the type-agnostic plumbing: the TMDB details cache (`detailsCache`), Firebase load/save of tuner values (`loadPersistedTuning`/`persistTuning`), tuner event handlers (`onTunerUpdate`/`resetTuner` → `await this.rescore()`), `getCachedDetails`, `bayesianAverage` (with a `globalAvgOverride` param), `mostRecentRating`, `getDetailsForCastMember`, `updateSearchValue`, and the `mounted`→`waitForDataAndBuildList` boot. Exposes `getRating`. A consumer MUST provide: data `tuningKey` + `tuningDefaults` + one data prop per lever; computed `tunerLevers`; methods `averageRating`, `buildTopTwelveList` (gather), `rescore`.
+- **Per-section independence preserved.** Every section keeps its own `tuningDefaults`, lever values, gather logic, blend field, and scoring quirks in its own file. Values persist per section at `settings/favoriteTuning/<key>` (keys: `director`/`writer`/`composer`/`cinematographer`/`editor`/`producer`/`actor`/`actress`) and survive refresh + sync across devices. The mixin holds zero tuning values.
+- **Gather/rescore split = no re-fetch while tuning.** `buildTopTwelveList` gathers people ONCE per data load (no TMDB, no minEntries filter); `rescore` scores eligible people with current levers, lazily fetching+caching TMDB details only for the eligible set, guarded by a `rescoreSeq` token that drops superseded async passes. Dragging a slider never re-hits TMDB (enforced by test).
+- **Lever sets differ by archetype** (each `tunerLevers` reflects only what that section actually uses):
+  - Crew **with blend** (Directors=`direction`, Writers=`story`, Composers=`soundtrack`, Cinematographers=`imagery`): minEntries, confidenceNumber, countWeight, knownForWeight, `<blend>Weight`.
+  - Crew **no blend** (Editors, Producers): the same minus the blend lever (Producers' `countWeight` slider maxes at 10 — its default is 5).
+  - **Cast** (Actors gender 2, Actresses gender 1): minEntries, confidenceNumber, billingLimit, billingExponent, performanceWeight. Cast `rescore` RE-GATHERS each pass (billingLimit/billingExponent change the gathered set/weights) and walks highest-bayesian-first, gender-gating via cached TMDB lookups until 12 found.
+- **Exact scoring preserved per section.** Known-for bonus intentionally differs: Directors/Composers blend the role sub-score; Writers/Cinematographers/Editors/Producers use the plain overall (`calculatedTotal`). `manualBoosts` is a dormant empty scaffold — NOT exposed in the tuner (cast components never had it).
+- **Net effect**: added the whole tuning feature while the 8 components shrank ~300 lines (dedup of the cloned machinery). Dead `compareTwoLists`/`isList…`/`get*Breakdown` helpers were dropped.
+- **UI component: `FavoriteTuner.vue`** (presentational only — emits `update`/`reset`). Tests: `FavoriteTuning.test.js` (Directors deep-dive), `FavoriteSectionsTuning.test.js` (all 8: build, persist key, live retune, no-refetch, cast gender gate), `FavoriteTunerSmoke.test.js`.
 
 ## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
