@@ -1274,12 +1274,16 @@ export default {
         // including manually-added (customKeywords) and removed (removedKeywords)
         // keywords. An inline version here previously omitted those, so e.g. a
         // user-added "Star Wars" keyword was invisible to grouping/filtering.
+        const movie = {
+          ...result.movie,
+          flatKeywords: computeFlatKeywords(result.movie)
+        };
+        // Precompute lowercased search fields ONCE here (memoized with this
+        // computed) so applyFilter doesn't re-lowercase every movie per keystroke.
         return {
           ...result,
-          movie: {
-            ...result.movie,
-            flatKeywords: computeFlatKeywords(result.movie)
-          }
+          movie,
+          _search: this.buildSearchFields(movie)
         }
       });
     },
@@ -1745,18 +1749,37 @@ export default {
       });
       candidatesByKey['keyword-genre'] = { displayName: 'Keywords & Genres', movies: [] };
 
-      const keywordFilter = { type: 'keyword', value: searchTerm };
-      const genreFilter = { type: 'genre', value: searchTerm };
+      // Inlined matcher (perf): instead of 7 dispatched applyFilter calls per
+      // movie (each re-reading/​re-deriving the same data), read each movie's
+      // precomputed _search ONCE and evaluate all group conditions against it.
+      // Every condition below mirrors the corresponding applyFilter case EXACTLY,
+      // so candidate sets are identical — GroupOrdering.test.js guards this.
+      // genre/company stay case-sensitive against the raw searchTerm (matching
+      // applyFilter's `genre`/`company` cases); everything else uses lowercased.
+      const term = searchTerm.toLowerCase();
+      const titleBucket = candidatesByKey['title'].movies;
+      const directorBucket = candidatesByKey['director'].movies;
+      const castBucket = candidatesByKey['cast'].movies;
+      const producerBucket = candidatesByKey['producer'].movies;
+      const companyBucket = candidatesByKey['company'].movies;
+      const keywordGenreBucket = candidatesByKey['keyword-genre'].movies;
 
       allResults.forEach(media => {
-        groupConfigs.forEach(config => {
-          if (this.applyFilter(media, config.filter)) {
-            candidatesByKey[config.key].movies.push(media);
-          }
-        });
+        const s = media._search || this.buildSearchFields(media.movie);
+
+        if (s.title.includes(term)) titleBucket.push(media);
+        if (s.crew.some(p => p.job === 'Director' && p.name.includes(term))) directorBucket.push(media);
+        if (s.cast.some(n => n.includes(term))) castBucket.push(media);
+        if (s.crew.some(p => p.jobLower.includes('producer') && p.name.includes(term))) producerBucket.push(media);
+
+        const companies = media.movie.production_companies;
+        if (companies && companies.some(c => c.name === searchTerm)) companyBucket.push(media);
+
         // Keywords and Genres are merged into a single "Keywords & Genres" group.
-        if (this.applyFilter(media, keywordFilter) || this.applyFilter(media, genreFilter)) {
-          candidatesByKey['keyword-genre'].movies.push(media);
+        const genres = media.movie.genres;
+        if (s.keywords.some(k => k === term) ||
+            (genres && genres.some(g => g.name === searchTerm))) {
+          keywordGenreBucket.push(media);
         }
       });
 
@@ -2552,40 +2575,58 @@ export default {
         });
       });
     },
+    buildSearchFields(movie) {
+      // Precompute the lowercased strings applyFilter needs so we don't re-derive
+      // them per movie on every keystroke. Built ONCE per library change in
+      // allEntriesWithFlatKeywordsAdded; applyFilter reads result._search. Genre
+      // and company are intentionally NOT lowercased here because the `genre`/
+      // `company` filter types do exact case-sensitive equality (unchanged).
+      return {
+        title: movie.title ? movie.title.toLowerCase() : '',
+        // NFD-normalized for the accent-insensitive `general` title match.
+        titleNormalized: movie.title
+          ? movie.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+          : '',
+        keywords: (movie.flatKeywords || []).filter(Boolean).map(k => k.toLowerCase()),
+        genres: (movie.genres || []).filter(g => g.name).map(g => g.name.toLowerCase()),
+        cast: (movie.cast || []).filter(p => p.name).map(p => p.name.toLowerCase()),
+        // job kept original-case for the exact `=== 'Director'` check; jobLower
+        // for the producer substring check.
+        crew: (movie.crew || []).filter(p => p.name).map(p => ({
+          name: p.name.toLowerCase(),
+          job: p.job || '',
+          jobLower: (p.job || '').toLowerCase()
+        })),
+        companies: (movie.production_companies || []).filter(c => c.name).map(c => c.name.toLowerCase())
+      };
+    },
     applyFilter(result, filter) {
       const movie = result.movie;
+      // Decorated library entries carry _search; quick-link-sourced entries may
+      // not, so fall back to building it on the fly (those lists are small).
+      const s = result._search || this.buildSearchFields(movie);
 
       switch (filter.type) {
         case 'general':
           const searchValue = filter.value.toLowerCase();
-          return (movie.title && movie.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(searchValue)) ||
-            (movie.flatKeywords && movie.flatKeywords.some((keyword) => keyword && keyword.toLowerCase() === searchValue)) ||
-            (movie.genres && movie.genres.some((genre) => genre.name && genre.name.toLowerCase() === searchValue)) ||
-            (movie.cast && movie.cast.flatMap((person) => {
-              const names = person.name ? person.name.toLowerCase().split(' ') : [];
-              return person.name ? [person.name.toLowerCase(), ...names] : [];
-            }).some(name => name.includes(searchValue))) ||
-            (movie.crew && movie.crew.flatMap((person) => {
-              const names = person.name ? person.name.toLowerCase().split(' ') : [];
-              return person.name ? [person.name.toLowerCase(), ...names] : [];
-            }).some(name => name.includes(searchValue))) ||
-            (movie.production_companies && movie.production_companies.some((company) => company.name && company.name.toLowerCase().includes(searchValue)));
+          return s.titleNormalized.includes(searchValue) ||
+            s.keywords.some(keyword => keyword === searchValue) ||
+            s.genres.some(genre => genre === searchValue) ||
+            // A name-part (split on space) is always a substring of the full
+            // name, so checking the full name covers part matches too.
+            s.cast.some(name => name.includes(searchValue)) ||
+            s.crew.some(person => person.name.includes(searchValue)) ||
+            s.companies.some(company => company.includes(searchValue));
 
         case 'person':
           // Check both cast and crew for the person
           const filterValueLower = filter.value.toLowerCase();
-          const inCast = movie.cast && movie.cast.some(cast => {
-            if (!cast.name) return false;
-            const fullName = cast.name.toLowerCase();
-            const lastName = cast.name.split(' ').slice(-1)[0].toLowerCase();
-            return fullName === filterValueLower || lastName === filterValueLower;
-          });
-          const inCrew = movie.crew && movie.crew.some(crew => {
-            if (!crew.name) return false;
-            const fullName = crew.name.toLowerCase();
-            const lastName = crew.name.split(' ').slice(-1)[0].toLowerCase();
-            return fullName === filterValueLower || lastName === filterValueLower;
-          });
+          const inCast = s.cast.some(name =>
+            name === filterValueLower || name.split(' ').slice(-1)[0] === filterValueLower
+          );
+          const inCrew = s.crew.some(person =>
+            person.name === filterValueLower || person.name.split(' ').slice(-1)[0] === filterValueLower
+          );
           return inCast || inCrew;
 
         case 'year':
@@ -2599,17 +2640,17 @@ export default {
           return years.includes(movie.release_date.substring(0, 4));
 
         case 'genre':
-          return movie.genres && movie.genres.some(genre => 
+          return movie.genres && movie.genres.some(genre =>
             genre.name === filter.value
           );
 
         case 'company':
-          return movie.production_companies && movie.production_companies.some(company => 
+          return movie.production_companies && movie.production_companies.some(company =>
             company.name === filter.value
           );
 
         case 'keyword':
-          return movie.flatKeywords && movie.flatKeywords.some((keyword) => keyword && keyword.toLowerCase() === filter.value.toLowerCase());
+          return s.keywords.some(keyword => keyword === filter.value.toLowerCase());
 
         case 'tag':
           // Check if this movie has ratings with the specified tag
@@ -2619,26 +2660,23 @@ export default {
 
         case 'title':
           // Title-only search
-          return movie.title && movie.title.toLowerCase().includes(filter.value.toLowerCase());
+          return s.title.includes(filter.value.toLowerCase());
 
         case 'director':
           // Director-only search
-          return movie.crew && movie.crew.some(person => 
-            person.job === 'Director' && person.name && person.name.toLowerCase().includes(filter.value.toLowerCase())
+          return s.crew.some(person =>
+            person.job === 'Director' && person.name.includes(filter.value.toLowerCase())
           );
 
         case 'producer':
           // Producer-only search
-          return movie.crew && movie.crew.some(person => 
-            person.job && person.job.toLowerCase().includes('producer') && 
-            person.name && person.name.toLowerCase().includes(filter.value.toLowerCase())
+          return s.crew.some(person =>
+            person.jobLower.includes('producer') && person.name.includes(filter.value.toLowerCase())
           );
 
         case 'cast':
           // Cast-only search
-          return movie.cast && movie.cast.some(person => 
-            person.name && person.name.toLowerCase().includes(filter.value.toLowerCase())
-          );
+          return s.cast.some(name => name.includes(filter.value.toLowerCase()));
 
         default:
           return false;
