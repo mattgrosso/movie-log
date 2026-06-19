@@ -829,6 +829,14 @@ import ThreeStateToggle from './ThreeStateToggle.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 import ErrorLogService from '../services/ErrorLogService.js';
 import { computeFlatKeywords } from '../utils/keywords.js';
+import {
+  buildSearchFields as buildSearchFieldsUtil,
+  applyFilter as applyFilterUtil,
+  getListOfYearsFromRange as getListOfYearsFromRangeUtil,
+  getSortValue as getSortValueUtil,
+  sortResultsFast as sortResultsFastUtil,
+  sortResults as sortResultsUtil
+} from '../assets/javascript/searchFiltering.js';
 
 // Default priority order for the grouped search view. The order decides which
 // group claims a movie that matches multiple categories. Users can reorder this
@@ -2495,125 +2503,16 @@ export default {
         });
       });
     },
+    // Search/filter/sort logic lives in ../assets/javascript/searchFiltering.js
+    // (pure, unit-tested in isolation). These thin wrappers feed it component state.
     buildSearchFields(movie) {
-      // Precompute the lowercased strings applyFilter needs so we don't re-derive
-      // them per movie on every keystroke. Built ONCE per library change in
-      // allEntriesWithFlatKeywordsAdded; applyFilter reads result._search. Genre
-      // and company are intentionally NOT lowercased here because the `genre`/
-      // `company` filter types do exact case-sensitive equality (unchanged).
-      return {
-        title: movie.title ? movie.title.toLowerCase() : '',
-        // NFD-normalized for the accent-insensitive `general` title match.
-        titleNormalized: movie.title
-          ? movie.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-          : '',
-        keywords: (movie.flatKeywords || []).filter(Boolean).map(k => k.toLowerCase()),
-        genres: (movie.genres || []).filter(g => g.name).map(g => g.name.toLowerCase()),
-        cast: (movie.cast || []).filter(p => p.name).map(p => p.name.toLowerCase()),
-        // job kept original-case for the exact `=== 'Director'` check; jobLower
-        // for the producer substring check.
-        crew: (movie.crew || []).filter(p => p.name).map(p => ({
-          name: p.name.toLowerCase(),
-          job: p.job || '',
-          jobLower: (p.job || '').toLowerCase()
-        })),
-        companies: (movie.production_companies || []).filter(c => c.name).map(c => c.name.toLowerCase())
-      };
+      return buildSearchFieldsUtil(movie);
     },
     applyFilter(result, filter) {
-      const movie = result.movie;
-      // Decorated library entries carry _search; quick-link-sourced entries may
-      // not, so fall back to building it on the fly (those lists are small).
-      const s = result._search || this.buildSearchFields(movie);
-
-      switch (filter.type) {
-        case 'general':
-          const searchValue = filter.value.toLowerCase();
-          return s.titleNormalized.includes(searchValue) ||
-            s.keywords.some(keyword => keyword === searchValue) ||
-            s.genres.some(genre => genre === searchValue) ||
-            // A name-part (split on space) is always a substring of the full
-            // name, so checking the full name covers part matches too.
-            s.cast.some(name => name.includes(searchValue)) ||
-            s.crew.some(person => person.name.includes(searchValue)) ||
-            s.companies.some(company => company.includes(searchValue));
-
-        case 'person':
-          // Check both cast and crew for the person
-          const filterValueLower = filter.value.toLowerCase();
-          const inCast = s.cast.some(name =>
-            name === filterValueLower || name.split(' ').slice(-1)[0] === filterValueLower
-          );
-          const inCrew = s.crew.some(person =>
-            person.name === filterValueLower || person.name.split(' ').slice(-1)[0] === filterValueLower
-          );
-          return inCast || inCrew;
-
-        case 'year':
-          // Extract year directly from release_date string to avoid timezone issues
-          const movieYear = movie.release_date.substring(0, 4);
-          return movieYear === filter.value;
-
-        case 'yearRange':
-          // Handle year ranges like "2000-2010" or "1990s"
-          const years = this.getListOfYearsFromRange(filter.value);
-          return years.includes(movie.release_date.substring(0, 4));
-
-        case 'genre':
-          return movie.genres && movie.genres.some(genre =>
-            genre.name === filter.value
-          );
-
-        case 'company':
-          return movie.production_companies && movie.production_companies.some(company =>
-            company.name === filter.value
-          );
-
-        case 'keyword':
-          return s.keywords.some(keyword => keyword === filter.value.toLowerCase());
-
-        case 'tag':
-          // Check if this movie has ratings with the specified tag
-          return result.ratings && result.ratings.some(rating =>
-            rating.tags && rating.tags.some(tag => tag.title === filter.value)
-          );
-
-        case 'title':
-          // Title-only search
-          return s.title.includes(filter.value.toLowerCase());
-
-        case 'director':
-          // Director-only search
-          return s.crew.some(person =>
-            person.job === 'Director' && person.name.includes(filter.value.toLowerCase())
-          );
-
-        case 'producer':
-          // Producer-only search
-          return s.crew.some(person =>
-            person.jobLower.includes('producer') && person.name.includes(filter.value.toLowerCase())
-          );
-
-        case 'cast':
-          // Cast-only search
-          return s.cast.some(name => name.includes(filter.value.toLowerCase()));
-
-        default:
-          return false;
-      }
+      return applyFilterUtil(result, filter);
     },
     getListOfYearsFromRange(yearRange) {
-      // Generate array of all years between startYear and endYear (inclusive)
-      if (!yearRange || typeof yearRange !== 'object' || !yearRange.startYear || !yearRange.endYear) {
-        return [];
-      }
-      
-      const years = [];
-      for (let year = yearRange.startYear; year <= yearRange.endYear; year++) {
-        years.push(year.toString());
-      }
-      
-      return years;
+      return getListOfYearsFromRangeUtil(yearRange);
     },
     toggleSettingsPanel () {
       this.showSettingsPanel = !this.showSettingsPanel;
@@ -2997,98 +2896,21 @@ export default {
       this.$store.commit('setHomePageSortOrder', this.sortOrder);
     },
     getSortValue (item, key) {
-      if (key === "rating") {
-        return this.mostRecentRating(item).calculatedTotal;
-      } else if (key === "release") {
-        return new Date(item.movie.release_date);
-      } else if (key === "title") {
-        return item.movie.title;
-      } else if (key === "watched") {
-        const date = this.mostRecentRating(item).date || "3/22/1982";
-        return new Date(date);
-      } else if (key === "views") {
-        return item.ratings.length;
-      } else {
-        const keyScore = parseInt(this.mostRecentRating(item)[key]);
-        const keysToCompare = ["direction", "imagery", "impression", "love", "performance", "soundtrack", "stickiness", "story"];
-        const isKeyScoreHighestScore = keysToCompare.some((keyToCompare) => {
-          const keyToCompareScore = parseInt(this.mostRecentRating(item)[keyToCompare]);
-          return keyToCompareScore >= keyScore;
-        });
-        return isKeyScoreHighestScore ? keyScore : 0;
-      }
+      return getSortValueUtil(item, key, this.mostRecentRating);
     },
     sortResultsFast (array) {
-      // Performance: decorate-sort-undecorate. sortResults(a, b) calls getRating
-      // (via getSortValue/mostRecentRating) ~3x per comparison, which is O(n log n)
-      // getRating calls — the dominant search-recompute cost. Here we compute each
-      // item's primary + secondary sort value ONCE (O(n)), then sort on the cached
-      // values using the EXACT same comparison semantics as sortResults. Output
-      // ordering is identical; only the redundant getRating calls are removed.
-      const key = this.sortValue || "rating";
-      const bestOnTop = this.sortOrder === "bestOrNewestOnTop";
-
-      const decorated = array.map((item) => {
-        // Compute the rating ONCE per item and derive both the secondary key and
-        // (for the default "rating" sort) the primary from it, so getRating runs
-        // once per item instead of twice. For other sort keys, getSortValue is
-        // still used for the primary — identical to the legacy comparator's
-        // output, just without the duplicate getRating for the common case.
-        const rating = this.mostRecentRating(item);
-        const secondary = rating.calculatedTotal;
-        const primary = key === "rating" ? rating.calculatedTotal : this.getSortValue(item, key);
-        return { item, primary, secondary };
+      return sortResultsFastUtil(array, {
+        sortValue: this.sortValue,
+        sortOrder: this.sortOrder,
+        getRating: this.mostRecentRating
       });
-
-      decorated.sort((a, b) => {
-        // Mirror sortResults exactly, including the quirk that === on two Date
-        // objects is false (so date sorts skip the secondary tiebreak), because
-        // getSortValue returns Date objects for "release"/"watched".
-        if (a.primary === b.primary) {
-          if (a.secondary < b.secondary) {
-            return bestOnTop ? 1 : -1;
-          }
-          if (a.secondary > b.secondary) {
-            return bestOnTop ? -1 : 1;
-          }
-          return 0;
-        }
-        if (a.primary < b.primary) {
-          return bestOnTop ? 1 : -1;
-        }
-        if (a.primary > b.primary) {
-          return bestOnTop ? -1 : 1;
-        }
-        return 0;
-      });
-
-      return decorated.map((d) => d.item);
     },
     sortResults (a, b) {
-      const sortValueA = this.getSortValue(a, this.sortValue || "rating");
-      const sortValueB = this.getSortValue(b, this.sortValue || "rating");
-
-      if (sortValueA === sortValueB) {
-        const secondarySortValueA = this.mostRecentRating(a).calculatedTotal;
-        const secondarySortValueB = this.mostRecentRating(b).calculatedTotal;
-
-        if (secondarySortValueA < secondarySortValueB) {
-          return this.sortOrder === "bestOrNewestOnTop" ? 1 : -1;
-        }
-        if (secondarySortValueA > secondarySortValueB) {
-          return this.sortOrder === "bestOrNewestOnTop" ? -1 : 1;
-        }
-        return 0;
-      }
-
-      if (sortValueA < sortValueB) {
-        return this.sortOrder === "bestOrNewestOnTop" ? 1 : -1;
-      }
-      if (sortValueA > sortValueB) {
-        return this.sortOrder === "bestOrNewestOnTop" ? -1 : 1;
-      }
-
-      return 0;
+      return sortResultsUtil(a, b, {
+        sortValue: this.sortValue,
+        sortOrder: this.sortOrder,
+        getRating: this.mostRecentRating
+      });
     },
     toggleCountViewsAverage () {
       if (this.showAverage) {
