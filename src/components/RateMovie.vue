@@ -621,7 +621,9 @@ export default {
       stickiness: null,
       love: null,
       overall: null,
-      date: new Date().toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16),
+      // datetime-local needs a "T" separator; sv-SE gives "YYYY-MM-DD HH:mm" with
+      // a space, which the input rejects (it rendered blank). Swap the space for "T".
+      date: new Date().toLocaleString('sv-SE').slice(0, 16).replace(' ', 'T'),
       id: null,
       loading: false,
       medium: "",

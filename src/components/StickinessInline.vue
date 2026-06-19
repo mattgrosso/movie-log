@@ -5,7 +5,7 @@
       <!-- Prompt -->
       <div v-if="!showStickinessInline" key="notice" class="stickiness-container rounded p-3 mb-3" @click="toggleStickinessInline">
         <div class="stickiness-notice-content">
-          You have {{ resultsThatNeedStickiness.length }} movies that need stickiness updates.
+          You have {{ resultsThatNeedStickiness.length }} movie{{ resultsThatNeedStickiness.length === 1 ? '' : 's' }} that need{{ resultsThatNeedStickiness.length === 1 ? 's' : '' }} stickiness updates.
           <a class="alert-link" @click.stop="toggleStickinessInline">Click to add stickiness.</a>
         </div>
       </div>

@@ -2,11 +2,16 @@
   <div class="movie-detail-page">
     <!-- Header with backdrop and title -->
     <div class="movie-header">
-      <div class="close-button" :class="{'loading': isLoading}" @click="goBack">
+      <div class="home-link" :class="{'loading': isLoading}" @click="goBack" role="button" aria-label="Back to home">
         <div v-if="isLoading" class="spinner-border spinner-border-sm text-light" role="status">
           <span class="visually-hidden">Loading...</span>
         </div>
-        <i v-else class="bi bi-x-lg"></i>
+        <template v-else>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
+            <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
+          </svg>
+          <span>Home</span>
+        </template>
       </div>
       <img v-if="movie && getBackdropPath()"
            :src="`https://image.tmdb.org/t/p/w1280${getBackdropPath()}`"
@@ -35,7 +40,9 @@
         <div class="details-actions d-flex align-items-center mb-4">
           <div v-if="$store.state.settings.letterboxdConnected"
                @click="logOnLetterboxd"
+               role="button"
                :title="isMovieLoggedOnLetterboxd() ? 'View movie on Letterboxd' : 'Log on Letterboxd'"
+               :aria-label="isMovieLoggedOnLetterboxd() ? 'View movie on Letterboxd' : 'Log on Letterboxd'"
                :class="['letterboxd-status-button', { 'logged': isMovieLoggedOnLetterboxd(), 'not-logged': !isMovieLoggedOnLetterboxd() }]">
             <img :src="isMovieLoggedOnLetterboxd() ? 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-rgb-500px.png' : 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-mono-500px.png'"
                  alt="Letterboxd" 
@@ -331,7 +338,7 @@
         </div>
 
         <!-- Writers -->
-        <div v-if="getCrewMember('Writer', false)" class="writers mb-3">
+        <div v-if="getCrewMember('Writer', false).length" class="writers mb-3">
           <h4>Writer<span v-if="multipleEntries(getCrewMember('Writer', false))">s</span></h4>
           <p class="long-list">
             <a v-for="(name, index) in getCrewMember('Writer', false)" :key="index" class="link" @click.stop="searchFor(name, 'writer')">
@@ -341,7 +348,7 @@
         </div>
 
         <!-- Composers -->
-        <div v-if="getCrewMember('Composer')" class="composers mb-3">
+        <div v-if="getCrewMember('Composer').length" class="composers mb-3">
           <h4>Composer<span v-if="multipleEntries(getCrewMember('Composer'))">s</span></h4>
           <p class="long-list">
             <a v-for="(name, index) in getCrewMember('Composer')" :key="index" class="link" @click.stop="searchFor(name, 'composer')">
@@ -1752,34 +1759,24 @@ export default {
     object-fit: cover;
   }
   
-  .close-button {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    z-index: 10;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    display: flex;
+  // Unified "Home" back affordance, matching Insights/RateMovie (caret + label,
+  // top-left). Text-shadow keeps it legible over bright backdrops.
+  .home-link {
     align-items: center;
-    justify-content: center;
+    color: white;
+    column-gap: 4px;
     cursor: pointer;
-    transition: background-color 0.2s;
-    
-    &:hover {
-      background: rgba(0, 0, 0, 0.9);
-    }
-    
+    display: flex;
+    left: 12px;
+    position: absolute;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+    top: 12px;
+    z-index: 10;
+
     &.loading {
       pointer-events: none;
     }
-    
-    i {
-      font-size: 1.2rem;
-    }
-    
+
     .spinner-border-sm {
       width: 20px;
       height: 20px;

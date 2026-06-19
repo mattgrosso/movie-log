@@ -80,7 +80,7 @@
           <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
             <div class="btn-group col-12" role="group" aria-label="Button group">
               <!-- Settings (gear) button replaces shorts toggle -->
-              <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel">
+              <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel" title="Settings" aria-label="Open settings">
                 <i class="bi bi-gear"></i>
               </button>
               <button
@@ -88,10 +88,11 @@
                 :class="{ active: showGroupOrderPanel }"
                 @click="groupedByAllCategories && toggleGroupOrderPanel()"
                 :title="groupedByAllCategories ? 'Reorder result groups' : 'No groups to reorder'"
+                :aria-label="groupedByAllCategories ? 'Reorder result groups' : 'No groups to reorder'"
               >
                 <i class="bi" :class="groupedByAllCategories ? 'bi-collection' : 'bi-app'"/>
               </button>
-              <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage">
+              <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage" title="Toggle count / average / views" aria-label="Toggle between result count, average rating, and view count">
                 <span v-if="showAverage">
                   <span class="average-label">(avg)</span>
                   <span class="average-value">{{averageRating(displayedResults)}}</span>
@@ -103,16 +104,16 @@
                 <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{unifiedFilteredResults.length}}</span>
                 <span v-else>{{displayedResults.length}}</span>
               </button>
-              <button class="results-actions-button btn btn-info" type="button" @click="goToInsights">
+              <button class="results-actions-button btn btn-info" type="button" @click="goToInsights" title="Insights" aria-label="Go to insights">
                 <i class="bi bi-lightbulb"/>
               </button>
-              <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion">
+              <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion" title="Quick filters" aria-label="Toggle quick filters">
                 <i class="bi bi-lightning-charge"/>
               </button>
-              <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchValue">
+              <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchValue" title="Surprise me (random)" aria-label="Show a random movie">
                 <i class="bi bi-shuffle"/>
               </button>
-              <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Sort results" aria-label="Sort results">
                 <i v-if="sortValue === 'rating'" class="bi bi-123"/>
                 <i v-if="sortValue === 'watched'" class="bi bi-calendar3"/>
                 <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
