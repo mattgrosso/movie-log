@@ -18,7 +18,17 @@ app.use(store);
 
 app.use(VueClickAway);
 
-app.use(VueLazyLoad, {});
+// rootMargin grows the IntersectionObserver's trigger zone so posters start
+// loading ~1.5 screens before they scroll into view — on a normal scroll the
+// image is already decoded by the time it appears, so the placeholder is
+// effectively never seen. (Default is "0px", which only loads on entry and
+// flashes the placeholder during fast scrolls.)
+app.use(VueLazyLoad, {
+  observerOptions: {
+    rootMargin: '1200px 0px',
+    threshold: 0,
+  },
+});
 
 app.use(VueCalendarHeatmap);
 

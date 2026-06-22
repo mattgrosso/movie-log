@@ -286,6 +286,24 @@ The 8 `Favorite*` sections on the Insights page (Directors, Writers, Composers, 
 - **Net effect**: added the whole tuning feature while the 8 components shrank ~300 lines (dedup of the cloned machinery). Dead `compareTwoLists`/`isList…`/`get*Breakdown` helpers were dropped.
 - **UI component: `FavoriteTuner.vue`** (presentational only — emits `update`/`reset`). Tests: `FavoriteTuning.test.js` (Directors deep-dive), `FavoriteSectionsTuning.test.js` (all 8: build, persist key, live retune, no-refetch, cast gender gate), `FavoriteTunerSmoke.test.js`.
 
+## Asset / Image Performance (Jun 2026)
+
+A pass over image + asset loading on the high-traffic home/library screen:
+
+- **Lazy-load placeholder shrunk 316KB → 1.4KB.** The `v-lazy` `loading` placeholder behind every grid poster (`DBGridLayoutSearchResult.vue`) was `sheen.jpg` — a full 2000×3000 poster. Replaced with `sheen-placeholder.jpg` (40×60, metadata-stripped, visually identical when stretched). Old file deleted; it had a single reference.
+- **`moment` removed** — it was a direct dependency with ZERO imports anywhere in `src/`. Dropped from `package.json`; confirmed gone from `yarn.lock` (nothing transitive needed it).
+- **Library grid posters w500 → w342** (`DBGridLayoutSearchResult.vue:11`, the `v-lazy` src only). ~55% fewer bytes per poster at the rendered mobile size. Other w500 usages (details-modal backdrop on line 48, StickinessInline, TweakInline, ShareDBResults, PickMedia, RateMovie) intentionally kept — they show one/two large posters where w500 is right.
+- **Lazy-load pre-trigger** (`main.js`): `VueLazyLoad` now passes `observerOptions: { rootMargin: '1200px 0px' }` (default was `'0px'`). Posters start fetching ~1.5 screens before entering the viewport, so the placeholder is effectively never seen on normal scroll. Dial: bump to `'2000px'` if fast scrolls still flash placeholders, drop to `'800px'` to be stingier on data.
+
+## Infinite-Scroll Result Loading (Jun 2026)
+
+Replaced the manual **"More..."** button on the home grid with auto-load on scroll. **Key distinction**: the result cap (`paginatedSortedResults = sortedResults.slice(0, numberOfResultsToShow)`, starts at 25, +48 per batch) limits how many grid items are RENDERED INTO THE DOM — independent of image lazy loading (which only defers poster bytes for already-rendered items). The cap matters because each `DBGridLayoutSearchResult` instantiates its own `<Modal>`, so rendering the whole library at once is costly. So lazy loading can't replace the cap; we kept windowing and just auto-advance it.
+
+- **Sentinel + IntersectionObserver** (`Home.vue`): the `v-if="canLoadMore"` block (formerly the More button) is now `ref="loadMoreSentinel"`. `setupLoadMoreObserver()` observes it with `rootMargin: '600px 0px'`; on intersect it calls `loadMoreResults()` (just `numberOfResultsToShow += 48`, no scroll). A batch of 48 posters is far taller than 600px, so each scroll fires once and the sentinel re-arms when scrolled back into the zone.
+- **The button is kept as a tap fallback** inside the sentinel (observer-unsupported / very tall viewport). `addMoreResults()` = `loadMoreResults()` + a `scrollBy` nudge; the observer uses the scroll-free `loadMoreResults()`.
+- **Lifecycle**: `canLoadMore` computed (`!groupedByAllCategories && sortedResults.length > numberOfResultsToShow`); a `canLoadMore` watcher re-wires the observer on `$nextTick` (the sentinel element is recreated each time it flips true); `mounted` also wires it for restored-state-at-mount; `beforeUnmount` disconnects. Guarded by `typeof IntersectionObserver === 'undefined'` so it no-ops in jsdom. `numberOfResultsToShow` persistence is unchanged (saved in `beforeRouteLeave` → MovieDetail).
+- Tests: `src/test/InfiniteScroll.test.js` (mocks `IntersectionObserver`, 60-movie library: render cap, scroll-free load, intersect-loads / not-intersecting-doesn't, teardown on all-loaded + unmount).
+
 ## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
 

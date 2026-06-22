@@ -631,7 +631,10 @@
               @updateSearchValue="updateSearchValue"
             />
           </ul>
-          <div v-if="!groupedByAllCategories && sortedResults.length > numberOfResultsToShow" class="d-flex justify-content-end mb-5">
+          <!-- Infinite-scroll sentinel: the observer auto-loads the next batch as
+               this nears the viewport. The button is a tap fallback if auto-load
+               doesn't fire (e.g. observer unsupported, or a very tall viewport). -->
+          <div v-if="canLoadMore" ref="loadMoreSentinel" class="load-more-sentinel d-flex justify-content-center mb-5">
             <button
               class="btn btn-secondary"
               @click="addMoreResults"
@@ -901,6 +904,7 @@ export default {
       modalReevalInterval: null, // Timer for automatic modal re-evaluation
       letterboxdOverrides: {},
       letterboxdUserData: null,
+      loadMoreObserver: null, // IntersectionObserver for infinite-scroll result loading
       newOverrideTitle: '',
       newOverrideYear: null,
       noResults: false, // Show no results message for TMDB search
@@ -942,6 +946,11 @@ export default {
         this.buildCastMembersCache();
         this.resolveBanner(); // data just loaded → set the initial banner
       }
+    },
+    canLoadMore () {
+      // (Re)wire the infinite-scroll observer whenever the sentinel appears or
+      // disappears — its element is recreated each time this flips true.
+      this.$nextTick(() => this.setupLoadMoreObserver());
     },
     effectiveSearchFilter(newVal, oldVal) {
       // Fetch unrated movies for any non-empty search term (from input or chips)
@@ -1092,6 +1101,11 @@ export default {
     this.modalReevalInterval = setInterval(() => {
       this.forceModalReevaluation++;
     }, 1800000); // 30 minutes (1800 seconds)
+
+    // Wire infinite-scroll in case results are already present at mount (e.g.
+    // restored navigation state). The canLoadMore watcher covers the later
+    // case where the library loads in after mount.
+    this.$nextTick(() => this.setupLoadMoreObserver());
   },
   beforeUnmount() {
     // Clean up error log refresh interval
@@ -1101,6 +1115,12 @@ export default {
     if (this.modalReevalInterval) {
       clearInterval(this.modalReevalInterval);
       this.modalReevalInterval = null;
+    }
+
+    // Clean up infinite-scroll observer
+    if (this.loadMoreObserver) {
+      this.loadMoreObserver.disconnect();
+      this.loadMoreObserver = null;
     }
   },
   
@@ -2063,6 +2083,9 @@ export default {
     },
     paginatedSortedResults () {
       return this.sortedResults.slice(0, this.numberOfResultsToShow);
+    },
+    canLoadMore () {
+      return !this.groupedByAllCategories && this.sortedResults.length > this.numberOfResultsToShow;
     },
     placeholder () {
       if (this.activeQuickLinkList === 'annual') {
@@ -3058,9 +3081,15 @@ export default {
         }
       }, 500);
     },
-    addMoreResults () {
-      // Add movies in increments of 48 for stable grid layout
+    loadMoreResults () {
+      // Add movies in increments of 48 for stable grid layout. (Persistence of
+      // numberOfResultsToShow happens in beforeRouteLeave on navigation away.)
       this.numberOfResultsToShow = this.numberOfResultsToShow + 48;
+    },
+    addMoreResults () {
+      // Manual tap on the fallback button: load the next batch and nudge the
+      // page down so the new rows come into view.
+      this.loadMoreResults();
 
       this.$nextTick(() => {
         window.scrollBy({
@@ -3068,6 +3097,35 @@ export default {
           behavior: 'smooth'
         })
       });
+    },
+    setupLoadMoreObserver () {
+      // Tear down any prior observer before (re)wiring — the sentinel is v-if'd,
+      // so its element is recreated whenever canLoadMore flips false→true.
+      if (this.loadMoreObserver) {
+        this.loadMoreObserver.disconnect();
+        this.loadMoreObserver = null;
+      }
+
+      if (!this.canLoadMore || typeof IntersectionObserver === 'undefined') {
+        return;
+      }
+
+      const sentinel = this.$refs.loadMoreSentinel;
+      if (!sentinel) {
+        return;
+      }
+
+      // rootMargin pre-triggers the load ~600px before the sentinel is on-screen,
+      // so the next batch is rendering before the user reaches the end. A batch of
+      // 48 posters is far taller than 600px, so each scroll fires exactly once and
+      // the sentinel naturally re-arms when it scrolls back into the zone.
+      this.loadMoreObserver = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          this.loadMoreResults();
+        }
+      }, { rootMargin: '600px 0px', threshold: 0 });
+
+      this.loadMoreObserver.observe(sentinel);
     },
     titleCase (input) {
       const string = input.toString();

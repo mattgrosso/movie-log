@@ -8,7 +8,7 @@
     <img
       class="poster"
       v-lazy="{
-        src: `https://image.tmdb.org/t/p/w500${getPosterPath(result)}`,
+        src: `https://image.tmdb.org/t/p/w342${getPosterPath(result)}`,
         loading: placeholderImage
       }"
     >
@@ -265,7 +265,7 @@ import Modal from './Modal.vue';
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
-import placeholderImage from '../assets/images/sheen.jpg';
+import placeholderImage from '../assets/images/sheen-placeholder.jpg';
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 

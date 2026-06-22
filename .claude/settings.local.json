@@ -56,7 +56,10 @@
       "Bash(vue-cli-service:*)",
       "Bash(yes)",
       "Bash(yarn test:run:*)",
-      "Bash(yarn lint --no-fix src/components/MovieDetail.vue)"
+      "Bash(yarn lint --no-fix src/components/MovieDetail.vue)",
+      "Bash(sips -Z 60 -s formatOptions 60 src/assets/images/sheen.jpg --out src/assets/images/sheen-placeholder.jpg)",
+      "Bash(sips -d allxml -d profile src/assets/images/sheen-placeholder.jpg)",
+      "Bash(yarn install *)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
