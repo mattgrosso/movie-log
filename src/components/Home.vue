@@ -2626,7 +2626,10 @@ export default {
       }
 
       if (media && media.movie) {
-        const backdrop = media.movie.customBackdropPath || media.movie.backdrop_path;
+        // customBackdropPath is stored at the entry level (sibling of movie),
+        // matching MovieDetail.selectBackdrop + getBackdropPath. Reading it from
+        // media.movie left the home banner on the default after a custom pick.
+        const backdrop = media.customBackdropPath || media.movie.backdrop_path;
         const url = backdrop
           ? `https://image.tmdb.org/t/p/w500${backdrop}`
           : 'https://www.solidbackgrounds.com/images/1920x1080/1920x1080-black-solid-color-background.jpg';
