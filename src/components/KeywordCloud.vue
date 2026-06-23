@@ -69,7 +69,7 @@ export default {
       this.updateSearchValue(term);
 
       window.scroll({
-        top: top,
+        top,
         behavior: 'smooth'
       })
     },

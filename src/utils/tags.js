@@ -1,5 +1,5 @@
 // Flat, de-duped list of viewing-tag titles across all ratings of a single movie.
-export function uniqueViewingTags(ratings) {
+export function uniqueViewingTags (ratings) {
   if (!Array.isArray(ratings)) return [];
   const titles = ratings
     .flatMap((rating) => rating.tags || [])
@@ -11,7 +11,7 @@ export function uniqueViewingTags(ratings) {
 // Build a typeahead suggestion list for adding a tag to a specific viewing.
 // Suggestions come from the union of (a) tags used anywhere across all movies and
 // (b) the user's settings vocabulary, minus tags already on this viewing.
-export function buildTagSuggestions({
+export function buildTagSuggestions ({
   query,
   alreadyOnViewing,
   globalTagCounts,
@@ -43,7 +43,7 @@ export function buildTagSuggestions({
 
 // Count how many viewings (ratings) each tag title has been applied to across all movies.
 // Returns { [title]: count }.
-export function countViewingTagUsage(movies) {
+export function countViewingTagUsage (movies) {
   const counts = {};
   if (!Array.isArray(movies)) return counts;
   movies.forEach((entry) => {
@@ -61,7 +61,7 @@ export function countViewingTagUsage(movies) {
 }
 
 // Sort a vocabulary list ({ title }[]) by usage count desc, ties broken alphabetically.
-export function sortVocabularyByUsage(vocabulary, counts) {
+export function sortVocabularyByUsage (vocabulary, counts) {
   if (!Array.isArray(vocabulary)) return [];
   const safe = counts || {};
   return [...vocabulary].sort((a, b) => {
@@ -73,7 +73,7 @@ export function sortVocabularyByUsage(vocabulary, counts) {
 }
 
 // Whether the typed string would create a brand-new tag (not in vocabulary, not already on viewing).
-export function canCreateNewTag({ query, alreadyOnViewing, globalTagCounts, vocabularyTitles }) {
+export function canCreateNewTag ({ query, alreadyOnViewing, globalTagCounts, vocabularyTitles }) {
   const trimmed = (query || '').trim();
   if (!trimmed) return false;
   const lower = trimmed.toLowerCase();

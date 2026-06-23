@@ -3,14 +3,14 @@ class LetterboxdUrlService {
    * Convert movie title to Letterboxd URL slug (without year)
    * Examples:
    * "Fight Club" → "fight-club"
-   * "The Dark Knight" → "dark-knight"  
+   * "The Dark Knight" → "dark-knight"
    * "Pulp Fiction" → "pulp-fiction"
    */
-  static generateMovieSlug(title, year) {
+  static generateMovieSlug (title, year) {
     if (!title) return null;
-    
+
     // Convert to lowercase and replace spaces with hyphens
-    let slug = title.toLowerCase()
+    const slug = title.toLowerCase()
       // Keep articles like "The" - Letterboxd usually keeps them
       // .replace(/^(the|a|an)\s+/i, '') // Removed this line
       // Replace special characters and spaces with hyphens
@@ -24,10 +24,10 @@ class LetterboxdUrlService {
       .replace(/-+/g, '-')
       // Remove leading/trailing hyphens
       .replace(/^-+|-+$/g, '');
-    
+
     // Note: Letterboxd doesn't use years in URLs for most movies
     // Only add year for disambiguation when absolutely necessary
-    
+
     return slug;
   }
 
@@ -36,7 +36,7 @@ class LetterboxdUrlService {
    * Built from local date components — NOT toISOString(), which is UTC and would
    * log the wrong day for late-evening viewings in western timezones.
    */
-  static todayLocalISODate() {
+  static todayLocalISODate () {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -51,7 +51,7 @@ class LetterboxdUrlService {
    * directly onto Letterboxd's scale. Returns null for anything that isn't a
    * loggable star rating (0 / missing / non-numeric) so we simply omit the param.
    */
-  static normalizedRatingToStars(normalizedRating) {
+  static normalizedRatingToStars (normalizedRating) {
     const stars = parseFloat(normalizedRating) / 2;
     if (!isFinite(stars) || stars < 0.5) return null;
     const clamped = Math.min(5, stars);
@@ -63,7 +63,7 @@ class LetterboxdUrlService {
    * Generate full Letterboxd URLs.
    * options.normalizedRating (0–10) is forwarded to the log link as a star rating.
    */
-  static generateUrls(title, year, options = {}) {
+  static generateUrls (title, year, options = {}) {
     const slug = this.generateMovieSlug(title, year);
     if (!slug || !title) return null;
 
@@ -80,7 +80,7 @@ class LetterboxdUrlService {
     const ratingParam = stars !== null ? `&rating=${stars}` : '';
 
     return {
-      slug: slug,
+      slug,
       webUrl: `https://letterboxd.com/film/${slug}/`,
       appUrl: `letterboxd://x-callback-url/search?query=${encodedTitle}&type=film`,
       appLogUrl: `letterboxd://x-callback-url/log?name=${encodedTitle}&date=${today}${ratingParam}`,
@@ -91,10 +91,10 @@ class LetterboxdUrlService {
   /**
    * Generate user-specific URLs
    */
-  static generateUserUrls(username, title, year) {
+  static generateUserUrls (username, title, year) {
     const slug = this.generateMovieSlug(title, year);
     if (!slug || !username) return null;
-    
+
     return {
       userProfile: `https://letterboxd.com/${username}/`,
       userFilms: `https://letterboxd.com/${username}/films/`,
@@ -107,7 +107,7 @@ class LetterboxdUrlService {
    * Smart deep link to movie with app/web fallback
    * Opens search in app, with web fallback
    */
-  static openMovie(title, year, options = {}) {
+  static openMovie (title, year, options = {}) {
     const urls = this.generateUrls(title, year);
     if (!urls) {
       console.error('Could not generate Letterboxd URLs for:', title, year);
@@ -135,7 +135,7 @@ class LetterboxdUrlService {
   /**
    * Deep link to log/rate a movie in the Letterboxd app
    */
-  static logMovie(title, year, options = {}) {
+  static logMovie (title, year, options = {}) {
     const urls = this.generateUrls(title, year, options);
     if (!urls) {
       console.error('Could not generate Letterboxd URLs for:', title, year);
@@ -163,7 +163,7 @@ class LetterboxdUrlService {
   /**
    * Try web URL, with fallback to search if the direct link fails
    */
-  static tryWebUrlWithFallback(title, primaryUrl) {
+  static tryWebUrlWithFallback (title, primaryUrl) {
     // Try the primary URL first
     const testLink = document.createElement('a');
     testLink.href = primaryUrl;
@@ -179,7 +179,7 @@ class LetterboxdUrlService {
   /**
    * Open movie reviews page
    */
-  static openMovieReviews(title, year) {
+  static openMovieReviews (title, year) {
     const urls = this.generateUrls(title, year);
     if (!urls) return false;
 
@@ -190,9 +190,9 @@ class LetterboxdUrlService {
   /**
    * Open user's profile
    */
-  static openUserProfile(username) {
+  static openUserProfile (username) {
     if (!username) return false;
-    
+
     const profileUrl = `https://letterboxd.com/${username}/`;
     window.open(profileUrl, '_blank');
     return true;

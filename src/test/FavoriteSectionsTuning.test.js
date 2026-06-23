@@ -32,7 +32,7 @@ const CAST = [
 
 const RATING = { calculatedTotal: 8, direction: 8, story: 8, soundtrack: 8, imagery: 8, performance: 8 }
 
-function crewLibrary(job) {
+function crewLibrary (job) {
   // "Star" appears in 2 films (below every crew default minEntries), so they
   // only surface after we tune minEntries down — a clean live-retune assertion.
   return Array.from({ length: 2 }, (_, i) => ({
@@ -41,14 +41,14 @@ function crewLibrary(job) {
   }))
 }
 
-function castLibrary() {
+function castLibrary () {
   return Array.from({ length: 2 }, (_, i) => ({
     movie: { id: i + 1, title: `Film ${i}`, cast: [{ name: 'Star Person' }] },
     ratings: [RATING]
   }))
 }
 
-function mountSection(comp, library, dispatch, fetchImpl) {
+function mountSection (comp, library, dispatch, fetchImpl) {
   global.fetch = fetchImpl
   return mount(comp, {
     props: { allEntriesWithFlatKeywordsAdded: library },

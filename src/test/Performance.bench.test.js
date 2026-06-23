@@ -32,7 +32,7 @@ const TITLE_WORDS = ['Heat', 'Godfather', 'Jaws', 'Dune', 'Goodfellas', 'Arrival
 const pick = (arr, n) => arr[n % arr.length]
 const name = (n) => `${pick(FIRST, n)} ${pick(LAST, Math.floor(n / 3) + n)}`
 
-function makeLibrary(count) {
+function makeLibrary (count) {
   const movies = []
   for (let i = 1; i <= count; i++) {
     movies.push({
@@ -58,7 +58,7 @@ function makeLibrary(count) {
   return movies
 }
 
-function mountWith(movies) {
+function mountWith (movies) {
   const mockStore = {
     state: {
       dbLoaded: true,
@@ -90,12 +90,12 @@ function mountWith(movies) {
   return mount(Home, {
     global: {
       mocks: { $store: mockStore, $route: { query: {} }, $router: { push: vi.fn() } },
-      stubs: { 'NoResults': true, 'StickinessModal': true, 'TweakModal': true, 'InsetBrowserModal': true }
+      stubs: { NoResults: true, StickinessModal: true, TweakModal: true, InsetBrowserModal: true }
     }
   })
 }
 
-function time(label, iterations, fn) {
+function time (label, iterations, fn) {
   // Warm up (JIT) then measure median-ish over a few runs.
   for (let i = 0; i < 2; i++) fn()
   const runs = []

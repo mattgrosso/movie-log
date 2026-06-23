@@ -75,8 +75,11 @@ const mountHome = () => {
     global: {
       mocks: { $store: mockStore, $route: { query: {} }, $router: { push: vi.fn() } },
       stubs: {
-        'DBGridLayoutSearchResult': { template: '<div/>', props: ['result', 'keywordCounts', 'allCounts', 'index', 'resultsAreFiltered', 'sortValue', 'activeQuickLinkList'] },
-        'NoResults': true, 'StickinessModal': true, 'TweakModal': true, 'InsetBrowserModal': true
+        DBGridLayoutSearchResult: { template: '<div/>', props: ['result', 'keywordCounts', 'allCounts', 'index', 'resultsAreFiltered', 'sortValue', 'activeQuickLinkList'] },
+        NoResults: true,
+        StickinessModal: true,
+        TweakModal: true,
+        InsetBrowserModal: true
       }
     }
   })

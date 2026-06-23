@@ -351,12 +351,12 @@ export default createStore({
       const now = Date.now();
       const timeSinceLastSave = now - context.state.lastSaveTime;
       const isSamePath = context.state.lastSavePath === dbEntry.path;
-      
+
       // Simple debounce: skip if saving same path within 1 second
       if (isSamePath && timeSinceLastSave < 1000) {
         return;
       }
-      
+
       try {
         const cleanedValue = removeNaNAndUndefined(dbEntry.value);
         await set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedValue);

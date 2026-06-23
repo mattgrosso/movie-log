@@ -14,7 +14,7 @@
 //   3. Otherwise prefer the oldest year with partial progress; fall back to the oldest incomplete year.
 //
 // This function is pure: same inputs → same output. No randomness, no side effects.
-export function pickEligibleAwardsYear({
+export function pickEligibleAwardsYear ({
   incompleteYears,
   personalAwards,
   dailyAwardsYear,

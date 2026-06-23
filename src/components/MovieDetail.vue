@@ -45,7 +45,7 @@
                :aria-label="isMovieLoggedOnLetterboxd() ? 'View movie on Letterboxd' : 'Log on Letterboxd'"
                :class="['letterboxd-status-button', { 'logged': isMovieLoggedOnLetterboxd(), 'not-logged': !isMovieLoggedOnLetterboxd() }]">
             <img :src="isMovieLoggedOnLetterboxd() ? 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-rgb-500px.png' : 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-mono-500px.png'"
-                 alt="Letterboxd" 
+                 alt="Letterboxd"
                  class="letterboxd-icon">
           </div>
           <button class="btn btn-sm btn-success me-2" @click="rateMedia(topStructure(result))">Add New Rating</button>
@@ -477,14 +477,14 @@ export default {
   components: {
     ToggleableRating
   },
-  data() {
+  data () {
     return {
       movie: null,
       result: null, // Will be constructed from movie data
       previousEntry: null,
       awardsData: null,
       letterboxdData: null,
-      getAllRatings: getAllRatings,
+      getAllRatings,
       isLoading: false,
       showPosterOptions: false,
       loadingPosters: false,
@@ -499,26 +499,26 @@ export default {
       expandedViewingKeys: {}
     };
   },
-  created() {
+  created () {
     // Hide main header for this page
     this.$store.commit('setShowHeader', false);
-    
+
     // Scroll to top when entering movie detail page
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-    
+
     // Get movie data from route parameter - don't await to render immediately
     const tmdbId = this.$route.params.tmdbId;
     this.loadMovieData(tmdbId);
   },
-  
-  beforeUnmount() {
+
+  beforeUnmount () {
     // Show header again when leaving this page
     this.$store.commit('setShowHeader', true);
   },
   watch: {
     '$route.params.tmdbId': {
-      handler(newId) {
+      handler (newId) {
         if (newId) {
           // Scroll to top
           document.documentElement.scrollTop = 0;
@@ -530,7 +530,7 @@ export default {
     }
   },
   computed: {
-    academyAwardWins() {
+    academyAwardWins () {
       if (!Array.isArray(this.awardsData)) {
         return [];
       }
@@ -575,7 +575,7 @@ export default {
           return indexA - indexB;
         });
     },
-    academyAwardNominations() {
+    academyAwardNominations () {
       if (!Array.isArray(this.awardsData)) {
         return [];
       }
@@ -620,7 +620,7 @@ export default {
           return indexA - indexB;
         });
     },
-    sortedFlatKeywords() {
+    sortedFlatKeywords () {
       if (!this.topStructure(this.result)?.flatKeywords) return [];
       return [...this.topStructure(this.result).flatKeywords].sort((a, b) => {
         const countA = this.keywordCounts[a] || 0;
@@ -628,7 +628,7 @@ export default {
         return countB - countA;
       });
     },
-    keywordCounts() {
+    keywordCounts () {
       const counts = {};
 
       // Count how many times each keyword appears across all movies in the database
@@ -645,7 +645,7 @@ export default {
 
       return counts;
     },
-    viewingTags() {
+    viewingTags () {
       // Unique viewing-tags across all ratings of this movie.
       if (!this.result || !this.result.ratings) return [];
 
@@ -656,7 +656,7 @@ export default {
 
       return [...new Set(allTags)];
     },
-    sortedTags() {
+    sortedTags () {
       if (!this.viewingTags || !this.viewingTags.length) return [];
       return [...this.viewingTags].sort((a, b) => {
         const countA = this.tagCounts[a] || 0;
@@ -664,7 +664,7 @@ export default {
         return countB - countA;
       });
     },
-    tagCounts() {
+    tagCounts () {
       const counts = {};
 
       // Count how many times each tag appears across all movies in the database
@@ -688,11 +688,11 @@ export default {
       return counts;
     },
 
-    trimmedKeywordInput() {
+    trimmedKeywordInput () {
       return (this.keywordInput || '').trim();
     },
 
-    orderedRatingsForEditor() {
+    orderedRatingsForEditor () {
       if (!this.result || !Array.isArray(this.result.ratings)) return [];
       // Most-recent first; stable index-based key so list reorders don't break v-for state.
       return this.result.ratings
@@ -704,7 +704,7 @@ export default {
         });
     },
 
-    viewingTagVocabularyTitles() {
+    viewingTagVocabularyTitles () {
       const tagsByCategory = this.$store.state.settings && this.$store.state.settings.tags;
       const viewingTags = tagsByCategory && tagsByCategory['viewing-tags'];
       if (!viewingTags) return [];
@@ -713,11 +713,11 @@ export default {
         .filter(Boolean);
     },
 
-    currentKeywordsLowercase() {
+    currentKeywordsLowercase () {
       return new Set(this.sortedFlatKeywords.map((k) => k.toLowerCase()));
     },
 
-    keywordSuggestions() {
+    keywordSuggestions () {
       const query = this.trimmedKeywordInput.toLowerCase();
       if (!query) return [];
       const currentSet = this.currentKeywordsLowercase;
@@ -728,7 +728,7 @@ export default {
         .map((name) => ({ name, count: this.keywordCounts[name] || 0 }));
     },
 
-    canCreateTypedKeyword() {
+    canCreateTypedKeyword () {
       const typed = this.trimmedKeywordInput;
       if (!typed) return false;
       if (this.currentKeywordsLowercase.has(typed.toLowerCase())) return false;
@@ -739,7 +739,7 @@ export default {
     },
 
     // Count computed properties for proper tracking
-    allEntriesWithFlatKeywordsAdded() {
+    allEntriesWithFlatKeywordsAdded () {
       return this.$store.getters.allMediaAsArray.map((result) => {
         return {
           ...result,
@@ -751,7 +751,7 @@ export default {
       });
     },
 
-    countsDirectors() {
+    countsDirectors () {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
@@ -770,7 +770,7 @@ export default {
       return counts;
     },
 
-    countsCastCrew() {
+    countsCastCrew () {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
@@ -792,7 +792,7 @@ export default {
       return counts;
     },
 
-    countsGenres() {
+    countsGenres () {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
@@ -811,7 +811,7 @@ export default {
       return counts;
     },
 
-    countsStudios() {
+    countsStudios () {
       const counts = {};
 
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
@@ -829,7 +829,7 @@ export default {
       return counts;
     },
 
-    lastHigherRatedMovie() {
+    lastHigherRatedMovie () {
       // Get the current movie's release date and rating
       const currentReleaseDate = this.movie?.release_date;
       const currentRating = this.ratingForMedia(this.result);
@@ -866,7 +866,7 @@ export default {
     }
   },
   methods: {
-    async loadMovieData(tmdbId) {
+    async loadMovieData (tmdbId) {
       try {
         // Wait for database to be loaded if it isn't already
         if (!this.$store.state.dbLoaded) {
@@ -887,7 +887,7 @@ export default {
         // Check if movie exists in user's database
         const allResults = this.$store.getters.allMediaAsArray || [];
         const existingMovie = allResults.find(r => r.movie?.id?.toString() === tmdbId);
-        
+
         if (existingMovie) {
           this.movie = existingMovie.movie;
           this.result = existingMovie;
@@ -912,7 +912,7 @@ export default {
       }
     },
 
-    goBack() {
+    goBack () {
       // Show loading state immediately
       this.isLoading = true;
 
@@ -927,7 +927,7 @@ export default {
       this.$router.push('/');
     },
 
-    searchFor(query, type) {
+    searchFor (query, type) {
       // Set navigation intent to scroll to top
       this.$store.commit('setHomePageNavigationIntent', 'search');
 
@@ -944,7 +944,7 @@ export default {
       this.$store.commit('setBannerRequest', { type: 'fromResults' });
       this.$router.push('/');
     },
-    groupKeyForClickType(type) {
+    groupKeyForClickType (type) {
       // Maps the type of value clicked on the detail page to a grouped-result
       // group key. Returns null for unknown/typeless clicks (e.g. year).
       const map = {
@@ -963,7 +963,7 @@ export default {
       return map[type] || null;
     },
 
-    searchForTag(tag) {
+    searchForTag (tag) {
       // Set navigation intent to scroll to top
       this.$store.commit('setHomePageNavigationIntent', 'search');
 
@@ -980,24 +980,24 @@ export default {
       this.$router.push('/');
     },
 
-    rateMedia(movie) {
+    rateMedia (movie) {
       this.$store.commit('setMovieToRate', movie);
       this.$router.push('/rate-movie');
     },
 
     // Copy over all the helper methods from DBGridLayoutSearchResult
-    getYear(media) {
+    getYear (media) {
       const date = media?.movie?.release_date;
       return date ? new Date(date).getFullYear() : 'Unknown';
     },
 
-    prettifyRuntime(result) {
+    prettifyRuntime (result) {
       const runtime = result?.movie?.runtime;
       if (!runtime) return 'Runtime unknown';
-      
+
       const hours = Math.floor(runtime / 60);
       const minutes = runtime % 60;
-      
+
       if (hours > 0) {
         return `${hours}h ${minutes}m`;
       } else {
@@ -1005,16 +1005,16 @@ export default {
       }
     },
 
-    multipleEntries(array) {
+    multipleEntries (array) {
       return Array.isArray(array) && array.length > 1;
     },
 
-    turnArrayIntoList(array, key) {
+    turnArrayIntoList (array, key) {
       if (!Array.isArray(array)) return [];
       return key ? array.map(item => item[key]) : array;
     },
 
-    getCrewMember(job, strict = false) {
+    getCrewMember (job, strict = false) {
       if (!this.topStructure(this.result)?.crew) return [];
       const crew = this.topStructure(this.result).crew.filter(member => {
         if (strict === 'strict') {
@@ -1025,24 +1025,24 @@ export default {
       return crew.map(member => member.name);
     },
 
-    ratingForMedia(result) {
+    ratingForMedia (result) {
       return this.mostRecentRating(result).calculatedTotal;
     },
 
-    normalizedRatingForMedia(result) {
+    normalizedRatingForMedia (result) {
       return this.mostRecentRating(result).normalizedRating;
     },
 
-    mostRecentRating(media) {
+    mostRecentRating (media) {
       return getRating(media);
     },
 
-    formattedDate(date) {
+    formattedDate (date) {
       if (!date) return '';
       return new Date(date).toLocaleDateString();
     },
 
-    async getAwardsData() {
+    async getAwardsData () {
       try {
         const response = await axios.get(`https://web-production-b8145.up.railway.app/awards/tmdb/${this.movie.id}`);
         this.awardsData = response.data.map((item) => {
@@ -1058,8 +1058,7 @@ export default {
       }
     },
 
-
-    parseNamesToList(names) {
+    parseNamesToList (names) {
       try {
         if (!names) return '';
 
@@ -1090,7 +1089,7 @@ export default {
     },
 
     // Letterboxd integration methods
-    isMovieLoggedOnLetterboxd() {
+    isMovieLoggedOnLetterboxd () {
       // First check manual overrides
       const movie = this.topStructure(this.result);
       const overrides = this.$store.state.settings.letterboxdOverrides || {};
@@ -1106,7 +1105,7 @@ export default {
       return this.letterboxdData && this.letterboxdData.length > 0;
     },
 
-    logOnLetterboxd() {
+    logOnLetterboxd () {
       const movie = this.topStructure(this.result);
 
       // Check if movie is already logged on Letterboxd
@@ -1139,7 +1138,7 @@ export default {
       }
     },
 
-    async checkLetterboxdData() {
+    async checkLetterboxdData () {
       if (!this.$store.state.settings.letterboxdConnected) {
         return;
       }
@@ -1167,7 +1166,6 @@ export default {
 
           this.letterboxdData = movieEntries;
         }
-
       } catch (error) {
         console.error('Failed to get Letterboxd data:', error);
         ErrorLogService.error('Failed to get Letterboxd data:', error);
@@ -1175,12 +1173,12 @@ export default {
       }
     },
 
-    goToWikipedia(query) {
+    goToWikipedia (query) {
       const searchTerm = query || this.topStructure(this.result)?.title;
       window.open(`https://en.wikipedia.org/wiki/${encodeURIComponent(searchTerm)}`, '_blank');
     },
 
-    topStructure(result) {
+    topStructure (result) {
       if (!result?.movie) return null;
       return {
         ...result.movie,
@@ -1190,19 +1188,19 @@ export default {
 
     computeFlatKeywords,
 
-    toggleKeywordEditor() {
+    toggleKeywordEditor () {
       this.isEditingKeywords = !this.isEditingKeywords;
       if (!this.isEditingKeywords) {
         this.keywordInput = '';
       }
     },
 
-    closeKeywordEditor() {
+    closeKeywordEditor () {
       this.isEditingKeywords = false;
       this.keywordInput = '';
     },
 
-    async persistKeywordChange({ customKeywords, removedKeywords }) {
+    async persistKeywordChange ({ customKeywords, removedKeywords }) {
       if (!this.result?.dbKey) return;
       const updated = {
         ...this.result,
@@ -1228,7 +1226,7 @@ export default {
       }
     },
 
-    async removeKeyword(keyword) {
+    async removeKeyword (keyword) {
       if (!keyword || !this.result?.movie) return;
       const existingRemoved = this.result.movie.removedKeywords || [];
       const existingCustom = this.result.movie.customKeywords || [];
@@ -1244,7 +1242,7 @@ export default {
       });
     },
 
-    async addKeyword(keyword) {
+    async addKeyword (keyword) {
       const trimmed = (keyword || '').trim();
       if (!trimmed || !this.result?.movie) return;
 
@@ -1269,7 +1267,7 @@ export default {
       });
     },
 
-    addTypedKeyword() {
+    addTypedKeyword () {
       const typed = this.trimmedKeywordInput;
       if (!typed) return;
       // Match any existing keyword case-insensitively so we don't create dupes
@@ -1280,7 +1278,7 @@ export default {
     },
 
     // --- Tag editor ---
-    toggleTagEditor() {
+    toggleTagEditor () {
       this.isEditingTags = !this.isEditingTags;
       if (this.isEditingTags) {
         // Auto-expand the most recent viewing
@@ -1294,29 +1292,29 @@ export default {
       }
     },
 
-    closeTagEditor() {
+    closeTagEditor () {
       this.isEditingTags = false;
       this.tagInputs = {};
       this.expandedViewingKeys = {};
     },
 
-    toggleViewingExpansion(editorKey) {
+    toggleViewingExpansion (editorKey) {
       this.expandedViewingKeys = {
         ...this.expandedViewingKeys,
         [editorKey]: !this.expandedViewingKeys[editorKey]
       };
     },
 
-    tagsForRating(rating) {
+    tagsForRating (rating) {
       if (!rating || !Array.isArray(rating.tags)) return [];
       return rating.tags.map((t) => t && t.title).filter(Boolean);
     },
 
-    trimmedTagInputFor(editorKey) {
+    trimmedTagInputFor (editorKey) {
       return ((this.tagInputs && this.tagInputs[editorKey]) || '').trim();
     },
 
-    tagSuggestionsFor(editorKey) {
+    tagSuggestionsFor (editorKey) {
       const rating = this.orderedRatingsForEditor.find((r) => r._editorKey === editorKey);
       if (!rating) return [];
       return buildTagSuggestions({
@@ -1327,7 +1325,7 @@ export default {
       });
     },
 
-    canCreateTypedTagFor(editorKey) {
+    canCreateTypedTagFor (editorKey) {
       const rating = this.orderedRatingsForEditor.find((r) => r._editorKey === editorKey);
       if (!rating) return false;
       return canCreateNewTag({
@@ -1338,7 +1336,7 @@ export default {
       });
     },
 
-    async persistRatingsChange(nextRatings) {
+    async persistRatingsChange (nextRatings) {
       if (!this.result || !this.result.dbKey) return;
       const updated = {
         ...this.result,
@@ -1359,7 +1357,7 @@ export default {
       }
     },
 
-    async addVocabularyTagIfNew(title) {
+    async addVocabularyTagIfNew (title) {
       const trimmed = (title || '').trim();
       if (!trimmed) return;
       const exists = this.viewingTagVocabularyTitles.some(
@@ -1379,12 +1377,12 @@ export default {
       }
     },
 
-    findRatingIndexByEditorKey(editorKey) {
+    findRatingIndexByEditorKey (editorKey) {
       const found = this.orderedRatingsForEditor.find((r) => r._editorKey === editorKey);
       return found ? found._originalIndex : -1;
     },
 
-    async addTagToViewing(editorKey, tagTitle) {
+    async addTagToViewing (editorKey, tagTitle) {
       const trimmed = (tagTitle || '').trim();
       if (!trimmed) return;
       const idx = this.findRatingIndexByEditorKey(editorKey);
@@ -1408,7 +1406,7 @@ export default {
       await this.persistRatingsChange(nextRatings);
     },
 
-    addTypedTag(editorKey) {
+    addTypedTag (editorKey) {
       const typed = this.trimmedTagInputFor(editorKey);
       if (!typed) return;
       const matchInCounts = Object.keys(this.tagCounts).find(
@@ -1420,7 +1418,7 @@ export default {
       this.addTagToViewing(editorKey, matchInCounts || matchInVocab || typed);
     },
 
-    async removeTagFromViewing(editorKey, tagTitle) {
+    async removeTagFromViewing (editorKey, tagTitle) {
       if (!tagTitle) return;
       const idx = this.findRatingIndexByEditorKey(editorKey);
       if (idx < 0 || !this.result || !Array.isArray(this.result.ratings)) return;
@@ -1439,13 +1437,13 @@ export default {
       await this.persistRatingsChange(nextRatings);
     },
 
-    getBackdropPath() {
+    getBackdropPath () {
       // Check if user has selected a custom backdrop
       return this.result?.customBackdropPath || this.movie?.backdrop_path;
     },
 
     // Rating deletion methods
-    showConfimDeleteButton(dbKey, index) {
+    showConfimDeleteButton (dbKey, index) {
       const deleteButton = document.getElementById(`delete-button-${dbKey}-${index}`);
       const confirmDeleteButton = document.getElementById(`confirm-delete-button-${dbKey}-${index}`);
 
@@ -1453,7 +1451,7 @@ export default {
       confirmDeleteButton.classList.remove('d-none');
     },
 
-    showDeleteButton(dbKey, index) {
+    showDeleteButton (dbKey, index) {
       const deleteButton = document.getElementById(`delete-button-${dbKey}-${index}`);
       const confirmDeleteButton = document.getElementById(`confirm-delete-button-${dbKey}-${index}`);
 
@@ -1461,7 +1459,7 @@ export default {
       confirmDeleteButton.classList.add('d-none');
     },
 
-    deleteRating(entry, index) {
+    deleteRating (entry, index) {
       let scratch = { ...entry };
       scratch.ratings.splice(index, 1);
 
@@ -1489,23 +1487,23 @@ export default {
     },
 
     // Count methods using computed properties
-    countDirector(name) {
+    countDirector (name) {
       return this.countsDirectors[name] || 0;
     },
 
-    countCastCrew(name) {
+    countCastCrew (name) {
       return this.countsCastCrew[name] || 0;
     },
 
-    countGenre(genre) {
+    countGenre (genre) {
       return this.countsGenres[genre] || 0;
     },
 
-    countStudios(studio) {
+    countStudios (studio) {
       return this.countsStudios[studio] || 0;
     },
 
-    formatTimeDifference(earlierDate, laterDate) {
+    formatTimeDifference (earlierDate, laterDate) {
       const earlier = new Date(earlierDate);
       const later = new Date(laterDate);
       const diffMs = later - earlier;
@@ -1533,17 +1531,17 @@ export default {
       return years === 1 ? '1 year' : `${years} years`;
     },
 
-    getPosterPath(result) {
+    getPosterPath (result) {
       return result?.customPosterPath || result?.movie?.poster_path;
     },
 
-    navigateToMovie(tmdbId) {
+    navigateToMovie (tmdbId) {
       // Navigate to the new movie detail page
       this.$router.push(`/movie/${tmdbId}`);
     },
 
     // Poster selection methods
-    async togglePosterOptions() {
+    async togglePosterOptions () {
       this.showPosterOptions = !this.showPosterOptions;
 
       // If showing posters, hide backdrops
@@ -1571,7 +1569,7 @@ export default {
       }
     },
 
-    async loadPosterOptions() {
+    async loadPosterOptions () {
       this.loadingPosters = true;
 
       try {
@@ -1597,7 +1595,6 @@ export default {
         this.posterOptions = postersToSort
           .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
           .slice(0, 6);
-
       } catch (error) {
         console.error('Error fetching poster options:', error);
         ErrorLogService.error('Error fetching poster options:', error);
@@ -1606,7 +1603,7 @@ export default {
       }
     },
 
-    getUserLanguage() {
+    getUserLanguage () {
       // Get user's language from browser
       const browserLang = navigator.language || navigator.userLanguage;
       // Extract country code (e.g., "en-US" -> "US", "en-GB" -> "GB")
@@ -1614,12 +1611,12 @@ export default {
       return countryCode;
     },
 
-    isSelectedPoster(posterPath) {
+    isSelectedPoster (posterPath) {
       const customPoster = this.result?.customPosterPath;
       return customPoster === posterPath || (!customPoster && posterPath === this.movie?.poster_path);
     },
 
-    async selectPoster(posterPath) {
+    async selectPoster (posterPath) {
       try {
         // Update the movie entry in the database with the custom poster path
         const dbEntry = {
@@ -1637,7 +1634,6 @@ export default {
         if (this.previousEntry) {
           this.previousEntry.customPosterPath = posterPath;
         }
-
       } catch (error) {
         console.error('Error saving custom poster:', error);
         ErrorLogService.error('Error saving custom poster:', error);
@@ -1645,7 +1641,7 @@ export default {
     },
 
     // Backdrop selection methods
-    async toggleBackdropOptions() {
+    async toggleBackdropOptions () {
       this.showBackdropOptions = !this.showBackdropOptions;
 
       // If showing backdrops, hide posters
@@ -1673,7 +1669,7 @@ export default {
       }
     },
 
-    async loadBackdropOptions() {
+    async loadBackdropOptions () {
       this.loadingBackdrops = true;
 
       try {
@@ -1699,7 +1695,6 @@ export default {
         this.backdropOptions = backdropsToSort
           .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
           .slice(0, 6);
-
       } catch (error) {
         console.error('Error fetching backdrop options:', error);
         ErrorLogService.error('Error fetching backdrop options:', error);
@@ -1708,12 +1703,12 @@ export default {
       }
     },
 
-    isSelectedBackdrop(backdropPath) {
+    isSelectedBackdrop (backdropPath) {
       const customBackdrop = this.result?.customBackdropPath;
       return customBackdrop === backdropPath || (!customBackdrop && backdropPath === this.movie?.backdrop_path);
     },
 
-    async selectBackdrop(backdropPath) {
+    async selectBackdrop (backdropPath) {
       try {
         // Update the movie entry in the database with the custom backdrop path
         const dbEntry = {
@@ -1736,7 +1731,6 @@ export default {
         if (this.movie) {
           this.movie.backdrop_path = backdropPath;
         }
-
       } catch (error) {
         console.error('Error saving custom backdrop:', error);
         ErrorLogService.error('Error saving custom backdrop:', error);
@@ -1757,13 +1751,13 @@ export default {
   position: relative;
   height: 200px;
   overflow: hidden;
-  
+
   .backdrop-image {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  
+
   // Unified "Home" back affordance, matching Insights/RateMovie (caret + label,
   // top-left). Text-shadow keeps it legible over bright backdrops.
   .home-link {
@@ -1787,13 +1781,13 @@ export default {
       height: 20px;
     }
   }
-  
+
   .header-overlay {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    
+
     h1 {
       position: absolute;
       font-size: 2rem;
@@ -1811,18 +1805,18 @@ export default {
   margin: 0 auto;
   max-width: 650px;
   padding: 1rem;
-  
+
   a {
     color: white;
     cursor: pointer;
   }
-  
+
   h4 {
     font-size: 0.75rem;
     margin-bottom: 2px;
     color: #fff;
   }
-  
+
   p {
     font-size: 1rem;
     margin-bottom: 1rem;
@@ -1846,7 +1840,7 @@ export default {
     justify-content: flex-end;
     margin-bottom: 1rem;
   }
-  
+
   .awards {
     .winners,
     .nominees {
@@ -1856,7 +1850,7 @@ export default {
       padding: 6px;
     }
   }
-  
+
   .long-list {
     max-height: 150px;
     overflow-y: auto;
@@ -2137,7 +2131,7 @@ export default {
       width: 100%;
     }
   }
-  
+
   .ratings-and-comparison-wrapper {
     display: flex;
     gap: 1rem;
@@ -2222,13 +2216,13 @@ export default {
       }
     }
   }
-  
+
   .small-count-bubble {
     bottom: 3px;
     font-size: 0.5rem;
     position: relative;
   }
-  
+
   .letterboxd-status-button {
     width: 32px;
     height: 32px;
@@ -2255,38 +2249,38 @@ export default {
     height: 24px;
     background: none !important;
   }
-  
+
   .letterboxd-actions {
     .letterboxd-status {
       .badge {
         font-size: 0.75rem;
         padding: 0.5rem 0.75rem;
-        
+
         i {
           margin-right: 0.25rem;
         }
       }
-      
+
       .bg-success {
         background-color: #00e054 !important; // Letterboxd green
       }
     }
-    
+
     .letterboxd-buttons {
       .btn {
         font-size: 0.7rem;
         padding: 0.375rem 0.5rem;
-        
+
         i {
           margin-right: 0.25rem;
           font-size: 0.8rem;
         }
       }
-      
+
       .btn-outline-success {
         border-color: #00e054;
         color: #00e054;
-        
+
         &:hover {
           background-color: #00e054;
           border-color: #00e054;

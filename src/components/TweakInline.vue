@@ -70,21 +70,21 @@ export default {
     }
   },
   emits: ['tweak-updated'],
-  data() {
+  data () {
     return {
       showTweakInline: false,
       submitting: false
     }
   },
   computed: {
-    currentLogIsTVLog() {
+    currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
-    allMoviesRanked() {
+    allMoviesRanked () {
       const movies = [...this.$store.getters.allMoviesAsArray];
       return movies.sort(this.sortByRating);
     },
-    firstTiedResults() {
+    firstTiedResults () {
       const firstTiedPairIndex = this.allMoviesRanked.findIndex((movie, index) => {
         const nextMovie = this.allMoviesRanked[index + 1];
 
@@ -101,36 +101,36 @@ export default {
 
       return [this.allMoviesRanked[firstTiedPairIndex], this.allMoviesRanked[firstTiedPairIndex + 1]];
     },
-    firstResult() {
+    firstResult () {
       return this.firstTiedResults[0];
     },
-    secondResult() {
+    secondResult () {
       return this.firstTiedResults[1];
     },
-    firstResultTweakValue() {
+    firstResultTweakValue () {
       if (!this.firstResult) return 0;
       return this.firstResult.ratings[this.mostRecentRatingIndex(this.firstResult)].tweakValue || 0;
     },
-    secondResultTweakValue() {
+    secondResultTweakValue () {
       if (!this.secondResult) return 0;
       return this.secondResult.ratings[this.mostRecentRatingIndex(this.secondResult)].tweakValue || 0;
     }
   },
   methods: {
-    toggleTweakInline() {
+    toggleTweakInline () {
       this.showTweakInline = true;
     },
-    closeTweakInline() {
+    closeTweakInline () {
       this.showTweakInline = false;
     },
-    topStructure(result) {
+    topStructure (result) {
       if (this.currentLogIsTVLog) {
         return result.tvShow;
       } else {
         return result.movie;
       }
     },
-    sortByRating(a, b) {
+    sortByRating (a, b) {
       const aRating = getRating(a)?.calculatedTotal;
       const bRating = getRating(b)?.calculatedTotal;
 
@@ -143,7 +143,7 @@ export default {
 
       return 0;
     },
-    mostRecentRatingIndex(result) {
+    mostRecentRatingIndex (result) {
       let mostRecentRating = result.ratings[0];
       let mostRecentRatingIndex = 0;
 
@@ -162,7 +162,7 @@ export default {
 
       return mostRecentRatingIndex;
     },
-    firstResultWins() {
+    firstResultWins () {
       // Because the first result won, we are going to reduce the overall score of second result.
       this.submitting = true;
 
@@ -197,7 +197,7 @@ export default {
       // Emit event to parent to update data
       this.$emit('tweak-updated');
     },
-    secondResultWins() {
+    secondResultWins () {
       // Because the second result won, we are going to reduce the overall score of first result.
       this.submitting = true;
 

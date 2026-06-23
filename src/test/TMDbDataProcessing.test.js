@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import addRating from '@/assets/javascript/AddRating.js'
 
+// Import axios for mocking
+import axios from 'axios'
+import store from '@/store/index'
+
 // Mock external dependencies
 vi.mock('axios', () => ({
   default: {
@@ -21,10 +25,6 @@ vi.mock('@/store/index', () => ({
     dispatch: vi.fn()
   }
 }))
-
-// Import axios for mocking
-import axios from 'axios'
-import store from '@/store/index'
 
 describe('TMDb Data Processing & Movie Rating Addition', () => {
   let mockTMDbData
@@ -117,7 +117,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
               },
               {
                 id: 26752,
-                job: 'Director', 
+                job: 'Director',
                 title: 'Gone Girl',
                 release_date: '2014-10-01',
                 popularity: 9.2
@@ -340,7 +340,6 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       expect(result.value.movie.ownership).toBe('Digital')
       expect(result.value.ratings[0].ownership).toBeUndefined()
     })
-
   })
 
   describe('Database Key Generation', () => {

@@ -112,41 +112,61 @@ export default {
     }
   },
   computed: {
-    overallWeight() {
+    overallWeight () {
       return 1 - this.soundtrackWeight;
     },
     tunerLevers () {
       return [
         {
-          key: 'minEntries', label: 'Minimum films', value: this.minEntries,
-          min: 1, max: 15, step: 1,
+          key: 'minEntries',
+          label: 'Minimum films',
+          value: this.minEntries,
+          min: 1,
+          max: 15,
+          step: 1,
           help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
         },
         {
-          key: 'confidenceNumber', label: 'Small-sample caution', value: this.confidenceNumber,
-          min: 0, max: 10, step: 0.5,
+          key: 'confidenceNumber',
+          label: 'Small-sample caution',
+          value: this.confidenceNumber,
+          min: 0,
+          max: 10,
+          step: 0.5,
           help: "Pulls composers with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
         },
         {
-          key: 'countWeight', label: 'Reward for volume', value: this.countWeight,
-          min: 0, max: 2, step: 0.05,
+          key: 'countWeight',
+          label: 'Reward for volume',
+          value: this.countWeight,
+          min: 0,
+          max: 2,
+          step: 0.05,
           help: "Boosts composers you've watched a lot. Higher = prolific favorites climb even if their average dips slightly."
         },
         {
-          key: 'knownForWeight', label: 'Signature-film bonus', value: this.knownForWeight,
-          min: 0, max: 1, step: 0.05,
+          key: 'knownForWeight',
+          label: 'Signature-film bonus',
+          value: this.knownForWeight,
+          min: 0,
+          max: 1,
+          step: 0.05,
           help: "Extra credit when you've rated their best-known films highly. Higher = loving their famous work matters more."
         },
         {
-          key: 'soundtrackWeight', label: 'Soundtrack vs. overall', value: this.soundtrackWeight,
-          min: 0, max: 1, step: 0.05,
+          key: 'soundtrackWeight',
+          label: 'Soundtrack vs. overall',
+          value: this.soundtrackWeight,
+          min: 0,
+          max: 1,
+          step: 0.05,
           help: 'Blends each film’s Soundtrack score with its overall score. Higher = leans on your Soundtrack ratings; 0 = pure overall.'
         }
       ];
     }
   },
   methods: {
-    averageRating(results, weights = null) {
+    averageRating (results, weights = null) {
       // For composers, blend overall and soundtrack ratings
       const getBlendedRating = (result) => {
         const mostRecent = this.mostRecentRating(result);
@@ -184,7 +204,7 @@ export default {
         return (total / ratings.length).toFixed(2);
       }
     },
-    async buildTopTwelveList() {
+    async buildTopTwelveList () {
       // Phase 1 (once per data load): gather every composer + their rated films.
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
@@ -223,7 +243,7 @@ export default {
 
       await this.rescore();
     },
-    computeKnownForBonus(entries, details) {
+    computeKnownForBonus (entries, details) {
       // Average blended (soundtrack) rating of the composer's 'known_for' films
       // you've rated, scaled by knownForWeight. Preserves the original behavior.
       if (!details || !Array.isArray(details.known_for) || !details.known_for.length) return 0;
@@ -249,7 +269,7 @@ export default {
       const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
       return avgKnownFor * this.knownForWeight;
     },
-    async rescore() {
+    async rescore () {
       const seq = ++this.rescoreSeq;
       const eligible = this.peopleData.filter(p => p.entries.length >= this.minEntries);
 
@@ -276,17 +296,17 @@ export default {
       scored.sort((a, b) => b.finalScore - a.finalScore);
       this.topTenList = scored.slice(0, 12);
     },
-    openComposerModal(entry) {
+    openComposerModal (entry) {
       this.selectedComposer = entry;
       this.showModal = true;
       document.body.classList.add('no-scroll');
     },
-    closeComposerModal() {
+    closeComposerModal () {
       this.showModal = false;
       this.selectedComposer = null;
       document.body.classList.remove('no-scroll');
     },
-    searchForComposer() {
+    searchForComposer () {
       const name = this.selectedComposer?.name;
       this.closeComposerModal();
       if (name) this.updateSearchValue(name);
@@ -318,28 +338,28 @@ export default {
       display: flex;
       min-height: 36px;
       position: relative;
-  
+
       .portrait-wrapper {
         align-items: center;
         display: flex;
         justify-content: center;
         padding: 4px;
         width: 100%;
-  
+
         .portrait {
           border-radius: 6px;
           height: auto;
           object-fit: cover;
           width: 100%;
         }
-  
+
         .placeholder {
           background: #444;
           height: auto;
           width: 48px;
         }
       }
-  
+
       .name {
         background: #00000069;
         border-bottom-left-radius: 6px;

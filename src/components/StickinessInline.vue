@@ -114,7 +114,7 @@ export default {
     }
   },
   emits: ['stickiness-updated'],
-  data() {
+  data () {
     return {
       showStickinessInline: false,
       stickinessRating: "",
@@ -122,14 +122,14 @@ export default {
     }
   },
   computed: {
-    currentLogIsTVLog() {
+    currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
-    allMoviesRanked() {
+    allMoviesRanked () {
       const movies = [...this.$store.getters.allMoviesAsArray];
       return movies.sort(this.sortByRating);
     },
-    resultsThatNeedStickiness() {
+    resultsThatNeedStickiness () {
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
         const hasntReratedStickinessOneWeek = !this.mostRecentRating(result).userAddedStickiness;
         const hasntReratedStickinessSixMonths = !this.mostRecentRating(result).userAddedSixMonthStickiness;
@@ -146,16 +146,16 @@ export default {
         return dateB - dateA;
       });
     },
-    firstStickinessResult() {
+    firstStickinessResult () {
       return this.resultsThatNeedStickiness[0];
     },
-    ratingWithoutStickiness() {
+    ratingWithoutStickiness () {
       if (!this.firstStickinessResult) return null;
       const tempResult = cloneDeep(this.firstStickinessResult);
       tempResult.ratings[this.mostRecentRatingIndex].stickiness = null;
       return getRating(this.firstStickinessResult).calculatedTotal;
     },
-    ratingWithStickiness() {
+    ratingWithStickiness () {
       if (!this.stickinessRating && this.stickinessRating !== 0 && this.stickinessRating !== "0") {
         return null;
       }
@@ -164,11 +164,11 @@ export default {
       tempResult.ratings[this.mostRecentRatingIndex].stickiness = parseFloat(this.stickinessRating);
       return getRating(tempResult).calculatedTotal;
     },
-    rankWithoutStickiness() {
+    rankWithoutStickiness () {
       if (!this.firstStickinessResult) return null;
       return this.allMoviesRanked.findIndex((movie) => movie.dbKey === this.firstStickinessResult.dbKey) + 1;
     },
-    rankWithStickiness() {
+    rankWithStickiness () {
       if (!this.stickinessRating || !this.firstStickinessResult) return null;
       const tempResult = cloneDeep(this.firstStickinessResult);
       tempResult.ratings[this.mostRecentRatingIndex].stickiness = parseFloat(this.stickinessRating);
@@ -178,7 +178,7 @@ export default {
       const sortedMovies = movies.sort(this.sortByRating);
       return sortedMovies.findIndex((movie) => movie.dbKey === tempResult.dbKey) + 1;
     },
-    mostRecentRatingIndex() {
+    mostRecentRatingIndex () {
       if (!this.firstStickinessResult) return 0;
       let mostRecentRating = this.firstStickinessResult.ratings[0];
       let mostRecentRatingIndex = 0;
@@ -198,27 +198,27 @@ export default {
 
       return mostRecentRatingIndex;
     },
-    showSixMonthMessage() {
+    showSixMonthMessage () {
       if (!this.firstStickinessResult) return false;
       return this.mostRecentRating(this.firstStickinessResult).userAddedStickiness;
     }
   },
   methods: {
-    toggleStickinessInline() {
+    toggleStickinessInline () {
       this.showStickinessInline = true;
     },
-    closeStickinessInline() {
+    closeStickinessInline () {
       this.showStickinessInline = false;
       this.stickinessRating = "";
     },
-    topStructure(result) {
+    topStructure (result) {
       if (this.currentLogIsTVLog) {
         return result.tvShow;
       } else {
         return result.movie;
       }
     },
-    sortByRating(a, b) {
+    sortByRating (a, b) {
       const aRating = getRating(a)?.calculatedTotal;
       const bRating = getRating(b)?.calculatedTotal;
 
@@ -231,7 +231,7 @@ export default {
 
       return 0;
     },
-    addStickinessRating() {
+    addStickinessRating () {
       this.submittingStickiness = true;
 
       let movieWithRating;
@@ -283,7 +283,7 @@ export default {
         }
       }, 2000);
     },
-    mostRecentRating(media) {
+    mostRecentRating (media) {
       return getRating(media);
     }
   }

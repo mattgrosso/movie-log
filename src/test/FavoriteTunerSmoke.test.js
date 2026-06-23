@@ -12,4 +12,4 @@ describe('FavoriteTuner renders', () => {
     await wrapper.find('.tuner-slider').setValue(7)
     expect(wrapper.emitted('update')[0][0]).toEqual({ key: 'minEntries', value: 7 })
   })
-}) 
+})

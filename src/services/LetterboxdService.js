@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 class LetterboxdService {
-  constructor() {
+  constructor () {
     this.baseURL = 'https://api.letterboxd.com/api/v0';
     this.clientId = process.env.VUE_APP_LETTERBOXD_CLIENT_ID;
     this.clientSecret = process.env.VUE_APP_LETTERBOXD_CLIENT_SECRET;
@@ -12,7 +12,7 @@ class LetterboxdService {
   /**
    * Initialize the service with stored credentials
    */
-  init(accessToken, memberId) {
+  init (accessToken, memberId) {
     this.accessToken = accessToken;
     this.memberId = memberId;
   }
@@ -20,16 +20,16 @@ class LetterboxdService {
   /**
    * Check if user is authenticated
    */
-  isAuthenticated() {
+  isAuthenticated () {
     return !!this.accessToken && !!this.memberId;
   }
 
   /**
    * Get headers for authenticated requests
    */
-  getAuthHeaders() {
+  getAuthHeaders () {
     return {
-      'Authorization': `Bearer ${this.accessToken}`,
+      Authorization: `Bearer ${this.accessToken}`,
       'Content-Type': 'application/json'
     };
   }
@@ -38,11 +38,11 @@ class LetterboxdService {
    * Search for a film by TMDB ID
    * Returns Letterboxd film ID if found
    */
-  async findFilmByTMDBId(tmdbId) {
+  async findFilmByTMDBId (tmdbId) {
     try {
       const response = await axios.get(`${this.baseURL}/films`, {
         params: {
-          filmId: `tmdb:${tmdbId}`,  // Use TMDB external ID
+          filmId: `tmdb:${tmdbId}`, // Use TMDB external ID
           perPage: 1
         }
       });
@@ -50,7 +50,7 @@ class LetterboxdService {
       if (response.data.items && response.data.items.length > 0) {
         return response.data.items[0].id;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error finding film by TMDB ID:', error);
@@ -62,7 +62,7 @@ class LetterboxdService {
    * Check if user has logged/watched a specific film
    * Uses the /film/{id}/member/{member} endpoint
    */
-  async checkFilmStatus(letterboxdFilmId) {
+  async checkFilmStatus (letterboxdFilmId) {
     if (!this.isAuthenticated()) {
       throw new Error('User not authenticated with Letterboxd');
     }
@@ -89,7 +89,7 @@ class LetterboxdService {
       };
     } catch (error) {
       console.error('Error checking film status:', error);
-      
+
       // Handle specific HTTP errors
       if (error.response?.status === 404) {
         // Film not found or user hasn't interacted with it
@@ -100,7 +100,7 @@ class LetterboxdService {
           rating: null
         };
       }
-      
+
       throw error;
     }
   }
@@ -108,11 +108,11 @@ class LetterboxdService {
   /**
    * Main method to check if a TMDB movie has been logged by the user
    */
-  async checkMovieLoggedStatus(tmdbId) {
+  async checkMovieLoggedStatus (tmdbId) {
     try {
       // Step 1: Find the Letterboxd film ID using TMDB ID
       const letterboxdFilmId = await this.findFilmByTMDBId(tmdbId);
-      
+
       if (!letterboxdFilmId) {
         // Film not found on Letterboxd
         return {
@@ -124,7 +124,7 @@ class LetterboxdService {
 
       // Step 2: Check user's relationship with the film
       const status = await this.checkFilmStatus(letterboxdFilmId);
-      
+
       return {
         watched: status.watched,
         liked: status.liked,
@@ -135,7 +135,7 @@ class LetterboxdService {
       };
     } catch (error) {
       console.error('Error checking movie logged status:', error);
-      
+
       return {
         watched: false,
         error: true,
@@ -148,7 +148,7 @@ class LetterboxdService {
    * OAuth2 Authorization URL generation
    * This would redirect user to Letterboxd for authentication
    */
-  getAuthorizationUrl(redirectUri, state) {
+  getAuthorizationUrl (redirectUri, state) {
     const params = new URLSearchParams({
       client_id: this.clientId,
       response_type: 'code',
@@ -163,18 +163,18 @@ class LetterboxdService {
   /**
    * Exchange authorization code for access token
    */
-  async exchangeCodeForToken(code, redirectUri) {
+  async exchangeCodeForToken (code, redirectUri) {
     try {
       const response = await axios.post(`${this.baseURL}/auth/token`, {
         client_id: this.clientId,
         client_secret: this.clientSecret,
         grant_type: 'authorization_code',
-        code: code,
+        code,
         redirect_uri: redirectUri
       });
 
       this.accessToken = response.data.access_token;
-      
+
       // Get user information to get member ID
       const userInfo = await this.getCurrentUser();
       this.memberId = userInfo.id;
@@ -193,7 +193,7 @@ class LetterboxdService {
   /**
    * Get current authenticated user information
    */
-  async getCurrentUser() {
+  async getCurrentUser () {
     if (!this.accessToken) {
       throw new Error('No access token available');
     }
@@ -213,7 +213,7 @@ class LetterboxdService {
   /**
    * Clear authentication
    */
-  logout() {
+  logout () {
     this.accessToken = null;
     this.memberId = null;
   }

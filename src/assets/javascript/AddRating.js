@@ -111,7 +111,6 @@ const createTVShowRatingFromEpisodeRatings = (ratings) => {
   return averages;
 };
 
-
 const addMovieRating = async (ratings) => {
   if (!ratings[0].id) {
     return;
@@ -163,7 +162,7 @@ const addMovieRating = async (ratings) => {
     runtime: tmdbData ? tmdbData.runtime : null,
     title: tmdbData ? tmdbData.title : "",
     keywords: tmdbData ? tmdbData.keywords : [],
-    chatGPTKeywords: chatGPTKeywords
+    chatGPTKeywords
   };
 
   const ratingsWithoutOwnership = ratings.map((rating) => {

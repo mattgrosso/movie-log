@@ -9,7 +9,7 @@ vi.mock('axios', () => ({
   }
 }))
 
-vi.mock('lodash/debounce', () => ({ 
+vi.mock('lodash/debounce', () => ({
   default: vi.fn((fn) => fn) // Remove debouncing for tests
 }))
 
@@ -133,14 +133,14 @@ describe('Chip Filtering System', () => {
           $router: { push: vi.fn() }
         },
         stubs: {
-          'DBGridLayoutSearchResult': {
+          DBGridLayoutSearchResult: {
             template: '<div data-testid="db-grid-result">{{ result.movie.title }}</div>',
             props: ['result', 'keywordCounts', 'allCounts', 'index', 'resultsAreFiltered', 'sortValue', 'activeQuickLinkList']
           },
-          'NoResults': true,
-          'StickinessModal': true,
-          'TweakModal': true,
-          'InsetBrowserModal': true
+          NoResults: true,
+          StickinessModal: true,
+          TweakModal: true,
+          InsetBrowserModal: true
         }
       }
     })
@@ -233,7 +233,7 @@ describe('Chip Filtering System', () => {
   describe('applyFilter method', () => {
     it('should filter by title', () => {
       const filter = { type: 'title', value: 'Heat' }
-      
+
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true) // Heat
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(false) // The Godfather
       expect(wrapper.vm.applyFilter(mockMovies[2], filter)).toBe(false) // Jaws
@@ -241,7 +241,7 @@ describe('Chip Filtering System', () => {
 
     it('should filter by director', () => {
       const filter = { type: 'director', value: 'Steven Spielberg' }
-      
+
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(false) // Heat (Michael Mann)
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(false) // The Godfather (Francis Ford Coppola)
       expect(wrapper.vm.applyFilter(mockMovies[2], filter)).toBe(true) // Jaws (Steven Spielberg)
@@ -249,7 +249,7 @@ describe('Chip Filtering System', () => {
 
     it('should filter by cast/actor', () => {
       const filter = { type: 'cast', value: 'Al Pacino' }
-      
+
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true) // Heat (has Al Pacino)
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(true) // The Godfather (has Al Pacino)
       expect(wrapper.vm.applyFilter(mockMovies[2], filter)).toBe(false) // Jaws (no Al Pacino)
@@ -257,7 +257,7 @@ describe('Chip Filtering System', () => {
 
     it('should filter by genre', () => {
       const filter = { type: 'genre', value: 'Crime' }
-      
+
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true) // Heat (Crime genre)
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(true) // The Godfather (Crime genre)
       expect(wrapper.vm.applyFilter(mockMovies[2], filter)).toBe(false) // Jaws (Thriller/Adventure)
@@ -265,7 +265,7 @@ describe('Chip Filtering System', () => {
 
     it('should filter by production company', () => {
       const filter = { type: 'company', value: 'Warner Bros.' }
-      
+
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true) // Heat (Warner Bros.)
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(false) // The Godfather (Paramount)
       expect(wrapper.vm.applyFilter(mockMovies[2], filter)).toBe(false) // Jaws (Universal)
@@ -273,7 +273,7 @@ describe('Chip Filtering System', () => {
 
     it('should filter by year', () => {
       const filter = { type: 'year', value: '1995' }
-      
+
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true) // Heat (1995)
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(false) // The Godfather (1972)
       expect(wrapper.vm.applyFilter(mockMovies[2], filter)).toBe(false) // Jaws (1975)
@@ -281,7 +281,7 @@ describe('Chip Filtering System', () => {
 
     it('should filter by keyword', () => {
       const filter = { type: 'keyword', value: 'crime' }
-      
+
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true) // Heat (has 'crime' keyword)
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(true) // The Godfather (has 'crime' keyword)
       expect(wrapper.vm.applyFilter(mockMovies[2], filter)).toBe(false) // Jaws (no 'crime' keyword)
@@ -305,7 +305,7 @@ describe('Chip Filtering System', () => {
 
     it('should handle general search across multiple fields', () => {
       const filter = { type: 'general', value: 'Al Pacino' }
-      
+
       // Should match both movies with Al Pacino in cast
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true) // Heat
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(true) // The Godfather
@@ -415,19 +415,19 @@ describe('Chip Filtering System', () => {
   describe('Edge Cases', () => {
     it('should handle case-insensitive filtering', () => {
       const filter = { type: 'title', value: 'heat' } // lowercase
-      
+
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true) // Should match "Heat"
     })
 
     it('should handle partial matches in titles', () => {
       const filter = { type: 'title', value: 'God' } // partial
-      
+
       expect(wrapper.vm.applyFilter(mockMovies[1], filter)).toBe(true) // Should match "The Godfather"
     })
 
     it('should handle empty filter values', () => {
       const filter = { type: 'title', value: '' }
-      
+
       // Empty filter should match everything (this appears to be the actual behavior)
       expect(wrapper.vm.applyFilter(mockMovies[0], filter)).toBe(true)
     })
@@ -445,7 +445,7 @@ describe('Chip Filtering System', () => {
 
       const castFilter = { type: 'cast', value: 'Al Pacino' }
       const genreFilter = { type: 'genre', value: 'Crime' }
-      
+
       // Should not crash, should return a value (even if undefined)
       expect(() => wrapper.vm.applyFilter(incompleteMovie, castFilter)).not.toThrow()
       expect(() => wrapper.vm.applyFilter(incompleteMovie, genreFilter)).not.toThrow()

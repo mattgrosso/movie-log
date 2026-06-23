@@ -4,7 +4,7 @@
  */
 
 class ErrorLogService {
-  constructor() {
+  constructor () {
     this.logs = [];
     this.maxLogs = 500; // Limit to prevent memory issues
     this.storageKey = 'cinema_roll_error_logs';
@@ -17,13 +17,13 @@ class ErrorLogService {
    * @param {string} level - Log level: 'error', 'warn', 'info', 'debug'
    * @param {object} context - Optional context object for additional data
    */
-  log(message, level = 'info', context = {}) {
+  log (message, level = 'info', context = {}) {
     const logEntry = {
       id: Date.now() + Math.random(), // Unique ID
       timestamp: new Date().toISOString(),
       message: String(message),
-      level: level,
-      context: context,
+      level,
+      context,
       url: window.location.href,
       userAgent: navigator.userAgent.substring(0, 100) // Truncate for storage
     };
@@ -54,19 +54,19 @@ class ErrorLogService {
   /**
    * Convenience methods for different log levels
    */
-  error(message, context = {}) {
+  error (message, context = {}) {
     return this.log(message, 'error', context);
   }
 
-  warn(message, context = {}) {
+  warn (message, context = {}) {
     return this.log(message, 'warn', context);
   }
 
-  info(message, context = {}) {
+  info (message, context = {}) {
     return this.log(message, 'info', context);
   }
 
-  debug(message, context = {}) {
+  debug (message, context = {}) {
     return this.log(message, 'debug', context);
   }
 
@@ -75,7 +75,7 @@ class ErrorLogService {
    * @param {string} level - Optional filter by log level
    * @returns {Array} Array of log entries
    */
-  getLogs(level = null) {
+  getLogs (level = null) {
     if (level) {
       return this.logs.filter(log => log.level === level);
     }
@@ -85,7 +85,7 @@ class ErrorLogService {
   /**
    * Clear all logs
    */
-  clearLogs() {
+  clearLogs () {
     this.logs = [];
     this.saveLogsToStorage();
   }
@@ -94,10 +94,10 @@ class ErrorLogService {
    * Get logs as formatted text for copying
    * @returns {string} Formatted log text
    */
-  getLogsAsText() {
+  getLogsAsText () {
     return this.logs.map(log => {
       const time = new Date(log.timestamp).toLocaleString();
-      const contextStr = Object.keys(log.context).length > 0 
+      const contextStr = Object.keys(log.context).length > 0
         ? `\nContext: ${JSON.stringify(log.context, null, 2)}`
         : '';
       return `[${time}] ${log.level.toUpperCase()}: ${log.message}${contextStr}`;
@@ -107,7 +107,7 @@ class ErrorLogService {
   /**
    * Save logs to localStorage
    */
-  saveLogsToStorage() {
+  saveLogsToStorage () {
     try {
       localStorage.setItem(this.storageKey, JSON.stringify(this.logs));
     } catch (error) {
@@ -118,7 +118,7 @@ class ErrorLogService {
   /**
    * Load logs from localStorage
    */
-  loadLogsFromStorage() {
+  loadLogsFromStorage () {
     try {
       const stored = localStorage.getItem(this.storageKey);
       if (stored) {
@@ -137,7 +137,7 @@ class ErrorLogService {
    * Get log statistics
    * @returns {object} Statistics about logs
    */
-  getStats() {
+  getStats () {
     const stats = {
       total: this.logs.length,
       errors: this.logs.filter(l => l.level === 'error').length,

@@ -9,8 +9,8 @@
           Home
         </span>
       </div>
-      <img v-if="rateBannerUrl" 
-           :src="rateBannerUrl" 
+      <img v-if="rateBannerUrl"
+           :src="rateBannerUrl"
            :alt="`${title} backdrop`"
            class="backdrop-image">
       <h1 class="text-light m-0 px-3 py-2">Rate {{title}}</h1>
@@ -476,14 +476,14 @@
         <label class="form-label">Tags for this viewing</label>
         <div class="tag-list d-flex flex-wrap column-gap-2 row-gap-1">
           <div v-for="(tag, index) in viewingTags" :key="index" class="tag-pill-container">
-            <span 
+            <span
               class="badge me-1 mb-1 d-inline-flex align-items-center"
               :class="viewingTagChecked(tag) ? 'text-bg-primary' : 'text-bg-secondary'"
               @click="toggleViewingTag(tag)"
               style="cursor: pointer;">
               {{tag.title}}
-              <button 
-                class="btn-close btn-close-white ms-1" 
+              <button
+                class="btn-close btn-close-white ms-1"
                 @click.stop="deleteViewingTag(tag)"
                 title="Delete tag"
                 style="font-size: 0.5rem; opacity: 0.6;">
@@ -631,7 +631,7 @@ export default {
       selectedViewingTags: [],
       title: null,
       year: null,
-      getAllRatings: getAllRatings,
+      getAllRatings,
       dbEntry: null,
       chatGPTKeywords: [],
       movieContext: null,
@@ -782,7 +782,7 @@ export default {
     selectedViewingTagNames () {
       return this.selectedViewingTags.map((tag) => tag.title);
     },
-    lastHigherRatedMovie() {
+    lastHigherRatedMovie () {
       // Get all movies as array, including the current one as rated on page
       const allMovies = [...this.$store.getters.allMoviesAsArray];
       const current = this.movieAsRatedOnPage;
@@ -799,21 +799,21 @@ export default {
         const entryRating = getRating(entry).calculatedTotal;
         return entryRating > currentRating;
       });
-      
+
       if (!higherRated.length) return null;
-      
+
       // Filter out movies without valid dates, then find the most recent
       const moviesWithDates = higherRated.filter(entry => {
         const rating = this.mostRecentRating(entry);
         return rating && rating.date;
       });
-      
+
       if (!moviesWithDates.length) return null;
-      
+
       // Find the one with the most recent rating date
       let mostRecent = moviesWithDates[0];
       let mostRecentDate = typeof this.mostRecentRating(moviesWithDates[0]).date === 'number' ? this.mostRecentRating(moviesWithDates[0]).date : new Date(this.mostRecentRating(moviesWithDates[0]).date).getTime();
-      
+
       for (let i = 1; i < moviesWithDates.length; i++) {
         const entry = moviesWithDates[i];
         const entryDate = typeof this.mostRecentRating(entry).date === 'number' ? this.mostRecentRating(entry).date : new Date(this.mostRecentRating(entry).date).getTime();
@@ -959,7 +959,7 @@ export default {
       this.dbEntry = dbEntry;
 
       window.scroll({
-        top: top,
+        top,
         behavior: 'smooth'
       })
 
@@ -979,11 +979,11 @@ export default {
 
       return this.selectedViewingTagNames.includes(tag.title);
     },
-    deleteViewingTag(tag) {
+    deleteViewingTag (tag) {
       this.tagToDelete = tag;
       this.showDeleteModal = true;
     },
-    confirmDeleteTag() {
+    confirmDeleteTag () {
       if (!this.tagToDelete) return;
 
       const tag = this.tagToDelete;
@@ -1061,7 +1061,7 @@ export default {
       this.$refs.neighbors.classList.toggle("unstuck");
     },
     // Returns a human-friendly relative time string for a given timestamp
-    relativeTime(date) {
+    relativeTime (date) {
       if (!date) return '';
       const now = Date.now();
       const then = typeof date === 'string' ? new Date(date).getTime() : date;

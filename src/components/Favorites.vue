@@ -42,13 +42,13 @@ export default {
     await this.buildTopTwelveList();
   },
   methods: {
-    averageRating(results) {
+    averageRating (results) {
       const ratedMovies = results.filter((result) => this.mostRecentRating(result).calculatedTotal);
       const ratings = ratedMovies.map((result) => parseFloat(this.mostRecentRating(result).calculatedTotal));
       const total = ratings.reduce((a, b) => a + b, 0);
       return (total / ratings.length).toFixed(2);
     },
-    bayesianAverage(list) {
+    bayesianAverage (list) {
       // Bayesian average for a list
       const n = list.length;
       const c = this.confidenceNumber;
@@ -56,7 +56,7 @@ export default {
       const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
       return (n / (n + c)) * avg + (c / (n + c)) * globalAvg;
     },
-    compareTwoLists(listOne, listTwo) {
+    compareTwoLists (listOne, listTwo) {
       if (!listOne || !listTwo) {
         return [];
       }
@@ -64,37 +64,37 @@ export default {
       const confidenceNumber = this.confidenceNumber;
       const averageRatingForFirstList = this.averageRating(listOne);
       const averageRatingForAllMovies = this.averageRating(this.allEntriesWithFlatKeywordsAdded);
-      const firstListBayesianAverage  = (numberOfMoviesInFirstList  / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForFirstList  + (confidenceNumber / (numberOfMoviesInFirstList  + confidenceNumber) * averageRatingForAllMovies));
+      const firstListBayesianAverage = (numberOfMoviesInFirstList / (numberOfMoviesInFirstList + confidenceNumber) * averageRatingForFirstList + (confidenceNumber / (numberOfMoviesInFirstList + confidenceNumber) * averageRatingForAllMovies));
       const numberOfMoviesInSecondList = listTwo.length;
       const averageRatingForSecondList = this.averageRating(listTwo);
       const secondListBayesianAverage = (numberOfMoviesInSecondList / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForSecondList + (confidenceNumber / (numberOfMoviesInSecondList + confidenceNumber) * averageRatingForAllMovies));
       return {
-        firstListBayesianAverage: firstListBayesianAverage,
-        secondListBayesianAverage: secondListBayesianAverage
+        firstListBayesianAverage,
+        secondListBayesianAverage
       };
     },
-    isListOneBetterThanListTwo(listOne, listTwo) {
+    isListOneBetterThanListTwo (listOne, listTwo) {
       if (!listOne || !listTwo) {
         return false;
       }
       const comparison = this.compareTwoLists(listOne, listTwo);
       return comparison.firstListBayesianAverage > comparison.secondListBayesianAverage;
     },
-    isListTwoBetterThanListOne(listOne, listTwo) {
+    isListTwoBetterThanListOne (listOne, listTwo) {
       if (!listOne || !listTwo) {
         return false;
       }
       const comparison = this.compareTwoLists(listOne, listTwo);
       return comparison.secondListBayesianAverage > comparison.firstListBayesianAverage;
     },
-    mostRecentRating(result) {
+    mostRecentRating (result) {
       // Helper to get most recent rating for a result
       if (result.ratings && result.ratings.length) {
         return result.ratings[result.ratings.length - 1];
       }
       return {};
     },
-    async getDetailsForCastMember(actorName) {
+    async getDetailsForCastMember (actorName) {
       const query = encodeURIComponent(actorName);
       const url = `https://api.themoviedb.org/3/search/person?api_key=${process.env.VUE_APP_TMDB_API_KEY}&query=${query}`;
       try {
@@ -111,7 +111,7 @@ export default {
         return null;
       }
     },
-    async buildTopTwelveList() {
+    async buildTopTwelveList () {
       const minEntries = 3;
       let category = this.category;
       if (this.category === 'actor' || this.category === 'actress') {
@@ -206,14 +206,14 @@ export default {
       align-items: center;
       min-height: 36px;
       position: relative;
-  
+
       .portrait-wrapper {
         display: flex;
         align-items: center;
         justify-content: center;
         width: 100%;
         padding: 4px;
-  
+
         .portrait {
           width: 100%;
           height: auto;
@@ -221,14 +221,14 @@ export default {
           background: #eee;
           border-radius: 6px;
         }
-  
+
         .placeholder {
           background: #444;
           width: 48px;
           height: auto;
         }
       }
-  
+
       .name {
         font-size: 0.45rem;
         color: #fff;

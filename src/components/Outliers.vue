@@ -79,7 +79,7 @@ export default {
           directorsWithAverages.push({
             name: director,
             type: "Director",
-            average: average,
+            average,
             count: ratings.length,
           });
         }
@@ -121,7 +121,7 @@ export default {
           castCrewWithAverages.push({
             name: person,
             type: "Crewmember",
-            average: average,
+            average,
             count: ratings.length,
           });
         }
@@ -159,7 +159,7 @@ export default {
           genresWithAverages.push({
             name: genre,
             type: "Genre",
-            average: average,
+            average,
             count: ratings.length,
           });
         }
@@ -196,7 +196,7 @@ export default {
           keywordsWithAverages.push({
             name: keyword,
             type: "Keyword",
-            average: average,
+            average,
             count: ratings.length,
           });
         }
@@ -233,7 +233,7 @@ export default {
           studiosWithAverages.push({
             name: studio,
             type: "Studio",
-            average: average,
+            average,
             count: ratings.length,
           });
         }
@@ -270,7 +270,7 @@ export default {
           yearsWithAverages.push({
             name: year,
             type: "Year",
-            average: average,
+            average,
             count: ratings.length,
           });
         }

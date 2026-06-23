@@ -9,11 +9,11 @@ vi.mock('axios', () => ({
   }
 }))
 
-vi.mock('lodash/debounce', () => ({ 
+vi.mock('lodash/debounce', () => ({
   default: vi.fn((fn) => fn) // Remove debouncing for tests
 }))
 
-vi.mock('lodash/uniq', () => ({ 
+vi.mock('lodash/uniq', () => ({
   default: vi.fn(arr => [...new Set(arr)]) // Simple unique implementation
 }))
 
@@ -56,8 +56,8 @@ describe('Quick Links Filtering System', () => {
           production_companies: [{ name: 'Studio One' }],
           flatKeywords: ['keyword1']
         },
-        ratings: [{ 
-          calculatedTotal: 9.5, 
+        ratings: [{
+          calculatedTotal: 9.5,
           date: `${Date.now()}` // This year, this month
         }],
         dbKey: 'movie-1'
@@ -73,8 +73,8 @@ describe('Quick Links Filtering System', () => {
           production_companies: [{ name: 'Studio Two' }],
           flatKeywords: ['keyword2']
         },
-        ratings: [{ 
-          calculatedTotal: 8.7, 
+        ratings: [{
+          calculatedTotal: 8.7,
           date: `${new Date(lastYear, 5, 15).getTime()}` // Last year
         }],
         dbKey: 'movie-2'
@@ -90,8 +90,8 @@ describe('Quick Links Filtering System', () => {
           production_companies: [{ name: 'Studio Three' }],
           flatKeywords: ['keyword3']
         },
-        ratings: [{ 
-          calculatedTotal: 7.8, 
+        ratings: [{
+          calculatedTotal: 7.8,
           date: `${new Date(2022, 5, 10).getTime()}` // 2022 date - different from current year
         }],
         dbKey: 'movie-3'
@@ -107,8 +107,8 @@ describe('Quick Links Filtering System', () => {
           production_companies: [{ name: 'Studio Four' }],
           flatKeywords: ['keyword4']
         },
-        ratings: [{ 
-          calculatedTotal: 8.2, 
+        ratings: [{
+          calculatedTotal: 8.2,
           date: `${new Date(currentYear, currentMonth, 5).getTime()}` // This year, this month
         }],
         dbKey: 'movie-4'
@@ -145,10 +145,12 @@ describe('Quick Links Filtering System', () => {
           normalizationTweak: 0.25,
           tieBreakTweak: 1,
           includeShorts: false,
-          tags: { 'viewing-tags': {
-            'family-friendly': { title: 'family-friendly' },
-            'date-night': { title: 'date-night' }
-          }}
+          tags: {
+            'viewing-tags': {
+              'family-friendly': { title: 'family-friendly' },
+              'date-night': { title: 'date-night' }
+            }
+          }
         },
         filteredResults: [],
         homePageScrollPosition: 0,
@@ -177,14 +179,14 @@ describe('Quick Links Filtering System', () => {
           $router: { push: vi.fn() }
         },
         stubs: {
-          'DBGridLayoutSearchResult': {
+          DBGridLayoutSearchResult: {
             template: '<div data-testid="db-grid-result">{{ result.movie.title }}</div>',
             props: ['result', 'keywordCounts', 'allCounts', 'index', 'resultsAreFiltered', 'sortValue', 'activeQuickLinkList']
           },
-          'NoResults': true,
-          'StickinessModal': true,
-          'TweakModal': true,
-          'InsetBrowserModal': true
+          NoResults: true,
+          StickinessModal: true,
+          TweakModal: true,
+          InsetBrowserModal: true
         }
       }
     })
@@ -256,7 +258,7 @@ describe('Quick Links Filtering System', () => {
       const result = wrapper.vm.unifiedFilteredResults
 
       expect(result).toHaveLength(3) // Best from each year
-      expect(result.every(movie => 
+      expect(result.every(movie =>
         wrapper.vm.bestMovieFromEachYear.includes(movie)
       )).toBe(true)
     })
@@ -327,7 +329,7 @@ describe('Quick Links Filtering System', () => {
     it('should return movies rated last year', () => {
       // First add the lastYearsMovies computed property test
       const lastYear = new Date().getFullYear() - 1
-      
+
       // Find movies rated last year from our test data
       const lastYearMovies = mockMovies.filter(movie => {
         const mostRecentRating = wrapper.vm.mostRecentRating(movie)
@@ -390,11 +392,11 @@ describe('Quick Links Filtering System', () => {
       // Test the toggle functionality directly by setting the state
       // This simulates what would happen if toggleQuickLinksList were called with a valid tag
       wrapper.vm.activeQuickLinkList = 'family-friendly'
-      
+
       await wrapper.vm.$nextTick()
-      
+
       expect(wrapper.vm.activeQuickLinkList).toBe('family-friendly')
-      
+
       // Test that clearing works
       wrapper.vm.toggleQuickLinksList('family-friendly') // Should toggle off since it's already active
       expect(wrapper.vm.activeQuickLinkList).toBe('title')
@@ -403,7 +405,7 @@ describe('Quick Links Filtering System', () => {
     it('should recognize tags from settings', async () => {
       // Wait for computed properties to be ready
       await wrapper.vm.$nextTick()
-      
+
       expect(wrapper.vm.tags).toContain('family-friendly')
       expect(wrapper.vm.tags).toContain('date-night')
     })
@@ -441,11 +443,11 @@ describe('Quick Links Filtering System', () => {
             $router: { push: vi.fn() }
           },
           stubs: {
-            'DBGridLayoutSearchResult': true,
-            'NoResults': true,
-            'StickinessModal': true,
-            'TweakModal': true,
-            'InsetBrowserModal': true
+            DBGridLayoutSearchResult: true,
+            NoResults: true,
+            StickinessModal: true,
+            TweakModal: true,
+            InsetBrowserModal: true
           }
         }
       })
@@ -515,7 +517,7 @@ describe('Quick Links Filtering System', () => {
     it('should properly combine quick links with additional filters', () => {
       // Set quick link
       wrapper.vm.activeQuickLinkList = 'thisYear'
-      
+
       // Add additional filter
       wrapper.vm.activeFilters = [{
         id: 'genre-1',

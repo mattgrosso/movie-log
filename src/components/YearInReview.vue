@@ -101,18 +101,18 @@ export default {
   components: {
     BarChart
   },
-  data() {
+  data () {
     return {
       selectedYear: new Date().getFullYear() - 1, // Default to last year
       actorDetails: {} // Store fetched actor details
     };
   },
   watch: {
-    selectedYear() {
+    selectedYear () {
       this.fetchActorDetails();
     }
   },
-  mounted() {
+  mounted () {
     this.$nextTick(() => {
       // Scroll to top of Year in Review component
       const yearInReview = document.querySelector('.year-in-review');
@@ -123,7 +123,7 @@ export default {
     });
   },
   computed: {
-    availableYears() {
+    availableYears () {
       const years = new Set();
       this.$store.getters.allMediaAsArray.forEach(entry => {
         if (entry.ratings && entry.ratings.length > 0) {
@@ -137,10 +137,10 @@ export default {
       });
       return Array.from(years).sort((a, b) => b - a);
     },
-    includeShorts() {
+    includeShorts () {
       return this.$store.state.settings?.includeShorts === true;
     },
-    allWatchedMoviesInYear() {
+    allWatchedMoviesInYear () {
       return this.$store.getters.allMediaAsArray.filter(entry => {
         return entry.ratings && entry.ratings.some(rating => {
           if (!rating.date) return false;
@@ -149,7 +149,7 @@ export default {
         });
       });
     },
-    watchedMoviesInYear() {
+    watchedMoviesInYear () {
       if (this.includeShorts) return this.allWatchedMoviesInYear;
 
       // Exclude shorts: genre 'Short' or runtime <= 40
@@ -160,20 +160,20 @@ export default {
         return !isShortGenre && !(runtime && runtime <= 40);
       });
     },
-    releasedMoviesInYear() {
+    releasedMoviesInYear () {
       return this.$store.getters.allMediaAsArray.filter(entry => {
         if (!entry.movie.release_date) return false;
         const releaseYear = new Date(entry.movie.release_date).getFullYear();
         return releaseYear === this.selectedYear;
       });
     },
-    moviesWatchedCount() {
+    moviesWatchedCount () {
       return this.watchedMoviesInYear.length;
     },
-    moviesRatedCount() {
+    moviesRatedCount () {
       return this.releasedMoviesInYear.length;
     },
-    totalMinutes() {
+    totalMinutes () {
       let total = 0;
       this.watchedMoviesInYear.forEach(entry => {
         if (entry.movie.runtime) {
@@ -182,19 +182,19 @@ export default {
       });
       return total;
     },
-    timeStats() {
+    timeStats () {
       const days = Math.floor(this.totalMinutes / (60 * 24));
       const hours = Math.floor((this.totalMinutes % (60 * 24)) / 60);
       const minutes = this.totalMinutes % 60;
       return { days, hours, minutes };
     },
-    percentOfYear() {
+    percentOfYear () {
       // Assuming 16 waking hours per day, 365 days
       const wakingMinutesInYear = 16 * 60 * 365;
       const percent = (this.totalMinutes / wakingMinutesInYear) * 100;
       return percent.toFixed(1);
     },
-    moviesByMonth() {
+    moviesByMonth () {
       const months = Array(12).fill(0);
       this.watchedMoviesInYear.forEach(entry => {
         entry.ratings.forEach(rating => {
@@ -208,13 +208,13 @@ export default {
       });
       return months;
     },
-    monthlyChartData() {
+    monthlyChartData () {
       // Create gradient colors for each bar
       const barColors = this.moviesByMonth.map((_, index) => {
         const colorSets = [
           '#667eea', // purple
           '#f093fb', // pink
-          '#4facfe'  // cyan
+          '#4facfe' // cyan
         ];
         return colorSets[index % 3];
       });
@@ -231,7 +231,7 @@ export default {
         }]
       };
     },
-    monthlyChartOptions() {
+    monthlyChartOptions () {
       return {
         responsive: true,
         maintainAspectRatio: true,
@@ -262,7 +262,7 @@ export default {
         }
       };
     },
-    topActors() {
+    topActors () {
       const actorCounts = {};
 
       this.watchedMoviesInYear.forEach(entry => {
@@ -284,7 +284,7 @@ export default {
         }))
         .sort((a, b) => b.count - a.count);
     },
-    topDirectors() {
+    topDirectors () {
       const directorCounts = {};
 
       this.watchedMoviesInYear.forEach(entry => {
@@ -302,7 +302,7 @@ export default {
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count);
     },
-    topGenres() {
+    topGenres () {
       const genreCounts = {};
 
       this.watchedMoviesInYear.forEach(entry => {
@@ -319,7 +319,7 @@ export default {
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count);
     },
-    bestRatedMovies() {
+    bestRatedMovies () {
       return this.releasedMoviesInYear
         .map(entry => {
           const mostRecentRating = entry.ratings[entry.ratings.length - 1];
@@ -330,7 +330,7 @@ export default {
         })
         .sort((a, b) => b.rating - a.rating);
     },
-    longestMovie() {
+    longestMovie () {
       let longest = null;
       this.watchedMoviesInYear.forEach(entry => {
         if (entry.movie.runtime && (!longest || entry.movie.runtime > longest.runtime)) {
@@ -339,7 +339,7 @@ export default {
       });
       return longest;
     },
-    shortestMovie() {
+    shortestMovie () {
       let shortest = null;
       this.watchedMoviesInYear.forEach(entry => {
         if (entry.movie.runtime && entry.movie.runtime > 0 && (!shortest || entry.movie.runtime < shortest.runtime)) {
@@ -348,7 +348,7 @@ export default {
       });
       return shortest;
     },
-    oldestMovie() {
+    oldestMovie () {
       let oldest = null;
       this.watchedMoviesInYear.forEach(entry => {
         if (entry.movie.release_date && (!oldest || new Date(entry.movie.release_date) < new Date(oldest.release_date))) {
@@ -357,7 +357,7 @@ export default {
       });
       return oldest;
     },
-    busiestMonth() {
+    busiestMonth () {
       const maxCount = Math.max(...this.moviesByMonth);
       const monthIndex = this.moviesByMonth.indexOf(maxCount);
       const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -366,7 +366,7 @@ export default {
         count: maxCount
       };
     },
-    averageRating() {
+    averageRating () {
       if (this.watchedMoviesInYear.length === 0) return 0;
       const sum = this.watchedMoviesInYear.reduce((acc, entry) => {
         const rating = entry.ratings[entry.ratings.length - 1]?.calculatedTotal || 0;
@@ -374,7 +374,7 @@ export default {
       }, 0);
       return (sum / this.watchedMoviesInYear.length).toFixed(1);
     },
-    mostCommonDecade() {
+    mostCommonDecade () {
       const decadeCounts = {};
       this.watchedMoviesInYear.forEach(entry => {
         if (entry.movie.release_date) {
@@ -394,25 +394,25 @@ export default {
     }
   },
   methods: {
-    returnHome() {
+    returnHome () {
       this.$router.push('/insights');
     },
-    goToMovie(movie) {
+    goToMovie (movie) {
       this.$router.push(`/movie/${movie.id}`);
     },
-    getBadgeSizeClass(index) {
+    getBadgeSizeClass (index) {
       if (index === 0) return 'bg-primary';
       if (index === 1) return 'bg-info';
       if (index === 2) return 'bg-success';
       return 'bg-secondary';
     },
-    getGenreFontSize(index) {
+    getGenreFontSize (index) {
       if (index === 0) return '1rem';
       if (index === 1) return '0.9rem';
       if (index === 2) return '0.85rem';
       return '0.75rem';
     },
-    async fetchActorDetails() {
+    async fetchActorDetails () {
       // Get top actors from current year
       const actorCounts = {};
 

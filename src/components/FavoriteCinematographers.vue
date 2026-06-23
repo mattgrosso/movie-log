@@ -112,41 +112,61 @@ export default {
     }
   },
   computed: {
-    overallWeight() {
+    overallWeight () {
       return 1 - this.imageryWeight;
     },
     tunerLevers () {
       return [
         {
-          key: 'minEntries', label: 'Minimum films', value: this.minEntries,
-          min: 1, max: 15, step: 1,
+          key: 'minEntries',
+          label: 'Minimum films',
+          value: this.minEntries,
+          min: 1,
+          max: 15,
+          step: 1,
           help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
         },
         {
-          key: 'confidenceNumber', label: 'Small-sample caution', value: this.confidenceNumber,
-          min: 0, max: 10, step: 0.5,
+          key: 'confidenceNumber',
+          label: 'Small-sample caution',
+          value: this.confidenceNumber,
+          min: 0,
+          max: 10,
+          step: 0.5,
           help: "Pulls cinematographers with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
         },
         {
-          key: 'countWeight', label: 'Reward for volume', value: this.countWeight,
-          min: 0, max: 2, step: 0.05,
+          key: 'countWeight',
+          label: 'Reward for volume',
+          value: this.countWeight,
+          min: 0,
+          max: 2,
+          step: 0.05,
           help: "Boosts cinematographers you've watched a lot. Higher = prolific favorites climb even if their average dips slightly."
         },
         {
-          key: 'knownForWeight', label: 'Signature-film bonus', value: this.knownForWeight,
-          min: 0, max: 1, step: 0.05,
+          key: 'knownForWeight',
+          label: 'Signature-film bonus',
+          value: this.knownForWeight,
+          min: 0,
+          max: 1,
+          step: 0.05,
           help: "Extra credit when you've rated their best-known films highly. Higher = loving their famous work matters more."
         },
         {
-          key: 'imageryWeight', label: 'Imagery vs. overall', value: this.imageryWeight,
-          min: 0, max: 1, step: 0.05,
+          key: 'imageryWeight',
+          label: 'Imagery vs. overall',
+          value: this.imageryWeight,
+          min: 0,
+          max: 1,
+          step: 0.05,
           help: 'Blends each film’s Imagery score with its overall score. Higher = leans on your Imagery ratings; 0 = pure overall.'
         }
       ];
     }
   },
   methods: {
-    averageRating(results, weights = null) {
+    averageRating (results, weights = null) {
       // For cinematographers, blend overall and imagery ratings
       const getBlendedRating = (result) => {
         const mostRecent = this.mostRecentRating(result);
@@ -184,7 +204,7 @@ export default {
         return (total / ratings.length).toFixed(2);
       }
     },
-    async buildTopTwelveList() {
+    async buildTopTwelveList () {
       // Phase 1 (once per data load): gather every cinematographer + their films.
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
@@ -218,7 +238,7 @@ export default {
 
       await this.rescore();
     },
-    computeKnownForBonus(entries, details) {
+    computeKnownForBonus (entries, details) {
       // Average PLAIN overall rating of the cinematographer's 'known_for' films
       // you've rated, scaled by knownForWeight. Preserves the original behavior.
       if (!details || !Array.isArray(details.known_for) || !details.known_for.length) return 0;
@@ -228,7 +248,7 @@ export default {
       const avgKnownFor = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).reduce((a, b) => a + b, 0) / ratedKnownFor.length;
       return avgKnownFor * this.knownForWeight;
     },
-    async rescore() {
+    async rescore () {
       const seq = ++this.rescoreSeq;
       const eligible = this.peopleData.filter(p => p.entries.length >= this.minEntries);
 
@@ -255,17 +275,17 @@ export default {
       scored.sort((a, b) => b.finalScore - a.finalScore);
       this.topTenList = scored.slice(0, 12);
     },
-    openCinematographerModal(entry) {
+    openCinematographerModal (entry) {
       this.selectedCinematographer = entry;
       this.showModal = true;
       document.body.classList.add('no-scroll');
     },
-    closeCinematographerModal() {
+    closeCinematographerModal () {
       this.showModal = false;
       this.selectedCinematographer = null;
       document.body.classList.remove('no-scroll');
     },
-    searchForCinematographer() {
+    searchForCinematographer () {
       const name = this.selectedCinematographer?.name;
       this.closeCinematographerModal();
       if (name) this.updateSearchValue(name);
@@ -297,28 +317,28 @@ export default {
       display: flex;
       min-height: 36px;
       position: relative;
-  
+
       .portrait-wrapper {
         align-items: center;
         display: flex;
         justify-content: center;
         padding: 4px;
         width: 100%;
-  
+
         .portrait {
           border-radius: 6px;
           height: auto;
           object-fit: cover;
           width: 100%;
         }
-  
+
         .placeholder {
           background: #444;
           height: auto;
           width: 48px;
         }
       }
-  
+
       .name {
         background: #00000069;
         border-bottom-left-radius: 6px;

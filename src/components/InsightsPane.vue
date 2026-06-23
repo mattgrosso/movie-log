@@ -10,13 +10,13 @@
 <script>
 export default {
   name: "InsightsPane",
-  data() {
+  data () {
     return {
       isVisible: false,
       observer: null
     };
   },
-  mounted() {
+  mounted () {
     this.observer = new window.IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -28,7 +28,7 @@ export default {
     );
     this.observer.observe(this.$refs.root);
   },
-  beforeUnmount() {
+  beforeUnmount () {
     if (this.observer) {
       this.observer.disconnect();
     }

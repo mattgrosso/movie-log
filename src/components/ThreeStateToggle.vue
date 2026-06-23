@@ -2,8 +2,8 @@
   <div class="three-state-toggle mb-3">
     <label class="form-label text-white mb-2">{{ label }}</label>
     <div class="btn-group d-flex" role="group" :aria-label="label + ' toggle'">
-      <button 
-        type="button" 
+      <button
+        type="button"
         class="btn btn-sm flex-fill"
         :class="value === 'disabled' ? 'btn-danger' : 'btn-outline-danger'"
         @click="setState('disabled')"
@@ -11,8 +11,8 @@
       >
         Disabled
       </button>
-      <button 
-        type="button" 
+      <button
+        type="button"
         class="btn btn-sm flex-fill"
         :class="value === 'normal' ? 'btn-secondary' : 'btn-outline-secondary'"
         @click="setState('normal')"
@@ -20,8 +20,8 @@
       >
         Normal
       </button>
-      <button 
-        type="button" 
+      <button
+        type="button"
         class="btn btn-sm flex-fill"
         :class="value === 'forced' ? 'btn-warning' : 'btn-outline-warning'"
         @click="setState('forced')"
@@ -56,7 +56,7 @@ export default {
     }
   },
   methods: {
-    setState(state) {
+    setState (state) {
       if (this.disabled) return;
       this.$emit('input', state);
     }

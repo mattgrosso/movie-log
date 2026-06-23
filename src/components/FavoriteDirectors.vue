@@ -102,41 +102,61 @@ export default {
     }
   },
   computed: {
-    overallWeight() {
+    overallWeight () {
       return 1 - this.directionWeight;
     },
     tunerLevers () {
       return [
         {
-          key: 'minEntries', label: 'Minimum films', value: this.minEntries,
-          min: 1, max: 15, step: 1,
+          key: 'minEntries',
+          label: 'Minimum films',
+          value: this.minEntries,
+          min: 1,
+          max: 15,
+          step: 1,
           help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
         },
         {
-          key: 'confidenceNumber', label: 'Small-sample caution', value: this.confidenceNumber,
-          min: 0, max: 10, step: 0.5,
+          key: 'confidenceNumber',
+          label: 'Small-sample caution',
+          value: this.confidenceNumber,
+          min: 0,
+          max: 10,
+          step: 0.5,
           help: "Pulls directors with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
         },
         {
-          key: 'countWeight', label: 'Reward for volume', value: this.countWeight,
-          min: 0, max: 2, step: 0.05,
+          key: 'countWeight',
+          label: 'Reward for volume',
+          value: this.countWeight,
+          min: 0,
+          max: 2,
+          step: 0.05,
           help: "Boosts directors you've watched a lot. Higher = prolific favorites climb even if their average dips slightly."
         },
         {
-          key: 'knownForWeight', label: 'Signature-film bonus', value: this.knownForWeight,
-          min: 0, max: 1, step: 0.05,
+          key: 'knownForWeight',
+          label: 'Signature-film bonus',
+          value: this.knownForWeight,
+          min: 0,
+          max: 1,
+          step: 0.05,
           help: "Extra credit when you've rated their best-known films highly. Higher = loving their famous work matters more."
         },
         {
-          key: 'directionWeight', label: 'Direction vs. overall', value: this.directionWeight,
-          min: 0, max: 1, step: 0.05,
+          key: 'directionWeight',
+          label: 'Direction vs. overall',
+          value: this.directionWeight,
+          min: 0,
+          max: 1,
+          step: 0.05,
           help: 'Blends each film’s Direction score with its overall score. Higher = leans on your Direction ratings; 0 = pure overall.'
         }
       ];
     }
   },
   methods: {
-    averageRating(results, weights = null) {
+    averageRating (results, weights = null) {
       // For directors, blend overall and direction ratings
       const getBlendedRating = (result) => {
         const mostRecent = this.mostRecentRating(result);
@@ -174,7 +194,7 @@ export default {
         return (total / ratings.length).toFixed(2);
       }
     },
-    async buildTopTwelveList() {
+    async buildTopTwelveList () {
       // Phase 1 (runs once per data load): gather every director and their rated
       // films into peopleData. No minEntries filter and no TMDB fetch here, so
       // re-tuning never has to re-gather. Scoring + fetching happen in rescore().
@@ -214,7 +234,7 @@ export default {
 
       await this.rescore();
     },
-    async getCachedDetails(name) {
+    async getCachedDetails (name) {
       // Cache by name so slider re-scores never re-hit TMDB.
       if (Object.prototype.hasOwnProperty.call(this.detailsCache, name)) {
         return this.detailsCache[name];
@@ -223,7 +243,7 @@ export default {
       this.detailsCache[name] = details;
       return details;
     },
-    computeKnownForBonus(entries, details) {
+    computeKnownForBonus (entries, details) {
       // Average blended rating of the person's 'known_for' films you've rated,
       // scaled by knownForWeight. Mirrors the original inline computation exactly.
       if (!details || !Array.isArray(details.known_for) || !details.known_for.length) return 0;
@@ -249,7 +269,7 @@ export default {
       const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
       return avgKnownFor * this.knownForWeight;
     },
-    async rescore() {
+    async rescore () {
       // Phase 2 (runs on every tuner change): score the eligible people using the
       // CURRENT lever values, reusing cached entries + TMDB details. A sequence
       // token drops stale results if a newer rescore started while we awaited.
@@ -290,17 +310,17 @@ export default {
       scored.sort((a, b) => b.finalScore - a.finalScore);
       this.topTenList = scored.slice(0, 12);
     },
-    openDirectorModal(entry) {
+    openDirectorModal (entry) {
       this.selectedDirector = entry;
       this.showModal = true;
       document.body.classList.add('no-scroll');
     },
-    closeDirectorModal() {
+    closeDirectorModal () {
       this.showModal = false;
       this.selectedDirector = null;
       document.body.classList.remove('no-scroll');
     },
-    searchForDirector() {
+    searchForDirector () {
       const name = this.selectedDirector?.name;
       this.closeDirectorModal();
       if (name) this.updateSearchValue(name);

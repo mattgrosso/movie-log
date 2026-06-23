@@ -2,7 +2,6 @@ import store from '../../store/index';
 
 let allRatings = store.getters.allMediaRatingsArray;
 
-
 const calculatePostStickyRatingFor = (rating) => {
   if (!rating) {
     return {
@@ -63,8 +62,8 @@ const calculatePostStickyRatingFor = (rating) => {
 
   return {
     ...rating,
-    calculatedTotal: calculatedTotal,
-    normalizedRating: normalizedRating
+    calculatedTotal,
+    normalizedRating
   };
 }
 

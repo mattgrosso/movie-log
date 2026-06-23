@@ -91,41 +91,61 @@ export default {
     }
   },
   computed: {
-    overallWeight() {
+    overallWeight () {
       return 1 - this.performanceWeight;
     },
     tunerLevers () {
       return [
         {
-          key: 'minEntries', label: 'Minimum films', value: this.minEntries,
-          min: 1, max: 15, step: 1,
+          key: 'minEntries',
+          label: 'Minimum films',
+          value: this.minEntries,
+          min: 1,
+          max: 15,
+          step: 1,
           help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
         },
         {
-          key: 'confidenceNumber', label: 'Small-sample caution', value: this.confidenceNumber,
-          min: 0, max: 10, step: 0.5,
+          key: 'confidenceNumber',
+          label: 'Small-sample caution',
+          value: this.confidenceNumber,
+          min: 0,
+          max: 10,
+          step: 0.5,
           help: "Pulls actors with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
         },
         {
-          key: 'billingLimit', label: 'Top-billing cutoff', value: this.billingLimit,
-          min: 1, max: 30, step: 1,
+          key: 'billingLimit',
+          label: 'Top-billing cutoff',
+          value: this.billingLimit,
+          min: 1,
+          max: 30,
+          step: 1,
           help: 'Only count an actor when they appear within the top-N billed cast of a film. Lower = leading roles only.'
         },
         {
-          key: 'billingExponent', label: 'Lead-role emphasis', value: this.billingExponent,
-          min: 0, max: 8, step: 0.5,
+          key: 'billingExponent',
+          label: 'Lead-role emphasis',
+          value: this.billingExponent,
+          min: 0,
+          max: 8,
+          step: 0.5,
           help: 'How sharply top billing outweighs lower billing. Higher = a #1 lead counts far more than a #8 supporting part; 0 = all counted equally.'
         },
         {
-          key: 'performanceWeight', label: 'Performance vs. overall', value: this.performanceWeight,
-          min: 0, max: 1, step: 0.05,
+          key: 'performanceWeight',
+          label: 'Performance vs. overall',
+          value: this.performanceWeight,
+          min: 0,
+          max: 1,
+          step: 0.05,
           help: 'Blends each film’s Performance score with its overall score. Higher = leans on your Performance ratings; 0 = pure overall.'
         }
       ];
     }
   },
   methods: {
-    averageRating(results, weights = null) {
+    averageRating (results, weights = null) {
       // For actors, blend overall and performance ratings
       const getBlendedRating = (result) => {
         const mostRecent = this.mostRecentRating(result);
@@ -163,7 +183,7 @@ export default {
         return (total / ratings.length).toFixed(2);
       }
     },
-    gatherCastPeople() {
+    gatherCastPeople () {
       // Gather cast appearances within the current billingLimit, weighting each
       // by 1/(billing+1)^billingExponent. Re-run on each rescore because both
       // levers change the gathered set/weights (cheap: no TMDB calls here).
@@ -201,12 +221,12 @@ export default {
         };
       });
     },
-    async buildTopTwelveList() {
+    async buildTopTwelveList () {
       // Cast levers (billingLimit/billingExponent) affect the gathered set, so
       // rescore() re-gathers each pass. TMDB gender lookups are still cached.
       await this.rescore();
     },
-    async rescore() {
+    async rescore () {
       const seq = ++this.rescoreSeq;
       const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
       const ranked = this.gatherCastPeople()
@@ -235,17 +255,17 @@ export default {
       if (seq !== this.rescoreSeq) return;
       this.topTenList = top;
     },
-    openActorModal(entry) {
+    openActorModal (entry) {
       this.selectedActor = entry;
       this.showModal = true;
       document.body.classList.add('no-scroll');
     },
-    closeActorModal() {
+    closeActorModal () {
       this.showModal = false;
       this.selectedActor = null;
       document.body.classList.remove('no-scroll');
     },
-    searchForActor() {
+    searchForActor () {
       const name = this.selectedActor?.name;
       this.closeActorModal();
       if (name) this.updateSearchValue(name);
@@ -277,14 +297,14 @@ export default {
       display: flex;
       min-height: 36px;
       position: relative;
-  
+
       .portrait-wrapper {
         align-items: center;
         display: flex;
         justify-content: center;
         padding: 4px;
         width: 100%;
-  
+
         .portrait {
           background: #eee;
           border-radius: 6px;
@@ -292,14 +312,14 @@ export default {
           object-fit: cover;
           width: 100%;
         }
-  
+
         .placeholder {
           background: #444;
           height: auto;
           width: 48px;
         }
       }
-  
+
       .name {
         background: #00000069;
         border-bottom-left-radius: 6px;

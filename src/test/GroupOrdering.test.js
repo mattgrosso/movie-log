@@ -90,14 +90,14 @@ const mountHome = (settings = {}) => {
     global: {
       mocks: { $store: mockStore, $route: { query: {} }, $router: { push: vi.fn() } },
       stubs: {
-        'DBGridLayoutSearchResult': {
+        DBGridLayoutSearchResult: {
           template: '<div data-testid="db-grid-result">{{ result.movie.title }}</div>',
           props: ['result', 'keywordCounts', 'allCounts', 'index', 'resultsAreFiltered', 'sortValue', 'activeQuickLinkList']
         },
-        'NoResults': true,
-        'StickinessModal': true,
-        'TweakModal': true,
-        'InsetBrowserModal': true
+        NoResults: true,
+        StickinessModal: true,
+        TweakModal: true,
+        InsetBrowserModal: true
       }
     }
   })
@@ -191,7 +191,7 @@ describe('Grouped result hierarchy ordering', () => {
       })
 
       // Default order: title=[1], keyword-genre=[2]; both present.
-      let keys = wrapper.vm.reorderableGroups.map(g => g.category)
+      const keys = wrapper.vm.reorderableGroups.map(g => g.category)
       expect(keys).toContain('title')
       expect(keys).toContain('keyword-genre')
 

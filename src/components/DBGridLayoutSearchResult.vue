@@ -12,14 +12,14 @@
         loading: placeholderImage
       }"
     >
-    
+
     <!-- Loading overlay -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="spinner-border spinner-border-sm text-light" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
     </div>
-    
+
     <div class="details">
       <span v-if="activeQuickLinkList === 'bestPicture'">
         {{topStructure(result).academyAwardsYear}}
@@ -68,7 +68,7 @@
                :title="isMovieLoggedOnLetterboxd() ? 'View movie on Letterboxd' : 'Log on Letterboxd'"
                :class="['letterboxd-status-button', { 'logged': isMovieLoggedOnLetterboxd(), 'not-logged': !isMovieLoggedOnLetterboxd() }]">
             <img :src="isMovieLoggedOnLetterboxd() ? 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-rgb-500px.png' : 'https://a.ltrbxd.com/logos/letterboxd-decal-dots-pos-mono-500px.png'"
-                 alt="Letterboxd" 
+                 alt="Letterboxd"
                  class="letterboxd-icon">
           </div>
           <button class="btn btn-sm btn-success me-2" @click="rateMedia(topStructure(result))">Add New Rating</button>
@@ -133,7 +133,6 @@
             </div>
           </div>
         </div>
-
 
         <div class="directors">
           <h4>
@@ -305,8 +304,8 @@ export default {
   },
   data () {
     return {
-      getAllRatings: getAllRatings,
-        showInsetBrowserModal: false,
+      getAllRatings,
+      showInsetBrowserModal: false,
       insetBrowserUrl: "",
       awardsData: null,
       letterboxdData: null,
@@ -319,7 +318,7 @@ export default {
     InsetBrowserModal,
     ToggleableRating
   },
-  mounted() {
+  mounted () {
     // Reset loading state when component mounts (when returning from movie detail)
     this.isLoading = false;
   },
@@ -480,20 +479,20 @@ export default {
       if (!this.$store.state.settings.letterboxdConnected) {
         return;
       }
-      
+
       try {
         const movie = this.topStructure(this.result);
         const username = this.$store.state.settings.letterboxdUsername;
-        
+
         if (!username) {
           console.log('No Letterboxd username provided');
           return;
         }
-        
+
         // Use the scraping service to get user's film data
         const LetterboxdScrapingService = (await import('../services/LetterboxdScrapingService.js')).default;
         const userData = await LetterboxdScrapingService.getUserData(username);
-        
+
         // Filter to just this movie's entries
         if (userData && userData.films) {
           const movieEntries = userData.films.filter(film => {
@@ -501,10 +500,9 @@ export default {
             const normalizedSearchTitle = LetterboxdScrapingService.normalizeMovieTitle(movie.title);
             return normalizedFilmTitle === normalizedSearchTitle;
           });
-          
+
           this.letterboxdData = movieEntries;
         }
-        
       } catch (error) {
         console.error('Failed to get Letterboxd data:', error);
         ErrorLogService.error('Failed to get Letterboxd data:', error);
@@ -579,7 +577,7 @@ export default {
       this.updateSearchValue(term);
 
       window.scroll({
-        top: top,
+        top,
         behavior: 'smooth'
       });
 
@@ -663,7 +661,7 @@ export default {
     },
     rateMedia (media) {
       this.$store.commit('setMovieToRate', media);
-      window.scroll({ top: top, behavior: 'smooth' });
+      window.scroll({ top, behavior: 'smooth' });
       this.showDetailsModal = false;
       this.$router.push('/rate-movie');
     },
@@ -738,19 +736,19 @@ export default {
     countStudios (studio) {
       return this.allCounts.studios[studio] || 0;
     },
-    logOnLetterboxd() {
+    logOnLetterboxd () {
       const movie = this.topStructure(this.result);
-      
+
       // Check if movie is already logged on Letterboxd
       if (this.isMovieLoggedOnLetterboxd() && this.letterboxdData && this.letterboxdData.length > 0) {
         // Movie is logged - open the movie's Letterboxd page where user can see their diary entries
         const urls = LetterboxdUrlService.generateUrls(movie.title, this.getYear(this.result));
-        
+
         if (urls && urls.webUrl) {
           // Open the movie's page on Letterboxd - use location.href to avoid white screen on return
           window.location.href = urls.webUrl;
         } else {
-          // Fallback: open user's diary page  
+          // Fallback: open user's diary page
           const username = this.$store.state.settings.letterboxdUsername;
           if (username) {
             const diaryUrl = `https://letterboxd.com/${username}/films/diary/`;
@@ -763,14 +761,14 @@ export default {
         const success = LetterboxdUrlService.logMovie(movie.title, this.getYear(this.result), {
           normalizedRating: this.normalizedRatingForMedia(this.result)
         });
-        
+
         if (!success) {
           console.error('Failed to open movie on Letterboxd for logging:', movie.title);
           ErrorLogService.error('Failed to open movie on Letterboxd for logging:', movie.title);
         }
       }
     },
-    isMovieLoggedOnLetterboxd() {
+    isMovieLoggedOnLetterboxd () {
       // First check manual overrides
       const movie = this.topStructure(this.result);
       const overrides = this.$store.state.settings.letterboxdOverrides || {};
@@ -785,11 +783,11 @@ export default {
       // Fall back to automatic detection
       return this.letterboxdData && this.letterboxdData.length > 0;
     },
-    getPosterPath(result) {
+    getPosterPath (result) {
       // Check if user has selected a custom poster
       return result.customPosterPath || this.topStructure(result).poster_path;
     },
-    getBackdropPath(result) {
+    getBackdropPath (result) {
       // Check if user has selected a custom backdrop
       return result.customBackdropPath || this.topStructure(result).backdrop_path;
     }
@@ -813,7 +811,7 @@ export default {
 
   .grid-layout-media-result {
     position: relative;
-    
+
     &.loading {
       pointer-events: none;
       opacity: 0.8;
@@ -1005,38 +1003,38 @@ export default {
         .badge {
           font-size: 0.75rem;
           padding: 0.5rem 0.75rem;
-          
+
           i {
             margin-right: 0.25rem;
           }
         }
-        
+
         .bg-success {
           background-color: #00e054 !important; // Letterboxd green
         }
       }
-      
+
       .letterboxd-buttons {
         .btn {
           font-size: 0.7rem;
           padding: 0.375rem 0.5rem;
-          
+
           i {
             margin-right: 0.25rem;
             font-size: 0.8rem;
           }
         }
-        
+
         .btn-outline-success {
           border-color: #00e054;
           color: #00e054;
-          
+
           &:hover {
             background-color: #00e054;
             border-color: #00e054;
           }
         }
-        
+
         .btn-success {
           background-color: #00e054;
           border-color: #00e054;

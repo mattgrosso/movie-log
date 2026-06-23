@@ -66,7 +66,7 @@ describe('applyFilter general — cast/crew name matching', () => {
     wrapper = mount(Home, {
       global: {
         mocks: { $store: mockStore, $route: { query: {} }, $router: { push: vi.fn() } },
-        stubs: { 'NoResults': true, 'StickinessModal': true, 'TweakModal': true, 'InsetBrowserModal': true }
+        stubs: { NoResults: true, StickinessModal: true, TweakModal: true, InsetBrowserModal: true }
       }
     })
     await wrapper.vm.$nextTick()

@@ -7,7 +7,7 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
 }))
 
 // Build a director who appears in `count` films, each rated `score`.
-function films(directorName, count, score, startId) {
+function films (directorName, count, score, startId) {
   const out = []
   for (let i = 0; i < count; i++) {
     out.push({
@@ -38,9 +38,9 @@ describe('FavoriteDirectors live tuning', () => {
     commit = vi.fn()
 
     const library = [
-      ...films('Prolific Pat', 6, 8, 100),   // many films, good
-      ...films('Solid Sam', 4, 8.5, 200),    // fewer films, slightly higher
-      ...films('Rare Renee', 2, 10, 300)     // too few for default minEntries (4)
+      ...films('Prolific Pat', 6, 8, 100), // many films, good
+      ...films('Solid Sam', 4, 8.5, 200), // fewer films, slightly higher
+      ...films('Rare Renee', 2, 10, 300) // too few for default minEntries (4)
     ]
 
     wrapper = mount(FavoriteDirectors, {

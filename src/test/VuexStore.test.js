@@ -168,7 +168,7 @@ describe('Vuex Store - Movie Data Processing', () => {
 
     it('should have correct weight configuration', () => {
       const weights = store.state.weights
-      
+
       // Check that all expected weights exist
       const weightNames = weights.map(w => w.name)
       expect(weightNames).toContain('love')
@@ -329,7 +329,7 @@ describe('Vuex Store - Movie Data Processing', () => {
         const result = store.getters.allMoviesAsArray
 
         expect(result).toHaveLength(3)
-        
+
         // Should not have dbKey added (unlike allMediaAsArray)
         expect(result[0].dbKey).toBeUndefined()
         expect(result[0].movie.title).toBe('The Shawshank Redemption')
@@ -341,7 +341,7 @@ describe('Vuex Store - Movie Data Processing', () => {
         const result = store.getters.allMediaSortedByRating
 
         expect(result).toHaveLength(3)
-        
+
         // Should be sorted by rating descending
         expect(result[0].movie.title).toBe('The Shawshank Redemption') // 9.3
         expect(result[1].movie.title).toBe('The Godfather') // 9.2
@@ -448,7 +448,7 @@ describe('Vuex Store - Movie Data Processing', () => {
 
       // Should not crash
       expect(() => store.getters.allMediaAsArray).not.toThrow()
-      
+
       const result = store.getters.allMediaAsArray
       expect(result).toHaveLength(2)
       expect(result[0].dbKey).toBe('bad-movie')
@@ -489,7 +489,7 @@ describe('Vuex Store - Movie Data Processing', () => {
       store.commit('setDbLoaded', true)
 
       const ratingsArray = store.getters.allMediaRatingsArray
-      
+
       expect(ratingsArray).toHaveLength(1)
       // Should use the rating returned by getRating (mocked to use first rating)
       expect(ratingsArray[0]).toBe(8.0)

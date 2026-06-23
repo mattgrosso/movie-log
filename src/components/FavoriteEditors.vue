@@ -112,30 +112,46 @@ export default {
     tunerLevers () {
       return [
         {
-          key: 'minEntries', label: 'Minimum films', value: this.minEntries,
-          min: 1, max: 15, step: 1,
+          key: 'minEntries',
+          label: 'Minimum films',
+          value: this.minEntries,
+          min: 1,
+          max: 15,
+          step: 1,
           help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
         },
         {
-          key: 'confidenceNumber', label: 'Small-sample caution', value: this.confidenceNumber,
-          min: 0, max: 10, step: 0.5,
+          key: 'confidenceNumber',
+          label: 'Small-sample caution',
+          value: this.confidenceNumber,
+          min: 0,
+          max: 10,
+          step: 0.5,
           help: "Pulls editors with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
         },
         {
-          key: 'countWeight', label: 'Reward for volume', value: this.countWeight,
-          min: 0, max: 2, step: 0.05,
+          key: 'countWeight',
+          label: 'Reward for volume',
+          value: this.countWeight,
+          min: 0,
+          max: 2,
+          step: 0.05,
           help: "Boosts editors you've watched a lot. Higher = prolific favorites climb even if their average dips slightly."
         },
         {
-          key: 'knownForWeight', label: 'Signature-film bonus', value: this.knownForWeight,
-          min: 0, max: 1, step: 0.05,
+          key: 'knownForWeight',
+          label: 'Signature-film bonus',
+          value: this.knownForWeight,
+          min: 0,
+          max: 1,
+          step: 0.05,
           help: "Extra credit when you've rated their best-known films highly. Higher = loving their famous work matters more."
         }
       ];
     }
   },
   methods: {
-    averageRating(results, weights = null) {
+    averageRating (results, weights = null) {
       // If weights are provided, use weighted average
       const ratedMovies = results.filter((result, idx) => this.mostRecentRating(result).calculatedTotal && (!weights || weights[idx] > 0));
       if (ratedMovies.length === 0) return 0;
@@ -155,7 +171,7 @@ export default {
         return (total / ratings.length).toFixed(2);
       }
     },
-    async buildTopTwelveList() {
+    async buildTopTwelveList () {
       // Phase 1 (once per data load): gather every editor + their rated films.
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
@@ -189,7 +205,7 @@ export default {
 
       await this.rescore();
     },
-    computeKnownForBonus(entries, details) {
+    computeKnownForBonus (entries, details) {
       // Average PLAIN overall rating of the editor's 'known_for' films you've
       // rated, scaled by knownForWeight (editors aren't blended). Preserved.
       if (!details || !Array.isArray(details.known_for) || !details.known_for.length) return 0;
@@ -201,7 +217,7 @@ export default {
       const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
       return avgKnownFor * this.knownForWeight;
     },
-    async rescore() {
+    async rescore () {
       const seq = ++this.rescoreSeq;
       const eligible = this.peopleData.filter(p => p.entries.length >= this.minEntries);
 
@@ -228,17 +244,17 @@ export default {
       scored.sort((a, b) => b.finalScore - a.finalScore);
       this.topTenList = scored.slice(0, 12);
     },
-    openEditorModal(entry) {
+    openEditorModal (entry) {
       this.selectedEditor = entry;
       this.showModal = true;
       document.body.classList.add('no-scroll');
     },
-    closeEditorModal() {
+    closeEditorModal () {
       this.showModal = false;
       this.selectedEditor = null;
       document.body.classList.remove('no-scroll');
     },
-    searchForEditor() {
+    searchForEditor () {
       const name = this.selectedEditor?.name;
       this.closeEditorModal();
       if (name) this.updateSearchValue(name);
@@ -270,28 +286,28 @@ export default {
       display: flex;
       min-height: 36px;
       position: relative;
-  
+
       .portrait-wrapper {
         align-items: center;
         display: flex;
         justify-content: center;
         padding: 4px;
         width: 100%;
-  
+
         .portrait {
           border-radius: 6px;
           height: auto;
           object-fit: cover;
           width: 100%;
         }
-  
+
         .placeholder {
           background: #444;
           height: auto;
           width: 48px;
         }
       }
-  
+
       .name {
         background: #00000069;
         border-bottom-left-radius: 6px;

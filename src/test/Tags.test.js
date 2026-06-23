@@ -41,7 +41,7 @@ describe('uniqueViewingTags', () => {
 });
 
 describe('buildTagSuggestions', () => {
-  const globalTagCounts = { 'rewatch': 12, 'theater': 5, 'with friends': 3, 'date night': 1 };
+  const globalTagCounts = { rewatch: 12, theater: 5, 'with friends': 3, 'date night': 1 };
   const vocabularyTitles = ['rewatch', 'theater', 'with friends', 'date night', 'documentary'];
 
   it('returns empty array when query is empty / whitespace', () => {
@@ -50,7 +50,7 @@ describe('buildTagSuggestions', () => {
   });
 
   it('matches case-insensitively and sorts by global count desc', () => {
-    const counts = { 'rewatch': 12, 'rewatchable': 4, 'first watch': 9 };
+    const counts = { rewatch: 12, rewatchable: 4, 'first watch': 9 };
     const results = buildTagSuggestions({
       query: 'WATCH',
       alreadyOnViewing: [],
@@ -62,7 +62,7 @@ describe('buildTagSuggestions', () => {
   });
 
   it('excludes tags already on the current viewing', () => {
-    const counts = { 'rewatch': 12, 'first watch': 9 };
+    const counts = { rewatch: 12, 'first watch': 9 };
     const results = buildTagSuggestions({
       query: 'watch',
       alreadyOnViewing: ['rewatch'],
@@ -102,7 +102,7 @@ describe('buildTagSuggestions', () => {
 });
 
 describe('canCreateNewTag', () => {
-  const globalTagCounts = { 'rewatch': 12 };
+  const globalTagCounts = { rewatch: 12 };
   const vocabularyTitles = ['rewatch', 'documentary'];
 
   it('returns false for empty / whitespace input', () => {
@@ -138,8 +138,8 @@ describe('countViewingTagUsage', () => {
       { ratings: [{ tags: [{ title: 'with friends' }] }] }
     ];
     expect(countViewingTagUsage(movies)).toEqual({
-      'rewatch': 3,
-      'theater': 1,
+      rewatch: 3,
+      theater: 1,
       'with friends': 1
     });
   });
@@ -150,14 +150,14 @@ describe('countViewingTagUsage', () => {
       { ratings: [] },
       { ratings: [{}, { tags: [] }, { tags: [{ title: 'kept' }] }] }
     ];
-    expect(countViewingTagUsage(movies)).toEqual({ 'kept': 1 });
+    expect(countViewingTagUsage(movies)).toEqual({ kept: 1 });
   });
 
   it('skips tag entries with empty / missing titles', () => {
     const movies = [
       { ratings: [{ tags: [{ title: null }, { title: '' }, {}, { title: 'real' }] }] }
     ];
-    expect(countViewingTagUsage(movies)).toEqual({ 'real': 1 });
+    expect(countViewingTagUsage(movies)).toEqual({ real: 1 });
   });
 });
 
@@ -183,7 +183,7 @@ describe('sortVocabularyByUsage', () => {
       { title: 'alpha' },
       { title: 'bravo' }
     ];
-    const counts = { 'charlie': 3, 'alpha': 3, 'bravo': 3 };
+    const counts = { charlie: 3, alpha: 3, bravo: 3 };
     expect(sortVocabularyByUsage(vocabulary, counts).map((t) => t.title)).toEqual(['alpha', 'bravo', 'charlie']);
   });
 
@@ -193,13 +193,13 @@ describe('sortVocabularyByUsage', () => {
       { title: 'used' },
       { title: 'never-used-a' }
     ];
-    const counts = { 'used': 4 };
+    const counts = { used: 4 };
     expect(sortVocabularyByUsage(vocabulary, counts).map((t) => t.title)).toEqual(['used', 'never-used-a', 'never-used-b']);
   });
 
   it('does not mutate the input array', () => {
     const vocabulary = [{ title: 'b' }, { title: 'a' }];
-    const counts = { 'a': 2, 'b': 1 };
+    const counts = { a: 2, b: 1 };
     const before = vocabulary.map((t) => t.title);
     sortVocabularyByUsage(vocabulary, counts);
     expect(vocabulary.map((t) => t.title)).toEqual(before);

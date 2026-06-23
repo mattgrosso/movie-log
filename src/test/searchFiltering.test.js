@@ -59,24 +59,24 @@ describe('getListOfYearsFromRange', () => {
 
 describe('applyFilter', () => {
   const cases = [
-    ['general', 'amelie', true],        // NFD title match
-    ['general', 'whimsical', true],     // keyword
-    ['general', 'tautou', true],        // cast substring
+    ['general', 'amelie', true], // NFD title match
+    ['general', 'whimsical', true], // keyword
+    ['general', 'tautou', true], // cast substring
     ['general', 'nope', false],
-    ['person', 'tautou', true],         // last-name
-    ['person', 'audrey tautou', true],  // full name
+    ['person', 'tautou', true], // last-name
+    ['person', 'audrey tautou', true], // full name
     ['year', '2001', true],
     ['year', '1999', false],
-    ['genre', 'Comedy', true],          // case-sensitive exact
+    ['genre', 'Comedy', true], // case-sensitive exact
     ['genre', 'comedy', false],
     ['company', 'UGC', true],
-    ['keyword', 'PARIS', true],         // case-insensitive
+    ['keyword', 'PARIS', true], // case-insensitive
     ['tag', 'cozy', true],
     ['tag', 'noir', false],
     ['title', 'amé', true],
     ['director', 'jeunet', true],
-    ['director', 'laurant', false],     // not the Director
-    ['producer', 'ossard', true],       // matches "Executive Producer"
+    ['director', 'laurant', false], // not the Director
+    ['producer', 'ossard', true], // matches "Executive Producer"
     ['cast', 'kassovitz', true]
   ]
   it.each(cases)('%s "%s" → %s', (type, value, expected) => {
@@ -100,7 +100,7 @@ describe('applyFilter', () => {
 // Deterministic fake rating accessor keyed off a per-item rating object.
 const getRating = (item) => item.rating
 
-function makeItems() {
+function makeItems () {
   return [
     { movie: { title: 'B', release_date: '2010-01-01' }, ratings: [{}], rating: { calculatedTotal: 7, date: '2', love: 5 } },
     { movie: { title: 'A', release_date: '2020-01-01' }, ratings: [{}, {}], rating: { calculatedTotal: 9, date: '3', love: 5 } },

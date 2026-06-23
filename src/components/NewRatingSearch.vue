@@ -87,7 +87,7 @@ export default {
           // Get IDs of already rated movies
           const ratedIds = this.$store.getters.allMoviesAsArray.map(m => m.movie.id);
           // Filter out already rated
-          let filtered = resp.data.results.filter(movie => !ratedIds.includes(movie.id));
+          const filtered = resp.data.results.filter(movie => !ratedIds.includes(movie.id));
           // Shuffle the filtered array
           for (let i = filtered.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
