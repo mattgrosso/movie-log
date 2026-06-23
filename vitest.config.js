@@ -13,6 +13,7 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       exclude: [
         'node_modules/',
+        '.history/', // VS Code Local History snapshots — not real source
         'src/test/',
         '**/*.test.js',
         '**/*.spec.js',

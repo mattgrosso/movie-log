@@ -21,7 +21,7 @@
         >
       </div>
     </div>
-    
+
     <!-- Active Filter Chips - only show when filters are active -->
     <div v-if="activeFiltersMinusTemps.length || activeQuickLinkList !== 'title'" class="active-filters-section mx-auto my-2">
       <div class="d-flex flex-wrap align-items-center">
@@ -32,37 +32,37 @@
             <button class="btn-close btn-close-white ms-1" @click="clearQuickLink" style="font-size: 0.5rem; line-height: 1;"></button>
           </span>
         </transition>
-        
+
         <!-- Additional Filter Chips -->
         <transition-group name="chip-fade" tag="div" class="d-inline-flex flex-wrap align-items-center">
           <span v-for="filter in activeFiltersMinusTemps" :key="filter.id" class="badge text-bg-secondary me-2 my-1 d-inline-flex align-items-center chip-transition" style="padding: 0.25rem 0.4rem; font-weight: normal; font-size: 0.75rem; line-height: 1.2;">
             {{ filter.display }}
-            <button 
-              class="btn-close btn-close-white ms-1" 
-              @click.stop.prevent="removeFilter(filter.id)" 
+            <button
+              class="btn-close btn-close-white ms-1"
+              @click.stop.prevent="removeFilter(filter.id)"
               style="font-size: 0.5rem; line-height: 1;"
               title="Remove filter">
             </button>
           </span>
         </transition-group>
-        
+
         <!-- Wikipedia Button - only show when there's exactly one chip -->
         <button v-if="activeFiltersMinusTemps.length === 1" class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center" style="font-size: 0.9rem; text-decoration: none; opacity: 0.7;" @click="goToWikipediaForChip" title="Wikipedia Info">
           <i class="bi bi-wikipedia" style="font-size: 1rem;"></i>
         </button>
-        
+
         <!-- Small Add Filter Button -->
         <button class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center ms-1" style="font-size: 0.9rem; text-decoration: none; opacity: 0.7;" @click="showAddFilterModal = true" title="Add Filter">
           <i class="bi bi-plus-circle" style="font-size: 1rem;"></i>
         </button>
-        
+
         <!-- Small Clear All Button -->
         <button class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center ms-1" style="font-size: 0.9rem; text-decoration: none; opacity: 0.7;" @click="clearAllFilters" title="Clear All">
           <i class="bi bi-x-circle" style="font-size: 1rem;"></i>
         </button>
       </div>
     </div>
-    
+
     <!-- Suggestions button below search bar if user has rated < 10 movies -->
     <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center my-2">
       <button class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
@@ -363,7 +363,7 @@
                   <i class="bi bi-bug"></i> Test Error Logging
                 </button>
               </div>
-              
+
               <!-- Inline Error Log Viewer -->
               <div v-if="showErrorLogs" class="error-logs-section mt-3 p-3 border rounded">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -379,15 +379,15 @@
                     </button>
                   </div>
                 </div>
-                
+
                 <div v-if="errorLogs.length === 0" class="text-center text-muted py-3">
                   <i class="bi bi-check-circle"></i> No logs to display
                 </div>
-                
+
                 <div v-else class="error-logs-list" style="max-height: 300px; overflow-y: auto;">
-                  <div 
-                    v-for="log in errorLogs.slice(0, 20)" 
-                    :key="log.id" 
+                  <div
+                    v-for="log in errorLogs.slice(0, 20)"
+                    :key="log.id"
                     :class="['log-entry', 'p-2', 'mb-2', 'rounded', `log-${log.level}`]"
                     style="font-size: 0.8rem; border-left: 3px solid;"
                   >
@@ -406,7 +406,7 @@
                     <small>Showing first 20 of {{ errorLogs.length }} logs</small>
                   </div>
                 </div>
-                
+
                 <div v-if="copySuccess" class="alert alert-success mt-2 py-2">
                   <i class="bi bi-check-circle"></i> Copied to clipboard!
                 </div>
@@ -480,36 +480,36 @@
                       ⚠️ {{ scrapingTest.error || 'Testing failed, using mock data instead' }}
                     </div>
                   </div>
-                  
+
                   <div class="text-end">
                     <a href="#" @click.prevent="showOverridePanel = !showOverridePanel" class="text-light text-decoration-none opacity-75" title="Manual overrides" style="font-size: 0.75rem;">
                       overrides <i class="bi bi-plus"></i>
                     </a>
                   </div>
-                  
+
                   <div v-if="showOverridePanel" class="mt-2 border rounded p-2" style="background-color: rgba(255,255,255,0.1);">
                     <small class="text-light opacity-75 d-block mb-2">Mark movies as logged on Letterboxd when auto-detection fails</small>
                     <div class="row g-2 mb-2">
                       <div class="col-7">
-                        <input 
-                          type="text" 
-                          class="form-control form-control-sm" 
-                          v-model="newOverrideTitle" 
+                        <input
+                          type="text"
+                          class="form-control form-control-sm"
+                          v-model="newOverrideTitle"
                           placeholder="Movie title (exact match)"
                         />
                       </div>
                       <div class="col-3">
-                        <input 
-                          type="number" 
-                          class="form-control form-control-sm" 
-                          v-model="newOverrideYear" 
+                        <input
+                          type="number"
+                          class="form-control form-control-sm"
+                          v-model="newOverrideYear"
                           placeholder="Year"
                         />
                       </div>
                       <div class="col-2">
-                        <button 
-                          class="btn btn-success btn-sm w-100" 
-                          @click="addLetterboxdOverride" 
+                        <button
+                          class="btn btn-success btn-sm w-100"
+                          @click="addLetterboxdOverride"
                           :disabled="!newOverrideTitle || !newOverrideYear"
                           title="Mark as logged on Letterboxd"
                         >
@@ -517,7 +517,7 @@
                         </button>
                       </div>
                     </div>
-                    
+
                     <div v-if="letterboxdOverrides && Object.keys(letterboxdOverrides).length" class="mt-2">
                       <div class="override-list">
                         <div v-for="(override, key) in letterboxdOverrides" :key="key" class="d-flex justify-content-between align-items-center py-1 px-2 mb-1 rounded border" style="background-color: rgba(255,255,255,0.1);">
@@ -528,14 +528,14 @@
                         </div>
                       </div>
                     </div>
-                    
+
                     <div v-else class="text-light text-center py-2 opacity-75">
                       <small><em>No manual overrides set</em></small>
                     </div>
                   </div>
                 </div>
               </div>
-              
+
               <!-- Matt Only Settings Section -->
               <div v-if="isMatt" class="mt-4">
                 <hr>
@@ -716,7 +716,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- Add Filter Modal -->
   <div v-if="showAddFilterModal" class="modal-overlay" @click="showAddFilterModal = false">
     <div class="modal-content" @click.stop>
@@ -725,7 +725,7 @@
         <button class="btn-close" @click="showAddFilterModal = false"></button>
       </div>
       <div class="modal-body">
-        
+
         <!-- Director Filter -->
         <div class="filter-section mb-3">
           <label class="form-label">Director</label>
@@ -736,7 +736,7 @@
             </option>
           </select>
         </div>
-        
+
         <!-- Year Filter -->
         <div class="filter-section mb-3">
           <label class="form-label">Year</label>
@@ -747,7 +747,7 @@
             </option>
           </select>
         </div>
-        
+
         <!-- Genre Filter -->
         <div class="filter-section mb-3">
           <label class="form-label">Genre</label>
@@ -758,7 +758,7 @@
             </option>
           </select>
         </div>
-        
+
         <!-- Tag Filter -->
         <div class="filter-section mb-3" v-if="userTags.length">
           <label class="form-label">Tag</label>
@@ -769,7 +769,7 @@
             </option>
           </select>
         </div>
-        
+
       </div>
     </div>
   </div>
@@ -783,9 +783,9 @@
       <div class="modal-body movie-info-body">
         <div v-if="selectedMovieInfo" class="movie-info-content">
           <div class="movie-poster-section">
-            <img 
-              v-if="selectedMovieInfo.poster_path" 
-              :src="`https://image.tmdb.org/t/p/w300${selectedMovieInfo.poster_path}`" 
+            <img
+              v-if="selectedMovieInfo.poster_path"
+              :src="`https://image.tmdb.org/t/p/w300${selectedMovieInfo.poster_path}`"
               :alt="selectedMovieInfo.title"
               class="movie-poster"
             >
@@ -892,7 +892,7 @@ export default {
       activeFilters: [], // New multi-filter system
       activeQuickLinkList: "title",
       cachedCastMembers: new Set(), // Cache for fast cast member lookups
-      debouncedSetSearchValue: debounce(function(value) {
+      debouncedSetSearchValue: debounce(function (value) {
         this.searchValue = value;
       }, 300),
       filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'tag'],
@@ -952,9 +952,9 @@ export default {
       // disappears — its element is recreated each time this flips true.
       this.$nextTick(() => this.setupLoadMoreObserver());
     },
-    effectiveSearchFilter(newVal, oldVal) {
+    effectiveSearchFilter (newVal, oldVal) {
       // Fetch unrated movies for any non-empty search term (from input or chips)
-      if (newVal && (!oldVal || newVal.value !== oldVal.value)) {        
+      if (newVal && (!oldVal || newVal.value !== oldVal.value)) {
         this.debouncedFetchUnratedMoviesBySearchFilter(newVal);
       } else if (!newVal) {
         this.unratedMovies = [];
@@ -975,7 +975,6 @@ export default {
                              this.$store.state.homePageSortValue;
 
     if (hasStateToRestore) {
-
       // Restore search state
       if (this.$store.state.homePageSearchChips.length > 0) {
         this.activeFilters = [...this.$store.state.homePageSearchChips];
@@ -1013,7 +1012,7 @@ export default {
           }
         }
       });
-      
+
       // Clear stored state after restoring (unless it's a new search from MovieDetail)
       const isNewSearch = this.$store.state.homePageSearchValue && this.$store.state.homePageSearchChips.length === 0;
       if (!isNewSearch) {
@@ -1058,7 +1057,7 @@ export default {
       // Clear the search state from store after processing
       this.$store.commit('setHomePageSearchValue', '');
     }
-    
+
     // Only initialize sort value if we're not restoring state from a 'close' navigation
     if (navigationIntent !== 'close' || !hasStateToRestore) {
       if (this.DBSortValue) {
@@ -1078,12 +1077,12 @@ export default {
     }
 
     // Note: showShorts, showErrorLogs, and enableRandomSearch are now computed properties
-    
+
     // Initialize letterboxdOverrides from store
     if (this.$store.state.settings.letterboxdOverrides) {
       this.letterboxdOverrides = this.$store.state.settings.letterboxdOverrides;
     }
-    
+
     // Initialize error logs
     this.refreshErrorLogs();
     if (this.showErrorLogs) {
@@ -1107,7 +1106,7 @@ export default {
     // case where the library loads in after mount.
     this.$nextTick(() => this.setupLoadMoreObserver());
   },
-  beforeUnmount() {
+  beforeUnmount () {
     // Clean up error log refresh interval
     this.stopErrorLogRefresh();
 
@@ -1123,9 +1122,9 @@ export default {
       this.loadMoreObserver = null;
     }
   },
-  
+
   // Combined beforeRouteLeave method
-  beforeRouteLeave(to, from, next) {
+  beforeRouteLeave (to, from, next) {
     // Save state when navigating to movie detail page
     if (to.name === 'MovieDetail') {
       this.$store.commit('setHomePageScrollPosition', window.pageYOffset);
@@ -1143,23 +1142,23 @@ export default {
     next();
   },
   computed: {
-    normalizationTweak() {
+    normalizationTweak () {
       const value = this.$store.state.settings?.normalizationTweak;
       return typeof value === 'number' ? value : 0.25;
     },
-    tieBreakTweak() {
+    tieBreakTweak () {
       const value = this.$store.state.settings?.tieBreakTweak;
       return typeof value === 'number' ? value : 1;
     },
-    personalAwardName() {
+    personalAwardName () {
       const value = this.$store.state.settings?.personalAwardName;
       return (typeof value === 'string' && value.length > 0) ? value : 'Oscar';
     },
-    showShorts() {
+    showShorts () {
       const value = this.$store.state.settings?.includeShorts;
       return typeof value === 'boolean' ? value : false;
     },
-    showErrorLogs() {
+    showErrorLogs () {
       const value = this.$store.state.settings?.showErrorLogs;
       return typeof value === 'boolean' ? value : false;
     },
@@ -1186,29 +1185,29 @@ export default {
         this.$store.commit('setSettings', { ...(this.$store.state.settings || {}), letterboxdUsername: value });
       }
     },
-    stickinessPromptState() {
+    stickinessPromptState () {
       const value = this.$store.state.settings?.stickinessPromptState;
       return (typeof value === 'string' && ['disabled', 'normal', 'forced'].includes(value)) ? value : 'normal';
     },
-    tieBreakPromptState() {
+    tieBreakPromptState () {
       const value = this.$store.state.settings?.tieBreakPromptState;
       return (typeof value === 'string' && ['disabled', 'normal', 'forced'].includes(value)) ? value : 'normal';
     },
-    awardsPromptState() {
+    awardsPromptState () {
       const value = this.$store.state.settings?.awardsPromptState;
       return (typeof value === 'string' && ['disabled', 'normal', 'forced'].includes(value)) ? value : 'normal';
     },
-    dailyAwardsYear() {
+    dailyAwardsYear () {
       return this.$store.state.settings?.dailyAwardsYear;
     },
-    
-    activeFiltersMinusTemps() {
+
+    activeFiltersMinusTemps () {
       // Return only non-temporary filters
       return this.activeFilters.filter((filter) => !filter.temp);
     },
-    allActiveFilters() {
+    allActiveFilters () {
       const filters = [];
-      
+
       // Add input text as a general search filter if it exists AND no chips are active at all
       // (avoid double filtering when any chips exist, temp or permanent)
       if (this.searchValue && this.searchValue.trim() && this.activeFilters.length === 0) {
@@ -1220,7 +1219,7 @@ export default {
           source: 'input'
         });
       }
-      
+
       // Add all existing chips
       this.activeFilters.forEach(chip => {
         filters.push({
@@ -1228,7 +1227,7 @@ export default {
           source: 'chip'
         });
       });
-      
+
       return filters;
     },
     allCastCrew () {
@@ -1337,7 +1336,7 @@ export default {
         }
       });
     },
-    availableYears() {
+    availableYears () {
       const years = this.allEntriesWithFlatKeywordsAdded
         .map(movie => new Date(movie.movie.release_date).getFullYear())
         .filter(year => !isNaN(year));
@@ -1383,7 +1382,7 @@ export default {
         } else {
           bestPictureWinnersWithRatingStatus.push({
             falseEntry: true,
-            movie: movie,
+            movie,
             ratings: [
               {
                 date: Date.now(),
@@ -1548,9 +1547,9 @@ export default {
       const filtered = this.unratedMovies.filter(movie => movie.id && movie.poster_path);
       return filtered;
     },
-    effectiveSearchFilter() {
+    effectiveSearchFilter () {
       const typePriority = this.filterTypes;
-      
+
       for (const type of typePriority) {
         const chipOfType = this.allActiveFilters.find(filter => filter.type === type);
         if (chipOfType) {
@@ -1560,14 +1559,14 @@ export default {
 
       return null;
     },
-    effectiveSearchTerm() {
+    effectiveSearchTerm () {
       if (this.effectiveSearchFilter) {
         return this.effectiveSearchFilter.value;
       } else {
         return '';
       }
     },
-    searchableTerms() {
+    searchableTerms () {
       // The fuzzy-match index: every distinct, typed term drawn from the user's
       // OWN rated library. Reuses the count maps that are already computed for
       // the counts/filtering features, so building this is cheap. Each entry
@@ -1602,7 +1601,7 @@ export default {
 
       return terms;
     },
-    fuzzyIndex() {
+    fuzzyIndex () {
       // Build the Fuse index ONCE per library change, not per keystroke. Vue
       // memoizes this computed, so it only rebuilds when searchableTerms changes
       // (i.e. when the rated library changes), turning a ~40ms-per-keystroke cost
@@ -1617,7 +1616,7 @@ export default {
         minMatchCharLength: 3
       });
     },
-    didYouMeanSuggestions() {
+    didYouMeanSuggestions () {
       // Typo-tolerant "Did you mean...?" fallback. Deliberately gated so the
       // fuzzy work NEVER runs on the common (has-results) path: it only fires
       // when the user has typed a non-trivial term that produced zero local
@@ -1661,7 +1660,7 @@ export default {
 
       return suggestions;
     },
-    groupOrder() {
+    groupOrder () {
       // Returns the active group hierarchy. Uses the user's daily override from
       // settings if it was saved today (local calendar day); otherwise reverts
       // to the default. Always returns every known group key so the full
@@ -1679,50 +1678,49 @@ export default {
 
       return [...DEFAULT_GROUP_ORDER];
     },
-    groupedByAllCategories() {
+    groupedByAllCategories () {
       // Use debounced search for typing performance, but fall back to effectiveSearchTerm for chips
       let searchTerm;
       if (this.searchValue) {
         // User is typing - use debounced value for performance
         searchTerm = this.searchValue;
       } else if (this.activeFilters.length > 0) {
-        // User has chips active - use effectiveSearchTerm 
+        // User has chips active - use effectiveSearchTerm
         searchTerm = this.effectiveSearchTerm;
       } else {
         return null;
       }
-      
+
       if (!searchTerm || !searchTerm.toLowerCase) return null;
       const normalizedSearchTerm = searchTerm.toLowerCase();
-      
+
       // Only show grouped results when we have a simple search term
       // Skip if we have multiple chips or quick links active
       if (this.activeFilters.filter(f => !f.temp).length > 1 || this.activeQuickLinkList !== 'title') {
         return null;
       }
-      
+
       // Skip if the search term is too short or too generic
       if (normalizedSearchTerm.length < 3) {
         return null;
       }
-      
+
       // Skip for very common/generic terms that will match too many movies
       const genericTerms = ['war', 'love', 'man', 'the', 'and', 'new', 'black', 'red', 'big', 'american', 'last', 'first'];
       if (genericTerms.includes(normalizedSearchTerm)) {
         return null;
       }
-      
+
       // Check if this is a year search - if so, bypass grouping and use normal results
       if (this.detectYearTypes(searchTerm)) {
         return null; // Let normal filtering handle years
       }
-      
+
       // Performance optimization: Skip expensive computation if we have no results to group
       if (!this.allEntriesWithFlatKeywordsAdded || this.allEntriesWithFlatKeywordsAdded.length === 0) {
         return null;
       }
-      
-      
+
       const allResults = this.allEntriesWithFlatKeywordsAdded;
 
       // Step 1: Compute candidate matches for each fixed-type group. Done in a
@@ -1746,18 +1744,18 @@ export default {
       candidatesByKey['keyword-genre'] = { displayName: 'Keywords & Genres', movies: [] };
 
       // Inlined matcher (perf): instead of 7 dispatched applyFilter calls per
-      // movie (each re-reading/​re-deriving the same data), read each movie's
+      // movie (each re-reading/re-deriving the same data), read each movie's
       // precomputed _search ONCE and evaluate all group conditions against it.
       // Every condition below mirrors the corresponding applyFilter case EXACTLY,
       // so candidate sets are identical — GroupOrdering.test.js guards this.
       // genre/company stay case-sensitive against the raw searchTerm (matching
       // applyFilter's `genre`/`company` cases); everything else uses lowercased.
       const term = searchTerm.toLowerCase();
-      const titleBucket = candidatesByKey['title'].movies;
-      const directorBucket = candidatesByKey['director'].movies;
-      const castBucket = candidatesByKey['cast'].movies;
-      const producerBucket = candidatesByKey['producer'].movies;
-      const companyBucket = candidatesByKey['company'].movies;
+      const titleBucket = candidatesByKey.title.movies;
+      const directorBucket = candidatesByKey.director.movies;
+      const castBucket = candidatesByKey.cast.movies;
+      const producerBucket = candidatesByKey.producer.movies;
+      const companyBucket = candidatesByKey.company.movies;
       const keywordGenreBucket = candidatesByKey['keyword-genre'].movies;
 
       allResults.forEach(media => {
@@ -1810,41 +1808,41 @@ export default {
         // Try to intelligently categorize the uncategorized movies by person role
         const adHocCategories = {};
         const trulyUncategorized = [];
-        
+
         uncategorizedMovies.forEach(media => {
           const movie = media.movie;
           let foundRole = false;
-          
+
           // Helper function for full-word matching
           const hasFullWordMatch = (personName, searchTerm) => {
             if (!personName) return false;
             const personWords = personName.toLowerCase().split(' ');
             const searchWords = searchTerm.toLowerCase().split(' ');
-            return searchWords.some(searchWord => 
+            return searchWords.some(searchWord =>
               personWords.some(personWord => personWord === searchWord)
             );
           };
-          
+
           // Check if person appears in cast
           if (movie.cast) {
-            const castMatch = movie.cast.find(person => 
+            const castMatch = movie.cast.find(person =>
               hasFullWordMatch(person.name, searchTerm)
             );
             if (castMatch) {
-              if (!adHocCategories['cast']) adHocCategories['cast'] = [];
-              adHocCategories['cast'].push(media);
+              if (!adHocCategories.cast) adHocCategories.cast = [];
+              adHocCategories.cast.push(media);
               foundRole = true;
             }
           }
-          
+
           // Check if person appears in crew (only if not already found in cast)
           if (!foundRole && movie.crew) {
-            const crewMatch = movie.crew.find(person => 
+            const crewMatch = movie.crew.find(person =>
               hasFullWordMatch(person.name, searchTerm)
             );
             if (crewMatch) {
               let roleCategory = 'Crew';
-              
+
               // Categorize specific crew roles
               if (crewMatch.job === 'Director') {
                 roleCategory = 'Director';
@@ -1852,7 +1850,7 @@ export default {
                 roleCategory = 'Producer';
               } else if (crewMatch.job && ['Writer', 'Screenplay', 'Story', 'Novel'].includes(crewMatch.job)) {
                 roleCategory = 'Writer';
-              } else if (crewMatch.job && (crewMatch.job.toLowerCase().includes('composer') || 
+              } else if (crewMatch.job && (crewMatch.job.toLowerCase().includes('composer') ||
                         crewMatch.job.toLowerCase().includes('music') ||
                         crewMatch.job.toLowerCase().includes('score'))) {
                 roleCategory = 'Music';
@@ -1863,27 +1861,27 @@ export default {
                                         crewMatch.job.toLowerCase().includes('director of photography'))) {
                 roleCategory = 'Cinematographer';
               }
-              
+
               if (!adHocCategories[roleCategory]) adHocCategories[roleCategory] = [];
               adHocCategories[roleCategory].push(media);
               foundRole = true;
             }
           }
-          
+
           // If no specific role found, add to truly uncategorized
           if (!foundRole) {
             trulyUncategorized.push(media);
           }
         });
-        
+
         // Add ad-hoc categories to the results, but avoid duplicating existing categories
         Object.keys(adHocCategories).forEach(roleCategory => {
           const movies = adHocCategories[roleCategory];
           const categoryKey = roleCategory.toLowerCase();
-          
+
           // Check if this category already exists
           const existingCategory = categories.find(cat => cat.category === categoryKey);
-          
+
           if (movies.length > 0) {
             if (existingCategory) {
               // Merge movies into existing category
@@ -1901,7 +1899,7 @@ export default {
             }
           }
         });
-        
+
         // Add truly uncategorized movies as "Other" if any remain
         if (trulyUncategorized.length > 0) {
           const sortedUncategorized = this.sortResultsFast(trulyUncategorized);
@@ -1912,7 +1910,7 @@ export default {
           });
         }
       }
-      
+
       if (categories.length === 0) {
         return null;
       }
@@ -1927,7 +1925,7 @@ export default {
 
       return categories;
     },
-    reorderableGroups() {
+    reorderableGroups () {
       // The list shown in the reorder panel. It must include every group that
       // COULD be visible under some ordering — not just the ones that survived
       // claiming under the current order — otherwise a group that another group
@@ -1997,21 +1995,21 @@ export default {
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
-    
+
       // Adjust for January
       const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
       const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    
+
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
         const mostRecentRating = this.mostRecentRating(result);
-    
+
         if (mostRecentRating && mostRecentRating.date) {
           const ratingDate = new Date(parseInt(mostRecentRating.date));
           const ratingMonth = ratingDate.getMonth();
           const ratingYear = ratingDate.getFullYear();
           return ratingMonth === lastMonth && ratingYear === lastMonthYear;
         }
-    
+
         return false;
       });
     },
@@ -2061,22 +2059,22 @@ export default {
       // Filter movies that are NOT in the user's Letterboxd films
       return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
         const movie = result.movie;
-        
+
         // First check manual overrides
         const overrides = this.$store.state.settings.letterboxdOverrides || {};
         const overrideKey = `${movie.title.toLowerCase().replace(/[^a-z0-9]/g, '')}_${new Date(movie.release_date).getFullYear()}`;
-        
+
         if (overrides[overrideKey]) {
           return false; // Manual override says this movie is logged, so exclude from "not on letterboxd"
         }
-        
+
         // Check if this movie exists in the user's Letterboxd films (automatic detection)
         const movieExists = this.letterboxdUserData.films.some(film => {
           const normalizedFilmTitle = this.normalizeMovieTitle(film.title);
           const normalizedSearchTitle = this.normalizeMovieTitle(movie.title);
           return normalizedFilmTitle === normalizedSearchTitle;
         });
-        
+
         // Return movies that are NOT on Letterboxd
         return !movieExists;
       });
@@ -2270,34 +2268,33 @@ export default {
       if (!settings) {
         return false; // Settings not loaded yet
       }
-      
+
       const today = new Date().toDateString();
       const dailyAwardsYear = settings.dailyAwardsYear;
       const dailyAwardsYearDate = settings.dailyAwardsYearDate;
-      
+
       // If a specific year is requested for today, bypass the daily limit
       if (dailyAwardsYear && dailyAwardsYearDate === today) {
         return true;
       }
-      
+
       const lastAwardDate = settings.lastAwardCompletionDate;
-      
-      
+
       // If lastAwardDate is undefined, we need to determine if this is because:
       // 1. Settings haven't loaded yet (return false to prevent flash)
       // 2. User has never completed awards (continue with normal logic)
       if (lastAwardDate === undefined) {
         // Check if there are any existing personal awards - if so, settings are loaded
         const hasExistingAwards = settings.personalAwards && Object.keys(settings.personalAwards).length > 0;
-        
+
         if (!hasExistingAwards) {
           // No existing awards data suggests settings might not be fully loaded yet
           // or this is truly a new user. To be safe, check if other expected settings exist
-          const hasOtherSettings =  settings.hasOwnProperty('includeShorts') || 
-                                    settings.hasOwnProperty('normalizationTweak') ||
-                                    settings.hasOwnProperty('letterboxdUsername') ||
-                                    settings.hasOwnProperty('personalAwardName');
-          
+          const hasOtherSettings = Object.prototype.hasOwnProperty.call(settings, 'includeShorts') ||
+                                    Object.prototype.hasOwnProperty.call(settings, 'normalizationTweak') ||
+                                    Object.prototype.hasOwnProperty.call(settings, 'letterboxdUsername') ||
+                                    Object.prototype.hasOwnProperty.call(settings, 'personalAwardName');
+
           if (!hasOtherSettings) {
             return false; // Settings likely not loaded yet
           }
@@ -2306,16 +2303,16 @@ export default {
       } else if (lastAwardDate === today) {
         return false; // Already did awards today
       }
-      
+
       // Check if there are any years with 10+ rated movies that don't have completed awards
       const yearCounts = {};
-      
+
       this.allEntriesWithFlatKeywordsAdded.forEach(entry => {
         // Exclude shorts (<40min) from awards consideration
         if (entry.movie.runtime && entry.movie.runtime <= 40) {
           return;
         }
-        
+
         const year = new Date(entry.movie.release_date).getFullYear();
         yearCounts[year] = (yearCounts[year] || 0) + 1;
       });
@@ -2328,24 +2325,24 @@ export default {
       const hasEligibleYears = eligibleYears.some(year => {
         const existingAwards = this.$store.state.settings.personalAwards?.[year];
         if (!existingAwards) return true; // New year needs awards
-        
+
         // CRITICAL FIX: If awards exist but were NOT explicitly completed via "Complete Awards" button,
         // the year should still be eligible (this covers partial progress)
         if (!existingAwards.completed) {
           return true;
         }
-        
+
         // If explicitly completed, check if there are new movies since last awards update
         if (!existingAwards.lastUpdated) return true;
-        
+
         const newMovies = this.allEntriesWithFlatKeywordsAdded.filter(entry => {
           const entryYear = new Date(entry.movie.release_date).getFullYear();
           if (entryYear !== year) return false;
-          
+
           const movieDate = new Date(entry.ratings[0]?.date || entry.movie.release_date);
           return movieDate.getTime() > existingAwards.lastUpdated;
         });
-        
+
         return newMovies.length > 0;
       });
 
@@ -2372,7 +2369,7 @@ export default {
     sortedResults () {
       return this.sortResultsFast(this.unifiedFilteredResults);
     },
-    suggestionsButtonLabel() {
+    suggestionsButtonLabel () {
       return this.userRatedMovieCount === 0
         ? 'Suggest some movies to rate'
         : 'Suggest more movies to rate';
@@ -2414,19 +2411,19 @@ export default {
         return false;
       });
     },
-    topDirectors() {
+    topDirectors () {
       return Object.entries(this.allCounts.directors || {})
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 20);
     },
-    topGenres() {
+    topGenres () {
       return Object.entries(this.allCounts.genres || {})
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 20);
     },
-    displayedResults() {
+    displayedResults () {
       // The cards actually on screen. When the grouped view is active the grid
       // renders groupedByAllCategories (which layers in title/cast matches on
       // top of the keyword chip), so the badge/avg/views should reflect those
@@ -2446,10 +2443,10 @@ export default {
       }
       return this.unifiedFilteredResults;
     },
-    unifiedFilteredResults() {
+    unifiedFilteredResults () {
       // Step 1: Get base results (from quick links or all entries)
       let results;
-      
+
       if (this.activeQuickLinkList === "annual") {
         results = this.bestMovieFromEachYear;
       } else if (this.activeQuickLinkList === "bestPicture") {
@@ -2491,31 +2488,31 @@ export default {
 
       return results;
     },
-    userRatedMovieCount() {
+    userRatedMovieCount () {
       // Count the number of movies the user has rated (not TV shows)
       return this.allEntriesWithFlatKeywordsAdded.length;
     },
-    userTags() {
+    userTags () {
       return this.tags.slice(0, 20); // Limit to 20 most recent tags
     },
   },
   methods: {
 
     // Event handlers for form changes (replaces watchers)
-    onStickinessUpdated() {
+    onStickinessUpdated () {
       // Force reactivity update for stickiness-related computed properties
       this.$forceUpdate();
     },
-    onTweakUpdated() {
+    onTweakUpdated () {
       // Force reactivity update for tweak-related computed properties
       this.$forceUpdate();
     },
-    updateShowShorts(event) {
+    updateShowShorts (event) {
       const newVal = event.target.checked;
       ErrorLogService.debug('updateShowShorts handler fired', { newVal, component: 'Home' });
       this.$store.dispatch('setDBValue', { path: 'settings/includeShorts', value: newVal });
     },
-    updateShowErrorLogs(event) {
+    updateShowErrorLogs (event) {
       const newVal = event.target.checked;
       ErrorLogService.debug('updateShowErrorLogs handler fired', { newVal, component: 'Home' });
       this.$store.dispatch('setDBValue', { path: 'settings/showErrorLogs', value: newVal });
@@ -2527,15 +2524,15 @@ export default {
         this.stopErrorLogRefresh();
       }
     },
-    
-    buildCastMembersCache() {
+
+    buildCastMembersCache () {
       // Clear any existing cache
       this.cachedCastMembers = new Set();
-      
+
       // Process each movie entry once
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
         const cast = result.movie?.cast || [];
-        
+
         // Add each cast member's name to the Set
         cast.forEach(person => {
           if (person.name) {
@@ -2551,13 +2548,13 @@ export default {
     },
     // Search/filter/sort logic lives in ../assets/javascript/searchFiltering.js
     // (pure, unit-tested in isolation). These thin wrappers feed it component state.
-    buildSearchFields(movie) {
+    buildSearchFields (movie) {
       return buildSearchFieldsUtil(movie);
     },
-    applyFilter(result, filter) {
+    applyFilter (result, filter) {
       return applyFilterUtil(result, filter);
     },
-    getListOfYearsFromRange(yearRange) {
+    getListOfYearsFromRange (yearRange) {
       return getListOfYearsFromRangeUtil(yearRange);
     },
     toggleSettingsPanel () {
@@ -2750,17 +2747,17 @@ export default {
         this.showInsetBrowserModal = true;
       }
     },
-    showMovieInfo(movie) {
+    showMovieInfo (movie) {
       this.selectedMovieInfo = movie;
       this.showMovieInfoModal = true;
       document.body.classList.add('no-scroll');
     },
-    closeMovieInfoModal() {
+    closeMovieInfoModal () {
       this.showMovieInfoModal = false;
       this.selectedMovieInfo = null;
       document.body.classList.remove('no-scroll');
     },
-    rateMovieFromModal() {
+    rateMovieFromModal () {
       if (this.selectedMovieInfo) {
         this.$store.commit('setMovieToRate', this.selectedMovieInfo);
         this.$router.push('/rate-movie');
@@ -2776,20 +2773,19 @@ export default {
       }
 
       const username = this.$store.state.settings.letterboxdUsername;
-      
+
       try {
         // Import the LetterboxdScrapingService dynamically
         const LetterboxdScrapingService = (await import('../services/LetterboxdScrapingService.js')).default;
-        
+
         // Get user's Letterboxd data (this will use cache if available)
         this.letterboxdUserData = await LetterboxdScrapingService.getUserData(username);
-        
       } catch (error) {
         console.error('Error fetching Letterboxd data:', error);
-        ErrorLogService.error('Failed to fetch Letterboxd data', { 
-          username, 
+        ErrorLogService.error('Failed to fetch Letterboxd data', {
+          username,
           error: error.message,
-          stack: error.stack 
+          stack: error.stack
         });
         this.letterboxdUserData = null;
       }
@@ -2816,16 +2812,16 @@ export default {
         behavior: 'instant'
       });
     },
-    replaceAllFiltersWithSearch(value, isAutoRandom = false, expectedType = null) {
+    replaceAllFiltersWithSearch (value, isAutoRandom = false, expectedType = null) {
       // Blur the search input first to prevent layout shifts
       if (this.$refs.searchInput) {
         this.$refs.searchInput.blur();
       }
-      
+
       if (!value || !value.trim()) return;
 
       const trimmedTerm = value.trim();
-      
+
       // If we know the expected type (from random search), use it directly
       let searchType;
       if (expectedType) {
@@ -2873,7 +2869,7 @@ export default {
         this.activeFilters.push({
           id: `tag-${Date.now()}`,
           type: 'tag',
-          value: value,
+          value,
           display: `${value}`
         });
         this.sortOrder = "bestOrNewestOnTop";
@@ -2951,7 +2947,7 @@ export default {
       } else {
         this.activeQuickLinkList = "notOnLetterboxd";
         this.$store.commit("setDBSortValue", "rating");
-        
+
         // Fetch Letterboxd data if we don't have it yet
         await this.fetchLetterboxdData();
       }
@@ -3070,10 +3066,10 @@ export default {
       this.noResults = false;
       this.inputValue = '';
       this.activeFilters = [];
-      
+
       // Scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      
+
       // Focus the search input after a short delay for smooth scrolling
       setTimeout(() => {
         if (this.$refs.searchInput) {
@@ -3167,27 +3163,27 @@ export default {
     goToInsights () {
       this.$router.push('/insights');
     },
-    saveNormalizationTweak() {
+    saveNormalizationTweak () {
       this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });
     },
-    saveTieBreakTweak() {
+    saveTieBreakTweak () {
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
     },
-    savePersonalAwardName() {
+    savePersonalAwardName () {
       this.$store.dispatch('setDBValue', { path: 'settings/personalAwardName', value: this.personalAwardName });
     },
     // Grammar helper methods for award names
-    getAwardNameWithThe() {
+    getAwardNameWithThe () {
       // Returns the full award name with "The" if it doesn't already start with it
       const name = this.personalAwardName || 'Oscar';
       return name.toLowerCase().startsWith('the ') ? name : `The ${name}`;
     },
-    getAwardNameWithoutThe() {
+    getAwardNameWithoutThe () {
       // Returns the award name without "The"
       const name = this.personalAwardName || 'Oscar';
       return name.toLowerCase().startsWith('the ') ? name.substring(4) : name;
     },
-    getAwardNameSingular() {
+    getAwardNameSingular () {
       // Converts plural award name to singular (removes 's' or handles special cases)
       const name = this.getAwardNameWithoutThe();
       if (name.toLowerCase().endsWith('ies')) {
@@ -3197,10 +3193,10 @@ export default {
       }
       return name; // Already singular
     },
-    saveLetterboxdConnection() {
+    saveLetterboxdConnection () {
       this.$store.dispatch('setDBValue', { path: 'settings/letterboxdConnected', value: this.letterboxdConnected });
     },
-    saveLetterboxdUsername() {
+    saveLetterboxdUsername () {
       this.$store.dispatch('setDBValue', { path: 'settings/letterboxdUsername', value: this.letterboxdUsername });
       // Auto-enable integration when username is provided
       if (this.letterboxdUsername && !this.letterboxdConnected) {
@@ -3208,39 +3204,39 @@ export default {
         this.saveLetterboxdConnection();
       }
     },
-    saveStickinessPromptState(value) {
+    saveStickinessPromptState (value) {
       this.stickinessPromptState = value;
-      this.$store.dispatch('setDBValue', { path: 'settings/stickinessPromptState', value: value });
+      this.$store.dispatch('setDBValue', { path: 'settings/stickinessPromptState', value });
     },
-    saveTieBreakPromptState(value) {
+    saveTieBreakPromptState (value) {
       this.tieBreakPromptState = value;
-      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakPromptState', value: value });
+      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakPromptState', value });
     },
-    saveAwardsPromptState(value) {
+    saveAwardsPromptState (value) {
       this.awardsPromptState = value;
-      this.$store.dispatch('setDBValue', { path: 'settings/awardsPromptState', value: value });
+      this.$store.dispatch('setDBValue', { path: 'settings/awardsPromptState', value });
     },
     // Test function for Letterboxd URL generation (call from browser console)
     // Test function for Letterboxd scraping (UI button)
-    async scrapeLetterboxd() {
+    async scrapeLetterboxd () {
       const username = this.letterboxdUsername || this.$store.state.settings.letterboxdUsername;
-      
+
       if (!username) {
         this.scrapingTest.error = 'No Letterboxd username set';
         this.scrapingTest.success = false;
         this.scrapingTest.result = null;
         return;
       }
-      
+
       this.scrapingTest.loading = true;
       this.scrapingTest.result = null;
       this.scrapingTest.error = null;
-      
+
       try {
         // Import the scraping service dynamically
         const LetterboxdScrapingService = (await import('../services/LetterboxdScrapingService.js')).default;
         const result = await LetterboxdScrapingService.testScraping(username);
-        
+
         this.scrapingTest.result = result;
         this.scrapingTest.success = result && result.films && result.films.length > 0;
         this.scrapingTest.loading = false;
@@ -3248,40 +3244,40 @@ export default {
         this.scrapingTest.error = error.message || 'Scraping failed';
         this.scrapingTest.success = false;
         this.scrapingTest.loading = false;
-        ErrorLogService.error('Letterboxd scraping test failed', { 
-          username, 
+        ErrorLogService.error('Letterboxd scraping test failed', {
+          username,
           error: error.message,
-          stack: error.stack 
+          stack: error.stack
         });
       }
     },
-    addLetterboxdOverride() {
+    addLetterboxdOverride () {
       if (!this.newOverrideTitle || !this.newOverrideYear) return;
-      
+
       // Create a unique key for this override (title + year)
       const overrideKey = `${this.newOverrideTitle.toLowerCase().replace(/[^a-z0-9]/g, '')}_${this.newOverrideYear}`;
-      
+
       // Add to local state
       this.letterboxdOverrides[overrideKey] = {
         title: this.newOverrideTitle,
         year: this.newOverrideYear,
         addedAt: new Date().toISOString()
       };
-      
+
       // Update the database
       this.$store.dispatch('setDBValue', {
         path: `settings/letterboxdOverrides`,
         value: this.letterboxdOverrides
       });
-      
+
       // Clear the form
       this.newOverrideTitle = '';
       this.newOverrideYear = null;
     },
-    removeLetterboxdOverride(overrideKey) {
+    removeLetterboxdOverride (overrideKey) {
       // Remove from local state
       delete this.letterboxdOverrides[overrideKey];
-      
+
       // Update the database
       this.$store.dispatch('setDBValue', {
         path: `settings/letterboxdOverrides`,
@@ -3289,35 +3285,35 @@ export default {
       });
     },
     // New multi-filter system methods
-    getQuickLinkDisplayName(quickLinkKey) {
+    getQuickLinkDisplayName (quickLinkKey) {
       const displayNames = {
-        'annual': 'Annual Best',
-        'bestPicture': 'Best Picture',
-        'thisYear': 'This Year',
-        'lastYear': 'Last Year',
-        'thisMonth': 'This Month',
-        'lastMonth': 'Last Month',
-        'notOnLetterboxd': 'Not on Letterboxd'
+        annual: 'Annual Best',
+        bestPicture: 'Best Picture',
+        thisYear: 'This Year',
+        lastYear: 'Last Year',
+        thisMonth: 'This Month',
+        lastMonth: 'Last Month',
+        notOnLetterboxd: 'Not on Letterboxd'
       };
       return displayNames[quickLinkKey] || quickLinkKey;
     },
-    clearQuickLink() {
+    clearQuickLink () {
       this.activeQuickLinkList = 'title';
     },
-    removeFilter(filterId) {
+    removeFilter (filterId) {
       // Blur the search input first to prevent layout shifts from interfering with the click
       if (this.$refs.searchInput) {
         this.$refs.searchInput.blur();
       }
-      
+
       this.activeFilters = this.activeFilters.filter(f => f.id !== filterId);
-      
+
       if (this.activeFilters.length === 0) {
         // No filters remain, clear search values
         this.inputValue = '';
       }
     },
-    addDirectorFilter(event) {
+    addDirectorFilter (event) {
       const director = event.target.value;
       if (director) {
         this.activeFilters.push({
@@ -3331,7 +3327,7 @@ export default {
         this.showAddFilterModal = false;
       }
     },
-    addYearFilter(event) {
+    addYearFilter (event) {
       const year = event.target.value;
       if (year) {
         this.activeFilters.push({
@@ -3345,7 +3341,7 @@ export default {
         this.showAddFilterModal = false;
       }
     },
-    addGenreFilter(event) {
+    addGenreFilter (event) {
       const genre = event.target.value;
       if (genre) {
         this.activeFilters.push({
@@ -3359,7 +3355,7 @@ export default {
         this.showAddFilterModal = false;
       }
     },
-    addTagFilter(event) {
+    addTagFilter (event) {
       const tag = event.target.value;
       if (tag) {
         this.activeFilters.push({
@@ -3373,10 +3369,10 @@ export default {
         this.showAddFilterModal = false;
       }
     },
-    setSearchValue(value) {
+    setSearchValue (value) {
       this.debouncedSetSearchValue(value);
     },
-    onInput(event) {
+    onInput (event) {
       const newVal = event.target.value;
 
       this.overwriteCurrentlyTypingSearchFilter(newVal);
@@ -3395,7 +3391,7 @@ export default {
           type: searchType.type,
           value: searchType.value,
           display: searchType.display,
-          temp: true  // Mark as temporary
+          temp: true // Mark as temporary
         };
 
         this.activeFilters.push(tempFilter);
@@ -3404,14 +3400,14 @@ export default {
     clearInput () {
       this.inputValue = '';
       this.setSearchValue('');
-      
+
       // Clear and blur the input
       const inputElement = this.$refs.searchInput;
       if (inputElement) {
         inputElement.blur();
       } // Small delay to show the fade effect
     },
-    convertSearchToChip() {
+    convertSearchToChip () {
       // Find any existing temp filter and remove it
       this.activeFilters = this.activeFilters.filter(filter => !filter.temp);
 
@@ -3432,11 +3428,11 @@ export default {
         this.addSearchFilter(searchTerm);
       }
     },
-    addSearchFilter(searchTerm, isAutoRandom = false, expectedType = null) {
+    addSearchFilter (searchTerm, isAutoRandom = false, expectedType = null) {
       if (!searchTerm || !searchTerm.trim()) return;
 
       const trimmedTerm = searchTerm.trim();
-      
+
       // If we know the expected type (from random search), use it directly
       let searchType;
       if (expectedType) {
@@ -3447,14 +3443,14 @@ export default {
       }
 
       // Check if this exact filter already exists
-      const existingFilter = this.activeFilters.find(filter => 
+      const existingFilter = this.activeFilters.find(filter =>
         filter.type === searchType.type && filter.value === searchType.value
       );
-      
+
       if (existingFilter) {
         return;
       }
-      
+
       // Add the appropriate filter chip
       this.activeFilters.push({
         id: `${searchType.type}-${Date.now()}`,
@@ -3468,19 +3464,19 @@ export default {
       // Track if this chip was added by automatic random search
       this.hasAutoRandomChip = isAutoRandom;
     },
-    applyDidYouMeanSuggestion(suggestion) {
+    applyDidYouMeanSuggestion (suggestion) {
       // Commit a tapped fuzzy suggestion as a real chip. We pass the known
       // expectedType so addSearchFilter -> createFilterByType builds the exact
       // chip with no re-guessing. Titles have a null expectedType and commit
       // through detectFilterType (i.e. as a general chip), matching a typed title.
       this.addSearchFilter(suggestion.value, false, suggestion.expectedType);
     },
-    clearAllFilters() {
+    clearAllFilters () {
       // Blur the search input first to prevent layout shifts
       if (this.$refs.searchInput) {
         this.$refs.searchInput.blur();
       }
-      
+
       // Clear all active filters
       this.activeFilters = [];
       // Clear quick link filter
@@ -3488,7 +3484,7 @@ export default {
       // Clear search values
       this.inputValue = '';
     },
-    debouncedFetchUnratedMoviesBySearchFilter(searchFilter) {
+    debouncedFetchUnratedMoviesBySearchFilter (searchFilter) {
       clearTimeout(this.unratedMoviesDebounceTimeout);
       this.unratedMoviesDebounceTimeout = setTimeout(() => {
         this.fetchUnratedMoviesBySearchFilter(searchFilter);
@@ -3518,7 +3514,7 @@ export default {
         const startYear = parseInt(rangeMatch[1]);
         const endYear = parseInt(rangeMatch[2]);
         if (startYear >= 1900 && endYear <= new Date().getFullYear() + 5 && startYear <= endYear) {
-          return { type: 'yearRange', value: {startYear, endYear}, display: `${startYear}-${endYear}` };
+          return { type: 'yearRange', value: { startYear, endYear }, display: `${startYear}-${endYear}` };
         }
       }
 
@@ -3533,16 +3529,16 @@ export default {
           decade = decade <= (currentYear % 100) + 10 ? currentCentury + decade : currentCentury - 100 + decade;
         }
         decade = Math.floor(decade / 10) * 10; // Round down to decade
-        return { type: 'yearRange', value: {startYear: decade, endYear: decade + 9}, display: `${decade}s` };
+        return { type: 'yearRange', value: { startYear: decade, endYear: decade + 9 }, display: `${decade}s` };
       }
 
       // If no year types matched, return null
       return null;
     },
-    detectDirectorTypes(searchValue, lowerValue) {
+    detectDirectorTypes (searchValue, lowerValue) {
       // Check for exact director match
       const allDirectors = this.allDirectors || [];
-      const exactDirectorMatch = allDirectors.find(director => 
+      const exactDirectorMatch = allDirectors.find(director =>
         director.name && director.name.toLowerCase() === lowerValue
       );
       if (exactDirectorMatch) {
@@ -3555,32 +3551,46 @@ export default {
       // If no director types matched, return null
       return null;
     },
-    detectGenreTypes(searchValue, lowerValue) {
+    detectGenreTypes (searchValue, lowerValue) {
       // Check for exact genre match
       const allGenres = this.allGenres || [];
-      const exactGenreMatch = allGenres.find(genre => 
+      const exactGenreMatch = allGenres.find(genre =>
         genre.name && genre.name.toLowerCase() === lowerValue
       );
       if (exactGenreMatch) {
         // Find the genre ID for TMDB API
         const commonGenres = {
-          'action': 28, 'adventure': 12, 'animation': 16, 'comedy': 35, 
-          'crime': 80, 'documentary': 99, 'drama': 18, 'family': 10751,
-          'fantasy': 14, 'history': 36, 'horror': 27, 'music': 10402,
-          'mystery': 9648, 'romance': 10749, 'sci-fi': 878, 'science fiction': 878,
-          'thriller': 53, 'war': 10752, 'western': 37
+          action: 28,
+          adventure: 12,
+          animation: 16,
+          comedy: 35,
+          crime: 80,
+          documentary: 99,
+          drama: 18,
+          family: 10751,
+          fantasy: 14,
+          history: 36,
+          horror: 27,
+          music: 10402,
+          mystery: 9648,
+          romance: 10749,
+          'sci-fi': 878,
+          'science fiction': 878,
+          thriller: 53,
+          war: 10752,
+          western: 37
         };
         const genreId = commonGenres[exactGenreMatch.name.toLowerCase()] || 18; // Default to drama
-        return { type: 'genre', genreId: genreId, value: exactGenreMatch.name, display: `${exactGenreMatch.name}` };
+        return { type: 'genre', genreId, value: exactGenreMatch.name, display: `${exactGenreMatch.name}` };
       }
 
       // If no genre types matched, return null
       return null;
     },
-    detectKeywordTypes(searchValue, lowerValue) {
+    detectKeywordTypes (searchValue, lowerValue) {
       // Check for exact keyword match
       const allKeywords = Object.keys(this.countedKeywords || {});
-      const exactKeywordMatch = allKeywords.find(keyword => 
+      const exactKeywordMatch = allKeywords.find(keyword =>
         keyword && keyword.toLowerCase() === lowerValue
       );
       if (exactKeywordMatch) {
@@ -3590,14 +3600,14 @@ export default {
       // If no keyword types matched, return null
       return null;
     },
-    detectCastTypes(searchValue, lowerValue) {
+    detectCastTypes (searchValue, lowerValue) {
       // Check for exact cast match
       if (!this.cachedCastMembers || !this.cachedCastMembers.size) {
         console.warn('Rebuilding Cast Cache');
         this.buildCastMembersCache();
       }
       const hasCastMatch = this.cachedCastMembers.has(lowerValue);
-      
+
       if (hasCastMatch) {
         return { type: 'person', value: searchValue, display: `${searchValue}` };
       }
@@ -3605,10 +3615,10 @@ export default {
       // If no cast types matched, return null
       return null;
     },
-    detectProductionCompanyTypes(searchValue, lowerValue) {
+    detectProductionCompanyTypes (searchValue, lowerValue) {
       // Check for exact company match
       const allStudios = this.allStudios || [];
-      const exactStudioMatch = allStudios.find(studio => 
+      const exactStudioMatch = allStudios.find(studio =>
         studio.name && studio.name.toLowerCase() === lowerValue
       );
       if (exactStudioMatch) {
@@ -3621,9 +3631,9 @@ export default {
       // If no company types matched, return null
       return null;
     },
-    createFilterByType(expectedType, value) {
+    createFilterByType (expectedType, value) {
       const trimmed = value.trim();
-      
+
       switch (expectedType) {
         case "keyword":
           return { type: 'keyword', value: trimmed, display: trimmed };
@@ -3642,10 +3652,10 @@ export default {
           return this.detectFilterType(trimmed);
       }
     },
-    detectFilterType(value) {
+    detectFilterType (value) {
       const trimmed = value.trim();
       const lowerValue = trimmed.toLowerCase();
-      
+
       // Check for years
       if (this.detectYearTypes(trimmed)) {
         return this.detectYearTypes(trimmed);
@@ -3665,7 +3675,7 @@ export default {
       if (this.detectCastTypes(trimmed, lowerValue)) {
         return this.detectCastTypes(trimmed, lowerValue);
       }
-      
+
       // Check for production companies
       if (this.detectProductionCompanyTypes(trimmed, lowerValue)) {
         return this.detectProductionCompanyTypes(trimmed, lowerValue);
@@ -3679,10 +3689,10 @@ export default {
       // For everything else, use general search
       return { type: 'general', value: trimmed, display: `${trimmed}` };
     },
-    async fetchUnratedMoviesByYear(year) {
+    async fetchUnratedMoviesByYear (year) {
       // Fetch multiple pages to get more variety
       const allResults = [];
-      
+
       for (let page = 1; page <= 3; page++) { // Get first 3 pages (60 movies)
         const response = await axios.get('https://api.themoviedb.org/3/discover/movie', {
           params: {
@@ -3690,24 +3700,24 @@ export default {
             language: 'en-US',
             primary_release_year: year,
             sort_by: 'popularity.desc',
-            page: page,
+            page,
             'vote_count.gte': 25, // Further lowered to include more movies
             include_adult: false, // Explicitly exclude adult content
           }
         });
-        
+
         if (response.data.results) {
           allResults.push(...response.data.results);
         }
-        
+
         // Stop if we've reached the end
         if (page >= response.data.total_pages) break;
       }
       return allResults;
     },
-    async fetchUnratedMoviesByYearRange(yearRange) {
+    async fetchUnratedMoviesByYearRange (yearRange) {
       const allResults = [];
-      
+
       for (let page = 1; page <= 2; page++) { // Get first 2 pages (40 movies) for ranges
         const response = await axios.get('https://api.themoviedb.org/3/discover/movie', {
           params: {
@@ -3716,30 +3726,30 @@ export default {
             'primary_release_date.gte': `${yearRange.startYear}-01-01`,
             'primary_release_date.lte': `${yearRange.endYear}-12-31`,
             sort_by: 'popularity.desc',
-            page: page,
+            page,
             'vote_count.gte': 25,
             include_adult: false, // Explicitly exclude adult content
           }
         });
-        
+
         if (response.data.results) {
           allResults.push(...response.data.results);
         }
-        
+
         // Stop if we've reached the end
         if (page >= response.data.total_pages) break;
       }
-      
+
       return allResults;
     },
-    async fetchUnratedMoviesByGenre(genreId) {
+    async fetchUnratedMoviesByGenre (genreId) {
       const allResults = [];
-      
+
       // Filter out movies newer than 2 years to avoid current buzz
       const maxDate = new Date();
       maxDate.setFullYear(maxDate.getFullYear() - 2);
       const maxDateString = maxDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-      
+
       for (let page = 1; page <= 3; page++) { // Get first 3 pages (60 movies)
         const response = await axios.get('https://api.themoviedb.org/3/discover/movie', {
           params: {
@@ -3747,24 +3757,24 @@ export default {
             language: 'en-US',
             with_genres: genreId,
             sort_by: 'popularity.desc',
-            page: page,
+            page,
             'vote_count.gte': 50, // Increased vote threshold for better quality
             'primary_release_date.lte': maxDateString, // No movies newer than 2 years
             include_adult: false, // Explicitly exclude adult content
           }
         });
-        
+
         if (response.data.results) {
           allResults.push(...response.data.results);
         }
-        
+
         // Stop if we've reached the end
         if (page >= response.data.total_pages) break;
       }
-      
+
       return allResults;
     },
-    async fetchUnratedMoviesByPerson(personName) {
+    async fetchUnratedMoviesByPerson (personName) {
       try {
         // First, search for the person (director)
         const personResp = await axios.get('https://api.themoviedb.org/3/search/person', {
@@ -3774,14 +3784,14 @@ export default {
             query: personName,
           }
         });
-        
+
         if (!personResp.data.results || personResp.data.results.length === 0) {
           return [];
         }
 
         // Take the first (most relevant) person result
         const person = personResp.data.results[0];
-        
+
         // Get their movie credits
         const creditsResp = await axios.get(`https://api.themoviedb.org/3/person/${person.id}/movie_credits`, {
           params: {
@@ -3792,7 +3802,7 @@ export default {
 
         const cast = creditsResp.data.cast || [];
         const crew = creditsResp.data.crew || [];
-        
+
         // Combine and dedupe by movie ID
         const seenIds = new Set();
         const combinedResults = [...cast, ...crew].filter(movie => {
@@ -3802,7 +3812,7 @@ export default {
           seenIds.add(movie.id);
           return true;
         });
-        
+
         const castAndCrew = combinedResults.sort((a, b) => {
           // Sort by popularity first, then by release date
           if (b.popularity !== a.popularity) {
@@ -3810,25 +3820,24 @@ export default {
           }
           return new Date(b.release_date || 0) - new Date(a.release_date || 0);
         });
-        
+
         return castAndCrew;
-        
       } catch (error) {
         console.error('Error fetching movies by director:', error);
-        ErrorLogService.error('Failed to fetch movies by director', { 
-          director, 
+        ErrorLogService.error('Failed to fetch movies by director', {
+          director: personName,
           error: error.message,
-          stack: error.stack 
+          stack: error.stack
         });
         return [];
       }
     },
-    async fetchUnratedMoviesByKeyword(keyword) {
+    async fetchUnratedMoviesByKeyword (keyword) {
       // Filter out movies newer than 6 months to avoid current buzz, but be more lenient
       const maxDate = new Date();
       maxDate.setMonth(maxDate.getMonth() - 6);
       const maxYear = maxDate.getFullYear();
-      
+
       // First try movie search
       const movieSearchResp = await axios.get('https://api.themoviedb.org/3/search/movie', {
         params: {
@@ -3839,13 +3848,13 @@ export default {
           include_adult: false, // Explicitly exclude adult content
         }
       });
-      
+
       let allResults = (movieSearchResp.data.results || []).filter(movie => {
         const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : 0;
         // More lenient filtering: allow more recent movies and lower vote counts for niche keywords
         return releaseYear <= maxYear + 1 && movie.vote_count >= 10; // Relaxed criteria
       });
-      
+
       // If we don't get enough results, try keyword search
       if (allResults.length < 10) {
         try {
@@ -3856,10 +3865,10 @@ export default {
               query: keyword,
             }
           });
-          
+
           if (keywordSearchResp.data.results && keywordSearchResp.data.results.length > 0) {
             const keywordId = keywordSearchResp.data.results[0].id;
-            
+
             // Get movies with this keyword, filtered by age
             const maxDateString = maxDate.toISOString().split('T')[0]; // YYYY-MM-DD format
             const keywordMoviesResp = await axios.get('https://api.themoviedb.org/3/discover/movie', {
@@ -3874,7 +3883,7 @@ export default {
                 include_adult: false, // Explicitly exclude adult content
               }
             });
-            
+
             const keywordResults = keywordMoviesResp.data.results || [];
             // Merge results, prioritizing direct movie search results
             allResults = [...allResults, ...keywordResults];
@@ -3883,10 +3892,10 @@ export default {
           console.log('Keyword search failed, using movie search results only:', keywordError);
         }
       }
-      
+
       return allResults;
     },
-    async fetchUnratedMoviesByCompany(companyName) {
+    async fetchUnratedMoviesByCompany (companyName) {
       try {
         // First, search for the company to get its ID
         const companySearchResp = await axios.get('https://api.themoviedb.org/3/search/company', {
@@ -3895,17 +3904,17 @@ export default {
             query: companyName,
           }
         });
-        
+
         if (!companySearchResp.data.results || companySearchResp.data.results.length === 0) {
           return [];
         }
-        
+
         const companyId = companySearchResp.data.results[0].id;
-        
+
         // Use discover API to find movies by this production company
         const allResults = [];
         const maxPages = 3; // Fetch multiple pages for variety
-        
+
         for (let page = 1; page <= maxPages; page++) {
           const discoverResp = await axios.get('https://api.themoviedb.org/3/discover/movie', {
             params: {
@@ -3914,41 +3923,41 @@ export default {
               with_companies: companyId,
               'primary_release_date.lte': new Date().toISOString().split('T')[0], // Only released movies
               sort_by: 'popularity.desc',
-              page: page,
+              page,
               include_adult: false,
               'vote_count.gte': 20, // Minimum vote threshold
             }
           });
-          
+
           if (discoverResp.data.results) {
             allResults.push(...discoverResp.data.results);
           }
-          
+
           // If we got fewer results than expected, no point in fetching more pages
           if (!discoverResp.data.results || discoverResp.data.results.length < 20) {
             break;
           }
         }
-        
+
         return allResults;
       } catch (error) {
         console.error('Error fetching movies by company:', error);
-        ErrorLogService.error('Failed to fetch movies by company', { 
-          company, 
+        ErrorLogService.error('Failed to fetch movies by company', {
+          company: companyName,
           error: error.message,
-          stack: error.stack 
+          stack: error.stack
         });
         return [];
       }
     },
-    async fetchUnratedMoviesBySearchFilter(searchFilter) {
+    async fetchUnratedMoviesBySearchFilter (searchFilter) {
       this.unratedMoviesError = null;
       this.unratedMovies = [];
-      
+
       try {
         this.unratedMoviesSearchType = searchFilter.type;
         let relevantList = [];
-        
+
         if (searchFilter.type === 'year') {
           // Fetch movies from specific year
           relevantList = await this.fetchUnratedMoviesByYear(searchFilter.value);
@@ -3980,7 +3989,7 @@ export default {
         const ratedIds = new Set(this.allEntriesWithFlatKeywordsAdded.map(r => r.movie.id));
         const seenIds = new Set();
         const unrated = [];
-        
+
         for (const m of relevantList) {
           if (!ratedIds.has(m.id) && !seenIds.has(m.id)) {
             unrated.push(m);
@@ -3991,12 +4000,12 @@ export default {
         // Sort by popularity and apply filtering
         if (unrated.length > 0) {
           unrated.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-          
+
           const popularities = unrated.map(m => m.popularity).filter(p => typeof p === 'number');
           if (popularities.length > 0) {
             const max = Math.max(...popularities);
             const min = Math.min(...popularities);
-            
+
             // Use more lenient filtering for different search types
             let cutoffPercentage = 0.4; // Default to 60% for general searches
             if (this.unratedMoviesSearchType === 'year' || this.unratedMoviesSearchType === 'yearRange') {
@@ -4004,17 +4013,17 @@ export default {
             } else if (this.unratedMoviesSearchType === 'genre') {
               cutoffPercentage = 0.3; // Keep movies in top 70% for genre searches
             }
-            
+
             const cutoff = min + (max - min) * cutoffPercentage;
             let filtered = unrated.filter(m => m.popularity >= cutoff);
-            
+
             // Show more movies for different search types
-            let targetCount = 12;
-            
+            const targetCount = 12;
+
             if (filtered.length < targetCount && unrated.length > targetCount) {
               filtered = unrated.slice(0, targetCount);
             }
-            
+
             this.unratedMovies = filtered;
           } else {
             this.unratedMovies = unrated.slice(0, 12);
@@ -4022,33 +4031,32 @@ export default {
         } else {
           this.unratedMovies = [];
         }
-        
       } catch (err) {
         console.error('Error fetching unrated movies:', err);
-        ErrorLogService.error('Failed to fetch unrated movies', { 
-          searchFilter, 
+        ErrorLogService.error('Failed to fetch unrated movies', {
+          searchFilter,
           error: err.message,
-          stack: err.stack 
+          stack: err.stack
         });
         this.unratedMoviesError = 'Error fetching from TMDB.';
       }
     },
     // Test function for error logging (for development)
-    testErrorLogging() {
+    testErrorLogging () {
       ErrorLogService.info('Test info message', { timestamp: Date.now() });
       ErrorLogService.warn('Test warning message', { component: 'Home' });
       ErrorLogService.error('Test error message', { testData: 'sample error' });
       ErrorLogService.debug('Test debug message', { debugInfo: 'detailed information' });
     },
     // Error log management methods
-    refreshErrorLogs() {
+    refreshErrorLogs () {
       this.errorLogs = ErrorLogService.getLogs();
     },
-    clearErrorLogs() {
+    clearErrorLogs () {
       ErrorLogService.clearLogs();
       this.refreshErrorLogs();
     },
-    async copyErrorLogs() {
+    async copyErrorLogs () {
       try {
         const logText = ErrorLogService.getLogsAsText();
         await navigator.clipboard.writeText(logText);
@@ -4058,7 +4066,7 @@ export default {
         this.fallbackCopyToClipboard(ErrorLogService.getLogsAsText());
       }
     },
-    fallbackCopyToClipboard(text) {
+    fallbackCopyToClipboard (text) {
       const textArea = document.createElement('textarea');
       textArea.value = text;
       textArea.style.position = 'fixed';
@@ -4067,7 +4075,7 @@ export default {
       document.body.appendChild(textArea);
       textArea.focus();
       textArea.select();
-      
+
       try {
         document.execCommand('copy');
         this.showCopySuccess();
@@ -4078,22 +4086,22 @@ export default {
         document.body.removeChild(textArea);
       }
     },
-    showCopySuccess() {
+    showCopySuccess () {
       this.copySuccess = true;
       setTimeout(() => {
         this.copySuccess = false;
       }, 2000);
     },
-    formatLogTime(timestamp) {
+    formatLogTime (timestamp) {
       return new Date(timestamp).toLocaleTimeString();
     },
-    startErrorLogRefresh() {
+    startErrorLogRefresh () {
       if (this.errorLogRefreshInterval) return; // Already running
       this.errorLogRefreshInterval = setInterval(() => {
         this.refreshErrorLogs();
       }, 1000); // Refresh every second
     },
-    stopErrorLogRefresh() {
+    stopErrorLogRefresh () {
       if (this.errorLogRefreshInterval) {
         clearInterval(this.errorLogRefreshInterval);
         this.errorLogRefreshInterval = null;
@@ -4101,14 +4109,14 @@ export default {
     },
 
     // Stickiness inline methods
-    topStructure(result) {
+    topStructure (result) {
       if (this.currentLogIsTVLog) {
         return result.tvShow;
       } else {
         return result.movie;
       }
     },
-    sortByRating(a, b) {
+    sortByRating (a, b) {
       const aRating = getRating(a)?.calculatedTotal;
       const bRating = getRating(b)?.calculatedTotal;
 
@@ -4143,7 +4151,6 @@ export default {
           margin: -6px 0 0;
         }
       }
-
 
       svg {
         height: 18px;
@@ -4350,7 +4357,6 @@ export default {
               transform: scale(1.2);
               z-index: 1;
             }
-
 
             img {
               width: 100%;
@@ -4584,7 +4590,6 @@ export default {
         width: 18px;
       }
     }
-
 
     .settings-panel-overlay {
       position: fixed;
@@ -4842,7 +4847,6 @@ export default {
 .modal-body {
   padding: 1rem;
 }
-
 
 /* Movie Info Modal Specific Styles */
 .movie-info-modal {

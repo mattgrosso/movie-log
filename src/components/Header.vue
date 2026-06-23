@@ -22,7 +22,7 @@
 import { getRating } from "../assets/javascript/GetRating.js";
 
 export default {
-  name: "Header",
+  name: "AppHeader",
   computed: {
     // Home resolves the banner on arrival (context-aware) and stores the URL.
     // Header is now a pure renderer; the old 30s random-swap timer is gone.

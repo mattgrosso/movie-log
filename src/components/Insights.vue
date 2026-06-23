@@ -119,10 +119,10 @@
           </select>
           <label for="awards-year-select">Select Year</label>
         </div>
-        
+
         <!-- Edit/Resume button -->
         <div class="d-flex gap-2 mt-2">
-          <button 
+          <button
             v-if="selectedYearData && !selectedYearData.completed"
             class="btn btn-outline-primary btn-sm flex-fill"
             @click="resumeAwards(selectedAwardsYear)"
@@ -130,8 +130,8 @@
             <i class="fas fa-edit me-1"></i>
             Resume Awards
           </button>
-          
-          <button 
+
+          <button
             v-else-if="selectedYearData && selectedYearData.completed"
             class="btn btn-outline-secondary btn-sm flex-fill"
             @click="resumeAwards(selectedAwardsYear)"
@@ -139,9 +139,9 @@
             <i class="fas fa-edit me-1"></i>
             Edit Awards
           </button>
-          
-          <button 
-            v-if="hasEligibleYears && isWithinDailyLimit" 
+
+          <button
+            v-if="hasEligibleYears && isWithinDailyLimit"
             class="btn btn-outline-warning btn-sm"
             @click="startNewAwards"
           >
@@ -269,7 +269,7 @@
         </div>
       </div>
     </InsightsPane>
-    
+
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Favorite Directors</p>
@@ -390,7 +390,7 @@ export default {
     FavoriteComposers,
     FavoriteProducers,
   },
-  data() {
+  data () {
     return {
       selectedXAxis: 'runtime', // Will be randomized on mount
       selectedYAxis: 'userRating', // Will be randomized on mount
@@ -435,23 +435,23 @@ export default {
       startingNewAwards: false
     };
   },
-  mounted() {
+  mounted () {
     // Set random axes on page load
     this.randomizeAxes();
   },
   watch: {
-    selectedAwardsYear() {
+    selectedAwardsYear () {
       this.compactAwardsView = true;
     }
   },
   computed: {
-    allAwardsYears() {
+    allAwardsYears () {
       // Calculate completion status for all years with award data
       const personalAwards = this.$store.state.settings.personalAwards;
       if (!personalAwards) return [];
-      
+
       const allYears = [];
-      
+
       // Get all years that have enough movies (10+) for awards
       const yearCounts = {};
       this.filteredEntriesWithFlatKeywordsAdded.forEach(entry => {
@@ -459,11 +459,11 @@ export default {
         const year = new Date(entry.movie.release_date).getFullYear();
         yearCounts[year] = (yearCounts[year] || 0) + 1;
       });
-      
+
       const eligibleYears = Object.keys(yearCounts)
         .filter(year => yearCounts[year] >= 10)
         .map(year => parseInt(year));
-      
+
       // Process each eligible year
       eligibleYears.forEach(year => {
         const awardData = personalAwards[year];
@@ -471,11 +471,11 @@ export default {
         if (!awardData) {
           return;
         }
-        
+
         // Handle missing categories (treat as 0 completed categories)
         if (!awardData.categories) {
           allYears.push({
-            year: year,
+            year,
             completed: awardData.completed === true,
             completedCategories: 0,
             totalCategories: 13,
@@ -483,65 +483,71 @@ export default {
           });
           return;
         }
-        
+
         // Count completed categories
         const categories = Object.values(awardData.categories);
-        const completedCategories = categories.filter(cat => 
+        const completedCategories = categories.filter(cat =>
           (cat.nominees?.length > 0 && cat.winner) || cat.noNominees === true
         ).length;
-        
+
         // Determine if year is completed: either all 13 categories done OR explicitly marked complete
         const isCompleted = completedCategories === 13 || awardData.completed === true;
-        
+
         allYears.push({
-          year: year,
+          year,
           completed: isCompleted,
-          completedCategories: completedCategories,
+          completedCategories,
           totalCategories: 13,
           hasNewMovies: false // Could add new movies logic here if needed
         });
       });
-      
+
       // Sort by year (most recent first)
       const sortedYears = allYears.sort((a, b) => b.year - a.year);
-      
-      // Set default selected year to random year if not already set
+
+      // Set default selected year to random year if not already set.
+      // TODO: this side effect belongs in a watcher/mounted, not a computed —
+      // deferred because the awards-year selection has a documented history of
+      // bugs and no test coverage yet. Suppressing rather than risk a blind move.
       if (sortedYears.length > 0 && !this.selectedAwardsYear) {
         const randomIndex = Math.floor(Math.random() * sortedYears.length);
+        // eslint-disable-next-line vue/no-side-effects-in-computed-properties
         this.selectedAwardsYear = sortedYears[randomIndex].year;
       }
-      
+
       return sortedYears;
     },
-    
-    selectedYearData() {
+
+    selectedYearData () {
       // Get data for the currently selected year
       return this.allAwardsYears.find(yearData => yearData.year === this.selectedAwardsYear);
     },
-    
-    completedAwardsYears() {
+
+    completedAwardsYears () {
       // Get all years that have completed personal awards
       const personalAwards = this.$store.state.settings.personalAwards;
       if (!personalAwards) return [];
-      
+
       const years = Object.keys(personalAwards)
         .filter(year => personalAwards[year].completed)
         .map(year => parseInt(year))
         .sort((a, b) => b - a); // Most recent first
-        
-      // Set default selected year to random year if not already set
+
+      // Set default selected year to random year if not already set.
+      // TODO: same computed-side-effect debt as allAwardsYears above.
       if (years.length > 0 && !this.selectedAwardsYear) {
         const randomIndex = Math.floor(Math.random() * years.length);
+        // eslint-disable-next-line vue/no-side-effects-in-computed-properties
         this.selectedAwardsYear = years[randomIndex];
       }
-      
+
       return years;
     },
-    partialAwardsYears() {
+    partialAwardsYears () {
       // Get all years with partial awards progress that can be resumed
       const personalAwards = this.$store.state.settings.personalAwards;
       if (!personalAwards) return [];
-      
+
       const yearCounts = {};
       // Calculate eligible years based on movie counts
       this.filteredEntriesWithFlatKeywordsAdded.forEach(entry => {
@@ -549,25 +555,25 @@ export default {
         const year = new Date(entry.movie.release_date).getFullYear();
         yearCounts[year] = (yearCounts[year] || 0) + 1;
       });
-      
+
       const eligibleYears = Object.keys(yearCounts)
         .filter(year => yearCounts[year] >= 10)
         .map(year => parseInt(year));
-      
+
       return eligibleYears
         .map(year => {
           const awardData = personalAwards[year];
           if (!awardData || !awardData.categories) return null;
-          
+
           // Count completed categories (have nominees and winner, or marked as no nominees)
           const categories = Object.values(awardData.categories);
-          const completedCategories = categories.filter(cat => 
+          const completedCategories = categories.filter(cat =>
             (cat.nominees?.length > 0 && cat.winner) || cat.noNominees === true
           ).length;
-          
+
           // Only include if there's partial progress but not completed via the "Complete Awards" button
           if (completedCategories === 0) return null; // No progress
-          
+
           // Check for new movies since last update
           const currentMovieIds = this.filteredEntriesWithFlatKeywordsAdded
             .filter(entry => {
@@ -576,13 +582,15 @@ export default {
               return entryYear === year && notShort;
             })
             .map(entry => entry.movie.id);
-          
-          const hasNewMovies = awardData.availableMovieIds ? 
-            currentMovieIds.some(id => !awardData.availableMovieIds.includes(id)) : true;
-          
-          const newMoviesCount = hasNewMovies && awardData.availableMovieIds ?
-            currentMovieIds.filter(id => !awardData.availableMovieIds.includes(id)).length : 0;
-          
+
+          const hasNewMovies = awardData.availableMovieIds
+            ? currentMovieIds.some(id => !awardData.availableMovieIds.includes(id))
+            : true;
+
+          const newMoviesCount = hasNewMovies && awardData.availableMovieIds
+            ? currentMovieIds.filter(id => !awardData.availableMovieIds.includes(id)).length
+            : 0;
+
           return {
             year,
             completedCategories,
@@ -594,11 +602,11 @@ export default {
         .filter(yearData => yearData !== null)
         .sort((a, b) => b.year - a.year); // Most recent first
     },
-    selectedAwardsData() {
+    selectedAwardsData () {
       if (!this.selectedAwardsYear) return null;
       const rawCategories = this.$store.state.settings.personalAwards?.[this.selectedAwardsYear]?.categories;
       if (!rawCategories) return null;
-      
+
       // Expand minimal data back to full objects for display
       const expandedCategories = {};
       Object.keys(rawCategories).forEach(categoryKey => {
@@ -613,10 +621,10 @@ export default {
           };
         }
       });
-      
+
       return expandedCategories;
     },
-    awardCategories() {
+    awardCategories () {
       return [
         { key: 'bestPicture', name: 'Best Picture' },
         { key: 'bestDirector', name: 'Best Director' },
@@ -633,11 +641,11 @@ export default {
         { key: 'bestDocumentaryFeature', name: 'Best Documentary Feature' }
       ];
     },
-    includeShorts() {
+    includeShorts () {
       // Default to false if not set
       return this.$store.state.settings.includeShorts === true;
     },
-    filteredEntriesWithFlatKeywordsAdded() {
+    filteredEntriesWithFlatKeywordsAdded () {
       if (this.includeShorts) return this.allEntriesWithFlatKeywordsAdded;
       // Exclude shorts: genre 'Short' or runtime <= 40
       return this.allEntriesWithFlatKeywordsAdded.filter(result => {
@@ -1057,10 +1065,10 @@ export default {
       const color = "#5bc62b";
 
       return {
-        labels: labels,
+        labels,
         datasets: [
           {
-            data: data,
+            data,
             backgroundColor: color,
             borderColor: color,
             tension: 0.5
@@ -1087,11 +1095,11 @@ export default {
         }
       }
     },
-    scatterPlotData() {
+    scatterPlotData () {
       const data = this.filteredEntriesWithFlatKeywordsAdded.map(result => {
         const xValue = this.getAxisValue(result, this.selectedXAxis);
         const yValue = this.getAxisValue(result, this.selectedYAxis);
-        
+
         // Only include points where both x and y values exist
         if (xValue !== null && yValue !== null) {
           return {
@@ -1106,7 +1114,7 @@ export default {
       return {
         datasets: [{
           label: 'Movies',
-          data: data,
+          data,
           backgroundColor: 'rgba(54, 162, 235, 0.6)',
           borderColor: 'rgba(54, 162, 235, 1)',
           pointRadius: 4,
@@ -1114,15 +1122,15 @@ export default {
         }]
       };
     },
-    scatterPlotOptions() {
+    scatterPlotOptions () {
       const xAxisOption = this.axisOptions.find(opt => opt.key === this.selectedXAxis);
       const yAxisOption = this.axisOptions.find(opt => opt.key === this.selectedYAxis);
-      
+
       // Check if either axis is a qualitative scale
       const qualitativeScales = ['cerebralScale', 'blockbusterScale', 'mainstreamScale', 'comfortScale', 'styleScale', 'groundedScale', 'classicScale', 'upliftingScale', 'tenseScale', 'hopefulScale', 'simpleScale', 'characterScale', 'linearScale', 'universalScale', 'escapistScale', 'polishedScale', 'familiarScale', 'minimalistScale'];
       const xIsQualitative = qualitativeScales.includes(this.selectedXAxis);
       const yIsQualitative = qualitativeScales.includes(this.selectedYAxis);
-      
+
       return {
         responsive: true,
         plugins: {
@@ -1136,7 +1144,7 @@ export default {
           },
           tooltip: {
             callbacks: {
-              label: function(context) {
+              label: function (context) {
                 return context.raw.label;
               }
             }
@@ -1184,49 +1192,49 @@ export default {
         }
       };
     },
-    hasEligibleYears() {
+    hasEligibleYears () {
       // Check if there are any incomplete years that could have awards
       const yearsEligibleForAwards = this.allEntriesWithFlatKeywordsAdded
         .map(entry => new Date(entry.movie.release_date).getFullYear())
         .filter(year => year >= 2010) // Or whatever your earliest year is
         .filter((year, index, array) => array.indexOf(year) === index) // Unique years
         .sort((a, b) => b - a);
-      
+
       return yearsEligibleForAwards.some(year => {
         const existingAwards = this.$store.state.settings.personalAwards?.[year];
         return !existingAwards?.completed;
       });
     },
-    isWithinDailyLimit() {
+    isWithinDailyLimit () {
       const settings = this.$store.state.settings;
       const today = new Date().toDateString();
       const lastAwardDate = settings.lastAwardCompletionDate;
-      
+
       // Return true if we're within the daily limit (i.e., already completed awards today)
       return lastAwardDate === today;
     },
   },
   methods: {
-    expandNomineeFromMinimal(minimalNominee) {
+    expandNomineeFromMinimal (minimalNominee) {
       // Convert minimal storage back to full nominee for display
       if (!minimalNominee) return null;
-      
+
       // Handle legacy data - if it already has a movie object, it's not minimal
       if (minimalNominee.movie) {
         return minimalNominee; // Already expanded/legacy format
       }
-      
+
       if (minimalNominee.type === 'person') {
         // Find the movie from our movie log
-        const movieEntry = this.filteredEntriesWithFlatKeywordsAdded.find(entry => 
+        const movieEntry = this.filteredEntriesWithFlatKeywordsAdded.find(entry =>
           entry.movie.id === minimalNominee.movieId
         );
-        
+
         if (!movieEntry) {
           console.warn('⚠️ Could not find movie for person nominee:', minimalNominee);
           return null;
         }
-        
+
         // Reconstruct person nominee
         const expanded = {
           id: minimalNominee.id,
@@ -1234,7 +1242,7 @@ export default {
           movieId: minimalNominee.movieId,
           movie: movieEntry.movie // Add back the movie object for display
         };
-        
+
         // Restore role-specific data
         if (minimalNominee.character) {
           expanded.character = minimalNominee.character;
@@ -1245,38 +1253,38 @@ export default {
         if (minimalNominee.profilePath) {
           expanded.details = { profile_path: minimalNominee.profilePath };
         }
-        
+
         return expanded;
       } else if (minimalNominee.type === 'movie') {
         // Find the full movie entry
-        const movieEntry = this.filteredEntriesWithFlatKeywordsAdded.find(entry => 
+        const movieEntry = this.filteredEntriesWithFlatKeywordsAdded.find(entry =>
           entry.movie.id === minimalNominee.movieId
         );
-        
+
         if (!movieEntry) {
           console.warn('⚠️ Could not find movie entry:', minimalNominee);
           return null;
         }
-        
+
         return movieEntry; // Return the full entry for movie nominees
       }
-      
+
       // Fallback for unknown types or legacy data
       return minimalNominee;
     },
-    shouldShowCategory(categoryKey) {
+    shouldShowCategory (categoryKey) {
       // Hide categories that have no nominees (marked as noNominees)
       if (!this.selectedAwardsData || !this.selectedAwardsData[categoryKey]) {
         return false;
       }
-      
+
       const categoryData = this.selectedAwardsData[categoryKey];
-      
+
       // Don't show if explicitly marked as no nominees
       if (categoryData.noNominees === true) {
         return false;
       }
-      
+
       // Show if there's a winner or nominees
       return categoryData.winner || (categoryData.nominees && categoryData.nominees.length > 0);
     },
@@ -1284,70 +1292,70 @@ export default {
       this.$store.commit("setShowHeader", true);
       this.$router.push({ path: '/', query: { movieDbKey: this.dbEntry?.path?.split("movieLog/")[1] } });
     },
-    goToYearInReview() {
+    goToYearInReview () {
       this.$router.push('/year-in-review');
     },
-    randomizeAxes() {
+    randomizeAxes () {
       const availableOptions = this.axisOptions.map(opt => opt.key);
-      
+
       // Get two different random axes
       const randomX = availableOptions[Math.floor(Math.random() * availableOptions.length)];
       let randomY = availableOptions[Math.floor(Math.random() * availableOptions.length)];
-      
+
       // Ensure Y is different from X
       while (randomY === randomX) {
         randomY = availableOptions[Math.floor(Math.random() * availableOptions.length)];
       }
-      
+
       this.selectedXAxis = randomX;
       this.selectedYAxis = randomY;
     },
-    getOptionTitle(option) {
+    getOptionTitle (option) {
       // Helper method to get the title of an award nominee/winner
       if (!option) return '';
       return option.name || option.movie?.title || 'Unknown';
     },
-    getOptionId(option) {
+    getOptionId (option) {
       // Helper method to get unique ID for an award nominee/winner
       if (!option) return '';
       return option.id || option.movie?.id || Math.random().toString(36);
     },
-    getMoviePoster(option) {
+    getMoviePoster (option) {
       // Helper method to get movie poster URL
       if (!option) return null;
-      
+
       // For person awards (actors, directors, etc.)
       if (option.details?.profile_path) {
         return `https://image.tmdb.org/t/p/w185${option.details.profile_path}`;
       }
-      
+
       // For movie awards
       if (option.movie?.poster_path) {
         return `https://image.tmdb.org/t/p/w185${option.movie.poster_path}`;
       }
-      
+
       return null;
     },
-    getNomineesExcludingWinner(categoryData) {
+    getNomineesExcludingWinner (categoryData) {
       // Filter nominees to exclude the winner to avoid duplication
       if (!categoryData?.nominees || !categoryData.winner) {
         return categoryData?.nominees || [];
       }
-      
+
       const winnerId = this.getOptionId(categoryData.winner);
       return categoryData.nominees.filter(nominee => this.getOptionId(nominee) !== winnerId);
     },
-    isPersonCategory(categoryKey) {
+    isPersonCategory (categoryKey) {
       // Determine if this category is for people (actors, directors, etc) vs movies
       const personCategories = ['bestDirector', 'bestActor', 'bestActress', 'bestSupportingActor', 'bestSupportingActress'];
       return personCategories.includes(categoryKey);
     },
-    getPersonTitle(option) {
+    getPersonTitle (option) {
       // Get person name and movie for person categories
       if (!option) return '';
       return option.name || 'Unknown';
     },
-    async startNewAwards() {
+    async startNewAwards () {
       this.startingNewAwards = true;
       try {
         // Override the daily limit by clearing the last completion date
@@ -1355,7 +1363,7 @@ export default {
           path: 'settings/lastAwardCompletionDate',
           value: null
         });
-        
+
         // Navigate to home page which will now show the awards prompt
         this.$router.push('/');
       } finally {
@@ -1363,7 +1371,7 @@ export default {
         this.startingNewAwards = false;
       }
     },
-    getMovieTitle(option) {
+    getMovieTitle (option) {
       // Get movie title for movie categories
       if (!option) return '';
       return option.movie?.title || 'Unknown Movie';
@@ -1375,7 +1383,7 @@ export default {
       // Navigate to Home and set the search value as a query parameter
       this.$router.push({ name: 'Home', query: { search: encodeURIComponent(value) } });
     },
-    async resumeAwards(year) {
+    async resumeAwards (year) {
       // Set the daily awards year and force the modal open immediately on Home
       await this.$store.dispatch('setDBValue', {
         path: 'settings/dailyAwardsYear',
@@ -1416,10 +1424,10 @@ export default {
       // For insights, we're only dealing with movies
       return media.movie;
     },
-    getAxisValue(result, axisKey) {
+    getAxisValue (result, axisKey) {
       const structure = this.topStructure(result);
       const rating = this.mostRecentRating(result);
-      
+
       switch (axisKey) {
         case 'runtime':
           return structure.runtime || null;
@@ -1498,12 +1506,12 @@ export default {
           return null;
       }
     },
-    calculateCerebralScale(movie) {
+    calculateCerebralScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const runtime = movie.runtime || 90;
-      
+
       // Cerebral indicators (+) with weighted values
       const cerebralGenres = [
         { name: 'documentary', weight: 2.8 },
@@ -1525,7 +1533,7 @@ export default {
         { name: 'based on true story', weight: 1.2 },
         { name: 'biography', weight: 1.1 }
       ];
-      
+
       cerebralGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -1536,7 +1544,7 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Instinctual indicators (-) with weighted values
       const instinctualGenres = [
         { name: 'action', weight: -2.3 },
@@ -1557,7 +1565,7 @@ export default {
         { name: 'survival', weight: -1.0 },
         { name: 'escape', weight: -0.9 }
       ];
-      
+
       instinctualGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -1568,23 +1576,23 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Add runtime factor (longer films tend to be more cerebral)
       score += (runtime - 100) * 0.01;
-      
+
       // Add some random variation based on title hash for uniqueness
       const titleHash = movie.title ? movie.title.length * 0.13 : 0;
       score += (titleHash % 1) * 0.4 - 0.2;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateBlockbusterScale(movie) {
+    calculateBlockbusterScale (movie) {
       let score = 0;
       const companies = movie.production_companies || [];
       const cast = movie.cast || [];
       const budget = movie.budget || 0;
       const runtime = movie.runtime || 90;
-      
+
       // Blockbuster indicators (+) with weighted values - using actual companies from collection
       const majorStudios = [
         { name: 'walt disney', weight: 3.8 },
@@ -1599,21 +1607,21 @@ export default {
         { name: 'touchstone pictures', weight: 2.8 },
         { name: 'dreamworks', weight: 3.1 }
       ];
-      
+
       majorStudios.forEach(studio => {
         if (companies.some(c => c.name && c.name.toLowerCase().includes(studio.name))) {
           score += studio.weight;
         }
       });
-      
+
       // Cast size factor (continuous)
       score += Math.min(cast.length * 0.15, 3.0);
-      
+
       // Budget factor (continuous)
       if (budget > 0) {
         score += Math.min(Math.log10(budget) - 6, 4.0); // Log scale for budget
       }
-      
+
       // Indie indicators (-) with weighted values - using actual companies from collection
       const indieStudios = [
         { name: 'a24', weight: -3.7 },
@@ -1627,39 +1635,39 @@ export default {
         { name: 'summit entertainment', weight: -2.3 },
         { name: 'roadside attractions', weight: -2.8 }
       ];
-      
+
       indieStudios.forEach(studio => {
         if (companies.some(c => c.name && c.name.toLowerCase().includes(studio.name))) {
           score += studio.weight;
         }
       });
-      
+
       // Small cast penalty (continuous)
       if (cast.length < 15) {
         score -= (15 - cast.length) * 0.12;
       }
-      
+
       // Low budget factor
       if (budget > 0 && budget < 10000000) {
         score -= Math.min((10000000 - budget) / 2000000, 3.0);
       }
-      
+
       // Runtime factor (blockbusters tend to be longer)
       score += (runtime - 100) * 0.008;
-      
+
       // Title-based variation for uniqueness
       const titleVariation = movie.title ? (movie.title.charCodeAt(0) % 100) * 0.02 - 1.0 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateMainstreamScale(movie) {
+    calculateMainstreamScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const language = movie.original_language || 'en';
       const keywords = movie.flatKeywords || [];
       const budget = movie.budget || 0;
-      
+
       // Mainstream indicators (+) with weighted values
       const popularGenres = [
         { name: 'action', weight: 2.3 },
@@ -1668,20 +1676,20 @@ export default {
         { name: 'animation', weight: 2.4 },
         { name: 'family', weight: 2.9 }
       ];
-      
+
       popularGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
         }
       });
-      
+
       // Language factor with nuance
       if (language === 'en') {
         score += 2.3;
       } else {
         score -= 1.8; // Non-English penalty
       }
-      
+
       // Arthouse indicators (-) with weighted values
       const arthouseGenres = [
         { name: 'drama', weight: -1.2 },
@@ -1701,7 +1709,7 @@ export default {
         { name: 'surrealism', weight: -2.3 },
         { name: 'minimalism', weight: -1.9 }
       ];
-      
+
       arthouseGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -1712,12 +1720,12 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Budget factor (mainstream films often have bigger budgets)
       if (budget > 0) {
         score += Math.min((budget / 50000000), 1.5);
       }
-      
+
       // Genre count factor (arthouse films often have fewer genres)
       const genreCount = genres.length;
       if (genreCount <= 2) {
@@ -1725,19 +1733,19 @@ export default {
       } else if (genreCount >= 4) {
         score += 0.6; // More genres = more mainstream
       }
-      
+
       // Title-based variation
       const titleLength = movie.title ? movie.title.length : 20;
       score += (titleLength * 0.037) % 0.8 - 0.4;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateComfortScale(movie) {
+    calculateComfortScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const runtime = movie.runtime || 90;
-      
+
       // Comfort indicators (+) with weighted values
       const comfortGenres = [
         { name: 'comedy', weight: 2.6 },
@@ -1757,7 +1765,7 @@ export default {
         { name: 'coming of age', weight: 1.5 },
         { name: 'feel good', weight: 1.8 }
       ];
-      
+
       comfortGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -1768,7 +1776,7 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Challenge indicators (-) with weighted values
       const challengeGenres = [
         { name: 'horror', weight: -2.7 },
@@ -1789,7 +1797,7 @@ export default {
         { name: 'tragedy', weight: -1.6 },
         { name: 'prison', weight: -1.5 }
       ];
-      
+
       challengeGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -1800,23 +1808,23 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Runtime factor (shorter films often more comfortable)
       score += (100 - runtime) * 0.005;
-      
+
       // Title-based variation
       const titleHash = movie.title ? movie.title.replace(/\s/g, '').length * 0.17 : 0;
       score += (titleHash % 1) * 0.6 - 0.3;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateStyleScale(movie) {
+    calculateStyleScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const budget = movie.budget || 0;
       const runtime = movie.runtime || 100;
-      
+
       // Style indicators (+) with weighted values
       const visualGenres = [
         { name: 'fantasy', weight: 2.4 },
@@ -1835,7 +1843,7 @@ export default {
         { name: 'epic', weight: 1.6 },
         { name: 'costume design', weight: 1.4 }
       ];
-      
+
       visualGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -1846,12 +1854,12 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Budget factor (continuous)
       if (budget > 0) {
         score += Math.min((budget / 50000000) * 1.8, 3.2); // High budget often means visual spectacle
       }
-      
+
       // Substance indicators (-) with weighted values
       const substanceGenres = [
         { name: 'drama', weight: -2.1 },
@@ -1870,7 +1878,7 @@ export default {
         { name: 'mother daughter relationship', weight: -1.8 },
         { name: 'divorce', weight: -1.4 }
       ];
-      
+
       substanceGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -1881,23 +1889,23 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Runtime factor (epic films often emphasize style)
       score += (runtime - 100) * 0.006;
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.length * 0.09) % 0.7 - 0.35 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateGroundedScale(movie) {
+    calculateGroundedScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const language = movie.original_language || 'en';
       const budget = movie.budget || 0;
-      
+
       // Grounded indicators (+) with weighted values
       const realisticGenres = [
         { name: 'drama', weight: 2.3 },
@@ -1918,7 +1926,7 @@ export default {
         { name: 'workplace', weight: 1.5 },
         { name: 'contemporary', weight: 1.6 }
       ];
-      
+
       realisticGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -1929,17 +1937,17 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Language factor (non-English often more grounded)
       if (language !== 'en') {
         score += 1.3;
       }
-      
+
       // Budget factor (lower budget often more grounded)
       if (budget > 0 && budget < 20000000) {
         score += Math.min((20000000 - budget) / 10000000, 1.8);
       }
-      
+
       // Fantastical indicators (-) with weighted values
       const fantasticalGenres = [
         { name: 'fantasy', weight: -2.9 },
@@ -1960,7 +1968,7 @@ export default {
         { name: 'wizard', weight: -2.4 },
         { name: 'mythology', weight: -1.6 }
       ];
-      
+
       fantasticalGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -1971,20 +1979,20 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.split(' ').length * 0.23) % 0.8 - 0.4 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateClassicScale(movie) {
+    calculateClassicScale (movie) {
       let score = 0;
       const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const currentYear = new Date().getFullYear();
-      
+
       // Age-based scoring (continuous)
       if (releaseYear > 0) {
         const age = currentYear - releaseYear;
@@ -1996,7 +2004,7 @@ export default {
           score -= 2.1 - age * 0.15; // Penalty for very recent films
         }
       }
-      
+
       // Classic indicators (+) with weighted values
       const classicGenres = [
         { name: 'drama', weight: 1.4 },
@@ -2015,7 +2023,7 @@ export default {
         { name: '1950s', weight: 1.6 },
         { name: 'old hollywood', weight: 2.2 }
       ];
-      
+
       classicGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2026,7 +2034,7 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Contemporary indicators (-) with weighted values
       const modernGenres = [
         { name: 'science fiction', weight: -1.8 },
@@ -2043,7 +2051,7 @@ export default {
         { name: 'contemporary', weight: -1.4 },
         { name: 'technology', weight: -1.8 }
       ];
-      
+
       modernGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2054,7 +2062,7 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Runtime factor (classic films often have different pacing)
       const runtime = movie.runtime || 100;
       if (runtime > 150) {
@@ -2062,19 +2070,19 @@ export default {
       } else if (runtime < 90) {
         score -= 0.4; // Very short films less classic
       }
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.charCodeAt(movie.title.length - 1) % 50) * 0.016 - 0.4 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateUpliftingScale(movie) {
+    calculateUpliftingScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const runtime = movie.runtime || 100;
-      
+
       // Uplifting indicators (+) with weighted values
       const upliftingGenres = [
         { name: 'comedy', weight: 2.8 },
@@ -2095,7 +2103,7 @@ export default {
         { name: 'wedding', weight: 1.9 },
         { name: 'christmas', weight: 2.0 }
       ];
-      
+
       upliftingGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2106,7 +2114,7 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Melancholy indicators (-) with weighted values
       const melancholyGenres = [
         { name: 'drama', weight: -1.8 },
@@ -2125,7 +2133,7 @@ export default {
         { name: 'betrayal', weight: -2.0 },
         { name: 'divorce', weight: -1.8 }
       ];
-      
+
       melancholyGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2136,22 +2144,22 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Runtime factor (longer films often more melancholy)
       score += (100 - runtime) * 0.004;
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.replace(/[^a-z]/gi, '').length * 0.11) % 0.9 - 0.45 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateTenseScale(movie) {
+    calculateTenseScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const runtime = movie.runtime || 100;
-      
+
       // Tense indicators (+) with weighted values
       const tenseGenres = [
         { name: 'thriller', weight: 2.9 },
@@ -2171,7 +2179,7 @@ export default {
         { name: 'showdown', weight: 1.8 },
         { name: 'violence', weight: 1.7 }
       ];
-      
+
       tenseGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2182,7 +2190,7 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Relaxing indicators (-) with weighted values
       const relaxingGenres = [
         { name: 'comedy', weight: -2.3 },
@@ -2200,7 +2208,7 @@ export default {
         { name: 'romantic comedy', weight: -2.5 },
         { name: 'feel good', weight: -2.4 }
       ];
-      
+
       relaxingGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2211,22 +2219,22 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Runtime factor (longer films can build more tension)
       score += (runtime - 100) * 0.008;
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 100) * 0.014 - 0.7 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateHopefulScale(movie) {
+    calculateHopefulScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : 0;
-      
+
       // Hopeful indicators (+) with weighted values
       const hopefulGenres = [
         { name: 'family', weight: 2.4 },
@@ -2245,7 +2253,7 @@ export default {
         { name: 'rescue', weight: 1.9 },
         { name: 'wedding', weight: 1.8 }
       ];
-      
+
       hopefulGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2256,7 +2264,7 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Cynical indicators (-) with weighted values
       const cynicalGenres = [
         { name: 'war', weight: -2.6 },
@@ -2274,7 +2282,7 @@ export default {
         { name: 'alcoholism', weight: -2.6 },
         { name: 'suicide', weight: -2.8 }
       ];
-      
+
       cynicalGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2285,27 +2293,27 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Era factor (older films sometimes more optimistic)
       if (releaseYear > 0 && releaseYear < 1970) {
         score += 1.2;
       } else if (releaseYear > 2000) {
         score -= 0.8; // Modern films often more cynical
       }
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.length * 0.13) % 0.8 - 0.4 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateSimpleScale(movie) {
+    calculateSimpleScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const runtime = movie.runtime || 100;
       const genreCount = genres.length;
-      
+
       // Simple indicators (+) with weighted values
       const simpleGenres = [
         { name: 'comedy', weight: 2.1 },
@@ -2324,7 +2332,7 @@ export default {
         { name: 'love', weight: 2.2 },
         { name: 'christmas', weight: 2.4 }
       ];
-      
+
       simpleGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2335,14 +2343,14 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Genre count factor
       if (genreCount <= 2) {
         score += 1.8; // Fewer genres = simpler
       } else if (genreCount >= 4) {
         score -= 1.5; // More genres = more complex
       }
-      
+
       // Complex indicators (-) with weighted values
       const complexGenres = [
         { name: 'drama', weight: -1.7 },
@@ -2360,7 +2368,7 @@ export default {
         { name: 'multiple timeline', weight: -2.8 },
         { name: 'psychological', weight: -2.2 }
       ];
-      
+
       complexGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2371,23 +2379,23 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Runtime factor (shorter films often simpler)
       score += (90 - runtime) * 0.006;
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.replace(/\s/g, '').length * 0.07) % 0.6 - 0.3 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateCharacterScale(movie) {
+    calculateCharacterScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const cast = movie.credits?.cast || [];
       const runtime = movie.runtime || 100;
-      
+
       // Character-driven indicators (+) with weighted values
       const characterGenres = [
         { name: 'drama', weight: 2.4 },
@@ -2404,7 +2412,7 @@ export default {
         { name: 'psychological', weight: 2.1 },
         { name: 'character study', weight: 2.7 }
       ];
-      
+
       characterGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2415,14 +2423,14 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Cast size factor (character-driven films often have smaller casts)
       if (cast.length > 0 && cast.length < 20) {
         score += 1.6;
       } else if (cast.length > 50) {
         score -= 1.2;
       }
-      
+
       // Plot-driven indicators (-) with weighted values
       const plotGenres = [
         { name: 'action', weight: -2.2 },
@@ -2440,7 +2448,7 @@ export default {
         { name: 'gun fight', weight: -2.1 },
         { name: 'car chase', weight: -2.2 }
       ];
-      
+
       plotGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2451,22 +2459,22 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Runtime factor (character studies often take time)
       score += (runtime - 100) * 0.005;
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.split(' ').length * 0.19) % 0.7 - 0.35 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateLinearScale(movie) {
+    calculateLinearScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const runtime = movie.runtime || 100;
-      
+
       // Linear indicators (+) with weighted values
       const linearGenres = [
         { name: 'action', weight: 2.2 },
@@ -2484,7 +2492,7 @@ export default {
         { name: 'escape', weight: 2.1 },
         { name: 'mission', weight: 1.8 }
       ];
-      
+
       linearGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2495,7 +2503,7 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Non-linear indicators (-) with weighted values
       const nonLinearGenres = [
         { name: 'drama', weight: -1.6 },
@@ -2512,7 +2520,7 @@ export default {
         { name: 'parallel universe', weight: -2.5 },
         { name: 'anthology', weight: -2.3 }
       ];
-      
+
       nonLinearGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2523,23 +2531,23 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Runtime factor (shorter films often more linear)
       score += (100 - runtime) * 0.007;
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.charCodeAt(0) % 60) * 0.016 - 0.48 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateUniversalScale(movie) {
+    calculateUniversalScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const language = movie.original_language || 'en';
       const budget = movie.budget || 0;
-      
+
       // Universal indicators (+) with weighted values
       const universalGenres = [
         { name: 'family', weight: 2.6 },
@@ -2557,7 +2565,7 @@ export default {
         { name: 'wedding', weight: 2.0 },
         { name: 'coming of age', weight: 2.2 }
       ];
-      
+
       universalGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2568,19 +2576,19 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Language factor
       if (language === 'en') {
         score += 1.8; // English more universal
       } else {
         score -= 1.4;
       }
-      
+
       // Budget factor (higher budget often more universal appeal)
       if (budget > 50000000) {
         score += Math.min((budget / 100000000) * 1.5, 2.2);
       }
-      
+
       // Niche indicators (-) with weighted values
       const nicheGenres = [
         { name: 'documentary', weight: -2.8 },
@@ -2597,7 +2605,7 @@ export default {
         { name: 'surreal', weight: -2.5 },
         { name: 'abstract', weight: -2.7 }
       ];
-      
+
       nicheGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2608,19 +2616,19 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.replace(/[aeiou]/gi, '').length * 0.12) % 0.8 - 0.4 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateEscapistScale(movie) {
+    calculateEscapistScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const budget = movie.budget || 0;
-      
+
       // Escapist indicators (+) with weighted values
       const escapistGenres = [
         { name: 'fantasy', weight: 2.8 },
@@ -2639,7 +2647,7 @@ export default {
         { name: 'alternate reality', weight: 2.4 },
         { name: 'computer animation', weight: 2.0 }
       ];
-      
+
       escapistGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2650,12 +2658,12 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Budget factor (escapist films often have higher budgets)
       if (budget > 80000000) {
         score += Math.min((budget / 150000000) * 1.8, 2.1);
       }
-      
+
       // Realistic indicators (-) with weighted values
       const realisticGenres = [
         { name: 'drama', weight: -2.0 },
@@ -2673,7 +2681,7 @@ export default {
         { name: 'courtroom', weight: -2.2 },
         { name: 'war', weight: -2.3 }
       ];
-      
+
       realisticGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2684,20 +2692,20 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.match(/[A-Z]/g)?.length || 0) * 0.14 - 0.42 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculatePolishedScale(movie) {
+    calculatePolishedScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const budget = movie.budget || 0;
       const companies = movie.production_companies || [];
-      
+
       // Polished indicators (+) with weighted values
       const polishedStudios = [
         { name: 'disney', weight: 2.6 },
@@ -2716,7 +2724,7 @@ export default {
         { name: 'franchise', weight: 2.2 },
         { name: 'superhero', weight: 2.1 }
       ];
-      
+
       polishedStudios.forEach(studio => {
         if (companies.some(c => c.name && c.name.toLowerCase().includes(studio.name))) {
           score += studio.weight;
@@ -2727,12 +2735,12 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Budget factor (higher budget often more polished)
       if (budget > 0) {
         score += Math.min((budget / 100000000) * 2.8, 3.5);
       }
-      
+
       // Raw indicators (-) with weighted values
       const rawStudios = [
         { name: 'a24', weight: -2.4 },
@@ -2749,7 +2757,7 @@ export default {
         { name: 'street', weight: -2.1 },
         { name: 'urban', weight: -2.0 }
       ];
-      
+
       rawStudios.forEach(studio => {
         if (companies.some(c => c.name && c.name.toLowerCase().includes(studio.name))) {
           score += studio.weight;
@@ -2760,24 +2768,24 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Low budget factor
       if (budget > 0 && budget < 5000000) {
         score -= Math.min((5000000 - budget) / 1000000, 2.5);
       }
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.replace(/\W/g, '').length * 0.08) % 0.6 - 0.3 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateFamiliarScale(movie) {
+    calculateFamiliarScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : 0;
-      
+
       // Familiar indicators (+) with weighted values
       const familiarGenres = [
         { name: 'comedy', weight: 2.1 },
@@ -2795,7 +2803,7 @@ export default {
         { name: 'traditional', weight: 1.9 },
         { name: 'formula', weight: 1.8 }
       ];
-      
+
       familiarGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2806,12 +2814,12 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Era factor (older films more familiar to modern audiences)
       if (releaseYear > 0 && releaseYear < 1990) {
         score += 1.5;
       }
-      
+
       // Innovative indicators (-) with weighted values
       const innovativeGenres = [
         { name: 'science fiction', weight: -2.0 },
@@ -2827,7 +2835,7 @@ export default {
         { name: 'breakthrough', weight: -2.2 },
         { name: 'unique', weight: -2.1 }
       ];
-      
+
       innovativeGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2838,26 +2846,26 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Recent films factor (very recent films might be more innovative)
       if (releaseYear > 2018) {
         score -= 1.2;
       }
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.split(' ').length * 0.15) % 0.7 - 0.35 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     },
-    calculateMinimalistScale(movie) {
+    calculateMinimalistScale (movie) {
       let score = 0;
       const genres = movie.genres || [];
       const keywords = movie.flatKeywords || [];
       const budget = movie.budget || 0;
       const cast = movie.credits?.cast || [];
       const runtime = movie.runtime || 100;
-      
+
       // Minimalist indicators (+) with weighted values
       const minimalistGenres = [
         { name: 'drama', weight: 2.2 },
@@ -2874,7 +2882,7 @@ export default {
         { name: 'introspective', weight: 2.6 },
         { name: 'contemplative', weight: 2.5 }
       ];
-      
+
       minimalistGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2885,17 +2893,17 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // Budget factor (lower budget often more minimalist)
       if (budget > 0 && budget < 10000000) {
         score += Math.min((10000000 - budget) / 2000000, 2.2);
       }
-      
+
       // Cast size factor (smaller cast more minimalist)
       if (cast.length > 0 && cast.length < 15) {
         score += 1.8;
       }
-      
+
       // Maximalist indicators (-) with weighted values
       const maximalistGenres = [
         { name: 'action', weight: -2.3 },
@@ -2913,7 +2921,7 @@ export default {
         { name: 'blockbuster', weight: -2.2 },
         { name: 'ensemble cast', weight: -2.1 }
       ];
-      
+
       maximalistGenres.forEach(genre => {
         if (genres.some(g => g.name && g.name.toLowerCase().includes(genre.name))) {
           score += genre.weight;
@@ -2924,24 +2932,24 @@ export default {
           score += keyword.weight;
         }
       });
-      
+
       // High budget factor (blockbusters often maximalist)
       if (budget > 150000000) {
         score -= Math.min((budget - 150000000) / 100000000, 2.8);
       }
-      
+
       // Large cast factor
       if (cast.length > 50) {
         score -= 1.9;
       }
-      
+
       // Runtime factor (shorter films often more minimalist)
       score += (90 - runtime) * 0.008;
-      
+
       // Title-based variation
       const titleVariation = movie.title ? (movie.title.replace(/\s/g, '').length * 0.06) % 0.5 - 0.25 : 0;
       score += titleVariation;
-      
+
       return Math.max(-10, Math.min(10, score));
     }
   }
@@ -2979,20 +2987,20 @@ export default {
         .category-results {
           padding-top: 12px;
         }
-        
+
         .award-display {
           .winner-section {
             .winner-poster {
               position: relative;
               width: 100px;
-              
+
               .poster-img, .poster-placeholder {
                 width: 100%;
                 aspect-ratio: 2/3;
                 border-radius: 4px;
                 object-fit: cover;
               }
-              
+
               .poster-placeholder {
                 background: #495057;
                 display: flex;
@@ -3002,7 +3010,7 @@ export default {
                 font-weight: bold;
                 color: #ffd700;
               }
-              
+
               .winner-badge {
                 position: absolute;
                 top: -6px;
@@ -3017,7 +3025,7 @@ export default {
                 white-space: nowrap;
               }
             }
-            
+
             .winner-title {
               font-size: 0.75em;
               font-weight: 600;
@@ -3026,7 +3034,7 @@ export default {
               max-width: 100px;
             }
           }
-          
+
           .nominees-section {
             .nominees-label {
               font-size: 0.8em;
@@ -3034,11 +3042,11 @@ export default {
               font-weight: 600;
               margin-bottom: 4px;
             }
-            
+
             .nominees-list {
               list-style: none;
               padding-left: 0;
-              
+
               .nominee-item {
                 font-size: 0.8em;
                 color: #e9ecef;
@@ -3046,7 +3054,7 @@ export default {
                 margin-bottom: 2px;
                 padding-left: 12px;
                 position: relative;
-                
+
                 &::before {
                   content: "•";
                   color: #6c757d;
@@ -3057,7 +3065,7 @@ export default {
             }
           }
         }
-        
+
         .no-data {
           color: #6c757d;
           font-style: italic;

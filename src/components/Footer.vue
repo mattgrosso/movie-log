@@ -24,7 +24,7 @@
 
 <script>
 export default {
-  name: 'Footer',
+  name: 'AppFooter',
   data () {
     return {
       devMode: localStorage.getItem('devMode') === 'true',

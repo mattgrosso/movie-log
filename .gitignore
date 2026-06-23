@@ -4,6 +4,7 @@ node_modules
 .env
 .history
 invalidation_output.txt
+/coverage
 
 # local env files
 .env.local

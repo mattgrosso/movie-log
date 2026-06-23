@@ -2,24 +2,24 @@
   <div class="cinema-roll">
     <!-- Invisible scroll-to-top trigger area -->
     <div class="scroll-to-top-trigger" @click.stop="scrollToTop"></div>
-    <Header/>
+    <AppHeader/>
     <router-view></router-view>
-    <Footer v-if="$store.state.dbLoaded"/>
+    <AppFooter v-if="$store.state.dbLoaded"/>
   </div>
 </template>
 
 <script>
-import Footer from "./components/Footer.vue";
-import Header from "./components/Header.vue";
+import AppFooter from "./components/Footer.vue";
+import AppHeader from "./components/Header.vue";
 
 export default {
   name: "Cinema-Roll",
   components: {
-    Footer,
-    Header
+    AppFooter,
+    AppHeader
   },
   methods: {
-    scrollToTop() {
+    scrollToTop () {
       window.scrollTo({
         top: 0,
         behavior: 'smooth'

@@ -4,8 +4,12 @@
 // Global test configuration
 import { vi } from 'vitest'
 
-// Mock window.scroll for JSDOM compatibility
+// Mock window.scroll / scrollTo for JSDOM compatibility (jsdom doesn't implement them)
 Object.defineProperty(window, 'scroll', {
+  value: vi.fn(),
+  writable: true
+})
+Object.defineProperty(window, 'scrollTo', {
   value: vi.fn(),
   writable: true
 })
