@@ -150,6 +150,33 @@ describe('Fuzzy "Did you mean?" suggestions', () => {
       expect(wrapper.vm.paginatedSortedResults.length).toBe(0)
       expect(wrapper.vm.didYouMeanSuggestions.length).toBeGreaterThan(0)
     })
+
+    it('does NOT suggest for a year chip that matches nothing (the "2010" repro)', async () => {
+      // Typing a year shows results via the temp general filter, then on blur it
+      // converts to a `year` chip (input cleared). The year chip matches no rated
+      // movies, so results go to 0 — but the suggestions tool must stay quiet.
+      wrapper.vm.searchValue = ''
+      wrapper.vm.activeFilters = [{ id: 'year-1', type: 'year', value: '2010', display: '2010' }]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.paginatedSortedResults.length).toBe(0) // no 2010 movies in the library
+      expect(wrapper.vm.effectiveSearchTerm).toBe('2010') // chip value is present...
+      expect(wrapper.vm.didYouMeanSuggestions).toEqual([]) // ...but no fuzzy suggestions
+    })
+
+    it('drives suggestions from raw input only, never a chip value (regression guard)', async () => {
+      // True guard: a chip whose value FUZZY-matches a library term but exact-matches
+      // nothing. Under the old `searchValue || effectiveSearchTerm` gate this fed the
+      // chip value ("villenueve") into Fuse and surfaced "Denis Villeneuve" — exactly
+      // the wrong-suggestions bug. With the input empty, suggestions must be silent.
+      wrapper.vm.searchValue = ''
+      wrapper.vm.activeFilters = [{ id: 'g1', type: 'general', value: 'villenueve', display: 'villenueve' }]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.paginatedSortedResults.length).toBe(0) // exact 'villenueve' matches nothing
+      expect(wrapper.vm.effectiveSearchTerm).toBe('villenueve') // fuzzy-matchable chip value...
+      expect(wrapper.vm.didYouMeanSuggestions).toEqual([]) // ...but still no suggestions
+    })
   })
 
   describe('correction quality', () => {

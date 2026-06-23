@@ -88,6 +88,12 @@ describe('applyFilter', () => {
     expect(applyFilter(result, { type: 'yearRange', value: { startYear: 1990, endYear: 1999 } })).toBe(false)
   })
 
+  it('year / yearRange do not throw on an entry missing release_date', () => {
+    const noDate = { movie: { ...movie, release_date: undefined } }
+    expect(applyFilter(noDate, { type: 'year', value: '2001' })).toBe(false)
+    expect(applyFilter(noDate, { type: 'yearRange', value: { startYear: 2000, endYear: 2002 } })).toBe(false)
+  })
+
   it('uses a precomputed _search when present (and it overrides the movie fields)', () => {
     const decorated = { ...result, _search: buildSearchFields({ ...movie, title: 'Different' }) }
     expect(applyFilter(decorated, { type: 'title', value: 'different' })).toBe(true)

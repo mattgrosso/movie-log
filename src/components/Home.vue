@@ -1622,7 +1622,12 @@ export default {
       // when the user has typed a non-trivial term that produced zero local
       // results. This keeps search fast and leaves the exact-match behavior of
       // groupedByAllCategories / unifiedFilteredResults completely unchanged.
-      const term = (this.searchValue || this.effectiveSearchTerm || '').trim();
+      // Only ever suggest from the RAW typed input — never from effectiveSearchTerm
+      // (a chip's value). The suggestions are typo-correction for what the user is
+      // typing; firing them off a structured chip (e.g. a `year` chip "2010" that
+      // legitimately matches no rated movies) showed nonsensical name/title
+      // suggestions in place of the normal zero-results UI.
+      const term = (this.searchValue || '').trim();
 
       if (term.length < 3) {
         return [];
@@ -3414,22 +3419,30 @@ export default {
       // Find any existing temp filter and remove it
       this.activeFilters = this.activeFilters.filter(filter => !filter.temp);
 
-      // If we're offering fuzzy "Did you mean?" suggestions, the raw text is a
-      // probable typo that matched nothing. Do NOT auto-convert it into a chip
-      // (e.g. on blur) — the user is meant to tap a suggestion instead, which
-      // commits the corrected, typed value. Auto-chipping the typo would create
-      // a dead chip and then bounce through the new-rating reset flow.
-      if (this.didYouMeanSuggestions.length > 0) {
+      const currentSearch = this.inputValue;
+      if (!currentSearch || !currentSearch.trim()) {
+        return;
+      }
+      const searchTerm = currentSearch.trim();
+
+      // The fuzzy "Did you mean?" blur-guard applies ONLY to free-text (general)
+      // terms — a probable typo we don't want to auto-chip into a dead general
+      // chip (the user should tap a suggestion instead). A STRUCTURED filter
+      // (year, genre, director, company, keyword, ...) is an intended filter and
+      // must always be committed.
+      //
+      // Without this type check, typing a year like "2010" — which shows results
+      // via a temp `year` chip while focused — lost them on blur: removing the
+      // temp chip above fell back to a `general` match (which does NOT match by
+      // release year), found nothing, surfaced suggestions, and bailed before
+      // ever creating the year chip.
+      const detected = this.detectFilterType(searchTerm);
+      if (detected.type === 'general' && this.didYouMeanSuggestions.length > 0) {
         return;
       }
 
-      const currentSearch = this.inputValue;
-      if (currentSearch && currentSearch.trim()) {
-        const searchTerm = currentSearch.trim();
-
-        // Add the chip immediately and clear the input
-        this.addSearchFilter(searchTerm);
-      }
+      // Add the chip immediately and clear the input
+      this.addSearchFilter(searchTerm);
     },
     addSearchFilter (searchTerm, isAutoRandom = false, expectedType = null) {
       if (!searchTerm || !searchTerm.trim()) return;

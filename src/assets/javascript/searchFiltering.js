@@ -78,11 +78,15 @@ export function applyFilter (result, filter) {
       return inCast || inCrew;
     }
     case 'year': {
-      // Extract year directly from release_date string to avoid timezone issues
+      // Extract year directly from release_date string to avoid timezone issues.
+      // Guard against entries with no release_date — an unguarded .substring would
+      // throw and blank the entire filtered result set.
+      if (!movie.release_date) return false;
       const movieYear = movie.release_date.substring(0, 4);
       return movieYear === filter.value;
     }
     case 'yearRange': {
+      if (!movie.release_date) return false;
       const years = getListOfYearsFromRange(filter.value);
       return years.includes(movie.release_date.substring(0, 4));
     }
