@@ -1113,6 +1113,33 @@ export default {
         }
       }
 
+      // Always surface already-nominated cast members, even when they sit deeper
+      // in the cast than the initial 3 loaded above. They were explicitly chosen
+      // by the user, so include them regardless of the gender heuristic — we only
+      // fetch details for the profile image. Without this a saved nominee shows in
+      // the top "Current Nominees" gallery but has no tile in the grid to light up.
+      const categoryData = this.awardsData[categoryKey];
+      const nominatedKeys = new Set(
+        (categoryData && categoryData.nominees ? categoryData.nominees : [])
+          .map(nom => `${nom.id}-${nom.movieId}`)
+      );
+
+      if (nominatedKeys.size > 0) {
+        for (const movieId of movieIds) {
+          const movieGroup = movieGroups[movieId];
+          const loadedIds = new Set(movieGroup.loadedCast.map(person => person.id));
+
+          for (const person of movieGroup.allCast) {
+            if (loadedIds.has(person.id)) continue;
+            if (!nominatedKeys.has(`${person.id}-${person.movieId}`)) continue;
+
+            const details = await this.getDetailsForCastMember(person.name);
+            movieGroup.loadedCast.push({ ...person, details, needsGenderCheck: false });
+            loadedIds.add(person.id);
+          }
+        }
+      }
+
       return movieGroups;
     },
     async filterCastMembersByGender (castMembers) {
@@ -1202,8 +1229,13 @@ export default {
           movieGroup.processedIndex += batchSize;
         }
 
-        // Add the new cast members (up to 3) to the loaded cast
-        movieGroup.loadedCast.push(...newlyLoadedCast.slice(0, targetCount));
+        // Add the new cast members (up to 3) to the loaded cast, skipping anyone
+        // already shown — a nominated member deep in the cast may have been
+        // surfaced early, so guard against a duplicate (and duplicate :key) here.
+        const alreadyLoadedIds = new Set(movieGroup.loadedCast.map(person => person.id));
+        movieGroup.loadedCast.push(
+          ...newlyLoadedCast.slice(0, targetCount).filter(person => !alreadyLoadedIds.has(person.id))
+        );
         movieGroup.hasMore = movieGroup.processedIndex < movieGroup.allCast.length;
       } catch (error) {
         console.error('Error loading more cast for movie:', movieId, error);
@@ -1423,6 +1455,19 @@ export default {
     getOptionId (option) {
       try {
         if (!option) return 'unknown';
+
+        // Best Director options are identified by movie, regardless of object
+        // shape. A freshly-computed option is a movie-group ({ movieId, movie,
+        // allCast }) with no top-level `id`, but a nominee restored from saved
+        // (minimal) storage carries a top-level `id` ("directors-<movieId>").
+        // Without normalizing here, getOptionId would classify the two shapes
+        // differently (movie-X vs person-...), so a saved Best Director
+        // nominee/winner would not light up in the grid when the year is
+        // reopened (it shows in the top gallery, which renders nominees directly).
+        if (this.selectedCategory === 'bestDirector') {
+          const movieId = (option.movie && option.movie.id) || option.movieId;
+          return `movie-${movieId || 'unknown'}`;
+        }
 
         if (option.movie && !option.id) {
           // This is a movie option
