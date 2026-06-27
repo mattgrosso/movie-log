@@ -56,6 +56,17 @@ export default {
   .cinema-roll {
     min-height: 100vh;
     width: 100%;
+    max-width: 100%;
+    // Clip any stray horizontal overflow so the page can never scroll sideways.
+    // On the installed iOS PWA a brief horizontal overflow (e.g. an image
+    // rendering at natural width before CSS constrains it) latches the layout
+    // viewport wider than the screen; that stuck viewport then makes every
+    // screen's 100vh-based vertical layout stop a few % short of the bottom
+    // (cutting off the submit / poster buttons) until the app is force-quit.
+    // Clipping here prevents the latch — fixes the sideways scroll AND the
+    // cumulative bottom cut-off together. Vertical page scroll is unaffected
+    // (the document, not this element, is the vertical scroll container).
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
   }

@@ -2768,6 +2768,9 @@ export default {
     rateMovieFromModal () {
       if (this.selectedMovieInfo) {
         this.$store.commit('setMovieToRate', this.selectedMovieInfo);
+        // Remove the modal's scroll-lock before navigating away — otherwise
+        // body.no-scroll leaks onto every subsequent screen (see router afterEach).
+        this.closeMovieInfoModal();
         this.$router.push('/rate-movie');
         // Scroll to top when navigating to rate movie page
         this.$nextTick(() => {

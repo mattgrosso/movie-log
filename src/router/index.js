@@ -137,4 +137,16 @@ const router = createRouter({
   routes
 })
 
+// Safety net for scroll-lock leaks. Modals/overlays across the app lock body
+// scrolling via `body.no-scroll` (overflow:hidden) or `body.style.overflow`, and
+// rely on their own close handler to undo it. When a route change happens while
+// one is still open (e.g. tapping "Rate" from Home's movie-info modal), the close
+// handler never runs and the lock sticks to <body> on every subsequent screen
+// until a reload. Clearing it on each navigation guarantees no overlay can leave
+// the page permanently unscrollable.
+router.afterEach(() => {
+  document.body.classList.remove('no-scroll');
+  document.body.style.overflow = '';
+})
+
 export default router;

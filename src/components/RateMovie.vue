@@ -54,332 +54,15 @@
 
       <hr>
 
-      <div class="col-12 my-3">
-        <label class="form-label fs-4 mb-0" for="direction">Direction</label>
-        <p class="fs-6 fst-italic">Rate the film's directing and editing. Does the film seem to have a consistent and intentional voice?</p>
-        <select class="form-select" name="direction" id="direction" v-model="direction">
-          <option value=""></option>
-          <option value="0">
-            0 - Worst in class
-          </option>
-          <option value="1">
-            1 - Among the worst in class
-          </option>
-          <option value="2">
-            2 - Terrible
-          </option>
-          <option value="3">
-            3 - Really Bad
-          </option>
-          <option value="4">
-            4 - Bad
-          </option>
-          <option value="5">
-            5 - Average
-          </option>
-          <option value="6">
-            6 - Good
-          </option>
-          <option value="7">
-            7 - Great
-          </option>
-          <option value="8">
-            8 - Incredible
-          </option>
-          <option value="9">
-            9 - Among the best in class
-          </option>
-          <option value="10">
-            10 - Best in class
-          </option>
-        </select>
-      </div>
-
-      <div class="col-12 my-3">
-        <label class="form-label fs-4 mb-0" for="imagery">Imagery</label>
-        <p class="fs-6 fst-italic">
-          Rate the film's cinematography, visual effects, production design, costume design, and/or animation.
-        </p>
-        <select class="form-select" name="imagery" id="imagery" v-model="imagery">
-          <option value=""></option>
-          <option value="0">
-            0 - Worst in class
-          </option>
-          <option value="1">
-            1 - Among the worst in class
-          </option>
-          <option value="2">
-            2 - Terrible
-          </option>
-          <option value="3">
-            3 - Really Bad
-          </option>
-          <option value="4">
-            4 - Bad
-          </option>
-          <option value="5">
-            5 - Average
-          </option>
-          <option value="6">
-            6 - Good
-          </option>
-          <option value="7">
-            7 - Great
-          </option>
-          <option value="8">
-            8 - Incredible
-          </option>
-          <option value="9">
-            9 - Among the best in class
-          </option>
-          <option value="10">
-            10 - Best in class
-          </option>
-        </select>
-      </div>
-
-      <div class="col-12 my-3">
-        <label class="form-label fs-4 mb-0" for="story">Story</label>
-        <p class="fs-6 fst-italic">
-          Rate the film's story, screenplay, and writing.
-        </p>
-        <select class="form-select" name="story" id="story" v-model="story">
-          <option value=""></option>
-          <option value="0">
-            0 - Worst in class
-          </option>
-          <option value="1">
-            1 - Among the worst in class
-          </option>
-          <option value="2">
-            2 - Terrible
-          </option>
-          <option value="3">
-            3 - Really Bad
-          </option>
-          <option value="4">
-            4 - Bad
-          </option>
-          <option value="5">
-            5 - Average
-          </option>
-          <option value="6">
-            6 - Good
-          </option>
-          <option value="7">
-            7 - Great
-          </option>
-          <option value="8">
-            8 - Incredible
-          </option>
-          <option value="9">
-            9 - Among the best in class
-          </option>
-          <option value="10">
-            10 - Best in class
-          </option>
-        </select>
-      </div>
-
-      <div class="col-12 my-3">
-        <label class="form-label fs-4 mb-0" for="performance">Performance</label>
-        <p class="fs-6 fst-italic">
-          Rate the performances in the film. In the case of documentaries, rate the interest of the subject matter.
-        </p>
-        <select class="form-select" name="performance" id="performance" v-model="performance">
-          <option value=""></option>
-          <option value="0">
-            0 - Worst in class
-          </option>
-          <option value="1">
-            1 - Among the worst in class
-          </option>
-          <option value="2">
-            2 - Terrible
-          </option>
-          <option value="3">
-            3 - Really Bad
-          </option>
-          <option value="4">
-            4 - Bad
-          </option>
-          <option value="5">
-            5 - Average
-          </option>
-          <option value="6">
-            6 - Good
-          </option>
-          <option value="7">
-            7 - Great
-          </option>
-          <option value="8">
-            8 - Incredible
-          </option>
-          <option value="9">
-            9 - Among the best in class
-          </option>
-          <option value="10">
-            10 - Best in class
-          </option>
-        </select>
-      </div>
-
-      <div class="col-12 my-3">
-        <label class="form-label fs-4 mb-0" for="soundtrack">Soundtrack</label>
-        <p class="fs-6 fst-italic">
-          Rate the film's score, songs, and sound design.
-        </p>
-        <select class="form-select" name="soundtrack" id="soundtrack" v-model="soundtrack">
-          <option value=""></option>
-          <option value="0">
-            0 - Worst in class
-          </option>
-          <option value="1">
-            1 - Among the worst in class
-          </option>
-          <option value="2">
-            2 - Terrible
-          </option>
-          <option value="3">
-            3 - Really Bad
-          </option>
-          <option value="4">
-            4 - Bad
-          </option>
-          <option value="5">
-            5 - Average
-          </option>
-          <option value="6">
-            6 - Good
-          </option>
-          <option value="7">
-            7 - Great
-          </option>
-          <option value="8">
-            8 - Incredible
-          </option>
-          <option value="9">
-            9 - Among the best in class
-          </option>
-          <option value="10">
-            10 - Best in class
-          </option>
-        </select>
-      </div>
-
-      <div class="col-12 my-3">
-        <label class="form-label fs-4 mb-0" for="stickiness">Stickiness</label>
-        <p class="fs-6 fst-italic">
-          How much of a lasting impression do you think the film will have?
-        </p>
-        <select class="form-select" name="stickiness" id="stickiness" v-model="stickiness">
-          <option value=""></option>
-          <option value="0">
-            0 - If I think of it at all it will be to warn others away
-          </option>
-          <option value="1">
-            1 - I doubt I'll think of it or recommend it to anyone
-          </option>
-          <option value="2">
-            2 - I think I'll mention it to some people
-          </option>
-          <option value="3">
-            3 - I'm going to think about it often and will look for chances to bring it up
-          </option>
-          <option value="4">
-            4 - This is going to stay with me all the time and I will quote it often
-          </option>
-          <option value="5">
-            5 - This movie will change the way I think and has expanded what I think movies can be
-          </option>
-        </select>
-      </div>
-
-      <div class="col-12 my-3">
-        <label class="form-label fs-4 mb-0" for="love">Love</label>
-        <p class="fs-6 fst-italic">
-          The intangible quality of a film that seems to speak to you specifically.
-        </p>
-        <select class="form-select" name="love" id="love" v-model="love">
-          <option value=""></option>
-          <option value="0">
-            -5 - The worst ever
-          </option>
-          <option value="1">
-            -4 - One of the worst ever
-          </option>
-          <option value="2">
-            -3 - I hated it
-          </option>
-          <option value="3">
-            -2 - I really didn't like it
-          </option>
-          <option value="4">
-            -1 - I didn't like it
-          </option>
-          <option value="5">
-            0 - No love
-          </option>
-          <option value="6">
-            1 - I liked it
-          </option>
-          <option value="7">
-            2 - I really liked it
-          </option>
-          <option value="8">
-            3 - A genre favorite
-          </option>
-          <option value="9">
-            4 - An overall favorite
-          </option>
-          <option value="10">
-            5 - My favorite
-          </option>
-        </select>
-      </div>
-
-      <div class="col-12 my-3">
-        <label class="form-label fs-4 mb-0" for="overall">Overall</label>
-        <p class="fs-6 fst-italic">
-          Gut sense of the film's overall rating.
-        </p>
-        <select class="form-select" name="overall" id="overall" v-model="overall">
-          <option value=""></option>
-          <option value="0">
-            0 - Worst in class
-          </option>
-          <option value="1">
-            1 - Among the worst in class
-          </option>
-          <option value="2">
-            2 - Terrible
-          </option>
-          <option value="3">
-            3 - Really Bad
-          </option>
-          <option value="4">
-            4 - Bad
-          </option>
-          <option value="5">
-            5 - Average
-          </option>
-          <option value="6">
-            6 - Good
-          </option>
-          <option value="7">
-            7 - Great
-          </option>
-          <option value="8">
-            8 - Incredible
-          </option>
-          <option value="9">
-            9 - Among the best in class
-          </option>
-          <option value="10">
-            10 - Best in class
-          </option>
-        </select>
-      </div>
+      <RatingSelect
+        v-for="field in ratingFields"
+        :key="field.key"
+        v-model="$data[field.key]"
+        :name="field.key"
+        :label="field.label"
+        :description="field.description"
+        :options="field.options"
+      />
 
       <hr>
 
@@ -609,8 +292,63 @@ import addRating from "../assets/javascript/AddRating.js";
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 import { countViewingTagUsage, sortVocabularyByUsage } from "../utils/tags.js";
+import RatingSelect from "./RatingSelect.vue";
+
+// Option label text for each rating scale, indexed by option value ("0", "1"…).
+// The leading empty option is rendered by RatingSelect, not listed here.
+const STANDARD_OPTIONS = [
+  "0 - Worst in class",
+  "1 - Among the worst in class",
+  "2 - Terrible",
+  "3 - Really Bad",
+  "4 - Bad",
+  "5 - Average",
+  "6 - Good",
+  "7 - Great",
+  "8 - Incredible",
+  "9 - Among the best in class",
+  "10 - Best in class"
+].map((label, value) => ({ value: String(value), label }));
+
+const LOVE_OPTIONS = [
+  "-5 - The worst ever",
+  "-4 - One of the worst ever",
+  "-3 - I hated it",
+  "-2 - I really didn't like it",
+  "-1 - I didn't like it",
+  "0 - No love",
+  "1 - I liked it",
+  "2 - I really liked it",
+  "3 - A genre favorite",
+  "4 - An overall favorite",
+  "5 - My favorite"
+].map((label, value) => ({ value: String(value), label }));
+
+const STICKINESS_OPTIONS = [
+  "0 - If I think of it at all it will be to warn others away",
+  "1 - I doubt I'll think of it or recommend it to anyone",
+  "2 - I think I'll mention it to some people",
+  "3 - I'm going to think about it often and will look for chances to bring it up",
+  "4 - This is going to stay with me all the time and I will quote it often",
+  "5 - This movie will change the way I think and has expanded what I think movies can be"
+].map((label, value) => ({ value: String(value), label }));
+
+// Drives the rating <select> list. `key` matches the same-named data prop the
+// select is v-model-bound to (via $data[key]) and the criterion name used by
+// the rating math, so order here is the on-screen order.
+const RATING_FIELDS = [
+  { key: "direction", label: "Direction", description: "Rate the film's directing and editing. Does the film seem to have a consistent and intentional voice?", options: STANDARD_OPTIONS },
+  { key: "imagery", label: "Imagery", description: "Rate the film's cinematography, visual effects, production design, costume design, and/or animation.", options: STANDARD_OPTIONS },
+  { key: "story", label: "Story", description: "Rate the film's story, screenplay, and writing.", options: STANDARD_OPTIONS },
+  { key: "performance", label: "Performance", description: "Rate the performances in the film. In the case of documentaries, rate the interest of the subject matter.", options: STANDARD_OPTIONS },
+  { key: "soundtrack", label: "Soundtrack", description: "Rate the film's score, songs, and sound design.", options: STANDARD_OPTIONS },
+  { key: "stickiness", label: "Stickiness", description: "How much of a lasting impression do you think the film will have?", options: STICKINESS_OPTIONS },
+  { key: "love", label: "Love", description: "The intangible quality of a film that seems to speak to you specifically.", options: LOVE_OPTIONS },
+  { key: "overall", label: "Overall", description: "Gut sense of the film's overall rating.", options: STANDARD_OPTIONS }
+];
 
 export default {
+  components: { RatingSelect },
   data () {
     return {
       direction: null,
@@ -637,7 +375,8 @@ export default {
       movieContext: null,
       movieContextLoading: false,
       showDeleteModal: false,
-      tagToDelete: null
+      tagToDelete: null,
+      ratingFields: RATING_FIELDS
     }
   },
   mounted () {
@@ -811,17 +550,9 @@ export default {
       if (!moviesWithDates.length) return null;
 
       // Find the one with the most recent rating date
-      let mostRecent = moviesWithDates[0];
-      let mostRecentDate = typeof this.mostRecentRating(moviesWithDates[0]).date === 'number' ? this.mostRecentRating(moviesWithDates[0]).date : new Date(this.mostRecentRating(moviesWithDates[0]).date).getTime();
-
-      for (let i = 1; i < moviesWithDates.length; i++) {
-        const entry = moviesWithDates[i];
-        const entryDate = typeof this.mostRecentRating(entry).date === 'number' ? this.mostRecentRating(entry).date : new Date(this.mostRecentRating(entry).date).getTime();
-        if (entryDate > mostRecentDate) {
-          mostRecent = entry;
-          mostRecentDate = entryDate;
-        }
-      }
+      const mostRecent = moviesWithDates.reduce((latest, entry) => {
+        return this.toMillis(this.mostRecentRating(entry).date) > this.toMillis(this.mostRecentRating(latest).date) ? entry : latest;
+      });
 
       return {
         title: mostRecent.movie.title,
@@ -834,6 +565,11 @@ export default {
     movieYear (movie) {
       return new Date(movie.release_date).getFullYear();
     },
+    // Rating dates are stored as either epoch millis (number) or a date string.
+    // Normalize either to millis for comparison.
+    toMillis (date) {
+      return typeof date === 'number' ? date : new Date(date).getTime();
+    },
     mostRecentRating (movie) {
       if (!movie?.ratings?.length) {
         return null;
@@ -844,7 +580,7 @@ export default {
       movie.ratings.forEach((rating) => {
         if (!mostRecentRating?.date) {
           mostRecentRating = rating;
-        } else if (rating.date && (typeof rating.date === 'number' ? rating.date : new Date(rating.date).getTime()) > (typeof mostRecentRating.date === 'number' ? mostRecentRating.date : new Date(mostRecentRating.date).getTime())) {
+        } else if (rating.date && this.toMillis(rating.date) > this.toMillis(mostRecentRating.date)) {
           mostRecentRating = rating;
         }
       });
@@ -959,7 +695,7 @@ export default {
       this.dbEntry = dbEntry;
 
       window.scroll({
-        top,
+        top: 0,
         behavior: 'smooth'
       })
 
@@ -1018,12 +754,13 @@ export default {
           { headers: { 'Content-Type': 'application/json' } }
         );
         this.movieContext = response.data.context;
-        document.body.style.overflow = 'hidden';
       } catch (error) {
         this.movieContext = 'Could not load context. Please try again.';
-        document.body.style.overflow = 'hidden';
       } finally {
         this.movieContextLoading = false;
+        // The context modal is now showing (with either the result or an error
+        // message), so lock body scroll behind it. closeContextModal() clears it.
+        document.body.style.overflow = 'hidden';
       }
     },
     closeContextModal () {
@@ -1125,6 +862,19 @@ export default {
       max-width: 650px;
     }
 
+    // Form controls must never exceed their grid column. Inputs/selects have a
+    // UA-imposed intrinsic minimum width (datetime-local is the worst offender —
+    // it reserves room for "MM/DD/YYYY, --:-- --"); in a narrow column that
+    // min-width beats `width: 100%` and the field's box pokes past the right
+    // edge of the screen. On the iOS PWA that sideways overflow latches the
+    // layout viewport wider than the screen, which then makes every page stop
+    // short of the bottom. min-width:0 lets them shrink to the column instead.
+    .form-control,
+    .form-select {
+      min-width: 0;
+      max-width: 100%;
+    }
+
     .rating {
       i {
         cursor: pointer;
@@ -1184,28 +934,16 @@ export default {
         top: 3px;
       }
 
-      .neighbor-two-ahead {
-        width: 18%;
-        padding: 0 2px;
-      }
-
-      .neighbor-ahead {
+      .neighbor-two-ahead,
+      .neighbor-ahead,
+      .neighbor-behind,
+      .neighbor-two-behind {
         width: 18%;
         padding: 0 2px;
       }
 
       .current-movie {
         width: 28%;
-        padding: 0 2px;
-      }
-
-      .neighbor-behind {
-        width: 18%;
-        padding: 0 2px;
-      }
-
-      .neighbor-two-behind {
-        width: 18%;
         padding: 0 2px;
       }
 
