@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { reactive } from 'vue';
 import { mount } from '@vue/test-utils';
 import SixDegreesGame from '@/components/games/SixDegreesGame.vue';
 import { entryKey } from '@/assets/javascript/games/gameUtils.js';
@@ -152,6 +153,23 @@ describe('SixDegreesGame', () => {
       const saved = JSON.parse(raw);
       expect(saved.chain).toHaveLength(1);
       expect(saved.sourceKey).toBe(entryKey(wrapper.vm.pair.source));
+    });
+
+    it('recovers once the library finishes loading, instead of permanently stranding on "not enough movies" (real bug: a direct/deep-link page load can mount before Firebase data arrives)', async () => {
+      const getters = reactive({ allMediaAsArray: [] });
+      const wrapper = mount(SixDegreesGame, {
+        global: { mocks: { $store: { getters }, $router: { push: vi.fn() } } }
+      });
+
+      // eligibleGameEntries is empty at mount — must not build an empty graph
+      // and give up forever.
+      expect(wrapper.vm.pair).toBeNull();
+
+      getters.allMediaAsArray = buildConnectedLibrary();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.pair).not.toBeNull();
+      expect(wrapper.vm.graph.peopleByMovie.size).toBeGreaterThan(0);
     });
 
     it('falls back to a fresh start if the persisted pair\'s movies are no longer in the library', () => {

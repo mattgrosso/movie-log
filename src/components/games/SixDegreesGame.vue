@@ -110,8 +110,21 @@ export default {
       return 'playing';
     }
   },
-  created () {
-    this.loadOrStart();
+  watch: {
+    // eligibleGameEntries can be empty for a tick while the library is still
+    // loading from Firebase (most visible on a direct/deep-link navigation
+    // straight to this route, before dbLoaded settles) — calling loadOrStart
+    // unconditionally from created() could build an empty cast graph and
+    // never retry once real data arrived, silently stranding the page on
+    // "not enough movies" forever. Same fix Reel Wordle already has for the
+    // identical race (see its eligibleGameEntries watcher).
+    eligibleGameEntries: {
+      immediate: true,
+      handler (entries) {
+        if (this.pair || !entries.length) return;
+        this.loadOrStart();
+      }
+    }
   },
   methods: {
     // Resumes an in-progress pair+chain from localStorage if one exists and
