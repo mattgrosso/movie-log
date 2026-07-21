@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import SixDegreesGame from '@/components/games/SixDegreesGame.vue';
 import { entryKey } from '@/assets/javascript/games/gameUtils.js';
@@ -40,6 +40,14 @@ function factory (mediaEntries) {
 }
 
 describe('SixDegreesGame', () => {
+  // Fixtures across tests in this file reuse the same dbKeys (buildConnectedLibrary
+  // is identical every call), so persisted state from one test could otherwise
+  // leak into and change the outcome of the next one — same guard ReelWordleGame's
+  // tests use for the same reason.
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it('shows a gate message when no connected pair can be found', () => {
     const disconnected = [entry(1, ['Solo A']), entry(2, ['Solo B'])];
     const wrapper = factory(disconnected);
@@ -110,5 +118,52 @@ describe('SixDegreesGame', () => {
     expect(wrapper.vm.revealedChain[0].type).toBe('movie');
     expect(entryKey(wrapper.vm.revealedChain[0].entry)).toBe(entryKey(wrapper.vm.pair.source));
     expect(entryKey(wrapper.vm.revealedChain[wrapper.vm.revealedChain.length - 1].entry)).toBe(entryKey(wrapper.vm.pair.target));
+  });
+
+  describe('persistence across a remount (bug report: progress was lost on leaving and returning to the page)', () => {
+    it('resumes the SAME in-progress pair and chain after a remount', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      const sourceKey = entryKey(wrapper.vm.pair.source);
+      const targetKey = entryKey(wrapper.vm.pair.target);
+      const person = [...wrapper.vm.graph.peopleByMovie.get(sourceKey)][0];
+      wrapper.vm.pick({ name: person });
+      expect(wrapper.vm.chain).toHaveLength(2);
+
+      const second = factory(library);
+      expect(entryKey(second.vm.pair.source)).toBe(sourceKey);
+      expect(entryKey(second.vm.pair.target)).toBe(targetKey);
+      expect(second.vm.chain).toHaveLength(2);
+      expect(second.vm.chain[1]).toEqual({ type: 'person', name: person });
+    });
+
+    it('"New Pair" always resets/re-persists, replacing any prior saved progress', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      const originalSourceKey = entryKey(wrapper.vm.pair.source);
+      const person = [...wrapper.vm.graph.peopleByMovie.get(originalSourceKey)][0];
+      wrapper.vm.pick({ name: person });
+      expect(wrapper.vm.chain).toHaveLength(2);
+
+      wrapper.vm.start();
+      expect(wrapper.vm.chain).toHaveLength(1);
+
+      const raw = window.localStorage.getItem('cinemaRoll.sixDegrees.current');
+      const saved = JSON.parse(raw);
+      expect(saved.chain).toHaveLength(1);
+      expect(saved.sourceKey).toBe(entryKey(wrapper.vm.pair.source));
+    });
+
+    it('falls back to a fresh start if the persisted pair\'s movies are no longer in the library', () => {
+      window.localStorage.setItem('cinemaRoll.sixDegrees.current', JSON.stringify({
+        sourceKey: 'no-longer-rated',
+        targetKey: 'also-gone',
+        chain: [{ type: 'movie', key: 'no-longer-rated' }]
+      }));
+
+      const wrapper = factory(buildConnectedLibrary());
+      expect(wrapper.vm.pair).not.toBeNull();
+      expect(entryKey(wrapper.vm.pair.source)).not.toBe('no-longer-rated');
+    });
   });
 });

@@ -70,8 +70,10 @@
 <script>
 import BackLink from './BackLink.vue';
 import gameDataMixin from '../../mixins/gameData.js';
-import { buildCastGraph, pickConnectedPair } from '../../assets/javascript/games/sixDegrees.js';
+import { buildCastGraph, pickConnectedPair, shortestPath } from '../../assets/javascript/games/sixDegrees.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
+
+const STORAGE_KEY = 'cinemaRoll.sixDegrees.current';
 
 export default {
   name: 'SixDegreesGame',
@@ -109,9 +111,70 @@ export default {
     }
   },
   created () {
-    this.start();
+    this.loadOrStart();
   },
   methods: {
+    // Resumes an in-progress pair+chain from localStorage if one exists and
+    // both its endpoints are still in the library; otherwise starts fresh.
+    // Same pattern as Reel Wordle's persistence (see cinemaRoll.reelWordle.
+    // current) — per bug report, leaving the page (e.g. to poke around Home
+    // for inspiration) and coming back was silently discarding progress.
+    loadOrStart () {
+      this.graph = buildCastGraph(this.eligibleGameEntries);
+      if (this.tryRestore()) return;
+      this.start();
+    },
+    tryRestore () {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const saved = JSON.parse(raw);
+
+        const source = this.eligibleGameEntries.find((entry) => entryKey(entry) === saved?.sourceKey);
+        const target = this.eligibleGameEntries.find((entry) => entryKey(entry) === saved?.targetKey);
+        if (!source || !target) return false;
+
+        const path = shortestPath(this.graph, entryKey(source), entryKey(target));
+        if (!path) return false;
+
+        const chain = (saved.chain || [])
+          .map((link) => {
+            if (link.type === 'person') return { type: 'person', name: link.name };
+            const entry = this.eligibleGameEntries.find((e) => entryKey(e) === link.key);
+            return entry ? { type: 'movie', entry } : null;
+          })
+          .filter(Boolean);
+        if (!chain.length) return false;
+
+        this.pair = { source, target, optimalPath: path, optimalHops: (path.length - 1) / 2 };
+        this.chain = chain;
+        this.guessInput = '';
+        this.suggestions = [];
+        this.revealedChain = null;
+        if (saved.revealed) this.revealPath();
+        return true;
+      } catch (error) {
+        console.error('Failed to load persisted Six Degrees progress:', error);
+        return false;
+      }
+    },
+    persistState () {
+      if (!this.pair) return;
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          sourceKey: entryKey(this.pair.source),
+          targetKey: entryKey(this.pair.target),
+          chain: this.chain.map((link) => (
+            link.type === 'movie' ? { type: 'movie', key: entryKey(link.entry) } : { type: 'person', name: link.name }
+          )),
+          revealed: Boolean(this.revealedChain)
+        }));
+      } catch (error) {
+        // localStorage can throw in private-browsing/quota-exceeded situations;
+        // the game still works for this session, it just won't persist.
+        console.error('Failed to persist Six Degrees progress:', error);
+      }
+    },
     start () {
       this.graph = buildCastGraph(this.eligibleGameEntries);
       this.pair = pickConnectedPair(this.eligibleGameEntries, this.graph, Math.random);
@@ -119,6 +182,7 @@ export default {
       this.guessInput = '';
       this.suggestions = [];
       this.revealedChain = null;
+      this.persistState();
     },
     onInput () {
       const term = this.guessInput.trim().toLowerCase();
@@ -154,6 +218,7 @@ export default {
       }
       this.guessInput = '';
       this.suggestions = [];
+      this.persistState();
     },
     revealPath () {
       if (!this.pair?.optimalPath) return;
@@ -168,6 +233,7 @@ export default {
         }
       }
       this.revealedChain = links;
+      this.persistState();
     }
   }
 };
