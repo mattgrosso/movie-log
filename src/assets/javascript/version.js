@@ -15,6 +15,16 @@ console.log('• 2 - MINOR (x.X.x): New features, backwards-compatible changes')
 console.log('• 3 - MAJOR (X.x.x): Breaking changes, incompatible API changes');
 
 function waitForKeypress (timeout = 20000) {
+  // process.stdin.setRawMode only exists on a real TTY. In a non-interactive
+  // shell (a script, a CI job, or an agent running `yarn build`/`yarn
+  // deploy`) it's not a function at all and throws immediately — there's
+  // also no one there to press a key, so skip straight to the same PATCH
+  // default the interactive prompt times out to after 20s, without the wait.
+  if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
+    console.log('\n(non-interactive shell — defaulting to PATCH increment)');
+    return Promise.resolve('1');
+  }
+
   return new Promise((resolve) => {
     let timeoutId;
 
