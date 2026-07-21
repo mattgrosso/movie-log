@@ -48,16 +48,17 @@ describe('HigherLowerGame', () => {
     expect(scores[1].text()).toBe('?');
   });
 
-  it('a correct guess increases the streak and persists a new best streak', async () => {
+  it('a correct guess (tapping the poster you think is higher) increases the streak and persists a new best streak', async () => {
     const wrapper = factory(10);
     await wrapper.find('.btn-warning').trigger('click');
 
     const revealedId = wrapper.vm.revealed.movie.id;
     const challengerId = wrapper.vm.challenger.movie.id;
-    const direction = challengerId > revealedId ? 'higher' : 'lower';
+    // Tapping the revealed card guesses "lower" (challenger < revealed);
+    // tapping the challenger card guesses "higher" — see the template.
+    const cardIndex = challengerId > revealedId ? 1 : 0;
 
-    const button = wrapper.findAll('.guess-buttons button').find((b) => b.text().toLowerCase() === direction);
-    await button.trigger('click');
+    await wrapper.findAll('.hl-card')[cardIndex].trigger('click');
 
     expect(wrapper.vm.lastGuessCorrect).toBe(true);
     expect(wrapper.vm.streak).toBe(1);
@@ -74,14 +75,25 @@ describe('HigherLowerGame', () => {
 
     const revealedId = wrapper.vm.revealed.movie.id;
     const challengerId = wrapper.vm.challenger.movie.id;
-    // Deliberately guess wrong.
-    const wrongDirection = challengerId > revealedId ? 'lower' : 'higher';
+    // Deliberately tap the WRONG poster.
+    const wrongCardIndex = challengerId > revealedId ? 0 : 1;
 
-    const button = wrapper.findAll('.guess-buttons button').find((b) => b.text().toLowerCase() === wrongDirection);
-    await button.trigger('click');
+    await wrapper.findAll('.hl-card')[wrongCardIndex].trigger('click');
 
     expect(wrapper.vm.gameOver).toBe(true);
     expect(wrapper.find('.hl-card-score.incorrect').exists()).toBe(true);
     expect(wrapper.find('.game-over button').text()).toBe('Play Again');
+  });
+
+  it('shows two decimal places so near-identical scores stay distinguishable', async () => {
+    const wrapper = factory(10);
+    await wrapper.find('.btn-warning').trigger('click');
+    expect(wrapper.vm.formattedRating(wrapper.vm.revealed)).toBe(wrapper.vm.revealed.movie.id.toFixed(2));
+  });
+
+  it('a "tappable" poster has no lingering :hover-driven state (uses only :active feedback)', async () => {
+    const wrapper = factory(10);
+    await wrapper.find('.btn-warning').trigger('click');
+    expect(wrapper.findAll('.hl-card.tappable').length).toBe(2);
   });
 });

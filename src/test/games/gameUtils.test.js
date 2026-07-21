@@ -39,6 +39,26 @@ describe('getEligibleEntries', () => {
     expect(getEligibleEntries(null)).toEqual([]);
     expect(getEligibleEntries(undefined)).toEqual([]);
   });
+
+  describe('shorts filtering (same runtime<=40min threshold as Home.vue)', () => {
+    it('excludes shorts by default', () => {
+      const feature = entry();
+      const short = entry({ dbKey: 'short', movie: { runtime: 30 } });
+      expect(getEligibleEntries([feature, short])).toEqual([feature]);
+    });
+
+    it('includes shorts when explicitly asked to', () => {
+      const feature = entry();
+      const short = entry({ dbKey: 'short', movie: { runtime: 30 } });
+      const result = getEligibleEntries([feature, short], true);
+      expect(result.map((e) => e.dbKey)).toEqual(expect.arrayContaining(['key', 'short']));
+    });
+
+    it('does not exclude a movie with no runtime recorded (falsy runtime is not treated as a short)', () => {
+      const noRuntime = entry({ movie: { runtime: null } });
+      expect(getEligibleEntries([noRuntime])).toEqual([noRuntime]);
+    });
+  });
 });
 
 describe('ratingFor', () => {

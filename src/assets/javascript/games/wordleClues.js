@@ -23,7 +23,10 @@ export function compareGuessToTarget (guessEntry, targetEntry, ratingForFn) {
     },
     director: {
       value: guessDirectors,
-      match: guessDirectors.length > 0 && guessDirectors.some((name) => targetDirectors.includes(name))
+      match: guessDirectors.length > 0 && guessDirectors.some((name) => targetDirectors.includes(name)),
+      // The specific overlapping name(s) — lets the UI "fill in" the answer
+      // on a match instead of just showing a checkmark.
+      matchedNames: guessDirectors.filter((name) => targetDirectors.includes(name))
     },
     genres: {
       value: guessGenres,
@@ -35,4 +38,33 @@ export function compareGuessToTarget (guessEntry, targetEntry, ratingForFn) {
     runtime: compareNumber(guessEntry?.movie?.runtime ?? null, targetEntry?.movie?.runtime ?? null),
     yourRating: compareNumber(ratingForFn(guessEntry), ratingForFn(targetEntry))
   };
+}
+
+// Every guess away from unlimited now (see ReelWordleGame.vue), so instead
+// of a hard loss the game reveals a bit more about the TARGET itself —
+// unprompted, not tied to any specific guess — every CLUE_INTERVAL wrong
+// guesses, in a fixed order from least to most revealing. A player's
+// eventual score is guesses used minus clues used (golf-style, lower is
+// better), so leaning on clues costs something without being punitive.
+export const CLUE_INTERVAL = 4;
+
+export function buildTargetClues (targetEntry) {
+  const decade = movieDecade(targetEntry);
+  const directors = movieDirectors(targetEntry);
+  const genres = movieGenreNames(targetEntry);
+  const runtime = targetEntry?.movie?.runtime;
+
+  const clues = [];
+  if (decade != null) clues.push(`Released in the ${decade}s.`);
+  if (directors.length) clues.push(`Directed by ${directors.join(' / ')}.`);
+  if (genres.length) clues.push(`One genre: ${genres[0]}.`);
+  if (Number.isFinite(runtime)) clues.push(`Runtime: ${runtime} minutes.`);
+  return clues;
+}
+
+// How many of the target's clues are unlocked for a given number of wrong
+// guesses so far — one more every CLUE_INTERVAL wrong guesses, capped at
+// however many clues actually exist for this target.
+export function unlockedClueCount (wrongGuessCount, totalClues) {
+  return Math.min(Math.floor(wrongGuessCount / CLUE_INTERVAL), totalClues);
 }

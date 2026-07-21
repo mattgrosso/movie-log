@@ -67,19 +67,76 @@ describe('ReelWordleGame', () => {
     expect(wrapper.vm.guesses[0].isCorrect).toBe(false);
   });
 
-  it('loses after 6 wrong guesses and reveals the answer', async () => {
-    const wrapper = factory(10);
+  it('never loses — guesses are unlimited, and clues about the target unlock progressively instead', async () => {
+    const wrapper = factory(20)
     const target = wrapper.vm.target;
-    const wrongOnes = wrapper.vm.eligibleGameEntries.filter((e) => e.dbKey !== target.dbKey).slice(0, 6);
-    expect(wrongOnes.length).toBe(6);
+    const wrongOnes = wrapper.vm.eligibleGameEntries.filter((e) => e.dbKey !== target.dbKey).slice(0, 12);
+    expect(wrongOnes.length).toBe(12);
 
     for (const wrongEntry of wrongOnes) {
       await wrapper.vm.submitGuess(wrongEntry);
     }
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.vm.status).toBe('lost');
-    expect(wrapper.find('.result-banner.lost').text()).toContain(target.movie.title);
+    expect(wrapper.vm.status).toBe('playing');
+    expect(wrapper.vm.guesses.length).toBe(12);
+    // 12 wrong guesses / CLUE_INTERVAL(4) = 3 clues unlocked (target has 4 available).
+    expect(wrapper.vm.activeClues.length).toBe(3);
+    expect(wrapper.findAll('.target-clues li').length).toBe(3);
+  });
+
+  it('score is guesses used minus clues used, shown on a win', async () => {
+    const wrapper = factory(20);
+    const target = wrapper.vm.target;
+    const wrongOnes = wrapper.vm.eligibleGameEntries.filter((e) => e.dbKey !== target.dbKey).slice(0, 4);
+    for (const wrongEntry of wrongOnes) {
+      await wrapper.vm.submitGuess(wrongEntry);
+    }
+    expect(wrapper.vm.activeClues.length).toBe(1);
+
+    await wrapper.vm.submitGuess(target);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.guesses.length).toBe(5);
+    expect(wrapper.vm.score).toBe(4); // 5 guesses - 1 clue
+    expect(wrapper.find('.result-banner.won').text()).toContain('score: 4');
+  });
+
+  it('fills in the actual value on a decade/director/genre match instead of just a checkmark', async () => {
+    const wrapper = factory(10);
+    const target = wrapper.vm.target;
+    // The fixture gives every movie its own distinct director/decade, so no
+    // OTHER movie can match target on those — guess the target itself to
+    // exercise the "match" rendering path deterministically.
+    await wrapper.vm.submitGuess(target);
+    await wrapper.vm.$nextTick();
+
+    const row = wrapper.find('.clue-row.correct');
+    expect(row.text()).toContain(`Director ${target.movie.id}`);
+    expect(row.text()).toContain('Drama');
+  });
+
+  it('"New Puzzle" starts a fresh, unpersisted practice puzzle and resets guesses', async () => {
+    const wrapper = factory(10);
+    const originalTarget = wrapper.vm.target;
+    await wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== originalTarget.dbKey));
+    expect(wrapper.vm.guesses.length).toBe(1);
+    const persistedBefore = JSON.parse(window.localStorage.getItem(wrapper.vm.storageKey))
+
+    await wrapper.find('.new-puzzle-btn').trigger('click');
+
+    expect(wrapper.vm.isManualPuzzle).toBe(true);
+    expect(wrapper.vm.guesses.length).toBe(0);
+
+    // A practice puzzle must never touch the daily puzzle's localStorage —
+    // a wrong guess here shouldn't leak into the persisted daily entry, so
+    // the stored value must be byte-identical to before the practice guess
+    // (checking length alone, since which entry ends up "wrong" for the
+    // randomly-chosen practice target isn't deterministic).
+    const wrongForManual = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== wrapper.vm.target.dbKey);
+    await wrapper.vm.submitGuess(wrongForManual);
+    const raw = window.localStorage.getItem(wrapper.vm.storageKey);
+    expect(JSON.parse(raw)).toEqual(persistedBefore);
   });
 
   it('persists guesses across a remount (same day)', async () => {

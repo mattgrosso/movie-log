@@ -1,7 +1,17 @@
 import { entryKey, movieDirectors, movieGenreNames, movieDecade, movieCastNames, shuffle, pickRandomDistinct } from './gameUtils.js';
+import { computeFlatKeywords } from '../../../utils/keywords.js';
 
 const GROUP_SIZE = 4;
 const CATEGORY_COUNT = 4;
+// A keyword shared by a LOT of movies ("based on a novel") makes for a
+// boring/obvious group — per user feedback, only keywords appearing on at
+// most this many movies in the whole library count as "special" enough to
+// build a category from.
+const KEYWORD_MAX_MOVIE_COUNT = 10;
+
+function movieKeywords (entry) {
+  return computeFlatKeywords(entry?.movie);
+}
 
 function groupBy (entries, extractValues, labelFor) {
   const byValue = new Map();
@@ -22,18 +32,27 @@ function groupBy (entries, extractValues, labelFor) {
   return candidates;
 }
 
-// Builds every attribute value (director/genre/decade/cast member/studio)
+// Builds every attribute value (director/genre/decade/cast member/keyword)
 // that at least GROUP_SIZE movies in the library share — these are the
 // candidate "categories" a Connections puzzle can be built from. A category
 // with fewer than 4 eligible movies can never fill a 4-tile group, so it's
 // filtered out here rather than discovered as a dead end later.
+//
+// Production companies were dropped per user feedback ("too tricky" — a
+// shared studio rarely feels like a meaningful connection the way a shared
+// director/cast member does). Keywords were added in their place, capped to
+// KEYWORD_MAX_MOVIE_COUNT so only "special"/niche keywords qualify, not
+// broad ones a huge fraction of the library shares.
 export function buildCandidateCategories (eligibleEntries) {
+  const keywordCandidates = groupBy(eligibleEntries, movieKeywords, (name) => `Keyword: ${name}`)
+    .filter((candidate) => candidate.movies.length <= KEYWORD_MAX_MOVIE_COUNT);
+
   return [
     ...groupBy(eligibleEntries, movieDirectors, (name) => `Directed by ${name}`),
     ...groupBy(eligibleEntries, movieGenreNames, (name) => `Genre: ${name}`),
     ...groupBy(eligibleEntries, (entry) => { const d = movieDecade(entry); return d ? [`${d}s`] : []; }, (label) => `Released in the ${label}`),
     ...groupBy(eligibleEntries, (entry) => movieCastNames(entry, 8), (name) => `Starring ${name}`),
-    ...groupBy(eligibleEntries, (entry) => (entry?.movie?.production_companies || []).map((c) => c.name), (name) => `From ${name}`)
+    ...keywordCandidates
   ];
 }
 

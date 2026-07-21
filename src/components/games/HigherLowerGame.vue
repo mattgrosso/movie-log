@@ -14,14 +14,24 @@
         <span>Best: <strong>{{ bestStreak }}</strong></span>
       </div>
 
+      <p v-if="!guessed && !gameOver" class="guess-prompt">Tap the poster you think scored higher.</p>
+
       <div class="cards-row">
-        <div class="hl-card">
+        <div
+          class="hl-card"
+          :class="{ tappable: !guessed && !gameOver }"
+          @click="guess('lower')"
+        >
           <img v-if="gamePosterUrl(revealed)" :src="gamePosterUrl(revealed, 'w342')" :alt="revealed.movie.title">
           <p class="hl-card-title">{{ revealed.movie.title }}</p>
           <p class="hl-card-score">{{ formattedRating(revealed) }}</p>
         </div>
 
-        <div class="hl-card">
+        <div
+          class="hl-card"
+          :class="{ tappable: !guessed && !gameOver }"
+          @click="guess('higher')"
+        >
           <img v-if="gamePosterUrl(challenger)" :src="gamePosterUrl(challenger, 'w342')" :alt="challenger.movie.title">
           <p class="hl-card-title">{{ challenger.movie.title }}</p>
           <p class="hl-card-score" :class="resultClass">
@@ -30,17 +40,12 @@
         </div>
       </div>
 
-      <div v-if="!guessed && !gameOver" class="guess-buttons">
-        <button type="button" class="btn btn-outline-light" @click="guess('lower')">Lower</button>
-        <button type="button" class="btn btn-outline-light" @click="guess('higher')">Higher</button>
-      </div>
-
-      <div v-else-if="gameOver" class="game-over">
+      <div v-if="gameOver" class="game-over">
         <p>{{ resultMessage }}</p>
         <button type="button" class="btn btn-warning" @click="start">Play Again</button>
       </div>
 
-      <div v-else class="game-over">
+      <div v-else-if="guessed" class="game-over">
         <p>{{ resultMessage }}</p>
       </div>
 
@@ -87,8 +92,11 @@ export default {
   },
   methods: {
     formattedRating (entry) {
+      // GetRating.js's calculatedTotal carries 2 decimal places (see
+      // GetRating.js's toFixed(2)) — showing only 1 hid the difference
+      // between genuinely-tied and merely-close scores.
       const value = this.gameRatingFor(entry);
-      return Number.isFinite(value) ? value.toFixed(1) : '—';
+      return Number.isFinite(value) ? value.toFixed(2) : '—';
     },
     start () {
       this.pool = shuffle(this.eligibleGameEntries, Math.random);
@@ -209,11 +217,24 @@ export default {
   color: #ff6a6a;
 }
 
-.guess-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  margin-top: 1.5rem;
+.guess-prompt {
+  color: #adb5bd;
+  text-align: center;
+  margin-bottom: 0.75rem;
+}
+
+/* Tap-the-poster affordance, mobile-first: an :active press state only —
+   no :hover, which is what left the previous button-based UI visibly
+   "stuck" highlighted after a tap on iOS (no real mouse to leave). */
+.hl-card.tappable {
+  cursor: pointer;
+  border-radius: 0.35rem;
+  transition: transform 0.15s ease;
+}
+
+.hl-card.tappable:active {
+  transform: scale(0.97);
+  opacity: 0.85;
 }
 
 .game-over {

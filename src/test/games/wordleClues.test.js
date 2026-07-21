@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compareGuessToTarget } from '@/assets/javascript/games/wordleClues.js';
+import { compareGuessToTarget, buildTargetClues, unlockedClueCount, CLUE_INTERVAL } from '@/assets/javascript/games/wordleClues.js';
 
 function entry (overrides = {}) {
   return {
@@ -60,6 +60,13 @@ describe('compareGuessToTarget', () => {
     expect(compareGuessToTarget(differentGuess, target, ratingForFn).director.match).toBe(false);
   });
 
+  it('reports the specific overlapping director name(s) so a match can be "filled in", not just checked', () => {
+    const target = entry({ movie: { crew: [{ name: 'Shared Director', job: 'Director' }, { name: 'Only In Target', job: 'Director' }] } });
+    const guess = entry({ dbKey: 'g1', movie: { crew: [{ name: 'Shared Director', job: 'Director' }, { name: 'Only In Guess', job: 'Director' }] } });
+
+    expect(compareGuessToTarget(guess, target, ratingForFn).director.matchedNames).toEqual(['Shared Director']);
+  });
+
   it('reports shared genres and whether the genre sets fully match', () => {
     const target = entry({ movie: { genres: [{ name: 'Drama' }, { name: 'Thriller' }] } });
     const partial = entry({ dbKey: 'g1', movie: { genres: [{ name: 'Drama' }, { name: 'Comedy' }] } });
@@ -79,5 +86,46 @@ describe('compareGuessToTarget', () => {
     const clue = compareGuessToTarget(guess, target, ratingForFn);
     expect(clue.runtime).toEqual({ value: 90, direction: 'up', match: false });
     expect(clue.yourRating.direction).toBe('up'); // ratingForFn(guess)=4 < ratingForFn(target)=10
+  });
+});
+
+describe('buildTargetClues', () => {
+  it('builds an ordered decade/director/genre/runtime clue list about the target', () => {
+    const target = entry({
+      movie: {
+        release_date: '1995-03-01',
+        crew: [{ name: 'Dir A', job: 'Director' }, { name: 'Dir B', job: 'Director' }],
+        genres: [{ name: 'Comedy' }, { name: 'Drama' }],
+        runtime: 105
+      }
+    });
+
+    expect(buildTargetClues(target)).toEqual([
+      'Released in the 1990s.',
+      'Directed by Dir A / Dir B.',
+      'One genre: Comedy.',
+      'Runtime: 105 minutes.'
+    ]);
+  });
+
+  it('skips a clue type the target has no data for', () => {
+    const target = entry({ movie: { release_date: '1995-03-01', crew: [], genres: [], runtime: null } });
+    expect(buildTargetClues(target)).toEqual(['Released in the 1990s.']);
+  });
+});
+
+describe('unlockedClueCount', () => {
+  it('unlocks nothing before the first interval of wrong guesses', () => {
+    expect(unlockedClueCount(CLUE_INTERVAL - 1, 4)).toBe(0);
+  });
+
+  it('unlocks one more clue per interval of wrong guesses', () => {
+    expect(unlockedClueCount(CLUE_INTERVAL, 4)).toBe(1);
+    expect(unlockedClueCount(CLUE_INTERVAL * 2, 4)).toBe(2);
+    expect(unlockedClueCount(CLUE_INTERVAL * 3, 4)).toBe(3);
+  });
+
+  it('never unlocks more clues than the target actually has', () => {
+    expect(unlockedClueCount(CLUE_INTERVAL * 10, 4)).toBe(4);
   });
 });

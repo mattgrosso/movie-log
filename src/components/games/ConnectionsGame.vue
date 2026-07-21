@@ -4,7 +4,7 @@
     <h1 class="game-title">Connections</h1>
 
     <div v-if="!puzzle" class="not-enough-movies">
-      <p>Not enough rated movies with shared directors/genres/decades/cast/studios yet to build a puzzle. Rate a few more and try again.</p>
+      <p>Not enough rated movies with shared directors/genres/decades/cast/keywords yet to build a puzzle. Rate a few more and try again.</p>
     </div>
 
     <template v-else>

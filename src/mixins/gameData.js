@@ -9,7 +9,11 @@ import { getEligibleEntries, ratingFor } from '../assets/javascript/games/gameUt
 export default {
   computed: {
     eligibleGameEntries () {
-      return getEligibleEntries(this.$store.getters.allMediaAsArray);
+      // Same default-false-unless-explicitly-true convention as Home.vue's
+      // own showShorts computed. Optional-chained on state itself too since
+      // several game test mocks stub $store without a state object at all.
+      const includeShorts = this.$store.state?.settings?.includeShorts === true;
+      return getEligibleEntries(this.$store.getters.allMediaAsArray, includeShorts);
     }
   },
   methods: {

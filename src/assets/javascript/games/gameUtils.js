@@ -5,10 +5,13 @@
 
 // A movie needs a poster (games are poster-driven), a release date (used for
 // year/decade clues and sorting games), and at least one rating (nothing to
-// guess/compare/rank otherwise) to be usable by any game.
-export function getEligibleEntries (allMediaAsArray) {
+// guess/compare/rank otherwise) to be usable by any game. Also respects the
+// user's "include shorts" library setting (default excluded) — same
+// runtime<=40min threshold Home.vue's own filtering uses — so a short that's
+// hidden everywhere else on the site doesn't still turn up in a game.
+export function getEligibleEntries (allMediaAsArray, includeShorts = false) {
   return (allMediaAsArray || []).filter((entry) => {
-    return Boolean(
+    const isEligible = Boolean(
       entry &&
       entry.movie &&
       entry.movie.poster_path &&
@@ -16,6 +19,9 @@ export function getEligibleEntries (allMediaAsArray) {
       Array.isArray(entry.ratings) &&
       entry.ratings.length > 0
     );
+    if (!isEligible) return false;
+    if (includeShorts) return true;
+    return !(entry.movie.runtime && entry.movie.runtime <= 40);
   });
 }
 

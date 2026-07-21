@@ -34,9 +34,9 @@ describe('GamesHub', () => {
     expect(wrapper.findAll('.game-tile').length).toBe(0);
   });
 
-  it('lists all four games once there is enough data', () => {
+  it('lists all games once there is enough data', () => {
     const { wrapper } = factory(10);
-    expect(wrapper.findAll('.game-tile').length).toBe(6);
+    expect(wrapper.findAll('.game-tile').length).toBe(5);
   });
 
   it('navigates to the chosen game route on tap', async () => {

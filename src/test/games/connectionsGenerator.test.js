@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildCandidateCategories, generateConnectionsPuzzle } from '@/assets/javascript/games/connectionsGenerator.js';
 import { makeSeededRng } from '@/assets/javascript/games/gameUtils.js';
 
-function entry ({ id, title, director, genre, year, cast = [], studio }) {
+function entry ({ id, title, director, genre, year, cast = [], studio, keywords = [] }) {
   return {
     dbKey: `key-${id}`,
     movie: {
@@ -17,7 +17,11 @@ function entry ({ id, title, director, genre, year, cast = [], studio }) {
       crew: director ? [{ name: director, job: 'Director' }] : [],
       genres: genre ? [{ name: genre }] : [],
       cast: cast.map((name) => ({ name })),
-      production_companies: studio ? [{ name: studio }] : []
+      // Still populated in fixtures that pass `studio`, to confirm it's
+      // present-but-ignored rather than merely absent (see the "too tricky,
+      // dropped" test below).
+      production_companies: studio ? [{ name: studio }] : [],
+      keywords: keywords.map((name) => ({ name }))
     }
   };
 }
@@ -27,7 +31,7 @@ function entry ({ id, title, director, genre, year, cast = [], studio }) {
 function buildSolvableLibrary () {
   const entries = [];
   for (let i = 0; i < 4; i++) {
-    entries.push(entry({ id: `nolan-${i}`, title: `Nolan Film ${i}`, director: 'Christopher Nolan', genre: 'Drama', year: 2000 + i, cast: [`Nolan Actor ${i}`] }));
+    entries.push(entry({ id: `nolan-${i}`, title: `Nolan Film ${i}`, director: 'Christopher Nolan', genre: 'Drama', year: 2000 + i, cast: [`Nolan Actor ${i}`], studio: 'Warner Bros' }));
   }
   for (let i = 0; i < 4; i++) {
     entries.push(entry({ id: `scifi-${i}`, title: `Sci-Fi Film ${i}`, director: `Director ${i}`, genre: 'Science Fiction', year: 2010 + i, cast: [`Scifi Actor ${i}`] }));
@@ -60,6 +64,40 @@ describe('buildCandidateCategories', () => {
   it('returns an empty array when nothing in the library repeats 4+ times', () => {
     const library = [entry({ id: 1, title: 'A', director: 'D1', genre: 'G1', year: 2000, cast: ['X'] })];
     expect(buildCandidateCategories(library)).toEqual([]);
+  });
+
+  it('never builds a category from a shared production company ("too tricky", dropped per feedback)', () => {
+    const library = buildSolvableLibrary(); // the Nolan group all share studio: 'Warner Bros'
+    const candidates = buildCandidateCategories(library);
+    expect(candidates.some((c) => c.label.includes('Warner Bros'))).toBe(false);
+    expect(candidates.some((c) => c.label.startsWith('From '))).toBe(false);
+  });
+
+  describe('keyword categories', () => {
+    it('builds a category from a keyword shared by 4+ movies', () => {
+      const library = [
+        ...buildSolvableLibrary(),
+        ...Array.from({ length: 4 }, (_, i) => entry({ id: `kw-${i}`, title: `Keyword Film ${i}`, director: `KW Director ${i}`, genre: `KW Genre ${i}`, year: 2005 + i, keywords: ['time travel'] }))
+      ];
+      const candidates = buildCandidateCategories(library);
+      const kwCategory = candidates.find((c) => c.label === 'Keyword: time travel');
+      expect(kwCategory.movies).toHaveLength(4);
+    });
+
+    it('excludes a keyword shared by MORE than 10 movies (too broad, not "special")', () => {
+      const broad = Array.from({ length: 11 }, (_, i) => entry({ id: `broad-${i}`, title: `Broad ${i}`, director: `BD ${i}`, genre: `BG ${i}`, year: 2001 + i, keywords: ['based on a novel'] }));
+      const library = [...buildSolvableLibrary(), ...broad];
+      const candidates = buildCandidateCategories(library);
+      expect(candidates.some((c) => c.label === 'Keyword: based on a novel')).toBe(false);
+    });
+
+    it('includes a keyword shared by exactly 10 movies (the cap is inclusive)', () => {
+      const niche = Array.from({ length: 10 }, (_, i) => entry({ id: `niche-${i}`, title: `Niche ${i}`, director: `ND ${i}`, genre: `NG ${i}`, year: 2001 + i, keywords: ['rare keyword'] }));
+      const library = [...buildSolvableLibrary(), ...niche];
+      const candidates = buildCandidateCategories(library);
+      const kwCategory = candidates.find((c) => c.label === 'Keyword: rare keyword');
+      expect(kwCategory.movies).toHaveLength(10);
+    });
   });
 });
 

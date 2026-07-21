@@ -51,13 +51,7 @@ export default {
           path: '/games/wordle',
           name: 'Reel Wordle',
           icon: 'bi-grid-3x3-gap-fill',
-          description: "One movie from your library, picked fresh each day. Guess it in 6 tries using year/genre/director clues."
-        },
-        {
-          path: '/games/quiz',
-          name: 'Taste Quiz',
-          icon: 'bi-patch-question-fill',
-          description: 'A multiple-choice quiz generated from your own viewing stats. How well do you know your taste?'
+          description: "One movie from your library, picked fresh each day. Guess it using year/genre/director clues — as many tries as you need."
         },
         {
           path: '/games/connections',
