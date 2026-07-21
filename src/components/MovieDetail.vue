@@ -126,6 +126,16 @@
           </div>
         </div>
 
+        <!-- Rating shape -->
+        <div v-if="ratingRadarData" class="rating-radar mb-3">
+          <h4>Rating Shape</h4>
+          <div class="radar-legend" v-if="lastHigherRatedMovie">
+            <span class="legend-item legend-current">{{ movie.title }}</span>
+            <span class="legend-item legend-comparison">{{ lastHigherRatedMovie.movie.title }}</span>
+          </div>
+          <RadarChart :chartData="ratingRadarData" :options="ratingRadarOptions"/>
+        </div>
+
         <!-- Directors -->
         <div class="directors mb-3">
           <h4>
@@ -513,11 +523,21 @@ import { buildTagSuggestions, canCreateNewTag } from '../utils/tags.js';
 import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwardsCategories.js';
 import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
+import { normalizedRadarValues, RADAR_LABELS } from '../assets/javascript/ratingRadar.js';
+import { Chart, registerables } from 'chart.js';
+import { RadarChart } from 'vue-chart-3';
+
+// Idempotent — MovieDetail can be the first (or only) route to load Chart.js
+// in a given session, so it can't assume Insights.vue already registered
+// these. Calling this twice (e.g. if the user later visits Insights too) is
+// harmless; Chart.js just re-registers the same plugins.
+Chart.register(...registerables);
 
 export default {
   name: 'MovieDetail',
   components: {
-    ToggleableRating
+    ToggleableRating,
+    RadarChart
   },
   data () {
     return {
@@ -891,6 +911,54 @@ export default {
 
       // Return the most recent movie (first in the sorted array) that has a higher rating
       return earlierMovies.length > 0 ? earlierMovies[0] : null;
+    },
+    // Radar chart of this movie's own rating dimensions — see ratingRadar.js
+    // for why raw values need normalizing to a common 0-10 scale first
+    // (love and stickiness are on different native scales). When there's a
+    // "Best since" comparison movie, overlays its shape as a second dataset
+    // so the two profiles (not just the single overall number) are visually
+    // comparable, e.g. "both are strong on story, but this one's imagery
+    // carries it while that one leans on performance."
+    ratingRadarData () {
+      if (!this.result) return null;
+      const currentRating = getRating(this.result);
+      if (!currentRating?.calculatedTotal) return null;
+
+      const datasets = [{
+        label: this.movie.title,
+        data: normalizedRadarValues(currentRating),
+        borderColor: '#0dcaf0',
+        backgroundColor: 'rgba(13, 202, 240, 0.25)',
+        pointBackgroundColor: '#0dcaf0'
+      }];
+
+      if (this.lastHigherRatedMovie) {
+        datasets.push({
+          label: this.lastHigherRatedMovie.movie.title,
+          data: normalizedRadarValues(getRating(this.lastHigherRatedMovie)),
+          borderColor: '#ffc107',
+          backgroundColor: 'rgba(255, 193, 7, 0.15)',
+          pointBackgroundColor: '#ffc107'
+        });
+      }
+
+      return { labels: RADAR_LABELS, datasets };
+    },
+    ratingRadarOptions () {
+      return {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          r: {
+            min: 0,
+            max: 10,
+            ticks: { display: false, stepSize: 2 },
+            grid: { color: 'rgba(255, 255, 255, 0.15)' },
+            angleLines: { color: 'rgba(255, 255, 255, 0.15)' },
+            pointLabels: { color: '#ccc', font: { size: 11 } }
+          }
+        }
+      };
     }
   },
   methods: {
@@ -2242,6 +2310,44 @@ export default {
         text-align: right;
         line-height: 1.2;
       }
+    }
+  }
+
+  .rating-radar {
+    max-width: 320px;
+
+    canvas {
+      max-height: 260px;
+    }
+  }
+
+  .radar-legend {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.7rem;
+    margin-bottom: 0.5rem;
+
+    .legend-item {
+      padding-left: 1rem;
+      position: relative;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0.15rem;
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 50%;
+      }
+    }
+
+    .legend-current::before {
+      background: #0dcaf0;
+    }
+
+    .legend-comparison::before {
+      background: #ffc107;
     }
   }
 
