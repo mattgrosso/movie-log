@@ -139,37 +139,20 @@ describe('MovieDetail - awards sections', () => {
     })
   })
 
-  describe('personalAwardSectionName — uses the configured award name', () => {
-    it('defaults to "Oscar" when unset', () => {
+  describe('personalAwardSectionTitle — uses the configured award name', () => {
+    it('defaults to "The Oscar" when unset', () => {
       wrapper = mountWithSettings({ tags: { 'viewing-tags': {} } })
-      expect(wrapper.vm.personalAwardSectionName).toBe('Oscar')
+      expect(wrapper.vm.personalAwardSectionTitle).toBe('The Oscar')
     })
 
-    it('reflects a custom configured name, stripped of a leading "The"', () => {
+    it('reflects a custom configured name, adding "The" if missing', () => {
+      wrapper = mountWithSettings({ tags: { 'viewing-tags': {} }, personalAwardName: 'Groskers' })
+      expect(wrapper.vm.personalAwardSectionTitle).toBe('The Groskers')
+    })
+
+    it('does not double up "The" when already present', () => {
       wrapper = mountWithSettings({ tags: { 'viewing-tags': {} }, personalAwardName: 'The Groskers' })
-      expect(wrapper.vm.personalAwardSectionName).toBe('Groskers')
-    })
-  })
-
-  describe('totalAwardsCount', () => {
-    it('sums wins + nominations across all three award groups', async () => {
-      wrapper = mountWithSettings({
-        tags: { 'viewing-tags': {} },
-        personalAwards: {
-          2023: {
-            categories: {
-              bestPicture: { winner: { type: 'movie', movieId: 42 }, nominees: [{ type: 'movie', movieId: 42 }] }
-            }
-          }
-        }
-      })
-      await wrapper.setData({ result: makeResult(), movie: makeResult().movie, awardsData: [{ id: 1, category: 'Best Original Score', isActing: false, isWinner: true }] })
-
-      const expected = wrapper.vm.personalAwardWins.length + wrapper.vm.personalAwardNominations.length +
-        wrapper.vm.academyAwardWins.length + wrapper.vm.academyAwardNominations.length +
-        wrapper.vm.otherAwardWins.length + wrapper.vm.otherAwardNominations.length
-      expect(wrapper.vm.totalAwardsCount).toBe(expected)
-      expect(wrapper.vm.totalAwardsCount).toBeGreaterThan(0)
+      expect(wrapper.vm.personalAwardSectionTitle).toBe('The Groskers')
     })
   })
 
@@ -203,8 +186,8 @@ describe('MovieDetail - awards sections', () => {
     })
   })
 
-  describe('Awards section — collapsed by default', () => {
-    it('starts collapsed and toggles open on click', async () => {
+  describe('Awards section — always visible, scrolls instead of collapsing', () => {
+    it('renders the awards body immediately (no expand step) and drops the year prefix from personal award entries', async () => {
       wrapper = mountWithSettings({
         tags: { 'viewing-tags': {} },
         personalAwards: {
@@ -213,28 +196,10 @@ describe('MovieDetail - awards sections', () => {
       })
       await wrapper.setData({ result: makeResult(), movie: makeResult().movie })
 
-      expect(wrapper.vm.isAwardsExpanded).toBe(false)
-      expect(wrapper.find('.awards-body').exists()).toBe(false)
-
-      await wrapper.find('.awards .section-toggle').trigger('click')
-
-      expect(wrapper.vm.isAwardsExpanded).toBe(true)
       expect(wrapper.find('.awards-body').exists()).toBe(true)
-    })
-  })
-
-  describe('Rating Shape section — collapsed by default', () => {
-    it('starts collapsed and toggles open on click, only rendering the chart once expanded', async () => {
-      wrapper = mountWithSettings({ tags: { 'viewing-tags': {} } })
-      await wrapper.setData({ result: makeResult(), movie: makeResult().movie })
-
-      expect(wrapper.vm.isRatingShapeExpanded).toBe(false)
-      expect(wrapper.find('.radar-chart-wrapper').exists()).toBe(false)
-
-      await wrapper.find('.rating-radar .section-toggle').trigger('click')
-
-      expect(wrapper.vm.isRatingShapeExpanded).toBe(true)
-      expect(wrapper.find('.radar-chart-wrapper').exists()).toBe(true)
+      const winnerLink = wrapper.find('.awards .personal-awards .winners a')
+      expect(winnerLink.text()).toBe('Best Picture')
+      expect(winnerLink.text()).not.toContain('2023')
     })
   })
 

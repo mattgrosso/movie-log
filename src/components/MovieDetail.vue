@@ -126,28 +126,6 @@
           </div>
         </div>
 
-        <!-- Rating shape -->
-        <div v-if="ratingRadarData" class="rating-radar mb-3">
-          <button
-            type="button"
-            class="section-toggle"
-            :aria-expanded="isRatingShapeExpanded ? 'true' : 'false'"
-            @click="isRatingShapeExpanded = !isRatingShapeExpanded">
-            <i :class="isRatingShapeExpanded ? 'bi bi-chevron-down' : 'bi bi-chevron-right'"></i>
-            <h4 class="mb-0">Rating Shape</h4>
-          </button>
-
-          <template v-if="isRatingShapeExpanded">
-            <div class="radar-legend" v-if="lastHigherRatedMovie">
-              <span class="legend-item legend-current">{{ movie.title }}</span>
-              <span class="legend-item legend-comparison">{{ lastHigherRatedMovie.movie.title }}</span>
-            </div>
-            <div class="radar-chart-wrapper">
-              <RadarChart :chartData="ratingRadarData" :options="ratingRadarOptions"/>
-            </div>
-          </template>
-        </div>
-
         <!-- Directors -->
         <div class="directors mb-3">
           <h4>
@@ -177,30 +155,21 @@
 
         <!-- Awards -->
         <div v-if="academyAwardWins.length || academyAwardNominations.length || personalAwardWins.length || personalAwardNominations.length || otherAwardWins.length || otherAwardNominations.length" class="awards mb-3">
-          <button
-            type="button"
-            class="section-toggle"
-            :aria-expanded="isAwardsExpanded ? 'true' : 'false'"
-            @click="isAwardsExpanded = !isAwardsExpanded">
-            <i :class="isAwardsExpanded ? 'bi bi-chevron-down' : 'bi bi-chevron-right'"></i>
-            <h4 class="mb-0">Awards</h4>
-            <span class="section-toggle-badge">{{ totalAwardsCount }}</span>
-          </button>
-
-          <div v-if="isAwardsExpanded" class="awards-body">
+          <h4>Awards</h4>
+          <div class="awards-body">
             <div v-if="personalAwardWins.length || personalAwardNominations.length" class="award-group personal-awards">
-              <h5>My {{ personalAwardSectionName }}</h5>
+              <h5>{{ personalAwardSectionTitle }}</h5>
               <h6 v-if="personalAwardWins.length">Won</h6>
               <div v-if="personalAwardWins.length" class="winners">
                 <a v-for="award in personalAwardWins" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
-                  {{award.year}} &middot; {{award.category}}
+                  {{award.category}}
                   <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
                 </a>
               </div>
               <h6 v-if="personalAwardNominations.length">Nominated</h6>
               <div v-if="personalAwardNominations.length" class="nominees">
                 <a v-for="award in personalAwardNominations" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
-                  {{award.year}} &middot; {{award.category}}
+                  {{award.category}}
                   <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
                 </a>
               </div>
@@ -545,22 +514,12 @@ import { buildTagSuggestions, canCreateNewTag } from '../utils/tags.js';
 import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwardsCategories.js';
 import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
-import { normalizedRadarValues, RADAR_LABELS } from '../assets/javascript/ratingRadar.js';
-import { awardNameWithoutThe } from '../assets/javascript/personalAwards.js';
-import { Chart, registerables } from 'chart.js';
-import { RadarChart } from 'vue-chart-3';
-
-// Idempotent — MovieDetail can be the first (or only) route to load Chart.js
-// in a given session, so it can't assume Insights.vue already registered
-// these. Calling this twice (e.g. if the user later visits Insights too) is
-// harmless; Chart.js just re-registers the same plugins.
-Chart.register(...registerables);
+import { awardNameWithThe } from '../assets/javascript/personalAwards.js';
 
 export default {
   name: 'MovieDetail',
   components: {
-    ToggleableRating,
-    RadarChart
+    ToggleableRating
   },
   data () {
     return {
@@ -581,9 +540,7 @@ export default {
       keywordInput: '',
       isEditingTags: false,
       tagInputs: {},
-      expandedViewingKeys: {},
-      isAwardsExpanded: false,
-      isRatingShapeExpanded: false
+      expandedViewingKeys: {}
     };
   },
   created () {
@@ -695,15 +652,10 @@ export default {
     },
     // The user's configured personal award name (settings.personalAwardName,
     // default 'Oscar') — same grammar helper Home.vue/PersonalAwardsModal.vue
-    // use, so the "My Awards" heading here says e.g. "My Groskers" instead of
-    // a hardcoded name.
-    personalAwardSectionName () {
-      return awardNameWithoutThe(this.$store.state.settings?.personalAwardName);
-    },
-    totalAwardsCount () {
-      return this.personalAwardWins.length + this.personalAwardNominations.length +
-        this.academyAwardWins.length + this.academyAwardNominations.length +
-        this.otherAwardWins.length + this.otherAwardNominations.length;
+    // use, so this section's heading says e.g. "The Groskers" instead of a
+    // hardcoded name.
+    personalAwardSectionTitle () {
+      return awardNameWithThe(this.$store.state.settings?.personalAwardName);
     },
     sortedFlatKeywords () {
       if (!this.topStructure(this.result)?.flatKeywords) return [];
@@ -949,60 +901,6 @@ export default {
       // Return the most recent movie (first in the sorted array) that has a higher rating
       return earlierMovies.length > 0 ? earlierMovies[0] : null;
     },
-    // Radar chart of this movie's own rating dimensions — see ratingRadar.js
-    // for why raw values need normalizing to a common 0-10 scale first
-    // (love and stickiness are on different native scales). When there's a
-    // "Best since" comparison movie, overlays its shape as a second dataset
-    // so the two profiles (not just the single overall number) are visually
-    // comparable, e.g. "both are strong on story, but this one's imagery
-    // carries it while that one leans on performance."
-    ratingRadarData () {
-      if (!this.result) return null;
-      const currentRating = getRating(this.result);
-      if (!currentRating?.calculatedTotal) return null;
-
-      const datasets = [{
-        label: this.movie.title,
-        data: normalizedRadarValues(currentRating),
-        borderColor: '#0dcaf0',
-        backgroundColor: 'rgba(13, 202, 240, 0.25)',
-        pointBackgroundColor: '#0dcaf0'
-      }];
-
-      if (this.lastHigherRatedMovie) {
-        datasets.push({
-          label: this.lastHigherRatedMovie.movie.title,
-          data: normalizedRadarValues(getRating(this.lastHigherRatedMovie)),
-          borderColor: '#ffc107',
-          backgroundColor: 'rgba(255, 193, 7, 0.15)',
-          pointBackgroundColor: '#ffc107'
-        });
-      }
-
-      return { labels: RADAR_LABELS, datasets };
-    },
-    ratingRadarOptions () {
-      return {
-        responsive: true,
-        // maintainAspectRatio:true (chart.js default) sizes the canvas off
-        // its own aspect ratio math, which could outgrow a narrow mobile
-        // column. false + the fixed-height .radar-chart-wrapper below gives
-        // Chart.js a definite box to fill instead, so it can't overflow
-        // sideways on phones (see the reported "doesn't fit horizontally" bug).
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          r: {
-            min: 0,
-            max: 10,
-            ticks: { display: false, stepSize: 2 },
-            grid: { color: 'rgba(255, 255, 255, 0.15)' },
-            angleLines: { color: 'rgba(255, 255, 255, 0.15)' },
-            pointLabels: { color: '#ccc', font: { size: 11 } }
-          }
-        }
-      };
-    }
   },
   methods: {
     async loadMovieData (tmdbId) {
@@ -2007,6 +1905,13 @@ export default {
   }
 
   .awards {
+    .awards-body {
+      max-height: 150px;
+      overflow-y: auto;
+      padding: 6px;
+      box-shadow: inset 0 0 5px -2px rgb(0 0 0 / 50%);
+    }
+
     .award-group {
       margin-bottom: 0.75rem;
 
@@ -2360,88 +2265,6 @@ export default {
         text-align: right;
         line-height: 1.2;
       }
-    }
-  }
-
-  .rating-radar {
-    max-width: 280px;
-    margin: 0 auto;
-
-    .radar-chart-wrapper {
-      position: relative;
-      width: 100%;
-      height: 220px;
-    }
-  }
-
-  // Shared collapsible-section header (Awards, Rating Shape) — mobile-first
-  // tap target with an :active state instead of relying on hover.
-  .section-toggle {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: transparent;
-    color: #fff;
-    border: 0;
-    padding: 8px 4px;
-    min-height: 44px;
-    text-align: left;
-
-    &:active {
-      background: rgba(255, 255, 255, 0.08);
-    }
-
-    i {
-      font-size: 0.9rem;
-      color: #adb5bd;
-    }
-
-    h4 {
-      margin: 0;
-    }
-  }
-
-  .section-toggle-badge {
-    background: rgba(255, 255, 255, 0.12);
-    color: #ccc;
-    font-size: 0.75rem;
-    padding: 2px 8px;
-    border-radius: 999px;
-    line-height: 1.4;
-  }
-
-  .awards-body {
-    padding-top: 4px;
-  }
-
-  .radar-legend {
-    display: flex;
-    gap: 1rem;
-    font-size: 0.7rem;
-    margin-bottom: 0.5rem;
-
-    .legend-item {
-      padding-left: 1rem;
-      position: relative;
-
-      &::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0.15rem;
-        width: 0.7rem;
-        height: 0.7rem;
-        border-radius: 50%;
-      }
-    }
-
-    .legend-current::before {
-      background: #0dcaf0;
-    }
-
-    .legend-comparison::before {
-      background: #ffc107;
     }
   }
 
