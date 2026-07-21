@@ -1,0 +1,303 @@
+<template>
+  <div class="six-degrees-game">
+    <BackLink label="Games" @click="$router.push('/games')"/>
+    <h1 class="game-title">Six Degrees</h1>
+
+    <div v-if="!pair" class="not-enough-movies">
+      <p>Couldn't find a well-connected pair of movies in your library yet — rate a few more (especially ones sharing cast members) and try again.</p>
+    </div>
+
+    <template v-else>
+      <p class="game-subtitle">Connect these two through shared cast members. {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }} so far.</p>
+
+      <div class="endpoints">
+        <div class="endpoint">
+          <img v-if="gamePosterUrl(pair.source)" :src="gamePosterUrl(pair.source)" :alt="pair.source.movie.title">
+          <span>{{ pair.source.movie.title }}</span>
+        </div>
+        <i class="bi bi-arrow-right endpoints-arrow"></i>
+        <div class="endpoint">
+          <img v-if="gamePosterUrl(pair.target)" :src="gamePosterUrl(pair.target)" :alt="pair.target.movie.title">
+          <span>{{ pair.target.movie.title }}</span>
+        </div>
+      </div>
+
+      <div class="chain">
+        <template v-for="(link, index) in chain" :key="index">
+          <span v-if="link.type === 'movie'" class="chain-link chain-movie">{{ link.entry.movie.title }}</span>
+          <span v-else class="chain-link chain-person">{{ link.name }}</span>
+          <i v-if="index < chain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
+        </template>
+      </div>
+
+      <div v-if="status === 'playing'" class="guess-form">
+        <input
+          v-model="guessInput"
+          type="text"
+          class="form-control"
+          :placeholder="needType === 'person' ? 'Who was in that movie?' : 'What else were they in?'"
+          @input="onInput"
+        >
+        <ul v-if="suggestions.length" class="suggestions">
+          <li v-for="suggestion in suggestions" :key="suggestion.key || suggestion.name">
+            <button type="button" class="suggestion-item" @click="pick(suggestion)">
+              {{ suggestion.label }}
+            </button>
+          </li>
+        </ul>
+        <button type="button" class="btn btn-outline-light btn-sm mt-2" @click="revealPath">Reveal shortest path</button>
+      </div>
+
+      <div v-else class="result-banner" :class="status">
+        <p v-if="status === 'won'">
+          Connected in {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }}
+          <span v-if="pair.optimalHops != null"> (shortest possible: {{ pair.optimalHops }})</span>.
+        </p>
+        <p v-else>Here's the shortest path:</p>
+        <div v-if="status === 'revealed'" class="chain revealed-chain">
+          <template v-for="(link, index) in revealedChain" :key="index">
+            <span v-if="link.type === 'movie'" class="chain-link chain-movie">{{ link.entry.movie.title }}</span>
+            <span v-else class="chain-link chain-person">{{ link.name }}</span>
+            <i v-if="index < revealedChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
+          </template>
+        </div>
+        <button type="button" class="btn btn-warning btn-sm mt-2" @click="start">New Pair</button>
+      </div>
+    </template>
+  </div>
+</template>
+
+<script>
+import BackLink from './BackLink.vue';
+import gameDataMixin from '../../mixins/gameData.js';
+import { buildCastGraph, pickConnectedPair } from '../../assets/javascript/games/sixDegrees.js';
+import { entryKey } from '../../assets/javascript/games/gameUtils.js';
+
+export default {
+  name: 'SixDegreesGame',
+  components: { BackLink },
+  mixins: [gameDataMixin],
+  data () {
+    return {
+      graph: null,
+      pair: null,
+      chain: [],
+      guessInput: '',
+      suggestions: [],
+      revealedChain: null
+    };
+  },
+  computed: {
+    needType () {
+      const last = this.chain[this.chain.length - 1];
+      return last?.type === 'movie' ? 'person' : 'movie';
+    },
+    hopsSoFar () {
+      return Math.floor((this.chain.length - 1) / 2);
+    },
+    usedPersonNames () {
+      return new Set(this.chain.filter((link) => link.type === 'person').map((link) => link.name));
+    },
+    usedMovieKeys () {
+      return new Set(this.chain.filter((link) => link.type === 'movie').map((link) => entryKey(link.entry)));
+    },
+    status () {
+      if (this.revealedChain) return 'revealed';
+      const last = this.chain[this.chain.length - 1];
+      if (last?.type === 'movie' && this.pair && entryKey(last.entry) === entryKey(this.pair.target)) return 'won';
+      return 'playing';
+    }
+  },
+  created () {
+    this.start();
+  },
+  methods: {
+    start () {
+      this.graph = buildCastGraph(this.eligibleGameEntries);
+      this.pair = pickConnectedPair(this.eligibleGameEntries, this.graph, Math.random);
+      this.chain = this.pair ? [{ type: 'movie', entry: this.pair.source }] : [];
+      this.guessInput = '';
+      this.suggestions = [];
+      this.revealedChain = null;
+    },
+    onInput () {
+      const term = this.guessInput.trim().toLowerCase();
+      if (term.length < 2) {
+        this.suggestions = [];
+        return;
+      }
+
+      if (this.needType === 'person') {
+        const lastMovie = this.chain[this.chain.length - 1].entry;
+        const cast = (this.graph.peopleByMovie.get(entryKey(lastMovie)) || new Set());
+        this.suggestions = [...cast]
+          .filter((name) => !this.usedPersonNames.has(name) && name.toLowerCase().includes(term))
+          .slice(0, 8)
+          .map((name) => ({ name, label: name }));
+      } else {
+        const lastPerson = this.chain[this.chain.length - 1].name;
+        const movieKeys = [...(this.graph.moviesByPerson.get(lastPerson) || new Set())];
+        this.suggestions = movieKeys
+          .filter((key) => !this.usedMovieKeys.has(key))
+          .map((key) => this.eligibleGameEntries.find((entry) => entryKey(entry) === key))
+          .filter(Boolean)
+          .filter((entry) => entry.movie.title.toLowerCase().includes(term))
+          .slice(0, 8)
+          .map((entry) => ({ key: entryKey(entry), entry, label: entry.movie.title }));
+      }
+    },
+    pick (suggestion) {
+      if (this.needType === 'person') {
+        this.chain = [...this.chain, { type: 'person', name: suggestion.name }];
+      } else {
+        this.chain = [...this.chain, { type: 'movie', entry: suggestion.entry }];
+      }
+      this.guessInput = '';
+      this.suggestions = [];
+    },
+    revealPath () {
+      if (!this.pair?.optimalPath) return;
+      const path = this.pair.optimalPath;
+      const links = [];
+      for (let i = 0; i < path.length; i++) {
+        if (i % 2 === 0) {
+          const entry = this.eligibleGameEntries.find((e) => entryKey(e) === path[i]);
+          links.push({ type: 'movie', entry });
+        } else {
+          links.push({ type: 'person', name: path[i] });
+        }
+      }
+      this.revealedChain = links;
+    }
+  }
+};
+</script>
+
+<style scoped>
+.six-degrees-game {
+  color: #eee;
+  min-height: 100vh;
+  padding: 0 1rem 2rem;
+}
+
+.game-title {
+  margin: 0.5rem 0 0.25rem;
+}
+
+.game-subtitle {
+  color: #adb5bd;
+  margin-bottom: 1rem;
+}
+
+.not-enough-movies {
+  color: #adb5bd;
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.endpoints {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.endpoint {
+  text-align: center;
+  width: 100px;
+}
+
+.endpoint img {
+  border-radius: 0.35rem;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+}
+
+.endpoint span {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
+
+.endpoints-arrow {
+  color: #666;
+}
+
+.chain {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.chain-link {
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.7rem;
+}
+
+.chain-movie {
+  background: rgba(13, 202, 240, 0.2);
+  border: 1px solid #0dcaf0;
+}
+
+.chain-person {
+  background: rgba(255, 193, 7, 0.15);
+  border: 1px solid #ffc107;
+}
+
+.chain-arrow {
+  color: #666;
+  font-size: 0.7rem;
+}
+
+.guess-form {
+  position: relative;
+}
+
+.suggestions {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 0.35rem;
+  list-style: none;
+  margin: 0.25rem 0 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 5;
+}
+
+.suggestion-item {
+  background: transparent;
+  border: none;
+  color: #eee;
+  display: block;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  width: 100%;
+}
+
+.suggestion-item:active {
+  background: #333;
+}
+
+.result-banner {
+  border-radius: 0.5rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.result-banner.won {
+  background: rgba(76, 175, 80, 0.15);
+}
+
+.revealed-chain {
+  margin-top: 0.5rem;
+}
+</style>

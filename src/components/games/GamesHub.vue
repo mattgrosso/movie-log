@@ -58,6 +58,18 @@ export default {
           name: 'Taste Quiz',
           icon: 'bi-patch-question-fill',
           description: 'A multiple-choice quiz generated from your own viewing stats. How well do you know your taste?'
+        },
+        {
+          path: '/games/connections',
+          name: 'Connections',
+          icon: 'bi-grid-fill',
+          description: 'Find four groups of four — movies linked by shared director, genre, decade, cast, or studio.'
+        },
+        {
+          path: '/games/six-degrees',
+          name: 'Six Degrees',
+          icon: 'bi-diagram-3-fill',
+          description: 'Two movies, one shared-cast chain between them. Build the connection yourself, hop by hop.'
         }
       ]
     };
