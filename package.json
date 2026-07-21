@@ -12,7 +12,9 @@
     "test:run": "vitest run",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
-    "deploy": "yarn build && aws s3 sync dist/ s3://cinemaroll --profile personal-deploy && aws cloudfront create-invalidation --distribution-id ETF4I2E64GQSC --paths '/*' --profile personal-deploy > invalidation_output.txt"
+    "deploy": "yarn build && aws s3 sync dist/ s3://cinemaroll --profile personal-deploy && aws cloudfront create-invalidation --distribution-id ETF4I2E64GQSC --paths '/*' --profile personal-deploy > invalidation_output.txt",
+    "fetch-bug-reports": "node --env-file=.env.local scripts/fetch-bug-reports.mjs",
+    "resolve-bug-report": "node --env-file=.env.local scripts/resolve-bug-report.mjs"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.15",
@@ -59,6 +61,7 @@
     "eslint": "^9",
     "eslint-plugin-promise": "^7",
     "eslint-plugin-vue": "^9",
+    "firebase-admin": "^12.7.0",
     "globals": "^15",
     "jsdom": "^26.1.0",
     "nodemon": "^3.1.9",

@@ -5,18 +5,21 @@
     <AppHeader/>
     <router-view></router-view>
     <AppFooter v-if="$store.state.dbLoaded"/>
+    <BugReportButton/>
   </div>
 </template>
 
 <script>
 import AppFooter from "./components/Footer.vue";
 import AppHeader from "./components/Header.vue";
+import BugReportButton from "./components/BugReportButton.vue";
 
 export default {
   name: "Cinema-Roll",
   components: {
     AppFooter,
-    AppHeader
+    AppHeader,
+    BugReportButton
   },
   methods: {
     scrollToTop () {

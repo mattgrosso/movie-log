@@ -1,0 +1,83 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount } from '@vue/test-utils';
+import BugReportButton from '@/components/BugReportButton.vue';
+import { submitBugReport } from '@/utils/bugReports';
+
+vi.mock('@/utils/bugReports', () => ({
+  submitBugReport: vi.fn(),
+}));
+
+function factory () {
+  return mount(BugReportButton, {
+    global: {
+      mocks: {
+        $store: { state: {} },
+        $route: { fullPath: '/' },
+      },
+    },
+  });
+}
+
+describe('BugReportButton', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows the trigger and opens the panel on click', async () => {
+    const wrapper = factory();
+    expect(wrapper.find('.bug-report-panel').exists()).toBe(false);
+
+    await wrapper.find('.bug-report-trigger').trigger('click');
+
+    expect(wrapper.find('.bug-report-panel').exists()).toBe(true);
+    expect(wrapper.find('.bug-report-trigger').exists()).toBe(false);
+  });
+
+  it('disables the send button until there is transcript text', async () => {
+    const wrapper = factory();
+    await wrapper.find('.bug-report-trigger').trigger('click');
+
+    const sendButton = wrapper.find('.bug-report-panel__actions .btn-warning');
+    expect(sendButton.attributes('disabled')).toBeDefined();
+
+    await wrapper.find('textarea').setValue('Nothing loads on the year filter');
+    expect(wrapper.find('.bug-report-panel__actions .btn-warning').attributes('disabled')).toBeUndefined();
+  });
+
+  it('sends the transcript and shows a confirmation', async () => {
+    submitBugReport.mockResolvedValue();
+    const wrapper = factory();
+    await wrapper.find('.bug-report-trigger').trigger('click');
+    await wrapper.find('textarea').setValue('Nothing loads on the year filter');
+    await wrapper.find('.bug-report-panel__actions .btn-warning').trigger('click');
+    await wrapper.vm.$nextTick();
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(submitBugReport).toHaveBeenCalledWith(wrapper.vm.$store, 'Nothing loads on the year filter', wrapper.vm.$route);
+    expect(wrapper.find('.bug-report-panel__sent').exists()).toBe(true);
+  });
+
+  it('shows an error message when the submission fails', async () => {
+    submitBugReport.mockRejectedValue(new Error('Network down'));
+    const wrapper = factory();
+    await wrapper.find('.bug-report-trigger').trigger('click');
+    await wrapper.find('textarea').setValue('Something broke');
+    await wrapper.find('.bug-report-panel__actions .btn-warning').trigger('click');
+    await wrapper.vm.$nextTick();
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.bug-report-panel__error').text()).toBe('Network down');
+  });
+
+  it('closes and clears the transcript on cancel', async () => {
+    const wrapper = factory();
+    await wrapper.find('.bug-report-trigger').trigger('click');
+    await wrapper.find('textarea').setValue('Some notes');
+    await wrapper.find('.bug-report-panel__actions .btn-outline-light').trigger('click');
+
+    expect(wrapper.find('.bug-report-panel').exists()).toBe(false);
+    expect(wrapper.vm.transcript).toBe('');
+  });
+});

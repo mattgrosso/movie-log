@@ -154,20 +154,53 @@
         </div>
 
         <!-- Awards -->
-        <div class="awards mb-3">
-          <div class="academy-awards">
-            <h4 v-if="academyAwardWins.length">Academy Award Wins</h4>
+        <div v-if="academyAwardWins.length || academyAwardNominations.length || personalAwardWins.length || personalAwardNominations.length || otherAwardWins.length || otherAwardNominations.length" class="awards mb-3">
+          <h4>Awards</h4>
+
+          <div v-if="personalAwardWins.length || personalAwardNominations.length" class="award-group personal-awards">
+            <h5>My Awards</h5>
+            <div v-if="personalAwardWins.length" class="winners">
+              <a v-for="award in personalAwardWins" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
+                {{award.year}} &middot; {{award.category}}
+                <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
+              </a>
+            </div>
+            <div v-if="personalAwardNominations.length" class="nominees">
+              <a v-for="award in personalAwardNominations" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
+                {{award.year}} &middot; {{award.category}}
+                <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
+              </a>
+            </div>
+          </div>
+
+          <div v-if="academyAwardWins.length || academyAwardNominations.length" class="award-group academy-awards">
+            <h5>Academy Awards</h5>
             <div v-if="academyAwardWins.length" class="winners">
               <a v-for="award in academyAwardWins" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
                 {{award.category}}
                 <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
               </a>
             </div>
-            <h4 v-if="academyAwardNominations.length">Academy Award Nominations</h4>
             <div v-if="academyAwardNominations.length" class="nominees">
               <a v-for="award in academyAwardNominations" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
                 {{award.category}}
                 <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
+              </a>
+            </div>
+          </div>
+
+          <div v-if="otherAwardWins.length || otherAwardNominations.length" class="award-group other-awards">
+            <h5>Other Ceremonies</h5>
+            <div v-if="otherAwardWins.length" class="winners">
+              <a v-for="award in otherAwardWins" :key="award.id" class="link col-12" @click="goToWikipedia(award.wikipediaQuery)">
+                {{award.ceremony}} &middot; {{award.category}}
+                <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
+              </a>
+            </div>
+            <div v-if="otherAwardNominations.length" class="nominees">
+              <a v-for="award in otherAwardNominations" :key="award.id" class="link col-12" @click="goToWikipedia(award.wikipediaQuery)">
+                {{award.ceremony}} &middot; {{award.category}}
+                <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
               </a>
             </div>
           </div>
@@ -471,6 +504,8 @@ import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 import uniq from 'lodash/uniq';
 import { computeFlatKeywords } from '../utils/keywords.js';
 import { buildTagSuggestions, canCreateNewTag } from '../utils/tags.js';
+import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwardsCategories.js';
+import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 
 export default {
   name: 'MovieDetail',
@@ -619,6 +654,70 @@ export default {
           if (indexB === -1) return -1;
           return indexA - indexB;
         });
+    },
+    // My personal awards (PersonalAwardsModal.vue) — settings.personalAwards is
+    // keyed by year, each year holding { categories: { <key>: { nominees, winner } } }.
+    // Nominees/winner are "minimal" objects (convertNomineeToMinimal) carrying
+    // movieId (a TMDB id, matching this.movie.id) plus a person's `name` when the
+    // category is person-shaped (director/acting). Scans every year rather than
+    // just the movie's release year because a personal award year can honor films
+    // from more than one calendar year (see getMoviesForYear's own eligibility logic).
+    personalAwardsByResult () {
+      const empty = { wins: [], nominations: [] };
+      if (!this.movie) return empty;
+
+      const personalAwards = this.$store.state.settings?.personalAwards || {};
+      const wins = [];
+      const nominations = [];
+
+      Object.keys(personalAwards)
+        .sort((a, b) => Number(b) - Number(a))
+        .forEach((year) => {
+          const categories = personalAwards[year]?.categories || {};
+          Object.keys(categories).forEach((categoryKey) => {
+            const categoryData = categories[categoryKey];
+            if (!categoryData) return;
+
+            const categoryName = PERSONAL_AWARD_CATEGORY_NAMES[categoryKey] || categoryKey;
+            const matchingNominees = (categoryData.nominees || []).filter((nominee) => nominee && nominee.movieId === this.movie.id);
+            const winnerMatches = Boolean(categoryData.winner && categoryData.winner.movieId === this.movie.id);
+            const names = matchingNominees.map((nominee) => nominee.name).filter(Boolean);
+
+            const entry = {
+              id: `${year}-${categoryKey}`,
+              year,
+              category: categoryName,
+              names: names.length ? names : null
+            };
+
+            if (winnerMatches) {
+              wins.push(entry);
+            } else if (matchingNominees.length) {
+              nominations.push(entry);
+            }
+          });
+        });
+
+      return { wins, nominations };
+    },
+    personalAwardWins () {
+      return this.personalAwardsByResult.wins;
+    },
+    personalAwardNominations () {
+      return this.personalAwardsByResult.nominations;
+    },
+    // "Other" (non-Oscar) major ceremonies — see assets/javascript/otherAwards.js.
+    // Statically bundled data (title + release year, no TMDB id available from the
+    // source), matched against this movie by normalized title + year.
+    otherAwardsForMovie () {
+      if (!this.movie) return { wins: [], nominations: [] };
+      return findOtherAwardsForMovie(this.movie);
+    },
+    otherAwardWins () {
+      return this.otherAwardsForMovie.wins;
+    },
+    otherAwardNominations () {
+      return this.otherAwardsForMovie.nominations;
     },
     sortedFlatKeywords () {
       if (!this.topStructure(this.result)?.flatKeywords) return [];
@@ -1056,6 +1155,16 @@ export default {
         console.error('Failed to get awards data:', error);
         ErrorLogService.error('Failed to get awards data:', error);
       }
+    },
+
+    // Same pattern as Insights.resumeAwards — jump straight into that year's
+    // PersonalAwardsModal (bypassing the once-a-day gate) so tapping a personal
+    // award on a movie's page doubles as a shortcut back into editing it.
+    async openPersonalAwardsYear (year) {
+      await this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYear', value: Number(year) });
+      await this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYearDate', value: new Date().toDateString() });
+      await this.$store.dispatch('setDBValue', { path: 'settings/awardsPromptState', value: 'forced' });
+      this.$router.push({ name: 'Home' });
     },
 
     parseNamesToList (names) {
@@ -1842,6 +1951,18 @@ export default {
   }
 
   .awards {
+    .award-group {
+      margin-bottom: 0.75rem;
+
+      h5 {
+        color: #adb5bd;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        margin-bottom: 0.25rem;
+      }
+    }
+
     .winners,
     .nominees {
       margin-bottom: 1rem;
