@@ -219,6 +219,24 @@ describe('Grouped result hierarchy ordering', () => {
     })
   })
 
+  describe('opening the panel from a group header (replaces the removed dedicated button)', () => {
+    it('opens the panel and scrolls it into view when a group header is clicked', async () => {
+      const scrollIntoViewSpy = vi.fn()
+      // jsdom doesn't implement scrollIntoView.
+      window.HTMLElement.prototype.scrollIntoView = scrollIntoViewSpy
+
+      expect(wrapper.vm.showGroupOrderPanel).toBe(false)
+      expect(wrapper.find('.group-order-panel').exists()).toBe(false)
+
+      await wrapper.find('.group-header').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.showGroupOrderPanel).toBe(true)
+      expect(wrapper.find('.group-order-panel').exists()).toBe(true)
+      expect(scrollIntoViewSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+    })
+  })
+
   describe('day-based expiry', () => {
     it('uses an override saved today', () => {
       const order = ['keyword-genre', 'title']

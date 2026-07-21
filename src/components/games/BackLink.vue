@@ -8,12 +8,26 @@
 </template>
 
 <script>
+// Every game screen (and the games hub) uses this as its sole top-of-page
+// affordance, matching the "Home"/"Games" caret pattern MovieDetail/RateMovie/
+// Insights use elsewhere (see CLAUDE.md's "Unified Home/Back Affordance").
+// Those pages hide the global Header themselves; centralizing that toggle
+// here means every BackLink usage gets it automatically instead of each of
+// the 7 game components needing its own created()/beforeUnmount() pair —
+// previously none of them hid the header, so the global "Cinema Roll" bar
+// rendered above this link instead of it standing alone at the top.
 export default {
   name: 'BackLink',
   props: {
     label: { type: String, default: 'Home' }
   },
-  emits: ['click']
+  emits: ['click'],
+  created () {
+    this.$store.commit('setShowHeader', false);
+  },
+  beforeUnmount () {
+    this.$store.commit('setShowHeader', true);
+  }
 };
 </script>
 

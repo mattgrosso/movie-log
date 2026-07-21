@@ -32,7 +32,7 @@ function factory (mediaEntries) {
   return mount(SixDegreesGame, {
     global: {
       mocks: {
-        $store: { getters: { allMediaAsArray: mediaEntries } },
+        $store: { getters: { allMediaAsArray: mediaEntries }, commit: vi.fn() },
         $router: { push: vi.fn() }
       }
     }

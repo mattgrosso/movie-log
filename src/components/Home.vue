@@ -83,14 +83,8 @@
               <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel" title="Settings" aria-label="Open settings">
                 <i class="bi bi-gear"></i>
               </button>
-              <button
-                class="results-actions-button btn btn-warning"
-                :class="{ active: showGroupOrderPanel }"
-                @click="groupedByAllCategories && toggleGroupOrderPanel()"
-                :title="groupedByAllCategories ? 'Reorder result groups' : 'No groups to reorder'"
-                :aria-label="groupedByAllCategories ? 'Reorder result groups' : 'No groups to reorder'"
-              >
-                <i class="bi" :class="groupedByAllCategories ? 'bi-collection' : 'bi-app'"/>
+              <button class="results-actions-button btn btn-info" type="button" @click="goToGames" title="Games" aria-label="Go to games">
+                <i class="bi bi-controller"/>
               </button>
               <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage" title="Toggle count / average / views" aria-label="Toggle between result count, average rating, and view count">
                 <span v-if="showAverage">
@@ -106,9 +100,6 @@
               </button>
               <button class="results-actions-button btn btn-info" type="button" @click="goToInsights" title="Insights" aria-label="Go to insights">
                 <i class="bi bi-lightbulb"/>
-              </button>
-              <button class="results-actions-button btn btn-info" type="button" @click="goToGames" title="Games" aria-label="Go to games">
-                <i class="bi bi-controller"/>
               </button>
               <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion" title="Quick filters" aria-label="Toggle quick filters">
                 <i class="bi bi-lightning-charge"/>
@@ -566,7 +557,7 @@
           </div>
           <!-- Results list follows the settings panel -->
           <!-- Group order panel: reorder the grouped result hierarchy for the day -->
-          <div v-if="showGroupOrderPanel && groupedByAllCategories" class="group-order-panel card card-body mb-3">
+          <div v-if="showGroupOrderPanel && groupedByAllCategories" ref="groupOrderPanel" class="group-order-panel card card-body mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h6 class="mb-0 text-light">Group order</h6>
               <button class="btn btn-sm btn-outline-light" @click="toggleGroupOrderPanel">Done</button>
@@ -602,7 +593,16 @@
           <!-- Multi-category grouped results -->
           <div v-if="groupedByAllCategories" class="pb-3">
             <div v-for="group in groupedByAllCategories" :key="group.category" class="my-4 role-section">
-              <h6 class="bg-dark text-white text-end mb-2">{{ group.categoryDisplay }}</h6>
+              <h6
+                class="bg-dark text-white text-end mb-2 group-header"
+                role="button"
+                title="Reorder result groups"
+                aria-label="Reorder result groups"
+                @click="openGroupOrderPanel"
+              >
+                {{ group.categoryDisplay }}
+                <i class="bi bi-arrow-down-up group-header-icon"></i>
+              </h6>
               <ul class="grid-layout" :class="getGridClassesForGroup(group.movies.length)">
                 <DBGridLayoutSearchResult
                   v-for="(result, index) in group.movies"
@@ -2575,6 +2575,17 @@ export default {
     },
     toggleGroupOrderPanel () {
       this.showGroupOrderPanel = !this.showGroupOrderPanel;
+    },
+    // Entry point for reordering groups is now each group's own header
+    // (the dedicated button was removed to make room for the Games button
+    // in the results-actions bar) — always opens (rather than toggling) and
+    // scrolls the panel into view, since the tapped header is very likely
+    // scrolled well below it.
+    openGroupOrderPanel () {
+      this.showGroupOrderPanel = true;
+      this.$nextTick(() => {
+        this.$refs.groupOrderPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     },
     moveGroupUp (categoryKey) {
       this.swapGroupWithNeighbor(categoryKey, -1);
@@ -4683,6 +4694,20 @@ export default {
     top: -2px;
     transform: translateY(-50%);
     white-space: nowrap;
+  }
+
+  .group-header {
+    cursor: pointer;
+
+    &:active {
+      opacity: 0.7;
+    }
+
+    .group-header-icon {
+      font-size: 0.7rem;
+      margin-left: 4px;
+      opacity: 0.6;
+    }
   }
 }
 
