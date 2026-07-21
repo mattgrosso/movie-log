@@ -25,7 +25,7 @@
               :alt="topStructure(entry.movie).title"
             >
             <span class="text-light result-title">{{ topStructure(entry.movie).title }}</span>
-            <span class="text-muted small ms-auto">{{ entry.wins }} win{{ entry.wins === 1 ? '' : 's' }}</span>
+            <span class="result-wins small ms-auto">{{ entry.wins }} win{{ entry.wins === 1 ? '' : 's' }}</span>
           </li>
         </ol>
         <div class="text-center">
@@ -394,6 +394,13 @@ export default {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    // Bootstrap's .text-muted (~#6c757d) fails contrast against this card's
+    // #4a4a4a background — matches .result-rank's lighter grey instead.
+    .result-wins {
+      color: #ccc;
+      flex-shrink: 0;
     }
   }
 
