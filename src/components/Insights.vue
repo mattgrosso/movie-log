@@ -151,6 +151,10 @@
             <span v-else>Reset daily limit</span>
           </button>
         </div>
+        <button class="btn btn-outline-light btn-sm w-100 mt-2" @click="goToTrophyCase">
+          <i class="bi bi-trophy me-1"></i>
+          Trophy Case
+        </button>
       </div>
       <div v-if="selectedAwardsData" class="awards-results">
 
@@ -363,6 +367,7 @@ import FavoriteCinematographers from "./FavoriteCinematographers.vue";
 import FavoriteComposers from "./FavoriteComposers.vue";
 import FavoriteProducers from "./FavoriteProducers.vue";
 import { getRating } from "../assets/javascript/GetRating.js";
+import { expandNomineeFromMinimal as expandNomineeFromMinimalShared } from "../assets/javascript/personalAwards.js";
 
 import { Chart, registerables } from "chart.js";
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
@@ -1216,61 +1221,7 @@ export default {
   },
   methods: {
     expandNomineeFromMinimal (minimalNominee) {
-      // Convert minimal storage back to full nominee for display
-      if (!minimalNominee) return null;
-
-      // Handle legacy data - if it already has a movie object, it's not minimal
-      if (minimalNominee.movie) {
-        return minimalNominee; // Already expanded/legacy format
-      }
-
-      if (minimalNominee.type === 'person') {
-        // Find the movie from our movie log
-        const movieEntry = this.filteredEntriesWithFlatKeywordsAdded.find(entry =>
-          entry.movie.id === minimalNominee.movieId
-        );
-
-        if (!movieEntry) {
-          console.warn('⚠️ Could not find movie for person nominee:', minimalNominee);
-          return null;
-        }
-
-        // Reconstruct person nominee
-        const expanded = {
-          id: minimalNominee.id,
-          name: minimalNominee.name,
-          movieId: minimalNominee.movieId,
-          movie: movieEntry.movie // Add back the movie object for display
-        };
-
-        // Restore role-specific data
-        if (minimalNominee.character) {
-          expanded.character = minimalNominee.character;
-        }
-        if (minimalNominee.directors) {
-          expanded.directors = minimalNominee.directors;
-        }
-        if (minimalNominee.profilePath) {
-          expanded.details = { profile_path: minimalNominee.profilePath };
-        }
-
-        return expanded;
-      } else if (minimalNominee.type === 'movie') {
-        // Find the full movie entry
-        const movieEntry = this.filteredEntriesWithFlatKeywordsAdded.find(entry =>
-          entry.movie.id === minimalNominee.movieId
-        );
-
-        if (!movieEntry) {
-          console.warn('⚠️ Could not find movie entry:', minimalNominee);
-          return null;
-        }
-
-        return movieEntry; // Return the full entry for movie nominees
-      }
-
-      // Fallback for unknown types or legacy data
-      return minimalNominee;
+      return expandNomineeFromMinimalShared(minimalNominee, this.filteredEntriesWithFlatKeywordsAdded);
     },
     shouldShowCategory (categoryKey) {
       // Hide categories that have no nominees (marked as noNominees)
@@ -1294,6 +1245,9 @@ export default {
     },
     goToYearInReview () {
       this.$router.push('/year-in-review');
+    },
+    goToTrophyCase () {
+      this.$router.push('/trophy-case');
     },
     randomizeAxes () {
       const availableOptions = this.axisOptions.map(opt => opt.key);

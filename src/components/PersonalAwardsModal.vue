@@ -346,6 +346,7 @@ import { getRating } from '../assets/javascript/GetRating.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { pickEligibleAwardsYear } from '../utils/awards.js';
 import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
+import { expandNomineeFromMinimal as expandNomineeFromMinimalShared } from '../assets/javascript/personalAwards.js';
 
 export default {
   name: "PersonalAwardsModal",
@@ -1985,61 +1986,7 @@ export default {
       return nominee;
     },
     expandNomineeFromMinimal (minimalNominee) {
-      // Convert minimal storage back to full nominee for display
-      if (!minimalNominee) return null;
-
-      // Handle legacy data - if it already has a movie object, it's not minimal
-      if (minimalNominee.movie) {
-        return minimalNominee; // Already expanded/legacy format
-      }
-
-      if (minimalNominee.type === 'person') {
-        // Find the movie from our movie log
-        const movieEntry = this.allEntriesWithFlatKeywordsAdded.find(entry =>
-          entry.movie.id === minimalNominee.movieId
-        );
-
-        if (!movieEntry) {
-          console.warn('⚠️ Could not find movie for person nominee:', minimalNominee);
-          return null;
-        }
-
-        // Reconstruct person nominee
-        const expanded = {
-          id: minimalNominee.id,
-          name: minimalNominee.name,
-          movieId: minimalNominee.movieId,
-          movie: movieEntry.movie // Add back the movie object for display
-        };
-
-        // Restore role-specific data
-        if (minimalNominee.character) {
-          expanded.character = minimalNominee.character;
-        }
-        if (minimalNominee.directors) {
-          expanded.directors = minimalNominee.directors;
-        }
-        if (minimalNominee.profilePath) {
-          expanded.details = { profile_path: minimalNominee.profilePath };
-        }
-
-        return expanded;
-      } else if (minimalNominee.type === 'movie') {
-        // Find the full movie entry
-        const movieEntry = this.allEntriesWithFlatKeywordsAdded.find(entry =>
-          entry.movie.id === minimalNominee.movieId
-        );
-
-        if (!movieEntry) {
-          console.warn('⚠️ Could not find movie entry:', minimalNominee);
-          return null;
-        }
-
-        return movieEntry; // Return the full entry for movie nominees
-      }
-
-      // Fallback for unknown types or legacy data
-      return minimalNominee;
+      return expandNomineeFromMinimalShared(minimalNominee, this.allEntriesWithFlatKeywordsAdded);
     },
     isActingCategory (categoryKey) {
       return categoryKey && (categoryKey.includes('Actor') || categoryKey.includes('Actress'));
