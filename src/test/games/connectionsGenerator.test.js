@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCandidateCategories, generateConnectionsPuzzle } from '@/assets/javascript/games/connectionsGenerator.js';
+import { buildCandidateCategories, generateConnectionsPuzzle, CATEGORY_KIND_LABELS } from '@/assets/javascript/games/connectionsGenerator.js';
 import { makeSeededRng } from '@/assets/javascript/games/gameUtils.js';
 
 function entry ({ id, title, director, genre, year, cast = [], studio, keywords = [] }) {
@@ -135,5 +135,38 @@ describe('generateConnectionsPuzzle', () => {
   it('returns null when the library cannot support 4 non-overlapping categories', () => {
     const tiny = buildSolvableLibrary().slice(0, 3); // not even one full category
     expect(generateConnectionsPuzzle(tiny, makeSeededRng(1))).toBeNull();
+  });
+
+  it('tags every category with a difficulty tier/name/color', () => {
+    const library = buildSolvableLibrary();
+    const puzzle = generateConnectionsPuzzle(library, makeSeededRng(3));
+    puzzle.categories.forEach((category) => {
+      expect(category.difficulty).toBeTruthy();
+      expect(category.difficulty.tier).toBeGreaterThanOrEqual(1);
+      expect(category.difficulty.tier).toBeLessThanOrEqual(4);
+      expect(category.difficulty.name).toBeTruthy();
+      expect(category.difficulty.color).toBeTruthy();
+    });
+  });
+
+  it('spans more than one difficulty tier when the library offers a choice of tiers (not "everything is purple")', () => {
+    // buildSolvableLibrary's 4 movie-groups each offer candidates across
+    // multiple tiers (decade/genre/director/cast), so a puzzle should be
+    // able to spread across tiers rather than settling on just one.
+    const library = buildSolvableLibrary();
+    const puzzle = generateConnectionsPuzzle(library, makeSeededRng(11));
+    const tiers = new Set(puzzle.categories.map((c) => c.difficulty.tier));
+    expect(tiers.size).toBeGreaterThan(1);
+  });
+});
+
+describe('CATEGORY_KIND_LABELS', () => {
+  it('lists every candidate kind with a label and difficulty', () => {
+    expect(CATEGORY_KIND_LABELS).toHaveLength(5);
+    CATEGORY_KIND_LABELS.forEach((entry) => {
+      expect(entry.label).toBeTruthy();
+      expect(entry.tier).toBeGreaterThanOrEqual(1);
+      expect(entry.color).toBeTruthy();
+    });
   });
 });

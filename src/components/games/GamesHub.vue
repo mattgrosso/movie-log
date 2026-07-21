@@ -36,12 +36,6 @@ export default {
     return {
       games: [
         {
-          path: '/games/rate-off',
-          name: 'Rate-Off',
-          icon: 'bi-trophy-fill',
-          description: 'A single-elimination bracket of your own posters — pick a favorite each round until a champion remains.'
-        },
-        {
           path: '/games/higher-lower',
           name: 'Higher or Lower',
           icon: 'bi-arrow-down-up',

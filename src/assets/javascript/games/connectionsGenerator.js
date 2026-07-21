@@ -9,11 +9,38 @@ const CATEGORY_COUNT = 4;
 // build a category from.
 const KEYWORD_MAX_MOVIE_COUNT = 10;
 
+// Per user feedback ("we need some way of rating difficulty, otherwise
+// they're all too hard and it's impossible") — an editorial difficulty tier
+// per category KIND, NYT-Connections-style (yellow=easiest through
+// purple=hardest). Decade/genre are surface-level traits you'd notice just
+// glancing at a shelf of posters; director/cast require recalling a specific
+// person; keyword categories are already curated to be the least obvious
+// (see KEYWORD_MAX_MOVIE_COUNT above), so keyword is purple.
+export const DIFFICULTY_BY_KIND = {
+  decade: { tier: 1, name: 'Yellow', color: '#f4d35e' },
+  genre: { tier: 2, name: 'Green', color: '#4caf50' },
+  director: { tier: 3, name: 'Blue', color: '#4a90d9' },
+  cast: { tier: 3, name: 'Blue', color: '#4a90d9' },
+  keyword: { tier: 4, name: 'Purple', color: '#9b59b6' }
+};
+
+// The generic category kinds a puzzle can draw from — shown to the player as
+// an upfront legend (see ConnectionsGame.vue) so "what kind of connection am
+// I even looking for" has an answer without spoiling which 4 are actually in
+// THIS puzzle.
+export const CATEGORY_KIND_LABELS = [
+  { kind: 'decade', label: 'Decade', ...DIFFICULTY_BY_KIND.decade },
+  { kind: 'genre', label: 'Genre', ...DIFFICULTY_BY_KIND.genre },
+  { kind: 'director', label: 'Director', ...DIFFICULTY_BY_KIND.director },
+  { kind: 'cast', label: 'Cast', ...DIFFICULTY_BY_KIND.cast },
+  { kind: 'keyword', label: 'Keyword', ...DIFFICULTY_BY_KIND.keyword }
+];
+
 function movieKeywords (entry) {
   return computeFlatKeywords(entry?.movie);
 }
 
-function groupBy (entries, extractValues, labelFor) {
+function groupBy (entries, extractValues, labelFor, kind) {
   const byValue = new Map();
   entries.forEach((entry) => {
     extractValues(entry).forEach((value) => {
@@ -26,7 +53,7 @@ function groupBy (entries, extractValues, labelFor) {
   const candidates = [];
   byValue.forEach((movies, value) => {
     if (movies.length >= GROUP_SIZE) {
-      candidates.push({ value, label: labelFor(value), movies });
+      candidates.push({ value, label: labelFor(value), movies, kind, difficulty: DIFFICULTY_BY_KIND[kind] });
     }
   });
   return candidates;
@@ -44,17 +71,19 @@ function groupBy (entries, extractValues, labelFor) {
 // KEYWORD_MAX_MOVIE_COUNT so only "special"/niche keywords qualify, not
 // broad ones a huge fraction of the library shares.
 export function buildCandidateCategories (eligibleEntries) {
-  const keywordCandidates = groupBy(eligibleEntries, movieKeywords, (name) => `Keyword: ${name}`)
+  const keywordCandidates = groupBy(eligibleEntries, movieKeywords, (name) => `Keyword: ${name}`, 'keyword')
     .filter((candidate) => candidate.movies.length <= KEYWORD_MAX_MOVIE_COUNT);
 
   return [
-    ...groupBy(eligibleEntries, movieDirectors, (name) => `Directed by ${name}`),
-    ...groupBy(eligibleEntries, movieGenreNames, (name) => `Genre: ${name}`),
-    ...groupBy(eligibleEntries, (entry) => { const d = movieDecade(entry); return d ? [`${d}s`] : []; }, (label) => `Released in the ${label}`),
-    ...groupBy(eligibleEntries, (entry) => movieCastNames(entry, 8), (name) => `Starring ${name}`),
+    ...groupBy(eligibleEntries, movieDirectors, (name) => `Directed by ${name}`, 'director'),
+    ...groupBy(eligibleEntries, movieGenreNames, (name) => `Genre: ${name}`, 'genre'),
+    ...groupBy(eligibleEntries, (entry) => { const d = movieDecade(entry); return d ? [`${d}s`] : []; }, (label) => `Released in the ${label}`, 'decade'),
+    ...groupBy(eligibleEntries, (entry) => movieCastNames(entry, 8), (name) => `Starring ${name}`, 'cast'),
     ...keywordCandidates
   ];
 }
+
+const DIFFICULTY_TIERS = [1, 2, 3, 4];
 
 // Greedily picks 4 categories with no movie shared between them, so every
 // tile in the resulting puzzle has exactly one correct group. A movie CAN be
@@ -62,19 +91,41 @@ export function buildCandidateCategories (eligibleEntries) {
 // directed by someone else in the puzzle) — that's fine and matches real
 // Connections' difficulty; what matters is each movie is only ASSIGNED to
 // one group's answer key.
+//
+// Picking is done in two passes so a puzzle naturally spans a range of
+// difficulties (yellow/green/blue/purple) instead of clustering on whichever
+// type happens to shuffle first — per user feedback that puzzles felt
+// uniformly "too hard, impossible" without any easier way in.
 export function generateConnectionsPuzzle (eligibleEntries, rng = Math.random) {
   const candidates = shuffle(buildCandidateCategories(eligibleEntries), rng);
   const usedKeys = new Set();
   const chosen = [];
 
-  for (const category of candidates) {
-    if (chosen.length >= CATEGORY_COUNT) break;
+  const tryChoose = (category) => {
     const available = category.movies.filter((entry) => !usedKeys.has(entryKey(entry)));
-    if (available.length < GROUP_SIZE) continue;
-
+    if (available.length < GROUP_SIZE) return false;
     const picked = pickRandomDistinct(available, GROUP_SIZE, rng);
     picked.forEach((entry) => usedKeys.add(entryKey(entry)));
-    chosen.push({ label: category.label, movies: picked });
+    chosen.push({ label: category.label, movies: picked, difficulty: category.difficulty });
+    return true;
+  };
+
+  // Pass 1: one category per difficulty tier, when one's available.
+  for (const tier of DIFFICULTY_TIERS) {
+    if (chosen.length >= CATEGORY_COUNT) break;
+    for (const category of candidates) {
+      if (category.difficulty?.tier !== tier) continue;
+      if (tryChoose(category)) break;
+    }
+  }
+
+  // Pass 2: fill any remaining slots regardless of tier (a small/homogeneous
+  // library might not offer a candidate for every tier).
+  if (chosen.length < CATEGORY_COUNT) {
+    for (const category of candidates) {
+      if (chosen.length >= CATEGORY_COUNT) break;
+      tryChoose(category);
+    }
   }
 
   if (chosen.length < CATEGORY_COUNT) return null; // library too small/homogeneous for a full puzzle
@@ -85,7 +136,7 @@ export function generateConnectionsPuzzle (eligibleEntries, rng = Math.random) {
   );
 
   return {
-    categories: chosen.map((category) => ({ label: category.label, keys: category.movies.map(entryKey) })),
+    categories: chosen.map((category) => ({ label: category.label, keys: category.movies.map(entryKey), difficulty: category.difficulty })),
     tiles
   };
 }

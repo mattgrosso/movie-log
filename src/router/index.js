@@ -11,7 +11,6 @@ const MovieDetail = () => import(/* webpackChunkName: "movie-detail" */ "../comp
 const YearInReview = () => import(/* webpackChunkName: "year-in-review" */ "../components/YearInReview.vue");
 const TrophyCase = () => import(/* webpackChunkName: "trophy-case" */ "../components/TrophyCase.vue");
 const GamesHub = () => import(/* webpackChunkName: "games" */ "../components/games/GamesHub.vue");
-const RateOffGame = () => import(/* webpackChunkName: "games" */ "../components/games/RateOffGame.vue");
 const HigherLowerGame = () => import(/* webpackChunkName: "games" */ "../components/games/HigherLowerGame.vue");
 const ReelWordleGame = () => import(/* webpackChunkName: "games" */ "../components/games/ReelWordleGame.vue");
 const ConnectionsGame = () => import(/* webpackChunkName: "games" */ "../components/games/ConnectionsGame.vue");
@@ -156,21 +155,6 @@ const routes = [
     path: '/games',
     name: 'GamesHub',
     component: GamesHub,
-    meta: {
-      requiresLogin: true
-    },
-    beforeEnter: (to, from, next) => {
-      if (!loggedIn()) {
-        next('/login');
-      } else {
-        next();
-      }
-    }
-  },
-  {
-    path: '/games/rate-off',
-    name: 'RateOffGame',
-    component: RateOffGame,
     meta: {
       requiresLogin: true
     },

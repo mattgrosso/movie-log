@@ -39,25 +39,18 @@
       </ul>
 
       <div v-if="guesses.length" class="clue-grid">
-        <div class="clue-header">
-          <span>Movie</span>
-          <span>Year</span>
-          <span>Decade</span>
-          <span>Director</span>
-          <span>Genres</span>
-          <span>Runtime</span>
-          <span>Your Rating</span>
-        </div>
         <div v-for="(clue, index) in guesses" :key="index" class="clue-row" :class="{ correct: clue.isCorrect }">
-          <span class="clue-title">{{ clue.title }}</span>
-          <span :class="directionClass(clue.year)">{{ clue.year.direction === 'match' ? clue.year.value : arrowFor(clue.year) }}</span>
-          <span :class="clue.decade.match ? 'match' : 'no-match'">{{ clue.decade.match ? `${clue.decade.value}s` : '✗' }}</span>
-          <span :class="clue.director.match ? 'match' : 'no-match'">{{ clue.director.match ? clue.director.matchedNames.join(', ') : '✗' }}</span>
-          <span :class="clue.genres.allMatch ? 'match' : (clue.genres.shared.length ? 'partial' : 'no-match')">
-            {{ clue.genres.shared.length ? clue.genres.shared.join(', ') : '✗' }}
-          </span>
-          <span :class="directionClass(clue.runtime)">{{ arrowFor(clue.runtime) }}</span>
-          <span :class="directionClass(clue.yourRating)">{{ arrowFor(clue.yourRating) }}</span>
+          <p class="clue-title">{{ clue.title }}</p>
+          <div class="clue-chips">
+            <span class="clue-chip" :class="directionClass(clue.year)">Year {{ clue.year.direction === 'match' ? clue.year.value : arrowFor(clue.year) }}</span>
+            <span class="clue-chip" :class="clue.decade.match ? 'match' : 'no-match'">Decade {{ clue.decade.match ? `${clue.decade.value}s` : '✗' }}</span>
+            <span class="clue-chip" :class="clue.director.match ? 'match' : 'no-match'">Director {{ clue.director.match ? clue.director.matchedNames.join(', ') : '✗' }}</span>
+            <span class="clue-chip" :class="clue.genres.allMatch ? 'match' : (clue.genres.shared.length ? 'partial' : 'no-match')">
+              Genres {{ clue.genres.shared.length ? clue.genres.shared.join(', ') : '✗' }}
+            </span>
+            <span class="clue-chip" :class="directionClass(clue.runtime)">Runtime {{ arrowFor(clue.runtime) }}</span>
+            <span class="clue-chip" :class="directionClass(clue.yourRating)">Rating {{ arrowFor(clue.yourRating) }}</span>
+          </div>
         </div>
       </div>
 
@@ -303,34 +296,21 @@ export default {
   margin-top: 1rem;
 }
 
+/* A wrapping chip layout instead of a fixed-column grid — the old grid
+   forced a min-width wider than a phone screen, so every guess row scrolled
+   horizontally to be read. Chips reflow to fit whatever width is available,
+   so all 6 categories are always readable without scrolling sideways. */
 .clue-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  overflow-x: auto;
-}
-
-.clue-header,
-.clue-row {
-  display: grid;
-  grid-template-columns: 2fr repeat(6, 1fr);
-  gap: 0.4rem;
-  align-items: center;
-  min-width: 480px;
-}
-
-.clue-header {
-  color: #adb5bd;
-  font-size: 0.7rem;
-  text-transform: uppercase;
+  gap: 0.5rem;
 }
 
 .clue-row {
   background: #1a1a1a;
   border-radius: 0.35rem;
-  padding: 0.5rem 0.4rem;
-  text-align: center;
-  font-size: 0.85rem;
+  padding: 0.5rem 0.6rem;
+  text-align: left;
 }
 
 .clue-row.correct {
@@ -338,8 +318,21 @@ export default {
 }
 
 .clue-title {
-  text-align: left;
   font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+
+.clue-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.clue-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.45rem;
 }
 
 .match {

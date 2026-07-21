@@ -36,12 +36,12 @@ describe('GamesHub', () => {
 
   it('lists all games once there is enough data', () => {
     const { wrapper } = factory(10);
-    expect(wrapper.findAll('.game-tile').length).toBe(5);
+    expect(wrapper.findAll('.game-tile').length).toBe(4);
   });
 
   it('navigates to the chosen game route on tap', async () => {
     const { wrapper, pushSpy } = factory(10);
     await wrapper.findAll('.game-tile')[0].trigger('click');
-    expect(pushSpy).toHaveBeenCalledWith('/games/rate-off');
+    expect(pushSpy).toHaveBeenCalledWith('/games/higher-lower');
   });
 });

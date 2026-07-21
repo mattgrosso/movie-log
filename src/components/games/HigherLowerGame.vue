@@ -14,7 +14,7 @@
         <span>Best: <strong>{{ bestStreak }}</strong></span>
       </div>
 
-      <p v-if="!guessed && !gameOver" class="guess-prompt">Tap the poster you think scored higher.</p>
+      <p class="status-line">{{ statusMessage }}</p>
 
       <div class="cards-row">
         <div
@@ -41,15 +41,8 @@
       </div>
 
       <div v-if="gameOver" class="game-over">
-        <p>{{ resultMessage }}</p>
         <button type="button" class="btn btn-warning" @click="start">Play Again</button>
       </div>
-
-      <div v-else-if="guessed" class="game-over">
-        <p>{{ resultMessage }}</p>
-      </div>
-
-      <p v-if="ranOutOfMovies" class="ran-out">You've compared your whole library! Restart to shuffle a new run.</p>
     </template>
   </div>
 </template>
@@ -84,8 +77,14 @@ export default {
       if (!this.guessed) return '';
       return this.lastGuessCorrect ? 'correct' : 'incorrect';
     },
-    resultMessage () {
-      if (!this.guessed) return '';
+    // A single always-rendered status line (see .status-line) instead of
+    // separately mounting/unmounting a prompt above the cards and a result
+    // message below them — that add/remove was the reported "jump" every
+    // time you tapped a poster. Swapping this one line's text in place keeps
+    // the cards themselves stationary.
+    statusMessage () {
+      if (this.ranOutOfMovies) return "You've compared your whole library! Restart to shuffle a new run.";
+      if (!this.guessed) return 'Tap the poster you think scored higher.';
       if (this.lastGuessCorrect) return "Correct — that one's now the card to beat.";
       return `Streak over at ${this.streak}. Correct score was ${this.formattedRating(this.challenger)}.`;
     }
@@ -217,10 +216,18 @@ export default {
   color: #ff6a6a;
 }
 
-.guess-prompt {
+/* Always rendered (see statusMessage) so its text can swap in place without
+   adding/removing an element — that reflow was the reported jump. min-height
+   covers the longest message (2 lines on a narrow phone) so even that swap
+   doesn't shift the cards below it. */
+.status-line {
   color: #adb5bd;
   text-align: center;
-  margin-bottom: 0.75rem;
+  min-height: 2.6rem;
+  margin: 0 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Tap-the-poster affordance, mobile-first: an :active press state only —
@@ -239,16 +246,6 @@ export default {
 
 .game-over {
   margin-top: 1.5rem;
-  padding: 0 1.5rem;
-}
-
-.game-over p {
-  color: #adb5bd;
-}
-
-.ran-out {
-  color: #adb5bd;
-  margin-top: 1rem;
   padding: 0 1.5rem;
 }
 </style>

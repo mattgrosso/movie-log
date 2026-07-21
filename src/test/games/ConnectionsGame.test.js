@@ -82,6 +82,29 @@ describe('ConnectionsGame', () => {
     expect(wrapper.vm.solvedLabels).toEqual([]);
   });
 
+  it('a wrong guess reports how many of the 4 picks actually belonged together', async () => {
+    const wrapper = factory(buildSolvableLibrary());
+    const [catA, catB] = wrapper.vm.puzzle.categories;
+    // 2 from catA, 2 from catB -> best overlap is 2.
+    wrapper.vm.selectedKeys = [catA.keys[0], catA.keys[1], catB.keys[0], catB.keys[1]];
+    wrapper.vm.submitGuess();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.lastGuessFeedback).toBe('2 of those are in the same group.');
+    expect(wrapper.find('.guess-feedback').text()).toBe('2 of those are in the same group.');
+  });
+
+  it('selecting/deselecting a tile clears any stale guess feedback', async () => {
+    const wrapper = factory(buildSolvableLibrary());
+    const [catA, catB] = wrapper.vm.puzzle.categories;
+    wrapper.vm.selectedKeys = [catA.keys[0], catA.keys[1], catB.keys[0], catB.keys[1]];
+    wrapper.vm.submitGuess();
+    expect(wrapper.vm.lastGuessFeedback).toBeTruthy();
+
+    wrapper.vm.toggleTile(wrapper.vm.remainingTiles[0].key);
+    expect(wrapper.vm.lastGuessFeedback).toBeNull();
+  });
+
   it('reaching 4 mistakes ends the game and reveals every category', async () => {
     const wrapper = factory(buildSolvableLibrary());
     const [catA, catB] = wrapper.vm.puzzle.categories;
@@ -115,5 +138,31 @@ describe('ConnectionsGame', () => {
     const keys = wrapper.vm.remainingTiles.slice(0, 5).map((t) => t.key);
     keys.forEach((key) => wrapper.vm.toggleTile(key));
     expect(wrapper.vm.selectedKeys).toHaveLength(4);
+  });
+
+  it('shows a generic category-kind legend up front, without spoiling this puzzle\'s actual 4 categories', () => {
+    const wrapper = factory(buildSolvableLibrary());
+    const legend = wrapper.find('.category-legend').text();
+    expect(legend).toContain('Decade');
+    expect(legend).toContain('Genre');
+    expect(legend).toContain('Director');
+    expect(legend).toContain('Cast');
+    expect(legend).toContain('Keyword');
+  });
+
+  it('tiles no longer show a title caption below the poster', () => {
+    const wrapper = factory(buildSolvableLibrary());
+    expect(wrapper.find('.tile-title').exists()).toBe(false);
+  });
+
+  it('a solved group is colored by its difficulty tier', async () => {
+    const wrapper = factory(buildSolvableLibrary());
+    const category = wrapper.vm.puzzle.categories[0];
+    category.keys.forEach((key) => wrapper.vm.toggleTile(key));
+    wrapper.vm.submitGuess();
+    await wrapper.vm.$nextTick();
+
+    const group = wrapper.find('.solved-group');
+    expect(group.attributes('style')).toContain('border-color');
   });
 });
