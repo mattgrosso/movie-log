@@ -41,15 +41,35 @@
       <div v-if="guesses.length" class="clue-grid">
         <div v-for="(clue, index) in guesses" :key="index" class="clue-row" :class="{ correct: clue.isCorrect }">
           <p class="clue-title">{{ clue.title }}</p>
-          <div class="clue-chips">
-            <span class="clue-chip" :class="directionClass(clue.year)">Year {{ clue.year.direction === 'match' ? clue.year.value : arrowFor(clue.year) }}</span>
-            <span class="clue-chip" :class="clue.decade.match ? 'match' : 'no-match'">Decade {{ clue.decade.match ? `${clue.decade.value}s` : '✗' }}</span>
-            <span class="clue-chip" :class="clue.director.match ? 'match' : 'no-match'">Director {{ clue.director.match ? clue.director.matchedNames.join(', ') : '✗' }}</span>
-            <span class="clue-chip" :class="clue.genres.allMatch ? 'match' : (clue.genres.shared.length ? 'partial' : 'no-match')">
-              Genres {{ clue.genres.shared.length ? clue.genres.shared.join(', ') : '✗' }}
-            </span>
-            <span class="clue-chip" :class="directionClass(clue.runtime)">Runtime {{ arrowFor(clue.runtime) }}</span>
-            <span class="clue-chip" :class="directionClass(clue.yourRating)">Rating {{ arrowFor(clue.yourRating) }}</span>
+          <div class="clue-cells">
+            <div class="clue-cell" :class="directionClass(clue.year)">
+              <span class="clue-label">Yr</span>
+              <span class="clue-value">{{ clue.year.direction === 'match' ? clue.year.value : arrowFor(clue.year) }}</span>
+            </div>
+            <div class="clue-cell" :class="clue.decade.match ? 'match' : 'no-match'">
+              <span class="clue-label">Dec</span>
+              <span class="clue-value">{{ clue.decade.match ? `${clue.decade.value}s` : '✗' }}</span>
+            </div>
+            <div class="clue-cell" :class="clue.director.match ? 'match' : 'no-match'" :title="clue.director.match ? clue.director.matchedNames.join(', ') : ''">
+              <span class="clue-label">Dir</span>
+              <span class="clue-value">{{ clue.director.match ? clue.director.matchedNames.join(', ') : '✗' }}</span>
+            </div>
+            <div
+              class="clue-cell"
+              :class="clue.genres.allMatch ? 'match' : (clue.genres.shared.length ? 'partial' : 'no-match')"
+              :title="clue.genres.shared.length ? clue.genres.shared.join(', ') : ''"
+            >
+              <span class="clue-label">Gen</span>
+              <span class="clue-value">{{ clue.genres.shared.length ? clue.genres.shared.join(', ') : '✗' }}</span>
+            </div>
+            <div class="clue-cell" :class="directionClass(clue.runtime)">
+              <span class="clue-label">Run</span>
+              <span class="clue-value">{{ arrowFor(clue.runtime) }}</span>
+            </div>
+            <div class="clue-cell" :class="directionClass(clue.yourRating)">
+              <span class="clue-label">Rtg</span>
+              <span class="clue-value">{{ arrowFor(clue.yourRating) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -296,10 +316,15 @@ export default {
   margin-top: 1rem;
 }
 
-/* A wrapping chip layout instead of a fixed-column grid — the old grid
-   forced a min-width wider than a phone screen, so every guess row scrolled
-   horizontally to be read. Chips reflow to fit whatever width is available,
-   so all 6 categories are always readable without scrolling sideways. */
+/* Fixed 6-column grid, one row per guess — NOT a flex-wrap chip row (that
+   was tried first, but 6 variable-length chips still wrapped to a 2nd line
+   on a phone, which looked worse than the scroll it replaced). `repeat(6,
+   1fr)` with no min-width divides whatever width is available, so it can
+   never force a scrollbar; each cell truncates with an ellipsis instead of
+   wrapping, so it can never force a 2nd line either — a long director name
+   or genre list just gets cut off (full value is in the `title` attribute,
+   the movie title above the grid, and the "?" Did-you-mean-style detail
+   isn't needed since correctness is what matters, not the exact string). */
 .clue-grid {
   display: flex;
   flex-direction: column;
@@ -309,7 +334,7 @@ export default {
 .clue-row {
   background: #1a1a1a;
   border-radius: 0.35rem;
-  padding: 0.5rem 0.6rem;
+  padding: 0.5rem 0.4rem;
   text-align: left;
 }
 
@@ -320,19 +345,36 @@ export default {
 .clue-title {
   font-weight: 600;
   margin: 0 0 0.35rem;
+  padding: 0 0.2rem;
 }
 
-.clue-chips {
+.clue-cells {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.2rem;
+}
+
+.clue-cell {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  text-align: center;
 }
 
-.clue-chip {
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 0.3rem;
-  font-size: 0.72rem;
-  padding: 0.2rem 0.45rem;
+.clue-label {
+  color: #888;
+  font-size: 0.55rem;
+  text-transform: uppercase;
+}
+
+.clue-value {
+  font-size: 0.68rem;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .match {

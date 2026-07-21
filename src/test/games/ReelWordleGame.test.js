@@ -116,6 +116,22 @@ describe('ReelWordleGame', () => {
     expect(row.text()).toContain('Drama');
   });
 
+  it('renders exactly one fixed-width cell per category per guess (no wrap, no scroll) — a long director/genre name truncates instead of pushing to a 2nd line', async () => {
+    const wrapper = factory(10);
+    const target = wrapper.vm.target;
+    await wrapper.vm.submitGuess(target);
+    await wrapper.vm.$nextTick();
+
+    const row = wrapper.find('.clue-row.correct');
+    // 6 categories: year, decade, director, genres, runtime, rating.
+    expect(row.findAll('.clue-cell').length).toBe(6);
+    const cellsWrapper = row.find('.clue-cells');
+    expect(cellsWrapper.attributes('style') || '').not.toContain('min-width');
+    row.findAll('.clue-value').forEach((value) => {
+      expect(value.classes()).not.toContain('clue-chip'); // the flex-wrap design this replaced
+    });
+  });
+
   it('"New Puzzle" can be tapped any number of times — no cap, no cooldown — and always resets/re-persists', async () => {
     const wrapper = factory(10);
     const firstTarget = wrapper.vm.target;
