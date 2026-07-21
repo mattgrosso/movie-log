@@ -128,12 +128,24 @@
 
         <!-- Rating shape -->
         <div v-if="ratingRadarData" class="rating-radar mb-3">
-          <h4>Rating Shape</h4>
-          <div class="radar-legend" v-if="lastHigherRatedMovie">
-            <span class="legend-item legend-current">{{ movie.title }}</span>
-            <span class="legend-item legend-comparison">{{ lastHigherRatedMovie.movie.title }}</span>
-          </div>
-          <RadarChart :chartData="ratingRadarData" :options="ratingRadarOptions"/>
+          <button
+            type="button"
+            class="section-toggle"
+            :aria-expanded="isRatingShapeExpanded ? 'true' : 'false'"
+            @click="isRatingShapeExpanded = !isRatingShapeExpanded">
+            <i :class="isRatingShapeExpanded ? 'bi bi-chevron-down' : 'bi bi-chevron-right'"></i>
+            <h4 class="mb-0">Rating Shape</h4>
+          </button>
+
+          <template v-if="isRatingShapeExpanded">
+            <div class="radar-legend" v-if="lastHigherRatedMovie">
+              <span class="legend-item legend-current">{{ movie.title }}</span>
+              <span class="legend-item legend-comparison">{{ lastHigherRatedMovie.movie.title }}</span>
+            </div>
+            <div class="radar-chart-wrapper">
+              <RadarChart :chartData="ratingRadarData" :options="ratingRadarOptions"/>
+            </div>
+          </template>
         </div>
 
         <!-- Directors -->
@@ -165,59 +177,69 @@
 
         <!-- Awards -->
         <div v-if="academyAwardWins.length || academyAwardNominations.length || personalAwardWins.length || personalAwardNominations.length || otherAwardWins.length || otherAwardNominations.length" class="awards mb-3">
-          <h4>Awards</h4>
+          <button
+            type="button"
+            class="section-toggle"
+            :aria-expanded="isAwardsExpanded ? 'true' : 'false'"
+            @click="isAwardsExpanded = !isAwardsExpanded">
+            <i :class="isAwardsExpanded ? 'bi bi-chevron-down' : 'bi bi-chevron-right'"></i>
+            <h4 class="mb-0">Awards</h4>
+            <span class="section-toggle-badge">{{ totalAwardsCount }}</span>
+          </button>
 
-          <div v-if="personalAwardWins.length || personalAwardNominations.length" class="award-group personal-awards">
-            <h5>My Awards</h5>
-            <h6 v-if="personalAwardWins.length">Won</h6>
-            <div v-if="personalAwardWins.length" class="winners">
-              <a v-for="award in personalAwardWins" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
-                {{award.year}} &middot; {{award.category}}
-                <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
-              </a>
+          <div v-if="isAwardsExpanded" class="awards-body">
+            <div v-if="personalAwardWins.length || personalAwardNominations.length" class="award-group personal-awards">
+              <h5>My {{ personalAwardSectionName }}</h5>
+              <h6 v-if="personalAwardWins.length">Won</h6>
+              <div v-if="personalAwardWins.length" class="winners">
+                <a v-for="award in personalAwardWins" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
+                  {{award.year}} &middot; {{award.category}}
+                  <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
+                </a>
+              </div>
+              <h6 v-if="personalAwardNominations.length">Nominated</h6>
+              <div v-if="personalAwardNominations.length" class="nominees">
+                <a v-for="award in personalAwardNominations" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
+                  {{award.year}} &middot; {{award.category}}
+                  <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
+                </a>
+              </div>
             </div>
-            <h6 v-if="personalAwardNominations.length">Nominated</h6>
-            <div v-if="personalAwardNominations.length" class="nominees">
-              <a v-for="award in personalAwardNominations" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
-                {{award.year}} &middot; {{award.category}}
-                <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
-              </a>
-            </div>
-          </div>
 
-          <div v-if="academyAwardWins.length || academyAwardNominations.length" class="award-group academy-awards">
-            <h5>Academy Awards</h5>
-            <h6 v-if="academyAwardWins.length">Won</h6>
-            <div v-if="academyAwardWins.length" class="winners">
-              <a v-for="award in academyAwardWins" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
-                {{award.category}}
-                <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
-              </a>
+            <div v-if="academyAwardWins.length || academyAwardNominations.length" class="award-group academy-awards">
+              <h5>Academy Awards</h5>
+              <h6 v-if="academyAwardWins.length">Won</h6>
+              <div v-if="academyAwardWins.length" class="winners">
+                <a v-for="award in academyAwardWins" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
+                  {{award.category}}
+                  <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
+                </a>
+              </div>
+              <h6 v-if="academyAwardNominations.length">Nominated</h6>
+              <div v-if="academyAwardNominations.length" class="nominees">
+                <a v-for="award in academyAwardNominations" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
+                  {{award.category}}
+                  <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
+                </a>
+              </div>
             </div>
-            <h6 v-if="academyAwardNominations.length">Nominated</h6>
-            <div v-if="academyAwardNominations.length" class="nominees">
-              <a v-for="award in academyAwardNominations" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
-                {{award.category}}
-                <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
-              </a>
-            </div>
-          </div>
 
-          <div v-if="otherAwardWins.length || otherAwardNominations.length" class="award-group other-awards">
-            <h5>Other Ceremonies</h5>
-            <h6 v-if="otherAwardWins.length">Won</h6>
-            <div v-if="otherAwardWins.length" class="winners">
-              <a v-for="award in otherAwardWins" :key="award.id" class="link col-12" @click="goToWikipedia(award.wikipediaQuery)">
-                {{award.ceremony}} &middot; {{award.category}}
-                <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
-              </a>
-            </div>
-            <h6 v-if="otherAwardNominations.length">Nominated</h6>
-            <div v-if="otherAwardNominations.length" class="nominees">
-              <a v-for="award in otherAwardNominations" :key="award.id" class="link col-12" @click="goToWikipedia(award.wikipediaQuery)">
-                {{award.ceremony}} &middot; {{award.category}}
-                <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
-              </a>
+            <div v-if="otherAwardWins.length || otherAwardNominations.length" class="award-group other-awards">
+              <h5>Other Ceremonies</h5>
+              <h6 v-if="otherAwardWins.length">Won</h6>
+              <div v-if="otherAwardWins.length" class="winners">
+                <a v-for="award in otherAwardWins" :key="award.id" class="link col-12" @click="goToWikipedia(award.wikipediaQuery)">
+                  {{award.ceremony}} &middot; {{award.category}}
+                  <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
+                </a>
+              </div>
+              <h6 v-if="otherAwardNominations.length">Nominated</h6>
+              <div v-if="otherAwardNominations.length" class="nominees">
+                <a v-for="award in otherAwardNominations" :key="award.id" class="link col-12" @click="goToWikipedia(award.wikipediaQuery)">
+                  {{award.ceremony}} &middot; {{award.category}}
+                  <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -524,6 +546,7 @@ import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwar
 import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
 import { normalizedRadarValues, RADAR_LABELS } from '../assets/javascript/ratingRadar.js';
+import { awardNameWithoutThe } from '../assets/javascript/personalAwards.js';
 import { Chart, registerables } from 'chart.js';
 import { RadarChart } from 'vue-chart-3';
 
@@ -558,7 +581,9 @@ export default {
       keywordInput: '',
       isEditingTags: false,
       tagInputs: {},
-      expandedViewingKeys: {}
+      expandedViewingKeys: {},
+      isAwardsExpanded: false,
+      isRatingShapeExpanded: false
     };
   },
   created () {
@@ -667,6 +692,18 @@ export default {
     },
     otherAwardNominations () {
       return this.otherAwardsForMovie.nominations;
+    },
+    // The user's configured personal award name (settings.personalAwardName,
+    // default 'Oscar') — same grammar helper Home.vue/PersonalAwardsModal.vue
+    // use, so the "My Awards" heading here says e.g. "My Groskers" instead of
+    // a hardcoded name.
+    personalAwardSectionName () {
+      return awardNameWithoutThe(this.$store.state.settings?.personalAwardName);
+    },
+    totalAwardsCount () {
+      return this.personalAwardWins.length + this.personalAwardNominations.length +
+        this.academyAwardWins.length + this.academyAwardNominations.length +
+        this.otherAwardWins.length + this.otherAwardNominations.length;
     },
     sortedFlatKeywords () {
       if (!this.topStructure(this.result)?.flatKeywords) return [];
@@ -947,6 +984,12 @@ export default {
     ratingRadarOptions () {
       return {
         responsive: true,
+        // maintainAspectRatio:true (chart.js default) sizes the canvas off
+        // its own aspect ratio math, which could outgrow a narrow mobile
+        // column. false + the fixed-height .radar-chart-wrapper below gives
+        // Chart.js a definite box to fill instead, so it can't overflow
+        // sideways on phones (see the reported "doesn't fit horizontally" bug).
+        maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
           r: {
@@ -1290,7 +1333,14 @@ export default {
 
     goToWikipedia (query) {
       const searchTerm = query || this.topStructure(this.result)?.title;
-      window.open(`https://en.wikipedia.org/wiki/${encodeURIComponent(searchTerm)}`, '_blank');
+      // Route through Wikipedia's "go to page, else search" endpoint rather
+      // than a raw /wiki/<title> URL. Award ceremony titles are often
+      // ordinal ("83rd Golden Globe Awards") and a guessed/approximate title
+      // can miss — this still jumps straight to an exact match, but falls
+      // back to a useful results list instead of a dead "page does not
+      // exist" screen (see otherAwards.js's buildWikipediaQuery).
+      const url = `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(searchTerm)}&go=Go`;
+      window.open(url, '_blank');
     },
 
     topStructure (result) {
@@ -2314,11 +2364,55 @@ export default {
   }
 
   .rating-radar {
-    max-width: 320px;
+    max-width: 280px;
+    margin: 0 auto;
 
-    canvas {
-      max-height: 260px;
+    .radar-chart-wrapper {
+      position: relative;
+      width: 100%;
+      height: 220px;
     }
+  }
+
+  // Shared collapsible-section header (Awards, Rating Shape) — mobile-first
+  // tap target with an :active state instead of relying on hover.
+  .section-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    color: #fff;
+    border: 0;
+    padding: 8px 4px;
+    min-height: 44px;
+    text-align: left;
+
+    &:active {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    i {
+      font-size: 0.9rem;
+      color: #adb5bd;
+    }
+
+    h4 {
+      margin: 0;
+    }
+  }
+
+  .section-toggle-badge {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ccc;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    line-height: 1.4;
+  }
+
+  .awards-body {
+    padding-top: 4px;
   }
 
   .radar-legend {

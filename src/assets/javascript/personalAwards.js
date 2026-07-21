@@ -58,3 +58,27 @@ export function expandNomineeFromMinimal (minimalNominee, entriesLibrary) {
   // Fallback for unknown types or legacy data
   return minimalNominee;
 }
+
+// Grammar helpers for the user-configurable personal award name
+// (settings.personalAwardName, e.g. "The Groskers" — see Home.vue's
+// settings panel). Shared so MovieDetail.vue's "My Awards" heading agrees
+// with Home.vue/PersonalAwardsModal.vue rather than hardcoding "Oscar".
+export function awardNameWithThe (personalAwardName) {
+  const name = personalAwardName || 'Oscar';
+  return name.toLowerCase().startsWith('the ') ? name : `The ${name}`;
+}
+
+export function awardNameWithoutThe (personalAwardName) {
+  const name = personalAwardName || 'Oscar';
+  return name.toLowerCase().startsWith('the ') ? name.substring(4) : name;
+}
+
+export function awardNameSingular (personalAwardName) {
+  const name = awardNameWithoutThe(personalAwardName);
+  if (name.toLowerCase().endsWith('ies')) {
+    return name.slice(0, -3) + 'y'; // e.g., "Smithies" -> "Smithy"
+  } else if (name.toLowerCase().endsWith('s')) {
+    return name.slice(0, -1); // e.g., "Oscars" -> "Oscar"
+  }
+  return name; // Already singular
+}

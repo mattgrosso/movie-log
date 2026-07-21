@@ -50,4 +50,25 @@ describe('findOtherAwardsForMovie', () => {
     expect(findOtherAwardsForMovie(null)).toEqual({ wins: [], nominations: [] });
     expect(findOtherAwardsForMovie({})).toEqual({ wins: [], nominations: [] });
   });
+
+  describe('wikipediaQuery — year-specific instead of the bare ceremony name', () => {
+    it('builds a Golden Globe ordinal from the film year (1943 = 1st)', () => {
+      const result = findOtherAwardsForMovie({ title: 'Oppenheimer', release_date: '2023-07-19' });
+      const win = result.wins.find((w) => w.ceremony === 'Golden Globe Awards');
+      expect(win.wikipediaQuery).toBe('81st Golden Globe Awards');
+    });
+
+    it('builds a "<year> <ceremony>" query for BAFTA/Cannes/Venice', () => {
+      const result = findOtherAwardsForMovie({ title: 'Parasite', release_date: '2019-05-30' });
+      const cannesWin = result.wins.find((w) => w.ceremony === 'Cannes Film Festival');
+      expect(cannesWin.wikipediaQuery).toBe(`${cannesWin.year} Cannes Film Festival`);
+    });
+
+    it('never returns the bare generic ceremony name as the query', () => {
+      const result = findOtherAwardsForMovie({ title: 'Oppenheimer', release_date: '2023-07-19' });
+      [...result.wins, ...result.nominations].forEach((award) => {
+        expect(award.wikipediaQuery).not.toBe(award.ceremony);
+      });
+    });
+  });
 });

@@ -844,6 +844,11 @@ import {
   sortResultsFast as sortResultsFastUtil,
   sortResults as sortResultsUtil
 } from '../assets/javascript/searchFiltering.js';
+import {
+  awardNameWithThe,
+  awardNameWithoutThe,
+  awardNameSingular
+} from '../assets/javascript/personalAwards.js';
 
 // Default priority order for the grouped search view. The order decides which
 // group claims a movie that matches multiple categories. Users can reorder this
@@ -3189,26 +3194,17 @@ export default {
     savePersonalAwardName () {
       this.$store.dispatch('setDBValue', { path: 'settings/personalAwardName', value: this.personalAwardName });
     },
-    // Grammar helper methods for award names
+    // Grammar helper methods for award names — delegate to the shared
+    // pure functions (assets/javascript/personalAwards.js) so MovieDetail.vue
+    // can reuse the exact same logic instead of a hardcoded "My Awards" label.
     getAwardNameWithThe () {
-      // Returns the full award name with "The" if it doesn't already start with it
-      const name = this.personalAwardName || 'Oscar';
-      return name.toLowerCase().startsWith('the ') ? name : `The ${name}`;
+      return awardNameWithThe(this.personalAwardName);
     },
     getAwardNameWithoutThe () {
-      // Returns the award name without "The"
-      const name = this.personalAwardName || 'Oscar';
-      return name.toLowerCase().startsWith('the ') ? name.substring(4) : name;
+      return awardNameWithoutThe(this.personalAwardName);
     },
     getAwardNameSingular () {
-      // Converts plural award name to singular (removes 's' or handles special cases)
-      const name = this.getAwardNameWithoutThe();
-      if (name.toLowerCase().endsWith('ies')) {
-        return name.slice(0, -3) + 'y'; // e.g., "Smithies" -> "Smithy"
-      } else if (name.toLowerCase().endsWith('s')) {
-        return name.slice(0, -1); // e.g., "Oscars" -> "Oscar"
-      }
-      return name; // Already singular
+      return awardNameSingular(this.personalAwardName);
     },
     saveLetterboxdConnection () {
       this.$store.dispatch('setDBValue', { path: 'settings/letterboxdConnected', value: this.letterboxdConnected });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { expandNomineeFromMinimal } from '@/assets/javascript/personalAwards.js';
+import { expandNomineeFromMinimal, awardNameWithThe, awardNameWithoutThe, awardNameSingular } from '@/assets/javascript/personalAwards.js';
 
 function libraryEntry (id, title) {
   return { dbKey: `key-${id}`, movie: { id, title } };
@@ -51,5 +51,31 @@ describe('expandNomineeFromMinimal', () => {
   it('returns the raw object for an unrecognized type', () => {
     const weird = { type: 'something-else', movieId: 1 };
     expect(expandNomineeFromMinimal(weird, [])).toBe(weird);
+  });
+});
+
+describe('award name grammar helpers', () => {
+  it('defaults to Oscar when no name is configured', () => {
+    expect(awardNameWithThe()).toBe('The Oscar');
+    expect(awardNameWithoutThe()).toBe('Oscar');
+    expect(awardNameSingular()).toBe('Oscar');
+  });
+
+  it('adds "The" only when missing', () => {
+    expect(awardNameWithThe('Groskers')).toBe('The Groskers');
+    expect(awardNameWithThe('The Groskers')).toBe('The Groskers');
+    expect(awardNameWithThe('the groskers')).toBe('the groskers');
+  });
+
+  it('strips a leading "The" case-insensitively', () => {
+    expect(awardNameWithoutThe('The Groskers')).toBe('Groskers');
+    expect(awardNameWithoutThe('the Groskers')).toBe('Groskers');
+    expect(awardNameWithoutThe('Groskers')).toBe('Groskers');
+  });
+
+  it('singularizes a plural name, handling the -ies case', () => {
+    expect(awardNameSingular('The Groskers')).toBe('Grosker');
+    expect(awardNameSingular('The Smithies')).toBe('Smithy');
+    expect(awardNameSingular('Cinema')).toBe('Cinema');
   });
 });

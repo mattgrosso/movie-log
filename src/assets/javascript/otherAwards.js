@@ -31,6 +31,37 @@ otherAwardsWinners.forEach((entry) => {
 // ceremony labeling quirks across sources) — allow a 1-year slop either way.
 const YEAR_TOLERANCE = 1;
 
+// The Golden Globes have run every year since their 1943 debut with no gaps,
+// so the ordinal ("Nth Golden Globe Awards" — Wikipedia's actual article
+// naming convention) is a reliable straight-line formula from the film year.
+// BAFTA/Cannes/Venice all had historical irregularities (wartime pauses,
+// combined-year ceremonies) that make a similar formula unreliable, so for
+// those we fall back to a "<year> <ceremony>" query — not always the exact
+// article title, but goToWikipedia() routes it through Wikipedia's search
+// ("go to page, else show results") rather than a raw page URL, so a
+// near-miss still lands somewhere useful instead of a dead link.
+const GOLDEN_GLOBES_FIRST_CEREMONY_YEAR = 1943;
+
+function ordinal (n) {
+  const rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1: return `${n}st`;
+    case 2: return `${n}nd`;
+    case 3: return `${n}rd`;
+    default: return `${n}th`;
+  }
+}
+
+function buildWikipediaQuery (ceremony, year) {
+  if (!year) return ceremony;
+  if (ceremony === 'Golden Globe Awards') {
+    const ceremonyNumber = year - GOLDEN_GLOBES_FIRST_CEREMONY_YEAR + 1;
+    return `${ordinal(ceremonyNumber)} Golden Globe Awards`;
+  }
+  return `${year} ${ceremony}`;
+}
+
 export function findOtherAwardsForMovie (movie) {
   const empty = { wins: [], nominations: [] };
   if (!movie || !movie.title) return empty;
@@ -50,7 +81,7 @@ export function findOtherAwardsForMovie (movie) {
       ceremony: entry.ceremony,
       category: entry.category,
       year: entry.year,
-      wikipediaQuery: entry.ceremony,
+      wikipediaQuery: buildWikipediaQuery(entry.ceremony, entry.year),
     };
     if (entry.isWinner) {
       wins.push(record);
