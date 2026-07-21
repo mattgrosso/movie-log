@@ -9,6 +9,11 @@ const Insights = () => import(/* webpackChunkName: "insights" */ "../components/
 const ShareDBResults = () => import(/* webpackChunkName: "share-db-results" */ "../components/ShareDBResults.vue");
 const MovieDetail = () => import(/* webpackChunkName: "movie-detail" */ "../components/MovieDetail.vue");
 const YearInReview = () => import(/* webpackChunkName: "year-in-review" */ "../components/YearInReview.vue");
+const GamesHub = () => import(/* webpackChunkName: "games" */ "../components/games/GamesHub.vue");
+const RateOffGame = () => import(/* webpackChunkName: "games" */ "../components/games/RateOffGame.vue");
+const HigherLowerGame = () => import(/* webpackChunkName: "games" */ "../components/games/HigherLowerGame.vue");
+const ReelWordleGame = () => import(/* webpackChunkName: "games" */ "../components/games/ReelWordleGame.vue");
+const TasteQuizGame = () => import(/* webpackChunkName: "games" */ "../components/games/TasteQuizGame.vue");
 
 // Router
 const loggedIn = () => {
@@ -119,6 +124,81 @@ const routes = [
     path: '/year-in-review',
     name: 'YearInReview',
     component: YearInReview,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/games',
+    name: 'GamesHub',
+    component: GamesHub,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/games/rate-off',
+    name: 'RateOffGame',
+    component: RateOffGame,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/games/higher-lower',
+    name: 'HigherLowerGame',
+    component: HigherLowerGame,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/games/wordle',
+    name: 'ReelWordleGame',
+    component: ReelWordleGame,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/games/quiz',
+    name: 'TasteQuizGame',
+    component: TasteQuizGame,
     meta: {
       requiresLogin: true
     },

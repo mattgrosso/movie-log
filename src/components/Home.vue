@@ -107,6 +107,9 @@
               <button class="results-actions-button btn btn-info" type="button" @click="goToInsights" title="Insights" aria-label="Go to insights">
                 <i class="bi bi-lightbulb"/>
               </button>
+              <button class="results-actions-button btn btn-info" type="button" @click="goToGames" title="Games" aria-label="Go to games">
+                <i class="bi bi-controller"/>
+              </button>
               <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion" title="Quick filters" aria-label="Toggle quick filters">
                 <i class="bi bi-lightning-charge"/>
               </button>
@@ -3173,6 +3176,9 @@ export default {
     },
     goToInsights () {
       this.$router.push('/insights');
+    },
+    goToGames () {
+      this.$router.push('/games');
     },
     saveNormalizationTweak () {
       this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });
