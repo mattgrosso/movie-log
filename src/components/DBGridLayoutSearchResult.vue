@@ -20,8 +20,6 @@
       </div>
     </div>
 
-    <i v-if="hasAnyAwardWin" class="bi bi-trophy-fill award-badge" title="Won an award"></i>
-
     <div class="details">
       <span v-if="activeQuickLinkList === 'bestPicture'">
         {{topStructure(result).academyAwardsYear}}
@@ -270,7 +268,6 @@ import placeholderImage from '../assets/images/sheen-placeholder.jpg';
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
-import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 
 export default {
   props: {
@@ -341,20 +338,6 @@ export default {
       return this.$store.getters.allMediaSortedByRating.findIndex((media) => {
         return media.dbKey === this.result.dbKey;
       }) + 1;
-    },
-    // Subtle poster corner badge — a personal award win, a Best Picture win
-    // (from the already-loaded academyAwardWinners.bestPicture cache), or a
-    // win in the static Golden Globes/BAFTA/Cannes/Venice dataset. All three
-    // checks are free (Set lookups + one in-memory Map lookup, no network),
-    // so this is safe to compute for every poster in the grid. Deliberately
-    // WINS only, not nominations — nominations are common enough that a
-    // badge for them would stop meaning anything.
-    hasAnyAwardWin () {
-      const movie = this.topStructure(this.result);
-      if (!movie) return false;
-      if ((this.$store.getters.moviesWithPersonalAwardWins || new Set()).has(movie.id)) return true;
-      if ((this.$store.getters.bestPictureWinnerIds || new Set()).has(movie.id)) return true;
-      return findOtherAwardsForMovie(movie).wins.length > 0;
     },
     previousEntry () {
       return this.$store.getters.allMediaAsArray.find((entry) => {
@@ -771,19 +754,6 @@ export default {
 
     &.not-rated {
       filter: sepia(1);
-    }
-
-    // Deliberately subtle — small, low-opacity, no background plate — a
-    // detail to notice while browsing, not a decoration competing with the
-    // poster art or the rank/rating overlay at the bottom.
-    .award-badge {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      color: #ffc107;
-      font-size: 0.7rem;
-      opacity: 0.75;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
     }
 
     .details {

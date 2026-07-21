@@ -394,6 +394,8 @@ MovieDetail's "Awards" section previously showed Academy Award wins/nominations 
 
 Tests: `src/test/otherAwards.test.js` (matching, accent/case-insensitivity, year tolerance, no-match cases), `src/test/MovieDetailAwards.test.js` (personal-awards win/nomination classification, `openPersonalAwardsYear`, other-ceremony wiring).
 
+**Tried and reverted (Jul 2026): a small trophy-icon badge on grid posters** for any movie with a win (personal/Best Picture/other-ceremony), backed by two Vuex getters (`moviesWithPersonalAwardWins`, `bestPictureWinnerIds`) for cheap no-network lookups. Removed after real-world use — across a ~400-movie library there were enough winners that the badges cluttered the grid rather than reading as a meaningful signal. If revisiting, consider a rarer/higher bar (e.g. personal Best Picture only, not every category/ceremony) rather than "won anything, anywhere."
+
 ## Games Section (Jul 2026)
 
 A new `/games` hub with six games built entirely from the user's own rated library (no multiplayer, no external game data). Followed the "Search/Filter/Sort Extraction" precedent deliberately: **all game rules live in plain, store-free JS modules under `src/assets/javascript/games/`**, unit-tested without mounting anything; the Vue components in `src/components/games/` are thin wiring + presentation layers. `src/mixins/gameData.js` supplies the one thing every game needs (`eligibleGameEntries` — library entries with a poster, release date, and ≥1 rating — and `gameRatingFor`/`gamePosterUrl` helpers).

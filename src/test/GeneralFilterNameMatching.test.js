@@ -57,9 +57,7 @@ describe('applyFilter general — cast/crew name matching', () => {
       getters: {
         allMediaAsArray: mockMovies,
         allMoviesAsArray: mockMovies,
-        allMediaSortedByRating: mockMovies,
-        moviesWithPersonalAwardWins: new Set(),
-        bestPictureWinnerIds: new Set()
+        allMediaSortedByRating: mockMovies
       },
       commit: vi.fn(),
       dispatch: vi.fn()
