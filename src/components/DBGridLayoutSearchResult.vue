@@ -267,6 +267,7 @@ import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import placeholderImage from '../assets/images/sheen-placeholder.jpg';
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 import ErrorLogService from '../services/ErrorLogService.js';
+import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
 
 export default {
   props: {
@@ -347,111 +348,13 @@ export default {
       if (!Array.isArray(this.awardsData)) {
         return [];
       }
-
-      const categoryOrder = [
-        "Best Picture",
-        "Best Director",
-        "Best Actress",
-        "Best Actor",
-        "Best Supporting Actor",
-        "Best Supporting Actress",
-        "Best Screenplay",
-        "Best Adapted Screenplay",
-        "Best Original Screenplay",
-        "Best Foreign Language Film",
-        "Best Documentary",
-        "Best Animated Feature",
-        "Best Cinematography",
-        "Best Original Score",
-        "Best Adapted Score",
-        "Best Original Song",
-        "Best Editing",
-        "Best Animated Short",
-        "Best Documentary Short",
-        "Best Live Action Short",
-        "Best Visual Effects",
-        "Best Assistant Director",
-        "Best Costume Design",
-        "Best Dance Direction",
-        "Best Makeup",
-        "Best Production Design",
-        "Best Sound Editing",
-        "Best Sound Mixing",
-        "Best Sound",
-        "Best Title Writing"
-      ];
-
-      return this.awardsData
-        .filter((award) => award.isWinner)
-        .sort((a, b) => {
-          const indexA = categoryOrder.map(c => c.toLowerCase()).indexOf(a.category.toLowerCase());
-          const indexB = categoryOrder.map(c => c.toLowerCase()).indexOf(b.category.toLowerCase());
-
-          if (indexA === -1) {
-            return 1;
-          }
-
-          if (indexB === -1) {
-            return -1;
-          }
-
-          return indexA - indexB;
-        });
+      return sortByAcademyCategoryOrder(this.awardsData.filter((award) => award.isWinner));
     },
     academyAwardNominations () {
       if (!Array.isArray(this.awardsData)) {
         return [];
       }
-
-      const categoryOrder = [
-        "Best Picture",
-        "Best Director",
-        "Best Actress",
-        "Best Actor",
-        "Best Supporting Actor",
-        "Best Supporting Actress",
-        "Best Screenplay",
-        "Best Adapted Screenplay",
-        "Best Original Screenplay",
-        "Best Foreign Language Film",
-        "Best Documentary",
-        "Best Animated Feature",
-        "Best Cinematography",
-        "Best Original Score",
-        "Best Adapted Score",
-        "Best Original Song",
-        "Best Editing",
-        "Best Animated Short",
-        "Best Documentary Short",
-        "Best Live Action Short",
-        "Best Visual Effects",
-        "Best Assistant Director",
-        "Best Costume Design",
-        "Best Dance Direction",
-        "Best Makeup",
-        "Best Production Design",
-        "Best Sound Editing",
-        "Best Sound Mixing",
-        "Best Sound",
-        "Best Title Writing"
-      ];
-
-      return this.awardsData
-        .filter((award) => !award.isWinner)
-        .sort((a, b) => {
-          const indexA = categoryOrder.map(c => c.toLowerCase()).indexOf(a.category.toLowerCase());
-          const indexB = categoryOrder.map(c => c.toLowerCase()).indexOf(b.category.toLowerCase());
-
-          if (indexA === -1) {
-            return 1;
-          }
-
-          if (indexB === -1) {
-            return -1;
-          }
-
-          return indexA - indexB;
-        });
+      return sortByAcademyCategoryOrder(this.awardsData.filter((award) => !award.isWinner));
     },
     sortedFlatKeywords () {
       return this.topStructure(this.result).flatKeywords.sort((a, b) => {

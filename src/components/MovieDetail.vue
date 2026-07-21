@@ -512,49 +512,7 @@ import { computeFlatKeywords } from '../utils/keywords.js';
 import { buildTagSuggestions, canCreateNewTag } from '../utils/tags.js';
 import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwardsCategories.js';
 import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
-
-// Display order for the Academy Awards sections (academyAwardWins/Nominations
-// computeds below) — categories not in this list sort to the end.
-const ACADEMY_CATEGORY_ORDER = [
-  "Best Picture",
-  "Best Director",
-  "Best Actor",
-  "Best Actress",
-  "Best Supporting Actor",
-  "Best Supporting Actress",
-  "Best Original Screenplay",
-  "Best Adapted Screenplay",
-  "Best Animated Feature Film",
-  "Best Cinematography",
-  "Best Costume Design",
-  "Best Documentary Feature",
-  "Best Documentary Short Subject",
-  "Best Film Editing",
-  "Best Makeup and Hairstyling",
-  "Best Original Score",
-  "Best Original Song",
-  "Best Production Design",
-  "Best Sound Editing",
-  "Best Sound Mixing",
-  "Best Visual Effects",
-  "Best Animated Short Film",
-  "Best Live Action Short Film",
-  "Best Foreign Language Film",
-  "Best International Feature Film"
-];
-
-function sortByAcademyCategoryOrder (awards) {
-  const lowerOrder = ACADEMY_CATEGORY_ORDER.map((c) => c.toLowerCase());
-  return [...awards].sort((a, b) => {
-    const indexA = lowerOrder.indexOf(a.category.toLowerCase());
-    const indexB = lowerOrder.indexOf(b.category.toLowerCase());
-
-    if (indexA === -1 && indexB === -1) return 0;
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    return indexA - indexB;
-  });
-}
+import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
 
 export default {
   name: 'MovieDetail',
