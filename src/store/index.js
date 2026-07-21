@@ -162,6 +162,25 @@ export default createStore({
         return state.weights.find((weight) => weight.name === name).weight;
       }
     },
+    // Cheap per-movie award-badge lookups (a subtle trophy icon on grid
+    // posters — see DBGridLayoutSearchResult.vue). Both are plain client-side
+    // Sets built from data already in state/loaded once at app start, so
+    // checking every poster in a ~400-item grid costs zero extra network
+    // calls or per-item scans — each item just does a Set.has().
+    moviesWithPersonalAwardWins: (state) => {
+      const ids = new Set();
+      const personalAwards = state.settings.personalAwards || {};
+      Object.values(personalAwards).forEach((yearData) => {
+        Object.values(yearData?.categories || {}).forEach((categoryData) => {
+          const winnerMovieId = categoryData?.winner?.movieId;
+          if (winnerMovieId != null) ids.add(winnerMovieId);
+        });
+      });
+      return ids;
+    },
+    bestPictureWinnerIds: (state) => {
+      return new Set((state.academyAwardWinners.bestPicture || []).map((movie) => movie.id));
+    },
   },
   mutations: {
     setMovieLog (state, value) {

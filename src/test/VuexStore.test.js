@@ -100,6 +100,20 @@ describe('Vuex Store - Movie Data Processing', () => {
             return state.weights.find((weight) => weight.name === name).weight;
           }
         },
+        moviesWithPersonalAwardWins: (state) => {
+          const ids = new Set();
+          const personalAwards = state.settings.personalAwards || {};
+          Object.values(personalAwards).forEach((yearData) => {
+            Object.values(yearData?.categories || {}).forEach((categoryData) => {
+              const winnerMovieId = categoryData?.winner?.movieId;
+              if (winnerMovieId != null) ids.add(winnerMovieId);
+            });
+          });
+          return ids;
+        },
+        bestPictureWinnerIds: (state) => {
+          return new Set((state.academyAwardWinners.bestPicture || []).map((movie) => movie.id));
+        },
       },
       mutations: {
         setMovieLog (state, value) {
@@ -493,6 +507,30 @@ describe('Vuex Store - Movie Data Processing', () => {
       expect(ratingsArray).toHaveLength(1)
       // Should use the rating returned by getRating (mocked to use first rating)
       expect(ratingsArray[0]).toBe(8.0)
+    })
+  })
+
+  describe('award-badge lookup getters', () => {
+    it('moviesWithPersonalAwardWins collects every winner movieId across every year/category', () => {
+      store.commit('setSettings', {
+        personalAwards: {
+          2020: { categories: { bestPicture: { winner: { movieId: 1 } }, bestActor: { winner: { movieId: 2 } } } },
+          2021: { categories: { bestPicture: { winner: null }, bestDirector: { winner: { movieId: 3 } } } }
+        }
+      })
+
+      const ids = store.getters.moviesWithPersonalAwardWins
+      expect(ids).toEqual(new Set([1, 2, 3]))
+    })
+
+    it('moviesWithPersonalAwardWins is an empty Set when there are no personal awards yet', () => {
+      store.commit('setSettings', {})
+      expect(store.getters.moviesWithPersonalAwardWins).toEqual(new Set())
+    })
+
+    it('bestPictureWinnerIds reads from the cached academyAwardWinners.bestPicture list', () => {
+      store.commit('setAcademyAwardWinners', { bestPicture: [{ id: 10 }, { id: 20 }] })
+      expect(store.getters.bestPictureWinnerIds).toEqual(new Set([10, 20]))
     })
   })
 })

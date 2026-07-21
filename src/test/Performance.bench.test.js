@@ -81,7 +81,9 @@ function mountWith (movies) {
     getters: {
       allMediaAsArray: movies,
       allMoviesAsArray: movies,
-      allMediaSortedByRating: movies
+      allMediaSortedByRating: movies,
+      moviesWithPersonalAwardWins: new Set(),
+      bestPictureWinnerIds: new Set()
     },
     commit: vi.fn(),
     dispatch: vi.fn()
