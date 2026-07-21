@@ -513,6 +513,49 @@ import { buildTagSuggestions, canCreateNewTag } from '../utils/tags.js';
 import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwardsCategories.js';
 import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 
+// Display order for the Academy Awards sections (academyAwardWins/Nominations
+// computeds below) — categories not in this list sort to the end.
+const ACADEMY_CATEGORY_ORDER = [
+  "Best Picture",
+  "Best Director",
+  "Best Actor",
+  "Best Actress",
+  "Best Supporting Actor",
+  "Best Supporting Actress",
+  "Best Original Screenplay",
+  "Best Adapted Screenplay",
+  "Best Animated Feature Film",
+  "Best Cinematography",
+  "Best Costume Design",
+  "Best Documentary Feature",
+  "Best Documentary Short Subject",
+  "Best Film Editing",
+  "Best Makeup and Hairstyling",
+  "Best Original Score",
+  "Best Original Song",
+  "Best Production Design",
+  "Best Sound Editing",
+  "Best Sound Mixing",
+  "Best Visual Effects",
+  "Best Animated Short Film",
+  "Best Live Action Short Film",
+  "Best Foreign Language Film",
+  "Best International Feature Film"
+];
+
+function sortByAcademyCategoryOrder (awards) {
+  const lowerOrder = ACADEMY_CATEGORY_ORDER.map((c) => c.toLowerCase());
+  return [...awards].sort((a, b) => {
+    const indexA = lowerOrder.indexOf(a.category.toLowerCase());
+    const indexB = lowerOrder.indexOf(b.category.toLowerCase());
+
+    if (indexA === -1 && indexB === -1) return 0;
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  });
+}
+
 export default {
   name: 'MovieDetail',
   components: {
@@ -575,91 +618,13 @@ export default {
       if (!Array.isArray(this.awardsData)) {
         return [];
       }
-
-      const categoryOrder = [
-        "Best Picture",
-        "Best Director",
-        "Best Actor",
-        "Best Actress",
-        "Best Supporting Actor",
-        "Best Supporting Actress",
-        "Best Original Screenplay",
-        "Best Adapted Screenplay",
-        "Best Animated Feature Film",
-        "Best Cinematography",
-        "Best Costume Design",
-        "Best Documentary Feature",
-        "Best Documentary Short Subject",
-        "Best Film Editing",
-        "Best Makeup and Hairstyling",
-        "Best Original Score",
-        "Best Original Song",
-        "Best Production Design",
-        "Best Sound Editing",
-        "Best Sound Mixing",
-        "Best Visual Effects",
-        "Best Animated Short Film",
-        "Best Live Action Short Film",
-        "Best Foreign Language Film",
-        "Best International Feature Film"
-      ];
-
-      return this.awardsData
-        .filter((award) => award.isWinner)
-        .sort((a, b) => {
-          const indexA = categoryOrder.map(c => c.toLowerCase()).indexOf(a.category.toLowerCase());
-          const indexB = categoryOrder.map(c => c.toLowerCase()).indexOf(b.category.toLowerCase());
-
-          if (indexA === -1 && indexB === -1) return 0;
-          if (indexA === -1) return 1;
-          if (indexB === -1) return -1;
-          return indexA - indexB;
-        });
+      return sortByAcademyCategoryOrder(this.awardsData.filter((award) => award.isWinner));
     },
     academyAwardNominations () {
       if (!Array.isArray(this.awardsData)) {
         return [];
       }
-
-      const categoryOrder = [
-        "Best Picture",
-        "Best Director",
-        "Best Actor",
-        "Best Actress",
-        "Best Supporting Actor",
-        "Best Supporting Actress",
-        "Best Original Screenplay",
-        "Best Adapted Screenplay",
-        "Best Animated Feature Film",
-        "Best Cinematography",
-        "Best Costume Design",
-        "Best Documentary Feature",
-        "Best Documentary Short Subject",
-        "Best Film Editing",
-        "Best Makeup and Hairstyling",
-        "Best Original Score",
-        "Best Original Song",
-        "Best Production Design",
-        "Best Sound Editing",
-        "Best Sound Mixing",
-        "Best Visual Effects",
-        "Best Animated Short Film",
-        "Best Live Action Short Film",
-        "Best Foreign Language Film",
-        "Best International Feature Film"
-      ];
-
-      return this.awardsData
-        .filter((award) => !award.isWinner)
-        .sort((a, b) => {
-          const indexA = categoryOrder.map(c => c.toLowerCase()).indexOf(a.category.toLowerCase());
-          const indexB = categoryOrder.map(c => c.toLowerCase()).indexOf(b.category.toLowerCase());
-
-          if (indexA === -1 && indexB === -1) return 0;
-          if (indexA === -1) return 1;
-          if (indexB === -1) return -1;
-          return indexA - indexB;
-        });
+      return sortByAcademyCategoryOrder(this.awardsData.filter((award) => !award.isWinner));
     },
     // My personal awards (PersonalAwardsModal.vue) — settings.personalAwards is
     // keyed by year, each year holding { categories: { <key>: { nominees, winner } } }.
