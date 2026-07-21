@@ -3,7 +3,6 @@
     <BackLink label="Games" @click="$router.push('/games')"/>
     <h1 class="game-title">Reel Wordle</h1>
     <p class="game-subtitle">
-      <span v-if="isManualPuzzle">Practice puzzle — </span>
       Guess the movie from your own library.
       {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }}<span v-if="activeClues.length"> · {{ activeClues.length }} clue{{ activeClues.length === 1 ? '' : 's' }} used</span>.
     </p>
@@ -63,7 +62,7 @@
       </div>
 
       <button type="button" class="btn btn-sm btn-outline-light new-puzzle-btn" @click="startNewPuzzle">
-        New Puzzle (practice)
+        New Puzzle
       </button>
     </template>
   </div>
@@ -72,8 +71,10 @@
 <script>
 import BackLink from './BackLink.vue';
 import gameDataMixin from '../../mixins/gameData.js';
-import { pickDailyEntry, todayDateString, entryKey } from '../../assets/javascript/games/gameUtils.js';
+import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import { compareGuessToTarget, buildTargetClues, unlockedClueCount } from '../../assets/javascript/games/wordleClues.js';
+
+const STORAGE_KEY = 'cinemaRoll.reelWordle.current';
 
 export default {
   name: 'ReelWordleGame',
@@ -84,26 +85,14 @@ export default {
       guessInput: '',
       suggestions: [],
       guesses: [],
-      // Overrides the daily pick when set — "New Puzzle (practice)" lets you
-      // play again immediately instead of waiting for tomorrow's puzzle.
-      // Deliberately session-only (not persisted): a reload always returns
-      // to today's daily puzzle.
-      manualTarget: null
+      // No more "today's puzzle" — this is just whichever movie the current
+      // round is testing you on, picked at random. Persisted (by key, not by
+      // calendar day — see persistState) so a reload resumes the SAME
+      // in-progress round rather than silently starting a new one.
+      target: null
     };
   },
   computed: {
-    dailyTarget () {
-      return pickDailyEntry(this.eligibleGameEntries, todayDateString());
-    },
-    target () {
-      return this.manualTarget || this.dailyTarget;
-    },
-    isManualPuzzle () {
-      return Boolean(this.manualTarget);
-    },
-    storageKey () {
-      return `cinemaRoll.reelWordle.${todayDateString()}`;
-    },
     status () {
       return this.guesses.some((clue) => clue.isCorrect) ? 'won' : 'playing';
     },
@@ -115,7 +104,7 @@ export default {
     },
     // Clues about the target itself, unlocked progressively as wrong
     // guesses accumulate — replaces the old hard "lost after 6" cap, since
-    // guesses are now unlimited.
+    // guesses are unlimited.
     activeClues () {
       const count = unlockedClueCount(this.wrongGuessCount, this.targetClues.length);
       return this.targetClues.slice(0, count);
@@ -126,14 +115,15 @@ export default {
     }
   },
   watch: {
-    // Only the DAILY target's guesses persist across sessions — a manual
-    // practice puzzle (see startNewPuzzle) is reset synchronously and
-    // intentionally not part of this at all, so this only ever needs to
-    // watch dailyTarget, not the combined `target`.
-    dailyTarget: {
+    // Fires once eligibleGameEntries has real data (it may be empty for a
+    // tick while the library is still loading). Only initializes if nothing
+    // is loaded yet — a later change to the library (e.g. rating a movie
+    // mid-round) must not yank the current puzzle out from under the player.
+    eligibleGameEntries: {
       immediate: true,
-      handler () {
-        if (!this.isManualPuzzle) this.loadPersistedGuesses();
+      handler (entries) {
+        if (this.target || !entries.length) return;
+        this.loadOrStartPuzzle();
       }
     }
   },
@@ -157,20 +147,60 @@ export default {
       this.guesses.push(clue);
       this.guessInput = '';
       this.suggestions = [];
-      if (!this.isManualPuzzle) this.persistGuesses();
+      this.persistState();
     },
-    // Picks a fresh random target (not date-seeded) and resets progress —
-    // lets testing/practice happen without waiting for the next calendar day.
+    // Picks a fresh random target and resets progress — the only way to
+    // move on, whether after a win or mid-round. No cooldown, no daily cap:
+    // it's just Math.random() over the whole eligible library each time.
     startNewPuzzle () {
       const pool = this.eligibleGameEntries;
       if (!pool.length) return;
-      const excludeKey = entryKey(this.target);
-      const candidates = pool.filter((entry) => entryKey(entry) !== excludeKey);
+      const excludeKey = this.target ? entryKey(this.target) : null;
+      const candidates = excludeKey ? pool.filter((entry) => entryKey(entry) !== excludeKey) : pool;
       const choices = candidates.length ? candidates : pool;
-      this.manualTarget = choices[Math.floor(Math.random() * choices.length)];
+      this.target = choices[Math.floor(Math.random() * choices.length)];
       this.guesses = [];
       this.guessInput = '';
       this.suggestions = [];
+      this.persistState();
+    },
+    persistState () {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          targetKey: entryKey(this.target),
+          guessedKeys: this.guesses.map((clue) => clue.entryKey)
+        }));
+      } catch (error) {
+        // localStorage can throw in private-browsing/quota-exceeded situations;
+        // the puzzle still works for this session, it just won't persist.
+        console.error('Failed to persist Reel Wordle progress:', error);
+      }
+    },
+    // Resumes an in-progress round from localStorage if one exists and its
+    // target is still in the library; otherwise starts a fresh one.
+    loadOrStartPuzzle () {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          const target = this.eligibleGameEntries.find((entry) => entryKey(entry) === saved?.targetKey);
+          if (target) {
+            this.target = target;
+            this.guesses = (saved.guessedKeys || [])
+              .map((key) => this.eligibleGameEntries.find((entry) => entryKey(entry) === key))
+              .filter(Boolean)
+              .map((entry) => {
+                const clue = compareGuessToTarget(entry, target, this.gameRatingFor);
+                clue.entryKey = entryKey(entry);
+                return clue;
+              });
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load persisted Reel Wordle progress:', error);
+      }
+      this.startNewPuzzle();
     },
     directionClass (comparison) {
       if (!comparison.direction || comparison.direction === 'match') return 'match';
@@ -181,35 +211,6 @@ export default {
       if (comparison.direction === 'up') return '↑';
       if (comparison.direction === 'down') return '↓';
       return '—';
-    },
-    persistGuesses () {
-      try {
-        const guessedKeys = this.guesses.map((clue) => clue.entryKey);
-        window.localStorage.setItem(this.storageKey, JSON.stringify(guessedKeys));
-      } catch (error) {
-        // localStorage can throw in private-browsing/quota-exceeded situations;
-        // the puzzle still works for this session, it just won't persist.
-        console.error('Failed to persist Reel Wordle progress:', error);
-      }
-    },
-    loadPersistedGuesses () {
-      this.guesses = [];
-      if (!this.dailyTarget) return;
-      try {
-        const raw = window.localStorage.getItem(this.storageKey);
-        if (!raw) return;
-        const guessedKeys = JSON.parse(raw);
-        if (!Array.isArray(guessedKeys)) return;
-        guessedKeys.forEach((key) => {
-          const entry = this.eligibleGameEntries.find((candidate) => entryKey(candidate) === key);
-          if (!entry) return;
-          const clue = compareGuessToTarget(entry, this.dailyTarget, this.gameRatingFor);
-          clue.entryKey = key;
-          this.guesses.push(clue);
-        });
-      } catch (error) {
-        console.error('Failed to load persisted Reel Wordle progress:', error);
-      }
     }
   }
 };

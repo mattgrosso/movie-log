@@ -116,36 +116,38 @@ describe('ReelWordleGame', () => {
     expect(row.text()).toContain('Drama');
   });
 
-  it('"New Puzzle" starts a fresh, unpersisted practice puzzle and resets guesses', async () => {
+  it('"New Puzzle" can be tapped any number of times — no cap, no cooldown — and always resets/re-persists', async () => {
     const wrapper = factory(10);
-    const originalTarget = wrapper.vm.target;
-    await wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== originalTarget.dbKey));
+    const firstTarget = wrapper.vm.target;
+    await wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== firstTarget.dbKey));
     expect(wrapper.vm.guesses.length).toBe(1);
-    const persistedBefore = JSON.parse(window.localStorage.getItem(wrapper.vm.storageKey))
 
-    await wrapper.find('.new-puzzle-btn').trigger('click');
+    // Tap through several rounds in a row — nothing gates repeated use.
+    for (let i = 0; i < 5; i++) {
+      await wrapper.find('.new-puzzle-btn').trigger('click');
+      expect(wrapper.vm.guesses.length).toBe(0);
+      expect(wrapper.vm.target).not.toBeNull();
+    }
 
-    expect(wrapper.vm.isManualPuzzle).toBe(true);
-    expect(wrapper.vm.guesses.length).toBe(0);
-
-    // A practice puzzle must never touch the daily puzzle's localStorage —
-    // a wrong guess here shouldn't leak into the persisted daily entry, so
-    // the stored value must be byte-identical to before the practice guess
-    // (checking length alone, since which entry ends up "wrong" for the
-    // randomly-chosen practice target isn't deterministic).
-    const wrongForManual = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== wrapper.vm.target.dbKey);
-    await wrapper.vm.submitGuess(wrongForManual);
-    const raw = window.localStorage.getItem(wrapper.vm.storageKey);
-    expect(JSON.parse(raw)).toEqual(persistedBefore);
+    const raw = window.localStorage.getItem('cinemaRoll.reelWordle.current');
+    expect(JSON.parse(raw)).toEqual({ targetKey: wrapper.vm.target.dbKey, guessedKeys: [] });
   });
 
-  it('persists guesses across a remount (same day)', async () => {
+  it('never repeats the immediately-previous target on consecutive "New Puzzle" taps when alternatives exist', async () => {
+    const wrapper = factory(10);
+    const before = wrapper.vm.target.dbKey;
+    await wrapper.find('.new-puzzle-btn').trigger('click');
+    expect(wrapper.vm.target.dbKey).not.toBe(before);
+  });
+
+  it('persists progress across a remount, resuming the SAME in-progress puzzle', async () => {
     const wrapper = factory(10);
     const target = wrapper.vm.target;
     const wrong = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== target.dbKey);
     await wrapper.vm.submitGuess(wrong);
 
     const second = factory(10);
+    expect(second.vm.target.dbKey).toBe(target.dbKey);
     expect(second.vm.guesses.length).toBe(1);
     expect(second.vm.guesses[0].entryKey).toBe(wrong.dbKey);
   });

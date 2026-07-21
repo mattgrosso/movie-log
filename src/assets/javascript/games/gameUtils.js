@@ -69,20 +69,6 @@ export function pickRandomDistinct (array, count, rng = Math.random) {
   return shuffle(array, rng).slice(0, count);
 }
 
-// Deterministic "movie of the day" — same pick for every visit on the same
-// calendar day, changes the next day, with no server round-trip.
-export function pickDailyEntry (eligibleEntries, dateString) {
-  if (!eligibleEntries || !eligibleEntries.length) return null;
-  const seed = hashString(dateString);
-  const rng = makeSeededRng(seed);
-  const index = Math.floor(rng() * eligibleEntries.length) % eligibleEntries.length;
-  return eligibleEntries[index];
-}
-
-export function todayDateString (date = new Date()) {
-  return date.toDateString();
-}
-
 export function movieYear (entry) {
   if (!entry?.movie?.release_date) return null;
   const year = new Date(entry.movie.release_date).getFullYear();

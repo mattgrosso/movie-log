@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getEligibleEntries, ratingFor, hashString, makeSeededRng, shuffle, pickRandomDistinct,
-  pickDailyEntry, movieYear, movieDecade, movieDirectors, movieCastNames, movieGenreNames,
+  movieYear, movieDecade, movieDirectors, movieCastNames, movieGenreNames,
   entryKey, compareNumber
 } from '@/assets/javascript/games/gameUtils.js';
 
@@ -117,26 +117,6 @@ describe('shuffle / pickRandomDistinct', () => {
     const result = pickRandomDistinct([1, 2, 3, 4, 5], 3, makeSeededRng(7));
     expect(result.length).toBe(3);
     expect(new Set(result).size).toBe(3);
-  });
-});
-
-describe('pickDailyEntry', () => {
-  it('returns null for an empty pool', () => {
-    expect(pickDailyEntry([], '2026-07-21')).toBeNull();
-  });
-
-  it('is deterministic for the same date string', () => {
-    const pool = [entry({ dbKey: 'a' }), entry({ dbKey: 'b' }), entry({ dbKey: 'c' }), entry({ dbKey: 'd' })];
-    const first = pickDailyEntry(pool, '2026-07-21');
-    const second = pickDailyEntry(pool, '2026-07-21');
-    expect(first).toBe(second);
-  });
-
-  it('always returns an entry from the pool', () => {
-    const pool = [entry({ dbKey: 'a' }), entry({ dbKey: 'b' }), entry({ dbKey: 'c' })];
-    for (const date of ['2026-01-01', '2026-06-15', '2027-12-31']) {
-      expect(pool).toContain(pickDailyEntry(pool, date));
-    }
   });
 });
 

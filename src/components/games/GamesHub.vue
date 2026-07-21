@@ -51,7 +51,7 @@ export default {
           path: '/games/wordle',
           name: 'Reel Wordle',
           icon: 'bi-grid-3x3-gap-fill',
-          description: "One movie from your library, picked fresh each day. Guess it using year/genre/director clues — as many tries as you need."
+          description: "A random movie from your library. Guess it using year/genre/director clues — as many tries and as many rounds as you want."
         },
         {
           path: '/games/connections',
