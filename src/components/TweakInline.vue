@@ -33,8 +33,9 @@
         </div>
       </div>
 
-      <!-- Current match -->
-      <div v-else key="form" class="tweak-container rounded p-3 mb-3">
+      <!-- Current match (guarded so a momentary null pair can never throw
+           trying to render a poster for a movie that isn't there) -->
+      <div v-else-if="firstResult && secondResult" key="form" class="tweak-container rounded p-3 mb-3">
         <!-- Title -->
         <div class="text-center mb-2">
           <h5 class="text-light mb-0">Break the Tie</h5>
@@ -161,15 +162,27 @@ export default {
       return this.currentTournament.finalRanking
         .map((entry) => ({ ...entry, movie: this.allMoviesRanked.find((movie) => movie.dbKey === entry.dbKey) }))
         .filter((entry) => entry.movie);
+    },
+    // True exactly when this is visible, nothing is currently in progress,
+    // and there's a fresh group to start one for.
+    needsNewTournament () {
+      return this.showTweakModal && !this.currentTournament && this.tiedGroupDbKeys.length >= 2;
     }
   },
   watch: {
-    // Lazily create+persist a tournament the first time this becomes visible
-    // with ties present but nothing already in progress.
-    showTweakModal: {
+    // Reacts to the STATE, not to showTweakModal merely changing value — with
+    // "force tiebreak to show" enabled in settings, showTweakModal is pinned
+    // true throughout, so a watcher on showTweakModal itself only ever fires
+    // once (on mount) and never again once a tournament completes and
+    // clears, leaving the next tied group undetected (reported bug: forcing
+    // a tiebreak, finishing it, then tapping the next "you have a tie"
+    // notice rendered nothing because no tournament existed for it to show).
+    // Watching this computed instead re-fires whenever currentTournament
+    // drops back to null while there's still something to start.
+    needsNewTournament: {
       immediate: true,
-      handler (shouldShow) {
-        if (shouldShow) this.ensureTournamentStarted();
+      handler (needsOne) {
+        if (needsOne) this.ensureTournamentStarted();
       }
     }
   },
@@ -277,6 +290,11 @@ export default {
       this.localTournament = null;
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: null });
       this.closeTweakInline();
+      // Immediately (rather than waiting on the watcher's next tick) start
+      // the next tournament if another tied group is already sitting there —
+      // most relevant with "force tiebreak" enabled, where showTweakModal
+      // never toggles to re-trigger detection on its own.
+      this.ensureTournamentStarted();
 
       // Emit event to parent to update data
       this.$emit('tweak-updated');

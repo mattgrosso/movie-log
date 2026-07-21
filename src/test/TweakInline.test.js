@@ -3,7 +3,11 @@ import { mount } from '@vue/test-utils'
 import TweakInline from '@/components/TweakInline.vue'
 
 vi.mock('@/assets/javascript/GetRating.js', () => ({
-  getRating: vi.fn((movie) => ({ calculatedTotal: movie.ratings[0].calculatedTotal }))
+  // Folds tweakValue in, same as the real GetRating.js, so a fixture's tie
+  // can be tested as "resolved" by giving it a non-zero tweakValue.
+  getRating: vi.fn((movie) => ({
+    calculatedTotal: movie.ratings[0].calculatedTotal + (movie.ratings[0].tweakValue || 0)
+  }))
 }))
 
 function movie (dbKey, title, calculatedTotal, tweakValue = 0) {
@@ -84,7 +88,12 @@ describe('TweakInline', () => {
 
       await wrapper.find('.btn').trigger('click')
 
-      expect(lastDispatchTo(dispatch, 'settings/tieBreakTournament')).toBeNull()
+      // The clear must happen (even though, in this fixture, the same pair
+      // is still tied from the component's next read — since dispatch is
+      // only a spy here, not a real Firebase round-trip — so acknowledge
+      // immediately restarting a fresh tournament for it right after is
+      // expected; see the "forced-mode simulation" tests below).
+      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/tieBreakTournament', value: null })
       expect(wrapper.text()).not.toContain('Tournament Complete!')
     })
   })
@@ -143,6 +152,37 @@ describe('TweakInline', () => {
 
       const notice = wrapper.find('.tweak-container')
       expect(notice.exists()).toBe(true)
+    })
+  })
+
+  // Regression test for a real bug report: with "force tiebreak to show" on
+  // in settings, the showTweakModal PROP is pinned true and never toggles.
+  // The original trigger was a watcher on showTweakModal *changing*, so it
+  // fired once on mount and never again — after finishing one tournament,
+  // the "you have another tie" notice would render but tapping it crashed/
+  // went blank because no tournament existed for it to display.
+  describe('showTweakModal pinned true throughout (forced-mode simulation)', () => {
+    it('auto-starts the next tournament after Done, without showTweakModal ever toggling', async () => {
+      const movies = [movie('a', 'A', 8), movie('b', 'B', 8)]
+      const { wrapper, dispatch } = mountTweak(movies) // showTweakModal: true, fixed prop, never changes
+
+      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.findAll('.poster-container')[0].trigger('click')
+      expect(wrapper.text()).toContain('Tournament Complete!')
+
+      dispatch.mockClear()
+      await wrapper.find('.btn').trigger('click') // "Done"
+
+      // A fresh tournament must exist immediately — not "eventually", and
+      // not left null waiting for a prop change that will never come.
+      const restarted = [...dispatch.mock.calls].reverse().find(([, e]) => e.path === 'settings/tieBreakTournament')
+      expect(restarted[1].value).not.toBeNull()
+
+      // Tapping the notice must show an actual, playable matchup — not a
+      // blank/crashed panel.
+      await wrapper.find('.tweak-container').trigger('click')
+      expect(wrapper.findAll('.poster-container')).toHaveLength(2)
+      expect(wrapper.text()).not.toContain('Tournament Complete!')
     })
   })
 })
