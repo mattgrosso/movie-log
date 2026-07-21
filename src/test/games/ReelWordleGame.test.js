@@ -168,6 +168,20 @@ describe('ReelWordleGame', () => {
     expect(second.vm.guesses[0].entryKey).toBe(wrong.dbKey);
   });
 
+  it('renders the guess history ABOVE the input, so the newest guess sits next to where you type the next one', async () => {
+    const wrapper = factory(10);
+    const wrong = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== wrapper.vm.target.dbKey);
+    await wrapper.vm.submitGuess(wrong);
+    await wrapper.vm.$nextTick();
+
+    const html = wrapper.html();
+    const gridIndex = html.indexOf('clue-grid');
+    const formIndex = html.indexOf('guess-form');
+    expect(gridIndex).toBeGreaterThan(-1);
+    expect(formIndex).toBeGreaterThan(-1);
+    expect(gridIndex).toBeLessThan(formIndex);
+  });
+
   it('suggestion list filters by typed substring and excludes already-guessed movies', async () => {
     const wrapper = factory(10);
     await wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries[0]);

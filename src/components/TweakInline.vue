@@ -155,6 +155,10 @@ export default {
     progressLabel () {
       if (!this.currentTournament) return '';
       const p = progress(this.currentTournament);
+      // A 2-way tie is exactly one match (round-robin on 2 contestants) — not
+      // really a "tournament", so don't narrate a contestant count/match
+      // progress for what's just a single pick.
+      if (p.total <= 1) return '';
       return `${p.contestants} contestants · match ${p.current} of ${p.total}`;
     },
     resultsForDisplay () {
@@ -232,13 +236,21 @@ export default {
 
       return mostRecentRatingIndex;
     },
+    // Returns true if a tournament is (now) in progress, false if there was
+    // nothing left to start it for — callers use this to decide whether to
+    // keep the panel open on the next match or collapse it.
     ensureTournamentStarted () {
-      if (this.currentTournament) return;
-      if (this.tiedGroupDbKeys.length < 2) return;
+      if (this.currentTournament) return true;
+      if (this.tiedGroupDbKeys.length < 2) return false;
 
       const tournament = createRoundRobinTournament(this.tiedGroupDbKeys);
       this.localTournament = tournament;
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: tournament });
+      return true;
+    },
+    clearCompletedTournament () {
+      this.localTournament = null;
+      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: null });
     },
     chooseWinner (winnerResult) {
       if (!winnerResult || !this.currentTournament) return;
@@ -251,6 +263,17 @@ export default {
 
       if (isComplete(updatedTournament)) {
         this.applyTournamentResults(updatedTournament);
+
+        // A 2-way tie completes in exactly one match — showing the
+        // "Tournament Complete!" standings screen (which needs an explicit
+        // "Done" tap) is needless ceremony for what's really just picking a
+        // winner. Skip straight past it: clear this tournament and, if
+        // there's another tied group, show its first match immediately
+        // instead of waiting for a tap; otherwise collapse the panel.
+        if (updatedTournament.contestantIds.length <= 2) {
+          this.clearCompletedTournament();
+          if (!this.ensureTournamentStarted()) this.closeTweakInline();
+        }
       }
 
       this.submitting = false;
@@ -287,8 +310,7 @@ export default {
       });
     },
     acknowledgeResults () {
-      this.localTournament = null;
-      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: null });
+      this.clearCompletedTournament();
       this.closeTweakInline();
       // Immediately (rather than waiting on the watcher's next tick) start
       // the next tournament if another tied group is already sitting there —

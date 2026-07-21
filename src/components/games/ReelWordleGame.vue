@@ -12,32 +12,14 @@
     </div>
 
     <template v-else>
-      <div v-if="status === 'playing'" class="guess-form">
-        <input
-          v-model="guessInput"
-          type="text"
-          class="form-control"
-          placeholder="Type a movie from your library…"
-          @input="onInput"
-        >
-        <ul v-if="suggestions.length" class="suggestions">
-          <li v-for="entry in suggestions" :key="entryKeyFor(entry)">
-            <button type="button" class="suggestion-item" @click="submitGuess(entry)">
-              {{ entry.movie.title }}
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <div v-else class="result-banner won">
-        <p>You got it in {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }} (score: {{ score }})!</p>
-        <img v-if="gamePosterUrl(target)" :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
-      </div>
-
       <ul v-if="activeClues.length" class="target-clues">
         <li v-for="(clue, index) in activeClues" :key="index">{{ clue }}</li>
       </ul>
 
+      <!-- Guess history renders ABOVE the input (oldest first, newest at the
+           bottom) so the most recent guess sits right next to where you type
+           the next one, instead of you having to scroll past a growing list
+           to get back down to it. -->
       <div v-if="guesses.length" class="clue-grid">
         <div v-for="(clue, index) in guesses" :key="index" class="clue-row" :class="{ correct: clue.isCorrect }">
           <p class="clue-title">{{ clue.title }}</p>
@@ -72,6 +54,28 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <div v-if="status === 'playing'" class="guess-form">
+        <input
+          v-model="guessInput"
+          type="text"
+          class="form-control"
+          placeholder="Type a movie from your library…"
+          @input="onInput"
+        >
+        <ul v-if="suggestions.length" class="suggestions">
+          <li v-for="entry in suggestions" :key="entryKeyFor(entry)">
+            <button type="button" class="suggestion-item" @click="submitGuess(entry)">
+              {{ entry.movie.title }}
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div v-else class="result-banner won">
+        <p>You got it in {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }} (score: {{ score }})!</p>
+        <img v-if="gamePosterUrl(target)" :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
       </div>
 
       <button type="button" class="btn btn-sm btn-outline-light new-puzzle-btn" @click="startNewPuzzle">

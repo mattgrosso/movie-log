@@ -56,45 +56,50 @@ describe('TweakInline', () => {
       expect(tournament.schedule).toEqual([{ a: 'a', b: 'b' }])
     })
 
-    it('shows the notice first, then the matchup after tapping it', async () => {
+    it('shows the notice first, then the matchup after tapping it, with no contestant-count/progress narration for a single match', async () => {
       const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       expect(wrapper.text()).toContain('You have a tie to deal with')
 
       await wrapper.find('.tweak-container').trigger('click')
       expect(wrapper.findAll('.poster-container')).toHaveLength(2)
-      expect(wrapper.text()).toContain('2 contestants')
-      expect(wrapper.text()).toContain('match 1 of 1')
+      // A 2-way tie is exactly one match — not really a "tournament", so no
+      // "N contestants · match X of Y" ceremony (per bug report feedback).
+      expect(wrapper.text()).not.toContain('contestants')
+      expect(wrapper.text()).not.toContain('match 1 of 1')
     })
 
-    it('picking a winner (the only match) completes the tournament immediately and shows results', async () => {
+    it('picking a winner (the only match) applies the result and skips straight past the results screen — no "Done" tap needed', async () => {
       const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       await wrapper.find('.tweak-container').trigger('click')
 
       await wrapper.findAll('.poster-container')[0].trigger('click')
 
-      expect(wrapper.text()).toContain('Tournament Complete!')
       // Winner (rank 0) untouched, loser (rank 1) gets the -0.1 penalty —
       // matching the old single-pair tiebreak's behavior exactly for N=2.
       const loserUpdate = lastDispatchTo(dispatch, 'movieLog/b')
       expect(loserUpdate.ratings[0].tweakValue).toBeCloseTo(-0.1)
       expect(lastDispatchTo(dispatch, 'movieLog/a')).toBeUndefined()
       expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+
+      // No "Tournament Complete!" standings screen/Done tap for a 2-way tie
+      // — per bug report feedback, it should just apply and move on.
+      expect(wrapper.text()).not.toContain('Tournament Complete!')
+      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/tieBreakTournament', value: null })
     })
 
-    it('acknowledging results clears the tournament and closes the inline', async () => {
-      const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
+    it('moves straight on to the next matchup (no re-tap of the notice needed) when another tied group already exists', async () => {
+      // In this fixture, dispatch is a spy only — the underlying movies array
+      // never actually changes score — so after the fast-path clears the
+      // tournament, the SAME pair still reads as tied and a fresh tournament
+      // is started for it right away, demonstrating the "move onto the next
+      // one" behavior without requiring the notice to be re-tapped.
+      const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       await wrapper.find('.tweak-container').trigger('click')
       await wrapper.findAll('.poster-container')[0].trigger('click')
 
-      await wrapper.find('.btn').trigger('click')
-
-      // The clear must happen (even though, in this fixture, the same pair
-      // is still tied from the component's next read — since dispatch is
-      // only a spy here, not a real Firebase round-trip — so acknowledge
-      // immediately restarting a fresh tournament for it right after is
-      // expected; see the "forced-mode simulation" tests below).
-      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/tieBreakTournament', value: null })
       expect(wrapper.text()).not.toContain('Tournament Complete!')
+      expect(wrapper.text()).not.toContain('You have a tie to deal with')
+      expect(wrapper.findAll('.poster-container')).toHaveLength(2)
     })
   })
 
@@ -163,11 +168,17 @@ describe('TweakInline', () => {
   // went blank because no tournament existed for it to display.
   describe('showTweakModal pinned true throughout (forced-mode simulation)', () => {
     it('auto-starts the next tournament after Done, without showTweakModal ever toggling', async () => {
-      const movies = [movie('a', 'A', 8), movie('b', 'B', 8)]
+      // A 3-way tie, deliberately NOT 2-way — a 2-way tie now skips the
+      // results screen/Done button entirely (see above), which would no
+      // longer exercise the thing this regression test is actually about:
+      // acknowledgeResults's watcher-independent restart after a Done tap.
+      const movies = [movie('a', 'A', 8), movie('b', 'B', 8), movie('c', 'C', 8)]
       const { wrapper, dispatch } = mountTweak(movies) // showTweakModal: true, fixed prop, never changes
 
       await wrapper.find('.tweak-container').trigger('click')
-      await wrapper.findAll('.poster-container')[0].trigger('click')
+      for (let i = 0; i < 3; i++) {
+        await wrapper.findAll('.poster-container')[0].trigger('click')
+      }
       expect(wrapper.text()).toContain('Tournament Complete!')
 
       dispatch.mockClear()
