@@ -9,7 +9,6 @@ import VueLazyLoad from 'vue3-lazyload';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
 import 'bootstrap-icons/font/bootstrap-icons.css';
-import VueCalendarHeatmap from 'vue3-calendar-heatmap';
 import './registerServiceWorker'
 
 const app = createApp(App);
@@ -29,8 +28,6 @@ app.use(VueLazyLoad, {
     threshold: 0,
   },
 });
-
-app.use(VueCalendarHeatmap);
 
 app.use(router);
 
