@@ -159,12 +159,14 @@
 
           <div v-if="personalAwardWins.length || personalAwardNominations.length" class="award-group personal-awards">
             <h5>My Awards</h5>
+            <h6 v-if="personalAwardWins.length">Won</h6>
             <div v-if="personalAwardWins.length" class="winners">
               <a v-for="award in personalAwardWins" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
                 {{award.year}} &middot; {{award.category}}
                 <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
               </a>
             </div>
+            <h6 v-if="personalAwardNominations.length">Nominated</h6>
             <div v-if="personalAwardNominations.length" class="nominees">
               <a v-for="award in personalAwardNominations" :key="award.id" class="link col-12" @click="openPersonalAwardsYear(award.year)">
                 {{award.year}} &middot; {{award.category}}
@@ -175,12 +177,14 @@
 
           <div v-if="academyAwardWins.length || academyAwardNominations.length" class="award-group academy-awards">
             <h5>Academy Awards</h5>
+            <h6 v-if="academyAwardWins.length">Won</h6>
             <div v-if="academyAwardWins.length" class="winners">
               <a v-for="award in academyAwardWins" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
                 {{award.category}}
                 <span v-if="award.isActing" >({{parseNamesToList(award.names)}})</span>
               </a>
             </div>
+            <h6 v-if="academyAwardNominations.length">Nominated</h6>
             <div v-if="academyAwardNominations.length" class="nominees">
               <a v-for="award in academyAwardNominations" :key="award.id" class="link col-12" @click="goToWikipedia(award.ceremony)">
                 {{award.category}}
@@ -191,12 +195,14 @@
 
           <div v-if="otherAwardWins.length || otherAwardNominations.length" class="award-group other-awards">
             <h5>Other Ceremonies</h5>
+            <h6 v-if="otherAwardWins.length">Won</h6>
             <div v-if="otherAwardWins.length" class="winners">
               <a v-for="award in otherAwardWins" :key="award.id" class="link col-12" @click="goToWikipedia(award.wikipediaQuery)">
                 {{award.ceremony}} &middot; {{award.category}}
                 <span v-if="award.names">({{parseNamesToList(award.names)}})</span>
               </a>
             </div>
+            <h6 v-if="otherAwardNominations.length">Nominated</h6>
             <div v-if="otherAwardNominations.length" class="nominees">
               <a v-for="award in otherAwardNominations" :key="award.id" class="link col-12" @click="goToWikipedia(award.wikipediaQuery)">
                 {{award.ceremony}} &middot; {{award.category}}
@@ -967,6 +973,15 @@ export default {
   methods: {
     async loadMovieData (tmdbId) {
       try {
+        // Reset per-movie data fetched from external APIs. MovieDetail's
+        // component instance is REUSED (not remounted) when navigating from
+        // one movie's page to another's — only $route.params.tmdbId changes —
+        // so without this, awardsData from the previous movie stayed truthy
+        // and the `if (!this.awardsData)` guard below silently skipped
+        // fetching the new movie's awards, leaving the old movie's Academy
+        // Award wins/nominations displayed on the new movie's page.
+        this.awardsData = null;
+
         // Wait for database to be loaded if it isn't already
         if (!this.$store.state.dbLoaded) {
           // Wait for database to load
@@ -1960,6 +1975,13 @@ export default {
         text-transform: uppercase;
         letter-spacing: 0.03em;
         margin-bottom: 0.25rem;
+      }
+
+      h6 {
+        color: #6c757d;
+        font-size: 0.75rem;
+        margin-bottom: 0;
+        padding-left: 6px;
       }
     }
 

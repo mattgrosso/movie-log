@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import MovieDetail from '@/components/MovieDetail.vue'
+import axios from 'axios'
 
 vi.mock('axios', () => ({
   default: {
@@ -137,4 +138,51 @@ describe('MovieDetail - awards sections', () => {
       expect(wrapper.vm.otherAwardNominations).toEqual([])
     })
   })
+
+  describe('loadMovieData does not leak Academy Award data across movies', () => {
+    // Regression test: MovieDetail's component instance is REUSED (not
+    // remounted) when navigating from one movie's page directly to
+    // another's via router params — found while manually verifying the new
+    // awards sections in the browser, where the "Other Ceremonies"/"My
+    // Awards" work made the pre-existing bug obvious (the second movie kept
+    // showing the FIRST movie's Academy Award wins/nominations).
+    it('refetches and replaces awardsData when the route moves to a different movie', async () => {
+      const movieA = { id: 42, title: 'Oppenheimer', release_date: '2023-07-19', runtime: 180, poster_path: '/a.jpg', genres: [], crew: [] };
+      const movieB = { id: 99, title: 'Some Other Film', release_date: '2010-01-01', runtime: 100, poster_path: '/b.jpg', genres: [], crew: [] };
+
+      axios.get.mockImplementation((url) => {
+        if (url.includes('/awards/tmdb/42')) {
+          return Promise.resolve({ data: [{ id: 1, category: 'Best Original Score', isActing: '0', isWinner: '1' }] });
+        }
+        if (url.includes('/awards/tmdb/99')) {
+          return Promise.resolve({ data: [{ id: 2, category: 'Best Original Screenplay', isActing: '0', isWinner: '1' }] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      const mockStore = {
+        state: { movieLog: {}, settings: { tags: { 'viewing-tags': {} } }, academyAwardWinners: {}, dbLoaded: true },
+        getters: { allMediaAsArray: [{ dbKey: 'a', movie: movieA, ratings: [] }, { dbKey: 'b', movie: movieB, ratings: [] }] },
+        commit: vi.fn(),
+        dispatch: vi.fn()
+      };
+
+      const wrapper = shallowMount(MovieDetail, {
+        global: {
+          mocks: {
+            $store: mockStore,
+            $route: { params: { tmdbId: '42' }, query: {} },
+            $router: { push: vi.fn() }
+          },
+          stubs: { ToggleableRating: true, Modal: true }
+        }
+      });
+
+      await wrapper.vm.loadMovieData('42');
+      expect(wrapper.vm.academyAwardWins.map((a) => a.category)).toEqual(['Best Original Score']);
+
+      await wrapper.vm.loadMovieData('99');
+      expect(wrapper.vm.academyAwardWins.map((a) => a.category)).toEqual(['Best Original Screenplay']);
+    });
+  });
 })
