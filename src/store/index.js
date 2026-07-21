@@ -97,6 +97,9 @@ export default createStore({
     // devModeTopKey: 'carrieseltzer-gmail-com',
     // devModeTopKey: 'hopper-seth-gmail-com',
     // devModeTopKey: 'brianpatrick1-gmail-com',
+    // Read once at store creation, then kept in reactive state — see the
+    // `devMode` getter below for why it can't just re-read localStorage.
+    devMode: localStorage.getItem('devMode') === 'true',
     dbLoaded: false,
     filteredResults: [],
     // Header banner: Home resolves bannerUrl on arrival based on bannerRequest
@@ -144,8 +147,15 @@ export default createStore({
     databaseTopKey (state, getters) {
       return getters.devMode ? state.devModeTopKey : state.databaseTopKey;
     },
-    devMode () {
-      return localStorage.getItem('devMode') === 'true';
+    // Backed by state.devMode (set via the setDevMode mutation), not a direct
+    // localStorage read. A Vuex getter is a Vue computed under the hood: with
+    // no reactive dependency (a bare `localStorage.getItem(...)` read touches
+    // no observed state), it only evaluates once and then caches that value
+    // forever, so toggling localStorage directly — from another tab, devtools,
+    // or a differently-reloaded page — would never be picked up without a
+    // full app reload. Routing state.devMode through here keeps it reactive.
+    devMode (state) {
+      return state.devMode;
     },
     weight (state) {
       return (name) => {
@@ -195,6 +205,12 @@ export default createStore({
     },
     setDbLoaded (state, value) {
       state.dbLoaded = value;
+    },
+    // Persists to localStorage here too, so this is the one place that needs
+    // to know devMode is backed by localStorage at all — callers just commit.
+    setDevMode (state, value) {
+      state.devMode = value;
+      localStorage.setItem('devMode', value);
     },
     setFilteredResults (state, value) {
       state.filteredResults = value;

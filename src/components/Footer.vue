@@ -5,7 +5,7 @@
     </span>
     <span>{{version}}</span>
     <div>
-      <span class="dev-mode-switch mx-1" :class="devMode ? 'dev-mode-on' : 'dev-mode-off'" @click="toggleDevMode">
+      <span class="dev-mode-switch mx-1" :class="$store.getters.devMode ? 'dev-mode-on' : 'dev-mode-off'" @click="toggleDevMode">
         <i class="bi bi-file-earmark-code-fill"/>
       </span>
       <a href="mailto:mattgrosso+movielog@gmail.com">
@@ -25,11 +25,6 @@
 <script>
 export default {
   name: 'AppFooter',
-  data () {
-    return {
-      devMode: localStorage.getItem('devMode') === 'true',
-    };
-  },
   computed: {
     version () {
       return process.env.VUE_APP_VERSION;
@@ -37,8 +32,11 @@ export default {
   },
   methods: {
     async toggleDevMode () {
-      this.devMode = !this.devMode;
-      localStorage.setItem('devMode', this.devMode);
+      this.$store.commit('setDevMode', !this.$store.getters.devMode);
+      // Switching accounts means re-fetching movieLog/settings from a
+      // different Firebase path — initializeDB's "only fetch once" guards
+      // (movieLogHasData, etc.) can't do that mid-session, so a reload is
+      // still needed here even though the devMode flag itself is reactive now.
       await this.$store.dispatch('initializeDB');
       location.reload();
     },
