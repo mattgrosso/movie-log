@@ -19,7 +19,7 @@ function factory (movieCount) {
   const wrapper = mount(GamesHub, {
     global: {
       mocks: {
-        $store: { getters: { allMediaAsArray: Array.from({ length: movieCount }, (_, i) => entry(i)) }, commit: vi.fn() },
+        $store: { getters: { allMediaAsArray: Array.from({ length: movieCount }, (_, i) => entry(i)) } },
         $router: { push: pushSpy }
       }
     }

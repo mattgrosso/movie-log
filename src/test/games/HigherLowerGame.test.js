@@ -23,8 +23,7 @@ function factory (movieCount, dispatch = vi.fn()) {
         $store: {
           state: { settings: {} },
           getters: { allMediaAsArray: Array.from({ length: movieCount }, (_, i) => entry(i)) },
-          dispatch,
-          commit: vi.fn()
+          dispatch
         },
         $router: { push: vi.fn() }
       }

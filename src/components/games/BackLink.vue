@@ -10,24 +10,19 @@
 <script>
 // Every game screen (and the games hub) uses this as its sole top-of-page
 // affordance, matching the "Home"/"Games" caret pattern MovieDetail/RateMovie/
-// Insights use elsewhere (see CLAUDE.md's "Unified Home/Back Affordance").
-// Those pages hide the global Header themselves; centralizing that toggle
-// here means every BackLink usage gets it automatically instead of each of
-// the 7 game components needing its own created()/beforeUnmount() pair —
-// previously none of them hid the header, so the global "Cinema Roll" bar
-// rendered above this link instead of it standing alone at the top.
+// Insights use elsewhere. Unlike MovieDetail/RateMovie (which hide the global
+// Header entirely), this follows Insights.vue's approach instead: the global
+// Header stays visible, and the link is lifted up over it purely via CSS
+// (position:absolute with no positioned ancestor anywhere up the tree — see
+// Insights.vue's .home-link — escapes to the page's initial containing block
+// rather than the component's own top of content, landing it up in the
+// Header's space). No store interaction needed here at all.
 export default {
   name: 'BackLink',
   props: {
     label: { type: String, default: 'Home' }
   },
-  emits: ['click'],
-  created () {
-    this.$store.commit('setShowHeader', false);
-  },
-  beforeUnmount () {
-    this.$store.commit('setShowHeader', true);
-  }
+  emits: ['click']
 };
 </script>
 
@@ -38,7 +33,9 @@ export default {
   column-gap: 4px;
   cursor: pointer;
   display: flex;
-  padding: 12px;
+  left: 6px;
+  position: absolute;
+  top: 6px;
 }
 
 .back-link:active {
