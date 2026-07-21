@@ -849,6 +849,7 @@ import {
   awardNameWithoutThe,
   awardNameSingular
 } from '../assets/javascript/personalAwards.js';
+import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
 
 // Default priority order for the grouped search view. The order decides which
 // group claims a movie that matches multiple categories. Users can reorder this
@@ -2239,27 +2240,26 @@ export default {
       // eslint-disable-next-line no-unused-vars
       const _ = this.forceModalReevaluation;
 
-      const firstTiedPairIndex = this.sortedByRating.findIndex((movie, index) => {
-        const nextMovie = this.sortedByRating[index + 1];
+      // A tournament record existing at all (whether mid-tournament or just
+      // completed and awaiting acknowledgment — see tieBreakTournament.js)
+      // always has something to show next; it's only cleared once the user
+      // taps "Done" on the results screen. Only fall back to a fresh tie
+      // scan when there's no record, so a movie rated mid-tournament that
+      // happens to also tie never gets swept into it (TweakInline.vue owns
+      // actually starting a new one).
+      const hasTiedResults = Boolean(this.$store.state.settings?.tieBreakTournament) ||
+        findTiedGroup(this.sortedByRating, (movie) => getRating(movie).calculatedTotal).length >= 2;
 
-        if (!nextMovie) {
-          return false;
-        }
-
-        return getRating(movie).calculatedTotal === getRating(nextMovie).calculatedTotal;
-      });
-
-      if (firstTiedPairIndex === -1) {
+      if (!hasTiedResults) {
         return false;
       }
 
-      const hasTiedResults = Boolean(this.sortedByRating[firstTiedPairIndex] && this.sortedByRating[firstTiedPairIndex + 1]);
       const lastTweak = this.$store.state.settings.lastTweak || Date.now();
       const oneDay = 24 * 60 * 60 * 1000;
       const maxDailyTieBreaks = this.$store.state.settings.tieBreakTweak || 1;
       const dueForTieBreak = Date.now() - lastTweak > (oneDay / maxDailyTieBreaks);
 
-      return hasTiedResults && dueForTieBreak;
+      return dueForTieBreak;
     },
     showAwardsModal () {
       return this.activeModalType === 'awards';

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="firstTiedResults.length && showTweakModal" class="tweak-inline">
+  <div v-if="showTweakModal && (currentTournament || tiedGroupDbKeys.length >= 2)" class="tweak-inline">
     <!-- Single container that changes its content -->
     <Transition name="tweak-expand" mode="out-in">
       <!-- Prompt -->
@@ -10,16 +10,40 @@
         </div>
       </div>
 
-      <!-- Inline Content -->
+      <!-- Tournament just completed: show final standings -->
+      <div v-else-if="tournamentIsComplete" key="results" class="tweak-container rounded p-3 mb-3">
+        <div class="text-center mb-3">
+          <h5 class="text-light mb-0">Tournament Complete!</h5>
+          <p class="text-light small mb-0">Final standings for this tie</p>
+        </div>
+        <ol class="tournament-results list-unstyled mb-3">
+          <li v-for="entry in resultsForDisplay" :key="entry.dbKey" class="d-flex align-items-center gap-2 mb-2">
+            <span class="result-rank">{{ entry.rank + 1 }}</span>
+            <img
+              class="rounded result-thumb"
+              :src="`https://image.tmdb.org/t/p/w92${topStructure(entry.movie).poster_path}`"
+              :alt="topStructure(entry.movie).title"
+            >
+            <span class="text-light result-title">{{ topStructure(entry.movie).title }}</span>
+            <span class="text-muted small ms-auto">{{ entry.wins }} win{{ entry.wins === 1 ? '' : 's' }}</span>
+          </li>
+        </ol>
+        <div class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-light" @click="acknowledgeResults">Done</button>
+        </div>
+      </div>
+
+      <!-- Current match -->
       <div v-else key="form" class="tweak-container rounded p-3 mb-3">
         <!-- Title -->
-        <div class="text-center mb-3">
+        <div class="text-center mb-2">
           <h5 class="text-light mb-0">Break the Tie</h5>
+          <p v-if="progressLabel" class="text-light small mb-0">{{ progressLabel }}</p>
         </div>
 
         <!-- Two posters side by side -->
         <div class="d-flex justify-content-center gap-4">
-          <div class="poster-container text-center" @click="firstResultWins">
+          <div class="poster-container text-center" @click="chooseWinner(firstResult)">
             <div class="poster-wrapper">
               <img
                 class="rounded poster-image"
@@ -33,7 +57,7 @@
             <span class="text-light">vs</span>
           </div>
 
-          <div class="poster-container text-center" @click="secondResultWins">
+          <div class="poster-container text-center" @click="chooseWinner(secondResult)">
             <div class="poster-wrapper">
               <img
                 class="rounded poster-image"
@@ -56,6 +80,15 @@
 
 <script>
 import { getRating } from "../assets/javascript/GetRating.js";
+import {
+  findTiedGroup,
+  createRoundRobinTournament,
+  currentMatch,
+  isComplete,
+  recordMatchResult,
+  progress,
+  tweakDeltaForRank
+} from "../assets/javascript/tieBreakTournament.js";
 
 export default {
   name: "TweakInline",
@@ -73,7 +106,15 @@ export default {
   data () {
     return {
       showTweakInline: false,
-      submitting: false
+      submitting: false,
+      // Optimistic local copy of the tournament, set whenever this component
+      // creates/updates it — Firebase's realtime round-trip back into
+      // $store.state.settings.tieBreakTournament isn't synchronous, so
+      // without this the UI would flash back to a stale state between
+      // dispatch and the listener catching up. A fresh mount (no local copy
+      // yet) just reads straight from the store, which is how a
+      // days-spanning tournament survives across sessions.
+      localTournament: null
     }
   },
   computed: {
@@ -84,36 +125,52 @@ export default {
       const movies = [...this.$store.getters.allMoviesAsArray];
       return movies.sort(this.sortByRating);
     },
-    firstTiedResults () {
-      const firstTiedPairIndex = this.allMoviesRanked.findIndex((movie, index) => {
-        const nextMovie = this.allMoviesRanked[index + 1];
-
-        if (!nextMovie) {
-          return false;
-        }
-
-        return getRating(movie).calculatedTotal === getRating(nextMovie).calculatedTotal;
-      });
-
-      if (firstTiedPairIndex === -1) {
-        return [];
-      }
-
-      return [this.allMoviesRanked[firstTiedPairIndex], this.allMoviesRanked[firstTiedPairIndex + 1]];
+    // The full contiguous group of movies tied on rating score right now —
+    // only relevant when there's no tournament already in progress (a
+    // tournament's contestantIds are frozen at creation, see
+    // tieBreakTournament.js, so this must never override an active one).
+    tiedGroupDbKeys () {
+      return findTiedGroup(this.allMoviesRanked, (movie) => getRating(movie).calculatedTotal)
+        .map((movie) => movie.dbKey);
+    },
+    currentTournament () {
+      return this.localTournament || this.$store.state.settings?.tieBreakTournament || null;
+    },
+    tournamentIsComplete () {
+      return Boolean(this.currentTournament && isComplete(this.currentTournament));
+    },
+    currentMatchup () {
+      if (!this.currentTournament || this.tournamentIsComplete) return null;
+      return currentMatch(this.currentTournament);
     },
     firstResult () {
-      return this.firstTiedResults[0];
+      if (!this.currentMatchup) return null;
+      return this.allMoviesRanked.find((movie) => movie.dbKey === this.currentMatchup.a) || null;
     },
     secondResult () {
-      return this.firstTiedResults[1];
+      if (!this.currentMatchup) return null;
+      return this.allMoviesRanked.find((movie) => movie.dbKey === this.currentMatchup.b) || null;
     },
-    firstResultTweakValue () {
-      if (!this.firstResult) return 0;
-      return this.firstResult.ratings[this.mostRecentRatingIndex(this.firstResult)].tweakValue || 0;
+    progressLabel () {
+      if (!this.currentTournament) return '';
+      const p = progress(this.currentTournament);
+      return `${p.contestants} contestants · match ${p.current} of ${p.total}`;
     },
-    secondResultTweakValue () {
-      if (!this.secondResult) return 0;
-      return this.secondResult.ratings[this.mostRecentRatingIndex(this.secondResult)].tweakValue || 0;
+    resultsForDisplay () {
+      if (!this.tournamentIsComplete) return [];
+      return this.currentTournament.finalRanking
+        .map((entry) => ({ ...entry, movie: this.allMoviesRanked.find((movie) => movie.dbKey === entry.dbKey) }))
+        .filter((entry) => entry.movie);
+    }
+  },
+  watch: {
+    // Lazily create+persist a tournament the first time this becomes visible
+    // with ties present but nothing already in progress.
+    showTweakModal: {
+      immediate: true,
+      handler (shouldShow) {
+        if (shouldShow) this.ensureTournamentStarted();
+      }
     }
   },
   methods: {
@@ -162,71 +219,63 @@ export default {
 
       return mostRecentRatingIndex;
     },
-    firstResultWins () {
-      // Because the first result won, we are going to reduce the overall score of second result.
+    ensureTournamentStarted () {
+      if (this.currentTournament) return;
+      if (this.tiedGroupDbKeys.length < 2) return;
+
+      const tournament = createRoundRobinTournament(this.tiedGroupDbKeys);
+      this.localTournament = tournament;
+      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: tournament });
+    },
+    chooseWinner (winnerResult) {
+      if (!winnerResult || !this.currentTournament) return;
       this.submitting = true;
 
-      const movieWithRating = {
-        ...this.secondResult,
-        ratings: this.secondResult.ratings.slice().map((rating, index) => {
-          if (index === this.mostRecentRatingIndex(this.secondResult)) {
-            return {
-              ...rating,
-              tweakValue: this.secondResultTweakValue - 0.1,
-              userTweaked: true
-            };
-          }
-          return rating;
-        })
-      };
+      const updatedTournament = recordMatchResult(this.currentTournament, winnerResult.dbKey);
+      this.localTournament = updatedTournament;
+      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: updatedTournament });
+      this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
 
-      const dbEntry = {
-        path: `movieLog/${this.secondResult.dbKey}`,
-        value: movieWithRating
+      if (isComplete(updatedTournament)) {
+        this.applyTournamentResults(updatedTournament);
       }
 
-      this.$store.dispatch('setDBValue', dbEntry);
-      this.$store.dispatch('setDBValue', {
-        path: 'settings/lastTweak',
-        value: Date.now()
-      });
-
       this.submitting = false;
-      this.closeTweakInline();
 
       // Emit event to parent to update data
       this.$emit('tweak-updated');
     },
-    secondResultWins () {
-      // Because the second result won, we are going to reduce the overall score of first result.
-      this.submitting = true;
+    // Applies the rank-based score adjustment to every contestant in one
+    // batch, once the tournament's last match has been decided. The top
+    // rank (0) is left untouched, matching the old single-pair tiebreak's
+    // "winner untouched, loser penalized" behavior.
+    applyTournamentResults (tournament) {
+      tournament.finalRanking.forEach((entry) => {
+        const delta = tweakDeltaForRank(entry.rank);
+        if (delta === 0) return;
 
-      const movieWithRating = {
-        ...this.firstResult,
-        ratings: this.firstResult.ratings.slice().map((rating, index) => {
-          if (index === this.mostRecentRatingIndex(this.firstResult)) {
-            return {
-              ...rating,
-              tweakValue: this.firstResultTweakValue - 0.1,
-              userTweaked: true
-            };
-          }
-          return rating;
-        })
-      };
+        const movie = this.allMoviesRanked.find((m) => m.dbKey === entry.dbKey);
+        if (!movie) return;
 
-      const dbEntry = {
-        path: `movieLog/${this.firstResult.dbKey}`,
-        value: movieWithRating
-      }
+        const ratingIndex = this.mostRecentRatingIndex(movie);
+        const currentTweakValue = movie.ratings[ratingIndex].tweakValue || 0;
 
-      this.$store.dispatch('setDBValue', dbEntry);
-      this.$store.dispatch('setDBValue', {
-        path: 'settings/lastTweak',
-        value: Date.now()
+        const movieWithRating = {
+          ...movie,
+          ratings: movie.ratings.slice().map((rating, index) => {
+            if (index === ratingIndex) {
+              return { ...rating, tweakValue: currentTweakValue + delta, userTweaked: true };
+            }
+            return rating;
+          })
+        };
+
+        this.$store.dispatch('setDBValue', { path: `movieLog/${movie.dbKey}`, value: movieWithRating });
       });
-
-      this.submitting = false;
+    },
+    acknowledgeResults () {
+      this.localTournament = null;
+      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: null });
       this.closeTweakInline();
 
       // Emit event to parent to update data
@@ -321,6 +370,31 @@ export default {
     font-size: 1.2rem;
     font-weight: bold;
     opacity: 0.7;
+  }
+
+  .tournament-results {
+    max-height: 260px;
+    overflow-y: auto;
+
+    .result-rank {
+      color: #ccc;
+      font-weight: bold;
+      min-width: 1.2rem;
+      text-align: center;
+    }
+
+    .result-thumb {
+      width: 32px;
+      height: 48px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .result-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 
   .btn {

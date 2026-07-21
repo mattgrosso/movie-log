@@ -1,0 +1,170 @@
+import { describe, it, expect } from 'vitest'
+import {
+  findTiedGroup,
+  createRoundRobinTournament,
+  currentMatch,
+  isComplete,
+  recordMatchResult,
+  rankContestants,
+  progress,
+  tweakDeltaForRank
+} from '@/assets/javascript/tieBreakTournament.js'
+
+describe('findTiedGroup', () => {
+  const byScore = (entries) => (entry) => entries.get(entry)
+
+  it('returns [] when nothing is tied', () => {
+    const scores = new Map([['a', 9], ['b', 8], ['c', 7]])
+    expect(findTiedGroup(['a', 'b', 'c'], byScore(scores))).toEqual([])
+  })
+
+  it('finds a simple adjacent pair', () => {
+    const scores = new Map([['a', 9], ['b', 8], ['c', 8], ['d', 7]])
+    expect(findTiedGroup(['a', 'b', 'c', 'd'], byScore(scores))).toEqual(['b', 'c'])
+  })
+
+  it('expands to the full contiguous run for a 4-way tie', () => {
+    const scores = new Map([['a', 9], ['b', 7], ['c', 7], ['d', 7], ['e', 7], ['f', 5]])
+    expect(findTiedGroup(['a', 'b', 'c', 'd', 'e', 'f'], byScore(scores))).toEqual(['b', 'c', 'd', 'e'])
+  })
+
+  it('handles a tied group starting at index 0', () => {
+    const scores = new Map([['a', 8], ['b', 8], ['c', 5]])
+    expect(findTiedGroup(['a', 'b', 'c'], byScore(scores))).toEqual(['a', 'b'])
+  })
+
+  it('handles a tied group ending at the last index', () => {
+    const scores = new Map([['a', 9], ['b', 6], ['c', 6]])
+    expect(findTiedGroup(['a', 'b', 'c'], byScore(scores))).toEqual(['b', 'c'])
+  })
+
+  it('only returns the FIRST tied group when there are two separate ones', () => {
+    const scores = new Map([['a', 9], ['b', 9], ['c', 7], ['d', 5], ['e', 5]])
+    expect(findTiedGroup(['a', 'b', 'c', 'd', 'e'], byScore(scores))).toEqual(['a', 'b'])
+  })
+
+  it('returns [] for an empty or single-entry list', () => {
+    expect(findTiedGroup([], () => 1)).toEqual([])
+    expect(findTiedGroup(['a'], () => 1)).toEqual([])
+  })
+})
+
+describe('createRoundRobinTournament', () => {
+  it('builds a schedule of every unique pair (N choose 2)', () => {
+    const t = createRoundRobinTournament(['a', 'b', 'c', 'd'])
+    expect(t.schedule).toHaveLength(6)
+    expect(t.schedule).toEqual([
+      { a: 'a', b: 'b' }, { a: 'a', b: 'c' }, { a: 'a', b: 'd' },
+      { a: 'b', b: 'c' }, { a: 'b', b: 'd' },
+      { a: 'c', b: 'd' }
+    ])
+  })
+
+  it('a 2-contestant tournament is a single match, matching the old pairwise behavior', () => {
+    const t = createRoundRobinTournament(['a', 'b'])
+    expect(t.schedule).toEqual([{ a: 'a', b: 'b' }])
+  })
+
+  it('initializes zeroed wins, nextIndex 0, and no final ranking yet', () => {
+    const t = createRoundRobinTournament(['a', 'b', 'c'])
+    expect(t.wins).toEqual({ a: 0, b: 0, c: 0 })
+    expect(t.nextIndex).toBe(0)
+    expect(t.finalRanking).toBeNull()
+    expect(t.completedAt).toBeNull()
+  })
+
+  it('freezes contestantIds as a copy, not a live reference', () => {
+    const ids = ['a', 'b']
+    const t = createRoundRobinTournament(ids)
+    ids.push('c')
+    expect(t.contestantIds).toEqual(['a', 'b'])
+  })
+})
+
+describe('recordMatchResult / currentMatch / isComplete', () => {
+  it('advances nextIndex and tallies the winner after each match', () => {
+    let t = createRoundRobinTournament(['a', 'b', 'c'])
+    expect(currentMatch(t)).toEqual({ a: 'a', b: 'b' })
+    expect(isComplete(t)).toBe(false)
+
+    t = recordMatchResult(t, 'a')
+    expect(t.wins.a).toBe(1)
+    expect(currentMatch(t)).toEqual({ a: 'a', b: 'c' })
+    expect(isComplete(t)).toBe(false)
+  })
+
+  it('attaches finalRanking + completedAt exactly when the last match is recorded', () => {
+    let t = createRoundRobinTournament(['a', 'b'])
+    expect(t.completedAt).toBeNull()
+
+    t = recordMatchResult(t, 'a')
+    expect(isComplete(t)).toBe(true)
+    expect(t.completedAt).not.toBeNull()
+    expect(t.finalRanking).toEqual([
+      { dbKey: 'a', wins: 1, rank: 0 },
+      { dbKey: 'b', wins: 0, rank: 1 }
+    ])
+  })
+
+  it('is a no-op past completion (returns the same state)', () => {
+    let t = createRoundRobinTournament(['a', 'b'])
+    t = recordMatchResult(t, 'a')
+    const again = recordMatchResult(t, 'b')
+    expect(again).toBe(t)
+  })
+
+  it('does not mutate the original state (immutable updates)', () => {
+    const t = createRoundRobinTournament(['a', 'b', 'c'])
+    const original = JSON.stringify(t)
+    recordMatchResult(t, 'a')
+    expect(JSON.stringify(t)).toBe(original)
+  })
+
+  it('resolves a full 4-way round robin into a win-ordered ranking', () => {
+    // a beats everyone (3-0), b beats c and d (2-1), c beats d only (1-2), d loses all (0-3)
+    let t = createRoundRobinTournament(['a', 'b', 'c', 'd'])
+    const winners = ['a', 'a', 'a', 'b', 'b', 'c'] // matches in schedule order: ab ac ad bc bd cd
+    winners.forEach((winner) => { t = recordMatchResult(t, winner) })
+
+    expect(isComplete(t)).toBe(true)
+    expect(t.finalRanking.map((r) => r.dbKey)).toEqual(['a', 'b', 'c', 'd'])
+    expect(t.finalRanking.map((r) => r.wins)).toEqual([3, 2, 1, 0])
+  })
+})
+
+describe('rankContestants — tie-of-ties fallback', () => {
+  it('falls back to original contestant order when win counts are equal (e.g. a rock-paper-scissors cycle: a beats b, b beats c, c beats a — everyone 1-1)', () => {
+    const base = createRoundRobinTournament(['a', 'b', 'c'])
+    const cycle = rankContestants({ ...base, wins: { a: 1, b: 1, c: 1 } })
+    expect(cycle.map((r) => r.dbKey)).toEqual(['a', 'b', 'c'])
+    expect(cycle.map((r) => r.rank)).toEqual([0, 1, 2])
+  })
+})
+
+describe('progress', () => {
+  it('reports contestant count and 1-indexed match progress', () => {
+    let t = createRoundRobinTournament(['a', 'b', 'c'])
+    expect(progress(t)).toEqual({ current: 1, total: 3, contestants: 3 })
+
+    t = recordMatchResult(t, 'a')
+    expect(progress(t)).toEqual({ current: 2, total: 3, contestants: 3 })
+  })
+
+  it('caps "current" at "total" once complete (no off-by-one on the last match)', () => {
+    let t = createRoundRobinTournament(['a', 'b'])
+    t = recordMatchResult(t, 'a')
+    expect(progress(t)).toEqual({ current: 1, total: 1, contestants: 2 })
+  })
+})
+
+describe('tweakDeltaForRank', () => {
+  it('applies no penalty to the top rank', () => {
+    expect(tweakDeltaForRank(0)).toBeCloseTo(0)
+  })
+
+  it('applies -0.1 per rank below the top', () => {
+    expect(tweakDeltaForRank(1)).toBeCloseTo(-0.1)
+    expect(tweakDeltaForRank(2)).toBeCloseTo(-0.2)
+    expect(tweakDeltaForRank(3)).toBeCloseTo(-0.3)
+  })
+})
