@@ -81,7 +81,19 @@ export default {
   mixins: [gameDataMixin],
   data () {
     return {
+      // Two separate graphs on purpose. `graph` is capped at the 10 most-
+      // billed cast per movie — that sparsity is what keeps puzzle
+      // generation/optimal-path interesting (see sixDegrees.js's own
+      // comment: uncapped, nearly every movie is "1 hop" from nearly every
+      // other one). `playGraph` is uncapped (full cast) and is what actually
+      // powers the in-play suggestions — per bug report, a real connection
+      // through a supporting actor outside the top 10 was silently absent
+      // from the capped graph, so typing a movie you genuinely knew the
+      // actor was in surfaced nothing. Restricting to the top 10 only makes
+      // sense when CHOOSING the puzzle, not when the player is doing the
+      // work of recalling/typing a real connection themselves.
       graph: null,
+      playGraph: null,
       pair: null,
       chain: [],
       guessInput: '',
@@ -134,6 +146,7 @@ export default {
     // for inspiration) and coming back was silently discarding progress.
     loadOrStart () {
       this.graph = buildCastGraph(this.eligibleGameEntries);
+      this.playGraph = buildCastGraph(this.eligibleGameEntries, Infinity);
       if (this.tryRestore()) return;
       this.start();
     },
@@ -190,6 +203,7 @@ export default {
     },
     start () {
       this.graph = buildCastGraph(this.eligibleGameEntries);
+      this.playGraph = buildCastGraph(this.eligibleGameEntries, Infinity);
       this.pair = pickConnectedPair(this.eligibleGameEntries, this.graph, Math.random);
       this.chain = this.pair ? [{ type: 'movie', entry: this.pair.source }] : [];
       this.guessInput = '';
@@ -206,14 +220,14 @@ export default {
 
       if (this.needType === 'person') {
         const lastMovie = this.chain[this.chain.length - 1].entry;
-        const cast = (this.graph.peopleByMovie.get(entryKey(lastMovie)) || new Set());
+        const cast = (this.playGraph.peopleByMovie.get(entryKey(lastMovie)) || new Set());
         this.suggestions = [...cast]
           .filter((name) => !this.usedPersonNames.has(name) && name.toLowerCase().includes(term))
           .slice(0, 8)
           .map((name) => ({ name, label: name }));
       } else {
         const lastPerson = this.chain[this.chain.length - 1].name;
-        const movieKeys = [...(this.graph.moviesByPerson.get(lastPerson) || new Set())];
+        const movieKeys = [...(this.playGraph.moviesByPerson.get(lastPerson) || new Set())];
         this.suggestions = movieKeys
           .filter((key) => !this.usedMovieKeys.has(key))
           .map((key) => this.eligibleGameEntries.find((entry) => entryKey(entry) === key))

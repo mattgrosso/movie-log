@@ -63,6 +63,27 @@ describe('SixDegreesGame', () => {
     expect(wrapper.vm.hopsSoFar).toBe(0);
   });
 
+  it('suggests a real connection through an actor billed outside the top-10 puzzle-generation cap (bug report: autocomplete silently found nothing for these)', async () => {
+    const fillers = Array.from({ length: 10 }, (_, i) => `Filler ${i}`);
+    const movieA = entry('a', [...fillers, 'Rare Actor']); // 'Rare Actor' is 11th-billed
+    const movieB = entry('b', ['Rare Actor']);
+    const wrapper = factory([movieA, movieB, ...buildConnectedLibrary()]);
+
+    // Confirm the premise: the capped graph (puzzle generation only) does NOT
+    // see this connection — otherwise this test wouldn't be exercising the fix.
+    expect([...wrapper.vm.graph.peopleByMovie.get(entryKey(movieA))]).not.toContain('Rare Actor');
+
+    wrapper.vm.chain = [{ type: 'movie', entry: movieA }];
+    wrapper.vm.guessInput = 'Rare';
+    wrapper.vm.onInput();
+    expect(wrapper.vm.suggestions.some((s) => s.name === 'Rare Actor')).toBe(true);
+
+    wrapper.vm.pick({ name: 'Rare Actor' });
+    wrapper.vm.guessInput = 'movie b';
+    wrapper.vm.onInput();
+    expect(wrapper.vm.suggestions.some((s) => s.key === entryKey(movieB))).toBe(true);
+  });
+
   it('suggests only cast members of the current movie, excluding already-used people', async () => {
     const wrapper = factory(buildConnectedLibrary());
     const sourceKey = entryKey(wrapper.vm.pair.source);
