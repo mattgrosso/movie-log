@@ -74,6 +74,12 @@
           <span class="spinner-border spinner-border-sm text-light" role="status" aria-hidden="true"></span>
           <span class="text-light ms-2">Processing...</span>
         </div>
+
+        <!-- Only for a real multi-match tournament — a 2-way tie is one pick
+             and done, nothing to "save" partway through. -->
+        <div v-if="canSaveForLater" class="text-center mt-2">
+          <button type="button" class="btn btn-sm btn-outline-light save-for-later-btn" @click="saveForLater">Save for later</button>
+        </div>
       </div>
     </Transition>
   </div>
@@ -160,6 +166,13 @@ export default {
       // progress for what's just a single pick.
       if (p.total <= 1) return '';
       return `${p.contestants} contestants · match ${p.current} of ${p.total}`;
+    },
+    // Same "is this actually a multi-match tournament" check progressLabel
+    // uses — "Save for later" only makes sense when there's more than one
+    // match to walk away from.
+    canSaveForLater () {
+      if (!this.currentTournament) return false;
+      return progress(this.currentTournament).total > 1;
     },
     resultsForDisplay () {
       if (!this.tournamentIsComplete) return [];
@@ -259,7 +272,15 @@ export default {
       const updatedTournament = recordMatchResult(this.currentTournament, winnerResult.dbKey);
       this.localTournament = updatedTournament;
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: updatedTournament });
-      this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
+      // NOT stamping settings/lastTweak here unconditionally anymore — that
+      // used to reset the daily-quota clock after EVERY match, which made
+      // shouldShowTieBreakModal (Home.vue) go false and hide this whole
+      // component right after the first pick of any multi-match tournament.
+      // Per feedback ("I wanna do a few in a row, especially when there's a
+      // bigger tournament"), the default is now to keep walking through
+      // every match of the CURRENT tournament in one sitting; the quota
+      // clock only resets at an actual stopping point — see the two branches
+      // below, acknowledgeResults, and saveForLater.
 
       if (isComplete(updatedTournament)) {
         this.applyTournamentResults(updatedTournament);
@@ -269,11 +290,19 @@ export default {
         // "Done" tap) is needless ceremony for what's really just picking a
         // winner. Skip straight past it: clear this tournament and, if
         // there's another tied group, show its first match immediately
-        // instead of waiting for a tap; otherwise collapse the panel.
+        // instead of waiting for a tap; otherwise collapse the panel and
+        // reset the quota clock, since the session genuinely has nothing
+        // left to do.
         if (updatedTournament.contestantIds.length <= 2) {
           this.clearCompletedTournament();
-          if (!this.ensureTournamentStarted()) this.closeTweakInline();
+          if (!this.ensureTournamentStarted()) {
+            this.closeTweakInline();
+            this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
+          }
         }
+        // 3+-contestant completion falls through to the "Tournament
+        // Complete!" screen — acknowledgeResults stamps lastTweak once the
+        // user taps "Done" there, not here.
       }
 
       this.submitting = false;
@@ -312,6 +341,10 @@ export default {
     acknowledgeResults () {
       this.clearCompletedTournament();
       this.closeTweakInline();
+      // The multi-match-tournament equivalent of the 2-way fast path's
+      // session-end stamp above — this tournament is fully done and
+      // acknowledged, so reset the daily-quota clock now.
+      this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
       // Immediately (rather than waiting on the watcher's next tick) start
       // the next tournament if another tied group is already sitting there —
       // most relevant with "force tiebreak" enabled, where showTweakModal
@@ -319,6 +352,15 @@ export default {
       this.ensureTournamentStarted();
 
       // Emit event to parent to update data
+      this.$emit('tweak-updated');
+    },
+    // Explicit opt-out from "do the whole tournament in one sitting" — pauses
+    // mid-tournament without losing progress (already persisted after every
+    // pick) and resets the daily-quota clock so the panel doesn't immediately
+    // reopen; it'll resume right where it was left, whenever it's next due.
+    saveForLater () {
+      this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
+      this.closeTweakInline();
       this.$emit('tweak-updated');
     }
   }

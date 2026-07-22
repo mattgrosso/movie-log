@@ -79,7 +79,6 @@ describe('TweakInline', () => {
       const loserUpdate = lastDispatchTo(dispatch, 'movieLog/b')
       expect(loserUpdate.ratings[0].tweakValue).toBeCloseTo(-0.1)
       expect(lastDispatchTo(dispatch, 'movieLog/a')).toBeUndefined()
-      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
 
       // No "Tournament Complete!" standings screen/Done tap for a 2-way tie
       // — per bug report feedback, it should just apply and move on.
@@ -93,13 +92,37 @@ describe('TweakInline', () => {
       // tournament, the SAME pair still reads as tied and a fresh tournament
       // is started for it right away, demonstrating the "move onto the next
       // one" behavior without requiring the notice to be re-tapped.
-      const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
+      const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       await wrapper.find('.tweak-container').trigger('click')
       await wrapper.findAll('.poster-container')[0].trigger('click')
 
       expect(wrapper.text()).not.toContain('Tournament Complete!')
       expect(wrapper.text()).not.toContain('You have a tie to deal with')
       expect(wrapper.findAll('.poster-container')).toHaveLength(2)
+
+      // Chaining straight into another tied group's match is not a stopping
+      // point — the daily-quota clock must NOT reset here (that would hide
+      // the very matchup just shown).
+      expect(dispatch).not.toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+    })
+
+    it('stamps the daily-quota clock once a 2-way tie resolves and there is genuinely nothing left to chain into', async () => {
+      const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
+      // Force the "nothing left" branch deterministically rather than relying
+      // on the fixture's tie disappearing (it can't, in this static mock —
+      // see the sibling test above).
+      vi.spyOn(wrapper.vm, 'ensureTournamentStarted').mockReturnValue(false)
+
+      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.findAll('.poster-container')[0].trigger('click')
+
+      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+    })
+
+    it('does not offer "Save for later" for a single-match (2-way) tie', async () => {
+      const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
+      await wrapper.find('.tweak-container').trigger('click')
+      expect(wrapper.find('.save-for-later-btn').exists()).toBe(false)
     })
   })
 
@@ -133,6 +156,48 @@ describe('TweakInline', () => {
       const movieDispatches = dispatch.mock.calls.filter(([, entry]) => entry.path.startsWith('movieLog/'))
       const paths = movieDispatches.map(([, entry]) => entry.path)
       expect(new Set(paths).size).toBe(paths.length)
+    })
+
+    it('does NOT reset the daily-quota clock between matches — the whole tournament runs in one sitting by default', async () => {
+      const { wrapper, dispatch } = mountTweak(fourWayMovies())
+      await wrapper.find('.tweak-container').trigger('click')
+
+      for (let i = 0; i < 5; i++) {
+        await wrapper.findAll('.poster-container')[0].trigger('click')
+      }
+      // 5 of 6 matches done — tournament still in progress.
+      expect(wrapper.text()).not.toContain('Tournament Complete!')
+      expect(dispatch).not.toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+
+      // The 6th (final) match completes the tournament but still doesn't
+      // stamp the clock — that only happens once the results are acknowledged.
+      await wrapper.findAll('.poster-container')[0].trigger('click')
+      expect(wrapper.text()).toContain('Tournament Complete!')
+      expect(dispatch).not.toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+
+      dispatch.mockClear()
+      await wrapper.find('.btn').trigger('click') // "Done"
+      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+    })
+
+    it('offers "Save for later" mid-tournament — tapping it pauses without losing progress', async () => {
+      const { wrapper, dispatch } = mountTweak(fourWayMovies())
+      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.findAll('.poster-container')[0].trigger('click') // 1 of 6 matches done
+
+      const saveBtn = wrapper.find('.save-for-later-btn')
+      expect(saveBtn.exists()).toBe(true)
+      await saveBtn.trigger('click')
+
+      // Collapses back to the notice, resets the quota clock...
+      expect(wrapper.find('.tweak-container').text()).toContain('You have a tie to deal with')
+      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+      // ...but does NOT clear the tournament — progress is preserved.
+      expect(dispatch).not.toHaveBeenCalledWith('setDBValue', { path: 'settings/tieBreakTournament', value: null })
+
+      // Reopening resumes the SAME tournament, one match further along.
+      await wrapper.find('.tweak-container').trigger('click')
+      expect(wrapper.text()).toContain('match 2 of 6')
     })
   })
 
