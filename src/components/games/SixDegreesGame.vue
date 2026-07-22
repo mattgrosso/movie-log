@@ -34,7 +34,7 @@
         <input
           v-model="guessInput"
           type="text"
-          class="form-control"
+          class="game-input"
           :placeholder="needType === 'person' ? 'Who was in that movie?' : 'What else were they in?'"
           @input="onInput"
         >
@@ -45,7 +45,7 @@
             </button>
           </li>
         </ul>
-        <button type="button" class="btn-game btn-game-secondary btn-game-sm mt-2" @click="revealPath">Reveal shortest path</button>
+        <button type="button" class="btn-game btn-game-secondary btn-game-sm mt-2 full-width" @click="revealPath">Reveal shortest path</button>
       </div>
 
       <div v-else class="result-banner" :class="status">
@@ -61,7 +61,7 @@
             <i v-if="index < revealedChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
           </template>
         </div>
-        <button type="button" class="btn-game btn-game-primary btn-game-sm mt-2" @click="start">New Pair</button>
+        <button type="button" class="btn-game btn-game-primary btn-game-sm mt-2 full-width" @click="start">New Pair</button>
       </div>
     </template>
   </div>
@@ -268,6 +268,7 @@ export default {
 
 <style lang="scss" scoped>
 @import '@/assets/scss/game-buttons';
+@import '@/assets/scss/game-inputs';
 
 .six-degrees-game {
   color: #eee;

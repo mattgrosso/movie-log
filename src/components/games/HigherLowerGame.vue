@@ -3,9 +3,9 @@
     <BackLink label="Games" @click="$router.push('/games')"/>
     <h1 class="game-title">Higher or Lower</h1>
 
-    <div v-if="!revealed" class="setup">
+    <div v-if="!leftCard" class="setup">
       <p>See a movie's real Cinema Roll score, then guess whether the next one scored higher or lower.</p>
-      <button type="button" class="btn-game btn-game-primary" @click="start">Start</button>
+      <button type="button" class="btn-game btn-game-primary cta-btn" @click="start">Start</button>
     </div>
 
     <template v-else>
@@ -20,28 +20,26 @@
         <div
           class="hl-card"
           :class="{ tappable: !guessed && !gameOver }"
-          @click="guess('lower')"
+          @click="guess('left')"
         >
-          <img v-if="gamePosterUrl(revealed)" :src="gamePosterUrl(revealed, 'w342')" :alt="revealed.movie.title">
-          <p class="hl-card-title">{{ revealed.movie.title }}</p>
-          <p class="hl-card-score">{{ formattedRating(revealed) }}</p>
+          <img v-if="gamePosterUrl(leftCard)" :src="gamePosterUrl(leftCard, 'w342')" :alt="leftCard.movie.title">
+          <p class="hl-card-title">{{ leftCard.movie.title }}</p>
+          <p class="hl-card-score" :class="scoreClass('left')">{{ scoreDisplay('left') }}</p>
         </div>
 
         <div
           class="hl-card"
           :class="{ tappable: !guessed && !gameOver }"
-          @click="guess('higher')"
+          @click="guess('right')"
         >
-          <img v-if="gamePosterUrl(challenger)" :src="gamePosterUrl(challenger, 'w342')" :alt="challenger.movie.title">
-          <p class="hl-card-title">{{ challenger.movie.title }}</p>
-          <p class="hl-card-score" :class="resultClass">
-            {{ guessed ? formattedRating(challenger) : '?' }}
-          </p>
+          <img v-if="gamePosterUrl(rightCard)" :src="gamePosterUrl(rightCard, 'w342')" :alt="rightCard.movie.title">
+          <p class="hl-card-title">{{ rightCard.movie.title }}</p>
+          <p class="hl-card-score" :class="scoreClass('right')">{{ scoreDisplay('right') }}</p>
         </div>
       </div>
 
       <div v-if="gameOver" class="game-over">
-        <button type="button" class="btn-game btn-game-primary" @click="start">Play Again</button>
+        <button type="button" class="btn-game btn-game-primary cta-btn" @click="start">Play Again</button>
       </div>
     </template>
   </div>
@@ -60,8 +58,17 @@ export default {
     return {
       pool: [],
       poolIndex: 0,
-      revealed: null,
-      challenger: null,
+      // Two fixed screen slots, left/right, each independently holding
+      // whatever card currently lives there. Per bug report (and its
+      // immediate self-correction): a card must never visually "jump" from
+      // one slot to the other — whichever slot a card occupies, it keeps
+      // occupying that SAME slot for as long as it keeps winning; only the
+      // slot that just lost its relevance gets replaced with a fresh
+      // challenger. revealedSide tracks which slot currently shows a real
+      // (already-confirmed) score; the other is the mystery/tap-to-guess one.
+      leftCard: null,
+      rightCard: null,
+      revealedSide: 'left',
       streak: 0,
       guessed: false,
       lastGuessCorrect: null,
@@ -72,6 +79,15 @@ export default {
   computed: {
     bestStreak () {
       return this.$store.state.settings?.games?.higherLowerBestStreak || 0;
+    },
+    mysterySide () {
+      return this.revealedSide === 'left' ? 'right' : 'left';
+    },
+    revealedCard () {
+      return this.revealedSide === 'left' ? this.leftCard : this.rightCard;
+    },
+    mysteryCard () {
+      return this.mysterySide === 'left' ? this.leftCard : this.rightCard;
     },
     resultClass () {
       if (!this.guessed) return '';
@@ -86,7 +102,7 @@ export default {
       if (this.ranOutOfMovies) return "You've compared your whole library! Restart to shuffle a new run.";
       if (!this.guessed) return 'Tap the poster you think scored higher.';
       if (this.lastGuessCorrect) return "Correct — that one's now the card to beat.";
-      return `Streak over at ${this.streak}. Correct score was ${this.formattedRating(this.challenger)}.`;
+      return `Streak over at ${this.streak}. Correct score was ${this.formattedRating(this.mysteryCard)}.`;
     }
   },
   methods: {
@@ -97,11 +113,26 @@ export default {
       const value = this.gameRatingFor(entry);
       return Number.isFinite(value) ? value.toFixed(2) : '—';
     },
+    cardFor (side) {
+      return side === 'left' ? this.leftCard : this.rightCard;
+    },
+    // Score text/color for a given slot — the revealed side always shows its
+    // real score; the mystery side shows '?' until guessed, then reveals
+    // with correct/incorrect coloring.
+    scoreDisplay (side) {
+      if (side !== this.mysterySide || this.guessed) return this.formattedRating(this.cardFor(side));
+      return '?';
+    },
+    scoreClass (side) {
+      if (side !== this.mysterySide || !this.guessed) return '';
+      return this.resultClass;
+    },
     start () {
       this.pool = shuffle(this.eligibleGameEntries, Math.random);
       this.poolIndex = 2;
-      this.revealed = this.pool[0];
-      this.challenger = this.pool[1];
+      this.leftCard = this.pool[0];
+      this.rightCard = this.pool[1];
+      this.revealedSide = 'left';
       this.streak = 0;
       this.guessed = false;
       this.gameOver = false;
@@ -115,13 +146,19 @@ export default {
       }
       return null;
     },
-    guess (direction) {
+    // tappedSide is 'left' or 'right' — whichever poster was actually
+    // tapped. Tapping the mystery card means "I think this one's higher";
+    // tapping the already-revealed card means "I think the mystery one's
+    // lower" — same tap semantics as before, just resolved against whichever
+    // side is currently the mystery one instead of a fixed position.
+    guess (tappedSide) {
       if (this.guessed || this.gameOver) return;
 
-      const revealedRating = this.gameRatingFor(this.revealed);
-      const challengerRating = this.gameRatingFor(this.challenger);
-      const isTie = challengerRating === revealedRating;
-      const isCorrect = isTie || (direction === 'higher' ? challengerRating > revealedRating : challengerRating < revealedRating);
+      const guessHigher = tappedSide === this.mysterySide;
+      const revealedRating = this.gameRatingFor(this.revealedCard);
+      const mysteryRating = this.gameRatingFor(this.mysteryCard);
+      const isTie = mysteryRating === revealedRating;
+      const isCorrect = isTie || (guessHigher ? mysteryRating > revealedRating : mysteryRating < revealedRating);
 
       this.guessed = true;
       this.lastGuessCorrect = isCorrect;
@@ -136,16 +173,26 @@ export default {
         this.$store.dispatch('setDBValue', { path: 'settings/games/higherLowerBestStreak', value: this.streak });
       }
 
-      const settledChallenger = this.challenger;
+      // The mystery card just proved itself and becomes the new reference
+      // for next round — but it stays in its OWN slot (no cross-slot copy).
+      // The OLD revealed slot is what gets replaced with a fresh challenger.
+      const sideToReplace = this.revealedSide;
+      const winnerKey = entryKey(this.mysteryCard);
+      const newRevealedSide = this.mysterySide;
+
       setTimeout(() => {
-        const next = this.nextChallenger(entryKey(settledChallenger));
+        const next = this.nextChallenger(winnerKey);
         if (!next) {
           this.ranOutOfMovies = true;
           this.gameOver = true;
           return;
         }
-        this.revealed = settledChallenger;
-        this.challenger = next;
+        if (sideToReplace === 'left') {
+          this.leftCard = next;
+        } else {
+          this.rightCard = next;
+        }
+        this.revealedSide = newRevealedSide;
         this.guessed = false;
       }, 900);
     }
@@ -170,9 +217,21 @@ export default {
   margin: 0.5rem 0 1rem;
 }
 
+.setup {
+  padding: 0 1.5rem;
+}
+
 .setup p {
   color: #adb5bd;
-  margin: 0 1.5rem 1.5rem;
+  margin: 0 0 1.5rem;
+}
+
+// Per follow-up bug report ("more of the buttons go full width") — capped
+// at a sane max so it doesn't stretch edge-to-edge on a wide viewport.
+.cta-btn {
+  margin: 0 auto;
+  max-width: 320px;
+  width: 100%;
 }
 
 .streak-row {

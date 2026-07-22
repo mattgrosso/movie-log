@@ -32,7 +32,7 @@
         <input
           v-model="guessInput"
           type="text"
-          class="form-control"
+          class="game-input"
           placeholder="Type a movie from your library…"
           @input="onInput"
         >
@@ -255,6 +255,7 @@ export default {
 
 <style lang="scss" scoped>
 @import '@/assets/scss/game-buttons';
+@import '@/assets/scss/game-inputs';
 
 .reel-wordle-game {
   color: #eee;
@@ -313,15 +314,17 @@ export default {
   background: #333;
 }
 
+// A left accent bar on a neutral dark background instead of a uniformly-
+// tinted box — reads as a purpose-built callout rather than a generic
+// (Bootstrap-alert-shaped) colored rectangle. Same treatment as
+// ConnectionsGame.vue's .result-banner.
 .result-banner {
-  border-radius: 0.5rem;
+  background: #1a1a1a;
+  border-left: 4px solid #4caf50;
+  border-radius: 0.4rem;
   margin-bottom: 1rem;
   padding: 1rem;
   text-align: center;
-}
-
-.result-banner.won {
-  background: rgba(76, 175, 80, 0.15);
 }
 
 .reveal-poster {
@@ -332,8 +335,9 @@ export default {
 }
 
 .target-clues {
-  background: rgba(255, 193, 7, 0.1);
-  border-radius: 0.35rem;
+  background: #1a1a1a;
+  border-left: 4px solid #ffc107;
+  border-radius: 0.4rem;
   color: #ffc107;
   font-size: 0.85rem;
   list-style: none;
@@ -343,6 +347,7 @@ export default {
 
 .new-puzzle-btn {
   margin-bottom: 1rem;
+  width: 100%;
 }
 
 /* Mirrors .back-link (BackLink.vue) on the opposite corner — same

@@ -1,0 +1,27 @@
+// Shared text-input look for the Games section — replaces Bootstrap's
+// default .form-control (white background, generic blue focus ring), which
+// still read as "bootstrap-y" even after the button pass (direct follow-up
+// bug report: "the alerts and buttons and things... still seems really
+// bootstrap-y"). Same import pattern as _game-buttons.scss — imported into
+// each game component's own scoped <style lang="scss">.
+
+.game-input {
+  background: #1a1a1a;
+  border: 1.5px solid #333;
+  border-radius: 0.6rem;
+  box-sizing: border-box;
+  color: #eee;
+  font-size: 1rem;
+  padding: 0.65rem 1rem;
+  transition: border-color 0.15s ease;
+  width: 100%;
+
+  &::placeholder {
+    color: #888;
+  }
+
+  &:focus {
+    border-color: #ffb300;
+    outline: none;
+  }
+}

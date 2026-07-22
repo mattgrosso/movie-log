@@ -82,7 +82,7 @@ describe('ConnectionsGame', () => {
     expect(wrapper.vm.solvedLabels).toEqual([]);
   });
 
-  it('a wrong guess reports how many of the 4 picks actually belonged together', async () => {
+  it('a wrong guess reports how many of the 4 picks actually belonged together, and labels which ones', async () => {
     const wrapper = factory(buildSolvableLibrary());
     const [catA, catB] = wrapper.vm.puzzle.categories;
     // 2 from catA, 2 from catB -> best overlap is 2.
@@ -90,8 +90,41 @@ describe('ConnectionsGame', () => {
     wrapper.vm.submitGuess();
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.vm.lastGuessFeedback).toBe('2 of those are in the same group.');
-    expect(wrapper.find('.guess-feedback').text()).toBe('2 of those are in the same group.');
+    expect(wrapper.vm.lastGuessFeedback).toBe('2 of those share group 1 — now labeled below.');
+    expect(wrapper.find('.guess-feedback').text()).toBe('2 of those share group 1 — now labeled below.');
+
+    // The two overlapping tiles are labeled with that group number...
+    expect(wrapper.vm.tileHints[catA.keys[0]].number).toBe(1);
+    expect(wrapper.vm.tileHints[catA.keys[1]].number).toBe(1);
+    // ...and the other two picks (from the OTHER category) are not.
+    expect(wrapper.vm.tileHints[catB.keys[0]]).toBeUndefined();
+    const badge = wrapper.findAll('.tile-hint-badge');
+    expect(badge.length).toBe(2);
+    expect(badge[0].text()).toBe('1');
+  });
+
+  it('a second wrong guess touching a DIFFERENT category gets its own hint number, and re-touching the first extends it', async () => {
+    const wrapper = factory(buildSolvableLibrary());
+    const [catA, catB, catC] = wrapper.vm.puzzle.categories;
+
+    // Guess 1: unambiguously touches catA (3 of 4 from catA, 1 from catB).
+    wrapper.vm.selectedKeys = [catA.keys[0], catA.keys[1], catA.keys[2], catB.keys[0]];
+    wrapper.vm.submitGuess();
+
+    // Guess 2: unambiguously touches catB (3 of 4 from catB, 1 from catC).
+    wrapper.vm.selectedKeys = [catB.keys[0], catB.keys[1], catB.keys[2], catC.keys[0]];
+    wrapper.vm.submitGuess();
+
+    expect(wrapper.vm.categoryHintNumbers[catA.label]).toBe(1);
+    expect(wrapper.vm.categoryHintNumbers[catB.label]).toBe(2);
+
+    // Guess 3: reveals catA's 4th member (tied 2-2 with catC, but catA was
+    // discovered first so it wins the tie) — extends group 1, no new number.
+    wrapper.vm.selectedKeys = [catA.keys[3], catA.keys[0], catC.keys[1], catC.keys[2]];
+    wrapper.vm.submitGuess();
+
+    expect(wrapper.vm.tileHints[catA.keys[3]].number).toBe(1);
+    expect(wrapper.vm.categoryHintNumbers[catA.label]).toBe(1);
   });
 
   it('selecting/deselecting a tile clears any stale guess feedback', async () => {
@@ -105,20 +138,24 @@ describe('ConnectionsGame', () => {
     expect(wrapper.vm.lastGuessFeedback).toBeNull();
   });
 
-  it('reaching 4 mistakes ends the game and reveals every category', async () => {
+  it('has no guess limit — many wrong guesses in a row never end the game (bug report: "get rid of the limited number of guesses")', async () => {
     const wrapper = factory(buildSolvableLibrary());
     const [catA, catB] = wrapper.vm.puzzle.categories;
     const wrongGuess = [catA.keys[0], catA.keys[1], catB.keys[0], catB.keys[1]];
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 10; i++) {
       wrapper.vm.selectedKeys = wrongGuess;
       wrapper.vm.submitGuess();
     }
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.vm.status).toBe('lost');
-    expect(wrapper.vm.solvedLabels).toHaveLength(4);
-    expect(wrapper.find('.result-banner.lost').exists()).toBe(true);
+    expect(wrapper.vm.mistakes).toBe(10);
+    expect(wrapper.vm.status).toBe('playing');
+    expect(wrapper.vm.solvedLabels).toEqual([]);
+    // Still playable — a real correct guess afterward still solves it.
+    wrapper.vm.selectedKeys = [...catA.keys];
+    wrapper.vm.submitGuess();
+    expect(wrapper.vm.solvedLabels).toContain(catA.label);
   });
 
   it('winning shows the win banner once every category is solved', async () => {
@@ -164,5 +201,37 @@ describe('ConnectionsGame', () => {
 
     const group = wrapper.find('.solved-group');
     expect(group.attributes('style')).toContain('border-color');
+  });
+
+  it('a solved group keeps showing its 4 posters (not just a text summary) — bug report: "the posters just seemed to vanish"', async () => {
+    const wrapper = factory(buildSolvableLibrary());
+    const category = wrapper.vm.puzzle.categories[0];
+    category.keys.forEach((key) => wrapper.vm.toggleTile(key));
+    wrapper.vm.submitGuess();
+    await wrapper.vm.$nextTick();
+
+    const group = wrapper.find('.solved-group');
+    expect(group.findAll('.solved-tile').length).toBe(4);
+    expect(group.findAll('.solved-tile img').length).toBe(4);
+    // Solving those tiles removes them from the still-playing grid below.
+    const remainingKeys = wrapper.vm.remainingTiles.map((t) => t.key);
+    category.keys.forEach((key) => expect(remainingKeys).not.toContain(key));
+  });
+
+  it('adds another solved-group row each time a category is solved, all staying visible', async () => {
+    const wrapper = factory(buildSolvableLibrary());
+    const [catA, catB] = wrapper.vm.puzzle.categories;
+
+    wrapper.vm.selectedKeys = [...catA.keys];
+    wrapper.vm.submitGuess();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll('.solved-group').length).toBe(1);
+
+    wrapper.vm.selectedKeys = [...catB.keys];
+    wrapper.vm.submitGuess();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll('.solved-group').length).toBe(2);
+    // The first group's posters are still there, not replaced.
+    expect(wrapper.findAll('.solved-tile img').length).toBe(8);
   });
 });

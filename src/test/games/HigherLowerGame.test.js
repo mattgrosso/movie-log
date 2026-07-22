@@ -39,24 +39,27 @@ describe('HigherLowerGame', () => {
     vi.useRealTimers();
   });
 
-  it('starts with a revealed card and a hidden challenger score', async () => {
+  it('starts with a revealed left card and a hidden (mystery) right score', async () => {
     const wrapper = factory(10);
     await wrapper.find('.btn-game-primary').trigger('click'); // Start
-    expect(wrapper.vm.revealed).not.toBeNull();
-    expect(wrapper.vm.challenger).not.toBeNull();
+    expect(wrapper.vm.leftCard).not.toBeNull();
+    expect(wrapper.vm.rightCard).not.toBeNull();
+    expect(wrapper.vm.revealedSide).toBe('left');
     const scores = wrapper.findAll('.hl-card-score');
     expect(scores[1].text()).toBe('?');
   });
 
-  it('a correct guess (tapping the poster you think is higher) increases the streak and persists a new best streak', async () => {
+  it('a correct guess keeps the WINNING poster in its own slot — only the other slot gets replaced (bug report: no jumping sides)', async () => {
     const wrapper = factory(10);
     await wrapper.find('.btn-game-primary').trigger('click');
 
-    const revealedId = wrapper.vm.revealed.movie.id;
-    const challengerId = wrapper.vm.challenger.movie.id;
-    // Tapping the revealed card guesses "lower" (challenger < revealed);
-    // tapping the challenger card guesses "higher" — see the template.
-    const cardIndex = challengerId > revealedId ? 1 : 0;
+    const leftId = wrapper.vm.leftCard.movie.id;
+    const rightId = wrapper.vm.rightCard.movie.id;
+    // revealedSide starts 'left', so tapping 'right' guesses "mystery is
+    // higher" and tapping 'left' guesses "mystery is lower" — tap whichever
+    // one that makes a TRUE statement.
+    const winningSide = rightId > leftId ? 'right' : 'left';
+    const cardIndex = winningSide === 'right' ? 1 : 0;
 
     await wrapper.findAll('.hl-card')[cardIndex].trigger('click');
 
@@ -64,8 +67,13 @@ describe('HigherLowerGame', () => {
     expect(wrapper.vm.streak).toBe(1);
     expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/higherLowerBestStreak', value: 1 });
 
+    const winningId = winningSide === 'right' ? rightId : leftId;
     await vi.advanceTimersByTimeAsync(1000);
-    expect(wrapper.vm.revealed.movie.id).toBe(challengerId);
+
+    // The winner is STILL in the exact same slot — never moved.
+    expect(wrapper.vm[`${winningSide}Card`].movie.id).toBe(winningId);
+    // That slot is now the revealed/known one for the next round.
+    expect(wrapper.vm.revealedSide).toBe(winningSide);
     expect(wrapper.vm.guessed).toBe(false);
   });
 
@@ -73,10 +81,11 @@ describe('HigherLowerGame', () => {
     const wrapper = factory(10);
     await wrapper.find('.btn-game-primary').trigger('click');
 
-    const revealedId = wrapper.vm.revealed.movie.id;
-    const challengerId = wrapper.vm.challenger.movie.id;
-    // Deliberately tap the WRONG poster.
-    const wrongCardIndex = challengerId > revealedId ? 0 : 1;
+    const leftId = wrapper.vm.leftCard.movie.id;
+    const rightId = wrapper.vm.rightCard.movie.id;
+    const winningSide = rightId > leftId ? 'right' : 'left';
+    const wrongSide = winningSide === 'right' ? 'left' : 'right';
+    const wrongCardIndex = wrongSide === 'right' ? 1 : 0;
 
     await wrapper.findAll('.hl-card')[wrongCardIndex].trigger('click');
 
@@ -88,7 +97,7 @@ describe('HigherLowerGame', () => {
   it('shows two decimal places so near-identical scores stay distinguishable', async () => {
     const wrapper = factory(10);
     await wrapper.find('.btn-game-primary').trigger('click');
-    expect(wrapper.vm.formattedRating(wrapper.vm.revealed)).toBe(wrapper.vm.revealed.movie.id.toFixed(2));
+    expect(wrapper.vm.formattedRating(wrapper.vm.leftCard)).toBe(wrapper.vm.leftCard.movie.id.toFixed(2));
   });
 
   it('a "tappable" poster has no lingering :hover-driven state (uses only :active feedback)', async () => {

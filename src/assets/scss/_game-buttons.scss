@@ -45,6 +45,13 @@
   padding: 0.35rem 0.9rem;
 }
 
+// Per follow-up bug report ("I'd like more of the buttons to go full
+// width") — a standalone CTA (Start, New Puzzle, New Pair...) can opt in to
+// spanning its container instead of sizing to its own text.
+.full-width {
+  width: 100%;
+}
+
 // Primary: the "do the main thing" action (Start, Submit, New Puzzle...).
 // Bright/warm, matching the amber accent (#ffc107) already used for icons
 // throughout the games section, but as a pill with real depth instead of
