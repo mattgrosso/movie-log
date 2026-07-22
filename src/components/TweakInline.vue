@@ -256,7 +256,9 @@ export default {
       if (this.currentTournament) return true;
       if (this.tiedGroupDbKeys.length < 2) return false;
 
-      const tournament = createRoundRobinTournament(this.tiedGroupDbKeys);
+      // Random match order per user feedback — otherwise every one of one
+      // contestant's matches plays before the next contestant's begin.
+      const tournament = createRoundRobinTournament(this.tiedGroupDbKeys, Math.random);
       this.localTournament = tournament;
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: tournament });
       return true;

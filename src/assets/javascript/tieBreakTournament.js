@@ -33,9 +33,12 @@ export function findTiedGroup (sortedEntries, getScore) {
   return sortedEntries.slice(start, end + 1);
 }
 
-// Every unique pair among the contestants, in stable original order — no
-// shuffling. Match order isn't a meaningful design decision here, and a
-// deterministic schedule keeps this testable.
+// Every unique pair among the contestants, in stable original order (i.e.
+// every one of contestant 0's matches, then every remaining one of
+// contestant 1's, etc). Shuffled afterward by createRoundRobinTournament
+// when an rng is supplied — kept as a separate, order-only step so a caller
+// that omits rng (most of this file's own tests) still gets this exact,
+// easily-asserted-on order.
 function buildSchedule (contestantIds) {
   const schedule = [];
   for (let i = 0; i < contestantIds.length; i++) {
@@ -46,13 +49,33 @@ function buildSchedule (contestantIds) {
   return schedule;
 }
 
-export function createRoundRobinTournament (contestantIds) {
+// Fisher-Yates. Kept local (not imported from games/gameUtils.js) so this
+// module stays fully self-contained — see its "architecturally separate
+// from the Rate-Off game" framing elsewhere in the docs.
+function shuffle (array, rng) {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// `rng`, when supplied, randomizes match order so play doesn't run through
+// every one of one contestant's matches before moving to the next (bug
+// report). Defaults to `null` (schedule left in buildSchedule's stable
+// order) rather than `Math.random` so existing/new callers that care about a
+// deterministic order — mainly this file's own tests — don't have to fight
+// randomness; TweakInline.vue's real call site passes Math.random.
+export function createRoundRobinTournament (contestantIds, rng = null) {
   const wins = {};
   contestantIds.forEach((id) => { wins[id] = 0; });
 
+  const schedule = buildSchedule(contestantIds);
+
   return {
     contestantIds: [...contestantIds],
-    schedule: buildSchedule(contestantIds),
+    schedule: rng ? shuffle(schedule, rng) : schedule,
     nextIndex: 0,
     wins,
     startedAt: Date.now(),

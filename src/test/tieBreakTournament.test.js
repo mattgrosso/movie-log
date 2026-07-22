@@ -9,6 +9,7 @@ import {
   progress,
   tweakDeltaForRank
 } from '@/assets/javascript/tieBreakTournament.js'
+import { makeSeededRng } from '@/assets/javascript/games/gameUtils.js'
 
 describe('findTiedGroup', () => {
   const byScore = (entries) => (entry) => entries.get(entry)
@@ -78,6 +79,33 @@ describe('createRoundRobinTournament', () => {
     const t = createRoundRobinTournament(ids)
     ids.push('c')
     expect(t.contestantIds).toEqual(['a', 'b'])
+  })
+
+  describe('match order (bug report: matches ran through one contestant at a time instead of randomly)', () => {
+    it('with no rng passed, keeps the stable "one contestant at a time" order (unchanged default)', () => {
+      const t = createRoundRobinTournament(['a', 'b', 'c', 'd'])
+      expect(t.schedule).toEqual([
+        { a: 'a', b: 'b' }, { a: 'a', b: 'c' }, { a: 'a', b: 'd' },
+        { a: 'b', b: 'c' }, { a: 'b', b: 'd' },
+        { a: 'c', b: 'd' }
+      ])
+    })
+
+    it('with an rng passed, shuffles match order while keeping the exact same set of pairs', () => {
+      const unshuffled = createRoundRobinTournament(['a', 'b', 'c', 'd']).schedule
+      const shuffled = createRoundRobinTournament(['a', 'b', 'c', 'd'], makeSeededRng(7)).schedule
+
+      expect(shuffled).not.toEqual(unshuffled)
+      expect(shuffled).toHaveLength(6)
+      const key = (m) => `${m.a}${m.b}`
+      expect([...shuffled].map(key).sort()).toEqual([...unshuffled].map(key).sort())
+    })
+
+    it('is deterministic for a fixed rng seed', () => {
+      const a = createRoundRobinTournament(['a', 'b', 'c', 'd'], makeSeededRng(42)).schedule
+      const b = createRoundRobinTournament(['a', 'b', 'c', 'd'], makeSeededRng(42)).schedule
+      expect(a).toEqual(b)
+    })
   })
 })
 
