@@ -45,7 +45,7 @@
             </button>
           </li>
         </ul>
-        <button type="button" class="btn btn-outline-light btn-sm mt-2" @click="revealPath">Reveal shortest path</button>
+        <button type="button" class="btn-game btn-game-secondary btn-game-sm mt-2" @click="revealPath">Reveal shortest path</button>
       </div>
 
       <div v-else class="result-banner" :class="status">
@@ -61,7 +61,7 @@
             <i v-if="index < revealedChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
           </template>
         </div>
-        <button type="button" class="btn btn-warning btn-sm mt-2" @click="start">New Pair</button>
+        <button type="button" class="btn-game btn-game-primary btn-game-sm mt-2" @click="start">New Pair</button>
       </div>
     </template>
   </div>
@@ -266,7 +266,9 @@ export default {
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@import '@/assets/scss/game-buttons';
+
 .six-degrees-game {
   color: #eee;
   min-height: 100vh;

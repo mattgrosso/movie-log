@@ -20,7 +20,7 @@
     </div>
 
     <template v-else>
-      <button type="button" class="btn btn-sm btn-outline-light new-puzzle-btn" @click="startNewPuzzle">
+      <button type="button" class="btn-game btn-game-secondary btn-game-sm new-puzzle-btn" @click="startNewPuzzle">
         New Puzzle
       </button>
 
@@ -253,7 +253,9 @@ export default {
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@import '@/assets/scss/game-buttons';
+
 .reel-wordle-game {
   color: #eee;
   min-height: 100vh;

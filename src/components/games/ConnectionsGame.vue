@@ -38,14 +38,14 @@
       <p v-if="status === 'playing'" class="guess-feedback" :class="{ 'is-empty': !lastGuessFeedback }">{{ lastGuessFeedback || ' ' }}</p>
 
       <div v-if="status === 'playing'" class="game-actions">
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="selectedKeys.length === 0" @click="deselectAll">Deselect</button>
-        <button type="button" class="btn btn-warning btn-sm" :disabled="selectedKeys.length !== 4" @click="submitGuess">Submit</button>
+        <button type="button" class="btn-game btn-game-secondary btn-game-sm" :disabled="selectedKeys.length === 0" @click="deselectAll">Deselect</button>
+        <button type="button" class="btn-game btn-game-primary btn-game-sm" :disabled="selectedKeys.length !== 4" @click="submitGuess">Submit</button>
       </div>
 
       <div v-else class="result-banner" :class="status">
         <p v-if="status === 'won'">Solved it in {{ mistakes }} mistake{{ mistakes === 1 ? '' : 's' }}!</p>
         <p v-else>Out of guesses — here's the rest:</p>
-        <button type="button" class="btn btn-warning btn-sm mt-2" @click="start">New Puzzle</button>
+        <button type="button" class="btn-game btn-game-primary btn-game-sm mt-2" @click="start">New Puzzle</button>
       </div>
     </template>
   </div>
@@ -159,7 +159,9 @@ export default {
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@import '@/assets/scss/game-buttons';
+
 .connections-game {
   color: #eee;
   min-height: 100vh;

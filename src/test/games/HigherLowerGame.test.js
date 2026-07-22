@@ -41,7 +41,7 @@ describe('HigherLowerGame', () => {
 
   it('starts with a revealed card and a hidden challenger score', async () => {
     const wrapper = factory(10);
-    await wrapper.find('.btn-warning').trigger('click'); // Start
+    await wrapper.find('.btn-game-primary').trigger('click'); // Start
     expect(wrapper.vm.revealed).not.toBeNull();
     expect(wrapper.vm.challenger).not.toBeNull();
     const scores = wrapper.findAll('.hl-card-score');
@@ -50,7 +50,7 @@ describe('HigherLowerGame', () => {
 
   it('a correct guess (tapping the poster you think is higher) increases the streak and persists a new best streak', async () => {
     const wrapper = factory(10);
-    await wrapper.find('.btn-warning').trigger('click');
+    await wrapper.find('.btn-game-primary').trigger('click');
 
     const revealedId = wrapper.vm.revealed.movie.id;
     const challengerId = wrapper.vm.challenger.movie.id;
@@ -71,7 +71,7 @@ describe('HigherLowerGame', () => {
 
   it('a wrong guess ends the game and reveals the true score', async () => {
     const wrapper = factory(10);
-    await wrapper.find('.btn-warning').trigger('click');
+    await wrapper.find('.btn-game-primary').trigger('click');
 
     const revealedId = wrapper.vm.revealed.movie.id;
     const challengerId = wrapper.vm.challenger.movie.id;
@@ -87,13 +87,13 @@ describe('HigherLowerGame', () => {
 
   it('shows two decimal places so near-identical scores stay distinguishable', async () => {
     const wrapper = factory(10);
-    await wrapper.find('.btn-warning').trigger('click');
+    await wrapper.find('.btn-game-primary').trigger('click');
     expect(wrapper.vm.formattedRating(wrapper.vm.revealed)).toBe(wrapper.vm.revealed.movie.id.toFixed(2));
   });
 
   it('a "tappable" poster has no lingering :hover-driven state (uses only :active feedback)', async () => {
     const wrapper = factory(10);
-    await wrapper.find('.btn-warning').trigger('click');
+    await wrapper.find('.btn-game-primary').trigger('click');
     expect(wrapper.findAll('.hl-card.tappable').length).toBe(2);
   });
 });

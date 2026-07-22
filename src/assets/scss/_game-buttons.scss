@@ -1,0 +1,75 @@
+// Shared button look for the Games section — a self-contained alternative to
+// default Bootstrap .btn-warning/.btn-outline-light, which read as generic
+// (bug report: "a lot of the buttons on our site feel like they're just
+// straight out of bootstrap"). Scoped to Games for now, deliberately not
+// applied site-wide — see CLAUDE.md for the reasoning.
+//
+// Imported into each game component's own `<style lang="scss" scoped>`
+// (Vue SFC + sass-loader scopes an @import'd partial's rules to that
+// component exactly like inline rules — nothing leaks) rather than
+// duplicated by hand in every file, so this is the single source of truth
+// for the look. Pure CSS, no Vue/JS coupling, so it costs nothing to import
+// where it's not needed.
+//
+// Mobile-first: :active only, no :hover — this app has no reliable pointer
+// device (see CLAUDE.md's "Mobile-first, no hover UI" convention).
+
+.btn-game {
+  align-items: center;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.85rem;
+  font-weight: 600;
+  gap: 0.35rem;
+  justify-content: center;
+  letter-spacing: 0.02em;
+  padding: 0.5rem 1.25rem;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  user-select: none;
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.4;
+    transform: none;
+  }
+}
+
+.btn-game-sm {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.9rem;
+}
+
+// Primary: the "do the main thing" action (Start, Submit, New Puzzle...).
+// Bright/warm, matching the amber accent (#ffc107) already used for icons
+// throughout the games section, but as a pill with real depth instead of
+// Bootstrap's flat rectangle.
+.btn-game-primary {
+  background: linear-gradient(135deg, #ffd54a, #ffb300);
+  color: #1a1200;
+  box-shadow: 0 2px 8px rgba(255, 179, 0, 0.35);
+
+  &:active {
+    box-shadow: 0 1px 4px rgba(255, 179, 0, 0.3);
+  }
+}
+
+// Secondary: a lower-emphasis action (Deselect, Reveal shortest path...).
+// Kept close in spirit to the outline button it replaces (transparent,
+// bordered) but with the same pill shape and press feedback as primary, so
+// the two read as one coherent button system rather than two unrelated ones.
+.btn-game-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  color: #eee;
+
+  &:active {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+}

@@ -5,7 +5,7 @@
 
     <div v-if="!revealed" class="setup">
       <p>See a movie's real Cinema Roll score, then guess whether the next one scored higher or lower.</p>
-      <button type="button" class="btn btn-warning" @click="start">Start</button>
+      <button type="button" class="btn-game btn-game-primary" @click="start">Start</button>
     </div>
 
     <template v-else>
@@ -41,7 +41,7 @@
       </div>
 
       <div v-if="gameOver" class="game-over">
-        <button type="button" class="btn btn-warning" @click="start">Play Again</button>
+        <button type="button" class="btn-game btn-game-primary" @click="start">Play Again</button>
       </div>
     </template>
   </div>
@@ -153,7 +153,9 @@ export default {
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@import '@/assets/scss/game-buttons';
+
 .higher-lower-game {
   color: #eee;
   min-height: 100vh;
