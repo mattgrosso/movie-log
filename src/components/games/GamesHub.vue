@@ -26,12 +26,28 @@
 
 <script>
 import BackLink from './BackLink.vue';
-import gameDataMixin from '../../mixins/gameData.js';
+import gameDataMixin, { LAST_PLAYED_KEY } from '../../mixins/gameData.js';
 
 export default {
   name: 'GamesHub',
   components: { BackLink },
   mixins: [gameDataMixin],
+  // Landing on the hub is the "let me pick again" signal — bug report: a
+  // player who finished a Wordle round and deliberately tapped back to the
+  // hub still got dropped straight back into that (completed) round the
+  // next time they used Home's games shortcut, because LAST_PLAYED_KEY only
+  // ever got overwritten by visiting ANOTHER game, never cleared. Mixin
+  // hooks run before the component's own of the same name (Vue's merge
+  // order), so this runs after gameDataMixin's created() — which itself
+  // skips writing anything for the hub's own route — and clears whatever
+  // the previous game left behind.
+  created () {
+    try {
+      window.localStorage.removeItem(LAST_PLAYED_KEY);
+    } catch (error) {
+      // localStorage can throw in private-browsing/quota-exceeded situations.
+    }
+  },
   data () {
     return {
       games: [

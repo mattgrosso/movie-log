@@ -28,12 +28,37 @@
         <li v-for="(clue, index) in activeClues" :key="index">{{ clue }}</li>
       </ul>
 
-      <!-- Guess history renders ABOVE the input (oldest first, newest at the
-           bottom) so the most recent guess sits right next to where you type
-           the next one, instead of you having to scroll past a growing list
-           to get back down to it. -->
+      <div v-if="status === 'playing'" class="guess-form">
+        <input
+          v-model="guessInput"
+          type="text"
+          class="form-control"
+          placeholder="Type a movie from your library…"
+          @input="onInput"
+        >
+        <ul v-if="suggestions.length" class="suggestions">
+          <li v-for="entry in suggestions" :key="entryKeyFor(entry)">
+            <button type="button" class="suggestion-item" @click="submitGuess(entry)">
+              {{ entry.movie.title }}
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div v-else class="result-banner won">
+        <p>You got it in {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }} (score: {{ score }})!</p>
+        <img v-if="gamePosterUrl(target)" :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
+      </div>
+
+      <!-- Input pinned at the top (above); the guess list renders newest
+           FIRST so each new guess appears right below the input and pushes
+           older ones down — the "stack grows up" request. displayGuesses
+           (a reversed copy) keeps the underlying guesses array itself
+           append-only/chronological — only the DISPLAY order flips — so
+           persistence and the score/status logic (which don't care about
+           order) are untouched. -->
       <div v-if="guesses.length" class="clue-grid">
-        <div v-for="(clue, index) in guesses" :key="index" class="clue-row" :class="{ correct: clue.isCorrect }">
+        <div v-for="clue in displayGuesses" :key="clue.entryKey" class="clue-row" :class="{ correct: clue.isCorrect }">
           <p class="clue-title">{{ clue.title }}</p>
           <div class="clue-cells">
             <div class="clue-cell" :class="directionClass(clue.year)">
@@ -70,28 +95,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <div v-if="status === 'playing'" class="guess-form">
-        <input
-          v-model="guessInput"
-          type="text"
-          class="form-control"
-          placeholder="Type a movie from your library…"
-          @input="onInput"
-        >
-        <ul v-if="suggestions.length" class="suggestions">
-          <li v-for="entry in suggestions" :key="entryKeyFor(entry)">
-            <button type="button" class="suggestion-item" @click="submitGuess(entry)">
-              {{ entry.movie.title }}
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <div v-else class="result-banner won">
-        <p>You got it in {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }} (score: {{ score }})!</p>
-        <img v-if="gamePosterUrl(target)" :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
       </div>
     </template>
   </div>
@@ -141,6 +144,11 @@ export default {
     // Golf-style: fewer guesses is better, but leaning on clues costs too.
     score () {
       return this.guesses.length - this.activeClues.length;
+    },
+    // Newest-first for display only (see the template comment above the
+    // clue-grid) — `guesses` itself stays append-only/chronological.
+    displayGuesses () {
+      return [...this.guesses].reverse();
     }
   },
   watch: {

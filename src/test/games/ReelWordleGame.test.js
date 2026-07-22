@@ -168,7 +168,7 @@ describe('ReelWordleGame', () => {
     expect(second.vm.guesses[0].entryKey).toBe(wrong.dbKey);
   });
 
-  it('renders the guess history ABOVE the input, so the newest guess sits next to where you type the next one', async () => {
+  it('renders the input pinned above the guess history, with the newest guess pushing older ones down (bug report: "input should stay at the top")', async () => {
     const wrapper = factory(10);
     const wrong = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== wrapper.vm.target.dbKey);
     await wrapper.vm.submitGuess(wrong);
@@ -179,7 +179,24 @@ describe('ReelWordleGame', () => {
     const formIndex = html.indexOf('guess-form');
     expect(gridIndex).toBeGreaterThan(-1);
     expect(formIndex).toBeGreaterThan(-1);
-    expect(gridIndex).toBeLessThan(formIndex);
+    expect(formIndex).toBeLessThan(gridIndex);
+  });
+
+  it('displays guesses newest-first while keeping the underlying guesses array chronological (append-order)', async () => {
+    const wrapper = factory(10);
+    const target = wrapper.vm.target;
+    const [first, second] = wrapper.vm.eligibleGameEntries.filter((e) => e.dbKey !== target.dbKey).slice(0, 2);
+
+    await wrapper.vm.submitGuess(first);
+    await wrapper.vm.submitGuess(second);
+    await wrapper.vm.$nextTick();
+
+    // Underlying data: chronological (first guessed, first in the array).
+    expect(wrapper.vm.guesses.map((g) => g.entryKey)).toEqual([first.dbKey, second.dbKey]);
+    // Display: newest first — the most recent guess should appear before
+    // the older one in the rendered HTML.
+    const html = wrapper.html();
+    expect(html.indexOf(second.movie.title)).toBeLessThan(html.indexOf(first.movie.title));
   });
 
   it('suggestion list filters by typed substring and excludes already-guessed movies', async () => {

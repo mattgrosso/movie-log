@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import GamesHub from '@/components/games/GamesHub.vue';
+import { LAST_PLAYED_KEY } from '@/mixins/gameData.js';
 
 vi.mock('@/assets/javascript/GetRating.js', () => ({
   getRating: vi.fn(() => ({ calculatedTotal: 5 }))
@@ -28,6 +29,16 @@ function factory (movieCount) {
 }
 
 describe('GamesHub', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('clears the "last played game" record on mount (bug report: backing out to the hub should reset it)', () => {
+    window.localStorage.setItem(LAST_PLAYED_KEY, '/games/wordle');
+    factory(10);
+    expect(window.localStorage.getItem(LAST_PLAYED_KEY)).toBeNull();
+  });
+
   it('shows a gate message when the library is too small', () => {
     const { wrapper } = factory(2);
     expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
