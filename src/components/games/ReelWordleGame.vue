@@ -1,6 +1,14 @@
 <template>
   <div class="reel-wordle-game">
     <BackLink label="Games" @click="$router.push('/games')"/>
+    <!-- Mirrors BackLink's corner-lift trick (absolute, no positioned
+         ancestor) on the opposite side — a direct way back to the search
+         screen without detouring through the games hub, keeping whatever
+         search was active (Home.vue's beforeRouteLeave now saves state for
+         any /games destination, not just this link specifically). -->
+    <button type="button" class="home-shortcut" @click="$router.push('/')" aria-label="Back to home">
+      <i class="bi bi-house-fill"></i>
+    </button>
     <h1 class="game-title">Reel Wordle</h1>
     <p class="game-subtitle">
       Guess the movie from your own library.
@@ -12,6 +20,10 @@
     </div>
 
     <template v-else>
+      <button type="button" class="btn btn-sm btn-outline-light new-puzzle-btn" @click="startNewPuzzle">
+        New Puzzle
+      </button>
+
       <ul v-if="activeClues.length" class="target-clues">
         <li v-for="(clue, index) in activeClues" :key="index">{{ clue }}</li>
       </ul>
@@ -25,15 +37,15 @@
           <p class="clue-title">{{ clue.title }}</p>
           <div class="clue-cells">
             <div class="clue-cell" :class="directionClass(clue.year)">
-              <span class="clue-label">Yr</span>
+              <span class="clue-label">Year</span>
               <span class="clue-value">{{ clue.year.direction === 'match' ? clue.year.value : arrowFor(clue.year) }}</span>
             </div>
             <div class="clue-cell" :class="clue.decade.match ? 'match' : 'no-match'">
-              <span class="clue-label">Dec</span>
+              <span class="clue-label">Decade</span>
               <span class="clue-value">{{ clue.decade.match ? `${clue.decade.value}s` : '✗' }}</span>
             </div>
             <div class="clue-cell" :class="clue.director.match ? 'match' : 'no-match'" :title="clue.director.match ? clue.director.matchedNames.join(', ') : ''">
-              <span class="clue-label">Dir</span>
+              <span class="clue-label">Director</span>
               <span class="clue-value">{{ clue.director.match ? clue.director.matchedNames.join(', ') : '✗' }}</span>
             </div>
             <div
@@ -41,15 +53,19 @@
               :class="clue.genres.allMatch ? 'match' : (clue.genres.shared.length ? 'partial' : 'no-match')"
               :title="clue.genres.shared.length ? clue.genres.shared.join(', ') : ''"
             >
-              <span class="clue-label">Gen</span>
-              <span class="clue-value">{{ clue.genres.shared.length ? clue.genres.shared.join(', ') : '✗' }}</span>
+              <span class="clue-label">Genre</span>
+              <!-- The (n/total) fraction is what actually distinguishes an
+                   exact match (green, n === total) from a partial overlap
+                   (yellow, n < total) — the color alone wasn't legible
+                   (bug report: "what's the difference between these two"). -->
+              <span class="clue-value">{{ clue.genres.shared.length ? `${clue.genres.shared.join(', ')} (${clue.genres.shared.length}/${clue.genres.total})` : '✗' }}</span>
             </div>
             <div class="clue-cell" :class="directionClass(clue.runtime)">
-              <span class="clue-label">Run</span>
+              <span class="clue-label">Runtime</span>
               <span class="clue-value">{{ arrowFor(clue.runtime) }}</span>
             </div>
             <div class="clue-cell" :class="directionClass(clue.yourRating)">
-              <span class="clue-label">Rtg</span>
+              <span class="clue-label">Rating</span>
               <span class="clue-value">{{ arrowFor(clue.yourRating) }}</span>
             </div>
           </div>
@@ -77,10 +93,6 @@
         <p>You got it in {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }} (score: {{ score }})!</p>
         <img v-if="gamePosterUrl(target)" :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
       </div>
-
-      <button type="button" class="btn btn-sm btn-outline-light new-puzzle-btn" @click="startNewPuzzle">
-        New Puzzle
-      </button>
     </template>
   </div>
 </template>
@@ -317,7 +329,26 @@ export default {
 }
 
 .new-puzzle-btn {
-  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* Mirrors .back-link (BackLink.vue) on the opposite corner — same
+   position:absolute/no-positioned-ancestor lift over the global Header,
+   reset button chrome since this one's a <button> (needs a real tap target/
+   aria-label), not a <div>. */
+.home-shortcut {
+  background: none;
+  border: none;
+  color: #eee;
+  cursor: pointer;
+  padding: 4px;
+  position: absolute;
+  right: 6px;
+  top: 6px;
+}
+
+.home-shortcut:active {
+  opacity: 0.7;
 }
 
 /* Fixed 6-column grid, one row per guess — NOT a flex-wrap chip row (that
@@ -333,6 +364,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .clue-row {
@@ -369,7 +401,11 @@ export default {
 .clue-label {
   color: #888;
   font-size: 0.55rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .clue-value {

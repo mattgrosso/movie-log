@@ -850,6 +850,7 @@ import {
   awardNameSingular
 } from '../assets/javascript/personalAwards.js';
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
+import { LAST_PLAYED_KEY } from '../mixins/gameData.js';
 
 // Default priority order for the grouped search view. The order decides which
 // group claims a movie that matches multiple categories. Users can reorder this
@@ -1134,8 +1135,12 @@ export default {
 
   // Combined beforeRouteLeave method
   beforeRouteLeave (to, from, next) {
-    // Save state when navigating to movie detail page
-    if (to.name === 'MovieDetail') {
+    // Save state when navigating to movie detail page, or to a game (per bug
+    // report — popping over to Wordle and back should preserve whatever
+    // search was active, the same way returning from a movie's detail page
+    // already does; mounted()'s restore logic below is origin-agnostic, so
+    // widening the save side here is the only piece that was missing).
+    if (to.name === 'MovieDetail' || (to.path && to.path.startsWith('/games'))) {
       this.$store.commit('setHomePageScrollPosition', window.pageYOffset);
       this.$store.commit('setHomePageSearchChips', [...this.activeFilters]);
       this.$store.commit('setHomePageSearchValue', this.inputValue);
@@ -3193,8 +3198,19 @@ export default {
     goToInsights () {
       this.$router.push('/insights');
     },
+    // Jumps back into whichever individual game was last played (see
+    // gameData.js's LAST_PLAYED_KEY, set on every game route's mount) rather
+    // than always landing on the hub — per bug report, popping in and out of
+    // a game (e.g. Wordle) to check something on the search screen shouldn't
+    // mean re-picking the game from the hub every time.
     goToGames () {
-      this.$router.push('/games');
+      let lastPlayed = null;
+      try {
+        lastPlayed = window.localStorage.getItem(LAST_PLAYED_KEY);
+      } catch (error) {
+        // localStorage can throw in private-browsing/quota-exceeded situations.
+      }
+      this.$router.push(lastPlayed && lastPlayed.startsWith('/games/') ? lastPlayed : '/games');
     },
     saveNormalizationTweak () {
       this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });
