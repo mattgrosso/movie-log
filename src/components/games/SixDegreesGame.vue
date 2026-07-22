@@ -272,7 +272,10 @@ export default {
 .six-degrees-game {
   color: #eee;
   min-height: 100vh;
-  padding: 0 1rem 2rem;
+  // See the identical comment in ConnectionsGame.vue — top padding is a
+  // safety margin against BackLink overlapping this screen's own h1 when
+  // the global Header happens to have zero height.
+  padding: 2.5rem 1rem 2rem;
 }
 
 .game-title {

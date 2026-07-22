@@ -85,7 +85,12 @@ export default {
 .games-hub {
   color: #eee;
   min-height: 100vh;
-  padding-bottom: 2rem;
+  /* top padding is a safety margin, not decoration — BackLink is fixed at
+     (6,6) of the viewport regardless of whether the global Header currently
+     has any real height (e.g. a direct/fresh navigation before Home ever
+     set a banner leaves it at 0px), so without this the back-link and this
+     screen's own h1 can visually overlap. Same fix in the 4 game components. */
+  padding: 2.5rem 0 2rem;
 }
 
 .games-hub-title {

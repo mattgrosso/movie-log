@@ -165,7 +165,13 @@ export default {
 .connections-game {
   color: #eee;
   min-height: 100vh;
-  padding: 0 1rem 2rem;
+  // top padding is a safety margin, not decoration — BackLink is fixed at
+  // (6,6) of the viewport regardless of whether the global Header currently
+  // has any real height (e.g. a direct/fresh navigation before Home ever
+  // set a banner leaves it at 0px), so without this the back-link and this
+  // screen's own h1 can visually overlap. See the identical fix in the
+  // other 3 game components + GamesHub.
+  padding: 2.5rem 1rem 2rem;
   text-align: center;
 }
 
