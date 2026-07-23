@@ -12,7 +12,7 @@
     "test:run": "vitest run",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
-    "deploy": "yarn build && aws s3 sync dist/ s3://cinemaroll --profile personal-deploy && aws cloudfront create-invalidation --distribution-id ETF4I2E64GQSC --paths '/*' --profile personal-deploy > invalidation_output.txt",
+    "deploy": "yarn build && aws s3 sync dist/ s3://cinemaroll --delete --profile personal-deploy && aws cloudfront create-invalidation --distribution-id ETF4I2E64GQSC --paths '/*' --profile personal-deploy > invalidation_output.txt",
     "fetch-bug-reports": "node --env-file=.env.local scripts/fetch-bug-reports.mjs",
     "resolve-bug-report": "node --env-file=.env.local scripts/resolve-bug-report.mjs"
   },
