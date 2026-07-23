@@ -143,6 +143,70 @@ describe('MovieDetail', () => {
     })
   })
 
+  // Bug report: "I've seen inconsistencies in how [the badge counts] show
+  // up... can you verify that it's giving us correct values." These wire up
+  // the shared entityCounts.js module (see its own direct tests) to real
+  // component state — guarding that the wiring itself (which entries feed
+  // in, which setting gates shorts) is correct, not the counting math.
+  describe('badge counts (entityCounts.js wiring)', () => {
+    function mountWithLibrary (library, { includeShorts } = {}) {
+      const store = {
+        state: {
+          movieLog: {},
+          settings: { tags: { 'viewing-tags': {} }, includeShorts },
+          academyAwardWinners: {}
+        },
+        getters: { allMoviesAsArray: [], allMediaAsArray: library },
+        commit: vi.fn(),
+        dispatch: vi.fn()
+      }
+      const w = shallowMount(MovieDetail, {
+        global: {
+          mocks: { $store: store, $route: { params: { tmdbId: '42' }, query: {} }, $router: { push: vi.fn() } },
+          stubs: { ToggleableRating: true, Modal: true }
+        }
+      })
+      return w
+    }
+
+    it('credits every co-director, not just whichever TMDB lists first', () => {
+      const w = mountWithLibrary([
+        makeResult({ dbKey: 'a', movie: {
+          crew: [
+            { name: 'Daniel Kwan', job: 'Director' },
+            { name: 'Daniel Scheinert', job: 'Director' }
+          ]
+        } })
+      ])
+      expect(w.vm.countDirector('Daniel Kwan')).toBe(1)
+      expect(w.vm.countDirector('Daniel Scheinert')).toBe(1)
+    })
+
+    it('credits a composer regardless of their position in the crew array', () => {
+      const padding = Array.from({ length: 12 }, (_, i) => ({ name: `Grip ${i}`, job: 'Grip' }))
+      const w = mountWithLibrary([
+        makeResult({ dbKey: 'a', movie: { crew: [...padding, { name: 'Hans Zimmer', job: 'Original Music Composer' }] } })
+      ])
+      expect(w.vm.countCastCrew('Hans Zimmer')).toBe(1)
+    })
+
+    it('excludes a short film from counts when includeShorts is off (the default)', () => {
+      const w = mountWithLibrary([
+        makeResult({ dbKey: 'a', movie: { runtime: 30, genres: [{ name: 'Drama' }] } }),
+        makeResult({ dbKey: 'b', movie: { runtime: 100, genres: [{ name: 'Drama' }] } })
+      ], { includeShorts: false })
+      expect(w.vm.countGenre('Drama')).toBe(1)
+    })
+
+    it('includes short films when includeShorts is on', () => {
+      const w = mountWithLibrary([
+        makeResult({ dbKey: 'a', movie: { runtime: 30, genres: [{ name: 'Drama' }] } }),
+        makeResult({ dbKey: 'b', movie: { runtime: 100, genres: [{ name: 'Drama' }] } })
+      ], { includeShorts: true })
+      expect(w.vm.countGenre('Drama')).toBe(2)
+    })
+  })
+
   describe('poster / backdrop selection', () => {
     it('getBackdropPath / getPosterPath prefer a custom path', async () => {
       expect(wrapper.vm.getBackdropPath()).toBe('/backdrop.jpg')

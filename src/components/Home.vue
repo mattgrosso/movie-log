@@ -848,7 +848,6 @@
 
 <script>
 import axios from 'axios';
-import uniq from 'lodash/uniq';
 import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
 import cloneDeep from 'lodash/cloneDeep';
@@ -880,6 +879,13 @@ import {
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
 import { LAST_PLAYED_KEY, GAME_ICONS } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
+import {
+  countDirectors as countDirectorsUtil,
+  countCastCrew as countCastCrewUtil,
+  countGenres as countGenresUtil,
+  countKeywords as countKeywordsUtil,
+  countStudios as countStudiosUtil
+} from '../assets/javascript/entityCounts.js';
 
 // Default priority order for the grouped search view. The order decides which
 // group claims a movie that matches multiple categories. Users can reorder this
@@ -1493,79 +1499,16 @@ export default {
       return this.bestPictures.filter((result) => !result.falseEntry);
     },
     countCastCrew () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const castData = result.movie.cast;
-        const crewData = result.movie.crew;
-        const cast = Array.isArray(castData) ? castData.filter((person, index) => index < 10).map(person => person.name) : [];
-        const crew = Array.isArray(crewData) ? crewData.filter((person, index) => index < 10).map(person => person.name) : [];
-        const castCrewCombined = uniq([...cast, ...crew]);
-
-        castCrewCombined.forEach((person) => {
-          if (counts[person]) {
-            counts[person]++;
-          } else if (person) {
-            counts[person] = 1;
-          }
-        })
-      })
-
-      return counts;
+      return countCastCrewUtil(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
     countDirectors () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const crew = result.movie.crew;
-        const director = Array.isArray(crew) ? crew.find((person) => person.job === "Director")?.name : null;
-
-        if (director) {
-          if (counts[director]) {
-            counts[director]++;
-          } else if (director) {
-            counts[director] = 1;
-          }
-        }
-      })
-
-      return counts;
+      return countDirectorsUtil(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
     countedGenres () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const genres = result.movie.genres;
-        if (Array.isArray(genres)) {
-          genres.forEach((genre) => {
-            if (counts[genre.name]) {
-              counts[genre.name]++;
-            } else if (genre.name) {
-              counts[genre.name] = 1;
-            }
-          })
-        }
-      })
-
-      return counts;
+      return countGenresUtil(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
     countedKeywords () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const keywords = result.movie.flatKeywords;
-        if (Array.isArray(keywords)) {
-          keywords.forEach((keyword) => {
-            if (counts[keyword]) {
-              counts[keyword]++;
-            } else if (keyword) {
-              counts[keyword] = 1;
-            }
-          })
-        }
-      })
-
-      return counts;
+      return countKeywordsUtil(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
     countedYears () {
       const counts = {};
@@ -1582,21 +1525,7 @@ export default {
       return counts;
     },
     countStudios () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const productionCompanies = result.movie.production_companies?.map(company => company.name) || [];
-
-        productionCompanies.forEach((company) => {
-          if (counts[company]) {
-            counts[company]++;
-          } else if (company) {
-            counts[company] = 1;
-          }
-        })
-      })
-
-      return counts;
+      return countStudiosUtil(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
     darkOrLight () {
       const inDarkMode = document.querySelector("body").classList.contains('bg-dark');

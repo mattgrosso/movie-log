@@ -508,7 +508,6 @@ import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
-import uniq from 'lodash/uniq';
 import { computeFlatKeywords } from '../utils/keywords.js';
 import { buildTagSuggestions, canCreateNewTag } from '../utils/tags.js';
 import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwardsCategories.js';
@@ -516,6 +515,7 @@ import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
 import { awardNameWithThe } from '../assets/javascript/personalAwards.js';
 import { warmImageCache, posterUrl, backdropUrl } from '../assets/javascript/offlinePosterCache.js';
+import { countDirectors, countCastCrew, countGenres, countKeywords, countStudios } from '../assets/javascript/entityCounts.js';
 
 export default {
   name: 'MovieDetail',
@@ -667,21 +667,7 @@ export default {
       });
     },
     keywordCounts () {
-      const counts = {};
-
-      // Count how many times each keyword appears across all movies in the database
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const flatKeywords = result.movie.flatKeywords || [];
-        flatKeywords.forEach((keyword) => {
-          if (counts[keyword]) {
-            counts[keyword]++;
-          } else if (keyword) {
-            counts[keyword] = 1;
-          }
-        });
-      });
-
-      return counts;
+      return countKeywords(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
     viewingTags () {
       // Unique viewing-tags across all ratings of this movie.
@@ -789,82 +775,29 @@ export default {
       });
     },
 
+    // Whether short films (<=40min) count toward the badges below — mirrors
+    // Home.vue's showShorts computed exactly (same default) so a badge's
+    // number matches what clicking through to Home's filtered grid actually
+    // shows, regardless of the "Include short films" setting.
+    showShorts () {
+      const value = this.$store.state.settings?.includeShorts;
+      return typeof value === 'boolean' ? value : false;
+    },
+
     countsDirectors () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const crew = result.movie.crew;
-        const director = Array.isArray(crew) ? crew.find((person) => person.job === "Director")?.name : null;
-
-        if (director) {
-          if (counts[director]) {
-            counts[director]++;
-          } else if (director) {
-            counts[director] = 1;
-          }
-        }
-      })
-
-      return counts;
+      return countDirectors(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
 
     countsCastCrew () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const castData = result.movie.cast;
-        const crewData = result.movie.crew;
-        const cast = Array.isArray(castData) ? castData.filter((person, index) => index < 10).map(person => person.name) : [];
-        const crew = Array.isArray(crewData) ? crewData.filter((person, index) => index < 10).map(person => person.name) : [];
-        const castCrewCombined = uniq([...cast, ...crew]);
-
-        castCrewCombined.forEach((person) => {
-          if (counts[person]) {
-            counts[person]++;
-          } else if (person) {
-            counts[person] = 1;
-          }
-        })
-      })
-
-      return counts;
+      return countCastCrew(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
 
     countsGenres () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const genres = result.movie.genres;
-        if (Array.isArray(genres)) {
-          genres.forEach((genre) => {
-            if (counts[genre.name]) {
-              counts[genre.name]++;
-            } else if (genre.name) {
-              counts[genre.name] = 1;
-            }
-          })
-        }
-      })
-
-      return counts;
+      return countGenres(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
 
     countsStudios () {
-      const counts = {};
-
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const productionCompanies = result.movie.production_companies?.map(company => company.name) || [];
-
-        productionCompanies.forEach((company) => {
-          if (counts[company]) {
-            counts[company]++;
-          } else if (company) {
-            counts[company] = 1;
-          }
-        })
-      })
-
-      return counts;
+      return countStudios(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
 
     lastHigherRatedMovie () {
