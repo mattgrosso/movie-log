@@ -26,6 +26,15 @@ vi.mock('@/store/index', () => ({
   }
 }))
 
+const warmImageCacheMock = vi.fn()
+vi.mock('@/assets/javascript/offlinePosterCache.js', async () => {
+  const actual = await vi.importActual('@/assets/javascript/offlinePosterCache.js')
+  return {
+    ...actual,
+    warmImageCache: (...args) => warmImageCacheMock(...args)
+  }
+})
+
 describe('TMDb Data Processing & Movie Rating Addition', () => {
   let mockTMDbData
   let mockCreditsData
@@ -508,6 +517,29 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       expect(result.path).toMatch(/^movieLog\//)
       expect(result.value).toHaveProperty('movie')
       expect(result.value).toHaveProperty('ratings')
+    })
+
+    it('should warm the offline image cache with the new poster and backdrop urls', async () => {
+      await addRating(mockRatings)
+
+      expect(warmImageCacheMock).toHaveBeenCalledWith([
+        'https://image.tmdb.org/t/p/w342/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+        'https://image.tmdb.org/t/p/w500/fCayJrkfRaCRCTh8GqN30f8oyQF.jpg'
+      ])
+    })
+
+    it('should not attempt to warm the cache when there is no poster/backdrop (TMDb fetch failed)', async () => {
+      axios.get.mockRejectedValue(new Error('API Error'))
+
+      await addRating(mockRatings)
+
+      expect(warmImageCacheMock).not.toHaveBeenCalled()
+    })
+
+    it('should not attempt to warm the cache when ratings have no id (addMovieRating returns early)', async () => {
+      await addRating([{ love: 8, overall: 7 }])
+
+      expect(warmImageCacheMock).not.toHaveBeenCalled()
     })
 
     it('should handle missing environment variables', async () => {

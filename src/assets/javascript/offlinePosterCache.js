@@ -9,6 +9,18 @@
 const POSTER_SIZE = 'w342'; // matches the grid poster size (see CLAUDE.md's asset-perf notes)
 const BACKDROP_SIZE = 'w500'; // matches MovieDetail's backdrop usage
 
+// Exported so call sites that only have a single new poster/backdrop path
+// (a fresh rating, a custom poster/backdrop pick) can build the exact same
+// URL this module would've built during a full-library warm, and pass it to
+// warmImageCache themselves — one source of truth for the size convention.
+export function posterUrl (path) {
+  return path ? `https://image.tmdb.org/t/p/${POSTER_SIZE}${path}` : null;
+}
+
+export function backdropUrl (path) {
+  return path ? `https://image.tmdb.org/t/p/${BACKDROP_SIZE}${path}` : null;
+}
+
 export function collectImageUrls (movieLog) {
   const urls = new Set();
 
@@ -17,11 +29,13 @@ export function collectImageUrls (movieLog) {
     if (!movie) {
       return;
     }
-    if (movie.poster_path) {
-      urls.add(`https://image.tmdb.org/t/p/${POSTER_SIZE}${movie.poster_path}`);
+    const poster = posterUrl(movie.poster_path);
+    if (poster) {
+      urls.add(poster);
     }
-    if (movie.backdrop_path) {
-      urls.add(`https://image.tmdb.org/t/p/${BACKDROP_SIZE}${movie.backdrop_path}`);
+    const backdrop = backdropUrl(movie.backdrop_path);
+    if (backdrop) {
+      urls.add(backdrop);
     }
   });
 

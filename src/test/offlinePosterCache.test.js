@@ -1,5 +1,18 @@
 import { describe, it, expect, vi } from 'vitest'
-import { collectImageUrls, warmImageCache } from '@/assets/javascript/offlinePosterCache.js'
+import { collectImageUrls, warmImageCache, posterUrl, backdropUrl } from '@/assets/javascript/offlinePosterCache.js'
+
+describe('posterUrl / backdropUrl', () => {
+  it('builds the same size-specific urls collectImageUrls uses', () => {
+    expect(posterUrl('/poster1.jpg')).toBe('https://image.tmdb.org/t/p/w342/poster1.jpg')
+    expect(backdropUrl('/backdrop1.jpg')).toBe('https://image.tmdb.org/t/p/w500/backdrop1.jpg')
+  })
+
+  it('returns null for a missing path instead of a malformed url', () => {
+    expect(posterUrl(null)).toBeNull()
+    expect(posterUrl(undefined)).toBeNull()
+    expect(backdropUrl(null)).toBeNull()
+  })
+})
 
 describe('collectImageUrls', () => {
   it('builds a poster (w342) and backdrop (w500) url per movie', () => {

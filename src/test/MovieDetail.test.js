@@ -24,6 +24,15 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
 
 vi.mock('@/services/ErrorLogService.js', () => ({ default: { error: vi.fn() } }))
 
+const warmImageCacheMock = vi.fn()
+vi.mock('@/assets/javascript/offlinePosterCache.js', async () => {
+  const actual = await vi.importActual('@/assets/javascript/offlinePosterCache.js')
+  return {
+    ...actual,
+    warmImageCache: (...args) => warmImageCacheMock(...args)
+  }
+})
+
 function makeResult (overrides = {}) {
   return {
     dbKey: 'abc123',
@@ -53,6 +62,7 @@ describe('MovieDetail', () => {
   let pushSpy
 
   beforeEach(async () => {
+    warmImageCacheMock.mockClear()
     pushSpy = vi.fn()
     mockStore = {
       state: {
@@ -148,6 +158,24 @@ describe('MovieDetail', () => {
     it('isSelectedBackdrop marks the movie default when no custom is set', () => {
       expect(wrapper.vm.isSelectedBackdrop('/backdrop.jpg')).toBe(true)
       expect(wrapper.vm.isSelectedBackdrop('/other.jpg')).toBe(false)
+    })
+
+    it('selectPoster persists the choice and warms the offline image cache for it', async () => {
+      await wrapper.vm.selectPoster('/new-poster.jpg')
+
+      expect(mockStore.dispatch).toHaveBeenCalledWith('setDBValue', expect.objectContaining({
+        value: expect.objectContaining({ customPosterPath: '/new-poster.jpg' })
+      }))
+      expect(warmImageCacheMock).toHaveBeenCalledWith(['https://image.tmdb.org/t/p/w342/new-poster.jpg'])
+    })
+
+    it('selectBackdrop persists the choice and warms the offline image cache for it', async () => {
+      await wrapper.vm.selectBackdrop('/new-backdrop.jpg')
+
+      expect(mockStore.dispatch).toHaveBeenCalledWith('setDBValue', expect.objectContaining({
+        value: expect.objectContaining({ customBackdropPath: '/new-backdrop.jpg' })
+      }))
+      expect(warmImageCacheMock).toHaveBeenCalledWith(['https://image.tmdb.org/t/p/w500/new-backdrop.jpg'])
     })
   })
 

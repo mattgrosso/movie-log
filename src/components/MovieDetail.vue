@@ -515,6 +515,7 @@ import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwar
 import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
 import { awardNameWithThe } from '../assets/javascript/personalAwards.js';
+import { warmImageCache, posterUrl, backdropUrl } from '../assets/javascript/offlinePosterCache.js';
 
 export default {
   name: 'MovieDetail',
@@ -1697,6 +1698,10 @@ export default {
         if (this.previousEntry) {
           this.previousEntry.customPosterPath = posterPath;
         }
+
+        // Fire-and-forget: get the newly-chosen poster into the offline
+        // image cache immediately rather than waiting for it to be viewed.
+        warmImageCache([posterUrl(posterPath)]);
       } catch (error) {
         console.error('Error saving custom poster:', error);
         ErrorLogService.error('Error saving custom poster:', error);
@@ -1794,6 +1799,10 @@ export default {
         if (this.movie) {
           this.movie.backdrop_path = backdropPath;
         }
+
+        // Fire-and-forget: get the newly-chosen backdrop into the offline
+        // image cache immediately rather than waiting for it to be viewed.
+        warmImageCache([backdropUrl(backdropPath)]);
       } catch (error) {
         console.error('Error saving custom backdrop:', error);
         ErrorLogService.error('Error saving custom backdrop:', error);

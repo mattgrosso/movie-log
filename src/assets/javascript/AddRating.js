@@ -1,5 +1,6 @@
 import axios from 'axios';
 import store from '../../store/index';
+import { warmImageCache, posterUrl, backdropUrl } from './offlinePosterCache.js';
 
 const getTMDBData = async (rating) => {
   const apiKey = process.env.VUE_APP_TMDB_API_KEY;
@@ -190,6 +191,16 @@ const addMovieRating = async (ratings) => {
 const addRating = async (ratings) => {
   const dbEntry = await addMovieRating(ratings);
   store.dispatch('setDBValue', dbEntry);
+
+  // Fire-and-forget: get this movie's poster/backdrop into the offline image
+  // cache immediately, rather than only whenever it's next viewed. Not
+  // awaited - this must never slow down or fail the actual save.
+  const movie = dbEntry?.value?.movie;
+  const newImageUrls = [posterUrl(movie?.poster_path), backdropUrl(movie?.backdrop_path)].filter(Boolean);
+  if (newImageUrls.length) {
+    warmImageCache(newImageUrls);
+  }
+
   return dbEntry;
 }
 
