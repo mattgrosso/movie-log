@@ -7,10 +7,13 @@
          suggestions as GamesHub/Connections/Home.vue's new-user onboarding. -->
     <div v-if="!pair" class="not-enough-movies">
       <p>Couldn't find a well-connected pair of movies in your library yet — rate a few more (especially ones sharing cast members) and try again.</p>
-      <!-- Only relevant when a specific difficulty was the reason nothing was
-           found - shown so the player can retry a different tier. -->
-      <div v-if="selectedDifficulty" class="difficulty-picker">
-        <span class="difficulty-picker-label">New game:</span>
+      <!-- Same difficulty switch + New Game button as the main view below -
+           picking a tier here and tapping New Game retries (also useful
+           even at the default "Any" tier - pickConnectedPair's search is
+           randomized, so a retry can occasionally succeed where a prior
+           attempt didn't). -->
+      <div class="new-game-panel">
+        <span class="difficulty-picker-label">Difficulty</span>
         <div class="difficulty-segments">
           <button
             v-for="level in difficultyOptions"
@@ -21,31 +24,13 @@
             @click="selectDifficulty(level.key)"
           >{{ level.label }}</button>
         </div>
+        <button type="button" class="btn-game btn-game-primary btn-game-sm full-width" @click="start">New Game</button>
       </div>
       <NewRatingSearch value="" :suggestionsMode="true"/>
     </div>
 
     <template v-else>
-      <p class="game-subtitle">Connect these two through shared cast members. {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }} so far.</p>
-
-      <!-- One connected segmented control rather than separate pill buttons
-           per difficulty (bug report: "no good... one connected button set
-           with a label"). Each segment starts a fresh pair right away (see
-           selectDifficulty) - these are actions, not a persistent filter
-           toggle, hence tapping a segment immediately replaces the puzzle. -->
-      <div class="difficulty-picker">
-        <span class="difficulty-picker-label">New game:</span>
-        <div class="difficulty-segments">
-          <button
-            v-for="level in difficultyOptions"
-            :key="level.key"
-            type="button"
-            class="difficulty-segment"
-            :class="[level.key, { active: selectedDifficulty === level.key }]"
-            @click="selectDifficulty(level.key)"
-          >{{ level.label }}</button>
-        </div>
-      </div>
+      <p class="game-subtitle">Connect these two through shared cast members.</p>
 
       <!-- The connection, built visually between the two posters as you go -
            source through however much of the chain you've found, then (while
@@ -81,7 +66,7 @@
           v-model="guessInput"
           type="text"
           class="game-input"
-          :placeholder="needType === 'person' ? 'Who was in that movie?' : 'What else were they in?'"
+          :placeholder="guessPlaceholder"
           @input="onInput"
         >
         <ul v-if="suggestions.length" class="suggestions">
@@ -113,7 +98,27 @@
             <i v-if="index < revealedChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
           </template>
         </div>
-        <button type="button" class="btn-game btn-game-primary btn-game-sm mt-2 full-width" @click="start">New Pair</button>
+      </div>
+
+      <!-- New game controls, moved to the bottom of the page (bug report:
+           "the new game buttons still look sort of bad... move to the
+           bottom"). One persistent panel covers every status (playing, won,
+           revealed) - the difficulty switch just picks a tier, tapping
+           New Game is what actually starts a fresh pair (previously each
+           difficulty button both picked AND started at once). -->
+      <div class="new-game-panel">
+        <span class="difficulty-picker-label">Difficulty</span>
+        <div class="difficulty-segments">
+          <button
+            v-for="level in difficultyOptions"
+            :key="level.key"
+            type="button"
+            class="difficulty-segment"
+            :class="[level.key, { active: selectedDifficulty === level.key }]"
+            @click="selectDifficulty(level.key)"
+          >{{ level.label }}</button>
+        </div>
+        <button type="button" class="btn-game btn-game-primary btn-game-sm full-width" @click="start">New Game</button>
       </div>
     </template>
   </div>
@@ -183,8 +188,7 @@ export default {
   },
   computed: {
     // One segment per difficulty tier - "Any" was dropped per feedback in
-    // favor of always picking a specific tier (the segmented control's own
-    // label - "New game:" - already frames these as the choices).
+    // favor of always picking a specific tier.
     difficultyOptions () {
       return Object.entries(DIFFICULTY_LEVELS).map(([key, level]) => ({ key, label: level.label }));
     },
@@ -204,6 +208,19 @@ export default {
     needType () {
       const last = this.chain[this.chain.length - 1];
       return last?.type === 'movie' ? 'person' : 'movie';
+    },
+    // Names the actual movie/person in the prompt instead of a generic
+    // "that movie"/"they" (bug report: "Who was in Rebel Without A Cause?"
+    // / "what else was Rock Hudson in?"). Falls back to the generic phrasing
+    // if for some reason the chain's last entry isn't resolved yet.
+    guessPlaceholder () {
+      const last = this.chain[this.chain.length - 1];
+      if (this.needType === 'person') {
+        const title = last?.entry?.movie?.title;
+        return title ? `Who was in ${title}?` : 'Who was in that movie?';
+      }
+      const name = last?.name;
+      return name ? `What else was ${name} in?` : 'What else were they in?';
     },
     hopsSoFar () {
       return Math.floor((this.chain.length - 1) / 2);
@@ -329,12 +346,12 @@ export default {
       this.revealedChain = null;
       this.persistState();
     },
-    // Changing difficulty replaces the current puzzle immediately rather
-    // than waiting for the next "New Pair" tap - picking "Hard" mid-game
-    // should give you a hard puzzle right away, not on your next visit.
+    // Just picks the tier for the NEXT "New Game" tap - decoupled from
+    // starting a new pair (bug report: "one new game button but with a
+    // switch that shows what difficulty you want"). Previously each segment
+    // both picked AND started a fresh pair immediately.
     selectDifficulty (level) {
       this.selectedDifficulty = level;
-      this.start();
     },
     onInput () {
       const term = this.guessInput.trim().toLowerCase();
@@ -468,11 +485,14 @@ export default {
 .six-degrees-game {
   color: #eee;
   min-height: 100vh;
-  // Horizontal padding trimmed to 0.5rem (from 1rem) per feedback ("use more
-  // of the width") - frees up room for 3 chain-steps to fit across a phone
-  // screen. Top padding is still the BackLink-overlap safety margin (see
-  // the identical comment in ConnectionsGame.vue/GamesHub.vue).
-  padding: 1.75rem 0.5rem 2rem;
+  // Back up to 1rem (bug report: the description "doesn't have enough
+  // horizontal padding from the edges of the screen") - .chain-row claws
+  // back the difference with a matching negative margin below, so the
+  // 3-across chain-step fit from the earlier 0.5rem pass is unaffected;
+  // everything else (subtitle, buttons, etc.) gets the full 1rem inset.
+  // Top padding is still the BackLink-overlap safety margin (see the
+  // identical comment in ConnectionsGame.vue/GamesHub.vue).
+  padding: 1.75rem 1rem 2rem;
 }
 
 .game-subtitle {
@@ -492,26 +512,29 @@ $difficulty-tier-colors: (
   hard: (outline: #ef5350, fill: #c62828)
 );
 
-.difficulty-picker {
-  align-items: center;
-  display: flex;
-  gap: 0.6rem;
-  margin-bottom: 1.25rem;
-  width: 100%;
+// New game controls, moved to the bottom of the page (bug report: "the new
+// game buttons still look sort of bad... move to the bottom"). The
+// difficulty switch is now a pure picker (see selectDifficulty) with its
+// own label above it and a full-width New Game button below - "full width
+// switch, full width button."
+.new-game-panel {
+  margin-top: 1.75rem;
 }
 
 .difficulty-picker-label {
   color: #adb5bd;
-  flex-shrink: 0;
+  display: block;
   font-size: 0.85rem;
   font-weight: 600;
+  margin-bottom: 0.4rem;
 }
 
 .difficulty-segments {
   border-radius: 8px;
   display: flex;
-  flex: 1;
+  margin-bottom: 0.75rem;
   overflow: hidden;
+  width: 100%;
 }
 
 .difficulty-segment {
@@ -577,6 +600,10 @@ $difficulty-tier-colors: (
   gap: 0.4rem 0.3rem;
   justify-content: center;
   margin-bottom: 1.25rem;
+  // Claws back the extra horizontal padding .six-degrees-game gained above,
+  // so the 3-across chain-step fit is unaffected by that change.
+  margin-left: -0.5rem;
+  margin-right: -0.5rem;
 }
 
 .chain-step {

@@ -81,6 +81,32 @@ describe('SixDegreesGame', () => {
     expect(wrapper.vm.hopsSoFar).toBe(0);
   });
 
+  it('the description no longer shows a running hop count (bug report: "unnecessary. Lose it.")', () => {
+    const wrapper = factory(buildConnectedLibrary());
+    const subtitle = wrapper.find('.game-subtitle').text();
+    expect(subtitle).toBe('Connect these two through shared cast members.');
+    expect(subtitle).not.toMatch(/hop/i);
+  });
+
+  describe('dynamic guess prompt (bug report: "Who was in Rebel Without A Cause?" / "what else was Rock Hudson in?")', () => {
+    it('names the actual movie when a person is needed', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const sourceTitle = wrapper.vm.pair.source.movie.title;
+      expect(wrapper.vm.guessPlaceholder).toBe(`Who was in ${sourceTitle}?`);
+      expect(wrapper.find('.game-input').attributes('placeholder')).toBe(`Who was in ${sourceTitle}?`);
+    });
+
+    it('names the actual person when a movie is needed', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
+      wrapper.vm.pick({ name: person });
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.guessPlaceholder).toBe(`What else was ${person} in?`);
+      expect(wrapper.find('.game-input').attributes('placeholder')).toBe(`What else was ${person} in?`);
+    });
+  });
+
   it('suggests a real connection through an actor billed outside the top-10 puzzle-generation cap (bug report: autocomplete silently found nothing for these)', async () => {
     const fillers = Array.from({ length: 10 }, (_, i) => `Filler ${i}`);
     const movieA = entry('a', [...fillers, 'Rare Actor']); // 'Rare Actor' is 11th-billed
@@ -224,22 +250,40 @@ describe('SixDegreesGame', () => {
     });
   });
 
-  describe('difficulty picker (bug report: one connected "New game:" segmented control, not separate pill buttons)', () => {
+  describe('difficulty switch + New Game button (bug report: "one new game button but with a switch that shows what difficulty you want")', () => {
     it('defaults to no tier selected (the original unconstrained range)', () => {
       const wrapper = factory(buildConnectedLibrary());
       expect(wrapper.vm.selectedDifficulty).toBeNull();
     });
 
-    it('renders one connected segmented group labeled "New game:" with Easy/Medium/Hard segments', () => {
+    it('renders a labeled Easy/Medium/Hard switch and a separate New Game button, at the bottom of the page', () => {
       const wrapper = factory(buildConnectedLibrary());
-      expect(wrapper.find('.difficulty-picker-label').text()).toBe('New game:');
+      expect(wrapper.find('.difficulty-picker-label').text()).toBe('Difficulty');
       const segments = wrapper.find('.difficulty-segments').findAll('.difficulty-segment');
       expect(segments.map((s) => s.text())).toEqual(['Easy', 'Medium', 'Hard']);
+      const panel = wrapper.find('.new-game-panel');
+      expect(panel.find('button.btn-game-primary').text()).toBe('New Game');
+      // "Bottom of the page" - the panel comes after the chain row/guess
+      // form/result banner in the rendered HTML, not above them.
+      const html = wrapper.html();
+      expect(html.indexOf('chain-row')).toBeLessThan(html.indexOf('new-game-panel'));
     });
 
-    it('tapping a difficulty segment selects it and immediately starts a new pair matching that difficulty', async () => {
+    it('tapping a difficulty segment only selects it - it does NOT start a new pair by itself', async () => {
       const wrapper = factory(buildConnectedLibrary());
-      // Difficulty is now a weighted score (hops + billing order + year gap +
+      const originalPair = wrapper.vm.pair;
+      const mediumSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Medium');
+
+      await mediumSegment.trigger('click');
+
+      expect(wrapper.vm.selectedDifficulty).toBe('medium');
+      expect(wrapper.vm.pair).toBe(originalPair); // unchanged - no new pair yet
+      expect(mediumSegment.classes()).toContain('active');
+    });
+
+    it('tapping New Game starts a fresh pair matching whichever tier is currently selected', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      // Difficulty is a weighted score (hops + billing order + year gap +
       // age - see scorePathDifficulty), not pure hop count, so which exact
       // pair/hop-count comes back isn't asserted here - only that whatever
       // is found actually carries the requested tier. "Medium" (rather than
@@ -247,17 +291,15 @@ describe('SixDegreesGame', () => {
       // only its single longest (5-hop) pair reaches 'medium' - everything
       // shorter stays 'easy', and nothing in it reaches 'hard' at all.
       const mediumSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Medium');
-      expect(mediumSegment).toBeTruthy();
-
       await mediumSegment.trigger('click');
 
-      expect(wrapper.vm.selectedDifficulty).toBe('medium');
+      const newGameButton = wrapper.find('.new-game-panel button.btn-game-primary');
+      await newGameButton.trigger('click');
+
       expect(wrapper.vm.pair).not.toBeNull();
       expect(wrapper.vm.pair.difficulty).toBe('medium');
       // Starting fresh resets progress back to just the source movie.
       expect(wrapper.vm.chain).toHaveLength(1);
-      // The selected segment is visually marked active.
-      expect(mediumSegment.classes()).toContain('active');
     });
 
     it('falls back to the not-enough-movies gate when no pair exists at the requested difficulty', async () => {
@@ -268,12 +310,13 @@ describe('SixDegreesGame', () => {
 
       const hardSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Hard');
       await hardSegment.trigger('click');
+      await wrapper.find('.new-game-panel button.btn-game-primary').trigger('click');
 
       expect(wrapper.vm.pair).toBeNull();
       expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
     });
 
-    it('offers the difficulty picker again on the resulting gate, to recover by trying a different tier', async () => {
+    it('offers the same switch + New Game button on the resulting gate, to recover by trying a different tier', async () => {
       // In this 3-movie/2-hop fixture, 'easy' is the only tier that's
       // actually reachable (see the scorePathDifficulty tests) - used here as
       // the recovery pick since "Any"/unconstrained is no longer a UI option.
@@ -282,21 +325,24 @@ describe('SixDegreesGame', () => {
 
       const hardSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Hard');
       await hardSegment.trigger('click');
+      await wrapper.find('.new-game-panel button.btn-game-primary').trigger('click');
       expect(wrapper.vm.pair).toBeNull();
 
-      const easySegment = wrapper.find('.not-enough-movies .difficulty-picker').findAll('.difficulty-segment').find((b) => b.text() === 'Easy');
-      expect(easySegment).toBeTruthy();
+      const gatePanel = wrapper.find('.not-enough-movies .new-game-panel');
+      expect(gatePanel.exists()).toBe(true);
+      const easySegment = gatePanel.findAll('.difficulty-segment').find((b) => b.text() === 'Easy');
       await easySegment.trigger('click');
+      await gatePanel.find('button.btn-game-primary').trigger('click');
 
       expect(wrapper.vm.selectedDifficulty).toBe('easy');
       expect(wrapper.vm.pair).not.toBeNull();
     });
 
-    it('does NOT show a difficulty picker on the gate when the unconstrained search itself already found nothing (a narrower pick can\'t help)', () => {
+    it('shows the retry panel on the gate even when the unconstrained search itself already found nothing (a retry can still succeed by chance - pickConnectedPair is randomized)', () => {
       const disconnected = [entry(1, ['Solo A']), entry(2, ['Solo B'])];
       const wrapper = factory(disconnected);
       expect(wrapper.vm.pair).toBeNull();
-      expect(wrapper.find('.not-enough-movies .difficulty-picker').exists()).toBe(false);
+      expect(wrapper.find('.not-enough-movies .new-game-panel').exists()).toBe(true);
     });
   });
 
