@@ -76,12 +76,12 @@
     <!-- Brand new (0-rated) user: a short welcome, then suggestions shown
          immediately - see shouldShowStartSuggestions for why no tap is
          required here specifically. -->
-    <div v-if="$store.state.dbLoaded && isBrandNewUser && !dismissedWelcomeSuggestions && !value && !resultsAreFiltered" class="welcome-new-user text-center mt-3 mb-2">
+    <div v-if="$store.state.dbLoaded && isBrandNewUser && !dismissedWelcomeSuggestions && !value && !resultsAreFiltered" class="welcome-new-user text-center mt-3 mb-1">
       <p class="welcome-new-user-text">Welcome to Cinema Roll! This app is built entirely around movies you rate yourself.</p>
     </div>
 
     <!-- Suggestions button below search bar if user has rated 1-9 movies -->
-    <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount > 0 && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center my-2">
+    <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount > 0 && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center mt-2 mb-1">
       <button class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
     </div>
     <NoResults
