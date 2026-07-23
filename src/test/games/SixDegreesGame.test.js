@@ -295,42 +295,36 @@ describe('SixDegreesGame', () => {
     });
   });
 
-  describe('difficulty switch + New Game button (bug report: "one new game button but with a switch that shows what difficulty you want")', () => {
+  describe('"New game:" difficulty picker (bug report: "let\'s go back to having \'new game\' as a label and then three buttons for difficulty")', () => {
     it('defaults to no tier selected (the original unconstrained range)', () => {
       const wrapper = factory(buildConnectedLibrary());
       expect(wrapper.vm.selectedDifficulty).toBeNull();
     });
 
-    it('renders an unlabeled Easy/Medium/Hard switch and a separate New Game button, at the bottom of the page', () => {
+    it('is hidden while playing - only the hint actions show (bug report: "too many buttons... hide the new game buttons until someone clicks give up")', () => {
       const wrapper = factory(buildConnectedLibrary());
-      // No "Difficulty" label anymore (bug report: "we can lose the
-      // difficulty label").
-      expect(wrapper.find('.difficulty-picker-label').exists()).toBe(false);
-      const segments = wrapper.find('.difficulty-segments').findAll('.difficulty-segment');
-      expect(segments.map((s) => s.text())).toEqual(['Easy', 'Medium', 'Hard']);
+      expect(wrapper.vm.status).toBe('playing');
+      expect(wrapper.find('.new-game-panel').exists()).toBe(false);
+      expect(wrapper.find('.hint-actions').exists()).toBe(true);
+    });
+
+    it('swaps in for the hint actions once the round ends, labeled "New game:" with Easy/Medium/Hard segments', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      wrapper.vm.revealPath();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.find('.hint-actions').exists()).toBe(false);
       const panel = wrapper.find('.new-game-panel');
-      expect(panel.find('button.btn-game-primary').text()).toBe('New Game');
-      // "Bottom of the page" - the panel comes after the chain row/guess
-      // form/hint actions in the rendered HTML, not above them.
-      const html = wrapper.html();
-      expect(html.indexOf('chain-row')).toBeLessThan(html.indexOf('new-game-panel'));
-      expect(html.indexOf('hint-actions')).toBeLessThan(html.indexOf('new-game-panel'));
+      expect(panel.exists()).toBe(true);
+      expect(panel.find('.difficulty-picker-label').text()).toBe('New game:');
+      const segments = panel.findAll('.difficulty-segment');
+      expect(segments.map((s) => s.text())).toEqual(['Easy', 'Medium', 'Hard']);
     });
 
-    it('tapping a difficulty segment only selects it - it does NOT start a new pair by itself', async () => {
+    it('tapping a difficulty segment selects it and immediately starts a new pair matching that difficulty', async () => {
       const wrapper = factory(buildConnectedLibrary());
-      const originalPair = wrapper.vm.pair;
-      const mediumSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Medium');
-
-      await mediumSegment.trigger('click');
-
-      expect(wrapper.vm.selectedDifficulty).toBe('medium');
-      expect(wrapper.vm.pair).toBe(originalPair); // unchanged - no new pair yet
-      expect(mediumSegment.classes()).toContain('active');
-    });
-
-    it('tapping New Game starts a fresh pair matching whichever tier is currently selected', async () => {
-      const wrapper = factory(buildConnectedLibrary());
+      wrapper.vm.revealPath();
+      await wrapper.vm.$nextTick();
       // Difficulty is a weighted score (hops + billing order + year gap +
       // age - see scorePathDifficulty), not pure hop count, so which exact
       // pair/hop-count comes back isn't asserted here - only that whatever
@@ -339,15 +333,16 @@ describe('SixDegreesGame', () => {
       // only its single longest (5-hop) pair reaches 'medium' - everything
       // shorter stays 'easy', and nothing in it reaches 'hard' at all.
       const mediumSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Medium');
+
       await mediumSegment.trigger('click');
 
-      const newGameButton = wrapper.find('.new-game-panel button.btn-game-primary');
-      await newGameButton.trigger('click');
-
+      expect(wrapper.vm.selectedDifficulty).toBe('medium');
       expect(wrapper.vm.pair).not.toBeNull();
       expect(wrapper.vm.pair.difficulty).toBe('medium');
-      // Starting fresh resets progress back to just the source movie.
+      // Starting fresh resets progress back to just the source movie, which
+      // also flips status back to 'playing' - swapping the panel back out.
       expect(wrapper.vm.chain).toHaveLength(1);
+      expect(wrapper.vm.status).toBe('playing');
     });
 
     it('falls back to the not-enough-movies gate when no pair exists at the requested difficulty', async () => {
@@ -355,32 +350,33 @@ describe('SixDegreesGame', () => {
       const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
       const wrapper = factory(sparse);
       expect(wrapper.vm.pair).not.toBeNull(); // unconstrained finds the 2-hop pair fine
+      wrapper.vm.revealPath();
+      await wrapper.vm.$nextTick();
 
       const hardSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Hard');
       await hardSegment.trigger('click');
-      await wrapper.find('.new-game-panel button.btn-game-primary').trigger('click');
 
       expect(wrapper.vm.pair).toBeNull();
       expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
     });
 
-    it('offers the same switch + New Game button on the resulting gate, to recover by trying a different tier', async () => {
+    it('offers the picker again on the resulting gate, to recover by trying a different tier', async () => {
       // In this 3-movie/2-hop fixture, 'easy' is the only tier that's
       // actually reachable (see the scorePathDifficulty tests) - used here as
       // the recovery pick since "Any"/unconstrained is no longer a UI option.
       const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
       const wrapper = factory(sparse);
+      wrapper.vm.revealPath();
+      await wrapper.vm.$nextTick();
 
       const hardSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Hard');
       await hardSegment.trigger('click');
-      await wrapper.find('.new-game-panel button.btn-game-primary').trigger('click');
       expect(wrapper.vm.pair).toBeNull();
 
       const gatePanel = wrapper.find('.not-enough-movies .new-game-panel');
       expect(gatePanel.exists()).toBe(true);
       const easySegment = gatePanel.findAll('.difficulty-segment').find((b) => b.text() === 'Easy');
       await easySegment.trigger('click');
-      await gatePanel.find('button.btn-game-primary').trigger('click');
 
       expect(wrapper.vm.selectedDifficulty).toBe('easy');
       expect(wrapper.vm.pair).not.toBeNull();

@@ -7,12 +7,13 @@
          suggestions as GamesHub/Connections/Home.vue's new-user onboarding. -->
     <div v-if="!pair" class="not-enough-movies">
       <p>Couldn't find a well-connected pair of movies in your library yet — rate a few more (especially ones sharing cast members) and try again.</p>
-      <!-- Same difficulty switch + New Game button as the main view below -
-           picking a tier here and tapping New Game retries (also useful
-           even at the default "Any" tier - pickConnectedPair's search is
-           randomized, so a retry can occasionally succeed where a prior
-           attempt didn't). -->
+      <!-- Same difficulty picker as the main view below - tapping a segment
+           picks AND immediately starts a pair at that difficulty (also
+           useful even at the default "Any" tier - pickConnectedPair's
+           search is randomized, so a retry can occasionally succeed where
+           a prior attempt didn't). -->
       <div class="new-game-panel">
+        <span class="difficulty-picker-label">New game:</span>
         <div class="difficulty-segments">
           <button
             v-for="level in difficultyOptions"
@@ -23,7 +24,6 @@
             @click="selectDifficulty(level.key)"
           >{{ level.label }}</button>
         </div>
-        <button type="button" class="btn-game btn-game-primary btn-game-sm full-width" @click="start">New Game</button>
       </div>
       <NewRatingSearch value="" :suggestionsMode="true"/>
     </div>
@@ -86,52 +86,57 @@
            'Give me one' and 'Give up'"). "Give me one" reveals just the
            next step toward the target (see giveHint) and the game keeps
            going; "Give up" is the old behavior - shows the whole remaining
-           path and ends the round. -->
+           path and ends the round. Only shown while playing - swaps for
+           the difficulty picker below once the round ends (bug report:
+           "too many buttons... hide the new game buttons until someone
+           clicks give up... swap the help/give up buttons with the
+           difficulty and new game buttons"). -->
       <div v-if="status === 'playing'" class="hint-actions">
         <button type="button" class="hint-segment" @click="giveHint">Give me one</button>
         <button type="button" class="hint-segment give-up" @click="revealPath">Give up</button>
       </div>
 
-      <div v-else class="result-banner" :class="status">
-        <p v-if="status === 'won'">
-          Connected in {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }}
-          <span v-if="pair.optimalHops != null"> (shortest possible: {{ pair.optimalHops }})</span>.
-        </p>
-        <p v-else>Here's the shortest path:</p>
-        <div v-if="status === 'revealed'" class="chain-row revealed-chain">
-          <template v-for="(link, index) in revealedChain" :key="index">
-            <button type="button" class="chain-step" :class="link.type" @click="goToChainItem(link)">
-              <img v-if="link.type === 'movie'" :src="gamePosterUrl(link.entry, 'w185')" :alt="link.entry.movie.title" class="chain-poster">
-              <template v-else>
-                <img v-if="personPhotoUrl(link.name)" :src="personPhotoUrl(link.name)" :alt="link.name" class="chain-photo">
-                <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(link.name) }}</div>
-              </template>
-              <span class="chain-step-label" :title="link.type === 'movie' ? link.entry.movie.title : link.name">{{ link.type === 'movie' ? link.entry.movie.title : link.name }}</span>
-            </button>
-            <i v-if="index < revealedChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
-          </template>
+      <template v-else>
+        <div class="result-banner" :class="status">
+          <p v-if="status === 'won'">
+            Connected in {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }}
+            <span v-if="pair.optimalHops != null"> (shortest possible: {{ pair.optimalHops }})</span>.
+          </p>
+          <p v-else>Here's the shortest path:</p>
+          <div v-if="status === 'revealed'" class="chain-row revealed-chain">
+            <template v-for="(link, index) in revealedChain" :key="index">
+              <button type="button" class="chain-step" :class="link.type" @click="goToChainItem(link)">
+                <img v-if="link.type === 'movie'" :src="gamePosterUrl(link.entry, 'w185')" :alt="link.entry.movie.title" class="chain-poster">
+                <template v-else>
+                  <img v-if="personPhotoUrl(link.name)" :src="personPhotoUrl(link.name)" :alt="link.name" class="chain-photo">
+                  <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(link.name) }}</div>
+                </template>
+                <span class="chain-step-label" :title="link.type === 'movie' ? link.entry.movie.title : link.name">{{ link.type === 'movie' ? link.entry.movie.title : link.name }}</span>
+              </button>
+              <i v-if="index < revealedChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
+            </template>
+          </div>
         </div>
-      </div>
 
-      <!-- New game controls, moved to the bottom of the page (bug report:
-           "the new game buttons still look sort of bad... move to the
-           bottom"). One persistent panel covers every status (playing, won,
-           revealed) - the difficulty switch just picks a tier, tapping
-           New Game is what actually starts a fresh pair (previously each
-           difficulty button both picked AND started at once). -->
-      <div class="new-game-panel">
-        <div class="difficulty-segments">
-          <button
-            v-for="level in difficultyOptions"
-            :key="level.key"
-            type="button"
-            class="difficulty-segment"
-            :class="[level.key, { active: selectedDifficulty === level.key }]"
-            @click="selectDifficulty(level.key)"
-          >{{ level.label }}</button>
+        <!-- New game controls - back to a single "New game:" labeled row
+             (bug report: "let's go back to having 'new game' as a label
+             and then three buttons for difficulty") - tapping a segment
+             picks AND immediately starts a fresh pair, so there's no
+             separate confirm button anymore. -->
+        <div class="new-game-panel">
+          <span class="difficulty-picker-label">New game:</span>
+          <div class="difficulty-segments">
+            <button
+              v-for="level in difficultyOptions"
+              :key="level.key"
+              type="button"
+              class="difficulty-segment"
+              :class="[level.key, { active: selectedDifficulty === level.key }]"
+              @click="selectDifficulty(level.key)"
+            >{{ level.label }}</button>
+          </div>
         </div>
-        <button type="button" class="btn-game btn-game-primary btn-game-sm full-width" @click="start">New Game</button>
-      </div>
+      </template>
     </template>
   </div>
 </template>
@@ -358,12 +363,16 @@ export default {
       this.revealedChain = null;
       this.persistState();
     },
-    // Just picks the tier for the NEXT "New Game" tap - decoupled from
-    // starting a new pair (bug report: "one new game button but with a
-    // switch that shows what difficulty you want"). Previously each segment
-    // both picked AND started a fresh pair immediately.
+    // Picks the tier AND immediately starts a fresh pair (bug report:
+    // "let's go back to having 'new game' as a label and then three
+    // buttons for difficulty") - a brief detour through a decoupled
+    // picker + separate "New Game" button was tried and reverted; now
+    // that this whole panel only shows once a round has already ended
+    // (see the template), a single tap to both choose and start is
+    // simpler than a two-step picker.
     selectDifficulty (level) {
       this.selectedDifficulty = level;
+      this.start();
     },
     onInput () {
       const term = this.guessInput.trim().toLowerCase();
@@ -545,22 +554,31 @@ $difficulty-tier-colors: (
   hard: (outline: #ef5350, fill: #c62828)
 );
 
-// New game controls, moved to the bottom of the page (bug report: "the new
-// game buttons still look sort of bad... move to the bottom"). The
-// difficulty switch is now a pure picker (see selectDifficulty) with a
-// full-width New Game button below - "full width switch, full width
-// button." No label above it anymore ("we can lose the difficulty label")
-// - the New Game button right below already makes its purpose clear.
+// New game controls - a single "New game:" label + segmented picker row,
+// each segment both picking AND immediately starting a fresh pair (see
+// selectDifficulty). Only rendered once a round has ended (bug report:
+// "too many buttons... hide the new game buttons until someone clicks
+// give up... swap the help/give up buttons with the difficulty and new
+// game buttons"), swapping places with .hint-actions above.
 .new-game-panel {
-  margin-top: 1.75rem;
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.difficulty-picker-label {
+  color: #adb5bd;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .difficulty-segments {
   border-radius: 8px;
   display: flex;
-  margin-bottom: 0.75rem;
+  flex: 1;
   overflow: hidden;
-  width: 100%;
 }
 
 .difficulty-segment {
@@ -619,31 +637,46 @@ $difficulty-tier-colors: (
 // pills... a bit ugly... show actual photos of the people and posters of
 // the movies for the steps in between"). Sized 3-across on a phone screen
 // (bug report: "fit three items across... use more of the width").
+// One horizontally-scrolling row instead of wrapping to multiple lines
+// (bug report: "have them all appear in one horizontally scrolling list...
+// scroll back and forth with your finger to see the whole chain") - the
+// chain only grows longer as a round goes on, so wrapping meant the page
+// kept getting taller; this keeps a constant height regardless of length.
+// justify-content is flex-start (not center) deliberately - centered
+// content that later overflows a scroll container can leave its own start
+// unreachable in some browsers.
 .chain-row {
   align-items: center;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.3rem;
-  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  justify-content: flex-start;
   margin-bottom: 1.25rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  // Space below the input, above the posters (bug report: "we need some
+  // space below the input above the posters").
+  margin-top: 1rem;
   // Claws back the extra horizontal padding .six-degrees-game gained above,
-  // so the 3-across chain-step fit is unaffected by that change.
+  // so scrolled content can reach all the way to the screen edges.
   margin-left: -0.5rem;
   margin-right: -0.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
 }
 
 .chain-step {
   background: transparent;
   border: none;
   color: inherit;
+  flex-shrink: 0;
   font: inherit;
   padding: 0;
   position: relative;
   text-align: center;
-  // A single shared width (movie and person alike) so "3 across" is
-  // predictable regardless of which types land in a row. Still larger than
-  // the original 100px endpoint width, while leaving room for 3 steps + 2
-  // arrows on a real phone viewport.
+  // A single shared width (movie and person alike). Still larger than the
+  // original 100px endpoint width.
   width: 104px;
 }
 
@@ -710,6 +743,7 @@ $difficulty-tier-colors: (
 
 .chain-arrow {
   color: #666;
+  flex-shrink: 0;
   font-size: 0.9rem;
 }
 
