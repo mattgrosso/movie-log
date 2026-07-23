@@ -1,7 +1,6 @@
 <template>
   <div class="six-degrees-game">
     <BackLink label="Games" @click="$router.push('/games')"/>
-    <h1 class="game-title">Six Degrees</h1>
 
     <!-- Bug report: needs a well-connected cast graph, more than the bare
          GamesHub gate guarantees. Same "help me get started" quick-pick
@@ -476,12 +475,9 @@ export default {
   padding: 1.75rem 0.5rem 2rem;
 }
 
-.game-title {
-  margin: 0.5rem 0 0.25rem;
-}
-
 .game-subtitle {
   color: #adb5bd;
+  margin-top: 0.5rem;
   margin-bottom: 1rem;
 }
 
