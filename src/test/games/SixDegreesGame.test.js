@@ -14,6 +14,12 @@ vi.mock('axios', () => ({
   default: { get: vi.fn(() => Promise.resolve({ data: { results: [] } })) }
 }));
 
+// ensurePersonPhoto looks up each chain person by name via a plain fetch()
+// (not axios) - mocked to "no results" by default so tests exercise the
+// initials-fallback path deterministically rather than hitting a real
+// endpoint or leaving photos permanently unresolved.
+global.fetch = vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ results: [] }) }))
+
 function entry (id, cast) {
   return {
     dbKey: `key-${id}`,
@@ -233,7 +239,10 @@ describe('SixDegreesGame', () => {
       // "Hard") is used because this fixture's own real ceiling, precisely:
       // only its single longest (5-hop) pair reaches 'medium' - everything
       // shorter stays 'easy', and nothing in it reaches 'hard' at all.
-      const mediumButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Medium');
+      // Buttons are labeled as actions ("New ___ Game"), not bare difficulty
+      // words - bug report: "the difficulty selectors should be labeled as
+      // 'new game' buttons".
+      const mediumButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'New Medium Game');
       expect(mediumButton).toBeTruthy();
 
       await mediumButton.trigger('click');
@@ -245,25 +254,13 @@ describe('SixDegreesGame', () => {
       expect(wrapper.vm.chain).toHaveLength(1);
     });
 
-    it('shows the current pair\'s difficulty + hop count next to the subtitle', async () => {
-      const wrapper = factory(buildConnectedLibrary());
-      const easyButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Easy');
-      await easyButton.trigger('click');
-
-      expect(wrapper.vm.pair.difficulty).toBe('easy');
-      const badge = wrapper.find('.difficulty-badge');
-      expect(badge.exists()).toBe(true);
-      expect(badge.classes()).toContain('easy');
-      expect(badge.text()).toMatch(/\d+ hops?/);
-    });
-
     it('falls back to the not-enough-movies gate when no pair exists at the requested difficulty', async () => {
-      // Max possible hop count in this 3-movie chain is 2 - no "hard" (4-hop) pair exists.
+      // Max possible hop count in this 3-movie chain is 2 - no "hard" pair exists.
       const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
       const wrapper = factory(sparse);
       expect(wrapper.vm.pair).not.toBeNull(); // "Any" finds the 2-hop pair fine
 
-      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Hard');
+      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'New Hard Game');
       await hardButton.trigger('click');
 
       expect(wrapper.vm.pair).toBeNull();
@@ -274,11 +271,11 @@ describe('SixDegreesGame', () => {
       const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
       const wrapper = factory(sparse);
 
-      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Hard');
+      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'New Hard Game');
       await hardButton.trigger('click');
       expect(wrapper.vm.pair).toBeNull();
 
-      const anyButton = wrapper.find('.not-enough-movies .difficulty-picker').findAll('button').find((b) => b.text() === 'Any');
+      const anyButton = wrapper.find('.not-enough-movies .difficulty-picker').findAll('button').find((b) => b.text() === 'New Game');
       expect(anyButton).toBeTruthy();
       await anyButton.trigger('click');
 
@@ -291,6 +288,43 @@ describe('SixDegreesGame', () => {
       const wrapper = factory(disconnected);
       expect(wrapper.vm.pair).toBeNull();
       expect(wrapper.find('.not-enough-movies .difficulty-picker').exists()).toBe(false);
+    });
+  });
+
+  describe('the visual chain row (bug report: "ugly pills"... "actual photos of the people and posters of the movies")', () => {
+    it('renders the source, the built chain, and a dimmed goal marker for the target while unsolved', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const steps = wrapper.findAll('.chain-step');
+      // Fresh start: chain is just the source movie, plus the goal marker.
+      expect(steps).toHaveLength(2);
+      expect(steps[0].classes()).toContain('movie');
+      expect(steps[0].classes()).not.toContain('goal');
+      expect(steps[1].classes()).toContain('goal');
+      expect(wrapper.find('.chain-step.goal .chain-poster').exists()).toBe(true);
+    });
+
+    it('shows a person step as a circular photo/initials avatar, not a text pill', async () => {
+      const wrapper = factory(buildConnectedLibrary())
+      const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0]
+      wrapper.vm.pick({ name: person })
+      await wrapper.vm.$nextTick()
+
+      const personStep = wrapper.findAll('.chain-step').find((s) => s.classes().includes('person'))
+      expect(personStep).toBeTruthy()
+      // No photo mocked (fetch is mocked to resolve with no results below),
+      // so it falls back to an initials avatar rather than a broken image.
+      expect(personStep.find('.chain-photo-fallback').exists()).toBe(true)
+      expect(wrapper.find('.chain-link').exists()).toBe(false) // the old pill class is gone
+    });
+
+    it('does not show the goal marker once the chain has actually reached the target (status: won)', () => {
+      const wrapper = factory(buildConnectedLibrary())
+      wrapper.vm.chain = [{ type: 'movie', entry: wrapper.vm.pair.target }]
+      expect(wrapper.vm.status).toBe('won')
+
+      const steps = wrapper.vm.chainDisplayItems
+      expect(steps).toHaveLength(1)
+      expect(steps[0].isGoal).toBeUndefined()
     });
   });
 });

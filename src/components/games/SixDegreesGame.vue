@@ -25,13 +25,11 @@
     </div>
 
     <template v-else>
-      <p class="game-subtitle">
-        Connect these two through shared cast members. {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }} so far.
-        <span v-if="pairDifficulty" class="difficulty-badge" :class="pairDifficulty">{{ pairDifficultyLabel }} · {{ pair.optimalHops }} hop{{ pair.optimalHops === 1 ? '' : 's' }}</span>
-      </p>
+      <p class="game-subtitle">Connect these two through shared cast members. {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }} so far.</p>
 
-      <!-- Picking a difficulty starts a fresh pair right away (see selectDifficulty) -
-           this isn't a "next time" preference, it replaces the current puzzle. -->
+      <!-- Each button starts a fresh pair right away (see selectDifficulty) -
+           these are actions, not a persistent filter toggle, hence "New ___
+           Game" rather than a bare difficulty label. -->
       <div class="difficulty-picker">
         <button
           v-for="level in difficultyOptions"
@@ -43,23 +41,23 @@
         >{{ level.label }}</button>
       </div>
 
-      <div class="endpoints">
-        <div class="endpoint">
-          <img v-if="gamePosterUrl(pair.source)" :src="gamePosterUrl(pair.source)" :alt="pair.source.movie.title">
-          <span>{{ pair.source.movie.title }}</span>
-        </div>
-        <i class="bi bi-arrow-right endpoints-arrow"></i>
-        <div class="endpoint">
-          <img v-if="gamePosterUrl(pair.target)" :src="gamePosterUrl(pair.target)" :alt="pair.target.movie.title">
-          <span>{{ pair.target.movie.title }}</span>
-        </div>
-      </div>
-
-      <div class="chain">
-        <template v-for="(link, index) in chain" :key="index">
-          <span v-if="link.type === 'movie'" class="chain-link chain-movie">{{ link.entry.movie.title }}</span>
-          <span v-else class="chain-link chain-person">{{ link.name }}</span>
-          <i v-if="index < chain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
+      <!-- The connection, built visually between the two posters as you go -
+           source through however much of the chain you've found, then (while
+           still unsolved) a dimmed/dashed "goal" marker for the target. Movie
+           steps show the real poster; person steps show a TMDB profile photo
+           (fetched + cached per name, see ensurePersonPhoto) or initials if
+           none is found. -->
+      <div class="chain-row">
+        <template v-for="(item, index) in chainDisplayItems" :key="item.itemKey">
+          <div class="chain-step" :class="[item.type, { goal: item.isGoal }]">
+            <img v-if="item.type === 'movie'" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title" class="chain-poster">
+            <template v-else>
+              <img v-if="personPhotoUrl(item.name)" :src="personPhotoUrl(item.name)" :alt="item.name" class="chain-photo">
+              <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(item.name) }}</div>
+            </template>
+            <span class="chain-step-label" :title="item.type === 'movie' ? item.entry.movie.title : item.name">{{ item.type === 'movie' ? item.entry.movie.title : item.name }}</span>
+          </div>
+          <i v-if="index < chainDisplayItems.length - 1" class="bi bi-arrow-right chain-arrow"></i>
         </template>
       </div>
 
@@ -87,10 +85,16 @@
           <span v-if="pair.optimalHops != null"> (shortest possible: {{ pair.optimalHops }})</span>.
         </p>
         <p v-else>Here's the shortest path:</p>
-        <div v-if="status === 'revealed'" class="chain revealed-chain">
+        <div v-if="status === 'revealed'" class="chain-row revealed-chain">
           <template v-for="(link, index) in revealedChain" :key="index">
-            <span v-if="link.type === 'movie'" class="chain-link chain-movie">{{ link.entry.movie.title }}</span>
-            <span v-else class="chain-link chain-person">{{ link.name }}</span>
+            <div class="chain-step" :class="link.type">
+              <img v-if="link.type === 'movie'" :src="gamePosterUrl(link.entry, 'w185')" :alt="link.entry.movie.title" class="chain-poster">
+              <template v-else>
+                <img v-if="personPhotoUrl(link.name)" :src="personPhotoUrl(link.name)" :alt="link.name" class="chain-photo">
+                <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(link.name) }}</div>
+              </template>
+              <span class="chain-step-label" :title="link.type === 'movie' ? link.entry.movie.title : link.name">{{ link.type === 'movie' ? link.entry.movie.title : link.name }}</span>
+            </div>
             <i v-if="index < revealedChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
           </template>
         </div>
@@ -136,21 +140,33 @@ export default {
       // null = "Any" (the original unconstrained 2-4 hop range) - not
       // persisted across sessions, same as other purely-in-session game
       // preferences elsewhere (e.g. Reel Wordle's local-only round state).
-      selectedDifficulty: null
+      selectedDifficulty: null,
+      // name -> TMDB profile_path (or null on a miss/in-flight fetch).
+      // Cached so re-rendering the chain never re-fetches a name already
+      // seen this session. Bug report follow-up ("actual photos of the
+      // people... between the first two posters").
+      personPhotoCache: {}
     };
   },
   computed: {
     difficultyOptions () {
       return [
-        { key: null, label: 'Any' },
-        ...Object.entries(DIFFICULTY_LEVELS).map(([key, level]) => ({ key, label: level.label }))
+        { key: null, label: 'New Game' },
+        ...Object.entries(DIFFICULTY_LEVELS).map(([key, level]) => ({ key, label: `New ${level.label} Game` }))
       ];
     },
     pairDifficulty () {
       return this.pair?.difficulty || null;
     },
-    pairDifficultyLabel () {
-      return this.pairDifficulty ? DIFFICULTY_LEVELS[this.pairDifficulty].label : '';
+    // The chain built so far, plus (only while still unsolved) a trailing
+    // "goal" marker for the target movie - once won, the real chain already
+    // ends at the target, so no synthetic marker is added on top of it.
+    chainDisplayItems () {
+      const items = this.chain.map((link, index) => ({ ...link, itemKey: `chain-${index}` }));
+      if (this.status !== 'won' && this.pair?.target) {
+        items.push({ type: 'movie', entry: this.pair.target, itemKey: 'target-goal', isGoal: true });
+      }
+      return items;
     },
     needType () {
       const last = this.chain[this.chain.length - 1];
@@ -239,6 +255,7 @@ export default {
         this.guessInput = '';
         this.suggestions = [];
         this.revealedChain = null;
+        this.ensurePersonPhotosFor(this.chain);
         if (saved.revealed) this.revealPath();
         return true;
       } catch (error) {
@@ -310,6 +327,7 @@ export default {
     pick (suggestion) {
       if (this.needType === 'person') {
         this.chain = [...this.chain, { type: 'person', name: suggestion.name }];
+        this.ensurePersonPhoto(suggestion.name);
       } else {
         this.chain = [...this.chain, { type: 'movie', entry: suggestion.entry }];
       }
@@ -330,7 +348,41 @@ export default {
         }
       }
       this.revealedChain = links;
+      this.ensurePersonPhotosFor(links);
       this.persistState();
+    },
+    // Circular avatar image for a chain "person" step. Not stored locally
+    // (AddRating.js only keeps {name, character} for cast, no profile_path -
+    // see CLAUDE.md), so this looks it up live from TMDB by name, same
+    // pattern favoriteTuning.js's getDetailsForCastMember already uses for
+    // the Favorites sections' person photos.
+    personPhotoUrl (name) {
+      const path = this.personPhotoCache[name];
+      return path ? `https://image.tmdb.org/t/p/w185${path}` : null;
+    },
+    personInitials (name) {
+      if (!name) return '?';
+      return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join('');
+    },
+    async ensurePersonPhoto (name) {
+      // Undefined = never looked up; null = looked up, no photo (or an
+      // in-flight lookup, marked immediately below so concurrent calls for
+      // the same name don't double-fetch). Both fall back to initials.
+      if (!name || Object.prototype.hasOwnProperty.call(this.personPhotoCache, name)) return;
+      this.personPhotoCache = { ...this.personPhotoCache, [name]: null };
+      try {
+        const query = encodeURIComponent(name);
+        const url = `https://api.themoviedb.org/3/search/person?api_key=${process.env.VUE_APP_TMDB_API_KEY}&query=${query}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        const profilePath = data?.results?.[0]?.profile_path || null;
+        this.personPhotoCache = { ...this.personPhotoCache, [name]: profilePath };
+      } catch {
+        // Best-effort - stays null, falls back to initials.
+      }
+    },
+    ensurePersonPhotosFor (links) {
+      links.filter((link) => link.type === 'person').forEach((link) => this.ensurePersonPhoto(link.name));
     }
   }
 };
@@ -343,10 +395,13 @@ export default {
 .six-degrees-game {
   color: #eee;
   min-height: 100vh;
-  // See the identical comment in ConnectionsGame.vue — top padding is a
-  // safety margin against BackLink overlapping this screen's own h1 when
-  // the global Header happens to have zero height.
-  padding: 2.5rem 1rem 2rem;
+  // Reduced from 2.5rem per feedback ("margin above the title is too
+  // large"). This is still a safety margin against BackLink overlapping
+  // this screen's own h1 when the global Header happens to have zero height
+  // (see the identical comment in ConnectionsGame.vue/GamesHub.vue, which
+  // keep the original 2.5rem) - just a smaller one. If the overlap bug
+  // resurfaces on a genuine fresh/direct navigation, bump this back up.
+  padding: 1.75rem 1rem 2rem;
 }
 
 .game-title {
@@ -356,30 +411,6 @@ export default {
 .game-subtitle {
   color: #adb5bd;
   margin-bottom: 1rem;
-}
-
-.difficulty-badge {
-  border-radius: 1rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  margin-left: 0.4rem;
-  padding: 0.15rem 0.55rem;
-  white-space: nowrap;
-}
-
-.difficulty-badge.easy {
-  background: rgba(76, 175, 80, 0.2);
-  color: #4caf50;
-}
-
-.difficulty-badge.medium {
-  background: rgba(244, 211, 94, 0.2);
-  color: #f4d35e;
-}
-
-.difficulty-badge.hard {
-  background: rgba(220, 53, 69, 0.2);
-  color: #ff6a6a;
 }
 
 .difficulty-picker {
@@ -396,64 +427,79 @@ export default {
   margin-top: 2rem;
 }
 
-.endpoints {
+// The connection itself: source poster -> however much of the chain has
+// been found -> (while unsolved) a dimmed goal marker for the target.
+// Replaces the old separate endpoints row + text-pill chain (bug report:
+// "the series of pills... a bit ugly... show actual photos of the people
+// and posters of the movies for the steps in between").
+.chain-row {
   align-items: center;
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.6rem;
   justify-content: center;
   margin-bottom: 1.25rem;
 }
 
-.endpoint {
+.chain-step {
   text-align: center;
-  width: 100px;
+  // Larger than the old 100px endpoint width, per feedback ("posters a bit larger").
+  width: 118px;
 }
 
-.endpoint img {
+.chain-step.person {
+  width: 84px;
+}
+
+.chain-poster {
   border-radius: 0.35rem;
   width: 100%;
   aspect-ratio: 2 / 3;
   object-fit: cover;
 }
 
-.endpoint span {
+.chain-photo {
+  border-radius: 50%;
   display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-top: 0.25rem;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto;
+  object-fit: cover;
 }
 
-.endpoints-arrow {
-  color: #666;
-}
-
-.chain {
+.chain-photo-fallback {
   align-items: center;
+  background: #333;
+  color: #adb5bd;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  justify-content: center;
 }
 
-.chain-link {
-  border-radius: 1rem;
-  font-size: 0.75rem;
-  padding: 0.3rem 0.7rem;
+.chain-step-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.chain-movie {
-  background: rgba(13, 202, 240, 0.2);
-  border: 1px solid #0dcaf0;
+// The not-yet-reached target - dashed/dimmed so it reads as "the goal", not
+// a completed step of the chain.
+.chain-step.goal {
+  opacity: 0.5;
 }
 
-.chain-person {
-  background: rgba(255, 193, 7, 0.15);
-  border: 1px solid #ffc107;
+.chain-step.goal .chain-poster {
+  border: 2px dashed #888;
 }
 
 .chain-arrow {
   color: #666;
-  font-size: 0.7rem;
+  font-size: 0.9rem;
 }
 
 .guess-form {
