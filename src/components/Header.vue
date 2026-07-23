@@ -10,7 +10,7 @@
       <div v-if="devMode" class="dev-mode-flag">
         Dev Mode!
       </div>
-      <div class="home-link" @click="goHome">
+      <div v-if="!$store.state.hideHeaderLogo" class="home-link" @click="goHome">
         <span class="app-title">Cinema Roll</span>
         <span class="version">{{version}}</span>
       </div>

@@ -29,7 +29,18 @@
     </div>
 
     <template v-else>
-      <p class="game-subtitle">Connect these two through shared cast members.</p>
+      <!-- The description is replaced by the win/reveal message once the
+           round ends, in the SAME spot at the top (bug report: "'Connected
+           in X hops...' it looks bad. Let's instead put that message at
+           the top in place of the input and the game description"). -->
+      <p v-if="status === 'playing'" class="game-subtitle">Connect these two through shared cast members.</p>
+      <p v-else class="result-message" :class="status">
+        <template v-if="status === 'won'">
+          Connected in {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }}
+          <span v-if="pair.optimalHops != null"> (shortest possible: {{ pair.optimalHops }})</span>.
+        </template>
+        <template v-else>Here's the shortest path:</template>
+      </p>
 
       <!-- Input moved above the images (bug report: "moving the input above
            the images and leave the give up buttons below") - just the
@@ -59,12 +70,15 @@
            in this exact same row instead (see displayChain; no more
            showing both at once). Movie steps show the real poster; person
            steps show a TMDB profile photo (fetched + cached per name, see
-           ensurePersonPhoto) or initials if none is found. Every REAL step
-           is tappable (goes to the movie's detail page, or a library
-           search for the person) and, for entries the player actually
-           added (not the source, not a placeholder, not the goal marker),
-           carries a small delete badge that trims the chain back to that
-           point. -->
+           ensurePersonPhoto) or initials if none is found, WITH a name
+           label underneath - posters and "?" placeholders don't get a
+           label (bug report: "we don't need the labels under the posters
+           and question marks... we do need the names under the
+           portraits"). Every REAL step is tappable (goes to the movie's
+           detail page, or a library search for the person) and, for
+           entries the player actually added (not the source, not a
+           placeholder, not the goal marker), carries a small delete badge
+           that trims the chain back to that point. -->
       <div class="chain-row">
         <template v-for="(item, index) in displayChain" :key="item.itemKey">
           <button
@@ -90,7 +104,7 @@
                 <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(item.name) }}</div>
               </template>
             </template>
-            <span class="chain-step-label" :title="item.isPlaceholder ? '' : (item.type === 'movie' ? item.entry.movie.title : item.name)">{{ item.isPlaceholder ? '?' : (item.type === 'movie' ? item.entry.movie.title : item.name) }}</span>
+            <span v-if="item.type === 'person' && !item.isPlaceholder" class="chain-step-label" :title="item.name">{{ item.name }}</span>
           </button>
           <i v-if="index < displayChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
         </template>
@@ -111,34 +125,24 @@
         <button type="button" class="hint-segment give-up" @click="revealPath">Give up</button>
       </div>
 
-      <template v-else>
-        <div class="result-banner" :class="status">
-          <p v-if="status === 'won'">
-            Connected in {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }}
-            <span v-if="pair.optimalHops != null"> (shortest possible: {{ pair.optimalHops }})</span>.
-          </p>
-          <p v-else>Here's the shortest path:</p>
+      <!-- New game controls - back to a single "New game:" labeled row
+           (bug report: "let's go back to having 'new game' as a label and
+           then three buttons for difficulty") - tapping a segment picks
+           AND immediately starts a fresh pair, so there's no separate
+           confirm button anymore. -->
+      <div v-else class="new-game-panel">
+        <span class="difficulty-picker-label">New game:</span>
+        <div class="difficulty-segments">
+          <button
+            v-for="level in difficultyOptions"
+            :key="level.key"
+            type="button"
+            class="difficulty-segment"
+            :class="[level.key, { active: selectedDifficulty === level.key }]"
+            @click="selectDifficulty(level.key)"
+          >{{ level.label }}</button>
         </div>
-
-        <!-- New game controls - back to a single "New game:" labeled row
-             (bug report: "let's go back to having 'new game' as a label
-             and then three buttons for difficulty") - tapping a segment
-             picks AND immediately starts a fresh pair, so there's no
-             separate confirm button anymore. -->
-        <div class="new-game-panel">
-          <span class="difficulty-picker-label">New game:</span>
-          <div class="difficulty-segments">
-            <button
-              v-for="level in difficultyOptions"
-              :key="level.key"
-              type="button"
-              class="difficulty-segment"
-              :class="[level.key, { active: selectedDifficulty === level.key }]"
-              @click="selectDifficulty(level.key)"
-            >{{ level.label }}</button>
-          </div>
-        </div>
-      </template>
+      </div>
     </template>
   </div>
 </template>
@@ -149,30 +153,34 @@ import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { buildCastGraph, pickConnectedPair, shortestPath, scorePathDifficulty, difficultyForScore, DIFFICULTY_LEVELS, nextHintStep } from '../../assets/javascript/games/sixDegrees.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
+import sixDegreesBanner from '../../assets/images/games/six-degrees-banner.jpg';
 
 const STORAGE_KEY = 'cinemaRoll.sixDegrees.current';
-
-// A pun, not generated art: the real backdrop for "Six Degrees of
-// Separation" (1993, TMDB id 23210) - swapped in as the header banner while
-// playing this game instead of a custom graphic (tried and dropped per
-// feedback - see CLAUDE.md). w500 matches Home.vue's own banner sizing.
-const THEMED_BANNER_URL = 'https://image.tmdb.org/t/p/w500/e9L5dpi41k3YkbavwgOGXnQGCe1.jpg';
 
 export default {
   name: 'SixDegreesGame',
   components: { BackLink, NewRatingSearch },
   mixins: [gameDataMixin],
   // The shared Header stays visible on every game screen (see BackLink's own
-  // comment) and just renders store.state.bannerUrl - swap it for the
-  // themed movie backdrop above rather than leaving whatever movie backdrop
-  // Home last set. Restored on the way out so leaving doesn't strand it on
-  // Home or another screen.
+  // comment) and just renders store.state.bannerUrl - swap it for a custom
+  // banner graphic (designed for this game specifically, with its own
+  // "Six Degrees / Cinema Roll Games" branding baked in) rather than
+  // leaving whatever movie backdrop Home last set. hideHeaderLogo turns off
+  // the usual "Cinema Roll" title overlay too, since the custom graphic
+  // already has its own branding in roughly the same corner - the two
+  // would otherwise overlap/compete. Both are restored on the way out so
+  // leaving doesn't strand either change on Home or another screen. (Two
+  // earlier attempts at a banner here - a hand-drawn SVG graphic, then a
+  // real-movie-title pun - were each tried and replaced per feedback; see
+  // CLAUDE.md.)
   created () {
     this.previousBannerUrl = this.$store.state?.bannerUrl;
-    this.$store.commit?.('setBannerUrl', THEMED_BANNER_URL);
+    this.$store.commit?.('setBannerUrl', sixDegreesBanner);
+    this.$store.commit?.('setHideHeaderLogo', true);
   },
   beforeUnmount () {
     this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
+    this.$store.commit?.('setHideHeaderLogo', false);
   },
   data () {
     return {
@@ -428,6 +436,18 @@ export default {
       if (this.needType === 'person') {
         this.chain = [...this.chain, { type: 'person', name: suggestion.name }];
         this.ensurePersonPhoto(suggestion.name);
+        // Bug report: "when I get a person who is in the final movie it
+        // should just make that final connection for me. I shouldn't have
+        // to type the target movie." If this person was also in the
+        // target, there's only one possible next movie - add it
+        // automatically instead of making the player look it up and type
+        // it themselves. Uses the UNCAPPED playGraph (same reasoning as
+        // the rest of the in-play suggestions/hints - a real connection
+        // outside the puzzle-generation billing cap should still count).
+        const targetKey = entryKey(this.pair.target);
+        if ((this.playGraph.moviesByPerson.get(suggestion.name) || new Set()).has(targetKey)) {
+          this.chain = [...this.chain, { type: 'movie', entry: this.pair.target }];
+        }
       } else {
         this.chain = [...this.chain, { type: 'movie', entry: suggestion.entry }];
       }
@@ -570,6 +590,24 @@ export default {
   // game description match") - was 0.5rem/1rem.
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
+}
+
+// Replaces .game-subtitle once the round ends (bug report: "'Connected in
+// X hops...' it looks bad. Let's instead put that message at the top in
+// place of the input and the game description") - same spacing as the
+// subtitle it stands in for, just a plain text line rather than a colored
+// box, since it's now sitting where plain description text used to be.
+.result-message {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.result-message.won {
+  color: #81c784;
+}
+
+.result-message.revealed {
+  color: #adb5bd;
 }
 
 // One connected segmented control, full width (bug report: "no good... one
@@ -864,16 +902,6 @@ $difficulty-tier-colors: (
 
 .hint-segment:active {
   background: rgba(255, 255, 255, 0.08);
-}
-
-.result-banner {
-  border-radius: 0.5rem;
-  margin-top: 1rem;
-  padding: 1rem;
-}
-
-.result-banner.won {
-  background: rgba(76, 175, 80, 0.15);
 }
 
 </style>

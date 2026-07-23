@@ -3,6 +3,7 @@ import { reactive } from 'vue';
 import { mount } from '@vue/test-utils';
 import SixDegreesGame from '@/components/games/SixDegreesGame.vue';
 import { entryKey } from '@/assets/javascript/games/gameUtils.js';
+import { shortestPath } from '@/assets/javascript/games/sixDegrees.js';
 
 vi.mock('@/assets/javascript/GetRating.js', () => ({
   getRating: vi.fn(() => ({ calculatedTotal: 5 }))
@@ -52,6 +53,24 @@ function factory (mediaEntries) {
   });
 }
 
+// pickConnectedPair (called internally by start()) uses real Math.random,
+// so which pair a fresh factory() lands on is non-deterministic. Most
+// tests don't care, but pick()'s new "auto-connect to the target when the
+// guessed person is also in it" behavior means a test that picks ONE
+// person from the source and expects the round to still be in progress
+// afterward would be flaky if that person happened to connect directly to
+// a randomly-chosen 1-hop-away target. Forcing buildConnectedLibrary's own
+// two endpoints (movie 1 / movie 6, five hops apart via Alpha-Bravo-
+// Charlie-Delta-Echo) makes that impossible - no single actor spans both
+// ends - so these tests stay deterministic regardless of the random pick.
+function forceLongPair (wrapper, entries) {
+  const source = entries[0];
+  const target = entries[entries.length - 1];
+  const path = shortestPath(wrapper.vm.graph, entryKey(source), entryKey(target));
+  wrapper.vm.pair = { source, target, optimalPath: path, optimalHops: (path.length - 1) / 2, difficultyScore: 0, difficulty: 'easy' };
+  wrapper.vm.chain = [{ type: 'movie', entry: source }];
+}
+
 describe('SixDegreesGame', () => {
   // Fixtures across tests in this file reuse the same dbKeys (buildConnectedLibrary
   // is identical every call), so persisted state from one test could otherwise
@@ -97,7 +116,9 @@ describe('SixDegreesGame', () => {
     });
 
     it('names the actual person when a movie is needed', async () => {
-      const wrapper = factory(buildConnectedLibrary());
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      forceLongPair(wrapper, library);
       const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
       wrapper.vm.pick({ name: person });
       await wrapper.vm.$nextTick();
@@ -117,6 +138,11 @@ describe('SixDegreesGame', () => {
     // see this connection — otherwise this test wouldn't be exercising the fix.
     expect([...wrapper.vm.graph.peopleByMovie.get(entryKey(movieA))]).not.toContain('Rare Actor');
 
+    // Force a target unrelated to Rare Actor/movieB - otherwise pick()'s
+    // auto-connect-to-target behavior could (rarely, since the pair is
+    // chosen at random from the whole combined library) fire here too and
+    // consume movieB before this test gets to assert it's still suggested.
+    wrapper.vm.pair = { ...wrapper.vm.pair, target: entry(6, ['Echo']) };
     wrapper.vm.chain = [{ type: 'movie', entry: movieA }];
     wrapper.vm.guessInput = 'Rare';
     wrapper.vm.onInput();
@@ -139,7 +165,9 @@ describe('SixDegreesGame', () => {
   });
 
   it('picking a person then a movie advances the chain and alternates needType', async () => {
-    const wrapper = factory(buildConnectedLibrary());
+    const library = buildConnectedLibrary();
+    const wrapper = factory(library);
+    forceLongPair(wrapper, library);
     const sourceKey = entryKey(wrapper.vm.pair.source);
     const person = [...wrapper.vm.graph.peopleByMovie.get(sourceKey)][0];
 
@@ -163,9 +191,13 @@ describe('SixDegreesGame', () => {
 
   it('reaching the target movie sets status to won', () => {
     const wrapper = factory(buildConnectedLibrary());
-    // Walk the actual optimal path so we land on the real target.
+    // Walk the actual optimal path so we land on the real target. Stops
+    // early once 'won' - pick()'s auto-connect-to-target behavior (picking
+    // the last person on a genuine shortest path always borders the
+    // target, by definition of it being shortest) can finish the round
+    // one step before this loop would otherwise reach the end of path[].
     const path = wrapper.vm.pair.optimalPath;
-    for (let i = 1; i < path.length; i++) {
+    for (let i = 1; i < path.length && wrapper.vm.status === 'playing'; i++) {
       if (i % 2 === 1) {
         wrapper.vm.pick({ name: path[i] });
       } else {
@@ -218,7 +250,9 @@ describe('SixDegreesGame', () => {
     });
 
     it('"Give me one" advances the chain by exactly one step without ending the game', async () => {
-      const wrapper = factory(buildConnectedLibrary());
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      forceLongPair(wrapper, library);
       const before = wrapper.vm.chain.length;
       const giveMeOne = wrapper.findAll('.hint-segment').find((b) => b.text() === 'Give me one');
 
@@ -251,6 +285,7 @@ describe('SixDegreesGame', () => {
     it('resumes the SAME in-progress pair and chain after a remount', async () => {
       const library = buildConnectedLibrary();
       const wrapper = factory(library);
+      forceLongPair(wrapper, library);
       const sourceKey = entryKey(wrapper.vm.pair.source);
       const targetKey = entryKey(wrapper.vm.pair.target);
       const person = [...wrapper.vm.graph.peopleByMovie.get(sourceKey)][0];
@@ -267,6 +302,7 @@ describe('SixDegreesGame', () => {
     it('"New Pair" always resets/re-persists, replacing any prior saved progress', async () => {
       const library = buildConnectedLibrary();
       const wrapper = factory(library);
+      forceLongPair(wrapper, library);
       const originalSourceKey = entryKey(wrapper.vm.pair.source);
       const person = [...wrapper.vm.graph.peopleByMovie.get(originalSourceKey)][0];
       wrapper.vm.pick({ name: person });
@@ -425,7 +461,9 @@ describe('SixDegreesGame', () => {
     });
 
     it('shows two "?" placeholders (movie then person) when a movie is needed next', async () => {
-      const wrapper = factory(buildConnectedLibrary());
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      forceLongPair(wrapper, library);
       const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
       wrapper.vm.pick({ name: person });
       await wrapper.vm.$nextTick();
@@ -473,7 +511,9 @@ describe('SixDegreesGame', () => {
 
   describe('deleting a chain entry (bug report: "delete an entry... removes everything after it")', () => {
     it('shows a delete badge only on real player-added entries, not the source, placeholders, or the goal marker', async () => {
-      const wrapper = factory(buildConnectedLibrary());
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      forceLongPair(wrapper, library);
       const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
       wrapper.vm.pick({ name: person });
       await wrapper.vm.$nextTick();
@@ -549,7 +589,9 @@ describe('SixDegreesGame', () => {
     });
 
     it('deleting a chain entry does not also trigger navigation (the delete badge stops the click from bubbling)', async () => {
-      const wrapper = factory(buildConnectedLibrary());
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      forceLongPair(wrapper, library);
       const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
       wrapper.vm.pick({ name: person });
       await wrapper.vm.$nextTick();
@@ -571,12 +613,16 @@ describe('SixDegreesGame', () => {
     });
   });
 
-  describe('themed header banner (replaces the generic movie backdrop with the "Six Degrees of Separation" pun while on this game)', () => {
-    it('sets the header banner to the themed movie backdrop on mount', () => {
+  describe('custom header banner (a graphic made for this game, replacing the generic movie backdrop while playing it)', () => {
+    it('sets the header banner to the custom graphic on mount', () => {
       const wrapper = factory(buildConnectedLibrary());
       const lastCall = wrapper.vm.$store.commit.mock.calls.find((call) => call[0] === 'setBannerUrl');
-      expect(lastCall[1]).toContain('image.tmdb.org');
-      expect(lastCall[1]).toContain('e9L5dpi41k3YkbavwgOGXnQGCe1');
+      expect(lastCall[1]).toContain('six-degrees-banner');
+    });
+
+    it('hides the "Cinema Roll" header logo on mount - the custom graphic has its own branding baked in', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setHideHeaderLogo', true);
     });
 
     it('restores whatever banner was showing before, on unmount', () => {
@@ -595,6 +641,12 @@ describe('SixDegreesGame', () => {
 
       const calls = store.commit.mock.calls.filter((call) => call[0] === 'setBannerUrl');
       expect(calls[calls.length - 1][1]).toBeFalsy();
+    });
+
+    it('un-hides the header logo on unmount', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      wrapper.unmount();
+      expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
     });
   });
 });

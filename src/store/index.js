@@ -92,6 +92,11 @@ export default createStore({
     DBSortValue: null,
     DBSortOrder: null,
     showHeader: true,
+    // The "Cinema Roll" title overlay on the header banner - separate from
+    // showHeader (which hides the whole header) since a game with its own
+    // custom banner graphic may want the banner visible but its own
+    // branding baked into the image instead of the usual overlay.
+    hideHeaderLogo: false,
     goHome: false,
     devModeTopKey: 'testing-database',
     // devModeTopKey: 'natalierosegrosso-gmail-com',
@@ -200,6 +205,9 @@ export default createStore({
     },
     setShowHeader (state, value) {
       state.showHeader = value;
+    },
+    setHideHeaderLogo (state, value) {
+      state.hideHeaderLogo = value;
     },
     setGoHome (state, value) {
       state.goHome = value;
