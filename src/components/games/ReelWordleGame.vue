@@ -1,7 +1,6 @@
 <template>
   <div class="reel-wordle-game">
     <BackLink label="Games" @click="$router.push('/games')"/>
-    <h1 class="game-title">Reel Wordle</h1>
     <p class="game-subtitle">
       Guess the movie from your own library.
       {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }}<span v-if="activeClues.length"> · {{ activeClues.length }} clue{{ activeClues.length === 1 ? '' : 's' }} used</span>.
@@ -100,6 +99,7 @@ import BackLink from './BackLink.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import { compareGuessToTarget, buildTargetClues, unlockedClueCount } from '../../assets/javascript/games/wordleClues.js';
+import reelWordleBanner from '../../assets/images/games/reel-wordle-banner.jpg';
 
 const STORAGE_KEY = 'cinemaRoll.reelWordle.current';
 
@@ -107,6 +107,19 @@ export default {
   name: 'ReelWordleGame',
   components: { BackLink },
   mixins: [gameDataMixin],
+  // Custom banner graphic (with its own "Reel Wordle / Cinema Roll Games"
+  // branding baked in) in place of the usual movie-backdrop banner, and
+  // hides the "Cinema Roll" title overlay so it doesn't compete with that
+  // baked-in branding - same pattern as Six Degrees, see CLAUDE.md.
+  created () {
+    this.previousBannerUrl = this.$store.state?.bannerUrl;
+    this.$store.commit?.('setBannerUrl', reelWordleBanner);
+    this.$store.commit?.('setHideHeaderLogo', true);
+  },
+  beforeUnmount () {
+    this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
+    this.$store.commit?.('setHideHeaderLogo', false);
+  },
   data () {
     return {
       guessInput: '',
@@ -221,7 +234,14 @@ export default {
         const raw = window.localStorage.getItem(STORAGE_KEY);
         if (raw) {
           const saved = JSON.parse(raw);
-          const target = this.eligibleGameEntries.find((entry) => entryKey(entry) === saved?.targetKey);
+          // Bug report (Six Degrees, applied here too): "you don't need to
+          // save my result... the next time I return it should just be a
+          // new game." A puzzle that was already solved isn't progress to
+          // resume - guessedKeys containing the target's own key means one
+          // of those guesses was correct. Fall through to a fresh puzzle
+          // instead of restoring the finished one.
+          const wasWon = (saved?.guessedKeys || []).includes(saved?.targetKey);
+          const target = wasWon ? null : this.eligibleGameEntries.find((entry) => entryKey(entry) === saved?.targetKey);
           if (target) {
             this.target = target;
             this.guesses = (saved.guessedKeys || [])
@@ -267,12 +287,11 @@ export default {
   padding: 2.5rem 1rem 2rem;
 }
 
-.game-title {
-  margin: 0.5rem 0 0.25rem;
-}
-
+// No more <h1> (the banner graphic already carries the game's name) - this
+// picks up the top spacing that used to come from .game-title's own margin.
 .game-subtitle {
   color: #adb5bd;
+  margin-top: 0.75rem;
   margin-bottom: 1rem;
 }
 

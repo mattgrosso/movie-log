@@ -42,7 +42,7 @@ function factory (mediaEntries) {
   return mount(ConnectionsGame, {
     global: {
       mocks: {
-        $store: { getters: { allMediaAsArray: mediaEntries } },
+        $store: { state: {}, getters: { allMediaAsArray: mediaEntries }, commit: vi.fn() },
         $router: { push: vi.fn() }
       }
     }
@@ -244,5 +244,24 @@ describe('ConnectionsGame', () => {
     expect(wrapper.findAll('.solved-group').length).toBe(2);
     // The first group's posters are still there, not replaced.
     expect(wrapper.findAll('.solved-tile img').length).toBe(8);
+  });
+
+  describe('custom header banner (a graphic made for this game, same pattern as Six Degrees)', () => {
+    it('sets the header banner to the custom graphic and hides the "Cinema Roll" logo on mount', () => {
+      const wrapper = factory(buildSolvableLibrary());
+      const lastBannerCall = wrapper.vm.$store.commit.mock.calls.find((call) => call[0] === 'setBannerUrl');
+      expect(lastBannerCall[1]).toContain('connections-banner');
+      expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setHideHeaderLogo', true);
+    });
+
+    it('restores the previous banner and un-hides the logo on unmount', () => {
+      const store = { state: { bannerUrl: 'https://example.com/some-movie-backdrop.jpg' }, getters: { allMediaAsArray: buildSolvableLibrary() }, commit: vi.fn() };
+      const wrapper = mount(ConnectionsGame, { global: { mocks: { $store: store, $router: { push: vi.fn() } } } });
+      wrapper.unmount();
+
+      const calls = store.commit.mock.calls.filter((call) => call[0] === 'setBannerUrl');
+      expect(calls[calls.length - 1][1]).toBe('https://example.com/some-movie-backdrop.jpg');
+      expect(store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
+    });
   });
 });

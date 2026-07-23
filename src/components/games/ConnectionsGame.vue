@@ -1,7 +1,6 @@
 <template>
   <div class="connections-game">
     <BackLink label="Games" @click="$router.push('/games')"/>
-    <h1 class="game-title">Connections</h1>
 
     <!-- Bug report: Connections in particular needs far more data than the
          GamesHub gate (4 movies) guarantees - a real puzzle needs several
@@ -69,6 +68,7 @@ import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { generateConnectionsPuzzle, CATEGORY_KIND_LABELS } from '../../assets/javascript/games/connectionsGenerator.js';
+import connectionsBanner from '../../assets/images/games/connections-banner.jpg';
 
 export default {
   name: 'ConnectionsGame',
@@ -121,8 +121,19 @@ export default {
       return 'playing';
     }
   },
+  // Custom banner graphic (with its own "Connections / Cinema Roll Games"
+  // branding baked in) in place of the usual movie-backdrop banner, and
+  // hides the "Cinema Roll" title overlay so it doesn't compete with that
+  // baked-in branding - same pattern as Six Degrees, see CLAUDE.md.
   created () {
     this.start();
+    this.previousBannerUrl = this.$store.state?.bannerUrl;
+    this.$store.commit?.('setBannerUrl', connectionsBanner);
+    this.$store.commit?.('setHideHeaderLogo', true);
+  },
+  beforeUnmount () {
+    this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
+    this.$store.commit?.('setHideHeaderLogo', false);
   },
   methods: {
     start () {
@@ -206,12 +217,11 @@ export default {
   text-align: center;
 }
 
-.game-title {
-  margin: 0.5rem 0 0.25rem;
-}
-
+// No more <h1> (the banner graphic already carries the game's name) - this
+// picks up the top spacing that used to come from .game-title's own margin.
 .game-subtitle {
   color: #adb5bd;
+  margin-top: 0.75rem;
   margin-bottom: 1rem;
 }
 

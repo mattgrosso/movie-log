@@ -27,7 +27,7 @@ function factory (movieCount) {
   return mount(ReelWordleGame, {
     global: {
       mocks: {
-        $store: { getters: { allMediaAsArray: Array.from({ length: movieCount }, (_, i) => entry(i)) } },
+        $store: { state: {}, getters: { allMediaAsArray: Array.from({ length: movieCount }, (_, i) => entry(i)) }, commit: vi.fn() },
         $router: { push: vi.fn() }
       }
     }
@@ -220,5 +220,35 @@ describe('ReelWordleGame', () => {
     wrapper.vm.guessInput = 'movie';
     wrapper.vm.onInput();
     expect(wrapper.vm.suggestions.some((e) => e.dbKey === wrapper.vm.eligibleGameEntries[0].dbKey)).toBe(false);
+  });
+
+  it('does NOT resume a solved puzzle - a remount starts a fresh one instead (bug report, applied from Six Degrees: "it should just be a new game")', async () => {
+    const wrapper = factory(10);
+    const target = wrapper.vm.target;
+    await wrapper.vm.submitGuess(target);
+    expect(wrapper.vm.status).toBe('won');
+
+    const second = factory(10);
+    expect(second.vm.status).toBe('playing');
+    expect(second.vm.guesses).toHaveLength(0);
+  });
+
+  describe('custom header banner (a graphic made for this game, same pattern as Six Degrees)', () => {
+    it('sets the header banner to the custom graphic and hides the "Cinema Roll" logo on mount', () => {
+      const wrapper = factory(10);
+      const lastBannerCall = wrapper.vm.$store.commit.mock.calls.find((call) => call[0] === 'setBannerUrl');
+      expect(lastBannerCall[1]).toContain('reel-wordle-banner');
+      expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setHideHeaderLogo', true);
+    });
+
+    it('restores the previous banner and un-hides the logo on unmount', () => {
+      const store = { state: { bannerUrl: 'https://example.com/some-movie-backdrop.jpg' }, getters: { allMediaAsArray: Array.from({ length: 10 }, (_, i) => entry(i)) }, commit: vi.fn() };
+      const wrapper = mount(ReelWordleGame, { global: { mocks: { $store: store, $router: { push: vi.fn() } } } });
+      wrapper.unmount();
+
+      const calls = store.commit.mock.calls.filter((call) => call[0] === 'setBannerUrl');
+      expect(calls[calls.length - 1][1]).toBe('https://example.com/some-movie-backdrop.jpg');
+      expect(store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
+    });
   });
 });

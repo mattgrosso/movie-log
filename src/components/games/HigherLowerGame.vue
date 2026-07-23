@@ -1,7 +1,6 @@
 <template>
   <div class="higher-lower-game">
     <BackLink label="Games" @click="$router.push('/games')"/>
-    <h1 class="game-title">Higher or Lower</h1>
 
     <div v-if="!leftCard" class="setup">
       <p>See a movie's real Cinema Roll score, then guess whether the next one scored higher or lower.</p>
@@ -49,11 +48,25 @@
 import BackLink from './BackLink.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { shuffle, entryKey } from '../../assets/javascript/games/gameUtils.js';
+import higherLowerBanner from '../../assets/images/games/higher-lower-banner.jpg';
 
 export default {
   name: 'HigherLowerGame',
   components: { BackLink },
   mixins: [gameDataMixin],
+  // Custom banner graphic (with its own "Higher or Lower / Cinema Roll
+  // Games" branding baked in) in place of the usual movie-backdrop banner,
+  // and hides the "Cinema Roll" title overlay so it doesn't compete with
+  // that baked-in branding - same pattern as Six Degrees, see CLAUDE.md.
+  created () {
+    this.previousBannerUrl = this.$store.state?.bannerUrl;
+    this.$store.commit?.('setBannerUrl', higherLowerBanner);
+    this.$store.commit?.('setHideHeaderLogo', true);
+  },
+  beforeUnmount () {
+    this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
+    this.$store.commit?.('setHideHeaderLogo', false);
+  },
   data () {
     return {
       pool: [],
@@ -213,17 +226,15 @@ export default {
   text-align: center;
 }
 
-.game-title {
-  margin: 0.5rem 0 1rem;
-}
-
 .setup {
   padding: 0 1.5rem;
 }
 
+// No more <h1> (the banner graphic already carries the game's name) - this
+// picks up the top spacing that used to come from .game-title's own margin.
 .setup p {
   color: #adb5bd;
-  margin: 0 0 1.5rem;
+  margin: 0.75rem 0 1.5rem;
 }
 
 // Per follow-up bug report ("more of the buttons go full width") — capped
@@ -238,6 +249,8 @@ export default {
   display: flex;
   justify-content: center;
   gap: 2rem;
+  // No more <h1> above - same top-spacing reasoning as .setup p.
+  margin-top: 0.75rem;
   margin-bottom: 1rem;
 }
 

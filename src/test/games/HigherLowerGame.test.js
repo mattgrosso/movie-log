@@ -23,7 +23,8 @@ function factory (movieCount, dispatch = vi.fn()) {
         $store: {
           state: { settings: {} },
           getters: { allMediaAsArray: Array.from({ length: movieCount }, (_, i) => entry(i)) },
-          dispatch
+          dispatch,
+          commit: vi.fn()
         },
         $router: { push: vi.fn() }
       }
@@ -104,5 +105,34 @@ describe('HigherLowerGame', () => {
     const wrapper = factory(10);
     await wrapper.find('.btn-game-primary').trigger('click');
     expect(wrapper.findAll('.hl-card.tappable').length).toBe(2);
+  });
+
+  describe('custom header banner (a graphic made for this game, same pattern as Six Degrees)', () => {
+    function bannerFactory (stateOverrides = {}) {
+      const store = {
+        state: { settings: {}, ...stateOverrides },
+        getters: { allMediaAsArray: Array.from({ length: 10 }, (_, i) => entry(i)) },
+        dispatch: vi.fn(),
+        commit: vi.fn()
+      };
+      const wrapper = mount(HigherLowerGame, { global: { mocks: { $store: store, $router: { push: vi.fn() } } } });
+      return { wrapper, store };
+    }
+
+    it('sets the header banner to the custom graphic and hides the "Cinema Roll" logo on mount', () => {
+      const { store } = bannerFactory();
+      const lastBannerCall = store.commit.mock.calls.find((call) => call[0] === 'setBannerUrl');
+      expect(lastBannerCall[1]).toContain('higher-lower-banner');
+      expect(store.commit).toHaveBeenCalledWith('setHideHeaderLogo', true);
+    });
+
+    it('restores the previous banner and un-hides the logo on unmount', () => {
+      const { wrapper, store } = bannerFactory({ bannerUrl: 'https://example.com/some-movie-backdrop.jpg' });
+      wrapper.unmount();
+
+      const calls = store.commit.mock.calls.filter((call) => call[0] === 'setBannerUrl');
+      expect(calls[calls.length - 1][1]).toBe('https://example.com/some-movie-backdrop.jpg');
+      expect(store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
+    });
   });
 });
