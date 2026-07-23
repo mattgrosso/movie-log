@@ -45,8 +45,11 @@
       <!-- Current match (guarded so a momentary null pair can never throw
            trying to render a poster for a movie that isn't there) -->
       <div v-else-if="firstResult && secondResult" key="form" class="tweak-container rounded p-3 mb-3">
-        <!-- Title -->
-        <div class="text-center mb-2">
+        <!-- Title. Bug report: with a 2-way tie, progressLabel is empty (no
+             subtitle line), which left the posters "pulled too tight" right
+             under the header - mb-3 (was mb-2) gives consistent breathing
+             room whether or not the subtitle is there. -->
+        <div class="text-center mb-3">
           <h5 class="text-light mb-0">Break the Tie</h5>
           <p v-if="progressLabel" class="text-light small mb-0">{{ progressLabel }}</p>
         </div>
@@ -60,6 +63,14 @@
                 :src="`https://image.tmdb.org/t/p/w500${topStructure(firstResult).poster_path}`"
                 :alt="topStructure(firstResult).title"
               >
+              <!-- Bug report: a stuck :hover on iOS (no real mouse to leave)
+                   made the tapped poster look like it "got a little larger"
+                   after selection, read as unwanted/confusing - :hover is
+                   gone (see below), replaced with this deliberate checkmark
+                   so there's still a clear "you picked this one" signal. -->
+              <div v-if="selectedDbKey === firstResult.dbKey" class="selected-checkmark">
+                <i class="bi bi-check-lg"></i>
+              </div>
             </div>
           </div>
 
@@ -74,6 +85,9 @@
                 :src="`https://image.tmdb.org/t/p/w500${topStructure(secondResult).poster_path}`"
                 :alt="topStructure(secondResult).title"
               >
+              <div v-if="selectedDbKey === secondResult.dbKey" class="selected-checkmark">
+                <i class="bi bi-check-lg"></i>
+              </div>
             </div>
           </div>
         </div>
@@ -85,8 +99,9 @@
         </div>
 
         <!-- Only for a real multi-match tournament — a 2-way tie is one pick
-             and done, nothing to "save" partway through. -->
-        <div v-if="canSaveForLater" class="text-center mt-2">
+             and done, nothing to "save" partway through. Bug report: needed
+             a bit more space above this button (mt-2 → mt-3). -->
+        <div v-if="canSaveForLater" class="text-center mt-3">
           <button type="button" class="btn btn-sm btn-outline-light save-for-later-btn" @click="saveForLater">Save for later</button>
         </div>
       </div>
@@ -124,6 +139,11 @@ export default {
     return {
       showTweakInline: false,
       submitting: false,
+      // dbKey of whichever poster was just tapped - drives the checkmark
+      // badge (see the template). Cleared once submitting flips back off,
+      // so a repeat matchup later in the same tournament never shows a
+      // stale checkmark on a poster that hasn't actually been picked yet.
+      selectedDbKey: null,
       // Optimistic local copy of the tournament, set whenever this component
       // creates/updates it — Firebase's realtime round-trip back into
       // $store.state.settings.tieBreakTournament isn't synchronous, so
@@ -209,6 +229,14 @@ export default {
       return this.showTweakModal && !this.currentTournament && this.tiedGroupDbKeys.length >= 2;
     }
   },
+  created () {
+    // Bug report: "swaps out one of the posters, but not the other one...
+    // some way we can pre-cache the next setup." A resumed (page-reload)
+    // mid-tournament session has a tournament record already but this
+    // component's own prefetch (see ensureTournamentStarted) never ran for
+    // it - warm the cache for it here too.
+    if (this.currentTournament) this.prefetchTournamentPosters(this.currentTournament);
+  },
   watch: {
     // Reacts to the STATE, not to showTweakModal merely changing value — with
     // "force tiebreak to show" enabled in settings, showTweakModal is pinned
@@ -271,7 +299,25 @@ export default {
       const tournament = createRoundRobinTournament(this.tiedGroupDbKeys, Math.random);
       this.localTournament = tournament;
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: tournament });
+      // Every contestant in a round-robin tournament is known upfront - warm
+      // the browser's image cache for all of them now rather than letting
+      // each match's poster load cold, staggered by individual network/
+      // decode time (see the bug report on prefetchTournamentPosters).
+      this.prefetchTournamentPosters(tournament);
       return true;
+    },
+    // Kicks off a fetch for every contestant's poster without rendering
+    // anything - purely to populate the browser's HTTP cache ahead of time,
+    // so that by the time a match involving a given poster is actually
+    // shown, the image paints immediately instead of arriving late.
+    prefetchTournamentPosters (tournament) {
+      (tournament?.contestantIds || []).forEach((dbKey) => {
+        const movie = this.allMoviesRanked.find((m) => m.dbKey === dbKey);
+        const posterPath = movie ? this.topStructure(movie)?.poster_path : null;
+        if (!posterPath) return;
+        const img = new Image();
+        img.src = `https://image.tmdb.org/t/p/w500${posterPath}`;
+      });
     },
     clearCompletedTournament () {
       this.localTournament = null;
@@ -280,6 +326,7 @@ export default {
     async chooseWinner (winnerResult) {
       if (!winnerResult || !this.currentTournament) return;
       this.submitting = true;
+      this.selectedDbKey = winnerResult.dbKey;
 
       const updatedTournament = recordMatchResult(this.currentTournament, winnerResult.dbKey);
       this.localTournament = updatedTournament;
@@ -308,17 +355,30 @@ export default {
         // A 2-way tie completes in exactly one match — showing the
         // "Tournament Complete!" standings screen (which needs an explicit
         // "Done" tap) is needless ceremony for what's really just picking a
-        // winner. Skip straight past it: clear this tournament and, if
-        // there's another tied group, show its first match immediately
-        // instead of waiting for a tap; otherwise collapse the panel and
-        // reset the quota clock, since the session genuinely has nothing
-        // left to do.
+        // winner. Skip straight past it: clear this tournament, collapse
+        // the panel, and reset the quota clock.
+        //
+        // Bug report ("I was presented with a new tiebreaker... after doing
+        // the first round it didn't actually close... if it's just an
+        // individual matchup, that should count as my tiebreak for this
+        // time"): this used to immediately chain into ANOTHER tied group's
+        // first match, still inside this same open panel, if one existed
+        // elsewhere in the library - with no visual break, that read as
+        // "it never closes." The daily-quota setting exists to rate-limit
+        // how often tie-breaking interrupts the user; silently chaining
+        // into an unrelated group defeats that, even though resolving
+        // multiple matches WITHIN one already-started tournament (the
+        // 3+-contestant case, or a bigger one you keep tapping through) is
+        // still fine to do in one sitting - that's a different thing from
+        // auto-starting a brand new, unrelated one. Now this always closes
+        // and stamps lastTweak here, exactly like a 3+-contestant
+        // tournament's "Done" tap already does; the next scan (whenever the
+        // quota next allows) picks up any other tied group fresh at that
+        // later point.
         if (updatedTournament.contestantIds.length <= 2) {
           this.clearCompletedTournament();
-          if (!this.ensureTournamentStarted()) {
-            this.closeTweakInline();
-            this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
-          }
+          this.closeTweakInline();
+          this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
         }
         // 3+-contestant completion falls through to the "Tournament
         // Complete!" screen — acknowledgeResults stamps lastTweak once the
@@ -330,6 +390,7 @@ export default {
 
       await resultsSaved;
       this.submitting = false;
+      this.selectedDbKey = null;
     },
     // Applies the rank-based score adjustment to every contestant in one
     // batch, once the tournament's last match has been decided. The top
@@ -448,14 +509,13 @@ export default {
     cursor: pointer;
     transition: transform 0.2s ease;
 
-    &:hover {
-      transform: scale(1.05);
-    }
-
-    // Mobile-first: :hover alone doesn't give touch users any feedback that
-    // a tap registered (bug report - "something that just clearly indicates
-    // that I did click the poster"). :active fires reliably on tap and,
-    // unlike :hover on touch devices, always releases afterward.
+    // Mobile-first: no :hover here anymore (bug report - a stuck :hover on
+    // iOS, with no real mouse to trigger mouseleave, made a just-tapped
+    // poster look like it "got a little larger" after selection, read as
+    // an unwanted/confusing effect rather than intentional feedback). Only
+    // :active fires reliably on tap AND always releases afterward; the
+    // .selected-checkmark badge below is the actual "you picked this one"
+    // signal now.
     &:active {
       transform: scale(0.95);
     }
@@ -466,10 +526,6 @@ export default {
       border-radius: 8px;
       overflow: hidden;
       transition: border-color 0.2s ease;
-
-      &:hover {
-        border-color: rgba(255, 255, 255, 0.6);
-      }
     }
 
     &:active .poster-wrapper {
@@ -482,6 +538,26 @@ export default {
       object-fit: cover;
       display: block;
     }
+  }
+
+  // Deliberate "you picked this one" indicator (bug report: "I do want an
+  // indication that I have clicked on one... a little checkmark"), shown
+  // only on the poster whose dbKey matches selectedDbKey, for the duration
+  // of submitting.
+  .selected-checkmark {
+    align-items: center;
+    background: #4caf50;
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    color: #fff;
+    display: flex;
+    font-size: 1.1rem;
+    height: 28px;
+    justify-content: center;
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    width: 28px;
   }
 
   .vs-divider {

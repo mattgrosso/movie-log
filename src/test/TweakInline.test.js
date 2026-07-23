@@ -86,36 +86,21 @@ describe('TweakInline', () => {
       expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/tieBreakTournament', value: null })
     })
 
-    it('moves straight on to the next matchup (no re-tap of the notice needed) when another tied group already exists', async () => {
+    it('always closes and stamps the daily-quota clock once a 2-way tie resolves, even when another tied group exists (bug report: "it didn\'t actually close... that should count as my tiebreak for this time")', async () => {
       // In this fixture, dispatch is a spy only — the underlying movies array
       // never actually changes score — so after the fast-path clears the
-      // tournament, the SAME pair still reads as tied and a fresh tournament
-      // is started for it right away, demonstrating the "move onto the next
-      // one" behavior without requiring the notice to be re-tapped.
+      // tournament, the SAME pair still reads as tied. Previously this used
+      // to auto-start a fresh tournament for it and show the next match
+      // immediately, with no visual break - confusing, and it meant the
+      // daily-quota clock never got a chance to reset. Now it always closes
+      // here, regardless of whether another tied group exists; the next
+      // scan (whenever the quota next allows) picks it up fresh.
       const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       await wrapper.find('.tweak-container').trigger('click')
       await wrapper.findAll('.poster-container')[0].trigger('click')
 
       expect(wrapper.text()).not.toContain('Tournament Complete!')
-      expect(wrapper.text()).not.toContain('You have a tie to deal with')
-      expect(wrapper.findAll('.poster-container')).toHaveLength(2)
-
-      // Chaining straight into another tied group's match is not a stopping
-      // point — the daily-quota clock must NOT reset here (that would hide
-      // the very matchup just shown).
-      expect(dispatch).not.toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
-    })
-
-    it('stamps the daily-quota clock once a 2-way tie resolves and there is genuinely nothing left to chain into', async () => {
-      const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
-      // Force the "nothing left" branch deterministically rather than relying
-      // on the fixture's tie disappearing (it can't, in this static mock —
-      // see the sibling test above).
-      vi.spyOn(wrapper.vm, 'ensureTournamentStarted').mockReturnValue(false)
-
-      await wrapper.find('.tweak-container').trigger('click')
-      await wrapper.findAll('.poster-container')[0].trigger('click')
-
+      expect(wrapper.vm.showTweakInline).toBe(false)
       expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
     })
 
@@ -123,6 +108,79 @@ describe('TweakInline', () => {
       const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       await wrapper.find('.tweak-container').trigger('click')
       expect(wrapper.find('.save-for-later-btn').exists()).toBe(false)
+    })
+  })
+
+  describe('selection checkmark (bug report: "I do want an indication that I have clicked on one")', () => {
+    it('sets selectedDbKey to the tapped poster synchronously, driving the checkmark badge before the save resolves', () => {
+      const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
+      wrapper.vm.showTweakInline = true
+      const winner = wrapper.vm.firstResult
+      wrapper.vm.chooseWinner(winner) // deliberately not awaited
+      expect(wrapper.vm.selectedDbKey).toBe(winner.dbKey)
+    })
+
+    it('clears selectedDbKey once the winner has been fully processed', async () => {
+      const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
+      wrapper.vm.showTweakInline = true
+      await wrapper.vm.chooseWinner(wrapper.vm.firstResult)
+      expect(wrapper.vm.selectedDbKey).toBeNull()
+    })
+
+    it('renders the checkmark only on the poster matching selectedDbKey', async () => {
+      const { wrapper } = mountTweak([movie('a', 'A', 7), movie('b', 'B', 7), movie('c', 'C', 7), movie('d', 'D', 7)])
+      await wrapper.find('.tweak-container').trigger('click')
+      wrapper.vm.selectedDbKey = wrapper.vm.firstResult.dbKey
+      await wrapper.vm.$nextTick()
+
+      const posters = wrapper.findAll('.poster-container')
+      expect(posters[0].find('.selected-checkmark').exists()).toBe(true)
+      expect(posters[1].find('.selected-checkmark').exists()).toBe(false)
+    })
+  })
+
+  describe('poster prefetching (bug report: "swaps out one of the posters, but not the other one... pre-cache the next setup")', () => {
+    let originalImage
+    let createdImages
+
+    beforeEach(() => {
+      originalImage = global.Image
+      createdImages = []
+      global.Image = vi.fn(function FakeImage () {
+        createdImages.push(this)
+      })
+    })
+
+    afterEach(() => {
+      global.Image = originalImage
+    })
+
+    it('warms the browser image cache for every contestant as soon as a tournament is created', () => {
+      mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
+      const srcs = createdImages.map((img) => img.src)
+      expect(srcs).toContain('https://image.tmdb.org/t/p/w500/a.jpg')
+      expect(srcs).toContain('https://image.tmdb.org/t/p/w500/b.jpg')
+    })
+
+    it('also warms the cache on mount when resuming an already-persisted tournament (e.g. after a page reload)', () => {
+      const movies = [movie('a', 'A', 8), movie('b', 'B', 8), movie('c', 'C', 8)]
+      const mockStore = {
+        state: {
+          currentLog: 'movieLog',
+          settings: { tieBreakTournament: { contestantIds: ['a', 'b', 'c'], schedule: [], results: [] } }
+        },
+        getters: { allMoviesAsArray: movies },
+        dispatch: vi.fn()
+      }
+      mount(TweakInline, {
+        global: { mocks: { $store: mockStore } },
+        props: { allEntriesWithFlatKeywordsAdded: movies, showTweakModal: true }
+      })
+
+      const srcs = createdImages.map((img) => img.src)
+      expect(srcs).toContain('https://image.tmdb.org/t/p/w500/a.jpg')
+      expect(srcs).toContain('https://image.tmdb.org/t/p/w500/b.jpg')
+      expect(srcs).toContain('https://image.tmdb.org/t/p/w500/c.jpg')
     })
   })
 
