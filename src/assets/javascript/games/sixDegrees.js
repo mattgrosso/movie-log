@@ -1,4 +1,4 @@
-import { entryKey, movieCastNames, shuffle } from './gameUtils.js';
+import { entryKey, movieCastNames, movieYear, shuffle } from './gameUtils.js';
 
 // Builds a bipartite movie<->cast-member graph from the library. Cast is
 // capped per movie (default 10) — using the full cast for a movie with 50+
@@ -56,42 +56,114 @@ export function shortestPath (graph, sourceKey, targetKey, maxHops = 6) {
   return null;
 }
 
-// Per user feedback ("we need some way of rating difficulty... it'd be cool
-// to say oh this is a really hard one or easy one, and even choose an easy
-// one, medium one, or a hard one") — hop count (distance between the two
-// movies) is the one concrete, reliably-computable signal named, and it's
-// already exactly what pickConnectedPair's minHops/maxHops select on, so
-// this is a direct relabeling of the existing 2-4 default range into three
-// discrete picks rather than a new mechanism. Deliberately NOT attempted:
-// billing-position/cast-size-based difficulty - the user themselves was
-// unsure how those would even combine into one score ("I don't know how
-// else they would be"), and hop count alone already gives a real, honest
-// difficulty signal without guessing at a weighting.
-export const DIFFICULTY_LEVELS = {
-  easy: { label: 'Easy', minHops: 2, maxHops: 2 },
-  medium: { label: 'Medium', minHops: 3, maxHops: 3 },
-  hard: { label: 'Hard', minHops: 4, maxHops: 4 }
-};
+// Per user feedback — difficulty is a WEIGHTED COMPOSITE of four signals, not
+// hop count alone (the original, narrower design). In descending order of
+// how much each should matter (the user's own ranking):
+//   - hop count: more steps is unambiguously harder to trace/hold in mind.
+//   - billing order: a connector buried deep in the credits is genuinely
+//     harder to recall than a top-billed star. Directly computable - cast
+//     arrays already preserve billing order.
+//   - years between the two endpoint movies: "if two movies are 50 years
+//     apart it's really hard to even think about them in the same thought."
+//   - age of the movies: "it's safe to assume older movies will be harder"
+//     (a smaller factor than the others, per the user's own framing).
+// Each component is normalized to roughly 0-1 before weighting, since the
+// four are on totally different natural scales (hops: ~1-6, billing index:
+// ~0-9, year gap: potentially 100+, age: potentially 100+) and would
+// otherwise swamp each other unpredictably. The normalization caps and tier
+// cutoffs below are editorial judgment calls, not measured constants -
+// retune freely if real puzzles don't feel like they match their label.
+const HOPS_WEIGHT = 0.4;
+const BILLING_WEIGHT = 0.4;
+const YEAR_GAP_WEIGHT = 0.1;
+const AGE_WEIGHT = 0.1;
 
-// Labels an already-found pair's hop count using the same tiers, so a
-// player can see "why" a given puzzle is rated the way it is (e.g. when
-// resuming a persisted pair, or on the "Any" difficulty, which pulls from
-// the full 2-4 range rather than a single tier).
-export function difficultyForHops (hops) {
-  if (hops <= DIFFICULTY_LEVELS.easy.maxHops) return 'easy';
-  if (hops <= DIFFICULTY_LEVELS.medium.maxHops) return 'medium';
+const HOPS_NORMALIZATION_MAX = 6; // shortestPath's own default maxHops
+const BILLING_NORMALIZATION_MAX = 9; // buildCastGraph's own default castLimit (10) minus 1
+const YEAR_GAP_NORMALIZATION_MAX = 50; // the user's own "50 years apart is really hard" example
+const AGE_NORMALIZATION_MAX = 60; // roughly "pre-1960s-ish" fully maxes this component out
+
+function clamp01 (value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+// A person's billing position (0 = top-billed) in a specific movie's FULL
+// (uncapped) cast list, or -1 if they're not credited at all. Reads
+// movie.cast directly rather than movieCastNames (which truncates) since
+// the exact index is the whole point here.
+function billingIndexOf (entry, personName) {
+  const cast = entry?.movie?.cast;
+  if (!Array.isArray(cast)) return -1;
+  return cast.findIndex((member) => member?.name === personName);
+}
+
+// Scores a shortestPath-shaped path ([movieKey, person, movieKey, ...]) on a
+// 0 (easiest) - 1 (hardest) scale. entriesByKey resolves the keys back to
+// full entries (for cast lookups and release years).
+export function scorePathDifficulty (path, entriesByKey) {
+  const hops = (path.length - 1) / 2;
+
+  // For each person-step, the WORST (highest-index = least prominent) of
+  // their billing across the two movies they connect - the more obscure of
+  // the two appearances is the real memory bottleneck, not the average.
+  let billingTotal = 0;
+  let billingSteps = 0;
+  for (let i = 1; i < path.length; i += 2) {
+    const person = path[i];
+    const before = entriesByKey.get(path[i - 1]);
+    const after = entriesByKey.get(path[i + 1]);
+    const idxBefore = Math.max(billingIndexOf(before, person), 0);
+    const idxAfter = Math.max(billingIndexOf(after, person), 0);
+    billingTotal += Math.max(idxBefore, idxAfter);
+    billingSteps += 1;
+  }
+  const avgBilling = billingSteps ? billingTotal / billingSteps : 0;
+
+  const sourceYear = movieYear(entriesByKey.get(path[0]));
+  const targetYear = movieYear(entriesByKey.get(path[path.length - 1]));
+  const yearGap = (sourceYear != null && targetYear != null) ? Math.abs(sourceYear - targetYear) : 0;
+  const currentYear = new Date().getFullYear();
+  const avgAge = (sourceYear != null && targetYear != null) ? currentYear - (sourceYear + targetYear) / 2 : 0;
+
+  const hopsComponent = clamp01((hops - 1) / (HOPS_NORMALIZATION_MAX - 1));
+  const billingComponent = clamp01(avgBilling / BILLING_NORMALIZATION_MAX);
+  const yearGapComponent = clamp01(yearGap / YEAR_GAP_NORMALIZATION_MAX);
+  const ageComponent = clamp01(avgAge / AGE_NORMALIZATION_MAX);
+
+  return (HOPS_WEIGHT * hopsComponent) +
+    (BILLING_WEIGHT * billingComponent) +
+    (YEAR_GAP_WEIGHT * yearGapComponent) +
+    (AGE_WEIGHT * ageComponent);
+}
+
+// Even thirds - a simple, easily-retuned starting cutoff (see the
+// normalization comment above).
+export function difficultyForScore (score) {
+  if (score < 1 / 3) return 'easy';
+  if (score < 2 / 3) return 'medium';
   return 'hard';
 }
 
+export const DIFFICULTY_LEVELS = {
+  easy: { label: 'Easy' },
+  medium: { label: 'Medium' },
+  hard: { label: 'Hard' }
+};
+
 // Picks two movies from the library with a real (but not trivial) path
-// between them: at least minHops, at most maxHops. Tries a handful of random
-// source movies (each via a bounded shortestPath search against random
-// candidate targets) before giving up — a sparse/small library may not have
-// any pair in the desired range, in which case this returns null and the
-// caller should fall back to a friendlier message rather than an error.
-export function pickConnectedPair (eligibleEntries, graph, rng = Math.random, { minHops = 2, maxHops = 4, attempts = 40 } = {}) {
+// between them. When `difficulty` is given ('easy'/'medium'/'hard'), only
+// accepts a pair whose scorePathDifficulty tier matches; omitted/null
+// accepts the first connected pair found regardless of difficulty (still
+// scored and labeled on the way out, just not filtered on). Tries a handful
+// of random source movies (each via a bounded shortestPath search against
+// random candidate targets) before giving up — a sparse/small library, or
+// a narrow difficulty request, may not have any matching pair at all, in
+// which case this returns null and the caller should fall back to a
+// friendlier message rather than an error.
+export function pickConnectedPair (eligibleEntries, graph, rng = Math.random, { difficulty = null, attempts = 40 } = {}) {
   if (eligibleEntries.length < 2) return null;
 
+  const entriesByKey = new Map(eligibleEntries.map((entry) => [entryKey(entry), entry]));
   const shuffled = shuffle(eligibleEntries, rng);
 
   for (let i = 0; i < Math.min(attempts, shuffled.length); i++) {
@@ -101,11 +173,12 @@ export function pickConnectedPair (eligibleEntries, graph, rng = Math.random, { 
 
     for (let j = 0; j < Math.min(attempts, otherEntries.length); j++) {
       const target = otherEntries[j];
-      const path = shortestPath(graph, sourceKey, entryKey(target), maxHops);
+      const path = shortestPath(graph, sourceKey, entryKey(target));
       if (path && path.length > 0) {
-        const hops = (path.length - 1) / 2;
-        if (hops >= minHops && hops <= maxHops) {
-          return { source, target, optimalPath: path, optimalHops: hops };
+        const score = scorePathDifficulty(path, entriesByKey);
+        const tier = difficultyForScore(score);
+        if (!difficulty || tier === difficulty) {
+          return { source, target, optimalPath: path, optimalHops: (path.length - 1) / 2, difficultyScore: score, difficulty: tier };
         }
       }
     }

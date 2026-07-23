@@ -104,7 +104,7 @@
 import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
-import { buildCastGraph, pickConnectedPair, shortestPath, DIFFICULTY_LEVELS, difficultyForHops } from '../../assets/javascript/games/sixDegrees.js';
+import { buildCastGraph, pickConnectedPair, shortestPath, scorePathDifficulty, difficultyForScore, DIFFICULTY_LEVELS } from '../../assets/javascript/games/sixDegrees.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 
 const STORAGE_KEY = 'cinemaRoll.sixDegrees.current';
@@ -147,7 +147,7 @@ export default {
       ];
     },
     pairDifficulty () {
-      return this.pair?.optimalHops != null ? difficultyForHops(this.pair.optimalHops) : null;
+      return this.pair?.difficulty || null;
     },
     pairDifficultyLabel () {
       return this.pairDifficulty ? DIFFICULTY_LEVELS[this.pairDifficulty].label : '';
@@ -222,7 +222,19 @@ export default {
           .filter(Boolean);
         if (!chain.length) return false;
 
-        this.pair = { source, target, optimalPath: path, optimalHops: (path.length - 1) / 2 };
+        // difficulty/difficultyScore aren't persisted (deterministically
+        // re-derivable from the path + library, same reasoning as not
+        // persisting optimalPath/optimalHops themselves).
+        const entriesByKey = new Map(this.eligibleGameEntries.map((entry) => [entryKey(entry), entry]));
+        const difficultyScore = scorePathDifficulty(path, entriesByKey);
+        this.pair = {
+          source,
+          target,
+          optimalPath: path,
+          optimalHops: (path.length - 1) / 2,
+          difficultyScore,
+          difficulty: difficultyForScore(difficultyScore)
+        };
         this.chain = chain;
         this.guessInput = '';
         this.suggestions = [];
@@ -254,8 +266,8 @@ export default {
     start () {
       this.graph = buildCastGraph(this.eligibleGameEntries);
       this.playGraph = buildCastGraph(this.eligibleGameEntries, Infinity);
-      const range = this.selectedDifficulty ? DIFFICULTY_LEVELS[this.selectedDifficulty] : {};
-      this.pair = pickConnectedPair(this.eligibleGameEntries, this.graph, Math.random, range);
+      const options = this.selectedDifficulty ? { difficulty: this.selectedDifficulty } : {};
+      this.pair = pickConnectedPair(this.eligibleGameEntries, this.graph, Math.random, options);
       this.chain = this.pair ? [{ type: 'movie', entry: this.pair.source }] : [];
       this.guessInput = '';
       this.suggestions = [];

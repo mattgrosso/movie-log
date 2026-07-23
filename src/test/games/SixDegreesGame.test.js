@@ -224,16 +224,23 @@ describe('SixDegreesGame', () => {
       expect(wrapper.vm.selectedDifficulty).toBeNull();
     });
 
-    it('tapping a difficulty button selects it and immediately starts a new pair in that range', async () => {
+    it('tapping a difficulty button selects it and immediately starts a new pair matching that difficulty', async () => {
       const wrapper = factory(buildConnectedLibrary());
-      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Hard');
-      expect(hardButton).toBeTruthy();
+      // Difficulty is now a weighted score (hops + billing order + year gap +
+      // age - see scorePathDifficulty), not pure hop count, so which exact
+      // pair/hop-count comes back isn't asserted here - only that whatever
+      // is found actually carries the requested tier. "Medium" (rather than
+      // "Hard") is used because this fixture's own real ceiling, precisely:
+      // only its single longest (5-hop) pair reaches 'medium' - everything
+      // shorter stays 'easy', and nothing in it reaches 'hard' at all.
+      const mediumButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Medium');
+      expect(mediumButton).toBeTruthy();
 
-      await hardButton.trigger('click');
+      await mediumButton.trigger('click');
 
-      expect(wrapper.vm.selectedDifficulty).toBe('hard');
+      expect(wrapper.vm.selectedDifficulty).toBe('medium');
       expect(wrapper.vm.pair).not.toBeNull();
-      expect(wrapper.vm.pair.optimalHops).toBe(4);
+      expect(wrapper.vm.pair.difficulty).toBe('medium');
       // Starting fresh resets progress back to just the source movie.
       expect(wrapper.vm.chain).toHaveLength(1);
     });
@@ -243,10 +250,11 @@ describe('SixDegreesGame', () => {
       const easyButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Easy');
       await easyButton.trigger('click');
 
+      expect(wrapper.vm.pair.difficulty).toBe('easy');
       const badge = wrapper.find('.difficulty-badge');
       expect(badge.exists()).toBe(true);
       expect(badge.classes()).toContain('easy');
-      expect(badge.text()).toContain('2 hops');
+      expect(badge.text()).toMatch(/\d+ hops?/);
     });
 
     it('falls back to the not-enough-movies gate when no pair exists at the requested difficulty', async () => {

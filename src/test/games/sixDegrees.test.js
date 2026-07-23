@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCastGraph, shortestPath, pickConnectedPair, DIFFICULTY_LEVELS, difficultyForHops } from '@/assets/javascript/games/sixDegrees.js';
+import { buildCastGraph, shortestPath, pickConnectedPair, scorePathDifficulty, difficultyForScore } from '@/assets/javascript/games/sixDegrees.js';
 import { makeSeededRng } from '@/assets/javascript/games/gameUtils.js';
 
 function entry (id, cast) {
@@ -109,19 +109,95 @@ describe('pickConnectedPair', () => {
   });
 });
 
-describe('difficultyForHops', () => {
-  it('maps hop counts onto the same tiers DIFFICULTY_LEVELS defines', () => {
-    expect(difficultyForHops(1)).toBe('easy');
-    expect(difficultyForHops(2)).toBe('easy');
-    expect(difficultyForHops(3)).toBe('medium');
-    expect(difficultyForHops(4)).toBe('hard');
-    expect(difficultyForHops(5)).toBe('hard');
+// Hand-built entries for scorePathDifficulty's own tests - full control over
+// year and cast-billing-order, independent of buildCastGraph/shortestPath.
+function scoreEntry (id, { year = 2010, cast = [] } = {}) {
+  return { dbKey: `key-${id}`, movie: { id, title: `Movie ${id}`, release_date: `${year}-06-15`, cast: cast.map((name) => ({ name })) } };
+}
+
+describe('scorePathDifficulty', () => {
+  it('increases with more hops, all else held equal', () => {
+    // Everyone top-billed (index 0) in every movie, same year throughout -
+    // isolates the hops component.
+    const m1 = scoreEntry(1, { cast: ['A'] });
+    const m2 = scoreEntry(2, { cast: ['A', 'B'] });
+    const m3 = scoreEntry(3, { cast: ['B', 'C'] });
+    const entriesByKey = new Map([m1, m2, m3].map((e) => [e.dbKey, e]));
+
+    const oneHop = scorePathDifficulty(['key-1', 'A', 'key-2'], entriesByKey);
+    const twoHops = scorePathDifficulty(['key-1', 'A', 'key-2', 'B', 'key-3'], entriesByKey);
+    expect(twoHops).toBeGreaterThan(oneHop);
+  });
+
+  it('increases as the connecting person is billed further down the cast list', () => {
+    // The person must actually appear in BOTH connected movies' casts (real
+    // paths only ever traverse a shared cast member) - target's billing of
+    // "Connector" is held constant (index 0) across both scenarios so only
+    // the OTHER movie's billing depth varies.
+    const target = scoreEntry(9, { year: 2010, cast: ['Connector', 'Star'] });
+    const topBilled = scoreEntry(1, { year: 2010, cast: ['Connector', 'Star'] });
+    const deepBilled = scoreEntry(2, { year: 2010, cast: [...Array(8).fill(null).map((_, i) => `Extra ${i}`), 'Connector'] });
+    const entriesByKey = new Map([target, topBilled, deepBilled].map((e) => [e.dbKey, e]));
+
+    const withTopBilled = scorePathDifficulty([topBilled.dbKey, 'Connector', target.dbKey], entriesByKey);
+    const withDeepBilled = scorePathDifficulty([deepBilled.dbKey, 'Connector', target.dbKey], entriesByKey);
+    expect(withDeepBilled).toBeGreaterThan(withTopBilled);
+  });
+
+  it('increases with a larger year gap between the endpoints', () => {
+    const person = 'Actor';
+    const close = [scoreEntry(1, { year: 2010, cast: [person] }), scoreEntry(2, { year: 2012, cast: [person] })];
+    const far = [scoreEntry(3, { year: 2010, cast: [person] }), scoreEntry(4, { year: 1970, cast: [person] })];
+    const entriesByKey = new Map([...close, ...far].map((e) => [e.dbKey, e]));
+
+    const closeScore = scorePathDifficulty([close[0].dbKey, person, close[1].dbKey], entriesByKey);
+    const farScore = scorePathDifficulty([far[0].dbKey, person, far[1].dbKey], entriesByKey);
+    expect(farScore).toBeGreaterThan(closeScore);
+  });
+
+  it('increases with older average movie age, holding year GAP constant', () => {
+    const person = 'Actor';
+    const modern = [scoreEntry(1, { year: 2020, cast: [person] }), scoreEntry(2, { year: 2022, cast: [person] })];
+    const old = [scoreEntry(3, { year: 1950, cast: [person] }), scoreEntry(4, { year: 1952, cast: [person] })]; // same 2-year gap, much older
+    const entriesByKey = new Map([...modern, ...old].map((e) => [e.dbKey, e]));
+
+    const modernScore = scorePathDifficulty([modern[0].dbKey, person, modern[1].dbKey], entriesByKey);
+    const oldScore = scorePathDifficulty([old[0].dbKey, person, old[1].dbKey], entriesByKey);
+    expect(oldScore).toBeGreaterThan(modernScore);
+  });
+
+  it('weighs hops/billing more heavily than year-gap/age (per the user\'s explicit priority)', () => {
+    const person = 'Actor';
+    // Maxes out the year-gap component (60yr >= the 50yr normalization cap)
+    // with a real (if not maximal) age contribution too, but it's a single
+    // top-billed hop - per the user's own stated priority ("less impact
+    // than the number of steps and billing order"), year/age alone should
+    // never be enough to reach even 'medium', let alone 'hard'.
+    const oldButSimple = [scoreEntry(1, { year: 1960, cast: [person] }), scoreEntry(2, { year: 2020, cast: [person] })];
+    const entriesByKey = new Map(oldButSimple.map((e) => [e.dbKey, e]));
+    const score = scorePathDifficulty([oldButSimple[0].dbKey, person, oldButSimple[1].dbKey], entriesByKey);
+
+    expect(difficultyForScore(score)).toBe('easy');
   });
 });
 
-describe('pickConnectedPair with a difficulty range', () => {
-  // A straight chain: 1-A-2-B-3-C-4-D-5, so movie 1 is 1/2/3/4 hops from
-  // movies 2/3/4/5 respectively - a clean spread across all three tiers.
+describe('difficultyForScore', () => {
+  it('buckets into even thirds', () => {
+    expect(difficultyForScore(0)).toBe('easy');
+    expect(difficultyForScore(0.32)).toBe('easy');
+    expect(difficultyForScore(0.34)).toBe('medium');
+    expect(difficultyForScore(0.65)).toBe('medium');
+    expect(difficultyForScore(0.67)).toBe('hard');
+    expect(difficultyForScore(1)).toBe('hard');
+  });
+});
+
+describe('pickConnectedPair with a difficulty filter', () => {
+  // A straight chain, everyone top-billed, same year throughout - per
+  // scorePathDifficulty's own tests above, this never reaches 'hard'
+  // (hops alone can't cross the tier boundary without billing/year/age
+  // contributing too), which is exactly what makes it useful for testing
+  // the filter's null-when-nothing-matches behavior deterministically.
   function buildChainLibrary () {
     return [
       entry(1, ['A']),
@@ -132,29 +208,27 @@ describe('pickConnectedPair with a difficulty range', () => {
     ];
   }
 
-  it('respects an easy (2-hop) range', () => {
+  it('finds a pair and tags it with a difficulty when none is requested', () => {
     const entries = buildChainLibrary();
     const graph = buildCastGraph(entries);
-    const pair = pickConnectedPair(entries, graph, makeSeededRng(1), DIFFICULTY_LEVELS.easy);
+    const pair = pickConnectedPair(entries, graph, makeSeededRng(1));
     expect(pair).not.toBeNull();
-    expect(pair.optimalHops).toBe(2);
+    expect(['easy', 'medium', 'hard']).toContain(pair.difficulty);
+    expect(pair.difficultyScore).toBeGreaterThanOrEqual(0);
   });
 
-  it('respects a hard (4-hop) range', () => {
+  it('finds a pair when the requested difficulty matches what the library can produce', () => {
     const entries = buildChainLibrary();
     const graph = buildCastGraph(entries);
-    const pair = pickConnectedPair(entries, graph, makeSeededRng(1), DIFFICULTY_LEVELS.hard);
+    const pair = pickConnectedPair(entries, graph, makeSeededRng(1), { difficulty: 'easy' });
     expect(pair).not.toBeNull();
-    expect(pair.optimalHops).toBe(4);
-    // Only one 4-hop pair exists in this chain: movie 1 <-> movie 5.
-    const keys = [pair.source.dbKey, pair.target.dbKey].sort();
-    expect(keys).toEqual(['key-1', 'key-5']);
+    expect(pair.difficulty).toBe('easy');
   });
 
-  it('returns null when no pair exists in the requested range (too small/homogeneous a library for that difficulty)', () => {
-    const entries = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])]; // max possible hop count here is 2
+  it('returns null when no pair in the library reaches the requested difficulty', () => {
+    const entries = buildChainLibrary();
     const graph = buildCastGraph(entries);
-    const pair = pickConnectedPair(entries, graph, makeSeededRng(1), DIFFICULTY_LEVELS.hard);
+    const pair = pickConnectedPair(entries, graph, makeSeededRng(1), { difficulty: 'hard' });
     expect(pair).toBeNull();
   });
 });
