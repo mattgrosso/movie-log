@@ -4738,7 +4738,7 @@ export default {
 
     .no-results-buffer {
       // This is here to deal with the jump in position when the input is deblurred and a chip is automatically added
-      margin-top: 58px;
+      margin-top: 29px;
     }
 
     .loading-screen {
