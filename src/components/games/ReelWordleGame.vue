@@ -51,7 +51,10 @@
            order) are untouched. -->
       <div v-if="guesses.length" class="clue-grid">
         <div v-for="clue in displayGuesses" :key="clue.entryKey" class="clue-row" :class="{ correct: clue.isCorrect }">
-          <p class="clue-title">{{ clue.title }}</p>
+          <p class="clue-title">
+            {{ clue.title }}
+            <span v-if="clue.year.value != null" class="clue-title-year">({{ clue.year.value }})</span>
+          </p>
           <div class="clue-cells">
             <div class="clue-cell" :class="directionClass(clue.year)">
               <span class="clue-label">Year</span>
@@ -384,6 +387,11 @@ export default {
   font-weight: 600;
   margin: 0 0 0.35rem;
   padding: 0 0.2rem;
+}
+
+.clue-title-year {
+  color: #adb5bd;
+  font-weight: 400;
 }
 
 .clue-cells {

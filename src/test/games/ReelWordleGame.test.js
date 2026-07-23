@@ -102,6 +102,21 @@ describe('ReelWordleGame', () => {
     expect(wrapper.find('.result-banner.won').text()).toContain('score: 4');
   });
 
+  it('shows the guessed movie\'s own release year next to its title (bug report: "next to the title on the card that shows up after I guess")', async () => {
+    const wrapper = factory(10)
+    const target = wrapper.vm.target
+    await wrapper.vm.submitGuess(target)
+    await wrapper.vm.$nextTick()
+
+    // Derived the same way the app computes it (new Date(...).getFullYear())
+    // rather than hardcoded, to sidestep this repo's documented Jan-1/UTC
+    // fixture pitfall rather than assume a specific offset.
+    const expectedYear = new Date(target.movie.release_date).getFullYear()
+    const title = wrapper.find('.clue-row.correct .clue-title')
+    expect(title.text()).toContain(target.movie.title)
+    expect(title.text()).toContain(`(${expectedYear})`)
+  })
+
   it('fills in the actual value on a decade/director/genre match instead of just a checkmark', async () => {
     const wrapper = factory(10);
     const target = wrapper.vm.target;
