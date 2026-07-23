@@ -8,6 +8,12 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
   getRating: vi.fn(() => ({ calculatedTotal: 5 }))
 }));
 
+// The "not enough movies" gate now renders NewRatingSearch (suggestionsMode),
+// which fetches TMDB popular movies in its own mounted() hook.
+vi.mock('axios', () => ({
+  default: { get: vi.fn(() => Promise.resolve({ data: { results: [] } })) }
+}));
+
 function entry (id, cast) {
   return {
     dbKey: `key-${id}`,
@@ -53,6 +59,12 @@ describe('SixDegreesGame', () => {
     const disconnected = [entry(1, ['Solo A']), entry(2, ['Solo B'])];
     const wrapper = factory(disconnected);
     expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
+  });
+
+  it('offers "help me get started" quick-pick suggestions on the gate (bug report)', () => {
+    const disconnected = [entry(1, ['Solo A']), entry(2, ['Solo B'])];
+    const wrapper = factory(disconnected);
+    expect(wrapper.find('.not-enough-movies .new-rating-search').exists()).toBe(true);
   });
 
   it('starts the chain with the source movie and needs a person first', () => {
@@ -203,6 +215,74 @@ describe('SixDegreesGame', () => {
       const wrapper = factory(buildConnectedLibrary());
       expect(wrapper.vm.pair).not.toBeNull();
       expect(entryKey(wrapper.vm.pair.source)).not.toBe('no-longer-rated');
+    });
+  });
+
+  describe('difficulty picker (bug report: "rate difficulty... choose an easy/medium/hard one")', () => {
+    it('defaults to "Any" (the original unconstrained range)', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      expect(wrapper.vm.selectedDifficulty).toBeNull();
+    });
+
+    it('tapping a difficulty button selects it and immediately starts a new pair in that range', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Hard');
+      expect(hardButton).toBeTruthy();
+
+      await hardButton.trigger('click');
+
+      expect(wrapper.vm.selectedDifficulty).toBe('hard');
+      expect(wrapper.vm.pair).not.toBeNull();
+      expect(wrapper.vm.pair.optimalHops).toBe(4);
+      // Starting fresh resets progress back to just the source movie.
+      expect(wrapper.vm.chain).toHaveLength(1);
+    });
+
+    it('shows the current pair\'s difficulty + hop count next to the subtitle', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const easyButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Easy');
+      await easyButton.trigger('click');
+
+      const badge = wrapper.find('.difficulty-badge');
+      expect(badge.exists()).toBe(true);
+      expect(badge.classes()).toContain('easy');
+      expect(badge.text()).toContain('2 hops');
+    });
+
+    it('falls back to the not-enough-movies gate when no pair exists at the requested difficulty', async () => {
+      // Max possible hop count in this 3-movie chain is 2 - no "hard" (4-hop) pair exists.
+      const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
+      const wrapper = factory(sparse);
+      expect(wrapper.vm.pair).not.toBeNull(); // "Any" finds the 2-hop pair fine
+
+      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Hard');
+      await hardButton.trigger('click');
+
+      expect(wrapper.vm.pair).toBeNull();
+      expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
+    });
+
+    it('offers the difficulty picker again on the resulting gate, to recover by trying a different one', async () => {
+      const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
+      const wrapper = factory(sparse);
+
+      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'Hard');
+      await hardButton.trigger('click');
+      expect(wrapper.vm.pair).toBeNull();
+
+      const anyButton = wrapper.find('.not-enough-movies .difficulty-picker').findAll('button').find((b) => b.text() === 'Any');
+      expect(anyButton).toBeTruthy();
+      await anyButton.trigger('click');
+
+      expect(wrapper.vm.selectedDifficulty).toBeNull();
+      expect(wrapper.vm.pair).not.toBeNull();
+    });
+
+    it('does NOT show a difficulty picker on the gate when "Any" itself already found nothing (a narrower pick can\'t help)', () => {
+      const disconnected = [entry(1, ['Solo A']), entry(2, ['Solo B'])];
+      const wrapper = factory(disconnected);
+      expect(wrapper.vm.pair).toBeNull();
+      expect(wrapper.find('.not-enough-movies .difficulty-picker').exists()).toBe(false);
     });
   });
 });

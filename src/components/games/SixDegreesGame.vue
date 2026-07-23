@@ -3,12 +3,45 @@
     <BackLink label="Games" @click="$router.push('/games')"/>
     <h1 class="game-title">Six Degrees</h1>
 
+    <!-- Bug report: needs a well-connected cast graph, more than the bare
+         GamesHub gate guarantees. Same "help me get started" quick-pick
+         suggestions as GamesHub/Connections/Home.vue's new-user onboarding. -->
     <div v-if="!pair" class="not-enough-movies">
       <p>Couldn't find a well-connected pair of movies in your library yet — rate a few more (especially ones sharing cast members) and try again.</p>
+      <!-- Only relevant when a specific difficulty was the reason nothing was
+           found - "Any" already searches the full range, so a narrower pick
+           can't recover what "Any" itself couldn't find. -->
+      <div v-if="selectedDifficulty" class="difficulty-picker">
+        <button
+          v-for="level in difficultyOptions"
+          :key="level.key"
+          type="button"
+          class="btn-game btn-game-sm"
+          :class="selectedDifficulty === level.key ? 'btn-game-primary' : 'btn-game-secondary'"
+          @click="selectDifficulty(level.key)"
+        >{{ level.label }}</button>
+      </div>
+      <NewRatingSearch value="" :suggestionsMode="true"/>
     </div>
 
     <template v-else>
-      <p class="game-subtitle">Connect these two through shared cast members. {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }} so far.</p>
+      <p class="game-subtitle">
+        Connect these two through shared cast members. {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }} so far.
+        <span v-if="pairDifficulty" class="difficulty-badge" :class="pairDifficulty">{{ pairDifficultyLabel }} · {{ pair.optimalHops }} hop{{ pair.optimalHops === 1 ? '' : 's' }}</span>
+      </p>
+
+      <!-- Picking a difficulty starts a fresh pair right away (see selectDifficulty) -
+           this isn't a "next time" preference, it replaces the current puzzle. -->
+      <div class="difficulty-picker">
+        <button
+          v-for="level in difficultyOptions"
+          :key="level.key"
+          type="button"
+          class="btn-game btn-game-sm"
+          :class="selectedDifficulty === level.key ? 'btn-game-primary' : 'btn-game-secondary'"
+          @click="selectDifficulty(level.key)"
+        >{{ level.label }}</button>
+      </div>
 
       <div class="endpoints">
         <div class="endpoint">
@@ -69,15 +102,16 @@
 
 <script>
 import BackLink from './BackLink.vue';
+import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
-import { buildCastGraph, pickConnectedPair, shortestPath } from '../../assets/javascript/games/sixDegrees.js';
+import { buildCastGraph, pickConnectedPair, shortestPath, DIFFICULTY_LEVELS, difficultyForHops } from '../../assets/javascript/games/sixDegrees.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 
 const STORAGE_KEY = 'cinemaRoll.sixDegrees.current';
 
 export default {
   name: 'SixDegreesGame',
-  components: { BackLink },
+  components: { BackLink, NewRatingSearch },
   mixins: [gameDataMixin],
   data () {
     return {
@@ -98,10 +132,26 @@ export default {
       chain: [],
       guessInput: '',
       suggestions: [],
-      revealedChain: null
+      revealedChain: null,
+      // null = "Any" (the original unconstrained 2-4 hop range) - not
+      // persisted across sessions, same as other purely-in-session game
+      // preferences elsewhere (e.g. Reel Wordle's local-only round state).
+      selectedDifficulty: null
     };
   },
   computed: {
+    difficultyOptions () {
+      return [
+        { key: null, label: 'Any' },
+        ...Object.entries(DIFFICULTY_LEVELS).map(([key, level]) => ({ key, label: level.label }))
+      ];
+    },
+    pairDifficulty () {
+      return this.pair?.optimalHops != null ? difficultyForHops(this.pair.optimalHops) : null;
+    },
+    pairDifficultyLabel () {
+      return this.pairDifficulty ? DIFFICULTY_LEVELS[this.pairDifficulty].label : '';
+    },
     needType () {
       const last = this.chain[this.chain.length - 1];
       return last?.type === 'movie' ? 'person' : 'movie';
@@ -204,12 +254,20 @@ export default {
     start () {
       this.graph = buildCastGraph(this.eligibleGameEntries);
       this.playGraph = buildCastGraph(this.eligibleGameEntries, Infinity);
-      this.pair = pickConnectedPair(this.eligibleGameEntries, this.graph, Math.random);
+      const range = this.selectedDifficulty ? DIFFICULTY_LEVELS[this.selectedDifficulty] : {};
+      this.pair = pickConnectedPair(this.eligibleGameEntries, this.graph, Math.random, range);
       this.chain = this.pair ? [{ type: 'movie', entry: this.pair.source }] : [];
       this.guessInput = '';
       this.suggestions = [];
       this.revealedChain = null;
       this.persistState();
+    },
+    // Changing difficulty replaces the current puzzle immediately rather
+    // than waiting for the next "New Pair" tap - picking "Hard" mid-game
+    // should give you a hard puzzle right away, not on your next visit.
+    selectDifficulty (level) {
+      this.selectedDifficulty = level;
+      this.start();
     },
     onInput () {
       const term = this.guessInput.trim().toLowerCase();
@@ -286,6 +344,38 @@ export default {
 .game-subtitle {
   color: #adb5bd;
   margin-bottom: 1rem;
+}
+
+.difficulty-badge {
+  border-radius: 1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 0.4rem;
+  padding: 0.15rem 0.55rem;
+  white-space: nowrap;
+}
+
+.difficulty-badge.easy {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.difficulty-badge.medium {
+  background: rgba(244, 211, 94, 0.2);
+  color: #f4d35e;
+}
+
+.difficulty-badge.hard {
+  background: rgba(220, 53, 69, 0.2);
+  color: #ff6a6a;
+}
+
+.difficulty-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  margin-bottom: 1.25rem;
 }
 
 .not-enough-movies {

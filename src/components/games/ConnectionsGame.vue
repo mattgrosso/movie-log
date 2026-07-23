@@ -3,8 +3,13 @@
     <BackLink label="Games" @click="$router.push('/games')"/>
     <h1 class="game-title">Connections</h1>
 
+    <!-- Bug report: Connections in particular needs far more data than the
+         GamesHub gate (4 movies) guarantees - a real puzzle needs several
+         full categories worth. Same "help me get started" quick-pick
+         suggestions as GamesHub/Home.vue's new-user onboarding. -->
     <div v-if="!puzzle" class="not-enough-movies">
       <p>Not enough rated movies with shared directors/genres/decades/cast/keywords yet to build a puzzle. Rate a few more and try again.</p>
+      <NewRatingSearch value="" :suggestionsMode="true"/>
     </div>
 
     <template v-else>
@@ -61,12 +66,13 @@
 
 <script>
 import BackLink from './BackLink.vue';
+import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { generateConnectionsPuzzle, CATEGORY_KIND_LABELS } from '../../assets/javascript/games/connectionsGenerator.js';
 
 export default {
   name: 'ConnectionsGame',
-  components: { BackLink },
+  components: { BackLink, NewRatingSearch },
   mixins: [gameDataMixin],
   data () {
     return {

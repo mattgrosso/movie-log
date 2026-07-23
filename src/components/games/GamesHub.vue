@@ -4,8 +4,13 @@
     <h1 class="games-hub-title">Games</h1>
     <p class="games-hub-subtitle">Little games built from your own rated library.</p>
 
+    <!-- Bug report: a new user hits this wall with no way forward except
+         leaving to go rate movies manually. Reuses the SAME "help me get
+         started" quick-pick suggestions (popular TMDB movies, tap to rate)
+         Home.vue's new-user onboarding already uses, right here instead. -->
     <div v-if="eligibleGameEntries.length < 4" class="not-enough-movies">
       <p>Rate at least a handful of movies (with posters) before these games have enough to work with.</p>
+      <NewRatingSearch value="" :suggestionsMode="true"/>
     </div>
 
     <div v-else class="game-tile-grid">
@@ -26,11 +31,12 @@
 
 <script>
 import BackLink from './BackLink.vue';
+import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin, { LAST_PLAYED_KEY } from '../../mixins/gameData.js';
 
 export default {
   name: 'GamesHub',
-  components: { BackLink },
+  components: { BackLink, NewRatingSearch },
   mixins: [gameDataMixin],
   // Landing on the hub is the "let me pick again" signal — bug report: a
   // player who finished a Wordle round and deliberately tapped back to the

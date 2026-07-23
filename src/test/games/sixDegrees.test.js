@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCastGraph, shortestPath, pickConnectedPair } from '@/assets/javascript/games/sixDegrees.js';
+import { buildCastGraph, shortestPath, pickConnectedPair, DIFFICULTY_LEVELS, difficultyForHops } from '@/assets/javascript/games/sixDegrees.js';
 import { makeSeededRng } from '@/assets/javascript/games/gameUtils.js';
 
 function entry (id, cast) {
@@ -106,5 +106,55 @@ describe('pickConnectedPair', () => {
     const b = pickConnectedPair(entries, graph, makeSeededRng(5));
     expect(a.source.dbKey).toBe(b.source.dbKey);
     expect(a.target.dbKey).toBe(b.target.dbKey);
+  });
+});
+
+describe('difficultyForHops', () => {
+  it('maps hop counts onto the same tiers DIFFICULTY_LEVELS defines', () => {
+    expect(difficultyForHops(1)).toBe('easy');
+    expect(difficultyForHops(2)).toBe('easy');
+    expect(difficultyForHops(3)).toBe('medium');
+    expect(difficultyForHops(4)).toBe('hard');
+    expect(difficultyForHops(5)).toBe('hard');
+  });
+});
+
+describe('pickConnectedPair with a difficulty range', () => {
+  // A straight chain: 1-A-2-B-3-C-4-D-5, so movie 1 is 1/2/3/4 hops from
+  // movies 2/3/4/5 respectively - a clean spread across all three tiers.
+  function buildChainLibrary () {
+    return [
+      entry(1, ['A']),
+      entry(2, ['A', 'B']),
+      entry(3, ['B', 'C']),
+      entry(4, ['C', 'D']),
+      entry(5, ['D'])
+    ];
+  }
+
+  it('respects an easy (2-hop) range', () => {
+    const entries = buildChainLibrary();
+    const graph = buildCastGraph(entries);
+    const pair = pickConnectedPair(entries, graph, makeSeededRng(1), DIFFICULTY_LEVELS.easy);
+    expect(pair).not.toBeNull();
+    expect(pair.optimalHops).toBe(2);
+  });
+
+  it('respects a hard (4-hop) range', () => {
+    const entries = buildChainLibrary();
+    const graph = buildCastGraph(entries);
+    const pair = pickConnectedPair(entries, graph, makeSeededRng(1), DIFFICULTY_LEVELS.hard);
+    expect(pair).not.toBeNull();
+    expect(pair.optimalHops).toBe(4);
+    // Only one 4-hop pair exists in this chain: movie 1 <-> movie 5.
+    const keys = [pair.source.dbKey, pair.target.dbKey].sort();
+    expect(keys).toEqual(['key-1', 'key-5']);
+  });
+
+  it('returns null when no pair exists in the requested range (too small/homogeneous a library for that difficulty)', () => {
+    const entries = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])]; // max possible hop count here is 2
+    const graph = buildCastGraph(entries);
+    const pair = pickConnectedPair(entries, graph, makeSeededRng(1), DIFFICULTY_LEVELS.hard);
+    expect(pair).toBeNull();
   });
 });

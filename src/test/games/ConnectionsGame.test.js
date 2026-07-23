@@ -6,6 +6,12 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
   getRating: vi.fn(() => ({ calculatedTotal: 5 }))
 }));
 
+// The "not enough movies" gate now renders NewRatingSearch (suggestionsMode),
+// which fetches TMDB popular movies in its own mounted() hook.
+vi.mock('axios', () => ({
+  default: { get: vi.fn(() => Promise.resolve({ data: { results: [] } })) }
+}));
+
 function entry ({ id, director, genre, year, cast = [] }) {
   return {
     dbKey: `key-${id}`,
@@ -47,6 +53,11 @@ describe('ConnectionsGame', () => {
   it('shows a gate message when the library cannot support a full puzzle', () => {
     const wrapper = factory([]);
     expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
+  });
+
+  it('offers "help me get started" quick-pick suggestions on the gate (bug report)', () => {
+    const wrapper = factory([]);
+    expect(wrapper.find('.not-enough-movies .new-rating-search').exists()).toBe(true);
   });
 
   it('renders 16 tiles across 4 unsolved categories on a solvable library', () => {

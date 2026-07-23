@@ -29,6 +29,16 @@ export const DIFFICULTY_BY_KIND = {
   genre: { tier: 2, name: 'Green', color: '#4caf50' },
   director: { tier: 3, name: 'Blue', color: '#4a90d9' },
   cast: { tier: 3, name: 'Blue', color: '#4a90d9' },
+  // Title-text patterns (Jul 2026, user idea — "get a little weird with it...
+  // number of syllables, starts with a letter, single-word titles"). Placed
+  // alongside director/cast rather than at the keyword tier: unlike keyword,
+  // which needs recalling a movie's THEME, a title pattern is immediately
+  // verifiable just by reading the tile titles once you suspect it — the
+  // hard part is thinking to look at the title text at all, not recalling
+  // anything about the film itself. A genuine judgment call, not a precise
+  // measurement; revisit if it plays easier/harder than director/cast in
+  // practice.
+  title: { tier: 3, name: 'Blue', color: '#4a90d9' },
   keyword: { tier: 4, name: 'Purple', color: '#9b59b6' }
 };
 
@@ -41,11 +51,38 @@ export const CATEGORY_KIND_LABELS = [
   { kind: 'genre', label: 'Genre', ...DIFFICULTY_BY_KIND.genre },
   { kind: 'director', label: 'Director', ...DIFFICULTY_BY_KIND.director },
   { kind: 'cast', label: 'Cast', ...DIFFICULTY_BY_KIND.cast },
+  { kind: 'title', label: 'Title', ...DIFFICULTY_BY_KIND.title },
   { kind: 'keyword', label: 'Keyword', ...DIFFICULTY_BY_KIND.keyword }
 ];
 
 function movieKeywords (entry) {
   return computeFlatKeywords(entry?.movie);
+}
+
+function movieTitle (entry) {
+  const title = entry?.movie?.title;
+  return typeof title === 'string' ? title.trim() : '';
+}
+
+// Strips a leading article before grouping by first letter, so e.g. "The
+// Godfather" groups under G rather than swelling a low-quality "starts with
+// T" bucket dominated by every "The ..." title in the library.
+const LEADING_ARTICLE_RE = /^(the|a|an)\s+/i;
+
+function movieFirstLetter (entry) {
+  const title = movieTitle(entry).replace(LEADING_ARTICLE_RE, '');
+  const first = title.charAt(0).toUpperCase();
+  return /[A-Z]/.test(first) ? [first] : []; // skip titles starting with a digit/symbol
+}
+
+// Deliberately NOT implemented: syllable-count categories (also suggested
+// alongside this one) - accurate English syllable counting needs a real
+// dictionary/library to be reliable; a naive heuristic would misclassify
+// often enough to undermine trust in the puzzle. Revisit if a small,
+// dependency-free syllable counter is ever worth adding for this alone.
+function movieIsSingleWordTitle (entry) {
+  const title = movieTitle(entry);
+  return title && !/\s/.test(title) ? ['Single-word title'] : [];
 }
 
 function groupBy (entries, extractValues, labelFor, kind) {
@@ -90,6 +127,8 @@ export function buildCandidateCategories (eligibleEntries) {
     ...groupBy(eligibleEntries, movieGenreNames, (name) => `Genre: ${name}`, 'genre'),
     ...groupBy(eligibleEntries, (entry) => { const d = movieDecade(entry); return d ? [`${d}s`] : []; }, (label) => `Released in the ${label}`, 'decade'),
     ...groupBy(eligibleEntries, (entry) => movieCastNames(entry, 8), (name) => `Starring ${name}`, 'cast'),
+    ...groupBy(eligibleEntries, movieFirstLetter, (letter) => `Starts with "${letter}"`, 'title'),
+    ...groupBy(eligibleEntries, movieIsSingleWordTitle, () => 'One-word titles', 'title'),
     ...keywordCandidates
   ];
 }

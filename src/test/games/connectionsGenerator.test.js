@@ -118,6 +118,79 @@ describe('buildCandidateCategories', () => {
       expect(kwCategory.movies).toHaveLength(10);
     });
   });
+
+  describe('title categories', () => {
+    it('groups 4+ movies sharing a first letter', () => {
+      const library = [
+        ...buildSolvableLibrary(),
+        entry({ id: 'g1', title: 'Gladiator', director: 'GD1', genre: 'GG1', year: 2001 }),
+        entry({ id: 'g2', title: 'Goodfellas', director: 'GD2', genre: 'GG2', year: 2002 }),
+        entry({ id: 'g3', title: 'Gravity', director: 'GD3', genre: 'GG3', year: 2003 }),
+        entry({ id: 'g4', title: 'Get Out', director: 'GD4', genre: 'GG4', year: 2004 })
+      ];
+      const candidates = buildCandidateCategories(library);
+      const category = candidates.find((c) => c.label === 'Starts with "G"');
+      expect(category).toBeTruthy();
+      expect(category.kind).toBe('title');
+      expect(category.movies).toHaveLength(4);
+    });
+
+    it('strips a leading article before grouping by first letter ("The Godfather" groups under G, not T)', () => {
+      const library = [
+        ...buildSolvableLibrary(),
+        entry({ id: 'g1', title: 'The Godfather', director: 'GD1', genre: 'GG1', year: 2001 }),
+        entry({ id: 'g2', title: 'Goodfellas', director: 'GD2', genre: 'GG2', year: 2002 }),
+        entry({ id: 'g3', title: 'Gravity', director: 'GD3', genre: 'GG3', year: 2003 }),
+        entry({ id: 'g4', title: 'A Ghost Story', director: 'GD4', genre: 'GG4', year: 2004 })
+      ];
+      const candidates = buildCandidateCategories(library);
+      const gCategory = candidates.find((c) => c.label === 'Starts with "G"');
+      expect(gCategory.movies).toHaveLength(4);
+      expect(candidates.some((c) => c.label === 'Starts with "T"')).toBe(false);
+      expect(candidates.some((c) => c.label === 'Starts with "A"')).toBe(false);
+    });
+
+    it('skips a title starting with a digit or symbol rather than mis-bucketing it', () => {
+      const library = [
+        ...buildSolvableLibrary(),
+        entry({ id: 'n1', title: '2001: A Space Odyssey', director: 'ND1', genre: 'NG1', year: 2001 }),
+        entry({ id: 'n2', title: 'Se7en', director: 'ND2', genre: 'NG2', year: 2002 }),
+        entry({ id: 'n3', title: '9 to 5', director: 'ND3', genre: 'NG3', year: 2003 }),
+        entry({ id: 'n4', title: '300', director: 'ND4', genre: 'NG4', year: 2004 })
+      ];
+      const candidates = buildCandidateCategories(library);
+      const titleCategories = candidates.filter((c) => c.kind === 'title');
+      expect(titleCategories.some((c) => c.movies.some((m) => m.movie.title === '2001: A Space Odyssey'))).toBe(false);
+      expect(titleCategories.some((c) => c.movies.some((m) => m.movie.title === '300'))).toBe(false);
+    });
+
+    it('groups 4+ single-word-titled movies into "One-word titles"', () => {
+      const library = [
+        ...buildSolvableLibrary(),
+        entry({ id: 's1', title: 'Gladiator', director: 'SD1', genre: 'SG1', year: 2001 }),
+        entry({ id: 's2', title: 'Whiplash', director: 'SD2', genre: 'SG2', year: 2002 }),
+        entry({ id: 's3', title: 'Inception', director: 'SD3', genre: 'SG3', year: 2003 }),
+        entry({ id: 's4', title: 'Amadeus', director: 'SD4', genre: 'SG4', year: 2004 })
+      ];
+      const candidates = buildCandidateCategories(library);
+      const category = candidates.find((c) => c.label === 'One-word titles');
+      expect(category).toBeTruthy();
+      expect(category.kind).toBe('title');
+      expect(category.movies).toHaveLength(4);
+    });
+
+    it('does not count a multi-word title toward "One-word titles"', () => {
+      const library = [
+        ...buildSolvableLibrary(),
+        entry({ id: 's1', title: 'Gladiator', director: 'SD1', genre: 'SG1', year: 2001 }),
+        entry({ id: 's2', title: 'Whiplash', director: 'SD2', genre: 'SG2', year: 2002 }),
+        entry({ id: 's3', title: 'Inception', director: 'SD3', genre: 'SG3', year: 2003 }),
+        entry({ id: 'm1', title: 'The Godfather', director: 'MD1', genre: 'MG1', year: 2004 })
+      ];
+      const candidates = buildCandidateCategories(library);
+      expect(candidates.some((c) => c.label === 'One-word titles')).toBe(false);
+    });
+  });
 });
 
 describe('generateConnectionsPuzzle', () => {
@@ -181,7 +254,7 @@ describe('generateConnectionsPuzzle', () => {
 
 describe('CATEGORY_KIND_LABELS', () => {
   it('lists every candidate kind with a label and difficulty', () => {
-    expect(CATEGORY_KIND_LABELS).toHaveLength(5);
+    expect(CATEGORY_KIND_LABELS).toHaveLength(6);
     CATEGORY_KIND_LABELS.forEach((entry) => {
       expect(entry.label).toBeTruthy();
       expect(entry.tier).toBeGreaterThanOrEqual(1);

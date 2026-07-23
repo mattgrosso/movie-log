@@ -7,6 +7,12 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
   getRating: vi.fn(() => ({ calculatedTotal: 5 }))
 }));
 
+// The "not enough movies" gate now renders NewRatingSearch (suggestionsMode),
+// which fetches TMDB popular movies in its own mounted() hook.
+vi.mock('axios', () => ({
+  default: { get: vi.fn(() => Promise.resolve({ data: { results: [] } })) }
+}));
+
 function entry (id) {
   return {
     dbKey: `key-${id}`,
@@ -43,6 +49,14 @@ describe('GamesHub', () => {
     const { wrapper } = factory(2);
     expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
     expect(wrapper.findAll('.game-tile').length).toBe(0);
+  });
+
+  it('offers "help me get started" quick-pick suggestions on the gate (bug report: no way forward for a new user)', () => {
+    const { wrapper } = factory(2);
+    // NewRatingSearch renders its own loading spinner synchronously before
+    // the (mocked) TMDB fetch resolves - just confirm the component mounted
+    // inside the gate rather than asserting on its post-fetch content.
+    expect(wrapper.find('.not-enough-movies .new-rating-search').exists()).toBe(true);
   });
 
   it('lists all games once there is enough data', () => {
