@@ -33,4 +33,12 @@ describe('Header', () => {
     expect(wrapper.find('.random-banner img').exists()).toBe(true);
     expect(wrapper.find('.home-link').exists()).toBe(false);
   });
+
+  it('clicking the banner navigates home, same as clicking the "Cinema Roll" title (bug report: needed once hideHeaderLogo hides that title)', async () => {
+    const wrapper = factory({ bannerUrl: 'https://example.com/banner.png' });
+    await wrapper.find('.random-banner').trigger('click');
+
+    expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setGoHome', true);
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/');
+  });
 });

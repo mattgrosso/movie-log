@@ -1,7 +1,11 @@
 <template>
   <div class="header col-12" :class="{'d-none': !$store.state.showHeader}">
     <div class="overflow-wrapper">
-      <div class="random-banner">
+      <!-- Clickable straight to home, same destination as the "Cinema Roll"
+           title below - matters most when hideHeaderLogo hides that title
+           (e.g. Six Degrees' custom banner), leaving the banner itself as
+           the only tap-to-home affordance left in the header. -->
+      <div class="random-banner" @click="goHome">
         <img v-if="bannerUrl" :src="bannerUrl">
       </div>
       <div class="top-posters">
@@ -141,6 +145,7 @@ export default {
 
     .random-banner {
       column-gap: 0;
+      cursor: pointer;
       display: flex;
       flex-wrap: wrap;
       position: relative;

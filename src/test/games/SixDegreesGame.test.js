@@ -299,6 +299,40 @@ describe('SixDegreesGame', () => {
       expect(second.vm.chain[1]).toEqual({ type: 'person', name: person });
     });
 
+    it('does NOT resume a WON round - a remount starts fresh instead (bug report: "you don\'t need to save my result... it should just be a new game")', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      forceLongPair(wrapper, library);
+      const path = wrapper.vm.pair.optimalPath;
+      for (let i = 1; i < path.length && wrapper.vm.status === 'playing'; i++) {
+        if (i % 2 === 1) {
+          wrapper.vm.pick({ name: path[i] });
+        } else {
+          const key = path[i];
+          wrapper.vm.pick({ key, entry: wrapper.vm.eligibleGameEntries.find((e) => entryKey(e) === key) });
+        }
+      }
+      expect(wrapper.vm.status).toBe('won');
+
+      const second = factory(library);
+      // A genuinely fresh start, not a restore of the finished round.
+      expect(second.vm.status).toBe('playing');
+      expect(second.vm.chain).toHaveLength(1);
+    });
+
+    it('does NOT resume a REVEALED (given up) round either', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      forceLongPair(wrapper, library);
+      wrapper.vm.revealPath();
+      expect(wrapper.vm.status).toBe('revealed');
+
+      const second = factory(library);
+      expect(second.vm.status).toBe('playing');
+      expect(second.vm.revealedChain).toBeNull();
+      expect(second.vm.chain).toHaveLength(1);
+    });
+
     it('"New Pair" always resets/re-persists, replacing any prior saved progress', async () => {
       const library = buildConnectedLibrary();
       const wrapper = factory(library);

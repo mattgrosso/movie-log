@@ -321,6 +321,14 @@ export default {
         if (!raw) return false;
         const saved = JSON.parse(raw);
 
+        // Bug report: "you don't need to save my result... the next time I
+        // return to the game it should just be a new game." A finished
+        // round (won, or given up) isn't progress to resume - fall through
+        // to a fresh start() instead of restoring it.
+        const lastSavedLink = saved?.chain?.[saved.chain.length - 1];
+        const wasWon = lastSavedLink?.type === 'movie' && lastSavedLink.key === saved?.targetKey;
+        if (saved?.revealed || wasWon) return false;
+
         const source = this.eligibleGameEntries.find((entry) => entryKey(entry) === saved?.sourceKey);
         const target = this.eligibleGameEntries.find((entry) => entryKey(entry) === saved?.targetKey);
         if (!source || !target) return false;
