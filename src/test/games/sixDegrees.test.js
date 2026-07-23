@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCastGraph, shortestPath, pickConnectedPair, scorePathDifficulty, difficultyForScore } from '@/assets/javascript/games/sixDegrees.js';
+import { buildCastGraph, shortestPath, pickConnectedPair, scorePathDifficulty, difficultyForScore, nextHintStep } from '@/assets/javascript/games/sixDegrees.js';
 import { makeSeededRng } from '@/assets/javascript/games/gameUtils.js';
 
 function entry (id, cast) {
@@ -230,5 +230,69 @@ describe('pickConnectedPair with a difficulty filter', () => {
     const graph = buildCastGraph(entries);
     const pair = pickConnectedPair(entries, graph, makeSeededRng(1), { difficulty: 'hard' });
     expect(pair).toBeNull();
+  });
+});
+
+describe('nextHintStep ("Give me one" - reveals just the next step, not the whole path)', () => {
+  // key-1 -A- key-2 -B- key-3 -C- key-4
+  function buildChainLibrary () {
+    return [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B', 'C']), entry(4, ['C'])];
+  }
+
+  it('from a movie, hints the next person toward the target', () => {
+    const entries = buildChainLibrary();
+    const graph = buildCastGraph(entries);
+    const hint = nextHintStep({ type: 'movie', key: 'key-1' }, new Set(), graph, graph, 'key-4');
+    expect(hint).toEqual({ type: 'person', name: 'A' });
+  });
+
+  it('from a person, hints whichever unused movie minimizes the remaining distance to the target', () => {
+    const entries = buildChainLibrary();
+    const graph = buildCastGraph(entries);
+    // Player already used key-1 (that's where they found "A").
+    const hint = nextHintStep({ type: 'person', name: 'A' }, new Set(['key-1']), graph, graph, 'key-4');
+    expect(hint).toEqual({ type: 'movie', key: 'key-2' });
+  });
+
+  it('hints the target movie directly when the current person was in it', () => {
+    const entries = [entry(1, ['A']), entry(2, ['A', 'Z']), entry(9, ['Z'])];
+    const graph = buildCastGraph(entries);
+    const hint = nextHintStep({ type: 'person', name: 'Z' }, new Set(['key-2']), graph, graph, 'key-9');
+    expect(hint).toEqual({ type: 'movie', key: 'key-9' });
+  });
+
+  it('returns null when already at the target', () => {
+    const entries = buildChainLibrary();
+    const graph = buildCastGraph(entries);
+    expect(nextHintStep({ type: 'movie', key: 'key-4' }, new Set(), graph, graph, 'key-4')).toBeNull();
+  });
+
+  it('excludes already-used movies from the person branch\'s candidates', () => {
+    // "A" is in both key-1 and key-2, but key-2 is already used - the only
+    // remaining candidate is key-1, which is a dead end (not the target and
+    // no further connection to key-9 exists), so no hint is possible.
+    const entries = [entry(1, ['A']), entry(2, ['A']), entry(9, ['Z'])];
+    const graph = buildCastGraph(entries);
+    const hint = nextHintStep({ type: 'person', name: 'A' }, new Set(['key-2']), graph, graph, 'key-9');
+    expect(hint).toBeNull();
+  });
+
+  it('uses the UNCAPPED playGraph to find candidate movies outside the capped graph\'s billing limit', () => {
+    // "Rare Actor" is 11th-billed in movie 'a' - outside buildCastGraph's
+    // default 10-person cap - so the capped graph doesn't know they're in
+    // it, but the uncapped playGraph does.
+    const fillers = Array.from({ length: 10 }, (_, i) => `Filler ${i}`);
+    const movieA = entry('a', [...fillers, 'Rare Actor']);
+    const movieB = entry('b', ['Rare Actor']);
+    const graph = buildCastGraph([movieA, movieB]);
+    const playGraph = buildCastGraph([movieA, movieB], Infinity);
+
+    expect([...playGraph.moviesByPerson.get('Rare Actor')]).toContain('key-a');
+    // Capped graph knows about 'Rare Actor' via movie 'b' (where they're the
+    // only/top-billed cast member) but NOT via movie 'a' (11th-billed there).
+    expect([...graph.moviesByPerson.get('Rare Actor')]).not.toContain('key-a');
+
+    const hint = nextHintStep({ type: 'person', name: 'Rare Actor' }, new Set(['key-b']), graph, playGraph, 'key-a');
+    expect(hint).toEqual({ type: 'movie', key: 'key-a' });
   });
 });

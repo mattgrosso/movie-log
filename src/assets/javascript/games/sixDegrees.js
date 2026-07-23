@@ -186,3 +186,45 @@ export function pickConnectedPair (eligibleEntries, graph, rng = Math.random, { 
 
   return null;
 }
+
+// Bug report: "turn the reveal shortest path button into a two segment
+// button. 'Give me one' and 'Give up'" - "Give me one" reveals just the
+// NEXT step rather than the whole remaining path (that's still "Give up",
+// i.e. the existing reveal-everything flow). Recomputes a fresh shortest
+// path from the player's CURRENT position rather than replaying the
+// original optimalPath, since the player may have already taken a
+// different (still valid) route than the one the puzzle was generated
+// from - `graph` (capped) is what defines "shortest," matching
+// difficulty/puzzle-generation semantics elsewhere in this file.
+//   lastLink: { type: 'movie', key } or { type: 'person', name } - the
+//     chain's current last entry.
+//   usedMovieKeys: Set of movie keys already in the chain (only consulted
+//     for the person branch, to avoid hinting a movie already used).
+//   playGraph: the UNCAPPED graph (see buildCastGraph's castLimit) - used
+//     only to enumerate a person's candidate movies, so a hint can surface
+//     a real connection outside the top-10-billing cap, same reasoning the
+//     in-play autocomplete already uses.
+// Returns { type: 'person', name } or { type: 'movie', key }, or null if
+// no continuation toward the target could be found (already at the
+// target, or genuinely stuck within shortestPath's own hop ceiling).
+export function nextHintStep (lastLink, usedMovieKeys, graph, playGraph, targetKey) {
+  if (lastLink.type === 'movie') {
+    if (lastLink.key === targetKey) return null;
+    const path = shortestPath(graph, lastLink.key, targetKey);
+    if (!path || path.length < 2) return null;
+    return { type: 'person', name: path[1] };
+  }
+
+  const candidates = [...(playGraph.moviesByPerson.get(lastLink.name) || [])].filter((key) => !usedMovieKeys.has(key));
+  let best = null;
+  let bestLen = Infinity;
+  for (const key of candidates) {
+    if (key === targetKey) return { type: 'movie', key };
+    const path = shortestPath(graph, key, targetKey);
+    if (path && path.length < bestLen) {
+      bestLen = path.length;
+      best = key;
+    }
+  }
+  return best ? { type: 'movie', key: best } : null;
+}

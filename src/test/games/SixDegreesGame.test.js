@@ -186,6 +186,51 @@ describe('SixDegreesGame', () => {
     expect(entryKey(wrapper.vm.revealedChain[wrapper.vm.revealedChain.length - 1].entry)).toBe(entryKey(wrapper.vm.pair.target));
   });
 
+  it('the guess input renders above the chain-row images (bug report: "moving the input above the images")', () => {
+    const wrapper = factory(buildConnectedLibrary());
+    const html = wrapper.html();
+    expect(html.indexOf('guess-form')).toBeLessThan(html.indexOf('chain-row'));
+  });
+
+  describe('"Give me one" / "Give up" (bug report: "turn the reveal shortest path button into a two segment button")', () => {
+    it('renders both segments below the chain-row images, replacing the old single button', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const segments = wrapper.find('.hint-actions').findAll('.hint-segment');
+      expect(segments.map((s) => s.text())).toEqual(['Give me one', 'Give up']);
+      const html = wrapper.html();
+      expect(html.indexOf('chain-row')).toBeLessThan(html.indexOf('hint-actions'));
+    });
+
+    it('"Give me one" advances the chain by exactly one step without ending the game', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const before = wrapper.vm.chain.length;
+      const giveMeOne = wrapper.findAll('.hint-segment').find((b) => b.text() === 'Give me one');
+
+      await giveMeOne.trigger('click');
+
+      expect(wrapper.vm.chain.length).toBe(before + 1);
+      expect(wrapper.vm.status).toBe('playing');
+    });
+
+    it('"Give up" reveals the whole remaining path and ends the round', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const giveUp = wrapper.findAll('.hint-segment').find((b) => b.text() === 'Give up');
+
+      await giveUp.trigger('click');
+
+      expect(wrapper.vm.status).toBe('revealed');
+      expect(wrapper.vm.revealedChain).not.toBeNull();
+    });
+
+    it('repeatedly tapping "Give me one" eventually reaches the target', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      for (let i = 0; i < 10 && wrapper.vm.status === 'playing'; i++) {
+        wrapper.vm.giveHint();
+      }
+      expect(wrapper.vm.status).toBe('won');
+    });
+  });
+
   describe('persistence across a remount (bug report: progress was lost on leaving and returning to the page)', () => {
     it('resumes the SAME in-progress pair and chain after a remount', async () => {
       const library = buildConnectedLibrary();
@@ -256,17 +301,20 @@ describe('SixDegreesGame', () => {
       expect(wrapper.vm.selectedDifficulty).toBeNull();
     });
 
-    it('renders a labeled Easy/Medium/Hard switch and a separate New Game button, at the bottom of the page', () => {
+    it('renders an unlabeled Easy/Medium/Hard switch and a separate New Game button, at the bottom of the page', () => {
       const wrapper = factory(buildConnectedLibrary());
-      expect(wrapper.find('.difficulty-picker-label').text()).toBe('Difficulty');
+      // No "Difficulty" label anymore (bug report: "we can lose the
+      // difficulty label").
+      expect(wrapper.find('.difficulty-picker-label').exists()).toBe(false);
       const segments = wrapper.find('.difficulty-segments').findAll('.difficulty-segment');
       expect(segments.map((s) => s.text())).toEqual(['Easy', 'Medium', 'Hard']);
       const panel = wrapper.find('.new-game-panel');
       expect(panel.find('button.btn-game-primary').text()).toBe('New Game');
       // "Bottom of the page" - the panel comes after the chain row/guess
-      // form/result banner in the rendered HTML, not above them.
+      // form/hint actions in the rendered HTML, not above them.
       const html = wrapper.html();
       expect(html.indexOf('chain-row')).toBeLessThan(html.indexOf('new-game-panel'));
+      expect(html.indexOf('hint-actions')).toBeLessThan(html.indexOf('new-game-panel'));
     });
 
     it('tapping a difficulty segment only selects it - it does NOT start a new pair by itself', async () => {

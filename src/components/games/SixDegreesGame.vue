@@ -13,7 +13,6 @@
            randomized, so a retry can occasionally succeed where a prior
            attempt didn't). -->
       <div class="new-game-panel">
-        <span class="difficulty-picker-label">Difficulty</span>
         <div class="difficulty-segments">
           <button
             v-for="level in difficultyOptions"
@@ -31,6 +30,27 @@
 
     <template v-else>
       <p class="game-subtitle">Connect these two through shared cast members.</p>
+
+      <!-- Input moved above the images (bug report: "moving the input above
+           the images and leave the give up buttons below") - just the
+           input + suggestions now; the hint/give-up actions live in their
+           own row below the chain instead. -->
+      <div v-if="status === 'playing'" class="guess-form">
+        <input
+          v-model="guessInput"
+          type="text"
+          class="game-input"
+          :placeholder="guessPlaceholder"
+          @input="onInput"
+        >
+        <ul v-if="suggestions.length" class="suggestions">
+          <li v-for="suggestion in suggestions" :key="suggestion.key || suggestion.name">
+            <button type="button" class="suggestion-item" @click="pick(suggestion)">
+              {{ suggestion.label }}
+            </button>
+          </li>
+        </ul>
+      </div>
 
       <!-- The connection, built visually between the two posters as you go -
            source through however much of the chain you've found, then (while
@@ -61,22 +81,15 @@
         </template>
       </div>
 
-      <div v-if="status === 'playing'" class="guess-form">
-        <input
-          v-model="guessInput"
-          type="text"
-          class="game-input"
-          :placeholder="guessPlaceholder"
-          @input="onInput"
-        >
-        <ul v-if="suggestions.length" class="suggestions">
-          <li v-for="suggestion in suggestions" :key="suggestion.key || suggestion.name">
-            <button type="button" class="suggestion-item" @click="pick(suggestion)">
-              {{ suggestion.label }}
-            </button>
-          </li>
-        </ul>
-        <button type="button" class="btn-game btn-game-secondary btn-game-sm mt-2 full-width" @click="revealPath">Reveal shortest path</button>
+      <!-- Replaces the single "Reveal shortest path" button (bug report:
+           "turn the reveal shortest path button into a two segment button.
+           'Give me one' and 'Give up'"). "Give me one" reveals just the
+           next step toward the target (see giveHint) and the game keeps
+           going; "Give up" is the old behavior - shows the whole remaining
+           path and ends the round. -->
+      <div v-if="status === 'playing'" class="hint-actions">
+        <button type="button" class="hint-segment" @click="giveHint">Give me one</button>
+        <button type="button" class="hint-segment give-up" @click="revealPath">Give up</button>
       </div>
 
       <div v-else class="result-banner" :class="status">
@@ -107,7 +120,6 @@
            New Game is what actually starts a fresh pair (previously each
            difficulty button both picked AND started at once). -->
       <div class="new-game-panel">
-        <span class="difficulty-picker-label">Difficulty</span>
         <div class="difficulty-segments">
           <button
             v-for="level in difficultyOptions"
@@ -128,7 +140,7 @@
 import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
-import { buildCastGraph, pickConnectedPair, shortestPath, scorePathDifficulty, difficultyForScore, DIFFICULTY_LEVELS } from '../../assets/javascript/games/sixDegrees.js';
+import { buildCastGraph, pickConnectedPair, shortestPath, scorePathDifficulty, difficultyForScore, DIFFICULTY_LEVELS, nextHintStep } from '../../assets/javascript/games/sixDegrees.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 
 const STORAGE_KEY = 'cinemaRoll.sixDegrees.current';
@@ -425,6 +437,25 @@ export default {
       this.$store.commit('setBannerRequest', { type: 'fromResults' });
       this.$router.push('/');
     },
+    // "Give me one" - reveals just the next step (see nextHintStep's own
+    // comment for why it recomputes from the current position rather than
+    // replaying the original optimalPath). Reuses pick() so the hinted
+    // entry goes through the exact same chain-update/photo-fetch/persist
+    // path a real guess would.
+    giveHint () {
+      if (!this.pair) return;
+      const last = this.chain[this.chain.length - 1];
+      const lastLink = last.type === 'movie' ? { type: 'movie', key: entryKey(last.entry) } : { type: 'person', name: last.name };
+      const targetKey = entryKey(this.pair.target);
+      const hint = nextHintStep(lastLink, this.usedMovieKeys, this.graph, this.playGraph, targetKey);
+      if (!hint) return;
+      if (hint.type === 'person') {
+        this.pick({ name: hint.name });
+      } else {
+        const entry = this.eligibleGameEntries.find((e) => entryKey(e) === hint.key);
+        if (entry) this.pick({ key: hint.key, entry });
+      }
+    },
     revealPath () {
       if (!this.pair?.optimalPath) return;
       const path = this.pair.optimalPath;
@@ -497,8 +528,10 @@ export default {
 
 .game-subtitle {
   color: #adb5bd;
-  margin-top: 0.5rem;
-  margin-bottom: 1rem;
+  // Equal above/below (bug report: "make the space above and below the
+  // game description match") - was 0.5rem/1rem.
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 // One connected segmented control, full width (bug report: "no good... one
@@ -514,19 +547,12 @@ $difficulty-tier-colors: (
 
 // New game controls, moved to the bottom of the page (bug report: "the new
 // game buttons still look sort of bad... move to the bottom"). The
-// difficulty switch is now a pure picker (see selectDifficulty) with its
-// own label above it and a full-width New Game button below - "full width
-// switch, full width button."
+// difficulty switch is now a pure picker (see selectDifficulty) with a
+// full-width New Game button below - "full width switch, full width
+// button." No label above it anymore ("we can lose the difficulty label")
+// - the New Game button right below already makes its purpose clear.
 .new-game-panel {
   margin-top: 1.75rem;
-}
-
-.difficulty-picker-label {
-  color: #adb5bd;
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 0.4rem;
 }
 
 .difficulty-segments {
@@ -717,6 +743,48 @@ $difficulty-tier-colors: (
 
 .suggestion-item:active {
   background: #333;
+}
+
+// One connected two-segment control, matching the difficulty switch's own
+// visual language (bug report: "turn the reveal shortest path button into
+// a two segment button"). Neither segment has a persistent "active" state
+// - both are one-tap actions, not a picker.
+.hint-actions {
+  border-radius: 8px;
+  display: flex;
+  margin-top: 0.75rem;
+  overflow: hidden;
+}
+
+.hint-segment {
+  background: transparent;
+  border: 2px solid #555;
+  color: #ccc;
+  flex: 1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.4rem 0.4rem;
+}
+
+.hint-segment:first-child {
+  border-bottom-left-radius: 8px;
+  border-top-left-radius: 8px;
+}
+
+.hint-segment:last-child {
+  border-bottom-right-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+// "Give up" tinted red (matching the Hard difficulty color) since it's the
+// more final of the two actions - "Give me one" stays neutral.
+.hint-segment.give-up {
+  border-color: #ef5350;
+  color: #ef5350;
+}
+
+.hint-segment:active {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .result-banner {
