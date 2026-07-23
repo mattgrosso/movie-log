@@ -101,7 +101,7 @@
                 <i class="bi bi-gear"></i>
               </button>
               <button class="results-actions-button btn btn-info" type="button" @click="goToGames" title="Games" aria-label="Go to games">
-                <i class="bi bi-controller"/>
+                <i class="bi" :class="gamesButtonIcon"/>
               </button>
               <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage" title="Toggle count / average / views" aria-label="Toggle between result count, average rating, and view count">
                 <span v-if="showAverage">
@@ -878,7 +878,7 @@ import {
   awardNameSingular
 } from '../assets/javascript/personalAwards.js';
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
-import { LAST_PLAYED_KEY } from '../mixins/gameData.js';
+import { LAST_PLAYED_KEY, GAME_ICONS } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 
 // Default priority order for the grouped search view. The order decides which
@@ -1208,6 +1208,22 @@ export default {
     next();
   },
   computed: {
+    // The Games entry-point button shows the specific game's own icon (via
+    // GAME_ICONS) whenever goToGames() would jump straight back into it, or
+    // the generic controller icon whenever it would land on the hub
+    // instead — same LAST_PLAYED_KEY lookup goToGames() itself does. A
+    // plain computed (not reactive to localStorage) is fine here: the only
+    // way LAST_PLAYED_KEY changes is by visiting a game and coming back,
+    // which necessarily remounts Home.vue anyway.
+    gamesButtonIcon () {
+      let lastPlayed = null;
+      try {
+        lastPlayed = window.localStorage.getItem(LAST_PLAYED_KEY);
+      } catch (error) {
+        // localStorage can throw in private-browsing/quota-exceeded situations.
+      }
+      return (lastPlayed && GAME_ICONS[lastPlayed]) || 'bi-controller';
+    },
     normalizationTweak () {
       const value = this.$store.state.settings?.normalizationTweak;
       return typeof value === 'number' ? value : 0.25;

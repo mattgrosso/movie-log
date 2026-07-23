@@ -45,7 +45,7 @@ function factory (mediaEntries) {
   return mount(SixDegreesGame, {
     global: {
       mocks: {
-        $store: { getters: { allMediaAsArray: mediaEntries } },
+        $store: { getters: { allMediaAsArray: mediaEntries }, state: {}, commit: vi.fn() },
         $router: { push: vi.fn() }
       }
     }
@@ -224,13 +224,20 @@ describe('SixDegreesGame', () => {
     });
   });
 
-  describe('difficulty picker (bug report: "rate difficulty... choose an easy/medium/hard one")', () => {
-    it('defaults to "Any" (the original unconstrained range)', () => {
+  describe('difficulty picker (bug report: one connected "New game:" segmented control, not separate pill buttons)', () => {
+    it('defaults to no tier selected (the original unconstrained range)', () => {
       const wrapper = factory(buildConnectedLibrary());
       expect(wrapper.vm.selectedDifficulty).toBeNull();
     });
 
-    it('tapping a difficulty button selects it and immediately starts a new pair matching that difficulty', async () => {
+    it('renders one connected segmented group labeled "New game:" with Easy/Medium/Hard segments', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      expect(wrapper.find('.difficulty-picker-label').text()).toBe('New game:');
+      const segments = wrapper.find('.difficulty-segments').findAll('.difficulty-segment');
+      expect(segments.map((s) => s.text())).toEqual(['Easy', 'Medium', 'Hard']);
+    });
+
+    it('tapping a difficulty segment selects it and immediately starts a new pair matching that difficulty', async () => {
       const wrapper = factory(buildConnectedLibrary());
       // Difficulty is now a weighted score (hops + billing order + year gap +
       // age - see scorePathDifficulty), not pure hop count, so which exact
@@ -239,51 +246,53 @@ describe('SixDegreesGame', () => {
       // "Hard") is used because this fixture's own real ceiling, precisely:
       // only its single longest (5-hop) pair reaches 'medium' - everything
       // shorter stays 'easy', and nothing in it reaches 'hard' at all.
-      // Buttons are labeled as actions ("New ___ Game"), not bare difficulty
-      // words - bug report: "the difficulty selectors should be labeled as
-      // 'new game' buttons".
-      const mediumButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'New Medium Game');
-      expect(mediumButton).toBeTruthy();
+      const mediumSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Medium');
+      expect(mediumSegment).toBeTruthy();
 
-      await mediumButton.trigger('click');
+      await mediumSegment.trigger('click');
 
       expect(wrapper.vm.selectedDifficulty).toBe('medium');
       expect(wrapper.vm.pair).not.toBeNull();
       expect(wrapper.vm.pair.difficulty).toBe('medium');
       // Starting fresh resets progress back to just the source movie.
       expect(wrapper.vm.chain).toHaveLength(1);
+      // The selected segment is visually marked active.
+      expect(mediumSegment.classes()).toContain('active');
     });
 
     it('falls back to the not-enough-movies gate when no pair exists at the requested difficulty', async () => {
       // Max possible hop count in this 3-movie chain is 2 - no "hard" pair exists.
       const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
       const wrapper = factory(sparse);
-      expect(wrapper.vm.pair).not.toBeNull(); // "Any" finds the 2-hop pair fine
+      expect(wrapper.vm.pair).not.toBeNull(); // unconstrained finds the 2-hop pair fine
 
-      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'New Hard Game');
-      await hardButton.trigger('click');
+      const hardSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Hard');
+      await hardSegment.trigger('click');
 
       expect(wrapper.vm.pair).toBeNull();
       expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
     });
 
-    it('offers the difficulty picker again on the resulting gate, to recover by trying a different one', async () => {
+    it('offers the difficulty picker again on the resulting gate, to recover by trying a different tier', async () => {
+      // In this 3-movie/2-hop fixture, 'easy' is the only tier that's
+      // actually reachable (see the scorePathDifficulty tests) - used here as
+      // the recovery pick since "Any"/unconstrained is no longer a UI option.
       const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
       const wrapper = factory(sparse);
 
-      const hardButton = wrapper.findAll('.difficulty-picker button').find((b) => b.text() === 'New Hard Game');
-      await hardButton.trigger('click');
+      const hardSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Hard');
+      await hardSegment.trigger('click');
       expect(wrapper.vm.pair).toBeNull();
 
-      const anyButton = wrapper.find('.not-enough-movies .difficulty-picker').findAll('button').find((b) => b.text() === 'New Game');
-      expect(anyButton).toBeTruthy();
-      await anyButton.trigger('click');
+      const easySegment = wrapper.find('.not-enough-movies .difficulty-picker').findAll('.difficulty-segment').find((b) => b.text() === 'Easy');
+      expect(easySegment).toBeTruthy();
+      await easySegment.trigger('click');
 
-      expect(wrapper.vm.selectedDifficulty).toBeNull();
+      expect(wrapper.vm.selectedDifficulty).toBe('easy');
       expect(wrapper.vm.pair).not.toBeNull();
     });
 
-    it('does NOT show a difficulty picker on the gate when "Any" itself already found nothing (a narrower pick can\'t help)', () => {
+    it('does NOT show a difficulty picker on the gate when the unconstrained search itself already found nothing (a narrower pick can\'t help)', () => {
       const disconnected = [entry(1, ['Solo A']), entry(2, ['Solo B'])];
       const wrapper = factory(disconnected);
       expect(wrapper.vm.pair).toBeNull();
@@ -292,7 +301,7 @@ describe('SixDegreesGame', () => {
   });
 
   describe('the visual chain row (bug report: "ugly pills"... "actual photos of the people and posters of the movies")', () => {
-    it('renders the source, the built chain, and a dimmed goal marker for the target while unsolved', () => {
+    it('renders the source, the built chain, and a goal marker for the target while unsolved', () => {
       const wrapper = factory(buildConnectedLibrary());
       const steps = wrapper.findAll('.chain-step');
       // Fresh start: chain is just the source movie, plus the goal marker.
@@ -325,6 +334,104 @@ describe('SixDegreesGame', () => {
       const steps = wrapper.vm.chainDisplayItems
       expect(steps).toHaveLength(1)
       expect(steps[0].isGoal).toBeUndefined()
+    });
+  });
+
+  describe('deleting a chain entry (bug report: "delete an entry... removes everything after it")', () => {
+    it('shows a delete badge only on real player-added entries, not the source or the goal marker', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
+      wrapper.vm.pick({ name: person });
+      await wrapper.vm.$nextTick();
+
+      const steps = wrapper.findAll('.chain-step');
+      // [0] source, [1] person just added, [2] goal marker.
+      expect(steps).toHaveLength(3);
+      expect(steps[0].find('.chain-delete-badge').exists()).toBe(false);
+      expect(steps[1].find('.chain-delete-badge').exists()).toBe(true);
+      expect(steps[2].find('.chain-delete-badge').exists()).toBe(false);
+    });
+
+    it('deleting an entry truncates the chain to everything before it', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const path = wrapper.vm.pair.optimalPath;
+      for (let i = 1; i < path.length; i++) {
+        if (i % 2 === 1) {
+          wrapper.vm.pick({ name: path[i] });
+        } else {
+          const key = path[i];
+          wrapper.vm.pick({ key, entry: wrapper.vm.eligibleGameEntries.find((e) => entryKey(e) === key) });
+        }
+      }
+      const fullLength = wrapper.vm.chain.length;
+      expect(fullLength).toBeGreaterThan(2);
+
+      wrapper.vm.deleteFromChain(1);
+      expect(wrapper.vm.chain).toHaveLength(1);
+      expect(wrapper.vm.chain[0]).toEqual({ type: 'movie', entry: wrapper.vm.pair.source });
+    });
+
+    it('cannot delete the source (index 0)', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      wrapper.vm.deleteFromChain(0);
+      expect(wrapper.vm.chain).toHaveLength(1);
+    });
+
+    it('re-persists after a delete, so a remount resumes the trimmed chain', () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
+      wrapper.vm.pick({ name: person });
+      wrapper.vm.deleteFromChain(1);
+
+      const raw = window.localStorage.getItem('cinemaRoll.sixDegrees.current');
+      expect(JSON.parse(raw).chain).toHaveLength(1);
+    });
+  });
+
+  describe('clicking a chain item navigates (bug report: "click on any of the items... movie detail page or a search for that person")', () => {
+    it('clicking a movie step pushes to that movie\'s detail page', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const movieStep = wrapper.findAll('.chain-step').find((s) => s.classes().includes('movie'));
+      await movieStep.trigger('click');
+
+      expect(wrapper.vm.$router.push).toHaveBeenCalledWith(`/movie/${wrapper.vm.pair.source.movie.id}`);
+    });
+
+    it('clicking a person step commits a library search for that person and navigates home', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
+      wrapper.vm.pick({ name: person });
+      await wrapper.vm.$nextTick();
+
+      const personStep = wrapper.findAll('.chain-step').find((s) => s.classes().includes('person'));
+      await personStep.trigger('click');
+
+      expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setHomePageSearchValue', person);
+      expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setHomePagePromoteGroup', 'cast');
+      expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/');
+    });
+
+    it('deleting a chain entry does not also trigger navigation (the delete badge stops the click from bubbling)', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
+      wrapper.vm.pick({ name: person });
+      await wrapper.vm.$nextTick();
+
+      const badge = wrapper.find('.chain-delete-badge');
+      await badge.trigger('click');
+
+      expect(wrapper.vm.chain).toHaveLength(1);
+      expect(wrapper.vm.$router.push).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('starting a new game scrolls to the top (bug report)', () => {
+    it('start() scrolls the window to the top', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      window.scrollTo.mockClear();
+      wrapper.vm.start();
+      expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' });
     });
   });
 });

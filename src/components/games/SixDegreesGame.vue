@@ -9,17 +9,19 @@
     <div v-if="!pair" class="not-enough-movies">
       <p>Couldn't find a well-connected pair of movies in your library yet — rate a few more (especially ones sharing cast members) and try again.</p>
       <!-- Only relevant when a specific difficulty was the reason nothing was
-           found - "Any" already searches the full range, so a narrower pick
-           can't recover what "Any" itself couldn't find. -->
+           found - shown so the player can retry a different tier. -->
       <div v-if="selectedDifficulty" class="difficulty-picker">
-        <button
-          v-for="level in difficultyOptions"
-          :key="level.key"
-          type="button"
-          class="btn-game btn-game-sm"
-          :class="selectedDifficulty === level.key ? 'btn-game-primary' : 'btn-game-secondary'"
-          @click="selectDifficulty(level.key)"
-        >{{ level.label }}</button>
+        <span class="difficulty-picker-label">New game:</span>
+        <div class="difficulty-segments">
+          <button
+            v-for="level in difficultyOptions"
+            :key="level.key"
+            type="button"
+            class="difficulty-segment"
+            :class="{ active: selectedDifficulty === level.key }"
+            @click="selectDifficulty(level.key)"
+          >{{ level.label }}</button>
+        </div>
       </div>
       <NewRatingSearch value="" :suggestionsMode="true"/>
     </div>
@@ -27,36 +29,50 @@
     <template v-else>
       <p class="game-subtitle">Connect these two through shared cast members. {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }} so far.</p>
 
-      <!-- Each button starts a fresh pair right away (see selectDifficulty) -
-           these are actions, not a persistent filter toggle, hence "New ___
-           Game" rather than a bare difficulty label. -->
+      <!-- One connected segmented control rather than separate pill buttons
+           per difficulty (bug report: "no good... one connected button set
+           with a label"). Each segment starts a fresh pair right away (see
+           selectDifficulty) - these are actions, not a persistent filter
+           toggle, hence tapping a segment immediately replaces the puzzle. -->
       <div class="difficulty-picker">
-        <button
-          v-for="level in difficultyOptions"
-          :key="level.key"
-          type="button"
-          class="btn-game btn-game-sm"
-          :class="selectedDifficulty === level.key ? 'btn-game-primary' : 'btn-game-secondary'"
-          @click="selectDifficulty(level.key)"
-        >{{ level.label }}</button>
+        <span class="difficulty-picker-label">New game:</span>
+        <div class="difficulty-segments">
+          <button
+            v-for="level in difficultyOptions"
+            :key="level.key"
+            type="button"
+            class="difficulty-segment"
+            :class="{ active: selectedDifficulty === level.key }"
+            @click="selectDifficulty(level.key)"
+          >{{ level.label }}</button>
+        </div>
       </div>
 
       <!-- The connection, built visually between the two posters as you go -
            source through however much of the chain you've found, then (while
-           still unsolved) a dimmed/dashed "goal" marker for the target. Movie
-           steps show the real poster; person steps show a TMDB profile photo
-           (fetched + cached per name, see ensurePersonPhoto) or initials if
-           none is found. -->
+           still unsolved) a "goal" marker for the target. Movie steps show
+           the real poster; person steps show a TMDB profile photo (fetched +
+           cached per name, see ensurePersonPhoto) or initials if none is
+           found. Every step is tappable (goes to the movie's detail page, or
+           a library search for the person) and, for entries the player
+           actually added (not the source, not the goal marker), carries a
+           small delete badge that trims the chain back to that point. -->
       <div class="chain-row">
         <template v-for="(item, index) in chainDisplayItems" :key="item.itemKey">
-          <div class="chain-step" :class="[item.type, { goal: item.isGoal }]">
+          <button type="button" class="chain-step" :class="[item.type, { goal: item.isGoal }]" @click="goToChainItem(item)">
+            <span
+              v-if="status === 'playing' && index > 0 && !item.isGoal"
+              class="chain-delete-badge"
+              title="Remove this and everything after it"
+              @click.stop="deleteFromChain(index)"
+            ><i class="bi bi-x"></i></span>
             <img v-if="item.type === 'movie'" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title" class="chain-poster">
             <template v-else>
               <img v-if="personPhotoUrl(item.name)" :src="personPhotoUrl(item.name)" :alt="item.name" class="chain-photo">
               <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(item.name) }}</div>
             </template>
             <span class="chain-step-label" :title="item.type === 'movie' ? item.entry.movie.title : item.name">{{ item.type === 'movie' ? item.entry.movie.title : item.name }}</span>
-          </div>
+          </button>
           <i v-if="index < chainDisplayItems.length - 1" class="bi bi-arrow-right chain-arrow"></i>
         </template>
       </div>
@@ -87,14 +103,14 @@
         <p v-else>Here's the shortest path:</p>
         <div v-if="status === 'revealed'" class="chain-row revealed-chain">
           <template v-for="(link, index) in revealedChain" :key="index">
-            <div class="chain-step" :class="link.type">
+            <button type="button" class="chain-step" :class="link.type" @click="goToChainItem(link)">
               <img v-if="link.type === 'movie'" :src="gamePosterUrl(link.entry, 'w185')" :alt="link.entry.movie.title" class="chain-poster">
               <template v-else>
                 <img v-if="personPhotoUrl(link.name)" :src="personPhotoUrl(link.name)" :alt="link.name" class="chain-photo">
                 <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(link.name) }}</div>
               </template>
               <span class="chain-step-label" :title="link.type === 'movie' ? link.entry.movie.title : link.name">{{ link.type === 'movie' ? link.entry.movie.title : link.name }}</span>
-            </div>
+            </button>
             <i v-if="index < revealedChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
           </template>
         </div>
@@ -149,11 +165,11 @@ export default {
     };
   },
   computed: {
+    // One segment per difficulty tier - "Any" was dropped per feedback in
+    // favor of always picking a specific tier (the segmented control's own
+    // label - "New game:" - already frames these as the choices).
     difficultyOptions () {
-      return [
-        { key: null, label: 'New Game' },
-        ...Object.entries(DIFFICULTY_LEVELS).map(([key, level]) => ({ key, label: `New ${level.label} Game` }))
-      ];
+      return Object.entries(DIFFICULTY_LEVELS).map(([key, level]) => ({ key, label: level.label }));
     },
     pairDifficulty () {
       return this.pair?.difficulty || null;
@@ -281,6 +297,11 @@ export default {
       }
     },
     start () {
+      // Bug report: starting a new game should land you back at the top of
+      // the page, not wherever you'd scrolled to (e.g. down past a long
+      // chain). Same 'instant' convention GamesHub's own "new screen, jump
+      // to top" navigation already uses.
+      window.scrollTo({ top: 0, behavior: 'instant' });
       this.graph = buildCastGraph(this.eligibleGameEntries);
       this.playGraph = buildCastGraph(this.eligibleGameEntries, Infinity);
       const options = this.selectedDifficulty ? { difficulty: this.selectedDifficulty } : {};
@@ -334,6 +355,41 @@ export default {
       this.guessInput = '';
       this.suggestions = [];
       this.persistState();
+    },
+    // Bug report: "I should be able to delete an entry in the chain and it
+    // removes everything after it." index refers to chainDisplayItems, which
+    // shares indices with this.chain for every real (non-goal) entry - the
+    // template already excludes index 0 (the source) and the synthetic goal
+    // marker from showing a delete badge at all.
+    deleteFromChain (index) {
+      if (index <= 0 || index >= this.chain.length) return;
+      this.chain = this.chain.slice(0, index);
+      this.guessInput = '';
+      this.suggestions = [];
+      this.persistState();
+    },
+    // Bug report: "click on any of the items in the list to go to either
+    // that movie's detail page or else a search for that person." Progress
+    // is already persisted (see persistState calls above), so navigating
+    // away and back via the Games button resumes exactly here.
+    goToChainItem (item) {
+      if (item.type === 'movie') {
+        this.$router.push(`/movie/${item.entry.movie.id}`);
+      } else {
+        this.searchForPerson(item.name);
+      }
+    },
+    // Same store-commit sequence as MovieDetail.vue's searchFor(name, 'cast')
+    // - replicated here (rather than shared) since it's a small, component-
+    // local navigation action and the two components don't share a base.
+    searchForPerson (name) {
+      this.$store.commit('setHomePageNavigationIntent', 'search');
+      this.$store.commit('setHomePagePromoteGroup', 'cast');
+      this.$store.commit('setHomePageSearchValue', name);
+      this.$store.commit('setHomePageSearchChips', []);
+      this.$store.commit('setHomePageScrollPosition', 0);
+      this.$store.commit('setBannerRequest', { type: 'fromResults' });
+      this.$router.push('/');
     },
     revealPath () {
       if (!this.pair?.optimalPath) return;
@@ -395,13 +451,11 @@ export default {
 .six-degrees-game {
   color: #eee;
   min-height: 100vh;
-  // Reduced from 2.5rem per feedback ("margin above the title is too
-  // large"). This is still a safety margin against BackLink overlapping
-  // this screen's own h1 when the global Header happens to have zero height
-  // (see the identical comment in ConnectionsGame.vue/GamesHub.vue, which
-  // keep the original 2.5rem) - just a smaller one. If the overlap bug
-  // resurfaces on a genuine fresh/direct navigation, bump this back up.
-  padding: 1.75rem 1rem 2rem;
+  // Horizontal padding trimmed to 0.5rem (from 1rem) per feedback ("use more
+  // of the width") - frees up room for 3 chain-steps to fit across a phone
+  // screen. Top padding is still the BackLink-overlap safety margin (see
+  // the identical comment in ConnectionsGame.vue/GamesHub.vue).
+  padding: 1.75rem 0.5rem 2rem;
 }
 
 .game-title {
@@ -413,12 +467,50 @@ export default {
   margin-bottom: 1rem;
 }
 
+// One connected segmented control (bug report: separate pill buttons were
+// "no good... one connected button set with a label").
 .difficulty-picker {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.5rem;
   justify-content: center;
   margin-bottom: 1.25rem;
+}
+
+.difficulty-picker-label {
+  color: #adb5bd;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.difficulty-segments {
+  border: 1px solid #444;
+  border-radius: 999px;
+  display: inline-flex;
+  overflow: hidden;
+}
+
+.difficulty-segment {
+  background: transparent;
+  border: none;
+  color: #ccc;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+}
+
+.difficulty-segment + .difficulty-segment {
+  border-left: 1px solid #444;
+}
+
+.difficulty-segment.active {
+  background: linear-gradient(135deg, #ffc107, #ff9800);
+  color: #1a1a1a;
+}
+
+.difficulty-segment:active:not(.active) {
+  background: #2a2a2a;
 }
 
 .not-enough-movies {
@@ -428,27 +520,33 @@ export default {
 }
 
 // The connection itself: source poster -> however much of the chain has
-// been found -> (while unsolved) a dimmed goal marker for the target.
-// Replaces the old separate endpoints row + text-pill chain (bug report:
-// "the series of pills... a bit ugly... show actual photos of the people
-// and posters of the movies for the steps in between").
+// been found -> (while unsolved) a goal marker for the target. Replaces the
+// old separate endpoints row + text-pill chain (bug report: "the series of
+// pills... a bit ugly... show actual photos of the people and posters of
+// the movies for the steps in between"). Sized 3-across on a phone screen
+// (bug report: "fit three items across... use more of the width").
 .chain-row {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 0.4rem 0.3rem;
   justify-content: center;
   margin-bottom: 1.25rem;
 }
 
 .chain-step {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  position: relative;
   text-align: center;
-  // Larger than the old 100px endpoint width, per feedback ("posters a bit larger").
-  width: 118px;
-}
-
-.chain-step.person {
-  width: 84px;
+  // A single shared width (movie and person alike) so "3 across" is
+  // predictable regardless of which types land in a row. Still larger than
+  // the original 100px endpoint width, while leaving room for 3 steps + 2
+  // arrows on a real phone viewport.
+  width: 104px;
 }
 
 .chain-poster {
@@ -461,8 +559,8 @@ export default {
 .chain-photo {
   border-radius: 50%;
   display: block;
-  width: 76px;
-  height: 76px;
+  width: 88px;
+  height: 88px;
   margin: 0 auto;
   object-fit: cover;
 }
@@ -487,14 +585,29 @@ export default {
   white-space: nowrap;
 }
 
-// The not-yet-reached target - dashed/dimmed so it reads as "the goal", not
-// a completed step of the chain.
-.chain-step.goal {
-  opacity: 0.5;
+// Small "remove this and everything after it" affordance, shown only on
+// entries the player actually added (not the source, not the goal marker -
+// see the template's v-if). Positioned like ConnectionsGame's
+// .tile-hint-badge, just top-left instead of top-right so it doesn't
+// collide with the delete badge of an adjacent step's much smaller person
+// photo.
+.chain-delete-badge {
+  align-items: center;
+  background: rgba(20, 20, 20, 0.85);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  color: #eee;
+  display: flex;
+  height: 1.3rem;
+  justify-content: center;
+  left: 2px;
+  position: absolute;
+  top: 2px;
+  width: 1.3rem;
 }
 
-.chain-step.goal .chain-poster {
-  border: 2px dashed #888;
+.chain-delete-badge:active {
+  background: rgba(60, 60, 60, 0.95);
 }
 
 .chain-arrow {

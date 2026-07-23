@@ -32,7 +32,7 @@
 <script>
 import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
-import gameDataMixin, { LAST_PLAYED_KEY } from '../../mixins/gameData.js';
+import gameDataMixin, { LAST_PLAYED_KEY, GAME_ICONS } from '../../mixins/gameData.js';
 
 export default {
   name: 'GamesHub',
@@ -60,25 +60,25 @@ export default {
         {
           path: '/games/higher-lower',
           name: 'Higher or Lower',
-          icon: 'bi-arrow-down-up',
+          icon: GAME_ICONS['/games/higher-lower'],
           description: "See a movie's real score, guess whether the next one scored higher or lower. Keep your streak alive."
         },
         {
           path: '/games/wordle',
           name: 'Reel Wordle',
-          icon: 'bi-grid-3x3-gap-fill',
+          icon: GAME_ICONS['/games/wordle'],
           description: "A random movie from your library. Guess it using year/genre/director clues — as many tries and as many rounds as you want."
         },
         {
           path: '/games/connections',
           name: 'Connections',
-          icon: 'bi-grid-fill',
+          icon: GAME_ICONS['/games/connections'],
           description: 'Find four groups of four — movies linked by shared director, genre, decade, cast, or studio.'
         },
         {
           path: '/games/six-degrees',
           name: 'Six Degrees',
-          icon: 'bi-diagram-3-fill',
+          icon: GAME_ICONS['/games/six-degrees'],
           description: 'Two movies, one shared-cast chain between them. Build the connection yourself, hop by hop.'
         }
       ]

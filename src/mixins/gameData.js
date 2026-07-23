@@ -7,6 +7,17 @@ import { getEligibleEntries, ratingFor } from '../assets/javascript/games/gameUt
 // the game you were actually playing instead of always landing on the hub.
 export const LAST_PLAYED_KEY = 'cinemaRoll.games.lastPlayed';
 
+// Single source of truth for each game's icon — shared by GamesHub's tile
+// grid and Home.vue's Games entry-point button, which shows whichever
+// game's icon LAST_PLAYED_KEY points back to (falling back to a generic
+// controller icon when nothing specific is stored).
+export const GAME_ICONS = {
+  '/games/higher-lower': 'bi-arrow-down-up',
+  '/games/wordle': 'bi-grid-3x3-gap-fill',
+  '/games/connections': 'bi-grid-fill',
+  '/games/six-degrees': 'bi-diagram-3-fill'
+};
+
 // Shared plumbing for every game in src/components/games/ — which library
 // entries are usable (poster + release date + at least one rating) and how
 // to read a numeric rating off one. Kept as a mixin (matching the
