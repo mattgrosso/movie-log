@@ -209,6 +209,30 @@ describe('Fuzzy "Did you mean?" suggestions', () => {
     })
   })
 
+  describe('topDidYouMeanSuggestion (single-link UI)', () => {
+    it('is the same as the first ranked suggestion', async () => {
+      wrapper.vm.searchValue = 'villenueve'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.topDidYouMeanSuggestion).toEqual(wrapper.vm.didYouMeanSuggestions[0])
+    })
+
+    it('is null when there are no suggestions', async () => {
+      wrapper.vm.searchValue = 'qzxwvkj'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.topDidYouMeanSuggestion).toBeNull()
+    })
+
+    it('renders as a single small text link directly under the search input, not a row of chips', async () => {
+      wrapper.vm.searchValue = 'villenueve'
+      await wrapper.vm.$nextTick()
+
+      const links = wrapper.findAll('.did-you-mean-link')
+      expect(links).toHaveLength(1)
+      expect(links[0].text()).toBe(`Did you mean ${wrapper.vm.topDidYouMeanSuggestion.value}?`)
+      expect(wrapper.find('.did-you-mean-chip').exists()).toBe(false)
+    })
+  })
+
   describe('tap-to-commit', () => {
     it('builds a correctly-typed chip from a tapped director suggestion', async () => {
       wrapper.vm.searchValue = 'villenueve'

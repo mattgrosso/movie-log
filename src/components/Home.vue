@@ -20,6 +20,16 @@
           :value="inputValue"
         >
       </div>
+      <!-- Typo-tolerant "Did you mean...?" fallback from the user's own rated
+           data. Deliberately just one suggestion, styled as a plain small
+           link - a full row of chips between the search bar and the
+           new-rating-suggestion UI was too prominent given how much more
+           often a search is a genuinely new (unrated) movie than a typo. -->
+      <p v-if="topDidYouMeanSuggestion" class="did-you-mean-inline mb-1">
+        <a href="#" class="did-you-mean-link" @click.prevent="applyDidYouMeanSuggestion(topDidYouMeanSuggestion)">
+          Did you mean {{ topDidYouMeanSuggestion.value }}?
+        </a>
+      </p>
     </div>
 
     <!-- Active Filter Chips - only show when filters are active -->
@@ -695,22 +705,9 @@
         </div>
       </div>
       <div v-else-if="$store.state.dbLoaded">
-        <!-- Fuzzy "Did you mean...?" suggestions from the user's own rated data.
-             Shown above NoResults so the "Search TMDB for X" new-rating path stays intact. -->
-        <div v-if="didYouMeanSuggestions.length" class="did-you-mean text-center mb-3">
-          <p class="text-light mb-2" style="opacity: 0.85;">Did you mean:</p>
-          <div class="d-inline-flex flex-wrap justify-content-center">
-            <button
-              v-for="suggestion in didYouMeanSuggestions"
-              :key="`${suggestion.typeLabel}-${suggestion.value}`"
-              class="btn btn-outline-light btn-sm me-2 mb-2 did-you-mean-chip"
-              @click="applyDidYouMeanSuggestion(suggestion)"
-            >
-              {{ suggestion.value }}
-              <span class="did-you-mean-type">{{ suggestion.typeLabel }}</span>
-            </button>
-          </div>
-        </div>
+        <!-- The "Did you mean...?" link itself now lives right under the
+             search bar (see top of template) so it doesn't sit between the
+             search bar and this new-rating-suggestion UI. -->
         <NoResults
           :class="{'no-results-buffer': !activeFiltersMinusTemps.length}"
           :value="searchValue || effectiveSearchTerm"
@@ -1703,6 +1700,12 @@ export default {
       }
 
       return suggestions;
+    },
+    // The UI only ever surfaces the single best match now (see the template's
+    // did-you-mean-inline link) - didYouMeanSuggestions itself stays a ranked
+    // list of up to 5 since the blur-guard and tests rely on its full shape.
+    topDidYouMeanSuggestion () {
+      return this.didYouMeanSuggestions[0] || null;
     },
     groupOrder () {
       // Returns the active group hierarchy. Uses the user's daily override from
@@ -3115,11 +3118,11 @@ export default {
       this.$router.push(`/pick-media/${this.effectiveSearchTerm}`);
     },
     showNoResultsMessage () {
+      // No auto-revert timer - it used to silently dismiss this message and
+      // flip the UI back after 30s, which read as stressful/unpredictable.
+      // It now only clears via startNewSearch (explicit "Try Another Search"
+      // tap) or a fresh keystroke (see onInput) invalidating the stale term.
       this.noResults = true;
-
-      setTimeout(() => {
-        this.noResults = false;
-      }, 30000); // Extended from 3 seconds to 30 seconds
     },
     startNewSearch () {
       // Clear current search state
@@ -3455,6 +3458,12 @@ export default {
     },
     onInput (event) {
       const newVal = event.target.value;
+
+      // A new keystroke invalidates any "no results for X" message about
+      // whatever the OLD term was - without this, since the auto-revert
+      // timer was removed, that alert could otherwise get stuck showing a
+      // stale term until the user explicitly hit "Try Another Search".
+      this.noResults = false;
 
       this.overwriteCurrentlyTypingSearchFilter(newVal);
       this.inputValue = newVal;
@@ -4849,20 +4858,17 @@ export default {
 </style>
 
 <style scoped>
-.did-you-mean-chip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.4rem;
+.did-you-mean-inline {
+  font-size: 0.75rem;
+  margin-top: -0.25rem;
 }
-.did-you-mean-chip:active {
+.did-you-mean-link {
+  color: #adb5bd;
+  text-decoration: underline;
+}
+.did-you-mean-link:active {
   /* Mobile-first: no-hover affordance, visible press feedback */
-  transform: scale(0.97);
-}
-.did-you-mean-type {
-  font-size: 0.7rem;
-  opacity: 0.65;
-  font-style: italic;
-  text-transform: lowercase;
+  opacity: 0.7;
 }
 .settings-panel-inline {
   background: var(--bs-light, #fff);
