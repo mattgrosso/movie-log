@@ -523,9 +523,10 @@ $difficulty-tier-colors: (
   border: 2px solid #555;
   color: #ccc;
   flex: 1;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  padding: 0.45rem 0.4rem;
+  // Compact per feedback ("too poofy") - down from 0.45rem/0.4rem.
+  padding: 0.25rem 0.3rem;
 }
 
 // Each segment's own square corners need to already match the container's
