@@ -27,22 +27,46 @@ export default {
         top: 0,
         behavior: 'smooth'
       });
+    },
+    async checkForServiceWorkerUpdate () {
+      if (!('serviceWorker' in navigator)) {
+        return;
+      }
+
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          await registration.update();
+        }
+      } catch {
+        // Best-effort - a failed check just means we try again on the next
+        // trigger rather than blocking anything the user is doing.
+      }
     }
   },
   async mounted () {
-    document.addEventListener('visibilitychange', async () => {
+    // visibilitychange alone is unreliable on iOS, particularly for a
+    // home-screen-installed PWA - it's a long-standing WebKit quirk that it
+    // sometimes just doesn't fire when the app is brought back to the
+    // foreground (varies by iOS version, which is why this can silently work
+    // on one iPhone and never on another). pageshow and window focus are
+    // more consistent there, and the interval is a backstop that doesn't
+    // depend on any lifecycle event firing at all - between the three, an
+    // update gets picked up even if any single trigger fails to fire.
+    document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        console.log('App is now in the foreground');
-
-        // Check for service worker update
-        if ('serviceWorker' in navigator) {
-          const registration = await navigator.serviceWorker.getRegistration();
-          if (registration) {
-            await registration.update();
-          }
-        }
+        this.checkForServiceWorkerUpdate();
       }
     });
+    window.addEventListener('pageshow', () => {
+      this.checkForServiceWorkerUpdate();
+    });
+    window.addEventListener('focus', () => {
+      this.checkForServiceWorkerUpdate();
+    });
+    setInterval(() => {
+      this.checkForServiceWorkerUpdate();
+    }, 30 * 60 * 1000);
   },
 }
 </script>
