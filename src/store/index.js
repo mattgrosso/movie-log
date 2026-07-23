@@ -7,6 +7,7 @@ import * as Sentry from "@sentry/vue";
 import { getRating } from "../assets/javascript/GetRating";
 import router from '@/router';
 import ErrorLogService from "../services/ErrorLogService.js";
+import { saveSnapshot, loadSnapshot } from "../utils/offlineStore.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -290,24 +291,52 @@ export default createStore({
       if (!context.getters.databaseTopKey) {
         return;
       }
+      const topKey = context.getters.databaseTopKey;
+
       const movieLogHasData = Boolean(Object.keys(context.state.movieLog).length);
       if (!movieLogHasData) {
-        onValue(ref(db, `${context.getters.databaseTopKey}/movieLog`), (snapshot) => {
+        // Offline fallback: Firebase RTDB's web SDK has no disk persistence
+        // (unlike Firestore), so the onValue socket below never fires without
+        // a live connection and dbLoaded would hang forever. Race it against
+        // the last-synced IndexedDB snapshot so a cold offline start still
+        // becomes usable. Whichever settles the UI first, the onValue
+        // callback (which always fires once connected, cache hit or miss)
+        // is the source of truth and overwrites/re-persists on arrival - the
+        // dbLoaded guard just stops a slower cache read from clobbering
+        // already-arrived live data.
+        loadSnapshot(topKey, 'movieLog').then((cached) => {
+          if (cached && !context.state.dbLoaded) {
+            context.commit('setMovieLog', cached);
+            context.commit('setDbLoaded', true);
+          }
+          return null;
+        }).catch(() => {});
+
+        onValue(ref(db, `${topKey}/movieLog`), (snapshot) => {
           const data = snapshot.val();
 
           if (data) {
             context.commit('setMovieLog', data);
+            saveSnapshot(topKey, 'movieLog', data);
           }
           context.commit('setDbLoaded', true);
         });
       }
       const settingsHasData = Boolean(Object.keys(context.state.settings).length);
       if (!settingsHasData) {
-        onValue(ref(db, `${context.getters.databaseTopKey}/settings`), (snapshot) => {
+        loadSnapshot(topKey, 'settings').then((cached) => {
+          if (cached && !Object.keys(context.state.settings).length) {
+            context.commit('setSettings', cached);
+          }
+          return null;
+        }).catch(() => {});
+
+        onValue(ref(db, `${topKey}/settings`), (snapshot) => {
           const data = snapshot.val();
 
           if (data) {
             context.commit('setSettings', data);
+            saveSnapshot(topKey, 'settings', data);
           }
         });
       }

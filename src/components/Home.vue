@@ -530,6 +530,29 @@
                 </div>
               </div>
 
+              <div class="mb-3">
+                <label class="form-label d-block">Offline access</label>
+                <small class="form-text text-white d-block mb-2">
+                  Downloads every poster/backdrop in your library so they're viewable without a connection. Only needs to be run again after rating a batch of new movies.
+                </small>
+                <button
+                  class="btn btn-outline-info btn-sm"
+                  @click="downloadForOffline"
+                  :disabled="offlineDownload.status === 'running'"
+                >
+                  <span v-if="offlineDownload.status === 'running'">
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Downloading {{ offlineDownload.completed }}/{{ offlineDownload.total }}...
+                  </span>
+                  <span v-else>
+                    <i class="bi bi-cloud-download"></i> Download all posters for offline
+                  </span>
+                </button>
+                <div v-if="offlineDownload.status === 'done'" class="text-success mt-2">
+                  <small><i class="bi bi-check-circle"></i> {{ offlineDownload.total }} images cached{{ offlineDownload.failed ? ` (${offlineDownload.failed} failed — check your connection and try again)` : '' }}.</small>
+                </div>
+              </div>
+
               <!-- Matt Only Settings Section -->
               <div v-if="isMatt" class="mt-4">
                 <hr>
@@ -851,6 +874,7 @@ import {
 } from '../assets/javascript/personalAwards.js';
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
 import { LAST_PLAYED_KEY } from '../mixins/gameData.js';
+import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 
 // Default priority order for the grouped search view. The order decides which
 // group claims a movie that matches multiple categories. Users can reorder this
@@ -919,6 +943,7 @@ export default {
       newOverrideYear: null,
       noResults: false, // Show no results message for TMDB search
       numberOfResultsToShow: 25,
+      offlineDownload: { status: 'idle', completed: 0, total: 0, failed: 0 },
       quickLinksSortType: "count",
       scrapingTest: {
         loading: false,
@@ -3243,6 +3268,22 @@ export default {
         this.letterboxdConnected = true;
         this.saveLetterboxdConnection();
       }
+    },
+    async downloadForOffline () {
+      if (this.offlineDownload.status === 'running') {
+        return;
+      }
+
+      const urls = collectImageUrls(this.$store.state.movieLog);
+      this.offlineDownload = { status: 'running', completed: 0, total: urls.length, failed: 0 };
+
+      const result = await warmImageCache(urls, {
+        onProgress: (progress) => {
+          this.offlineDownload = { ...this.offlineDownload, ...progress };
+        }
+      });
+
+      this.offlineDownload = { status: 'done', ...result };
     },
     saveStickinessPromptState (value) {
       this.stickinessPromptState = value;

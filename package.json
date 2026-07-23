@@ -59,6 +59,7 @@
     "eslint": "^9",
     "eslint-plugin-promise": "^7",
     "eslint-plugin-vue": "^9",
+    "fake-indexeddb": "^6.2.5",
     "firebase-admin": "^12.7.0",
     "globals": "^15",
     "jsdom": "^26.1.0",

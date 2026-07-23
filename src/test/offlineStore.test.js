@@ -1,0 +1,56 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import 'fake-indexeddb/auto'
+import { saveSnapshot, loadSnapshot } from '@/utils/offlineStore.js'
+
+describe('offlineStore', () => {
+  beforeEach(() => {
+    indexedDB = new IDBFactory() // eslint-disable-line no-global-assign
+  })
+
+  it('returns null for a snapshot that was never saved', async () => {
+    const result = await loadSnapshot('some-user', 'movieLog')
+    expect(result).toBeNull()
+  })
+
+  it('round-trips a saved snapshot', async () => {
+    const data = { 'movie-1': { movie: { id: 1, title: 'Test Movie' } } }
+
+    await saveSnapshot('some-user', 'movieLog', data)
+    const result = await loadSnapshot('some-user', 'movieLog')
+
+    expect(result).toEqual(data)
+  })
+
+  it('keeps movieLog and settings snapshots separate for the same user', async () => {
+    await saveSnapshot('some-user', 'movieLog', { a: 1 })
+    await saveSnapshot('some-user', 'settings', { b: 2 })
+
+    expect(await loadSnapshot('some-user', 'movieLog')).toEqual({ a: 1 })
+    expect(await loadSnapshot('some-user', 'settings')).toEqual({ b: 2 })
+  })
+
+  it('keeps snapshots separate per databaseTopKey', async () => {
+    await saveSnapshot('user-a', 'movieLog', { owner: 'a' })
+    await saveSnapshot('user-b', 'movieLog', { owner: 'b' })
+
+    expect(await loadSnapshot('user-a', 'movieLog')).toEqual({ owner: 'a' })
+    expect(await loadSnapshot('user-b', 'movieLog')).toEqual({ owner: 'b' })
+  })
+
+  it('overwrites a previous snapshot for the same key', async () => {
+    await saveSnapshot('some-user', 'movieLog', { version: 1 })
+    await saveSnapshot('some-user', 'movieLog', { version: 2 })
+
+    expect(await loadSnapshot('some-user', 'movieLog')).toEqual({ version: 2 })
+  })
+
+  it('resolves to null instead of throwing when IndexedDB is unavailable', async () => {
+    const realIndexedDB = indexedDB
+    indexedDB = undefined // eslint-disable-line no-global-assign
+
+    await expect(saveSnapshot('some-user', 'movieLog', { a: 1 })).resolves.toBeUndefined()
+    await expect(loadSnapshot('some-user', 'movieLog')).resolves.toBeNull()
+
+    indexedDB = realIndexedDB // eslint-disable-line no-global-assign
+  })
+})
