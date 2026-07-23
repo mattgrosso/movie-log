@@ -523,6 +523,20 @@ $difficulty-tier-colors: (
   padding: 0.45rem 0.4rem;
 }
 
+// Each segment's own square corners need to already match the container's
+// pill shape - relying on the container's overflow:hidden alone clips a
+// square border against a rounded boundary, leaving a stray crescent of
+// border visible outside the pill at both ends (bug report, screenshot).
+.difficulty-segment:first-child {
+  border-bottom-left-radius: 999px;
+  border-top-left-radius: 999px;
+}
+
+.difficulty-segment:last-child {
+  border-bottom-right-radius: 999px;
+  border-top-right-radius: 999px;
+}
+
 @each $key, $colors in $difficulty-tier-colors {
   .difficulty-segment.#{$key} {
     border-color: map-get($colors, outline);
