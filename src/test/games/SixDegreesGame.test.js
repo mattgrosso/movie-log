@@ -435,11 +435,12 @@ describe('SixDegreesGame', () => {
     });
   });
 
-  describe('custom header banner graphic (replaces the generic movie backdrop while on this game)', () => {
-    it('sets the header banner to the Six Degrees graphic on mount', () => {
+  describe('themed header banner (replaces the generic movie backdrop with the "Six Degrees of Separation" pun while on this game)', () => {
+    it('sets the header banner to the themed movie backdrop on mount', () => {
       const wrapper = factory(buildConnectedLibrary());
       const lastCall = wrapper.vm.$store.commit.mock.calls.find((call) => call[0] === 'setBannerUrl');
-      expect(lastCall[1]).toContain('six-degrees-banner');
+      expect(lastCall[1]).toContain('image.tmdb.org');
+      expect(lastCall[1]).toContain('e9L5dpi41k3YkbavwgOGXnQGCe1');
     });
 
     it('restores whatever banner was showing before, on unmount', () => {

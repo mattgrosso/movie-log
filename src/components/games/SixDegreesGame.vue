@@ -126,22 +126,27 @@ import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { buildCastGraph, pickConnectedPair, shortestPath, scorePathDifficulty, difficultyForScore, DIFFICULTY_LEVELS } from '../../assets/javascript/games/sixDegrees.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
-import sixDegreesBanner from '../../assets/images/games/six-degrees-banner.svg';
 
 const STORAGE_KEY = 'cinemaRoll.sixDegrees.current';
+
+// A pun, not generated art: the real backdrop for "Six Degrees of
+// Separation" (1993, TMDB id 23210) - swapped in as the header banner while
+// playing this game instead of a custom graphic (tried and dropped per
+// feedback - see CLAUDE.md). w500 matches Home.vue's own banner sizing.
+const THEMED_BANNER_URL = 'https://image.tmdb.org/t/p/w500/e9L5dpi41k3YkbavwgOGXnQGCe1.jpg';
 
 export default {
   name: 'SixDegreesGame',
   components: { BackLink, NewRatingSearch },
   mixins: [gameDataMixin],
   // The shared Header stays visible on every game screen (see BackLink's own
-  // comment) and just renders store.state.bannerUrl - swap it for a custom
-  // graphic representing this game rather than leaving whatever movie
-  // backdrop Home last set. Restored on the way out so leaving doesn't
-  // strand the graphic on Home or another screen.
+  // comment) and just renders store.state.bannerUrl - swap it for the
+  // themed movie backdrop above rather than leaving whatever movie backdrop
+  // Home last set. Restored on the way out so leaving doesn't strand it on
+  // Home or another screen.
   created () {
     this.previousBannerUrl = this.$store.state?.bannerUrl;
-    this.$store.commit?.('setBannerUrl', sixDegreesBanner);
+    this.$store.commit?.('setBannerUrl', THEMED_BANNER_URL);
   },
   beforeUnmount () {
     this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
@@ -507,7 +512,7 @@ $difficulty-tier-colors: (
 }
 
 .difficulty-segments {
-  border-radius: 999px;
+  border-radius: 8px;
   display: flex;
   flex: 1;
   overflow: hidden;
@@ -524,17 +529,19 @@ $difficulty-tier-colors: (
 }
 
 // Each segment's own square corners need to already match the container's
-// pill shape - relying on the container's overflow:hidden alone clips a
-// square border against a rounded boundary, leaving a stray crescent of
-// border visible outside the pill at both ends (bug report, screenshot).
+// rounded-rect shape - relying on the container's overflow:hidden alone
+// clips a square border against a rounded boundary, leaving a stray
+// crescent of border visible outside it at both ends (bug report,
+// screenshot). Kept deliberately subtle (8px, not a full pill) per
+// feedback ("much less oval and much more rectangular").
 .difficulty-segment:first-child {
-  border-bottom-left-radius: 999px;
-  border-top-left-radius: 999px;
+  border-bottom-left-radius: 8px;
+  border-top-left-radius: 8px;
 }
 
 .difficulty-segment:last-child {
-  border-bottom-right-radius: 999px;
-  border-top-right-radius: 999px;
+  border-bottom-right-radius: 8px;
+  border-top-right-radius: 8px;
 }
 
 @each $key, $colors in $difficulty-tier-colors {
