@@ -21,15 +21,15 @@
         >
       </div>
       <!-- Typo-tolerant "Did you mean...?" fallback from the user's own rated
-           data. Deliberately just one suggestion, styled as a plain small
-           link - a full row of chips between the search bar and the
-           new-rating-suggestion UI was too prominent given how much more
-           often a search is a genuinely new (unrated) movie than a typo. -->
-      <p v-if="topDidYouMeanSuggestion" class="did-you-mean-inline mb-1">
-        <a href="#" class="did-you-mean-link" @click.prevent="applyDidYouMeanSuggestion(topDidYouMeanSuggestion)">
-          Did you mean {{ topDidYouMeanSuggestion.value }}?
-        </a>
-      </p>
+           data. As many ranked suggestions as fit on one line (see
+           didYouMeanFitCount/updateDidYouMeanFitCount) - a full row of chips
+           between the search bar and the new-rating-suggestion UI was too
+           prominent given how much more often a search is a genuinely new
+           (unrated) movie than a typo, but a single link under-used the
+           space once it was cut down to that. The CSS ellipsis is the real
+           guarantee against overflow; the fit-count just decides how many
+           terms to attempt. -->
+      <p v-if="didYouMeanLineSuggestions.length" class="did-you-mean-inline mb-1">Did you mean?: <template v-for="(suggestion, index) in didYouMeanLineSuggestions" :key="`${suggestion.typeLabel}-${suggestion.value}`"><a href="#" class="did-you-mean-link" @click.prevent="applyDidYouMeanSuggestion(suggestion)">{{ suggestion.value }}</a><span v-if="index < didYouMeanLineSuggestions.length - 1">, </span></template></p>
     </div>
 
     <!-- Active Filter Chips - only show when filters are active -->
@@ -76,7 +76,7 @@
     <!-- Brand new (0-rated) user: a short welcome, then suggestions shown
          immediately - see shouldShowStartSuggestions for why no tap is
          required here specifically. -->
-    <div v-if="$store.state.dbLoaded && isBrandNewUser && !dismissedWelcomeSuggestions && !value && !resultsAreFiltered" class="welcome-new-user text-center my-3">
+    <div v-if="$store.state.dbLoaded && isBrandNewUser && !dismissedWelcomeSuggestions && !value && !resultsAreFiltered" class="welcome-new-user text-center mt-3 mb-2">
       <p class="welcome-new-user-text">Welcome to Cinema Roll! This app is built entirely around movies you rate yourself.</p>
     </div>
 
@@ -869,7 +869,8 @@ import {
   getListOfYearsFromRange as getListOfYearsFromRangeUtil,
   getSortValue as getSortValueUtil,
   sortResultsFast as sortResultsFastUtil,
-  sortResults as sortResultsUtil
+  sortResults as sortResultsUtil,
+  countDidYouMeanSuggestionsThatFit
 } from '../assets/javascript/searchFiltering.js';
 import {
   awardNameWithThe,
@@ -933,6 +934,14 @@ export default {
       debouncedSetSearchValue: debounce(function (value) {
         this.searchValue = value;
       }, 300),
+      // How many ranked "Did you mean?" suggestions currently fit on one line
+      // next to the label, given the search input's actual width - see
+      // updateDidYouMeanFitCount. Starts conservative; recalculated once the
+      // input is actually mounted/measurable.
+      didYouMeanFitCount: 1,
+      debouncedUpdateDidYouMeanFitCount: debounce(function () {
+        this.updateDidYouMeanFitCount();
+      }, 200),
       filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'tag'],
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
 
@@ -991,6 +1000,11 @@ export default {
       // (Re)wire the infinite-scroll observer whenever the sentinel appears or
       // disappears — its element is recreated each time this flips true.
       this.$nextTick(() => this.setupLoadMoreObserver());
+    },
+    didYouMeanSuggestions () {
+      // Candidate terms changed (new search value) - re-measure since
+      // different terms have different lengths, so how many fit will vary.
+      this.$nextTick(() => this.updateDidYouMeanFitCount());
     },
     effectiveSearchFilter (newVal, oldVal) {
       // Fetch unrated movies for any non-empty search term (from input or chips)
@@ -1145,8 +1159,16 @@ export default {
     // restored navigation state). The canLoadMore watcher covers the later
     // case where the library loads in after mount.
     this.$nextTick(() => this.setupLoadMoreObserver());
+
+    // "Did you mean?" fit-count depends on the search input's actual
+    // rendered width, so it needs a real DOM measurement (not just reactive
+    // state) once mounted, and again on resize (e.g. rotating a phone).
+    this.$nextTick(() => this.updateDidYouMeanFitCount());
+    window.addEventListener('resize', this.debouncedUpdateDidYouMeanFitCount);
   },
   beforeUnmount () {
+    window.removeEventListener('resize', this.debouncedUpdateDidYouMeanFitCount);
+
     // Clean up error log refresh interval
     this.stopErrorLogRefresh();
 
@@ -1709,11 +1731,13 @@ export default {
 
       return suggestions;
     },
-    // The UI only ever surfaces the single best match now (see the template's
-    // did-you-mean-inline link) - didYouMeanSuggestions itself stays a ranked
-    // list of up to 5 since the blur-guard and tests rely on its full shape.
-    topDidYouMeanSuggestion () {
-      return this.didYouMeanSuggestions[0] || null;
+    // As many of the ranked suggestions (best first) as fit on one line next
+    // to the "Did you mean?:" label, per didYouMeanFitCount - see
+    // updateDidYouMeanFitCount for how that's kept in sync with the actual
+    // rendered width. didYouMeanSuggestions itself stays a full ranked list
+    // of up to 5 since the blur-guard and tests rely on its full shape.
+    didYouMeanLineSuggestions () {
+      return this.didYouMeanSuggestions.slice(0, this.didYouMeanFitCount);
     },
     groupOrder () {
       // Returns the active group hierarchy. Uses the user's daily override from
@@ -3598,6 +3622,16 @@ export default {
       // through detectFilterType (i.e. as a general chip), matching a typed title.
       this.addSearchFilter(suggestion.value, false, suggestion.expectedType);
     },
+    // Decides how many ranked "Did you mean?" suggestions to attempt to show
+    // on one line, given the search input's actual current width. The DOM
+    // measurement lives here; the pure fit-counting math is
+    // countDidYouMeanSuggestionsThatFit (searchFiltering.js) so it's directly
+    // unit-testable without mounting the component.
+    updateDidYouMeanFitCount () {
+      const input = this.$refs.searchInput;
+      const maxWidth = input ? input.offsetWidth : 0;
+      this.didYouMeanFitCount = countDidYouMeanSuggestionsThatFit(this.didYouMeanSuggestions, maxWidth);
+    },
     clearAllFilters () {
       // Blur the search input first to prevent layout shifts
       if (this.$refs.searchInput) {
@@ -4896,7 +4930,14 @@ export default {
 }
 .did-you-mean-inline {
   font-size: 0.75rem;
-  margin-top: -0.25rem;
+  margin-top: 0.35rem;
+  /* Hard guarantee against wrapping/overflow regardless of how close
+     updateDidYouMeanFitCount's character-count estimate gets - worst case
+     is an ellipsis mid-last-term, never a wrapped or overflowing line. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .did-you-mean-link {
   color: #adb5bd;

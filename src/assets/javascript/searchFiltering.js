@@ -222,3 +222,34 @@ export function sortResults (a, b, { sortValue, sortOrder, getRating }) {
   }
   return 0;
 }
+
+/**
+ * How many ranked "Did you mean?" suggestions (best first) fit on one line
+ * next to the "Did you mean?: " label, given the search input's rendered
+ * width. A character-count estimate, not pixel-exact text measurement -
+ * Home.vue's .did-you-mean-inline backstops this with CSS overflow:hidden +
+ * text-overflow:ellipsis, so the real requirement here is "don't wildly
+ * overshoot," not perfect precision. Always returns at least 1 (when there's
+ * at least one candidate) rather than 0, even if that one term doesn't
+ * perfectly fit - showing nothing isn't better than a truncated suggestion.
+ */
+export function countDidYouMeanSuggestionsThatFit (candidates, maxWidthPx, avgCharWidthPx = 6) {
+  if (!candidates.length || !maxWidthPx) {
+    return candidates.length ? 1 : 0;
+  }
+
+  let used = 'Did you mean?: '.length * avgCharWidthPx;
+  let count = 0;
+
+  for (const candidate of candidates) {
+    const separatorChars = count > 0 ? 2 : 0; // ", "
+    const termWidth = (candidate.value.length + separatorChars) * avgCharWidthPx;
+    if (count > 0 && used + termWidth > maxWidthPx) {
+      break;
+    }
+    used += termWidth;
+    count += 1;
+  }
+
+  return Math.max(count, 1);
+}

@@ -5,7 +5,8 @@ import {
   applyFilter,
   getSortValue,
   sortResultsFast,
-  sortResults
+  sortResults,
+  countDidYouMeanSuggestionsThatFit
 } from '@/assets/javascript/searchFiltering.js'
 
 // Direct unit tests of the pure search/filter/sort module — no component mount.
@@ -144,5 +145,52 @@ describe('sortResultsFast matches sortResults (the oracle) exactly', () => {
     const snapshot = input.map(i => i.movie.title)
     sortResultsFast(input, { sortValue: 'rating', sortOrder: 'bestOrNewestOnTop', getRating })
     expect(input.map(i => i.movie.title)).toEqual(snapshot)
+  })
+})
+
+describe('countDidYouMeanSuggestionsThatFit', () => {
+  const term = (value) => ({ value })
+
+  it('returns 0 when there are no candidates, regardless of width', () => {
+    expect(countDidYouMeanSuggestionsThatFit([], 1000)).toBe(0)
+    expect(countDidYouMeanSuggestionsThatFit([], 0)).toBe(0)
+  })
+
+  it('returns 1 (never 0) when width is unknown/unmeasurable but candidates exist', () => {
+    expect(countDidYouMeanSuggestionsThatFit([term('Denis Villeneuve')], 0)).toBe(1)
+  })
+
+  it('fits exactly one short term in a narrow width', () => {
+    // "Did you mean?: " (16 chars) + "Ab" (2 chars) at 6px/char = 108px
+    const count = countDidYouMeanSuggestionsThatFit([term('Ab'), term('Cd'), term('Ef')], 120)
+    expect(count).toBe(1)
+  })
+
+  it('fits more terms as width grows', () => {
+    const candidates = [term('Ab'), term('Cd'), term('Ef'), term('Gh')]
+    const narrow = countDidYouMeanSuggestionsThatFit(candidates, 120)
+    const wide = countDidYouMeanSuggestionsThatFit(candidates, 2000)
+    expect(wide).toBeGreaterThan(narrow)
+    expect(wide).toBe(4)
+  })
+
+  it('never returns more than the number of candidates available', () => {
+    const candidates = [term('Ab'), term('Cd')]
+    expect(countDidYouMeanSuggestionsThatFit(candidates, 100000)).toBe(2)
+  })
+
+  it('accounts for the ", " separator between terms, not just the terms themselves', () => {
+    // Two terms whose own widths just fit, but not with a separator between them.
+    const labelWidth = 'Did you mean?: '.length * 6 // 96
+    const termWidth = 10 * 6 // a 10-char term = 60px
+    // Room for label + one term + separator, but not a second full term.
+    const maxWidth = labelWidth + termWidth + 2 * 6 + 5
+    const candidates = [term('AAAAAAAAAA'), term('BBBBBBBBBB')]
+    expect(countDidYouMeanSuggestionsThatFit(candidates, maxWidth)).toBe(1)
+  })
+
+  it('always returns at least 1 even if the single best term does not perfectly fit', () => {
+    const count = countDidYouMeanSuggestionsThatFit([term('A Very Long Suggestion Title Indeed')], 50)
+    expect(count).toBe(1)
   })
 })

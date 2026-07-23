@@ -209,27 +209,58 @@ describe('Fuzzy "Did you mean?" suggestions', () => {
     })
   })
 
-  describe('topDidYouMeanSuggestion (single-link UI)', () => {
-    it('is the same as the first ranked suggestion', async () => {
-      wrapper.vm.searchValue = 'villenueve'
-      await wrapper.vm.$nextTick()
-      expect(wrapper.vm.topDidYouMeanSuggestion).toEqual(wrapper.vm.didYouMeanSuggestions[0])
-    })
+  describe('didYouMeanLineSuggestions (fit-as-many-as-fit-on-one-line UI)', () => {
+    it('renders one link per fitting suggestion under a single "Did you mean?:" label, not a row of chips', async () => {
+      // jsdom never lays out elements (offsetWidth is always 0), so stub a
+      // real width before the watcher fires - the fit-counting math itself
+      // is unit-tested in isolation in searchFiltering.test.js; this just
+      // proves the component wiring renders whatever it computes correctly.
+      Object.defineProperty(wrapper.vm.$refs.searchInput, 'offsetWidth', { value: 2000, configurable: true })
 
-    it('is null when there are no suggestions', async () => {
-      wrapper.vm.searchValue = 'qzxwvkj'
-      await wrapper.vm.$nextTick()
-      expect(wrapper.vm.topDidYouMeanSuggestion).toBeNull()
-    })
-
-    it('renders as a single small text link directly under the search input, not a row of chips', async () => {
       wrapper.vm.searchValue = 'villenueve'
-      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick() // let didYouMeanSuggestions recompute and the watcher fire
+      await wrapper.vm.$nextTick() // let the watcher's own nested nextTick callback update fitCount
+      await wrapper.vm.$nextTick() // let the DOM patch reflect that updated fitCount
+
+      const container = wrapper.find('.did-you-mean-inline')
+      expect(container.exists()).toBe(true)
+      expect(container.text()).toContain('Did you mean?:')
 
       const links = wrapper.findAll('.did-you-mean-link')
-      expect(links).toHaveLength(1)
-      expect(links[0].text()).toBe(`Did you mean ${wrapper.vm.topDidYouMeanSuggestion.value}?`)
+      expect(links).toHaveLength(wrapper.vm.didYouMeanSuggestions.length)
+      expect(links.map((l) => l.text())).toEqual(wrapper.vm.didYouMeanSuggestions.map((s) => s.value))
       expect(wrapper.find('.did-you-mean-chip').exists()).toBe(false)
+    })
+
+    it('renders nothing when there are no suggestions', async () => {
+      wrapper.vm.searchValue = 'qzxwvkj'
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.didYouMeanLineSuggestions).toEqual([])
+      expect(wrapper.find('.did-you-mean-inline').exists()).toBe(false)
+    })
+
+    it('auto-updates the fit count (via the didYouMeanSuggestions watcher) when the search term changes, without manually calling updateDidYouMeanFitCount', async () => {
+      wrapper.vm.searchValue = 'villenueve'
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick() // let the watcher's own nextTick callback resolve too
+
+      // jsdom reports 0 width, so the wired-up call still resolves to the
+      // "unmeasurable width" fallback (1) rather than staying at its stale
+      // pre-search value - proves the watcher actually fired.
+      expect(wrapper.vm.didYouMeanFitCount).toBe(1)
+    })
+
+    it('applying a suggestion still commits the correct chip (tap-to-commit unaffected by the multi-term UI)', async () => {
+      wrapper.vm.searchValue = 'villenueve'
+      await wrapper.vm.$nextTick()
+      const suggestion = wrapper.vm.didYouMeanSuggestions[0]
+
+      wrapper.vm.applyDidYouMeanSuggestion(suggestion)
+      await wrapper.vm.$nextTick()
+
+      const chip = wrapper.vm.activeFilters.find((f) => f.value === suggestion.value)
+      expect(chip).toBeTruthy()
     })
   })
 

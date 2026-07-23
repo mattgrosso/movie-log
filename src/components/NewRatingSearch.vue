@@ -1,5 +1,5 @@
 <template>
-  <div class="new-rating-search mt-3 mb-4 mx-3">
+  <div class="new-rating-search mt-2 mb-4 mx-3">
     <div v-if="suggestionsMode && suggestions && suggestions.length" class="quick-pick">
       <p>Want some help getting started? Rate one of these popular movies:</p>
       <PickMedia :quickPick="true" :mediaList="suggestions" />
