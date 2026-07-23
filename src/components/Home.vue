@@ -1222,7 +1222,7 @@ export default {
       } catch (error) {
         // localStorage can throw in private-browsing/quota-exceeded situations.
       }
-      return (lastPlayed && GAME_ICONS[lastPlayed]) || 'bi-controller';
+      return (lastPlayed && GAME_ICONS[lastPlayed]) || 'bi-dice-5-fill';
     },
     normalizationTweak () {
       const value = this.$store.state.settings?.normalizationTweak;

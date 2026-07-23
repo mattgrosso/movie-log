@@ -18,7 +18,7 @@
             :key="level.key"
             type="button"
             class="difficulty-segment"
-            :class="{ active: selectedDifficulty === level.key }"
+            :class="[level.key, { active: selectedDifficulty === level.key }]"
             @click="selectDifficulty(level.key)"
           >{{ level.label }}</button>
         </div>
@@ -42,7 +42,7 @@
             :key="level.key"
             type="button"
             class="difficulty-segment"
-            :class="{ active: selectedDifficulty === level.key }"
+            :class="[level.key, { active: selectedDifficulty === level.key }]"
             @click="selectDifficulty(level.key)"
           >{{ level.label }}</button>
         </div>
@@ -126,6 +126,7 @@ import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { buildCastGraph, pickConnectedPair, shortestPath, scorePathDifficulty, difficultyForScore, DIFFICULTY_LEVELS } from '../../assets/javascript/games/sixDegrees.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
+import sixDegreesBanner from '../../assets/images/games/six-degrees-banner.svg';
 
 const STORAGE_KEY = 'cinemaRoll.sixDegrees.current';
 
@@ -133,6 +134,18 @@ export default {
   name: 'SixDegreesGame',
   components: { BackLink, NewRatingSearch },
   mixins: [gameDataMixin],
+  // The shared Header stays visible on every game screen (see BackLink's own
+  // comment) and just renders store.state.bannerUrl - swap it for a custom
+  // graphic representing this game rather than leaving whatever movie
+  // backdrop Home last set. Restored on the way out so leaving doesn't
+  // strand the graphic on Home or another screen.
+  created () {
+    this.previousBannerUrl = this.$store.state?.bannerUrl;
+    this.$store.commit?.('setBannerUrl', sixDegreesBanner);
+  },
+  beforeUnmount () {
+    this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
+  },
   data () {
     return {
       // Two separate graphs on purpose. `graph` is capped at the 10 most-
@@ -467,50 +480,64 @@ export default {
   margin-bottom: 1rem;
 }
 
-// One connected segmented control (bug report: separate pill buttons were
-// "no good... one connected button set with a label").
+// One connected segmented control, full width (bug report: "no good... one
+// connected button set with a label" then "I want the label plus the
+// buttons to go full width... it would be nice if the buttons were
+// colored"). Each tier gets its own color - a light outline by default, a
+// solid fill once selected.
+$difficulty-tier-colors: (
+  easy: (outline: #66bb6a, fill: #2e7d32),
+  medium: (outline: #ffa726, fill: #ef6c00),
+  hard: (outline: #ef5350, fill: #c62828)
+);
+
 .difficulty-picker {
   align-items: center;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
+  gap: 0.6rem;
   margin-bottom: 1.25rem;
+  width: 100%;
 }
 
 .difficulty-picker-label {
   color: #adb5bd;
+  flex-shrink: 0;
   font-size: 0.85rem;
   font-weight: 600;
 }
 
 .difficulty-segments {
-  border: 1px solid #444;
   border-radius: 999px;
-  display: inline-flex;
+  display: flex;
+  flex: 1;
   overflow: hidden;
 }
 
 .difficulty-segment {
   background: transparent;
-  border: none;
+  border: 2px solid #555;
   color: #ccc;
+  flex: 1;
   font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.4rem 0.9rem;
+  font-weight: 700;
+  padding: 0.45rem 0.4rem;
 }
 
-.difficulty-segment + .difficulty-segment {
-  border-left: 1px solid #444;
-}
+@each $key, $colors in $difficulty-tier-colors {
+  .difficulty-segment.#{$key} {
+    border-color: map-get($colors, outline);
+    color: map-get($colors, outline);
+  }
 
-.difficulty-segment.active {
-  background: linear-gradient(135deg, #ffc107, #ff9800);
-  color: #1a1a1a;
+  .difficulty-segment.#{$key}.active {
+    background: map-get($colors, fill);
+    border-color: map-get($colors, fill);
+    color: #fff;
+  }
 }
 
 .difficulty-segment:active:not(.active) {
-  background: #2a2a2a;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .not-enough-movies {
@@ -526,7 +553,7 @@ export default {
 // the movies for the steps in between"). Sized 3-across on a phone screen
 // (bug report: "fit three items across... use more of the width").
 .chain-row {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem 0.3rem;

@@ -197,7 +197,7 @@ describe('SixDegreesGame', () => {
     it('recovers once the library finishes loading, instead of permanently stranding on "not enough movies" (real bug: a direct/deep-link page load can mount before Firebase data arrives)', async () => {
       const getters = reactive({ allMediaAsArray: [] });
       const wrapper = mount(SixDegreesGame, {
-        global: { mocks: { $store: { getters }, $router: { push: vi.fn() } } }
+        global: { mocks: { $store: { getters, state: {}, commit: vi.fn() }, $router: { push: vi.fn() } } }
       });
 
       // eligibleGameEntries is empty at mount — must not build an empty graph
@@ -432,6 +432,32 @@ describe('SixDegreesGame', () => {
       window.scrollTo.mockClear();
       wrapper.vm.start();
       expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' });
+    });
+  });
+
+  describe('custom header banner graphic (replaces the generic movie backdrop while on this game)', () => {
+    it('sets the header banner to the Six Degrees graphic on mount', () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const lastCall = wrapper.vm.$store.commit.mock.calls.find((call) => call[0] === 'setBannerUrl');
+      expect(lastCall[1]).toContain('six-degrees-banner');
+    });
+
+    it('restores whatever banner was showing before, on unmount', () => {
+      const store = { getters: { allMediaAsArray: buildConnectedLibrary() }, state: { bannerUrl: 'https://example.com/some-movie-backdrop.jpg' }, commit: vi.fn() };
+      const wrapper = mount(SixDegreesGame, { global: { mocks: { $store: store, $router: { push: vi.fn() } } } });
+      wrapper.unmount();
+
+      const calls = store.commit.mock.calls.filter((call) => call[0] === 'setBannerUrl');
+      expect(calls[calls.length - 1][1]).toBe('https://example.com/some-movie-backdrop.jpg');
+    });
+
+    it('restores to null (not the game graphic) when no banner was set before', () => {
+      const store = { getters: { allMediaAsArray: buildConnectedLibrary() }, state: {}, commit: vi.fn() };
+      const wrapper = mount(SixDegreesGame, { global: { mocks: { $store: store, $router: { push: vi.fn() } } } });
+      wrapper.unmount();
+
+      const calls = store.commit.mock.calls.filter((call) => call[0] === 'setBannerUrl');
+      expect(calls[calls.length - 1][1]).toBeFalsy();
     });
   });
 });

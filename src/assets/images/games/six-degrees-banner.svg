@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="Six Degrees">
+  <defs>
+    <linearGradient id="sd-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#12171c"/>
+      <stop offset="55%" stop-color="#1a2229"/>
+      <stop offset="100%" stop-color="#222c34"/>
+    </linearGradient>
+    <radialGradient id="sd-glow" cx="50%" cy="58%" r="65%">
+      <stop offset="0%" stop-color="#ffb300" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#ffb300" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sd-movie" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a5b66"/>
+      <stop offset="100%" stop-color="#232e35"/>
+    </linearGradient>
+    <radialGradient id="sd-person" cx="35%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#ffd54f"/>
+      <stop offset="100%" stop-color="#f57c00"/>
+    </radialGradient>
+    <filter id="sd-shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <clipPath id="sd-person-clip-1"><circle cx="430" cy="560" r="92"/></clipPath>
+    <clipPath id="sd-person-clip-2"><circle cx="950" cy="560" r="92"/></clipPath>
+    <clipPath id="sd-person-clip-3"><circle cx="1470" cy="540" r="92"/></clipPath>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="900" fill="url(#sd-bg)"/>
+  <rect x="0" y="0" width="1600" height="900" fill="url(#sd-glow)"/>
+
+  <!-- Faint background network texture - decorative only, clear of the title
+       block and the main chain below. -->
+  <g stroke="#90a4ae" stroke-width="2" opacity="0.14">
+    <line x1="520" y1="70" x2="640" y2="105"/>
+    <line x1="640" y1="105" x2="760" y2="60"/>
+    <line x1="900" y1="90" x2="1010" y2="55"/>
+    <line x1="1140" y1="70" x2="1260" y2="100"/>
+    <line x1="60" y1="820" x2="180" y2="855"/>
+    <line x1="180" y1="855" x2="320" y2="815"/>
+    <line x1="360" y1="845" x2="480" y2="805"/>
+  </g>
+  <g fill="#cfd8dc" opacity="0.22">
+    <circle cx="520" cy="70" r="5"/>
+    <circle cx="640" cy="105" r="5"/>
+    <circle cx="760" cy="60" r="5"/>
+    <circle cx="900" cy="90" r="5"/>
+    <circle cx="1010" cy="55" r="5"/>
+    <circle cx="1140" cy="70" r="5"/>
+    <circle cx="1260" cy="100" r="5"/>
+    <circle cx="1420" cy="65" r="5"/>
+    <circle cx="60" cy="820" r="5"/>
+    <circle cx="180" cy="855" r="5"/>
+    <circle cx="320" cy="815" r="5"/>
+    <circle cx="360" cy="845" r="5"/>
+    <circle cx="480" cy="805" r="5"/>
+  </g>
+
+  <!-- Title, kept clear of the top-left back-link and bottom-right
+       "Cinema Roll" title chrome that overlay this banner. -->
+  <text x="460" y="175" font-family="'Arial Black', Arial, sans-serif" font-size="120" font-weight="800" letter-spacing="4" fill="#f5f5f5">SIX DEGREES</text>
+  <text x="464" y="228" font-family="Arial, sans-serif" font-size="32" font-weight="600" fill="#ffb74d">Trace the cast that connects any two movies</text>
+
+  <!-- The chain: alternating movie (poster chip) / person (photo circle)
+       nodes joined by a connecting line, echoing the in-game chain-row. -->
+  <g stroke="#ffc107" stroke-width="6" stroke-linecap="round" opacity="0.55">
+    <path d="M170,470 L430,560 L690,440 L950,560 L1210,440 L1470,540" fill="none"/>
+  </g>
+
+  <g filter="url(#sd-shadow)">
+    <rect x="90" y="370" width="160" height="200" rx="22" fill="url(#sd-movie)" stroke="#78909c" stroke-width="3"/>
+    <circle cx="430" cy="560" r="92" fill="url(#sd-person)" stroke="#e65100" stroke-width="3"/>
+    <rect x="610" y="340" width="160" height="200" rx="22" fill="url(#sd-movie)" stroke="#78909c" stroke-width="3"/>
+    <circle cx="950" cy="560" r="92" fill="url(#sd-person)" stroke="#e65100" stroke-width="3"/>
+    <rect x="1130" y="340" width="160" height="200" rx="22" fill="url(#sd-movie)" stroke="#78909c" stroke-width="3"/>
+    <circle cx="1470" cy="540" r="92" fill="url(#sd-person)" stroke="#e65100" stroke-width="3"/>
+  </g>
+
+  <!-- Simple glyphs so the two node kinds read clearly even at small size:
+       a play triangle for movies, a person silhouette for people. -->
+  <g fill="#eceff1" opacity="0.9">
+    <path d="M148,450 L192,470 L148,490 Z"/>
+    <path d="M668,420 L712,440 L668,460 Z"/>
+    <path d="M1188,420 L1232,440 L1188,460 Z"/>
+  </g>
+  <!-- Head + shoulders, each clipped to its own node's circle so the
+       shoulder mass reads as a solid rounded silhouette rather than a
+       thin line (an earlier pass here looked like a frown, not a body). -->
+  <g fill="#5d3a00" opacity="0.85">
+    <g clip-path="url(#sd-person-clip-1)">
+      <circle cx="430" cy="540" r="25"/>
+      <circle cx="430" cy="618" r="52"/>
+    </g>
+    <g clip-path="url(#sd-person-clip-2)">
+      <circle cx="950" cy="540" r="25"/>
+      <circle cx="950" cy="618" r="52"/>
+    </g>
+    <g clip-path="url(#sd-person-clip-3)">
+      <circle cx="1470" cy="520" r="25"/>
+      <circle cx="1470" cy="598" r="52"/>
+    </g>
+  </g>
+</svg>
