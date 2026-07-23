@@ -73,15 +73,22 @@
       </div>
     </div>
 
-    <!-- Suggestions button below search bar if user has rated < 10 movies -->
-    <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center my-2">
+    <!-- Brand new (0-rated) user: a short welcome, then suggestions shown
+         immediately - see shouldShowStartSuggestions for why no tap is
+         required here specifically. -->
+    <div v-if="$store.state.dbLoaded && isBrandNewUser && !dismissedWelcomeSuggestions && !value && !resultsAreFiltered" class="welcome-new-user text-center my-3">
+      <p class="welcome-new-user-text">Welcome to Cinema Roll! This app is built entirely around movies you rate yourself.</p>
+    </div>
+
+    <!-- Suggestions button below search bar if user has rated 1-9 movies -->
+    <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount > 0 && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center my-2">
       <button class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
     </div>
     <NoResults
-      v-if="showSuggestionsOnly && userRatedMovieCount < 10"
+      v-if="shouldShowStartSuggestions"
       :value="searchValue || effectiveSearchTerm"
       :suggestionsMode="true"
-      @cancel-suggestions="showSuggestionsOnly = false"
+      @cancel-suggestions="handleCancelSuggestions"
       style="margin-bottom: 2rem;"
     />
     <div v-else>
@@ -961,6 +968,7 @@ export default {
       copySuccess: false, // copy to clipboard success indicator
       errorLogRefreshInterval: null, // interval for refreshing error logs
       showSuggestionsOnly: false,
+      dismissedWelcomeSuggestions: false, // a 0-rated user can cancel out of the auto-shown welcome suggestions
       showViewCount: false,
       sortOrder: "bestOrNewestOnTop",
       sortValue: null,
@@ -2538,6 +2546,19 @@ export default {
       // Count the number of movies the user has rated (not TV shows)
       return this.allEntriesWithFlatKeywordsAdded.length;
     },
+    isBrandNewUser () {
+      return this.userRatedMovieCount === 0;
+    },
+    // A genuinely 0-rated user has nothing else to look at, so the "rate
+    // something to get started" suggestions show immediately - no reason to
+    // make them tap a button first, unlike the 1-9 range below (where they've
+    // already started and a standing button would be more nag than help).
+    shouldShowStartSuggestions () {
+      if (this.userRatedMovieCount >= 10) {
+        return false;
+      }
+      return this.showSuggestionsOnly || (this.isBrandNewUser && !this.dismissedWelcomeSuggestions);
+    },
     userTags () {
       return this.tags.slice(0, 20); // Limit to 20 most recent tags
     },
@@ -2605,6 +2626,14 @@ export default {
     },
     toggleSettingsPanel () {
       this.showSettingsPanel = !this.showSettingsPanel;
+    },
+    handleCancelSuggestions () {
+      // Covers both paths that can land here: a 1-9-rated user tapping the
+      // "Suggest more movies" button closed again, and a brand new (0-rated)
+      // user dismissing the auto-shown welcome suggestions to search directly
+      // instead (falls through to the plain "Search for a movie..." prompt).
+      this.showSuggestionsOnly = false;
+      this.dismissedWelcomeSuggestions = true;
     },
     toggleGroupOrderPanel () {
       this.showGroupOrderPanel = !this.showGroupOrderPanel;
@@ -4858,6 +4887,13 @@ export default {
 </style>
 
 <style scoped>
+.welcome-new-user-text {
+  color: #ccc;
+  font-size: 0.9rem;
+  margin: 0 auto;
+  max-width: 26rem;
+  padding: 0 1rem;
+}
 .did-you-mean-inline {
   font-size: 0.75rem;
   margin-top: -0.25rem;
