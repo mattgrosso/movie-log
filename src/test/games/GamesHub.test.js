@@ -55,4 +55,10 @@ describe('GamesHub', () => {
     await wrapper.findAll('.game-tile')[0].trigger('click');
     expect(pushSpy).toHaveBeenCalledWith('/games/higher-lower');
   });
+
+  it('scrolls to top before navigating (bug report: chosen game kept the hub\'s scroll position)', async () => {
+    const { wrapper } = factory(10);
+    await wrapper.findAll('.game-tile')[0].trigger('click');
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' });
+  });
 });

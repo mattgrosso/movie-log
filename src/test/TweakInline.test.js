@@ -199,6 +199,50 @@ describe('TweakInline', () => {
       await wrapper.find('.tweak-container').trigger('click')
       expect(wrapper.text()).toContain('match 2 of 6')
     })
+
+    // Bug report: a large tournament's final match "seemed frozen for 5-6
+    // seconds" with no indication anything was happening. Two fixes: (1)
+    // allMoviesRanked no longer does an O(n) getRating() call PER COMPARISON
+    // across the whole library (see the sortResultsFast switch), and (2) the
+    // spinner now genuinely tracks the score-adjustment writes instead of
+    // flipping back to false the instant they're merely kicked off.
+    it('keeps "submitting" true (and Done disabled) until every final-score write actually resolves', async () => {
+      const dispatch = vi.fn()
+      let resolveLastWrite
+      dispatch.mockImplementation((action, entry) => {
+        if (entry.path === 'movieLog/d') {
+          return new Promise((resolve) => { resolveLastWrite = resolve })
+        }
+        return Promise.resolve()
+      })
+      const movies = fourWayMovies()
+      const mockStore = {
+        state: { currentLog: 'movieLog', settings: { tieBreakTournament: null } },
+        getters: { allMoviesAsArray: movies },
+        dispatch
+      }
+      const wrapper = mount(TweakInline, {
+        global: { mocks: { $store: mockStore } },
+        props: { allEntriesWithFlatKeywordsAdded: movies, showTweakModal: true }
+      })
+
+      await wrapper.find('.tweak-container').trigger('click')
+      for (let i = 0; i < 6; i++) {
+        await wrapper.findAll('.poster-container')[0].trigger('click')
+      }
+
+      // The results screen renders immediately (finalRanking is local/sync)...
+      expect(wrapper.text()).toContain('Tournament Complete!')
+      // ...but the save is still in flight (movieLog/d's write hasn't resolved).
+      expect(wrapper.text()).toContain('Saving final scores')
+      expect(wrapper.find('.tournament-results').exists()).toBe(true)
+      const doneBtn = wrapper.find('.btn')
+      expect(doneBtn.attributes('disabled')).toBeDefined()
+
+      resolveLastWrite()
+      await vi.waitFor(() => expect(wrapper.text()).not.toContain('Saving final scores'))
+      expect(wrapper.find('.btn').attributes('disabled')).toBeUndefined()
+    })
   })
 
   describe('an already-running tournament (freeze-out)', () => {

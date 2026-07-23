@@ -14,7 +14,7 @@
         :key="game.path"
         type="button"
         class="game-tile"
-        @click="$router.push(game.path)"
+        @click="selectGame(game.path)"
       >
         <i :class="['bi', game.icon]"></i>
         <span class="game-tile-name">{{ game.name }}</span>
@@ -77,6 +77,17 @@ export default {
         }
       ]
     };
+  },
+  methods: {
+    // Bug report: choosing a game while scrolled down in the tile grid left
+    // the new game's page scrolled down too (Vue Router doesn't reset scroll
+    // position on navigation by default). Scroll to top BEFORE navigating so
+    // the new page always mounts already at the top, rather than letting a
+    // stale scroll position carry over.
+    selectGame (path) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      this.$router.push(path);
+    }
   }
 };
 </script>

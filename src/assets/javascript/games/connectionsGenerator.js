@@ -8,6 +8,14 @@ const CATEGORY_COUNT = 4;
 // most this many movies in the whole library count as "special" enough to
 // build a category from.
 const KEYWORD_MAX_MOVIE_COUNT = 10;
+// Per follow-up feedback ("needs a minimum too, not just a maximum, for a
+// good sweet spot") — a keyword shared by EXACTLY GROUP_SIZE (4) movies has
+// zero flexibility during generation (all 4 must be claimed as-is, with no
+// ability to swap one out if it overlaps a different category's pick),
+// which both makes for a coincidental-feeling group and makes that category
+// more likely to get skipped by the greedy no-overlap claiming step below.
+// Requiring a little headroom above the bare mechanical floor fixes both.
+const KEYWORD_MIN_MOVIE_COUNT = 5;
 
 // Per user feedback ("we need some way of rating difficulty, otherwise
 // they're all too hard and it's impossible") — an editorial difficulty tier
@@ -69,10 +77,13 @@ function groupBy (entries, extractValues, labelFor, kind) {
 // shared studio rarely feels like a meaningful connection the way a shared
 // director/cast member does). Keywords were added in their place, capped to
 // KEYWORD_MAX_MOVIE_COUNT so only "special"/niche keywords qualify, not
-// broad ones a huge fraction of the library shares.
+// broad ones a huge fraction of the library shares. Also floored at
+// KEYWORD_MIN_MOVIE_COUNT for the same "sweet spot" reasoning (see its own
+// comment) — GROUP_SIZE alone (enforced by groupBy for every kind) only
+// guarantees a category is mechanically usable, not that it's a good one.
 export function buildCandidateCategories (eligibleEntries) {
   const keywordCandidates = groupBy(eligibleEntries, movieKeywords, (name) => `Keyword: ${name}`, 'keyword')
-    .filter((candidate) => candidate.movies.length <= KEYWORD_MAX_MOVIE_COUNT);
+    .filter((candidate) => candidate.movies.length >= KEYWORD_MIN_MOVIE_COUNT && candidate.movies.length <= KEYWORD_MAX_MOVIE_COUNT);
 
   return [
     ...groupBy(eligibleEntries, movieDirectors, (name) => `Directed by ${name}`, 'director'),

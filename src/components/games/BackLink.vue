@@ -29,11 +29,14 @@ export default {
 <style scoped>
 .back-link {
   align-items: center;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
   color: #eee;
   column-gap: 4px;
   cursor: pointer;
   display: flex;
   left: 6px;
+  padding: 4px 10px;
   position: absolute;
   top: 6px;
 }

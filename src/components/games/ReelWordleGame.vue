@@ -1,14 +1,6 @@
 <template>
   <div class="reel-wordle-game">
     <BackLink label="Games" @click="$router.push('/games')"/>
-    <!-- Mirrors BackLink's corner-lift trick (absolute, no positioned
-         ancestor) on the opposite side — a direct way back to the search
-         screen without detouring through the games hub, keeping whatever
-         search was active (Home.vue's beforeRouteLeave now saves state for
-         any /games destination, not just this link specifically). -->
-    <button type="button" class="home-shortcut" @click="$router.push('/')" aria-label="Back to home">
-      <i class="bi bi-house-fill"></i>
-    </button>
     <h1 class="game-title">Reel Wordle</h1>
     <p class="game-subtitle">
       Guess the movie from your own library.
@@ -39,7 +31,7 @@
         <ul v-if="suggestions.length" class="suggestions">
           <li v-for="entry in suggestions" :key="entryKeyFor(entry)">
             <button type="button" class="suggestion-item" @click="submitGuess(entry)">
-              {{ entry.movie.title }}
+              {{ entry.movie.title }} <span class="suggestion-year">({{ suggestionYear(entry) }})</span>
             </button>
           </li>
         </ul>
@@ -166,6 +158,12 @@ export default {
   },
   methods: {
     entryKeyFor: entryKey,
+    // Same simple release_date -> year extraction MovieDetail.vue's getYear
+    // uses elsewhere in the app, for consistency.
+    suggestionYear (entry) {
+      const date = entry?.movie?.release_date;
+      return date ? new Date(date).getFullYear() : 'Unknown';
+    },
     onInput () {
       const term = this.guessInput.trim().toLowerCase();
       if (term.length < 2) {
@@ -261,8 +259,8 @@ export default {
   color: #eee;
   min-height: 100vh;
   // See the identical comment in ConnectionsGame.vue — top padding is a
-  // safety margin against BackLink/.home-shortcut overlapping this screen's
-  // own h1 when the global Header happens to have zero height.
+  // safety margin against BackLink overlapping this screen's own h1 when
+  // the global Header happens to have zero height.
   padding: 2.5rem 1rem 2rem;
 }
 
@@ -314,6 +312,11 @@ export default {
   background: #333;
 }
 
+.suggestion-year {
+  color: #adb5bd;
+  font-size: 0.85em;
+}
+
 // A left accent bar on a neutral dark background instead of a uniformly-
 // tinted box — reads as a purpose-built callout rather than a generic
 // (Bootstrap-alert-shaped) colored rectangle. Same treatment as
@@ -348,25 +351,6 @@ export default {
 .new-puzzle-btn {
   margin-bottom: 1rem;
   width: 100%;
-}
-
-/* Mirrors .back-link (BackLink.vue) on the opposite corner — same
-   position:absolute/no-positioned-ancestor lift over the global Header,
-   reset button chrome since this one's a <button> (needs a real tap target/
-   aria-label), not a <div>. */
-.home-shortcut {
-  background: none;
-  border: none;
-  color: #eee;
-  cursor: pointer;
-  padding: 4px;
-  position: absolute;
-  right: 6px;
-  top: 6px;
-}
-
-.home-shortcut:active {
-  opacity: 0.7;
 }
 
 /* Fixed 6-column grid, one row per guess — NOT a flex-wrap chip row (that

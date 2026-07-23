@@ -74,14 +74,33 @@ describe('buildCandidateCategories', () => {
   });
 
   describe('keyword categories', () => {
-    it('builds a category from a keyword shared by 4+ movies', () => {
+    it('builds a category from a keyword shared by a mid-range number of movies (5-10)', () => {
       const library = [
         ...buildSolvableLibrary(),
-        ...Array.from({ length: 4 }, (_, i) => entry({ id: `kw-${i}`, title: `Keyword Film ${i}`, director: `KW Director ${i}`, genre: `KW Genre ${i}`, year: 2005 + i, keywords: ['time travel'] }))
+        ...Array.from({ length: 6 }, (_, i) => entry({ id: `kw-${i}`, title: `Keyword Film ${i}`, director: `KW Director ${i}`, genre: `KW Genre ${i}`, year: 2005 + i, keywords: ['time travel'] }))
       ];
       const candidates = buildCandidateCategories(library);
       const kwCategory = candidates.find((c) => c.label === 'Keyword: time travel');
-      expect(kwCategory.movies).toHaveLength(4);
+      expect(kwCategory.movies).toHaveLength(6);
+    });
+
+    // Bug report follow-up: a keyword shared by exactly GROUP_SIZE (4) movies
+    // is now excluded too, not just an overly-broad one - it has zero
+    // flexibility during generation (all 4 must be used as-is) and reads as
+    // coincidental rather than a real pattern.
+    it('excludes a keyword shared by exactly 4 movies (at the bare mechanical floor, below the sweet spot)', () => {
+      const bare = Array.from({ length: 4 }, (_, i) => entry({ id: `bare-${i}`, title: `Bare ${i}`, director: `BR ${i}`, genre: `BRG ${i}`, year: 2001 + i, keywords: ['coincidence'] }));
+      const library = [...buildSolvableLibrary(), ...bare];
+      const candidates = buildCandidateCategories(library);
+      expect(candidates.some((c) => c.label === 'Keyword: coincidence')).toBe(false);
+    });
+
+    it('includes a keyword shared by exactly 5 movies (the minimum is inclusive)', () => {
+      const atFloor = Array.from({ length: 5 }, (_, i) => entry({ id: `floor-${i}`, title: `Floor ${i}`, director: `FD ${i}`, genre: `FG ${i}`, year: 2001 + i, keywords: ['floor keyword'] }));
+      const library = [...buildSolvableLibrary(), ...atFloor];
+      const candidates = buildCandidateCategories(library);
+      const kwCategory = candidates.find((c) => c.label === 'Keyword: floor keyword');
+      expect(kwCategory.movies).toHaveLength(5);
     });
 
     it('excludes a keyword shared by MORE than 10 movies (too broad, not "special")', () => {

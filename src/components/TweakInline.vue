@@ -28,8 +28,17 @@
             <span class="result-wins small ms-auto">{{ entry.wins }} win{{ entry.wins === 1 ? '' : 's' }}</span>
           </li>
         </ol>
+        <!-- Bug report: a large tournament's final scores take a real,
+             noticeable moment to save (one Firebase write per adjusted
+             contestant) and the screen gave no indication anything was
+             still happening - it just "seemed frozen". submitting now stays
+             true until those writes actually resolve (see chooseWinner). -->
+        <div v-if="submitting" class="text-center mb-2">
+          <span class="spinner-border spinner-border-sm text-light" role="status" aria-hidden="true"></span>
+          <span class="text-light ms-2">Saving final scores...</span>
+        </div>
         <div class="text-center">
-          <button type="button" class="btn btn-sm btn-outline-light" @click="acknowledgeResults">Done</button>
+          <button type="button" class="btn btn-sm btn-outline-light" :disabled="submitting" @click="acknowledgeResults">Done</button>
         </div>
       </div>
 
@@ -87,6 +96,7 @@
 
 <script>
 import { getRating } from "../assets/javascript/GetRating.js";
+import { sortResultsFast } from "../assets/javascript/searchFiltering.js";
 import {
   findTiedGroup,
   createRoundRobinTournament,
@@ -128,9 +138,22 @@ export default {
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
     },
+    // Bug report: with a large tournament (e.g. 33 contestants), the final
+    // match felt "frozen for 5-6 seconds" after tapping the last poster.
+    // Root cause: this used to be movies.sort(this.sortByRating), a naive
+    // comparator calling the moderately-expensive getRating() up to twice
+    // PER COMPARISON over the full library - and applyTournamentResults
+    // fires up to N Firebase writes, each of which can re-trigger this
+    // computed as movieLog updates land back. sortResultsFast (the same
+    // decorate-sort-undecorate fix already applied to Home.vue's search/sort
+    // path - see CLAUDE.md's "Search Recompute Performance") computes
+    // getRating() ONCE per item instead, with identical resulting order.
     allMoviesRanked () {
-      const movies = [...this.$store.getters.allMoviesAsArray];
-      return movies.sort(this.sortByRating);
+      return sortResultsFast(this.$store.getters.allMoviesAsArray, {
+        sortValue: 'rating',
+        sortOrder: 'bestOrNewestOnTop',
+        getRating
+      });
     },
     // The full contiguous group of movies tied on rating score right now —
     // only relevant when there's no tournament already in progress (a
@@ -217,19 +240,6 @@ export default {
         return result.movie;
       }
     },
-    sortByRating (a, b) {
-      const aRating = getRating(a)?.calculatedTotal;
-      const bRating = getRating(b)?.calculatedTotal;
-
-      if (aRating < bRating) {
-        return 1;
-      }
-      if (aRating > bRating) {
-        return -1;
-      }
-
-      return 0;
-    },
     mostRecentRatingIndex (result) {
       let mostRecentRating = result.ratings[0];
       let mostRecentRatingIndex = 0;
@@ -267,7 +277,7 @@ export default {
       this.localTournament = null;
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: null });
     },
-    chooseWinner (winnerResult) {
+    async chooseWinner (winnerResult) {
       if (!winnerResult || !this.currentTournament) return;
       this.submitting = true;
 
@@ -284,8 +294,16 @@ export default {
       // clock only resets at an actual stopping point — see the two branches
       // below, acknowledgeResults, and saveForLater.
 
+      // Resolves once every score-adjustment write has actually landed (see
+      // applyTournamentResults) - awaited below so `submitting` reflects the
+      // real save time instead of flipping back to false the instant these
+      // fire-and-forget dispatches are merely KICKED OFF. Local UI
+      // transitions (fast-path close/next-tournament, below) still happen
+      // immediately - only the spinner/Done-button wait on this.
+      let resultsSaved = Promise.resolve();
+
       if (isComplete(updatedTournament)) {
-        this.applyTournamentResults(updatedTournament);
+        resultsSaved = this.applyTournamentResults(updatedTournament);
 
         // A 2-way tie completes in exactly one match — showing the
         // "Tournament Complete!" standings screen (which needs an explicit
@@ -307,22 +325,24 @@ export default {
         // user taps "Done" there, not here.
       }
 
-      this.submitting = false;
-
       // Emit event to parent to update data
       this.$emit('tweak-updated');
+
+      await resultsSaved;
+      this.submitting = false;
     },
     // Applies the rank-based score adjustment to every contestant in one
     // batch, once the tournament's last match has been decided. The top
     // rank (0) is left untouched, matching the old single-pair tiebreak's
-    // "winner untouched, loser penalized" behavior.
+    // "winner untouched, loser penalized" behavior. Returns a Promise that
+    // resolves once every write has landed (see chooseWinner).
     applyTournamentResults (tournament) {
-      tournament.finalRanking.forEach((entry) => {
+      const writes = tournament.finalRanking.map((entry) => {
         const delta = tweakDeltaForRank(entry.rank);
-        if (delta === 0) return;
+        if (delta === 0) return null;
 
         const movie = this.allMoviesRanked.find((m) => m.dbKey === entry.dbKey);
-        if (!movie) return;
+        if (!movie) return null;
 
         const ratingIndex = this.mostRecentRatingIndex(movie);
         const currentTweakValue = movie.ratings[ratingIndex].tweakValue || 0;
@@ -337,8 +357,10 @@ export default {
           })
         };
 
-        this.$store.dispatch('setDBValue', { path: `movieLog/${movie.dbKey}`, value: movieWithRating });
-      });
+        return this.$store.dispatch('setDBValue', { path: `movieLog/${movie.dbKey}`, value: movieWithRating });
+      }).filter(Boolean);
+
+      return Promise.all(writes);
     },
     acknowledgeResults () {
       this.clearCompletedTournament();
@@ -430,6 +452,14 @@ export default {
       transform: scale(1.05);
     }
 
+    // Mobile-first: :hover alone doesn't give touch users any feedback that
+    // a tap registered (bug report - "something that just clearly indicates
+    // that I did click the poster"). :active fires reliably on tap and,
+    // unlike :hover on touch devices, always releases afterward.
+    &:active {
+      transform: scale(0.95);
+    }
+
     .poster-wrapper {
       position: relative;
       border: 2px solid rgba(255, 255, 255, 0.3);
@@ -440,6 +470,10 @@ export default {
       &:hover {
         border-color: rgba(255, 255, 255, 0.6);
       }
+    }
+
+    &:active .poster-wrapper {
+      border-color: rgba(255, 255, 255, 0.8);
     }
 
     .poster-image {
