@@ -53,31 +53,46 @@
       </div>
 
       <!-- The connection, built visually between the two posters as you go -
-           source through however much of the chain you've found, then (while
-           still unsolved) a "goal" marker for the target. Movie steps show
-           the real poster; person steps show a TMDB profile photo (fetched +
-           cached per name, see ensurePersonPhoto) or initials if none is
-           found. Every step is tappable (goes to the movie's detail page, or
-           a library search for the person) and, for entries the player
-           actually added (not the source, not the goal marker), carries a
-           small delete badge that trims the chain back to that point. -->
+           source through however much of the chain you've found, then
+           placeholder "?" slots filling the gap to the target (see
+           chainDisplayItems), or - once given up - the real revealed path
+           in this exact same row instead (see displayChain; no more
+           showing both at once). Movie steps show the real poster; person
+           steps show a TMDB profile photo (fetched + cached per name, see
+           ensurePersonPhoto) or initials if none is found. Every REAL step
+           is tappable (goes to the movie's detail page, or a library
+           search for the person) and, for entries the player actually
+           added (not the source, not a placeholder, not the goal marker),
+           carries a small delete badge that trims the chain back to that
+           point. -->
       <div class="chain-row">
-        <template v-for="(item, index) in chainDisplayItems" :key="item.itemKey">
-          <button type="button" class="chain-step" :class="[item.type, { goal: item.isGoal }]" @click="goToChainItem(item)">
+        <template v-for="(item, index) in displayChain" :key="item.itemKey">
+          <button
+            type="button"
+            class="chain-step"
+            :class="[item.type, { goal: item.isGoal, placeholder: item.isPlaceholder }]"
+            @click="handleChainItemClick(item)"
+          >
             <span
-              v-if="status === 'playing' && index > 0 && !item.isGoal"
+              v-if="status === 'playing' && index > 0 && !item.isGoal && !item.isPlaceholder"
               class="chain-delete-badge"
               title="Remove this and everything after it"
               @click.stop="deleteFromChain(index)"
             ><i class="bi bi-x"></i></span>
-            <img v-if="item.type === 'movie'" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title" class="chain-poster">
-            <template v-else>
-              <img v-if="personPhotoUrl(item.name)" :src="personPhotoUrl(item.name)" :alt="item.name" class="chain-photo">
-              <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(item.name) }}</div>
+            <template v-if="item.isPlaceholder">
+              <div v-if="item.type === 'movie'" class="chain-poster chain-placeholder">?</div>
+              <div v-else class="chain-photo chain-placeholder">?</div>
             </template>
-            <span class="chain-step-label" :title="item.type === 'movie' ? item.entry.movie.title : item.name">{{ item.type === 'movie' ? item.entry.movie.title : item.name }}</span>
+            <template v-else>
+              <img v-if="item.type === 'movie'" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title" class="chain-poster">
+              <template v-else>
+                <img v-if="personPhotoUrl(item.name)" :src="personPhotoUrl(item.name)" :alt="item.name" class="chain-photo">
+                <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(item.name) }}</div>
+              </template>
+            </template>
+            <span class="chain-step-label" :title="item.isPlaceholder ? '' : (item.type === 'movie' ? item.entry.movie.title : item.name)">{{ item.isPlaceholder ? '?' : (item.type === 'movie' ? item.entry.movie.title : item.name) }}</span>
           </button>
-          <i v-if="index < chainDisplayItems.length - 1" class="bi bi-arrow-right chain-arrow"></i>
+          <i v-if="index < displayChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
         </template>
       </div>
 
@@ -103,19 +118,6 @@
             <span v-if="pair.optimalHops != null"> (shortest possible: {{ pair.optimalHops }})</span>.
           </p>
           <p v-else>Here's the shortest path:</p>
-          <div v-if="status === 'revealed'" class="chain-row revealed-chain">
-            <template v-for="(link, index) in revealedChain" :key="index">
-              <button type="button" class="chain-step" :class="link.type" @click="goToChainItem(link)">
-                <img v-if="link.type === 'movie'" :src="gamePosterUrl(link.entry, 'w185')" :alt="link.entry.movie.title" class="chain-poster">
-                <template v-else>
-                  <img v-if="personPhotoUrl(link.name)" :src="personPhotoUrl(link.name)" :alt="link.name" class="chain-photo">
-                  <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(link.name) }}</div>
-                </template>
-                <span class="chain-step-label" :title="link.type === 'movie' ? link.entry.movie.title : link.name">{{ link.type === 'movie' ? link.entry.movie.title : link.name }}</span>
-              </button>
-              <i v-if="index < revealedChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
-            </template>
-          </div>
         </div>
 
         <!-- New game controls - back to a single "New game:" labeled row
@@ -212,15 +214,37 @@ export default {
     pairDifficulty () {
       return this.pair?.difficulty || null;
     },
-    // The chain built so far, plus (only while still unsolved) a trailing
-    // "goal" marker for the target movie - once won, the real chain already
-    // ends at the target, so no synthetic marker is added on top of it.
+    // The chain built so far, plus (only while still unsolved) placeholder
+    // "?" slots filling the gap to the target, then the target itself as a
+    // trailing "goal" marker. Bug report: "fill in the gap between the
+    // last entry and the end appropriately" - always ends on a PERSON
+    // placeholder immediately before the goal (the goal is itself the
+    // final movie), so needing a movie next means two placeholders (movie,
+    // then person) and needing a person next means just one. Once won, the
+    // real chain already ends at the target, so nothing synthetic is added.
     chainDisplayItems () {
       const items = this.chain.map((link, index) => ({ ...link, itemKey: `chain-${index}` }));
       if (this.status !== 'won' && this.pair?.target) {
+        if (this.needType === 'movie') {
+          items.push({ type: 'movie', itemKey: 'placeholder-movie', isPlaceholder: true });
+        }
+        items.push({ type: 'person', itemKey: 'placeholder-person', isPlaceholder: true });
         items.push({ type: 'movie', entry: this.pair.target, itemKey: 'target-goal', isGoal: true });
       }
       return items;
+    },
+    // What the chain row actually renders: the player's own progress
+    // (chainDisplayItems, above) while playing or after winning, or the
+    // real revealed path once given up - bug report: "when I give up, the
+    // shortest path should replace my built path, not show both of them."
+    // Previously the built chain (with its dangling placeholders) stayed
+    // visible above a SEPARATE revealed-path row inside the result banner;
+    // now there's only ever one row.
+    displayChain () {
+      if (this.status === 'revealed' && this.revealedChain) {
+        return this.revealedChain.map((link, index) => ({ ...link, itemKey: `revealed-${index}` }));
+      }
+      return this.chainDisplayItems;
     },
     needType () {
       const last = this.chain[this.chain.length - 1];
@@ -422,6 +446,11 @@ export default {
       this.guessInput = '';
       this.suggestions = [];
       this.persistState();
+    },
+    // Placeholder "?" slots aren't real entries - nothing to navigate to.
+    handleChainItemClick (item) {
+      if (item.isPlaceholder) return;
+      this.goToChainItem(item);
     },
     // Bug report: "click on any of the items in the list to go to either
     // that movie's detail page or else a search for that person." Progress
@@ -706,6 +735,22 @@ $difficulty-tier-colors: (
   justify-content: center;
 }
 
+// "?" placeholder slots filling the gap between the built chain and the
+// target (bug report: "treatments for both question mark people and
+// question mark posters"). Layered on top of .chain-poster/.chain-photo
+// (which already provide the right shape/size), just swapping in a
+// dashed border + muted fill + a big "?" instead of real art.
+.chain-placeholder {
+  align-items: center;
+  background: #232323;
+  border: 2px dashed #555;
+  color: #666;
+  display: flex;
+  font-size: 1.8rem;
+  font-weight: 700;
+  justify-content: center;
+}
+
 .chain-step-label {
   display: block;
   font-size: 0.7rem;
@@ -831,7 +876,4 @@ $difficulty-tier-colors: (
   background: rgba(76, 175, 80, 0.15);
 }
 
-.revealed-chain {
-  margin-top: 0.5rem;
-}
 </style>

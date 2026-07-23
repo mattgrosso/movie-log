@@ -186,6 +186,22 @@ describe('SixDegreesGame', () => {
     expect(entryKey(wrapper.vm.revealedChain[wrapper.vm.revealedChain.length - 1].entry)).toBe(entryKey(wrapper.vm.pair.target));
   });
 
+  it('giving up replaces the built chain row with the revealed path instead of showing both (bug report)', async () => {
+    const wrapper = factory(buildConnectedLibrary());
+    const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
+    wrapper.vm.pick({ name: person });
+    await wrapper.vm.$nextTick();
+
+    wrapper.vm.revealPath();
+    await wrapper.vm.$nextTick();
+
+    // Exactly ONE chain row, matching revealedChain's own length - not the
+    // built chain's placeholder-padded length shown alongside it.
+    expect(wrapper.findAll('.chain-row')).toHaveLength(1);
+    expect(wrapper.findAll('.chain-step')).toHaveLength(wrapper.vm.revealedChain.length);
+    expect(wrapper.find('.chain-placeholder').exists()).toBe(false);
+  });
+
   it('the guess input renders above the chain-row images (bug report: "moving the input above the images")', () => {
     const wrapper = factory(buildConnectedLibrary());
     const html = wrapper.html();
@@ -391,15 +407,43 @@ describe('SixDegreesGame', () => {
   });
 
   describe('the visual chain row (bug report: "ugly pills"... "actual photos of the people and posters of the movies")', () => {
-    it('renders the source, the built chain, and a goal marker for the target while unsolved', () => {
+    it('renders the source, a "?" placeholder for the next needed person, and a goal marker for the target while unsolved', () => {
       const wrapper = factory(buildConnectedLibrary());
       const steps = wrapper.findAll('.chain-step');
-      // Fresh start: chain is just the source movie, plus the goal marker.
-      expect(steps).toHaveLength(2);
+      // Fresh start: chain is just the source movie. needType is 'person'
+      // (source is a movie), so there's exactly ONE placeholder before the
+      // goal (see chainDisplayItems).
+      expect(steps).toHaveLength(3);
       expect(steps[0].classes()).toContain('movie');
       expect(steps[0].classes()).not.toContain('goal');
-      expect(steps[1].classes()).toContain('goal');
+      expect(steps[0].classes()).not.toContain('placeholder');
+      expect(steps[1].classes()).toContain('person');
+      expect(steps[1].classes()).toContain('placeholder');
+      expect(steps[1].find('.chain-placeholder').exists()).toBe(true);
+      expect(steps[2].classes()).toContain('goal');
       expect(wrapper.find('.chain-step.goal .chain-poster').exists()).toBe(true);
+    });
+
+    it('shows two "?" placeholders (movie then person) when a movie is needed next', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
+      wrapper.vm.pick({ name: person });
+      await wrapper.vm.$nextTick();
+
+      const steps = wrapper.findAll('.chain-step');
+      // source, real person, "?" movie, "?" person, goal.
+      expect(steps).toHaveLength(5);
+      expect(steps[2].classes()).toEqual(expect.arrayContaining(['movie', 'placeholder']));
+      expect(steps[3].classes()).toEqual(expect.arrayContaining(['person', 'placeholder']));
+      expect(steps[4].classes()).toContain('goal');
+    });
+
+    it('placeholders are not clickable (no navigation, no delete badge)', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const placeholder = wrapper.findAll('.chain-step').find((s) => s.classes().includes('placeholder'));
+      await placeholder.trigger('click');
+      expect(wrapper.vm.$router.push).not.toHaveBeenCalled();
+      expect(placeholder.find('.chain-delete-badge').exists()).toBe(false);
     });
 
     it('shows a person step as a circular photo/initials avatar, not a text pill', async () => {
@@ -428,18 +472,20 @@ describe('SixDegreesGame', () => {
   });
 
   describe('deleting a chain entry (bug report: "delete an entry... removes everything after it")', () => {
-    it('shows a delete badge only on real player-added entries, not the source or the goal marker', async () => {
+    it('shows a delete badge only on real player-added entries, not the source, placeholders, or the goal marker', async () => {
       const wrapper = factory(buildConnectedLibrary());
       const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
       wrapper.vm.pick({ name: person });
       await wrapper.vm.$nextTick();
 
       const steps = wrapper.findAll('.chain-step');
-      // [0] source, [1] person just added, [2] goal marker.
-      expect(steps).toHaveLength(3);
+      // [0] source, [1] person just added, [2] "?" movie, [3] "?" person, [4] goal.
+      expect(steps).toHaveLength(5);
       expect(steps[0].find('.chain-delete-badge').exists()).toBe(false);
       expect(steps[1].find('.chain-delete-badge').exists()).toBe(true);
       expect(steps[2].find('.chain-delete-badge').exists()).toBe(false);
+      expect(steps[3].find('.chain-delete-badge').exists()).toBe(false);
+      expect(steps[4].find('.chain-delete-badge').exists()).toBe(false);
     });
 
     it('deleting an entry truncates the chain to everything before it', () => {
