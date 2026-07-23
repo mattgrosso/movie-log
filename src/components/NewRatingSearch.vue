@@ -118,12 +118,12 @@ export default {
       }
     }, 500),
     showNoResultsMessage () {
+      // No auto-clear timer - it used to silently wipe out whatever the user
+      // had typed after 5 seconds with no action on their part, which read as
+      // stressful/unpredictable. The message doesn't reference the specific
+      // term, so it's safe to just sit here; editing the input (the `value`
+      // watcher) naturally re-runs the search and moves on when it succeeds.
       this.noResults = true;
-      setTimeout(() => {
-        this.noResults = false;
-        // Reset to a clean state instead of just clearing the search value
-        this.$emit('start-new-search');
-      }, 5000); // Show message for 5 seconds instead of 3
     },
     quickPickEntrySearch (results) {
       this.$store.commit('setNewEntrySearchResults', results);
