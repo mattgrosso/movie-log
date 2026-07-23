@@ -15,6 +15,15 @@ console.log('• 2 - MINOR (x.X.x): New features, backwards-compatible changes')
 console.log('• 3 - MAJOR (X.x.x): Breaking changes, incompatible API changes');
 
 function waitForKeypress (timeout = 20000) {
+  // Lets a non-interactive caller (an agent running `yarn build`/`yarn
+  // deploy`) specify the bump explicitly instead of always falling through
+  // to PATCH: `VERSION_BUMP=minor yarn deploy` (or `major`/`patch`).
+  const envBump = { patch: '1', minor: '2', major: '3' }[(process.env.VERSION_BUMP || '').toLowerCase()];
+  if (envBump) {
+    console.log(`\n(VERSION_BUMP=${process.env.VERSION_BUMP} — skipping the prompt)`);
+    return Promise.resolve(envBump);
+  }
+
   // process.stdin.setRawMode only exists on a real TTY. In a non-interactive
   // shell (a script, a CI job, or an agent running `yarn build`/`yarn
   // deploy`) it's not a function at all and throws immediately — there's
