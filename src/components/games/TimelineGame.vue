@@ -122,9 +122,9 @@ export default {
       // CSS transitions below and the JS `wait`s in guess() can never
       // drift out of sync with each other). Started at 2000ms ("make it
       // really slow... so that we can lock in the sequence") while the
-      // sequence itself was being worked out; now that it's confirmed
-      // correct, tuning down — first stop 500ms, to see how that feels.
-      stepDurationMs: 500,
+      // sequence itself was being worked out; now tuning down in halving
+      // steps once confirmed correct — 2000 -> 500 -> 250ms.
+      stepDurationMs: 250,
       // Named/exposed (not just inlined in preloadImage) so it's a single
       // source of truth: production reads it there, and tests can
       // reference it symbolically instead of hardcoding "1500" — this is
