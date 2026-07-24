@@ -226,7 +226,7 @@ export default {
     // popularity score baked into every person.
     async fetchTaglineAndPopularity (roundTarget) {
       const movieId = roundTarget?.movie?.id;
-      if (!movieId) return;
+      if (movieId == null) return;
       try {
         const response = await axios.get(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&append_to_response=credits`);
         if (this.target !== roundTarget) return;
