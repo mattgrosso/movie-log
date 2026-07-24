@@ -17,26 +17,44 @@
       <p class="streak-line">Streak {{ streak }} · Best {{ bestStreak }}</p>
 
       <div class="timeline-row">
-        <template v-for="item in timelineDisplayItems" :key="item.key">
-          <!-- Step 2/3 mid-flight: the tapped gap itself (a real flex
-               child, not an overlay) hosts the settling poster and widens
-               in place -- see guess()/expandInPlace. -->
-          <div
-            v-if="item.type === 'gap' && item.slotIndex === placingGapIndex"
-            class="timeline-gap placing-gap"
-            :class="{ wide: placingWide }"
-          >
-            <img v-if="placingPosterUrl" :src="placingPosterUrl" alt="">
-          </div>
+        <template v-for="item in timelineDisplayItems">
+          <!-- Placement in progress at this slot: the settling poster AND
+               its two new flanking placeholder gaps all grow in TOGETHER
+               (bug report: "have it expand and the plus sign gap markers
+               also expand at the same time") -- see guess()/
+               expandWithFlanks. The flanks are purely visual, not real
+               timeline data yet; the real insertion (which creates the
+               ACTUAL flanking gaps, already resting at this same size)
+               only happens once everything here has finished animating,
+               so the handoff to the real elements is invisible -- same
+               trick the poster-in-gap -> real-card poster swap uses. -->
+          <template v-if="item.type === 'gap' && item.slotIndex === placingGapIndex">
+            <div
+              v-if="showPlacingFlanks"
+              :key="`${item.key}-flank-before`"
+              class="timeline-gap placing-flank"
+              :class="{ wide: placingFlanksWide }"
+            ></div>
+            <div :key="item.key" class="timeline-gap placing-gap" :class="{ wide: placingWide }">
+              <img v-if="placingPosterUrl" :src="placingPosterUrl" alt="">
+            </div>
+            <div
+              v-if="showPlacingFlanks"
+              :key="`${item.key}-flank-after`"
+              class="timeline-gap placing-flank"
+              :class="{ wide: placingFlanksWide }"
+            ></div>
+          </template>
           <button
             v-else-if="item.type === 'gap'"
+            :key="item.key"
             type="button"
             class="timeline-gap"
-            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss, entering: enteringGapIndices.includes(item.slotIndex) }"
+            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss }"
             :disabled="revealed || !mysteryCard"
             @click="guess(item.slotIndex, $event)"
-          >{{ plusHiddenGapIndices.includes(item.slotIndex) ? '' : '+' }}</button>
-          <div v-else class="timeline-card" :data-card-key="item.key">
+          >+</button>
+          <div v-else :key="item.key" class="timeline-card" :data-card-key="item.key">
             <img v-if="gamePosterUrl(item.entry)" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title">
             <p class="timeline-year">{{ movieYear(item.entry) }}</p>
           </div>
@@ -49,8 +67,9 @@
            Hidden for the ENTIRE placement sequence (isPlacing), not just
            while the step-1 clone is mid-flight -- it starts pixel-aligned
            with the clone, so the swap is invisible, and it must stay
-           hidden through steps 2/3 too or it'd reappear at the bottom
-           while the poster is still settling into the timeline above. -->
+           hidden through the settle+expand step too or it'd reappear at
+           the bottom while the poster is still settling into the
+           timeline above. -->
       <div
         v-if="mysteryCard && !isPlacing"
         ref="mysteryCardEl"
@@ -117,8 +136,8 @@ export default {
       streak: 0,
       gameOver: false,
       ranOutOfMovies: false,
-      // The placement animation is 3 sequential steps, all driven by this
-      // ONE duration (bound to --step-duration on the root element so the
+      // The placement animation's remaining steps are driven by this ONE
+      // duration (bound to --step-duration on the root element so the
       // CSS transitions below and the JS `wait`s in guess() can never
       // drift out of sync with each other). Started at 2000ms ("make it
       // really slow... so that we can lock in the sequence") while the
@@ -133,35 +152,37 @@ export default {
       // the two (which is fine — it's a worst-case safety net, not
       // something that needs to shrink in lockstep).
       preloadCapMs: 1500,
-      // True for the entire 3-step placement sequence (not just step 1) —
-      // gates the real .mystery-card so it doesn't reappear at the bottom
-      // mid-sequence once the step-1 clone hands off to step 2.
+      // True for the entire placement sequence (not just step 1) — gates
+      // the real .mystery-card so it doesn't reappear at the bottom
+      // mid-sequence once the step-1 clone hands off to the settle step.
       isPlacing: false,
       // Step 1: a position:fixed clone that slides+shrinks from the
       // mystery card's spot to the tapped gap's own (narrow) position.
       flyingCard: null,
       flyingCardAnimating: false,
-      // Step 2: the clone is gone — the REAL tapped gap element now hosts
-      // the poster (still narrow) and then widens to the final card size.
-      // Using the real flex child (not another fixed-position clone)
-      // means the row reflows around it naturally via normal layout, no
-      // manual "where do the neighbors end up" math needed.
+      // Step 2 (settle+expand, merged — bug report: "have it expand and
+      // the plus sign gap markers also expand at the same time"): the
+      // clone is gone — the REAL tapped gap element now hosts the poster
+      // (still narrow) and then widens to the final card size, WHILE its
+      // two new flanking placeholder gaps (below) grow in alongside it on
+      // the exact same timing. Using the real flex child for the poster
+      // (not another fixed-position clone) means the row reflows around
+      // it naturally via normal layout, no manual "where do the
+      // neighbors end up" math needed.
       placingGapIndex: null,
       placingPosterUrl: null,
       placingWide: false,
-      // Step 3: after the real data insertion, the two gaps now flanking
-      // the placed card grow in from 0 width instead of just popping in.
-      enteringGapIndices: [],
-      // The "+" glyph doesn't grow smoothly the way the box's width does —
-      // a fixed-size character revealed by a widening overflow:hidden edge
-      // reads as a jarring pop mid-grow, not part of the same motion (bug
-      // report: "adding the actual '+' is causing it to snap open"). So the
-      // "+" itself stays out of a gap's rendered content for the WHOLE
-      // width-grow, not just its brief collapsed-state window, only
-      // appearing once the box has already settled at its full resting
-      // size. See growInNewGaps for why this clears later than
-      // enteringGapIndices, not at the same moment.
-      plusHiddenGapIndices: []
+      // Purely-visual placeholders for the two gaps that WILL flank the
+      // placed card, rendered adjacent to placingGapIndex — not real
+      // timeline data yet. They start collapsed and grow to their normal
+      // resting size in lockstep with placingWide (same nextFrame flip,
+      // same wait). The real insertion (which creates the ACTUAL
+      // flanking gaps, already at this exact resting size) only happens
+      // once these have finished, so swapping from the fake placeholders
+      // to the real gaps is invisible — same trick the placing-gap's
+      // poster -> real-card poster swap already relies on.
+      showPlacingFlanks: false,
+      placingFlanksWide: false
     };
   },
   computed: {
@@ -237,8 +258,8 @@ export default {
       this.placingGapIndex = null;
       this.placingPosterUrl = null;
       this.placingWide = false;
-      this.enteringGapIndices = [];
-      this.plusHiddenGapIndices = [];
+      this.showPlacingFlanks = false;
+      this.placingFlanksWide = false;
       this.started = true;
     },
     nextCard () {
@@ -291,9 +312,10 @@ export default {
     },
     // Step 1: slide + shrink a decoupled clone from the mystery card's own
     // spot to the tapped gap's position/size. Deliberately does NOT clear
-    // flyingCard once the wait resolves — see expandInPlace, which clears
-    // it in the SAME synchronous block as revealing the next element, for
-    // the same "no intermediate blank frame" reason documented there.
+    // flyingCard once the wait resolves — see expandWithFlanks, which
+    // clears it in the SAME synchronous block as revealing the next
+    // element, for the same "no intermediate blank frame" reason
+    // documented there.
     async flyToGap (posterUrl, fromRect, toRect) {
       this.flyingCard = { posterUrl, style: { left: `${fromRect.left}px`, top: `${fromRect.top}px`, width: `${fromRect.width}px`, height: `${fromRect.height}px` } };
       this.flyingCardAnimating = false;
@@ -302,49 +324,45 @@ export default {
       this.flyingCardAnimating = true;
       await this.wait(this.stepDurationMs);
     },
-    // Step 2: the poster now lives inside the REAL tapped gap element
-    // (already sitting at that exact spot, so no jump from step 1), then
-    // that real flex child widens to the final card size — a plain CSS
-    // width transition on a real layout element, so neighboring cards/
-    // gaps reflow around it naturally without any manual position math.
+    // Step 2 (settle+expand, merged — bug report: "have it expand and the
+    // plus sign gap markers also expand at the same time"): the poster
+    // now lives inside the REAL tapped gap element (already sitting at
+    // that exact spot, so no jump from step 1) and widens to the final
+    // card size, WHILE its two new flanking placeholder gaps (purely
+    // visual — see showPlacingFlanks) appear alongside it and grow to
+    // their resting size on the exact same timing. A plain CSS width
+    // transition on a real layout element for the poster's own gap means
+    // neighboring cards/gaps reflow around it naturally without any
+    // manual position math.
     //
-    // Clearing the flying clone AND revealing the placing-gap poster is
-    // done together, right here, as this function's own synchronous
-    // prefix (not split across the await boundary between flyToGap
-    // returning and this function being called) — same "batch it or Vue
-    // paints an intermediate frame" reasoning as the placing-gap ->
-    // real-card handoff below. By the time this runs, the caller has
-    // already awaited the poster's decode (see guess()), so revealing it
-    // here is guaranteed flash-free.
+    // Clearing the flying clone AND revealing everything here is done
+    // together, right here, as this function's own synchronous prefix
+    // (not split across the await boundary between flyToGap returning and
+    // this function being called) — same "batch it or Vue paints an
+    // intermediate frame" reasoning as the placing overlay -> real-card
+    // handoff below. By the time this runs, the caller has already
+    // awaited the poster's decode (see guess()), so revealing it here is
+    // guaranteed flash-free.
     //
     // Also deliberately does NOT clear placingGapIndex/placingPosterUrl/
-    // placingWide once the wait resolves — that has to happen in the SAME
-    // synchronous block as the real timeline insertion (see guess()), or
-    // the microtask boundary introduced by awaiting this function's own
-    // return lets Vue paint an intermediate "back to a blank + gap" frame
-    // before the real card lands (bug report: "the poster disappears...
-    // then reappears").
-    async expandInPlace (posterUrl, slotIndex) {
+    // placingWide/showPlacingFlanks/placingFlanksWide once the wait
+    // resolves — that has to happen in the SAME synchronous block as the
+    // real timeline insertion (see guess()), or the microtask boundary
+    // introduced by awaiting this function's own return lets Vue paint an
+    // intermediate "back to a blank + gap" frame before the real card
+    // lands (bug report: "the poster disappears... then reappears").
+    async expandWithFlanks (posterUrl, slotIndex) {
       this.flyingCard = null;
       this.flyingCardAnimating = false;
       this.placingPosterUrl = posterUrl;
       this.placingGapIndex = slotIndex;
       this.placingWide = false;
+      this.showPlacingFlanks = true;
+      this.placingFlanksWide = false;
       await this.nextFrame();
       this.placingWide = true;
+      this.placingFlanksWide = true;
       await this.wait(this.stepDurationMs);
-    },
-    // Step 3's settle half: waits a frame (to trigger the width
-    // transition on the already-collapsed gaps — see guess() for where
-    // they're marked collapsed) then waits for it to finish before
-    // revealing the "+". Assumes the caller already set
-    // enteringGapIndices/plusHiddenGapIndices synchronously alongside the
-    // real timeline insertion — see guess().
-    async settleNewGaps () {
-      await this.nextFrame();
-      this.enteringGapIndices = [];
-      await this.wait(this.stepDurationMs);
-      this.plusHiddenGapIndices = [];
     },
     async guess (slotIndex, event) {
       if (this.revealed || this.gameOver || !this.mysteryCard) return;
@@ -372,9 +390,9 @@ export default {
       const canAnimate = !!(fromRect && fromRect.width && narrowRect && narrowRect.width);
 
       // Brief pause so the green border is actually readable before the
-      // 3-step placement sequence begins — bug report: "when I click a
-      // slot, I want it to look like the poster from the bottom slides up
-      // into the slot I chose and the slot gets larger to accommodate it."
+      // placement sequence begins — bug report: "when I click a slot, I
+      // want it to look like the poster from the bottom slides up into
+      // the slot I chose and the slot gets larger to accommodate it."
       await this.wait(400);
 
       if (canAnimate) {
@@ -396,23 +414,26 @@ export default {
         const decodeSmall = this.preloadImage(finalPosterUrl);
         await this.flyToGap(posterUrl, fromRect, narrowRect);
         await decodeLarge;
-        await this.expandInPlace(posterUrl, slotIndex);
+        await this.expandWithFlanks(posterUrl, slotIndex);
         await decodeSmall;
       }
 
       // Everything below is deliberately ONE synchronous block, with no
-      // `await` between any of these statements: clearing step 2's
-      // placing-gap state, committing the real timeline insertion, AND
-      // marking the two new flanking gaps as collapsed all batch into a
-      // SINGLE Vue update/paint this way. Splitting them across an await
-      // boundary (the previous version) let Vue paint an intermediate
-      // frame — poster gone, real card not yet inserted, gaps not yet
-      // marked collapsed — which is what read as "the poster disappears
-      // and the plus sign boxes appear on either side of a blank space...
-      // then the poster reappears" (bug report).
+      // `await` between any of these statements: clearing every placing/
+      // flank overlay flag AND committing the real timeline insertion
+      // batch into a SINGLE Vue update/paint this way. Splitting them
+      // across an await boundary (an earlier version) let Vue paint an
+      // intermediate frame — poster gone, real card not yet inserted —
+      // which is what previously read as "the poster disappears... then
+      // reappears" (bug report). Since expandWithFlanks already grew the
+      // fake flanking placeholders to their exact resting size, the real
+      // gaps this insertion creates land at that same size — the swap
+      // from fake to real is invisible.
       this.placingGapIndex = null;
       this.placingPosterUrl = null;
       this.placingWide = false;
+      this.showPlacingFlanks = false;
+      this.placingFlanksWide = false;
 
       this.timeline = insertAtSlot(this.timeline, slotIndex, placedEntry);
       this.streak += 1;
@@ -421,12 +442,6 @@ export default {
       }
 
       if (canAnimate) {
-        this.enteringGapIndices = [slotIndex, slotIndex + 1];
-        this.plusHiddenGapIndices = [slotIndex, slotIndex + 1];
-      }
-
-      if (canAnimate) {
-        await this.settleNewGaps();
         this.isPlacing = false;
       }
 
@@ -571,41 +586,20 @@ export default {
   // (content-box: width + padding), which is why `padding: 0` is set
   // explicitly above rather than left at the browser default — the "+"
   // stays centered fine via flex align/justify, padding was never doing
-  // anything for it. Without BOTH of these, .entering's `width: 0` only
-  // actually reached ~12px (0 content width + leftover default button
-  // padding), a small but real visible sliver instead of a true 0.
+  // anything for it. Without BOTH of these, .placing-flank's `width: 0`
+  // only actually reached ~12px (0 content width + leftover default
+  // button padding), a small but real visible sliver instead of a true 0.
   min-width: 0;
   // width/border-width/opacity duration comes from --step-duration (set
-  // on the root element from stepDurationMs) so step 3's grow-in can
-  // never drift out of sync with the JS `wait`s driving it. width and
-  // border-width MUST both actually animate (not just visually scale a
+  // on the root element from stepDurationMs) so the placing-flank
+  // grow-in can never drift out of sync with the JS `wait`s driving it.
+  // width and border-width MUST both actually animate (not just visually scale a
   // constant-size box via transform — that was tried and reserves the
   // full 34px of LAYOUT SPACE the instant the element mounts, since
   // transforms don't affect layout, which is exactly what read as "the
   // space pops open, then the box grows into it" — the space itself
   // needs to grow, not just its visible content).
   transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease, width var(--step-duration, 0.45s) ease, border-width var(--step-duration, 0.45s) ease, opacity var(--step-duration, 0.45s) ease;
-}
-
-// Step 3: newly-mounted flanking gaps start collapsed (0 width, no
-// border, invisible) and grow in — width, border-width, AND opacity all
-// animate together (see the base .timeline-gap transition above) once
-// the class is removed a frame later (see settleNewGaps), so the space
-// itself grows in lockstep with its visible content.
-//
-// The extra `:disabled` in this selector is deliberate, not incidental:
-// entering gaps are ALWAYS disabled too (:disabled="revealed || ..." is
-// true for the whole placement sequence), and `.timeline-gap:disabled`
-// (opacity: 0.35) has the SAME specificity as a plain `.timeline-gap.
-// entering` would — a real, previously-shipped bug where :disabled's
-// opacity silently won by source order, so a "collapsed" gap was
-// actually rendering at 35% opacity instead of invisible the whole
-// time. Matching :disabled here explicitly guarantees this rule wins
-// regardless of source order, instead of being one more implicit tie.
-.timeline-gap.entering:disabled {
-  width: 0;
-  border-width: 0;
-  opacity: 0;
 }
 
 // Step 2: the tapped gap itself hosts the settling poster — solid border,
@@ -624,6 +618,28 @@ export default {
 
 .timeline-gap.placing-gap.wide {
   width: 84px;
+}
+
+// Purely-visual placeholders for the two gaps that will flank the placed
+// card once it's actually inserted (see showPlacingFlanks/
+// placingFlanksWide) — start collapsed (0 width, no border, invisible)
+// and grow to the normal resting gap size in lockstep with the poster's
+// own widen (same shared stepDurationMs window — bug report: "have it
+// expand and the plus sign gap markers also expand at the same time").
+// Never render a "+": the swap to the real, "+"-bearing gap only happens
+// once this has already finished growing (see guess()), so the glyph
+// appears on an already-settled box instead of popping in mid-grow.
+.timeline-gap.placing-flank {
+  width: 0;
+  border-width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.timeline-gap.placing-flank.wide {
+  width: 34px;
+  border-width: 1.5px;
+  opacity: 1;
 }
 
 // Step 1: the clone that travels from the mystery card's spot to the

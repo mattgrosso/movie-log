@@ -93,7 +93,7 @@ describe('TimelineGame', () => {
     expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/timelineBestStreak', value: 1 });
   });
 
-  describe('the 3-step placement animation (bug report: "slide into the space of the plus sign slot, once it\'s there... expand out... then... the two new plus sign slots grow")', () => {
+  describe('the placement animation (slide, then a merged settle+expand where the poster and its new flanking gaps grow together)', () => {
     // jsdom reports every element's geometry as zero by default — the
     // fromRect/toRect guard in guess() already covers that (exercised
     // implicitly by every other passing test above, where the whole
@@ -144,7 +144,7 @@ describe('TimelineGame', () => {
       vi.restoreAllMocks();
     });
 
-    it('step 2: once seated, the clone is replaced by the poster living INSIDE the real tapped gap, which then widens to the full card size', async () => {
+    it('step 2 (merged settle+expand): once seated, the clone is replaced by the poster living INSIDE the real tapped gap, which widens to the full card size WHILE its two flanking placeholder gaps grow in at the exact same time (bug report: "have it expand and the plus sign gap markers also expand at the same time")', async () => {
       const wrapper = factory(tenMovies());
       await wrapper.find('.btn-game-primary').trigger('click');
       stubRects();
@@ -179,70 +179,42 @@ describe('TimelineGame', () => {
       const decodeLargeFiresAt = 400 + wrapper.vm.preloadCapMs;
       await vi.advanceTimersByTimeAsync(decodeLargeFiresAt - elapsedBeforeThisStep);
       // Past the full step-1 duration: the clone is gone, replaced by the
-      // real gap hosting the poster — still narrow at first.
+      // real gap hosting the poster — still narrow at first. Its two
+      // flanking placeholder gaps exist too, also still collapsed — they
+      // grow on the exact same schedule as the poster, not a separate
+      // later step.
       expect(wrapper.vm.flyingCard).toBeNull();
       expect(wrapper.vm.placingGapIndex).toBe(correctSlot);
       expect(wrapper.vm.placingPosterUrl).toBeTruthy();
       expect(wrapper.vm.placingWide).toBe(false);
+      expect(wrapper.vm.showPlacingFlanks).toBe(true);
+      expect(wrapper.vm.placingFlanksWide).toBe(false);
       const placingEl = wrapper.find('.timeline-gap.placing-gap');
       expect(placingEl.exists()).toBe(true);
       expect(placingEl.classes()).not.toContain('wide');
       expect(placingEl.find('img').exists()).toBe(true);
+      const flankEls = wrapper.findAll('.timeline-gap.placing-flank');
+      expect(flankEls).toHaveLength(2);
+      expect(flankEls[0].classes()).not.toContain('wide');
+      expect(flankEls[1].classes()).not.toContain('wide');
+      // Never render a "+" — the real, "+"-bearing gap only appears once
+      // this placeholder has already finished growing (see guess()).
+      expect(flankEls[0].text()).toBe('');
+      expect(flankEls[1].text()).toBe('');
       // Still isPlacing -- the mystery card must not reappear mid-sequence.
       expect(wrapper.vm.isPlacing).toBe(true);
       expect(wrapper.find('.mystery-card').exists()).toBe(false);
 
-      // A frame later, it widens to the final card size.
+      // A frame later, the poster AND both flanks widen together.
       await vi.advanceTimersByTimeAsync(50);
       expect(wrapper.vm.placingWide).toBe(true);
+      expect(wrapper.vm.placingFlanksWide).toBe(true);
       expect(wrapper.find('.timeline-gap.placing-gap').classes()).toContain('wide');
+      const wideFlankEls = wrapper.findAll('.timeline-gap.placing-flank');
+      expect(wideFlankEls[0].classes()).toContain('wide');
+      expect(wideFlankEls[1].classes()).toContain('wide');
 
       vi.restoreAllMocks();
-    });
-
-    // Step 3 is triggered by step 2's own wait() resolving, which chains
-    // straight into setting up step 3's rAFs in the SAME continuation —
-    // driving this through the full click + coarse advanceTimersByTimeAsync
-    // chain makes the "just entered, still collapsed" window (which only
-    // lasts two rAFs) unreliable to freeze on, since a single advance call
-    // can end up sweeping through a just-scheduled rAF pair as part of
-    // settling the timer that triggered them. Testing the named helper
-    // directly sidesteps that entirely and is more precise anyway.
-    it('settleNewGaps: the two new flanking gaps grow in from 0 width, and the "+" glyph stays hidden for the WHOLE grow, not just the collapsed instant (bug report: "adding the actual + is causing it to snap open and not look like it\'s growing")', async () => {
-      const wrapper = factory(tenMovies());
-      await wrapper.find('.btn-game-primary').trigger('click');
-
-      // guess() sets these two synchronously, alongside the real timeline
-      // insertion, before calling settleNewGaps — replicate that here.
-      wrapper.vm.enteringGapIndices = [0, 1];
-      wrapper.vm.plusHiddenGapIndices = [0, 1];
-      const promise = wrapper.vm.settleNewGaps();
-      await wrapper.vm.$nextTick();
-      expect(wrapper.vm.enteringGapIndices).toEqual([0, 1]);
-      expect(wrapper.vm.plusHiddenGapIndices).toEqual([0, 1]);
-      const gaps = wrapper.findAll('.timeline-gap');
-      expect(gaps[0].classes()).toContain('entering');
-      expect(gaps[1].classes()).toContain('entering');
-      expect(gaps[0].text()).toBe('');
-      expect(gaps[1].text()).toBe('');
-
-      // The collapsed-width state clears quickly (starts the width
-      // transition) but the "+" stays suppressed — it must not reappear
-      // until the box has actually finished widening, or it'd read as
-      // popping in partway through the grow, which is the exact bug.
-      await vi.advanceTimersByTimeAsync(50);
-      expect(wrapper.vm.enteringGapIndices).toEqual([]);
-      expect(wrapper.vm.plusHiddenGapIndices).toEqual([0, 1]);
-      expect(wrapper.findAll('.timeline-gap')[0].classes()).not.toContain('entering');
-      expect(wrapper.findAll('.timeline-gap')[0].text()).toBe('');
-
-      // Only once the full grow duration has elapsed does the "+" appear.
-      await vi.advanceTimersByTimeAsync(wrapper.vm.stepDurationMs);
-      expect(wrapper.vm.plusHiddenGapIndices).toEqual([]);
-      expect(wrapper.findAll('.timeline-gap')[0].text()).toBe('+');
-      expect(wrapper.findAll('.timeline-gap')[1].text()).toBe('+');
-
-      await promise;
     });
 
     it('runs the full sequence end to end: card lands in the timeline, streak grows, best streak persists, next mystery card is ready', async () => {
@@ -253,18 +225,20 @@ describe('TimelineGame', () => {
       const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
       await wrapper.findAll('.timeline-gap')[correctSlot].trigger('click');
 
-      // One generous lump-sum advance covering the pre-pause, all 3 steps'
-      // rAFs and waits, AND both poster preloads (each capped at
+      // One generous lump-sum advance covering the pre-pause, both
+      // remaining steps' rAFs and waits (slide, then merged
+      // settle+expand), AND both poster preloads (each capped at
       // preloadCapMs, which jsdom's non-settling Image.decode() always
       // hits in full — see preloadCapMs's own comment) — unlike the
       // per-step tests above, this one only cares about the settled END
       // state, so the exact granularity of intermediate advances doesn't
       // matter here.
-      await vi.advanceTimersByTimeAsync(400 + wrapper.vm.stepDurationMs * 3 + wrapper.vm.preloadCapMs * 2 + 200);
+      await vi.advanceTimersByTimeAsync(400 + wrapper.vm.stepDurationMs * 2 + wrapper.vm.preloadCapMs * 2 + 200);
 
       expect(wrapper.vm.flyingCard).toBeNull();
       expect(wrapper.vm.placingGapIndex).toBeNull();
-      expect(wrapper.vm.enteringGapIndices).toEqual([]);
+      expect(wrapper.vm.showPlacingFlanks).toBe(false);
+      expect(wrapper.vm.placingFlanksWide).toBe(false);
       expect(wrapper.vm.isPlacing).toBe(false);
       expect(wrapper.vm.timeline).toHaveLength(2);
       expect(wrapper.vm.streak).toBe(1);
