@@ -296,7 +296,12 @@ export default {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.3rem;
-  justify-content: flex-start;
+  // Bug report: "at the start of the game the timeline should be centered
+  // horizontally, not off to the left." Plain `center` would make the FRONT
+  // of a timeline that later grows wider than the screen unreachable by
+  // scroll in some engines — `safe center` centers while it fits, then
+  // falls back to start-alignment (still fully scrollable) once it doesn't.
+  justify-content: safe center;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
