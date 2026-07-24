@@ -22,7 +22,6 @@
           @click="guess('left')"
         >
           <img v-if="gamePosterUrl(leftCard)" :src="gamePosterUrl(leftCard, 'w342')" :alt="leftCard.movie.title">
-          <p class="hl-card-title">{{ leftCard.movie.title }}</p>
           <p class="hl-card-score" :class="scoreClass('left')">{{ scoreDisplay('left') }}</p>
         </div>
 
@@ -32,7 +31,6 @@
           @click="guess('right')"
         >
           <img v-if="gamePosterUrl(rightCard)" :src="gamePosterUrl(rightCard, 'w342')" :alt="rightCard.movie.title">
-          <p class="hl-card-title">{{ rightCard.movie.title }}</p>
           <p class="hl-card-score" :class="scoreClass('right')">{{ scoreDisplay('right') }}</p>
         </div>
       </div>
@@ -272,17 +270,16 @@ export default {
   width: 100%;
 }
 
-.hl-card-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin: 0.4rem 0 0.1rem;
-}
-
+// Bug report: "we don't need to have labels underneath the posters the
+// posters already have the title of the movie... we don't need the
+// labels" — .hl-card-title (a redundant duplicate of the poster's own
+// title) is gone; the score's own top margin picks up the spacing that
+// used to come from the title sitting above it.
 .hl-card-score {
   color: #adb5bd;
   font-size: 1.4rem;
   font-weight: 700;
-  margin: 0;
+  margin: 0.4rem 0 0;
 }
 
 .hl-card-score.correct {

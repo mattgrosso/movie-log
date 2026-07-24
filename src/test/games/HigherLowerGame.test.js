@@ -50,6 +50,15 @@ describe('HigherLowerGame', () => {
     expect(scores[1].text()).toBe('?');
   });
 
+  it('does not render a redundant title label under each poster (bug report: "the posters already have the title of the movie... we don\'t need the labels")', async () => {
+    const wrapper = factory(10);
+    await wrapper.find('.btn-game-primary').trigger('click');
+    expect(wrapper.find('.hl-card-title').exists()).toBe(false);
+    // The score is still shown — only the title label was reported as
+    // redundant/unwanted, not the score itself.
+    expect(wrapper.findAll('.hl-card-score')).toHaveLength(2);
+  });
+
   it('a correct guess keeps the WINNING poster in its own slot — only the other slot gets replaced (bug report: no jumping sides)', async () => {
     const wrapper = factory(10);
     await wrapper.find('.btn-game-primary').trigger('click');
