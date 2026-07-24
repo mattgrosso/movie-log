@@ -12,7 +12,6 @@
 <script>
 import { BarChart, LineChart } from "vue-chart-3";
 import { getRating } from "../assets/javascript/GetRating.js";
-import randomColor from 'randomcolor';
 
 export default {
   name: "YearlyAverage",
