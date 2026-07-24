@@ -66,12 +66,16 @@ describe('buildClueDeck', () => {
     expect(keys.some((k) => k.startsWith('keyword-'))).toBe(false);
   });
 
-  it('reveals cast members one at a time in billing order, each costing more than the last', () => {
+  it('reveals cast members one at a time in billing order, each costing LESS than the last (bug report: "cast member #1... should cost more than someone further down")', () => {
     const deck = buildClueDeck(entry());
     const castClues = deck.filter((c) => c.key.startsWith('cast-'));
+    // #1 is offered/bought first (it's still listed first) but is the most
+    // EXPENSIVE — billing order tracks real-world recognizability, so the
+    // top-billed actor is normally the single most identifying piece of
+    // cast info on its own, unlike keywords (no such intrinsic ranking).
     expect(castClues.map((c) => c.value)).toEqual(['Cast One', 'Cast Two', 'Cast Three', 'Cast Four']);
     for (let i = 1; i < castClues.length; i++) {
-      expect(castClues[i].cost).toBeGreaterThan(castClues[i - 1].cost);
+      expect(castClues[i].cost).toBeLessThan(castClues[i - 1].cost);
     }
   });
 

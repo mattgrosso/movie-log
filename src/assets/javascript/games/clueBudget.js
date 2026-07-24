@@ -24,11 +24,24 @@ export const STARTING_BUDGET = 100;
 // this one player's library, which isn't data this app has. Roughly:
 // weak/broad category info (decade, runtime, genre) is cheap; anything
 // that's basically a direct fingerprint of a specific human or a memorable
-// line of copy (director, cast, tagline) is expensive. Multi-value clues
-// (keywords, cast) get MORE expensive with each successive reveal, since
-// two data points together narrow the field far more than either alone.
+// line of copy (director, cast, tagline) is expensive.
+//
+// The two multi-value clue types price their successive reveals in OPPOSITE
+// directions, because they're revealed in different orders for different
+// reasons:
+//  - Keywords have no intrinsic per-item ranking (flatKeywords is just a
+//    merged/deduped bag, TMDB + AI + custom), so cost only reflects reveal
+//    ORDER — each additional keyword narrows the field further on top of
+//    the ones already bought, so later reveals cost MORE.
+//  - Cast IS intrinsically ranked — movie.cast is saved in TMDB's own
+//    billing order, and billing order roughly tracks real-world fame/
+//    recognizability. The top-billed actor is normally the single most
+//    identifying piece of cast info on its own (bug report: "cast member
+//    #1... should cost more than someone further down"), so cost tracks
+//    BILLING, not reveal order — #1 is the most expensive, #4 the
+//    cheapest, even though #1 is still always offered/bought first.
 const KEYWORD_COSTS = [10, 15, 20];
-const CAST_COSTS = [15, 20, 25, 30];
+const CAST_COSTS = [30, 25, 20, 15];
 const CAST_LIMIT = CAST_COSTS.length;
 
 // Builds every clue AVAILABLE for this movie (not yet purchased — the
