@@ -972,11 +972,59 @@ export default {
       });
       return count;
     },
-    // Projects a year-end total from THREE independent movies-per-day rates,
-    // averaged equally, then extrapolated across the remaining days of the
-    // year: the whole year's own rate so far, the last ~2 weeks' rate, and
-    // the last ~2 calendar months' rate. Bug report: "I don't really
-    // remember how I calculated that... does it seem accurate."
+    // A 4th, OPTIONAL signal for estimatedMoviesThisYear below: instead of
+    // extrapolating THIS year's own recent pace, scale up by whatever
+    // fraction of last year's TOTAL had typically already been watched by
+    // this exact same calendar date — captures real seasonality (e.g.
+    // habitually watching more late in the year for awards season) that a
+    // pure recent-pace extrapolation can't see at all. Follow-up ask:
+    // "can we look at what I was doing last year and use that to help
+    // guide the number... build in some guards against people with very
+    // small libraries, so it only works for those where it will actually
+    // be effective."
+    //
+    // Returns the ADDITIONAL movies this signal implies for the rest of
+    // the year (same shape as the other three estimates below), or `null`
+    // when there isn't enough of a prior year to trust — callers must
+    // treat `null` as "leave this signal out," not as zero.
+    //
+    // Guards, each independently capable of disqualifying this signal:
+    //  - MIN_LAST_YEAR_TOTAL: a full prior year averaging under one movie
+    //    a month isn't enough texture to imply a meaningful "shape" at
+    //    all — also naturally excludes anyone who wasn't using the app
+    //    (or didn't exist as a user) last year, since their whole-year
+    //    total would be 0.
+    //  - MIN_LAST_YEAR_TO_DATE: a fraction computed from only a couple of
+    //    movies is noisy no matter how large the denominator is — e.g. 1
+    //    movie by this date out of a 20-movie year is a real data point,
+    //    but far too thin to trust as "the typical shape."
+    //  - MIN_FRACTION: belt-and-suspenders floor on the fraction itself
+    //    (not just the raw counts above) — caps how aggressively this
+    //    signal can scale up the estimate even if the count guards pass
+    //    but the split still happens to be extremely lopsided (e.g. a
+    //    binge-heavy December last year), so one unusual year can nudge
+    //    the blend without being able to dominate it.
+    seasonalProjectedAdditional () {
+      const MIN_LAST_YEAR_TOTAL = 12;
+      const MIN_LAST_YEAR_TO_DATE = 4;
+      const MIN_FRACTION = 0.15;
+
+      const lastYearTotal = this.moviesWatchedLastYear;
+      const lastYearToDate = this.moviesWatchedLastYearToDate;
+      if (lastYearTotal < MIN_LAST_YEAR_TOTAL || lastYearToDate < MIN_LAST_YEAR_TO_DATE) return null;
+
+      const fractionWatchedByNowLastYear = Math.max(lastYearToDate / lastYearTotal, MIN_FRACTION);
+      const seasonalProjectedTotal = this.moviesWatchedThisYear / fractionWatchedByNowLastYear;
+
+      return seasonalProjectedTotal - this.moviesWatchedThisYear;
+    },
+    // Projects a year-end total from up to FOUR independent estimates of
+    // how many MORE movies get watched in the remaining days of the year,
+    // averaged equally: the whole year's own rate so far, the last ~2
+    // weeks' rate, the last ~2 calendar months' rate, and (only when
+    // seasonalProjectedAdditional's guards allow it) last year's actual
+    // seasonal shape. Bug report: "I don't really remember how I
+    // calculated that... does it seem accurate."
     //
     // Simplified (Jul 2026) from a version that ALSO computed
     // "movies per week this year" and "movies per month this year" purely
@@ -990,7 +1038,9 @@ export default {
     // formula happened to reduce to exactly this same three-rate average —
     // just needlessly obscured, which is what actually prompted this
     // report. Locked in as unchanged by the pre-existing characterization
-    // test in Insights.test.js (same output for the same fixture).
+    // test in Insights.test.js (same output for the same fixture) as of
+    // that pass — the seasonal 4th signal below is a separate, later
+    // addition and DOES change the number when its guards pass.
     estimatedMoviesThisYear () {
       const today = new Date();
       const currentYear = today.getFullYear();
@@ -1002,7 +1052,14 @@ export default {
       const recentWeeksRate = (this.moviesWatchedThisWeek + this.moviesWatchedLastWeek) / 14; // movies/day, last ~2 weeks
       const recentMonthsRate = (this.moviesWatchedThisMonth + this.moviesWatchedLastMonth) / (daysInYear / 6); // movies/day, last ~2 calendar months
 
-      const projectedAdditional = ((wholeYearRate + recentWeeksRate + recentMonthsRate) / 3) * remainingDays;
+      const additionalEstimates = [
+        wholeYearRate * remainingDays,
+        recentWeeksRate * remainingDays,
+        recentMonthsRate * remainingDays
+      ];
+      if (this.seasonalProjectedAdditional != null) additionalEstimates.push(this.seasonalProjectedAdditional);
+
+      const projectedAdditional = additionalEstimates.reduce((sum, value) => sum + value, 0) / additionalEstimates.length;
 
       return Math.round(this.moviesWatchedThisYear + projectedAdditional);
     },

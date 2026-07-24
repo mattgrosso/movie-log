@@ -178,6 +178,104 @@ describe('Insights', () => {
     })
   })
 
+  describe('seasonalProjectedAdditional (follow-up ask: "look at what I was doing last year... build in some guards against people with very small libraries")', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 6, 21)) // Jul 21 2026, same as the describe block above
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    function datedEntries (prefix, dates) {
+      return dates.map(([y, m, d], i) => entry({ dbKey: `${prefix}-${i}`, ratings: [{ calculatedTotal: 5, date: localDate(y, m, d) }] }))
+    }
+
+    it('is null when last year\'s FULL-YEAR total is too small to trust a "shape" (MIN_LAST_YEAR_TOTAL)', () => {
+      // 11 movies, all last year — under the 12-movie floor.
+      const mediaEntries = datedEntries('ly', Array.from({ length: 11 }, (_, i) => [2025, 1, i + 1]))
+      const { wrapper } = mountInsights({ mediaEntries })
+
+      expect(wrapper.vm.moviesWatchedLastYear).toBe(11)
+      expect(wrapper.vm.seasonalProjectedAdditional).toBeNull()
+    })
+
+    it('is null when last year\'s TO-DATE count is too small, even with a large full-year total (MIN_LAST_YEAR_TO_DATE)', () => {
+      // Only 3 movies by Jul 21 2025 (to-date), but 20 for the full year —
+      // the rest all land after the cutoff.
+      const mediaEntries = datedEntries('ly', [
+        [2025, 1, 1], [2025, 1, 2], [2025, 1, 3],
+        ...Array.from({ length: 17 }, (_, i) => [2025, 9, i + 1])
+      ])
+      const { wrapper } = mountInsights({ mediaEntries })
+
+      expect(wrapper.vm.moviesWatchedLastYear).toBe(20)
+      expect(wrapper.vm.moviesWatchedLastYearToDate).toBe(3)
+      expect(wrapper.vm.seasonalProjectedAdditional).toBeNull()
+    })
+
+    it('computes a real projection once both guards pass, scaling this year\'s count by the inverse of last year\'s to-date fraction', () => {
+      // Last year: 10 by Jul 21 (to-date), 10 more after -> total 20,
+      // fraction watched-by-now = 0.5. This year: exactly 10 watched so
+      // far. Projected full-year total = 10 / 0.5 = 20, so the ADDITIONAL
+      // implied by this signal alone is 20 - 10 = 10 — a clean, exactly
+      // hand-checkable case (not just a characterization lock-in).
+      const mediaEntries = [
+        ...datedEntries('ly-early', Array.from({ length: 10 }, (_, i) => [2025, 1, i + 1])),
+        ...datedEntries('ly-late', Array.from({ length: 10 }, (_, i) => [2025, 9, i + 1])),
+        ...datedEntries('ty', Array.from({ length: 10 }, (_, i) => [2026, 2, i + 1]))
+      ]
+      const { wrapper } = mountInsights({ mediaEntries })
+
+      expect(wrapper.vm.moviesWatchedLastYear).toBe(20)
+      expect(wrapper.vm.moviesWatchedLastYearToDate).toBe(10)
+      expect(wrapper.vm.moviesWatchedThisYear).toBe(10)
+      expect(wrapper.vm.seasonalProjectedAdditional).toBe(10)
+    })
+
+    it('floors an extremely lopsided fraction at MIN_FRACTION rather than letting it scale up unboundedly', () => {
+      // Last year: 4 by Jul 21 (to-date — clears MIN_LAST_YEAR_TO_DATE on
+      // its own), but 40 for the full year — a real fraction of 4/40 =
+      // 0.1 would imply a 10x scale-up. MIN_FRACTION (0.15) caps it well
+      // short of that, independent of the absolute-count guards above.
+      const mediaEntries = [
+        ...datedEntries('ly-early', [[2025, 1, 1], [2025, 1, 2], [2025, 1, 3], [2025, 1, 4]]),
+        ...datedEntries('ly-late', Array.from({ length: 36 }, (_, i) => [2025, 9, (i % 28) + 1])),
+        ...datedEntries('ty', Array.from({ length: 6 }, (_, i) => [2026, 2, i + 1]))
+      ]
+      const { wrapper } = mountInsights({ mediaEntries })
+
+      expect(wrapper.vm.moviesWatchedLastYear).toBe(40)
+      expect(wrapper.vm.moviesWatchedLastYearToDate).toBe(4)
+      // Uncapped, 6 / (4/40) - 6 = 54. Capped at the 0.15 floor:
+      // 6 / 0.15 - 6 = 34.
+      expect(wrapper.vm.seasonalProjectedAdditional).toBeCloseTo(34, 5)
+    })
+
+    it('estimatedMoviesThisYear blends the seasonal signal in when it qualifies, and falls back to the unchanged 3-way blend when it does not', () => {
+      const thisYearDates = Array.from({ length: 10 }, (_, i) => [2026, 2, i + 1])
+      const qualifyingLastYear = [
+        ...Array.from({ length: 10 }, (_, i) => [2025, 1, i + 1]),
+        ...Array.from({ length: 10 }, (_, i) => [2025, 9, i + 1])
+      ]
+
+      const withSeasonal = mountInsights({
+        mediaEntries: [...datedEntries('ly', qualifyingLastYear), ...datedEntries('ty', thisYearDates)]
+      }).wrapper
+      const withoutSeasonal = mountInsights({
+        mediaEntries: datedEntries('ty', thisYearDates)
+      }).wrapper
+
+      expect(withSeasonal.vm.seasonalProjectedAdditional).not.toBeNull()
+      expect(withoutSeasonal.vm.seasonalProjectedAdditional).toBeNull()
+      // Same "this year" viewing in both cases, but the version with a
+      // qualifying prior year produces a DIFFERENT (not just coincidentally
+      // equal) final estimate — proof the signal actually reaches the
+      // blended output, not just its own isolated computed.
+      expect(withSeasonal.vm.estimatedMoviesThisYear).not.toBe(withoutSeasonal.vm.estimatedMoviesThisYear)
+    })
+  })
+
   describe('rating stats (highest/lowest/average)', () => {
     it('computes max/min/mean over rated movies only', () => {
       const mediaEntries = [
