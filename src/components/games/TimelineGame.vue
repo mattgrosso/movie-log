@@ -492,14 +492,23 @@ export default {
   justify-content: center;
   overflow: hidden;
   width: 34px;
-  // width/opacity duration comes from --step-duration (set on the root
-  // element from stepDurationMs) so step 2's widen and step 3's grow-in
-  // can never drift out of sync with the JS `wait`s driving them.
-  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease, width var(--step-duration, 0.45s) ease, opacity var(--step-duration, 0.45s) ease;
+  // width/opacity/border-width duration comes from --step-duration (set
+  // on the root element from stepDurationMs) so step 2's widen and step
+  // 3's grow-in can never drift out of sync with the JS `wait`s driving
+  // them. border-width is deliberately included here — without it, a
+  // border-width CHANGE (see .entering below) snaps instantly instead of
+  // growing in step with width, which is what made a newly-entering gap
+  // read as "jumping" straight to a fully-bordered box rather than
+  // actually growing from nothing (bug report).
+  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease, width var(--step-duration, 0.45s) ease, opacity var(--step-duration, 0.45s) ease, border-width var(--step-duration, 0.45s) ease;
 }
 
-// Step 3: newly-mounted flanking gaps start collapsed (0 width, invisible)
-// and grow in once the class is removed a frame later (see growInNewGaps).
+// Step 3: newly-mounted flanking gaps start collapsed (0 width, invisible,
+// no border at all) and grow in — width, opacity, AND border-width all
+// animate together (see the base .timeline-gap transition above) once the
+// class is removed a frame later (see settleNewGaps), so the border
+// visibly grows in lockstep with the box rather than snapping to full
+// thickness the instant the box exists at all.
 .timeline-gap.entering {
   width: 0;
   opacity: 0;
