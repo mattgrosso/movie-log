@@ -492,27 +492,29 @@ export default {
   justify-content: center;
   overflow: hidden;
   width: 34px;
-  // width/opacity/border-width duration comes from --step-duration (set
-  // on the root element from stepDurationMs) so step 2's widen and step
-  // 3's grow-in can never drift out of sync with the JS `wait`s driving
-  // them. border-width is deliberately included here — without it, a
-  // border-width CHANGE (see .entering below) snaps instantly instead of
-  // growing in step with width, which is what made a newly-entering gap
-  // read as "jumping" straight to a fully-bordered box rather than
-  // actually growing from nothing (bug report).
-  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease, width var(--step-duration, 0.45s) ease, opacity var(--step-duration, 0.45s) ease, border-width var(--step-duration, 0.45s) ease;
+  // Layout width is a CONSTANT 34px now, never animated — see .entering
+  // below for why. transform/opacity duration comes from --step-duration
+  // (set on the root element from stepDurationMs) so step 3's grow-in
+  // can never drift out of sync with the JS `wait`s driving it.
+  // :active overrides transform's duration back to fast (0.1s) below,
+  // since tap-press feedback needs to feel instant, not tied to the
+  // (much slower) grow-in speed.
+  transition: border-color 0.1s ease, background 0.1s ease, transform var(--step-duration, 0.45s) ease, opacity var(--step-duration, 0.45s) ease;
 }
 
-// Step 3: newly-mounted flanking gaps start collapsed (0 width, invisible,
-// no border at all) and grow in — width, opacity, AND border-width all
-// animate together (see the base .timeline-gap transition above) once the
-// class is removed a frame later (see settleNewGaps), so the border
-// visibly grows in lockstep with the box rather than snapping to full
-// thickness the instant the box exists at all.
+// Step 3: newly-mounted flanking gaps start visually collapsed to a
+// single vertical line and grow outward from it to full width — a
+// transform (scaleX), NOT width/border-width. Animating width/border-
+// width directly (tried first) was jerky, especially for a DASHED
+// border, which has to recompute its dash pattern on every frame rather
+// than just scaling cleanly the way a GPU-composited transform does.
+// Layout width stays a constant 34px throughout (see the base rule
+// above) — only the VISUAL rendering scales, so there's no reflow to
+// wait on either. Grows back to normal (transform: none, i.e. scaleX(1))
+// once the class is removed a frame later — see settleNewGaps.
 .timeline-gap.entering {
-  width: 0;
+  transform: scaleX(0);
   opacity: 0;
-  border-width: 0;
 }
 
 // Step 2: the tapped gap itself hosts the settling poster — solid border,
@@ -577,10 +579,14 @@ export default {
 }
 
 // Mobile-first: :active only, no :hover (this app has no reliable pointer
-// device — see CLAUDE.md).
+// device — see CLAUDE.md). transition is re-declared here (not just
+// relying on the base rule) so this press feedback stays fast (0.1s) —
+// the base .timeline-gap transition's own `transform` duration is the
+// much slower --step-duration, meant for the entering grow-in, not taps.
 .timeline-gap:active:not(:disabled) {
   background: rgba(255, 255, 255, 0.14);
   transform: scale(0.94);
+  transition: transform 0.1s ease, background 0.1s ease;
 }
 
 .timeline-gap:disabled {
