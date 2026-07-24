@@ -357,7 +357,6 @@
 import Outliers from "./Outliers.vue";
 import YearlyAverage from "./YearlyAverage.vue";
 import FullCalendarView from "./FullCalendarView.vue";
-import Favorites from "./Favorites.vue";
 import FavoriteActresses from "./FavoriteActresses.vue";
 import FavoriteActors from "./FavoriteActors.vue";
 import FavoriteDirectors from "./FavoriteDirectors.vue";
@@ -385,7 +384,6 @@ export default {
     Outliers,
     YearlyAverage,
     FullCalendarView,
-    Favorites,
     FavoriteActresses,
     FavoriteActors,
     FavoriteDirectors,
