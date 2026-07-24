@@ -254,6 +254,25 @@ describe('TimelineGame', () => {
 
       vi.restoreAllMocks();
     });
+
+    it('preloadImage: resolves immediately for a missing url, and never hangs even when decode() never settles (bug report: "have the animated poster stay in place... until we\'re certain the real poster is fully loaded" — this is what makes that safe to await)', async () => {
+      const wrapper = factory(tenMovies());
+
+      await expect(wrapper.vm.preloadImage(null)).resolves.toBeUndefined();
+
+      // jsdom's Image.decode() never resolves or rejects at all — confirmed
+      // directly (an unbounded await on it hangs a test indefinitely). The
+      // race against a capped wait() is what keeps this safe to await
+      // unconditionally, in both jsdom and a real browser where decode
+      // could theoretically stall or reject.
+      const promise = wrapper.vm.preloadImage('https://image.tmdb.org/t/p/w342/does-not-matter.jpg');
+      let settled = false;
+      promise.then(() => { settled = true; return null; }).catch(() => {});
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(600);
+      expect(settled).toBe(true);
+    });
   });
 
   it('an incorrect guess ends the game, reveals the true year, and highlights where it actually belonged', async () => {

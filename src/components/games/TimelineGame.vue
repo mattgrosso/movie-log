@@ -254,8 +254,38 @@ export default {
     nextFrame () {
       return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     },
+    // Fully decodes an image before the promise resolves — not just
+    // "loaded" (bytes fetched), DECODED (ready to paint with zero extra
+    // work). Used to fully eliminate the flash between the flying/
+    // placing-gap poster and the next element that takes over showing
+    // the same artwork (bug report: "a flash between when the animated
+    // poster gets in place and when it gets replaced with the real
+    // poster"). Guessing/hoping the browser's HTTP cache makes a second
+    // <img> with the same src "basically instant" isn't reliable enough
+    // — decode is a real, sometimes-nontrivial step even for a cached
+    // resource, especially on mobile.
+    //
+    // Raced against a generous timeout rather than awaited unconditionally
+    // — decode()/onload are real browser APIs that never resolve at all in
+    // jsdom (confirmed directly: an unbounded await here hung a test
+    // indefinitely), and even in production a stuck/rejected decode should
+    // never be able to block the placement sequence forever. Worst case
+    // (decode genuinely slower than the cap, or fails) the swap just isn't
+    // perfectly instant — never broken.
+    preloadImage (url) {
+      if (!url) return Promise.resolve();
+      const img = new Image();
+      img.src = url;
+      const attempt = img.decode
+        ? img.decode().catch(() => {})
+        : new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; });
+      return Promise.race([attempt, this.wait(1500)]);
+    },
     // Step 1: slide + shrink a decoupled clone from the mystery card's own
-    // spot to the tapped gap's position/size.
+    // spot to the tapped gap's position/size. Deliberately does NOT clear
+    // flyingCard once the wait resolves — see expandInPlace, which clears
+    // it in the SAME synchronous block as revealing the next element, for
+    // the same "no intermediate blank frame" reason documented there.
     async flyToGap (posterUrl, fromRect, toRect) {
       this.flyingCard = { posterUrl, style: { left: `${fromRect.left}px`, top: `${fromRect.top}px`, width: `${fromRect.width}px`, height: `${fromRect.height}px` } };
       this.flyingCardAnimating = false;
@@ -263,15 +293,23 @@ export default {
       this.flyingCard = { posterUrl, style: { left: `${toRect.left}px`, top: `${toRect.top}px`, width: `${toRect.width}px`, height: `${toRect.height}px` } };
       this.flyingCardAnimating = true;
       await this.wait(this.stepDurationMs);
-      this.flyingCard = null;
-      this.flyingCardAnimating = false;
     },
     // Step 2: the poster now lives inside the REAL tapped gap element
     // (already sitting at that exact spot, so no jump from step 1), then
     // that real flex child widens to the final card size — a plain CSS
     // width transition on a real layout element, so neighboring cards/
     // gaps reflow around it naturally without any manual position math.
-    // Deliberately does NOT clear placingGapIndex/placingPosterUrl/
+    //
+    // Clearing the flying clone AND revealing the placing-gap poster is
+    // done together, right here, as this function's own synchronous
+    // prefix (not split across the await boundary between flyToGap
+    // returning and this function being called) — same "batch it or Vue
+    // paints an intermediate frame" reasoning as the placing-gap ->
+    // real-card handoff below. By the time this runs, the caller has
+    // already awaited the poster's decode (see guess()), so revealing it
+    // here is guaranteed flash-free.
+    //
+    // Also deliberately does NOT clear placingGapIndex/placingPosterUrl/
     // placingWide once the wait resolves — that has to happen in the SAME
     // synchronous block as the real timeline insertion (see guess()), or
     // the microtask boundary introduced by awaiting this function's own
@@ -279,6 +317,8 @@ export default {
     // before the real card lands (bug report: "the poster disappears...
     // then reappears").
     async expandInPlace (posterUrl, slotIndex) {
+      this.flyingCard = null;
+      this.flyingCardAnimating = false;
       this.placingPosterUrl = posterUrl;
       this.placingGapIndex = slotIndex;
       this.placingWide = false;
@@ -312,6 +352,12 @@ export default {
 
       const placedEntry = this.mysteryCard;
       const posterUrl = this.gamePosterUrl(placedEntry, 'w342');
+      // The REAL timeline-card (mounted once the data actually lands)
+      // uses a different, smaller size than the flying/placing poster —
+      // a genuinely different URL, so preloading the large one doesn't
+      // cover it. Both are kicked off together, below, as early as
+      // possible.
+      const finalPosterUrl = this.gamePosterUrl(placedEntry, 'w185');
       const fromRect = this.$refs.mysteryCardEl ? this.$refs.mysteryCardEl.getBoundingClientRect() : null;
       const gapEl = event && event.currentTarget ? event.currentTarget : null;
       const narrowRect = gapEl ? gapEl.getBoundingClientRect() : null;
@@ -325,8 +371,25 @@ export default {
 
       if (canAnimate) {
         this.isPlacing = true;
+        // Kicked off as early as possible so decoding happens IN
+        // PARALLEL with the (multi-second) animation, not after it —
+        // by the time either is actually needed, it's almost certainly
+        // already resolved, so awaiting it below costs nothing in the
+        // common case. Bug report: "there is often a flash between when
+        // the animated poster gets in place and when it gets replaced
+        // with the real poster... have the animated poster stay in
+        // place for longer until we're certain the real poster is fully
+        // loaded behind it" — that's exactly what awaiting these
+        // immediately before each swap achieves: the outgoing visual
+        // (flying clone, then the placing-gap poster) is only ever
+        // cleared in the SAME synchronous step as revealing something
+        // already guaranteed ready, never a step earlier.
+        const decodeLarge = this.preloadImage(posterUrl);
+        const decodeSmall = this.preloadImage(finalPosterUrl);
         await this.flyToGap(posterUrl, fromRect, narrowRect);
+        await decodeLarge;
         await this.expandInPlace(posterUrl, slotIndex);
+        await decodeSmall;
       }
 
       // Everything below is deliberately ONE synchronous block, with no
