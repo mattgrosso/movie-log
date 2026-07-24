@@ -58,11 +58,25 @@ import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { shuffle, entryKey, movieYear } from '../../assets/javascript/games/gameUtils.js';
 import { isValidPlacement, insertAtSlot, correctSlotIndex } from '../../assets/javascript/games/timeline.js';
+import timelineBanner from '../../assets/images/games/timeline-banner.jpg';
 
 export default {
   name: 'TimelineGame',
   components: { BackLink, NewRatingSearch },
   mixins: [gameDataMixin],
+  // Custom banner graphic (with its own "Timeline / Cinema Roll Games"
+  // branding baked in) in place of the usual movie-backdrop banner, and
+  // hides the "Cinema Roll" title overlay so it doesn't compete with that
+  // baked-in branding — same pattern as the other 4 games, see CLAUDE.md.
+  created () {
+    this.previousBannerUrl = this.$store.state?.bannerUrl;
+    this.$store.commit?.('setBannerUrl', timelineBanner);
+    this.$store.commit?.('setHideHeaderLogo', true);
+  },
+  beforeUnmount () {
+    this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
+    this.$store.commit?.('setHideHeaderLogo', false);
+  },
   data () {
     return {
       started: false,
