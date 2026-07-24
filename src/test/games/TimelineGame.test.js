@@ -191,11 +191,15 @@ describe('TimelineGame', () => {
     // can end up sweeping through a just-scheduled rAF pair as part of
     // settling the timer that triggered them. Testing the named helper
     // directly sidesteps that entirely and is more precise anyway.
-    it('growInNewGaps: the two new flanking gaps grow in from 0 width, and the "+" glyph stays hidden for the WHOLE grow, not just the collapsed instant (bug report: "adding the actual + is causing it to snap open and not look like it\'s growing")', async () => {
+    it('settleNewGaps: the two new flanking gaps grow in from 0 width, and the "+" glyph stays hidden for the WHOLE grow, not just the collapsed instant (bug report: "adding the actual + is causing it to snap open and not look like it\'s growing")', async () => {
       const wrapper = factory(tenMovies());
       await wrapper.find('.btn-game-primary').trigger('click');
 
-      const promise = wrapper.vm.growInNewGaps(0);
+      // guess() sets these two synchronously, alongside the real timeline
+      // insertion, before calling settleNewGaps — replicate that here.
+      wrapper.vm.enteringGapIndices = [0, 1];
+      wrapper.vm.plusHiddenGapIndices = [0, 1];
+      const promise = wrapper.vm.settleNewGaps();
       await wrapper.vm.$nextTick();
       expect(wrapper.vm.enteringGapIndices).toEqual([0, 1]);
       expect(wrapper.vm.plusHiddenGapIndices).toEqual([0, 1]);

@@ -181,13 +181,33 @@ export default {
     // Alternates gap/card/gap/card/.../gap so the template can render one
     // flat, horizontally-scrolling row (same pattern as Six Degrees'
     // .chain-row) — N placed cards always have exactly N+1 gaps around them.
+    //
+    // Gap keys are based on the card immediately BEFORE them (or
+    // 'gap-start' for the very first one), NOT their raw array index.
+    // Index-based keys are unstable across insertion — inserting a card
+    // shifts every subsequent gap's index, so Vue's keyed diffing would
+    // treat most gaps after the insertion point as "the same element,
+    // just moved" rather than tracking real identity. That mismatch was
+    // why the two gaps newly flanking a placed card didn't reliably grow
+    // from a clean 0 width (bug report: "they aren't expanding from 0
+    // width they pop in with some amount of width and border") — at
+    // least one of the two was actually a REUSED, already-painted-at-
+    // normal-size DOM node, not a fresh mount. Keying by neighboring card
+    // identity means inserting a card only ever creates exactly one
+    // genuinely NEW gap (the other flanking gap correctly continues the
+    // identity of whichever old gap it's a continuation of) — gaps
+    // elsewhere in the row, unrelated to this insertion, keep their exact
+    // same DOM node.
     timelineDisplayItems () {
       const items = [];
+      let previousCardKey = 'start';
       this.timeline.forEach((entry, index) => {
-        items.push({ type: 'gap', key: `gap-${index}`, slotIndex: index });
-        items.push({ type: 'card', key: entryKey(entry) || `card-${index}`, entry });
+        items.push({ type: 'gap', key: `gap-after-${previousCardKey}`, slotIndex: index });
+        const cardKey = entryKey(entry) || `card-${index}`;
+        items.push({ type: 'card', key: cardKey, entry });
+        previousCardKey = cardKey;
       });
-      items.push({ type: 'gap', key: `gap-${this.timeline.length}`, slotIndex: this.timeline.length });
+      items.push({ type: 'gap', key: `gap-after-${previousCardKey}`, slotIndex: this.timeline.length });
       return items;
     }
   },
@@ -251,6 +271,13 @@ export default {
     // that real flex child widens to the final card size — a plain CSS
     // width transition on a real layout element, so neighboring cards/
     // gaps reflow around it naturally without any manual position math.
+    // Deliberately does NOT clear placingGapIndex/placingPosterUrl/
+    // placingWide once the wait resolves — that has to happen in the SAME
+    // synchronous block as the real timeline insertion (see guess()), or
+    // the microtask boundary introduced by awaiting this function's own
+    // return lets Vue paint an intermediate "back to a blank + gap" frame
+    // before the real card lands (bug report: "the poster disappears...
+    // then reappears").
     async expandInPlace (posterUrl, slotIndex) {
       this.placingPosterUrl = posterUrl;
       this.placingGapIndex = slotIndex;
@@ -258,21 +285,14 @@ export default {
       await this.nextFrame();
       this.placingWide = true;
       await this.wait(this.stepDurationMs);
-      this.placingGapIndex = null;
-      this.placingPosterUrl = null;
-      this.placingWide = false;
     },
-    // Step 3: the two gaps now flanking the just-inserted real card mount
-    // collapsed (0 width) and grow in, instead of just popping into
-    // existence at full size. The "+" glyph stays suppressed for the WHOLE
-    // width-grow (not just the brief collapsed window enteringGapIndices
-    // covers) — it only reveals once the box has actually finished
-    // widening, so it reads as a settled box that already has a "+" rather
-    // than something popping in mid-motion.
-    async growInNewGaps (slotIndex) {
-      const indices = [slotIndex, slotIndex + 1];
-      this.enteringGapIndices = indices;
-      this.plusHiddenGapIndices = indices;
+    // Step 3's settle half: waits a frame (to trigger the width
+    // transition on the already-collapsed gaps — see guess() for where
+    // they're marked collapsed) then waits for it to finish before
+    // revealing the "+". Assumes the caller already set
+    // enteringGapIndices/plusHiddenGapIndices synchronously alongside the
+    // real timeline insertion — see guess().
+    async settleNewGaps () {
       await this.nextFrame();
       this.enteringGapIndices = [];
       await this.wait(this.stepDurationMs);
@@ -309,6 +329,20 @@ export default {
         await this.expandInPlace(posterUrl, slotIndex);
       }
 
+      // Everything below is deliberately ONE synchronous block, with no
+      // `await` between any of these statements: clearing step 2's
+      // placing-gap state, committing the real timeline insertion, AND
+      // marking the two new flanking gaps as collapsed all batch into a
+      // SINGLE Vue update/paint this way. Splitting them across an await
+      // boundary (the previous version) let Vue paint an intermediate
+      // frame — poster gone, real card not yet inserted, gaps not yet
+      // marked collapsed — which is what read as "the poster disappears
+      // and the plus sign boxes appear on either side of a blank space...
+      // then the poster reappears" (bug report).
+      this.placingGapIndex = null;
+      this.placingPosterUrl = null;
+      this.placingWide = false;
+
       this.timeline = insertAtSlot(this.timeline, slotIndex, placedEntry);
       this.streak += 1;
       if (this.streak > this.bestStreak) {
@@ -316,7 +350,12 @@ export default {
       }
 
       if (canAnimate) {
-        await this.growInNewGaps(slotIndex);
+        this.enteringGapIndices = [slotIndex, slotIndex + 1];
+        this.plusHiddenGapIndices = [slotIndex, slotIndex + 1];
+      }
+
+      if (canAnimate) {
+        await this.settleNewGaps();
         this.isPlacing = false;
       }
 
