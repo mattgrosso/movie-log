@@ -13,6 +13,10 @@ Object.defineProperty(window, 'scrollTo', {
   value: vi.fn(),
   writable: true
 })
+Object.defineProperty(window, 'scrollBy', {
+  value: vi.fn(),
+  writable: true
+})
 
 // Mock console methods to reduce noise in tests
 global.console = {
