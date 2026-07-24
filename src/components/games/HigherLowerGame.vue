@@ -21,8 +21,13 @@
           :class="{ tappable: !guessed && !gameOver }"
           @click="guess('left')"
         >
-          <img v-if="gamePosterUrl(leftCard)" :src="gamePosterUrl(leftCard, 'w342')" :alt="leftCard.movie.title">
-          <p class="hl-card-score" :class="scoreClass('left')">{{ scoreDisplay('left') }}</p>
+          <div class="hl-card-poster">
+            <img v-if="gamePosterUrl(leftCard)" :src="gamePosterUrl(leftCard, 'w342')" :alt="leftCard.movie.title">
+            <div v-if="guessed && tappedSide === 'left'" class="hl-guess-badge" :class="resultClass">
+              <i :class="lastGuessCorrect ? 'bi bi-check-lg' : 'bi bi-x-lg'"></i>
+            </div>
+          </div>
+          <p class="hl-card-score">{{ scoreDisplay('left') }}</p>
         </div>
 
         <div
@@ -30,8 +35,13 @@
           :class="{ tappable: !guessed && !gameOver }"
           @click="guess('right')"
         >
-          <img v-if="gamePosterUrl(rightCard)" :src="gamePosterUrl(rightCard, 'w342')" :alt="rightCard.movie.title">
-          <p class="hl-card-score" :class="scoreClass('right')">{{ scoreDisplay('right') }}</p>
+          <div class="hl-card-poster">
+            <img v-if="gamePosterUrl(rightCard)" :src="gamePosterUrl(rightCard, 'w342')" :alt="rightCard.movie.title">
+            <div v-if="guessed && tappedSide === 'right'" class="hl-guess-badge" :class="resultClass">
+              <i :class="lastGuessCorrect ? 'bi bi-check-lg' : 'bi bi-x-lg'"></i>
+            </div>
+          </div>
+          <p class="hl-card-score">{{ scoreDisplay('right') }}</p>
         </div>
       </div>
 
@@ -83,6 +93,12 @@ export default {
       streak: 0,
       guessed: false,
       lastGuessCorrect: null,
+      // Which poster was actually TAPPED to submit the current guess — bug
+      // report: "if I tapped on the correct one, I should get a checkmark,
+      // and if I tapped on the wrong one, I get an X" — feedback belongs on
+      // the poster the player touched, not tied to which side happens to be
+      // the mystery/revealed one.
+      tappedSide: null,
       gameOver: false,
       ranOutOfMovies: false
     };
@@ -134,10 +150,6 @@ export default {
       if (side !== this.mysterySide || this.guessed) return this.formattedRating(this.cardFor(side));
       return '?';
     },
-    scoreClass (side) {
-      if (side !== this.mysterySide || !this.guessed) return '';
-      return this.resultClass;
-    },
     start () {
       this.pool = shuffle(this.eligibleGameEntries, Math.random);
       this.poolIndex = 2;
@@ -146,6 +158,7 @@ export default {
       this.revealedSide = 'left';
       this.streak = 0;
       this.guessed = false;
+      this.tappedSide = null;
       this.gameOver = false;
       this.ranOutOfMovies = false;
     },
@@ -172,6 +185,7 @@ export default {
       const isCorrect = isTie || (guessHigher ? mysteryRating > revealedRating : mysteryRating < revealedRating);
 
       this.guessed = true;
+      this.tappedSide = tappedSide;
       this.lastGuessCorrect = isCorrect;
 
       if (!isCorrect) {
@@ -205,6 +219,7 @@ export default {
         }
         this.revealedSide = newRevealedSide;
         this.guessed = false;
+        this.tappedSide = null;
       }, 900);
     }
   }
@@ -217,10 +232,12 @@ export default {
 .higher-lower-game {
   color: #eee;
   min-height: 100vh;
-  // See the identical comment in ConnectionsGame.vue — top padding is a
-  // safety margin against BackLink overlapping this screen's own h1 when
-  // the global Header happens to have zero height.
-  padding: 2.5rem 0 2rem;
+  // Top padding is a safety margin against BackLink overlapping this
+  // screen's own content when the global Header happens to have zero
+  // height (see the identical comment in ConnectionsGame.vue) — trimmed
+  // from 2.5rem per bug report ("we don't really need all that space
+  // above"), same tradeoff Six Degrees/Timeline already made.
+  padding: 1.75rem 0 2rem;
   text-align: center;
 }
 
@@ -265,16 +282,25 @@ export default {
   max-width: 220px;
 }
 
+.hl-card-poster {
+  position: relative;
+}
+
 .hl-card img {
   border-radius: 0.35rem;
   width: 100%;
+  display: block;
 }
 
 // Bug report: "we don't need to have labels underneath the posters the
 // posters already have the title of the movie... we don't need the
 // labels" — .hl-card-title (a redundant duplicate of the poster's own
 // title) is gone; the score's own top margin picks up the spacing that
-// used to come from the title sitting above it.
+// used to come from the title sitting above it. It no longer carries any
+// correct/incorrect color either — that feedback moved to the checkmark/X
+// badge below (bug report: "the new score comes in as Green, but it's a
+// little bit confusing... if I tapped on the correct one I should get a
+// checkmark, and if I tapped on the wrong one, an X").
 .hl-card-score {
   color: #adb5bd;
   font-size: 1.4rem;
@@ -282,12 +308,31 @@ export default {
   margin: 0.4rem 0 0;
 }
 
-.hl-card-score.correct {
-  color: #4caf50;
+// Shown only on the poster the player actually TAPPED, once a guess has
+// been made — same corner-badge convention as TweakInline's
+// .selected-checkmark, extended here with a red "X" variant for a wrong
+// guess (TweakInline only ever needed the one "you picked this" state).
+.hl-guess-badge {
+  align-items: center;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  display: flex;
+  font-size: 1.1rem;
+  height: 28px;
+  justify-content: center;
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 28px;
 }
 
-.hl-card-score.incorrect {
-  color: #ff6a6a;
+.hl-guess-badge.correct {
+  background: #4caf50;
+}
+
+.hl-guess-badge.incorrect {
+  background: #ff6a6a;
 }
 
 /* Always rendered (see statusMessage) so its text can swap in place without

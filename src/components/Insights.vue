@@ -972,35 +972,39 @@ export default {
       });
       return count;
     },
+    // Projects a year-end total from THREE independent movies-per-day rates,
+    // averaged equally, then extrapolated across the remaining days of the
+    // year: the whole year's own rate so far, the last ~2 weeks' rate, and
+    // the last ~2 calendar months' rate. Bug report: "I don't really
+    // remember how I calculated that... does it seem accurate."
+    //
+    // Simplified (Jul 2026) from a version that ALSO computed
+    // "movies per week this year" and "movies per month this year" purely
+    // by rescaling the same whole-year daily rate up and back down again —
+    // those two terms were algebraically IDENTICAL to the whole-year term
+    // (rescale-then-rescale-back is a no-op), so despite reading like a
+    // blend of three different whole-year-based estimates, the code always
+    // just used the whole-year rate three times over. That's not a wrong
+    // NUMBER — the surrounding "recent weeks"/"recent months" adjustment
+    // terms already supplied the genuine short-term signal, and the overall
+    // formula happened to reduce to exactly this same three-rate average —
+    // just needlessly obscured, which is what actually prompted this
+    // report. Locked in as unchanged by the pre-existing characterization
+    // test in Insights.test.js (same output for the same fixture).
     estimatedMoviesThisYear () {
       const today = new Date();
       const currentYear = today.getFullYear();
       const dayOfYear = Math.floor((today - new Date(currentYear, 0, 0)) / 1000 / 60 / 60 / 24);
       const daysInYear = (currentYear % 4 === 0 && currentYear % 100 !== 0) || currentYear % 400 === 0 ? 366 : 365;
-
-      // Calculate the average movies watched per day this year
-      const avgMoviesPerDayThisYear = this.moviesWatchedThisYear / dayOfYear;
-
-      // Estimate based on current year's average
       const remainingDays = daysInYear - dayOfYear;
-      const estimateBasedOnCurrentYear = avgMoviesPerDayThisYear * remainingDays;
 
-      // Calculate the average movies watched per week this year
-      const avgMoviesPerWeekThisYear = this.moviesWatchedThisYear / (dayOfYear / 7);
+      const wholeYearRate = this.moviesWatchedThisYear / dayOfYear; // movies/day
+      const recentWeeksRate = (this.moviesWatchedThisWeek + this.moviesWatchedLastWeek) / 14; // movies/day, last ~2 weeks
+      const recentMonthsRate = (this.moviesWatchedThisMonth + this.moviesWatchedLastMonth) / (daysInYear / 6); // movies/day, last ~2 calendar months
 
-      // Calculate the average movies watched per month this year
-      const avgMoviesPerMonthThisYear = this.moviesWatchedThisYear / (dayOfYear / (daysInYear / 12));
+      const projectedAdditional = ((wholeYearRate + recentWeeksRate + recentMonthsRate) / 3) * remainingDays;
 
-      // Combine the estimates
-      const combinedEstimate = (estimateBasedOnCurrentYear + avgMoviesPerWeekThisYear * (remainingDays / 7) + avgMoviesPerMonthThisYear * (remainingDays / (daysInYear / 12))) / 3;
-
-      // Adjust the estimate based on recent viewing patterns
-      const recentWeeksAdjustment = (this.moviesWatchedThisWeek + this.moviesWatchedLastWeek) / 2;
-      const recentMonthsAdjustment = (this.moviesWatchedThisMonth + this.moviesWatchedLastMonth) / 2;
-
-      const finalEstimate = this.moviesWatchedThisYear + (combinedEstimate + recentWeeksAdjustment * (remainingDays / 7) + recentMonthsAdjustment * (remainingDays / (daysInYear / 12))) / 3;
-
-      return Math.round(finalEstimate);
+      return Math.round(this.moviesWatchedThisYear + projectedAdditional);
     },
     moviesWatchedLastYear () {
       const year = new Date().getFullYear() - 1; // Get last year

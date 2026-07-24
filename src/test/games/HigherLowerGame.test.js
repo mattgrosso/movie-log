@@ -114,8 +114,36 @@ describe('HigherLowerGame', () => {
     await wrapper.findAll('.hl-card')[wrongCardIndex].trigger('click');
 
     expect(wrapper.vm.gameOver).toBe(true);
-    expect(wrapper.find('.hl-card-score.incorrect').exists()).toBe(true);
+    // Feedback is now a badge on the poster actually TAPPED (bug report:
+    // "if I tapped on the wrong one, you get an X"), not a colored score —
+    // only one badge exists at a time, on the tapped poster.
+    const badges = wrapper.findAll('.hl-guess-badge');
+    expect(badges).toHaveLength(1);
+    expect(badges[0].classes()).toContain('incorrect');
+    expect(badges[0].find('.bi-x-lg').exists()).toBe(true);
     expect(wrapper.find('.game-over button').text()).toBe('Play Again');
+  });
+
+  it('shows a checkmark badge on the TAPPED poster for a correct guess, not a colored score', async () => {
+    const wrapper = factory(10);
+    await wrapper.find('.btn-game-primary').trigger('click');
+
+    const leftId = wrapper.vm.leftCard.movie.id;
+    const rightId = wrapper.vm.rightCard.movie.id;
+    const tapSide = rightId > leftId ? 'right' : 'left';
+    const cardIndex = tapSide === 'right' ? 1 : 0;
+
+    await wrapper.findAll('.hl-card')[cardIndex].trigger('click');
+
+    expect(wrapper.vm.lastGuessCorrect).toBe(true);
+    const badges = wrapper.findAll('.hl-guess-badge');
+    expect(badges).toHaveLength(1);
+    expect(badges[0].classes()).toContain('correct');
+    expect(badges[0].find('.bi-check-lg').exists()).toBe(true);
+    // The score text is never colored anymore — that's fully replaced by
+    // the badge.
+    expect(wrapper.find('.hl-card-score.correct').exists()).toBe(false);
+    expect(wrapper.find('.hl-card-score.incorrect').exists()).toBe(false);
   });
 
   it('shows two decimal places so near-identical scores stay distinguishable', async () => {
