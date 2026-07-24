@@ -54,8 +54,16 @@ describe('TimelineGame', () => {
     expect(wrapper.vm.timeline).toHaveLength(1);
     expect(wrapper.vm.mysteryCard).toBeTruthy();
     expect(wrapper.vm.mysteryCard.dbKey).not.toBe(wrapper.vm.timeline[0].dbKey);
-    // Year hidden until guessed.
-    expect(wrapper.find('.mystery-year').text()).toBe('?');
+    // No title/year text under the mystery card — just the poster (bug
+    // report: "lose the title... and the question mark from below it").
+    expect(wrapper.find('.mystery-title').exists()).toBe(false);
+    expect(wrapper.find('.mystery-year').exists()).toBe(false);
+    expect(wrapper.find('.mystery-card').classes()).not.toContain('correct');
+    expect(wrapper.find('.mystery-card').classes()).not.toContain('incorrect');
+    // The timeline row renders before the mystery card in the DOM (bug
+    // report: "have the actual streak we're building be above the card").
+    const html = wrapper.html();
+    expect(html.indexOf('timeline-row')).toBeLessThan(html.indexOf('mystery-card'));
   });
 
   it('a correct guess inserts the card into the timeline, grows the streak, and persists a new best', async () => {
@@ -68,6 +76,7 @@ describe('TimelineGame', () => {
 
     expect(wrapper.vm.lastGuessCorrect).toBe(true);
     expect(wrapper.vm.revealed).toBe(true);
+    expect(wrapper.find('.mystery-card').classes()).toContain('correct');
 
     await vi.advanceTimersByTimeAsync(1000);
 
@@ -90,7 +99,7 @@ describe('TimelineGame', () => {
 
     expect(wrapper.vm.gameOver).toBe(true);
     expect(wrapper.vm.lastGuessCorrect).toBe(false);
-    expect(wrapper.find('.mystery-year.incorrect').exists()).toBe(true);
+    expect(wrapper.find('.mystery-card').classes()).toContain('incorrect');
     expect(wrapper.text()).toContain('Not quite');
 
     const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
@@ -147,6 +156,98 @@ describe('TimelineGame', () => {
     expect(wrapper.vm.ranOutOfMovies).toBe(true);
     expect(wrapper.vm.gameOver).toBe(true);
     expect(wrapper.text()).toContain("You've placed your whole library!");
+  });
+
+  it('shows a compact streak/best line rather than a prominent top row (bug report: "we don\'t need the streak and best to be the top item")', async () => {
+    const wrapper = factory(tenMovies());
+    await wrapper.find('.btn-game-primary').trigger('click');
+
+    expect(wrapper.find('.streak-row').exists()).toBe(false);
+    expect(wrapper.find('.streak-line').text()).toBe('Streak 0 · Best 0');
+    // The status line (not the streak line) is the first thing rendered.
+    const html = wrapper.html();
+    expect(html.indexOf('status-line')).toBeLessThan(html.indexOf('streak-line'));
+  });
+
+  describe('drag-to-place (bug report: "it\'d be fun to be able to just drag the tile into its slot")', () => {
+    it('pointerdown on the mystery card starts a drag', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+
+      await wrapper.find('.mystery-card').trigger('pointerdown', { clientX: 100, clientY: 500, pointerId: 1 });
+      expect(wrapper.vm.dragging).toBe(true);
+    });
+
+    it('moving the pointer tracks an offset for the card to visually follow', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+
+      await wrapper.find('.mystery-card').trigger('pointerdown', { clientX: 100, clientY: 500, pointerId: 1 });
+      await wrapper.find('.mystery-card').trigger('pointermove', { clientX: 130, clientY: 420 });
+      expect(wrapper.vm.dragOffset).toEqual({ x: 30, y: -80 });
+    });
+
+    it('releasing a drag that never reached the timeline row snaps back without guessing', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+
+      // jsdom has no real layout, so resolveDragSlot's geometry check
+      // naturally resolves to "not near the row" here — this is the same
+      // outcome a real drag that stays down near the card would produce.
+      await wrapper.find('.mystery-card').trigger('pointerdown', { clientX: 100, clientY: 500, pointerId: 1 });
+      await wrapper.find('.mystery-card').trigger('pointermove', { clientX: 105, clientY: 495 });
+      expect(wrapper.vm.dragOverSlot).toBeNull();
+
+      await wrapper.find('.mystery-card').trigger('pointerup', {});
+      expect(wrapper.vm.dragging).toBe(false);
+      expect(wrapper.vm.revealed).toBe(false);
+      expect(wrapper.vm.timeline).toHaveLength(1);
+    });
+
+    it('releasing a drag over a resolved correct slot places the card, same as tapping that gap', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+
+      const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
+      // Drives dragOverSlot directly rather than fighting jsdom's lack of
+      // real getBoundingClientRect geometry — resolveDragSlot itself has no
+      // logic of its own beyond the pure closestSlotIndex (tested directly
+      // in timeline.test.js) plus this geometry lookup.
+      wrapper.vm.dragging = true;
+      wrapper.vm.dragOverSlot = correctSlot;
+      await wrapper.vm.onMysteryPointerUp();
+
+      expect(wrapper.vm.lastGuessCorrect).toBe(true);
+      expect(wrapper.vm.dragging).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(wrapper.vm.timeline).toHaveLength(2);
+      expect(wrapper.vm.streak).toBe(1);
+    });
+
+    it('releasing a drag over a resolved wrong slot ends the game, same as tapping that gap', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+
+      const wrongSlot = [0, 1].find((slot) => !isValidPlacement(wrapper.vm.timeline, slot, wrapper.vm.mysteryCard));
+      wrapper.vm.dragging = true;
+      wrapper.vm.dragOverSlot = wrongSlot;
+      await wrapper.vm.onMysteryPointerUp();
+
+      expect(wrapper.vm.lastGuessCorrect).toBe(false);
+      expect(wrapper.vm.gameOver).toBe(true);
+    });
+
+    it('does not start a drag once the game is over', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+      const wrongSlot = [0, 1].find((slot) => !isValidPlacement(wrapper.vm.timeline, slot, wrapper.vm.mysteryCard));
+      await wrapper.findAll('.timeline-gap')[wrongSlot].trigger('click');
+      expect(wrapper.vm.gameOver).toBe(true);
+
+      wrapper.vm.onMysteryPointerDown({ clientX: 0, clientY: 0, currentTarget: null });
+      expect(wrapper.vm.dragging).toBe(false);
+    });
   });
 
   describe('custom header banner (a graphic made for this game, same pattern as the other 4)', () => {

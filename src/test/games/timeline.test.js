@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidPlacement, insertAtSlot, correctSlotIndex } from '@/assets/javascript/games/timeline.js';
+import { isValidPlacement, insertAtSlot, correctSlotIndex, closestSlotIndex } from '@/assets/javascript/games/timeline.js';
 
 // Mid-month release dates throughout — see CLAUDE.md's documented test
 // pitfall: new Date('YYYY-01-01') parses as UTC midnight and can shift to
@@ -92,5 +92,22 @@ describe('correctSlotIndex', () => {
   it('returns null when the candidate has no derivable year', () => {
     const timeline = [entry(1990)];
     expect(correctSlotIndex(timeline, { dbKey: 'x', movie: {} })).toBeNull();
+  });
+});
+
+describe('closestSlotIndex', () => {
+  it('picks the nearest gap center to the pointer position', () => {
+    expect(closestSlotIndex(105, [0, 100, 300])).toBe(1);
+    expect(closestSlotIndex(5, [0, 100, 300])).toBe(0);
+    expect(closestSlotIndex(290, [0, 100, 300])).toBe(2);
+  });
+
+  it('breaks an exact tie by keeping the first (leftmost) match', () => {
+    expect(closestSlotIndex(50, [0, 100])).toBe(0);
+  });
+
+  it('returns null for an empty or missing list of gaps', () => {
+    expect(closestSlotIndex(50, [])).toBeNull();
+    expect(closestSlotIndex(50, null)).toBeNull();
   });
 });

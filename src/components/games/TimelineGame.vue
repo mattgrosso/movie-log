@@ -13,28 +13,17 @@
     </div>
 
     <template v-else>
-      <div class="streak-row">
-        <span>Streak: <strong>{{ streak }}</strong></span>
-        <span>Best: <strong>{{ bestStreak }}</strong></span>
-      </div>
-
       <p class="status-line">{{ statusMessage }}</p>
+      <p class="streak-line">Streak {{ streak }} · Best {{ bestStreak }}</p>
 
-      <div v-if="mysteryCard" class="mystery-card">
-        <img v-if="gamePosterUrl(mysteryCard)" :src="gamePosterUrl(mysteryCard, 'w342')" :alt="mysteryCard.movie.title">
-        <p class="mystery-title">{{ mysteryCard.movie.title }}</p>
-        <p class="mystery-year" :class="{ correct: revealed && lastGuessCorrect, incorrect: revealed && lastGuessCorrect === false }">
-          {{ revealed ? mysteryYearDisplay : '?' }}
-        </p>
-      </div>
-
-      <div class="timeline-row">
+      <div class="timeline-row" ref="timelineRow">
         <template v-for="item in timelineDisplayItems" :key="item.key">
           <button
             v-if="item.type === 'gap'"
             type="button"
+            ref="gapButtons"
             class="timeline-gap"
-            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss }"
+            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss, 'drag-over': item.slotIndex === dragOverSlot }"
             :disabled="revealed || !mysteryCard"
             @click="guess(item.slotIndex)"
           >+</button>
@@ -43,6 +32,23 @@
             <p class="timeline-year">{{ movieYear(item.entry) }}</p>
           </div>
         </template>
+      </div>
+
+      <!-- No title/year shown here — the poster is draggable up into the
+           timeline row above (or tap a gap directly); correct/incorrect
+           feedback is a border-color change on the card itself instead of
+           separate text, and the year appears once it joins the timeline. -->
+      <div
+        v-if="mysteryCard"
+        class="mystery-card"
+        :class="{ dragging, correct: revealed && lastGuessCorrect, incorrect: revealed && lastGuessCorrect === false }"
+        :style="dragging ? { transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` } : null"
+        @pointerdown="onMysteryPointerDown"
+        @pointermove="onMysteryPointerMove"
+        @pointerup="onMysteryPointerUp"
+        @pointercancel="onMysteryPointerUp"
+      >
+        <img v-if="gamePosterUrl(mysteryCard)" :src="gamePosterUrl(mysteryCard, 'w342')" :alt="mysteryCard.movie.title" draggable="false">
       </div>
 
       <div v-if="gameOver" class="game-over">
@@ -57,7 +63,7 @@ import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { shuffle, entryKey, movieYear } from '../../assets/javascript/games/gameUtils.js';
-import { isValidPlacement, insertAtSlot, correctSlotIndex } from '../../assets/javascript/games/timeline.js';
+import { isValidPlacement, insertAtSlot, correctSlotIndex, closestSlotIndex } from '../../assets/javascript/games/timeline.js';
 import timelineBanner from '../../assets/images/games/timeline-banner.jpg';
 
 export default {
@@ -88,7 +94,13 @@ export default {
       lastGuessCorrect: null,
       streak: 0,
       gameOver: false,
-      ranOutOfMovies: false
+      ranOutOfMovies: false,
+      // Drag-to-place state — see onMysteryPointerDown/Move/Up.
+      dragging: false,
+      dragOffset: { x: 0, y: 0 },
+      dragOverSlot: null,
+      dragStartX: 0,
+      dragStartY: 0
     };
   },
   computed: {
@@ -180,6 +192,47 @@ export default {
         this.revealed = false;
         this.lastGuessCorrect = null;
       }, 900);
+    },
+    onMysteryPointerDown (event) {
+      if (this.revealed || this.gameOver || !this.mysteryCard) return;
+      this.dragging = true;
+      this.dragStartX = event.clientX;
+      this.dragStartY = event.clientY;
+      this.dragOffset = { x: 0, y: 0 };
+      this.dragOverSlot = null;
+      event.currentTarget?.setPointerCapture?.(event.pointerId);
+    },
+    onMysteryPointerMove (event) {
+      if (!this.dragging) return;
+      this.dragOffset = {
+        x: event.clientX - this.dragStartX,
+        y: event.clientY - this.dragStartY
+      };
+      this.dragOverSlot = this.resolveDragSlot(event.clientX, event.clientY);
+    },
+    onMysteryPointerUp () {
+      if (!this.dragging) return;
+      const targetSlot = this.dragOverSlot;
+      this.dragging = false;
+      this.dragOffset = { x: 0, y: 0 };
+      this.dragOverSlot = null;
+      if (targetSlot !== null) this.guess(targetSlot);
+    },
+    // Which gap (if any) a drag currently resolves to. The timeline row sits
+    // ABOVE the draggable card, so a drag only "arrives" once it's been
+    // pulled up near/into the row — dragging that never leaves the card's
+    // own vicinity harmlessly snaps back on release instead of guessing.
+    resolveDragSlot (clientX, clientY) {
+      const rowEl = this.$refs.timelineRow;
+      const gapEls = this.$refs.gapButtons;
+      if (!rowEl || !gapEls || !gapEls.length) return null;
+      const rowRect = rowEl.getBoundingClientRect();
+      if (clientY > rowRect.bottom + 40) return null;
+      const centers = gapEls.map((el) => {
+        const r = el.getBoundingClientRect();
+        return r.left + r.width / 2;
+      });
+      return closestSlotIndex(clientX, centers);
     }
   }
 };
@@ -193,8 +246,9 @@ export default {
   min-height: 100vh;
   // Safety margin against BackLink overlapping this screen's own content
   // when the global Header happens to have zero height — same fix as the
-  // other 4 game components.
-  padding: 2.5rem 1rem 2rem;
+  // other 4 game components. Trimmed from 2.5rem (bug report: "move the
+  // whole thing up higher") — same tradeoff Six Degrees already made.
+  padding: 1.75rem 1rem 2rem;
   text-align: center;
 }
 
@@ -213,76 +267,48 @@ export default {
   max-width: 320px;
 }
 
-.streak-row {
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-  margin-top: 0.75rem;
-  margin-bottom: 1rem;
-}
-
 // Always rendered so its text can swap in place without adding/removing an
 // element (that add/remove is what caused a reported layout jump in Higher
-// or Lower before it adopted this same pattern).
+// or Lower before it adopted this same pattern). Bug report: this used to
+// sit BELOW a prominent streak/best row — now it's the top item, and the
+// streak/best line below it is small/secondary instead.
 .status-line {
   color: #adb5bd;
   text-align: center;
-  min-height: 2.6rem;
-  margin: 0 0.5rem 0.75rem;
+  min-height: 2.2rem;
+  margin: 0 0.5rem 0.15rem;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.mystery-card {
-  margin: 0 auto 1.25rem;
-  max-width: 220px;
-}
-
-.mystery-card img {
-  border-radius: 0.35rem;
-  width: 100%;
-}
-
-.mystery-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin: 0.4rem 0 0.1rem;
-}
-
-.mystery-year {
-  color: #adb5bd;
-  font-size: 1.4rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.mystery-year.correct {
-  color: #4caf50;
-}
-
-.mystery-year.incorrect {
-  color: #ff6a6a;
+.streak-line {
+  color: #777;
+  font-size: 0.8rem;
+  margin: 0 0 1rem;
 }
 
 // Horizontally-scrolling row so a growing timeline never makes the page
-// taller — same convention as Six Degrees' .chain-row.
+// taller — same convention as Six Degrees' .chain-row. Bug report: this now
+// sits ABOVE the mystery card (the card you drag UP into a gap here).
 .timeline-row {
   align-items: flex-end;
   display: flex;
   flex-wrap: nowrap;
-  gap: 0.35rem;
+  gap: 0.3rem;
   justify-content: flex-start;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  margin: 0 -1rem;
+  margin: 0 -1rem 1.5rem;
   padding: 0 1rem 0.5rem;
 }
 
+// Bug report: "make the one that we know about a little bit smaller" — the
+// already-placed (revealed) cards, shrunk down from the original 84px.
 .timeline-card {
   flex-shrink: 0;
-  width: 84px;
+  width: 62px;
 }
 
 .timeline-card img {
@@ -294,9 +320,9 @@ export default {
 
 .timeline-year {
   color: #adb5bd;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  margin: 0.25rem 0 0;
+  margin: 0.2rem 0 0;
 }
 
 .timeline-gap {
@@ -308,10 +334,63 @@ export default {
   cursor: pointer;
   display: flex;
   flex-shrink: 0;
-  font-size: 1.1rem;
-  height: 126px;
+  font-size: 1rem;
+  height: 93px;
   justify-content: center;
-  width: 34px;
+  width: 28px;
+  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease;
+}
+
+// Highlighted while a drag is hovering over this gap, distinct from the
+// (green) correct-gap reveal so "drop here" and "this is where it belonged"
+// never look the same.
+.timeline-gap.drag-over {
+  background: rgba(232, 163, 61, 0.25);
+  border-color: #e8a33d;
+  border-style: solid;
+  color: #e8a33d;
+  transform: scale(1.12);
+}
+
+// No title/year text below it anymore (bug report) — just the poster,
+// draggable up into the timeline row above. touch-action:none hands the
+// gesture entirely to our own pointer handlers instead of the browser's
+// native scroll/pan.
+.mystery-card {
+  margin: 0.5rem auto 0;
+  max-width: 190px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  border-radius: 0.4rem;
+  border: 3px solid transparent;
+  transition: border-color 0.15s ease;
+}
+
+.mystery-card img {
+  border-radius: 0.3rem;
+  width: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.mystery-card.dragging {
+  cursor: grabbing;
+  transition: none;
+  z-index: 5;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.5));
+}
+
+.mystery-card:not(.dragging) {
+  cursor: grab;
+}
+
+.mystery-card.correct {
+  border-color: #4caf50;
+}
+
+.mystery-card.incorrect {
+  border-color: #ff6a6a;
 }
 
 // Mobile-first: :active only, no :hover (this app has no reliable pointer
