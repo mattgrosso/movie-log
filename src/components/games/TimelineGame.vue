@@ -56,7 +56,7 @@
           >+</button>
           <div v-else :key="item.key" class="timeline-card" :data-card-key="item.key">
             <img v-if="gamePosterUrl(item.entry)" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title">
-            <p class="timeline-year">{{ movieYear(item.entry) }}</p>
+            <p class="timeline-year">{{ formatTimelineDate(item.entry, timeline) }}</p>
           </div>
         </template>
       </div>
@@ -115,7 +115,7 @@ import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { shuffle, entryKey, movieYear } from '../../assets/javascript/games/gameUtils.js';
-import { isValidPlacement, insertAtSlot, correctSlotIndex } from '../../assets/javascript/games/timeline.js';
+import { isValidPlacement, insertAtSlot, correctSlotIndex, formatTimelineDate } from '../../assets/javascript/games/timeline.js';
 import timelineBanner from '../../assets/images/games/timeline-banner.jpg';
 
 export default {
@@ -253,6 +253,7 @@ export default {
   },
   methods: {
     movieYear,
+    formatTimelineDate,
     start () {
       this.pool = shuffle(this.eligibleGameEntries, Math.random);
       this.timeline = [this.pool[0]];
@@ -567,11 +568,20 @@ export default {
   object-fit: cover;
 }
 
+// Can now show up to "Jun 12, 1994" (see formatTimelineDate) instead of
+// just a year — bug report: "if you have two from the same year they
+// should also include their month... same month... also include the day."
+// Safety net against the narrow 84px card ever wrapping/overflowing, same
+// convention as other tight fixed-width labels elsewhere in Games (e.g.
+// Reel Wordle's .clue-value).
 .timeline-year {
   color: #adb5bd;
   font-size: 0.7rem;
   font-weight: 600;
   margin: 0.2rem 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .timeline-gap {

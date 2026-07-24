@@ -340,6 +340,39 @@ describe('TimelineGame', () => {
     expect(wrapper.text()).toContain("You've placed your whole library!");
   });
 
+  it('escalates the date shown under placed cards to month, then day, only as needed to disambiguate a year tie (bug report: "if you have two from the same year they should also include their month... if two from the same month, also include the day")', async () => {
+    const wrapper = factory(tenMovies());
+    await wrapper.find('.btn-game-primary').trigger('click');
+
+    // Distinct years — no tie, so both just show a plain year.
+    wrapper.vm.timeline = [
+      { dbKey: 'a', movie: { release_date: '1980-06-15' } },
+      { dbKey: 'b', movie: { release_date: '1994-06-15' } }
+    ];
+    await wrapper.vm.$nextTick();
+    let years = wrapper.findAll('.timeline-year').map((el) => el.text());
+    expect(years).toEqual(['1980', '1994']);
+
+    // Force a genuine year tie directly (bypassing the shuffle) — same
+    // year, different months — and re-render.
+    wrapper.vm.timeline = [
+      { dbKey: 'a', movie: { release_date: '1994-03-10' } },
+      { dbKey: 'b', movie: { release_date: '1994-11-02' } }
+    ];
+    await wrapper.vm.$nextTick();
+    years = wrapper.findAll('.timeline-year').map((el) => el.text());
+    expect(years).toEqual(['Mar 1994', 'Nov 1994']);
+
+    // Now force a same-year, same-month tie too — escalates to day.
+    wrapper.vm.timeline = [
+      { dbKey: 'a', movie: { release_date: '1994-03-10' } },
+      { dbKey: 'b', movie: { release_date: '1994-03-25' } }
+    ];
+    await wrapper.vm.$nextTick();
+    years = wrapper.findAll('.timeline-year').map((el) => el.text());
+    expect(years).toEqual(['Mar 10, 1994', 'Mar 25, 1994']);
+  });
+
   it('shows a compact streak/best line rather than a prominent top row (bug report: "we don\'t need the streak and best to be the top item")', async () => {
     const wrapper = factory(tenMovies());
     await wrapper.find('.btn-game-primary').trigger('click');

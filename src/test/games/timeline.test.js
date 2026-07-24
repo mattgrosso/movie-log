@@ -1,11 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { isValidPlacement, insertAtSlot, correctSlotIndex } from '@/assets/javascript/games/timeline.js';
+import { isValidPlacement, insertAtSlot, correctSlotIndex, formatTimelineDate } from '@/assets/javascript/games/timeline.js';
 
 // Mid-month release dates throughout — see CLAUDE.md's documented test
 // pitfall: new Date('YYYY-01-01') parses as UTC midnight and can shift to
 // the previous year in this repo's negative-UTC-offset test environment.
 function entry (year, dbKey = String(year)) {
   return { dbKey, movie: { release_date: `${year}-06-15` } };
+}
+
+// formatTimelineDate parses release_date by string, not new Date(...), so
+// it doesn't share entry()'s UTC-rollover pitfall — but real day-1 dates
+// are exactly the case worth exercising here (see formatTimelineDate's own
+// comment), so this helper allows a full explicit date, unlike entry().
+function dateEntry (dbKey, releaseDate) {
+  return { dbKey, movie: { release_date: releaseDate } };
 }
 
 describe('isValidPlacement', () => {
@@ -92,5 +100,57 @@ describe('correctSlotIndex', () => {
   it('returns null when the candidate has no derivable year', () => {
     const timeline = [entry(1990)];
     expect(correctSlotIndex(timeline, { dbKey: 'x', movie: {} })).toBeNull();
+  });
+});
+
+describe('formatTimelineDate (bug report: "if you have two from the same year they should also include their month... if two from the same month, also include the day")', () => {
+  it('shows just the year when it\'s unique among the timeline\'s other entries', () => {
+    const a = dateEntry('a', '1994-06-15');
+    const b = dateEntry('b', '2010-03-02');
+    expect(formatTimelineDate(a, [a, b])).toBe('1994');
+    expect(formatTimelineDate(b, [a, b])).toBe('2010');
+  });
+
+  it('escalates BOTH entries sharing a year to month precision, symmetrically', () => {
+    const a = dateEntry('a', '1994-03-10');
+    const b = dateEntry('b', '1994-11-02');
+    expect(formatTimelineDate(a, [a, b])).toBe('Mar 1994');
+    expect(formatTimelineDate(b, [a, b])).toBe('Nov 1994');
+  });
+
+  it('escalates further to day precision only for entries that ALSO share the month', () => {
+    const a = dateEntry('a', '1994-03-10');
+    const b = dateEntry('b', '1994-03-25');
+    expect(formatTimelineDate(a, [a, b])).toBe('Mar 10, 1994');
+    expect(formatTimelineDate(b, [a, b])).toBe('Mar 25, 1994');
+  });
+
+  it('a third, different-year entry in the timeline does not affect an unrelated tied pair', () => {
+    const a = dateEntry('a', '1994-03-10');
+    const b = dateEntry('b', '1994-11-02');
+    const c = dateEntry('c', '2005-07-01');
+    expect(formatTimelineDate(a, [a, b, c])).toBe('Mar 1994');
+    expect(formatTimelineDate(c, [a, b, c])).toBe('2005');
+  });
+
+  it('does not compare an entry against itself', () => {
+    const a = dateEntry('a', '1994-03-10');
+    expect(formatTimelineDate(a, [a])).toBe('1994');
+  });
+
+  it('correctly reads a day-1 release date (the new Date(...) UTC-rollover pitfall this avoids)', () => {
+    const a = dateEntry('a', '1994-01-01');
+    const b = dateEntry('b', '1994-06-15');
+    expect(formatTimelineDate(a, [a, b])).toBe('Jan 1994');
+  });
+
+  it('returns null for a missing or malformed release date', () => {
+    expect(formatTimelineDate({ dbKey: 'x', movie: {} }, [])).toBeNull();
+    expect(formatTimelineDate({ dbKey: 'x', movie: { release_date: null } }, [])).toBeNull();
+  });
+
+  it('tolerates a missing timeline argument', () => {
+    const a = dateEntry('a', '1994-03-10');
+    expect(formatTimelineDate(a, undefined)).toBe('1994');
   });
 });
