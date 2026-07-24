@@ -86,6 +86,12 @@ export default {
           name: 'Timeline',
           icon: GAME_ICONS['/games/timeline'],
           description: 'Build a chronological timeline of your own rated movies, one guess at a time. Keep your streak alive.'
+        },
+        {
+          path: '/games/clue-budget',
+          name: 'Clue Budget',
+          icon: GAME_ICONS['/games/clue-budget'],
+          description: "Spend a $100 budget on clues — cast, director, tagline, and more — to guess the movie before you're broke."
         }
       ]
     };

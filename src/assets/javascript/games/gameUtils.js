@@ -85,6 +85,36 @@ export function movieDirectors (entry) {
   return crew.filter((member) => member.job === 'Director').map((member) => member.name);
 }
 
+// Loose substring match on the raw TMDB job string — same convention
+// MovieDetail.vue's getCrewMember(job) uses for its non-strict mode (e.g.
+// 'Photo' matches "Director of Photography"). `movie.crew` is saved
+// unfiltered by job at rating time (every TMDB crew credit is kept), so
+// this is the only place job-type extraction actually happens.
+export function movieCrewByJob (entry, jobSubstring) {
+  const crew = entry?.movie?.crew || [];
+  return crew.filter((member) => member.job?.includes(jobSubstring)).map((member) => member.name);
+}
+
+export function movieWriters (entry) {
+  return movieCrewByJob(entry, 'Writer');
+}
+
+export function movieComposers (entry) {
+  return movieCrewByJob(entry, 'Composer');
+}
+
+export function movieCinematographers (entry) {
+  return movieCrewByJob(entry, 'Photo');
+}
+
+export function movieEditors (entry) {
+  return movieCrewByJob(entry, 'Editor');
+}
+
+export function movieProducers (entry) {
+  return movieCrewByJob(entry, 'Producer');
+}
+
 export function movieCastNames (entry, limit = 6) {
   const cast = entry?.movie?.cast || [];
   return cast.slice(0, limit).map((member) => member.name);

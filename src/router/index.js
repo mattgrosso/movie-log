@@ -16,6 +16,7 @@ const ReelWordleGame = () => import(/* webpackChunkName: "games" */ "../componen
 const ConnectionsGame = () => import(/* webpackChunkName: "games" */ "../components/games/ConnectionsGame.vue");
 const SixDegreesGame = () => import(/* webpackChunkName: "games" */ "../components/games/SixDegreesGame.vue");
 const TimelineGame = () => import(/* webpackChunkName: "games" */ "../components/games/TimelineGame.vue");
+const ClueBudgetGame = () => import(/* webpackChunkName: "games" */ "../components/games/ClueBudgetGame.vue");
 
 // Router
 const loggedIn = () => {
@@ -231,6 +232,21 @@ const routes = [
     path: '/games/timeline',
     name: 'TimelineGame',
     component: TimelineGame,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/games/clue-budget',
+    name: 'ClueBudgetGame',
+    component: ClueBudgetGame,
     meta: {
       requiresLogin: true
     },

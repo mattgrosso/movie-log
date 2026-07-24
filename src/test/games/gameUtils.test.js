@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   getEligibleEntries, ratingFor, hashString, makeSeededRng, shuffle, pickRandomDistinct,
   movieYear, movieDecade, movieDirectors, movieCastNames, movieGenreNames,
+  movieWriters, movieComposers, movieCinematographers, movieEditors, movieProducers,
   entryKey, compareNumber
 } from '@/assets/javascript/games/gameUtils.js';
 
@@ -154,6 +155,27 @@ describe('movie field helpers', () => {
   it('movieGenreNames maps genre objects to names', () => {
     const e = entry({ movie: { genres: [{ name: 'Sci-Fi' }, { name: 'Thriller' }] } });
     expect(movieGenreNames(e)).toEqual(['Sci-Fi', 'Thriller']);
+  });
+
+  it('movieWriters/Composers/Cinematographers/Editors/Producers loose-match job substrings (movie.crew is unfiltered by job at save time)', () => {
+    const e = entry({
+      movie: {
+        crew: [
+          { name: 'Jane Director', job: 'Director' },
+          { name: 'Wes Writer', job: 'Screenplay Writer' },
+          { name: 'Hans Score', job: 'Original Music Composer' },
+          { name: 'Roger Lens', job: 'Director of Photography' },
+          { name: 'Thelma Cutter', job: 'Editor' },
+          { name: 'Kevin Money', job: 'Executive Producer' },
+          { name: 'Someone Else', job: 'Gaffer' }
+        ]
+      }
+    });
+    expect(movieWriters(e)).toEqual(['Wes Writer']);
+    expect(movieComposers(e)).toEqual(['Hans Score']);
+    expect(movieCinematographers(e)).toEqual(['Roger Lens']);
+    expect(movieEditors(e)).toEqual(['Thelma Cutter']);
+    expect(movieProducers(e)).toEqual(['Kevin Money']);
   });
 });
 
