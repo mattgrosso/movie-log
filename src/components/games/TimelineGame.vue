@@ -120,11 +120,19 @@ export default {
       // The placement animation is 3 sequential steps, all driven by this
       // ONE duration (bound to --step-duration on the root element so the
       // CSS transitions below and the JS `wait`s in guess() can never
-      // drift out of sync with each other). Deliberately slow right now
-      // (bug report: "make it really slow... so that we can lock in the
-      // sequence and then we'll adjust the times") — tune this single
-      // number once the sequence itself is confirmed correct.
-      stepDurationMs: 2000,
+      // drift out of sync with each other). Started at 2000ms ("make it
+      // really slow... so that we can lock in the sequence") while the
+      // sequence itself was being worked out; now that it's confirmed
+      // correct, tuning down — first stop 500ms, to see how that feels.
+      stepDurationMs: 500,
+      // Named/exposed (not just inlined in preloadImage) so it's a single
+      // source of truth: production reads it there, and tests can
+      // reference it symbolically instead of hardcoding "1500" — this is
+      // a FIXED cap, deliberately NOT tied to stepDurationMs, so as
+      // stepDurationMs gets tuned down it can end up being the longer of
+      // the two (which is fine — it's a worst-case safety net, not
+      // something that needs to shrink in lockstep).
+      preloadCapMs: 1500,
       // True for the entire 3-step placement sequence (not just step 1) —
       // gates the real .mystery-card so it doesn't reappear at the bottom
       // mid-sequence once the step-1 clone hands off to step 2.
@@ -279,7 +287,7 @@ export default {
       const attempt = img.decode
         ? img.decode().catch(() => {})
         : new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; });
-      return Promise.race([attempt, this.wait(1500)]);
+      return Promise.race([attempt, this.wait(this.preloadCapMs)]);
     },
     // Step 1: slide + shrink a decoupled clone from the mystery card's own
     // spot to the tapped gap's position/size. Deliberately does NOT clear

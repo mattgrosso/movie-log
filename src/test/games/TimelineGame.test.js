@@ -161,6 +161,23 @@ describe('TimelineGame', () => {
       await vi.advanceTimersByTimeAsync(400);
       await vi.advanceTimersByTimeAsync(50);
       await vi.advanceTimersByTimeAsync(wrapper.vm.stepDurationMs);
+      // decodeLarge's cap timer (see preloadImage) is anchored to the
+      // moment guess() calls preloadImage — right after the initial
+      // 400ms pause — so its absolute fire time from the click is always
+      // `400 + preloadCapMs`, independent of stepDurationMs entirely
+      // (jsdom's Image.decode() never settles on its own, see
+      // preloadImage's own test, so it always takes the FULL cap here).
+      // Advance exactly the remaining distance to that boundary, rather
+      // than a further full preloadCapMs — overshooting it lets the
+      // newly-scheduled widen-transition rAFs (and even step 3's own
+      // gap-collapse, once stepDurationMs is short enough that the cap
+      // outlasts it — see preloadCapMs's comment in the component) fire
+      // within the SAME advance call, which is exactly what skated past
+      // the "still narrow" assertions below once stepDurationMs was
+      // tuned down to 500ms.
+      const elapsedBeforeThisStep = 400 + 50 + wrapper.vm.stepDurationMs;
+      const decodeLargeFiresAt = 400 + wrapper.vm.preloadCapMs;
+      await vi.advanceTimersByTimeAsync(decodeLargeFiresAt - elapsedBeforeThisStep);
       // Past the full step-1 duration: the clone is gone, replaced by the
       // real gap hosting the poster — still narrow at first.
       expect(wrapper.vm.flyingCard).toBeNull();
@@ -236,11 +253,14 @@ describe('TimelineGame', () => {
       const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
       await wrapper.findAll('.timeline-gap')[correctSlot].trigger('click');
 
-      // One generous lump-sum advance covering the pre-pause plus all 3
-      // steps' rAFs and waits — unlike the per-step tests above, this one
-      // only cares about the settled END state, so the exact granularity
-      // of intermediate advances doesn't matter here.
-      await vi.advanceTimersByTimeAsync(400 + wrapper.vm.stepDurationMs * 3 + 200);
+      // One generous lump-sum advance covering the pre-pause, all 3 steps'
+      // rAFs and waits, AND both poster preloads (each capped at
+      // preloadCapMs, which jsdom's non-settling Image.decode() always
+      // hits in full — see preloadCapMs's own comment) — unlike the
+      // per-step tests above, this one only cares about the settled END
+      // state, so the exact granularity of intermediate advances doesn't
+      // matter here.
+      await vi.advanceTimersByTimeAsync(400 + wrapper.vm.stepDurationMs * 3 + wrapper.vm.preloadCapMs * 2 + 200);
 
       expect(wrapper.vm.flyingCard).toBeNull();
       expect(wrapper.vm.placingGapIndex).toBeNull();
