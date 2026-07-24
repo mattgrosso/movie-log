@@ -26,7 +26,7 @@
             :disabled="revealed || !mysteryCard"
             @click="guess(item.slotIndex)"
           >+</button>
-          <div v-else class="timeline-card">
+          <div v-else class="timeline-card" :data-card-key="item.key">
             <img v-if="gamePosterUrl(item.entry)" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title">
             <p class="timeline-year">{{ movieYear(item.entry) }}</p>
           </div>
@@ -38,6 +38,7 @@
            separate text, and the year appears once it joins the timeline. -->
       <div
         v-if="mysteryCard"
+        ref="mysteryCardEl"
         class="mystery-card"
         :class="{ correct: revealed && lastGuessCorrect, incorrect: revealed && lastGuessCorrect === false }"
       >
@@ -160,12 +161,17 @@ export default {
       // Brief pause so the revealed (green) border is readable before the
       // card slides into the timeline and the next mystery card appears.
       // Bug report: "there's a delay... make that a nice animation of the
-      // card going into place" — shortened from 900ms (Higher or Lower's
-      // pacing, which had more to read: two full score reveals) and paired
-      // with a pop-into-place animation on the new .timeline-card (plays
-      // automatically since it's a freshly-mounted DOM node) so the wait
-      // reads as a deliberate snappy beat rather than a stall.
-      setTimeout(() => {
+      // card going into place" (shortened from 900ms), then a follow-up
+      // ("motion to the slot... if it zoomed up there") asking for the
+      // placed card to visually travel from the mystery card's own spot
+      // into its slot, not just fade in — see flyCardIntoSlot below.
+      setTimeout(async () => {
+        // Capture the mystery card's on-screen position/size (the "First" in
+        // FLIP) before anything about it changes.
+        const mysteryEl = this.$refs.mysteryCardEl;
+        const firstRect = mysteryEl ? mysteryEl.getBoundingClientRect() : null;
+        const placedKey = entryKey(this.mysteryCard);
+
         this.timeline = insertAtSlot(this.timeline, slotIndex, this.mysteryCard);
         this.streak += 1;
         if (this.streak > this.bestStreak) {
@@ -183,7 +189,42 @@ export default {
         this.mysteryCard = next;
         this.revealed = false;
         this.lastGuessCorrect = null;
+
+        await this.$nextTick();
+        this.flyCardIntoSlot(placedKey, firstRect);
       }, 400);
+    },
+    // FLIP transition: the newly-placed card starts (visually) at the
+    // mystery card's old position and size, then transitions to its actual
+    // slot — reads as the card "zooming up" from where it was tapped from
+    // into place, rather than a generic fade-in. Falls back to no animation
+    // (the card just appears) if either rect is unavailable/zero-size —
+    // e.g. jsdom in tests, or a genuinely hidden tab.
+    flyCardIntoSlot (cardKey, firstRect) {
+      if (!firstRect || !firstRect.width || !cardKey) return;
+      // Matched via dataset comparison in JS rather than an interpolated
+      // CSS attribute selector — avoids relying on CSS.escape (unavailable
+      // in jsdom) for what a dbKey/movie id never actually needs escaped
+      // anyway, and sidesteps the question entirely.
+      const el = Array.from(this.$el.querySelectorAll('.timeline-card')).find((node) => node.dataset.cardKey === String(cardKey));
+      if (!el) return;
+      const lastRect = el.getBoundingClientRect();
+      if (!lastRect.width) return;
+
+      const scale = firstRect.width / lastRect.width;
+      const dx = (firstRect.left + firstRect.width / 2) - (lastRect.left + lastRect.width / 2);
+      const dy = (firstRect.top + firstRect.height / 2) - (lastRect.top + lastRect.height / 2);
+
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+      el.style.opacity = '0';
+      // Force a reflow so the browser commits the "from" state above before
+      // clearing it below — without this the two style writes would just
+      // coalesce and there'd be nothing to transition from.
+      el.offsetHeight;
+      el.style.transition = '';
+      el.style.transform = '';
+      el.style.opacity = '';
     }
   }
 };
@@ -262,25 +303,14 @@ export default {
 
 // Bug report: "make the one that we know about a little bit smaller" — the
 // already-placed (revealed) cards, shrunk down from the original 84px.
+// transform/opacity are plain transitions (not a CSS `animation`) because
+// flyCardIntoSlot (a JS FLIP transition — see guess()) drives them via
+// inline styles on the newly-placed card: an `animation` would win the
+// cascade over that and fight it instead of playing it.
 .timeline-card {
   flex-shrink: 0;
   width: 62px;
-  // Plays once, automatically, because a newly-inserted card is a freshly
-  // mounted DOM node (a re-render of an EXISTING card, same v-for key,
-  // never replays it) — no transition-group/JS needed. Bug report: "make
-  // that a nice animation of the card going into place."
-  animation: timeline-card-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes timeline-card-pop {
-  from {
-    transform: scale(0.4) translateY(-10px);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1) translateY(0);
-    opacity: 1;
-  }
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
 }
 
 .timeline-card img {

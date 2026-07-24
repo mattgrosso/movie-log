@@ -87,6 +87,40 @@ describe('TimelineGame', () => {
     expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/timelineBestStreak', value: 1 });
   });
 
+  it('flies the newly-placed card in from the mystery card\'s old position/size (bug report: "motion to the slot... if it zoomed up there")', async () => {
+    const wrapper = factory(tenMovies());
+    await wrapper.find('.btn-game-primary').trigger('click');
+
+    // jsdom reports every element's geometry as zero by default —
+    // flyCardIntoSlot's own early-return-on-zero-width guard already covers
+    // that (exercised implicitly by every other passing test above). Stub
+    // real, DIFFERING rects here specifically to exercise the FLIP math
+    // itself: the mystery card (large) "First" position vs. the placed
+    // timeline card (small) "Last" position.
+    const mysteryRect = { width: 143, height: 214, left: 100, top: 500 };
+    const slotRect = { width: 62, height: 93, left: 20, top: 200 };
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      return this.classList.contains('mystery-card') ? mysteryRect : slotRect;
+    });
+
+    const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
+    const placedDbKey = wrapper.vm.mysteryCard.dbKey;
+    await wrapper.findAll('.timeline-gap')[correctSlot].trigger('click');
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // The transition already ran (synchronously, in flyCardIntoSlot) and
+    // cleared back to the stylesheet-driven natural state by the time this
+    // assertion runs — a real browser then visually tweens from the
+    // inline "from" values it briefly held to this cleared state. Located
+    // by its own data-card-key (not just "the first .timeline-card") since
+    // the placed card could land before OR after the existing seed card.
+    const placedCard = wrapper.find(`[data-card-key="${placedDbKey}"]`);
+    expect(placedCard.exists()).toBe(true);
+    expect(placedCard.attributes('style') || '').not.toContain('translate');
+
+    vi.restoreAllMocks();
+  });
+
   it('an incorrect guess ends the game, reveals the true year, and highlights where it actually belonged', async () => {
     const wrapper = factory(tenMovies());
     await wrapper.find('.btn-game-primary').trigger('click');
