@@ -191,22 +191,36 @@ describe('TimelineGame', () => {
     // can end up sweeping through a just-scheduled rAF pair as part of
     // settling the timer that triggered them. Testing the named helper
     // directly sidesteps that entirely and is more precise anyway.
-    it('growInNewGaps: the two new flanking gaps grow in from 0 width instead of popping in', async () => {
+    it('growInNewGaps: the two new flanking gaps grow in from 0 width, and the "+" glyph stays hidden for the WHOLE grow, not just the collapsed instant (bug report: "adding the actual + is causing it to snap open and not look like it\'s growing")', async () => {
       const wrapper = factory(tenMovies());
       await wrapper.find('.btn-game-primary').trigger('click');
 
       const promise = wrapper.vm.growInNewGaps(0);
       await wrapper.vm.$nextTick();
       expect(wrapper.vm.enteringGapIndices).toEqual([0, 1]);
+      expect(wrapper.vm.plusHiddenGapIndices).toEqual([0, 1]);
       const gaps = wrapper.findAll('.timeline-gap');
       expect(gaps[0].classes()).toContain('entering');
       expect(gaps[1].classes()).toContain('entering');
+      expect(gaps[0].text()).toBe('');
+      expect(gaps[1].text()).toBe('');
 
+      // The collapsed-width state clears quickly (starts the width
+      // transition) but the "+" stays suppressed — it must not reappear
+      // until the box has actually finished widening, or it'd read as
+      // popping in partway through the grow, which is the exact bug.
       await vi.advanceTimersByTimeAsync(50);
       expect(wrapper.vm.enteringGapIndices).toEqual([]);
+      expect(wrapper.vm.plusHiddenGapIndices).toEqual([0, 1]);
       expect(wrapper.findAll('.timeline-gap')[0].classes()).not.toContain('entering');
+      expect(wrapper.findAll('.timeline-gap')[0].text()).toBe('');
 
+      // Only once the full grow duration has elapsed does the "+" appear.
       await vi.advanceTimersByTimeAsync(wrapper.vm.stepDurationMs);
+      expect(wrapper.vm.plusHiddenGapIndices).toEqual([]);
+      expect(wrapper.findAll('.timeline-gap')[0].text()).toBe('+');
+      expect(wrapper.findAll('.timeline-gap')[1].text()).toBe('+');
+
       await promise;
     });
 

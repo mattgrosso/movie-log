@@ -35,7 +35,7 @@
             :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss, entering: enteringGapIndices.includes(item.slotIndex) }"
             :disabled="revealed || !mysteryCard"
             @click="guess(item.slotIndex, $event)"
-          >+</button>
+          >{{ plusHiddenGapIndices.includes(item.slotIndex) ? '' : '+' }}</button>
           <div v-else class="timeline-card" :data-card-key="item.key">
             <img v-if="gamePosterUrl(item.entry)" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title">
             <p class="timeline-year">{{ movieYear(item.entry) }}</p>
@@ -143,7 +143,17 @@ export default {
       placingWide: false,
       // Step 3: after the real data insertion, the two gaps now flanking
       // the placed card grow in from 0 width instead of just popping in.
-      enteringGapIndices: []
+      enteringGapIndices: [],
+      // The "+" glyph doesn't grow smoothly the way the box's width does —
+      // a fixed-size character revealed by a widening overflow:hidden edge
+      // reads as a jarring pop mid-grow, not part of the same motion (bug
+      // report: "adding the actual '+' is causing it to snap open"). So the
+      // "+" itself stays out of a gap's rendered content for the WHOLE
+      // width-grow, not just its brief collapsed-state window, only
+      // appearing once the box has already settled at its full resting
+      // size. See growInNewGaps for why this clears later than
+      // enteringGapIndices, not at the same moment.
+      plusHiddenGapIndices: []
     };
   },
   computed: {
@@ -200,6 +210,7 @@ export default {
       this.placingPosterUrl = null;
       this.placingWide = false;
       this.enteringGapIndices = [];
+      this.plusHiddenGapIndices = [];
       this.started = true;
     },
     nextCard () {
@@ -253,12 +264,19 @@ export default {
     },
     // Step 3: the two gaps now flanking the just-inserted real card mount
     // collapsed (0 width) and grow in, instead of just popping into
-    // existence at full size.
+    // existence at full size. The "+" glyph stays suppressed for the WHOLE
+    // width-grow (not just the brief collapsed window enteringGapIndices
+    // covers) — it only reveals once the box has actually finished
+    // widening, so it reads as a settled box that already has a "+" rather
+    // than something popping in mid-motion.
     async growInNewGaps (slotIndex) {
-      this.enteringGapIndices = [slotIndex, slotIndex + 1];
+      const indices = [slotIndex, slotIndex + 1];
+      this.enteringGapIndices = indices;
+      this.plusHiddenGapIndices = indices;
       await this.nextFrame();
       this.enteringGapIndices = [];
       await this.wait(this.stepDurationMs);
+      this.plusHiddenGapIndices = [];
     },
     async guess (slotIndex, event) {
       if (this.revealed || this.gameOver || !this.mysteryCard) return;
