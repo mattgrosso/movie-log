@@ -42,21 +42,3 @@ export function correctSlotIndex (timeline, candidateEntry) {
   }
   return null;
 }
-
-// Which gap a dragged card is closest to, by x position — drives the
-// drag-to-place interaction (drag the mystery card up into the timeline
-// row instead of tapping a gap). A tie keeps the first (leftmost) match,
-// same "stable, deterministic" spirit as the rest of this module.
-export function closestSlotIndex (pointerX, gapCenterXs) {
-  if (!gapCenterXs || !gapCenterXs.length) return null;
-  let best = 0;
-  let bestDist = Math.abs(pointerX - gapCenterXs[0]);
-  for (let i = 1; i < gapCenterXs.length; i++) {
-    const dist = Math.abs(pointerX - gapCenterXs[i]);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = i;
-    }
-  }
-  return best;
-}

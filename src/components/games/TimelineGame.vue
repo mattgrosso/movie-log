@@ -16,14 +16,13 @@
       <p class="status-line">{{ statusMessage }}</p>
       <p class="streak-line">Streak {{ streak }} · Best {{ bestStreak }}</p>
 
-      <div class="timeline-row" ref="timelineRow">
+      <div class="timeline-row">
         <template v-for="item in timelineDisplayItems" :key="item.key">
           <button
             v-if="item.type === 'gap'"
             type="button"
-            ref="gapButtons"
             class="timeline-gap"
-            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss, 'drag-over': item.slotIndex === dragOverSlot }"
+            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss }"
             :disabled="revealed || !mysteryCard"
             @click="guess(item.slotIndex)"
           >+</button>
@@ -34,21 +33,15 @@
         </template>
       </div>
 
-      <!-- No title/year shown here — the poster is draggable up into the
-           timeline row above (or tap a gap directly); correct/incorrect
+      <!-- No title/year shown here — tap a gap directly; correct/incorrect
            feedback is a border-color change on the card itself instead of
            separate text, and the year appears once it joins the timeline. -->
       <div
         v-if="mysteryCard"
         class="mystery-card"
-        :class="{ dragging, correct: revealed && lastGuessCorrect, incorrect: revealed && lastGuessCorrect === false }"
-        :style="dragging ? { transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` } : null"
-        @pointerdown="onMysteryPointerDown"
-        @pointermove="onMysteryPointerMove"
-        @pointerup="onMysteryPointerUp"
-        @pointercancel="onMysteryPointerUp"
+        :class="{ correct: revealed && lastGuessCorrect, incorrect: revealed && lastGuessCorrect === false }"
       >
-        <img v-if="gamePosterUrl(mysteryCard)" :src="gamePosterUrl(mysteryCard, 'w342')" :alt="mysteryCard.movie.title" draggable="false">
+        <img v-if="gamePosterUrl(mysteryCard)" :src="gamePosterUrl(mysteryCard, 'w342')" :alt="mysteryCard.movie.title">
       </div>
 
       <div v-if="gameOver" class="game-over">
@@ -63,7 +56,7 @@ import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { shuffle, entryKey, movieYear } from '../../assets/javascript/games/gameUtils.js';
-import { isValidPlacement, insertAtSlot, correctSlotIndex, closestSlotIndex } from '../../assets/javascript/games/timeline.js';
+import { isValidPlacement, insertAtSlot, correctSlotIndex } from '../../assets/javascript/games/timeline.js';
 import timelineBanner from '../../assets/images/games/timeline-banner.jpg';
 
 export default {
@@ -94,13 +87,7 @@ export default {
       lastGuessCorrect: null,
       streak: 0,
       gameOver: false,
-      ranOutOfMovies: false,
-      // Drag-to-place state — see onMysteryPointerDown/Move/Up.
-      dragging: false,
-      dragOffset: { x: 0, y: 0 },
-      dragOverSlot: null,
-      dragStartX: 0,
-      dragStartY: 0
+      ranOutOfMovies: false
     };
   },
   computed: {
@@ -170,9 +157,14 @@ export default {
         return;
       }
 
-      // Brief pause so the revealed year is actually readable before the
-      // card slides into the timeline and the next mystery card appears —
-      // same reveal-then-advance pacing as Higher or Lower.
+      // Brief pause so the revealed (green) border is readable before the
+      // card slides into the timeline and the next mystery card appears.
+      // Bug report: "there's a delay... make that a nice animation of the
+      // card going into place" — shortened from 900ms (Higher or Lower's
+      // pacing, which had more to read: two full score reveals) and paired
+      // with a pop-into-place animation on the new .timeline-card (plays
+      // automatically since it's a freshly-mounted DOM node) so the wait
+      // reads as a deliberate snappy beat rather than a stall.
       setTimeout(() => {
         this.timeline = insertAtSlot(this.timeline, slotIndex, this.mysteryCard);
         this.streak += 1;
@@ -191,48 +183,7 @@ export default {
         this.mysteryCard = next;
         this.revealed = false;
         this.lastGuessCorrect = null;
-      }, 900);
-    },
-    onMysteryPointerDown (event) {
-      if (this.revealed || this.gameOver || !this.mysteryCard) return;
-      this.dragging = true;
-      this.dragStartX = event.clientX;
-      this.dragStartY = event.clientY;
-      this.dragOffset = { x: 0, y: 0 };
-      this.dragOverSlot = null;
-      event.currentTarget?.setPointerCapture?.(event.pointerId);
-    },
-    onMysteryPointerMove (event) {
-      if (!this.dragging) return;
-      this.dragOffset = {
-        x: event.clientX - this.dragStartX,
-        y: event.clientY - this.dragStartY
-      };
-      this.dragOverSlot = this.resolveDragSlot(event.clientX, event.clientY);
-    },
-    onMysteryPointerUp () {
-      if (!this.dragging) return;
-      const targetSlot = this.dragOverSlot;
-      this.dragging = false;
-      this.dragOffset = { x: 0, y: 0 };
-      this.dragOverSlot = null;
-      if (targetSlot !== null) this.guess(targetSlot);
-    },
-    // Which gap (if any) a drag currently resolves to. The timeline row sits
-    // ABOVE the draggable card, so a drag only "arrives" once it's been
-    // pulled up near/into the row — dragging that never leaves the card's
-    // own vicinity harmlessly snaps back on release instead of guessing.
-    resolveDragSlot (clientX, clientY) {
-      const rowEl = this.$refs.timelineRow;
-      const gapEls = this.$refs.gapButtons;
-      if (!rowEl || !gapEls || !gapEls.length) return null;
-      const rowRect = rowEl.getBoundingClientRect();
-      if (clientY > rowRect.bottom + 40) return null;
-      const centers = gapEls.map((el) => {
-        const r = el.getBoundingClientRect();
-        return r.left + r.width / 2;
-      });
-      return closestSlotIndex(clientX, centers);
+      }, 400);
     }
   }
 };
@@ -290,7 +241,7 @@ export default {
 
 // Horizontally-scrolling row so a growing timeline never makes the page
 // taller — same convention as Six Degrees' .chain-row. Bug report: this now
-// sits ABOVE the mystery card (the card you drag UP into a gap here).
+// sits ABOVE the mystery card.
 .timeline-row {
   align-items: flex-end;
   display: flex;
@@ -314,6 +265,22 @@ export default {
 .timeline-card {
   flex-shrink: 0;
   width: 62px;
+  // Plays once, automatically, because a newly-inserted card is a freshly
+  // mounted DOM node (a re-render of an EXISTING card, same v-for key,
+  // never replays it) — no transition-group/JS needed. Bug report: "make
+  // that a nice animation of the card going into place."
+  animation: timeline-card-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes timeline-card-pop {
+  from {
+    transform: scale(0.4) translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
 
 .timeline-card img {
@@ -346,27 +313,14 @@ export default {
   transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease;
 }
 
-// Highlighted while a drag is hovering over this gap, distinct from the
-// (green) correct-gap reveal so "drop here" and "this is where it belonged"
-// never look the same.
-.timeline-gap.drag-over {
-  background: rgba(232, 163, 61, 0.25);
-  border-color: #e8a33d;
-  border-style: solid;
-  color: #e8a33d;
-  transform: scale(1.12);
-}
-
-// No title/year text below it anymore (bug report) — just the poster,
-// draggable up into the timeline row above. touch-action:none hands the
-// gesture entirely to our own pointer handlers instead of the browser's
-// native scroll/pan.
+// No title/year text below it anymore — just the poster; correct/incorrect
+// feedback on reveal is this border color, and tapping a gap in the row
+// above places it. (Drag-to-place was tried and removed — bug report: it
+// was leaving visual trails on some devices — see CLAUDE.md.) Sized 25%
+// smaller than the original 190px per follow-up feedback.
 .mystery-card {
   margin: 0.5rem auto 0;
-  max-width: 190px;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-drag: none;
+  max-width: 143px;
   border-radius: 0.4rem;
   border: 3px solid transparent;
   transition: border-color 0.15s ease;
@@ -376,18 +330,6 @@ export default {
   border-radius: 0.3rem;
   width: 100%;
   display: block;
-  pointer-events: none;
-}
-
-.mystery-card.dragging {
-  cursor: grabbing;
-  transition: none;
-  z-index: 5;
-  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.5));
-}
-
-.mystery-card:not(.dragging) {
-  cursor: grab;
 }
 
 .mystery-card.correct {
