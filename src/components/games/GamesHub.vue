@@ -80,6 +80,12 @@ export default {
           name: 'Six Degrees',
           icon: GAME_ICONS['/games/six-degrees'],
           description: 'Two movies, one shared-cast chain between them. Build the connection yourself, hop by hop.'
+        },
+        {
+          path: '/games/timeline',
+          name: 'Timeline',
+          icon: GAME_ICONS['/games/timeline'],
+          description: 'Build a chronological timeline of your own rated movies, one guess at a time. Keep your streak alive.'
         }
       ]
     };

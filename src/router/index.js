@@ -15,6 +15,7 @@ const HigherLowerGame = () => import(/* webpackChunkName: "games" */ "../compone
 const ReelWordleGame = () => import(/* webpackChunkName: "games" */ "../components/games/ReelWordleGame.vue");
 const ConnectionsGame = () => import(/* webpackChunkName: "games" */ "../components/games/ConnectionsGame.vue");
 const SixDegreesGame = () => import(/* webpackChunkName: "games" */ "../components/games/SixDegreesGame.vue");
+const TimelineGame = () => import(/* webpackChunkName: "games" */ "../components/games/TimelineGame.vue");
 
 // Router
 const loggedIn = () => {
@@ -215,6 +216,21 @@ const routes = [
     path: '/games/six-degrees',
     name: 'SixDegreesGame',
     component: SixDegreesGame,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/games/timeline',
+    name: 'TimelineGame',
+    component: TimelineGame,
     meta: {
       requiresLogin: true
     },

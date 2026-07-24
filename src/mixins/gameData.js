@@ -15,7 +15,8 @@ export const GAME_ICONS = {
   '/games/higher-lower': 'bi-arrow-down-up',
   '/games/wordle': 'bi-grid-3x3-gap-fill',
   '/games/connections': 'bi-grid-fill',
-  '/games/six-degrees': 'bi-diagram-3-fill'
+  '/games/six-degrees': 'bi-diagram-3-fill',
+  '/games/timeline': 'bi-clock-history'
 };
 
 // Shared plumbing for every game in src/components/games/ — which library
