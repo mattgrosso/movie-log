@@ -1,5 +1,5 @@
 <template>
-  <div class="timeline-game">
+  <div class="timeline-game" :style="started ? { '--step-duration': stepDurationMs + 'ms' } : {}">
     <BackLink label="Games" @click="$router.push('/games')"/>
 
     <div v-if="eligibleGameEntries.length < 5" class="not-enough-movies">
@@ -18,11 +18,21 @@
 
       <div class="timeline-row">
         <template v-for="item in timelineDisplayItems" :key="item.key">
+          <!-- Step 2/3 mid-flight: the tapped gap itself (a real flex
+               child, not an overlay) hosts the settling poster and widens
+               in place -- see guess()/expandInPlace. -->
+          <div
+            v-if="item.type === 'gap' && item.slotIndex === placingGapIndex"
+            class="timeline-gap placing-gap"
+            :class="{ wide: placingWide }"
+          >
+            <img v-if="placingPosterUrl" :src="placingPosterUrl" alt="">
+          </div>
           <button
-            v-if="item.type === 'gap'"
+            v-else-if="item.type === 'gap'"
             type="button"
             class="timeline-gap"
-            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss, growing: item.slotIndex === growingGapIndex }"
+            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss, entering: enteringGapIndices.includes(item.slotIndex) }"
             :disabled="revealed || !mysteryCard"
             @click="guess(item.slotIndex, $event)"
           >+</button>
@@ -36,10 +46,13 @@
       <!-- No title/year shown here — tap a gap directly; correct/incorrect
            feedback is a border-color change on the card itself instead of
            separate text, and the year appears once it joins the timeline.
-           Hidden the instant flightCard takes over (it starts at exactly
-           this element's own position/size, so the swap is invisible). -->
+           Hidden for the ENTIRE placement sequence (isPlacing), not just
+           while the step-1 clone is mid-flight -- it starts pixel-aligned
+           with the clone, so the swap is invisible, and it must stay
+           hidden through steps 2/3 too or it'd reappear at the bottom
+           while the poster is still settling into the timeline above. -->
       <div
-        v-if="mysteryCard && !flyingCard"
+        v-if="mysteryCard && !isPlacing"
         ref="mysteryCardEl"
         class="mystery-card"
         :class="{ correct: revealed && lastGuessCorrect, incorrect: revealed && lastGuessCorrect === false }"
@@ -47,13 +60,14 @@
         <img v-if="gamePosterUrl(mysteryCard)" :src="gamePosterUrl(mysteryCard, 'w342')" :alt="mysteryCard.movie.title">
       </div>
 
-      <!-- The poster mid-flight from the mystery card's spot up into the
-           gap the player tapped — see guess() for how fromRect/toRect
-           drive :style. position:fixed means its place in the template
+      <!-- Step 1: the poster mid-flight from the mystery card's spot to
+           the tapped gap's own (narrow) position — see guess()/
+           flyToGap. position:fixed means its place in the template
            doesn't matter for layout. -->
       <img
         v-if="flyingCard"
         class="flying-card"
+        :class="{ animating: flyingCardAnimating }"
         :src="flyingCard.posterUrl"
         :style="flyingCard.style"
         alt=""
@@ -103,8 +117,33 @@ export default {
       streak: 0,
       gameOver: false,
       ranOutOfMovies: false,
+      // The placement animation is 3 sequential steps, all driven by this
+      // ONE duration (bound to --step-duration on the root element so the
+      // CSS transitions below and the JS `wait`s in guess() can never
+      // drift out of sync with each other). Deliberately slow right now
+      // (bug report: "make it really slow... so that we can lock in the
+      // sequence and then we'll adjust the times") — tune this single
+      // number once the sequence itself is confirmed correct.
+      stepDurationMs: 2000,
+      // True for the entire 3-step placement sequence (not just step 1) —
+      // gates the real .mystery-card so it doesn't reappear at the bottom
+      // mid-sequence once the step-1 clone hands off to step 2.
+      isPlacing: false,
+      // Step 1: a position:fixed clone that slides+shrinks from the
+      // mystery card's spot to the tapped gap's own (narrow) position.
       flyingCard: null,
-      growingGapIndex: null
+      flyingCardAnimating: false,
+      // Step 2: the clone is gone — the REAL tapped gap element now hosts
+      // the poster (still narrow) and then widens to the final card size.
+      // Using the real flex child (not another fixed-position clone)
+      // means the row reflows around it naturally via normal layout, no
+      // manual "where do the neighbors end up" math needed.
+      placingGapIndex: null,
+      placingPosterUrl: null,
+      placingWide: false,
+      // Step 3: after the real data insertion, the two gaps now flanking
+      // the placed card grow in from 0 width instead of just popping in.
+      enteringGapIndices: []
     };
   },
   computed: {
@@ -154,6 +193,13 @@ export default {
       this.streak = 0;
       this.gameOver = false;
       this.ranOutOfMovies = false;
+      this.isPlacing = false;
+      this.flyingCard = null;
+      this.flyingCardAnimating = false;
+      this.placingGapIndex = null;
+      this.placingPosterUrl = null;
+      this.placingWide = false;
+      this.enteringGapIndices = [];
       this.started = true;
     },
     nextCard () {
@@ -165,17 +211,54 @@ export default {
     wait (ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     },
-    // Two animation frames, not one: a single forced-reflow (the previous
-    // approach here) isn't reliably enough to make a transition actually
-    // play on an element created THIS SAME TICK — without a real committed
-    // paint of the "from" state to transition away from, browsers can just
-    // jump straight to the end state with no visible motion at all. That
-    // turned out to be exactly why "there's really no animation at all"
-    // (bug report) despite the FLIP math itself being correct. Two rAFs is
-    // the standard, reliable fix. vi.advanceTimersByTimeAsync fakes
-    // requestAnimationFrame too, so this stays fully testable.
+    // Two animation frames, not one: a single forced-reflow isn't reliably
+    // enough to make a transition actually play on a value that was just
+    // set THIS SAME TICK — without a real committed paint of the "from"
+    // state to transition away from, browsers can just jump straight to
+    // the end state with no visible motion at all (this is what "there's
+    // really no animation at all" turned out to be, the first time this
+    // was attempted with a single `el.offsetHeight` reflow instead). Two
+    // rAFs is the standard, reliable fix. vi.advanceTimersByTimeAsync
+    // fakes requestAnimationFrame too, so this stays fully testable.
     nextFrame () {
       return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    },
+    // Step 1: slide + shrink a decoupled clone from the mystery card's own
+    // spot to the tapped gap's position/size.
+    async flyToGap (posterUrl, fromRect, toRect) {
+      this.flyingCard = { posterUrl, style: { left: `${fromRect.left}px`, top: `${fromRect.top}px`, width: `${fromRect.width}px`, height: `${fromRect.height}px` } };
+      this.flyingCardAnimating = false;
+      await this.nextFrame();
+      this.flyingCard = { posterUrl, style: { left: `${toRect.left}px`, top: `${toRect.top}px`, width: `${toRect.width}px`, height: `${toRect.height}px` } };
+      this.flyingCardAnimating = true;
+      await this.wait(this.stepDurationMs);
+      this.flyingCard = null;
+      this.flyingCardAnimating = false;
+    },
+    // Step 2: the poster now lives inside the REAL tapped gap element
+    // (already sitting at that exact spot, so no jump from step 1), then
+    // that real flex child widens to the final card size — a plain CSS
+    // width transition on a real layout element, so neighboring cards/
+    // gaps reflow around it naturally without any manual position math.
+    async expandInPlace (posterUrl, slotIndex) {
+      this.placingPosterUrl = posterUrl;
+      this.placingGapIndex = slotIndex;
+      this.placingWide = false;
+      await this.nextFrame();
+      this.placingWide = true;
+      await this.wait(this.stepDurationMs);
+      this.placingGapIndex = null;
+      this.placingPosterUrl = null;
+      this.placingWide = false;
+    },
+    // Step 3: the two gaps now flanking the just-inserted real card mount
+    // collapsed (0 width) and grow in, instead of just popping into
+    // existence at full size.
+    async growInNewGaps (slotIndex) {
+      this.enteringGapIndices = [slotIndex, slotIndex + 1];
+      await this.nextFrame();
+      this.enteringGapIndices = [];
+      await this.wait(this.stepDurationMs);
     },
     async guess (slotIndex, event) {
       if (this.revealed || this.gameOver || !this.mysteryCard) return;
@@ -192,47 +275,20 @@ export default {
       const placedEntry = this.mysteryCard;
       const posterUrl = this.gamePosterUrl(placedEntry, 'w342');
       const fromRect = this.$refs.mysteryCardEl ? this.$refs.mysteryCardEl.getBoundingClientRect() : null;
-      const toRect = event && event.currentTarget ? event.currentTarget.getBoundingClientRect() : null;
+      const gapEl = event && event.currentTarget ? event.currentTarget : null;
+      const narrowRect = gapEl ? gapEl.getBoundingClientRect() : null;
+      const canAnimate = !!(fromRect && fromRect.width && narrowRect && narrowRect.width);
 
       // Brief pause so the green border is actually readable before the
-      // poster launches — bug report: "when I click a slot, I want it to
-      // look like the poster from the bottom slides up into the slot I
-      // chose and the slot gets larger to accommodate it."
-      await this.wait(150);
+      // 3-step placement sequence begins — bug report: "when I click a
+      // slot, I want it to look like the poster from the bottom slides up
+      // into the slot I chose and the slot gets larger to accommodate it."
+      await this.wait(400);
 
-      if (fromRect && fromRect.width && toRect && toRect.width) {
-        this.growingGapIndex = slotIndex;
-        this.flyingCard = {
-          posterUrl,
-          style: {
-            position: 'fixed',
-            left: `${fromRect.left}px`,
-            top: `${fromRect.top}px`,
-            width: `${fromRect.width}px`,
-            height: `${fromRect.height}px`,
-            transition: 'none'
-          }
-        };
-
-        await this.nextFrame();
-
-        // Now flip to the target values WITH a transition — the gap
-        // (.timeline-gap.growing, driven by CSS) widens on the same
-        // timeline so the poster and its destination grow into place
-        // together, not the poster arriving at a slot that's still narrow.
-        this.flyingCard = {
-          posterUrl,
-          style: {
-            position: 'fixed',
-            left: `${toRect.left}px`,
-            top: `${toRect.top}px`,
-            width: `${toRect.width}px`,
-            height: `${toRect.height}px`,
-            transition: 'left 0.45s cubic-bezier(0.22, 1, 0.36, 1), top 0.45s cubic-bezier(0.22, 1, 0.36, 1), width 0.45s cubic-bezier(0.22, 1, 0.36, 1), height 0.45s cubic-bezier(0.22, 1, 0.36, 1)'
-          }
-        };
-
-        await this.wait(450);
+      if (canAnimate) {
+        this.isPlacing = true;
+        await this.flyToGap(posterUrl, fromRect, narrowRect);
+        await this.expandInPlace(posterUrl, slotIndex);
       }
 
       this.timeline = insertAtSlot(this.timeline, slotIndex, placedEntry);
@@ -241,8 +297,10 @@ export default {
         this.$store.dispatch('setDBValue', { path: 'settings/games/timelineBestStreak', value: this.streak });
       }
 
-      this.flyingCard = null;
-      this.growingGapIndex = null;
+      if (canAnimate) {
+        await this.growInNewGaps(slotIndex);
+        this.isPlacing = false;
+      }
 
       const next = this.nextCard();
       if (!next) {
@@ -314,7 +372,14 @@ export default {
 // taller — same convention as Six Degrees' .chain-row. Bug report: this now
 // sits ABOVE the mystery card.
 .timeline-row {
-  align-items: flex-end;
+  // Bug report: "the plus sign slots are shifted down relative to the
+  // posters" — cards (poster + year label below) are taller than gaps
+  // (a fixed-height box), so bottom-aligning (the old flex-end) left the
+  // gap's TOP sitting lower than the poster's own top. Top-aligning makes
+  // a gap's box and a card's poster image start at the same Y position —
+  // required for the flying/placing animation below to land in the right
+  // spot, not just a cosmetic nicety.
+  align-items: flex-start;
   display: flex;
   flex-wrap: nowrap;
   gap: 0.3rem;
@@ -368,22 +433,43 @@ export default {
   // Matches .timeline-card's restored 84px width (2:3 poster aspect ratio).
   height: 126px;
   justify-content: center;
+  overflow: hidden;
   width: 34px;
-  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease, width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  // width/opacity duration comes from --step-duration (set on the root
+  // element from stepDurationMs) so step 2's widen and step 3's grow-in
+  // can never drift out of sync with the JS `wait`s driving them.
+  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease, width var(--step-duration, 0.45s) ease, opacity var(--step-duration, 0.45s) ease;
 }
 
-// Widens to match .timeline-card's own width while the poster is flying
-// into it (see guess()'s growingGapIndex) — the "+" fades out at the same
-// time so the slot reads as emptying out to make room, not just resizing.
-.timeline-gap.growing {
-  width: 84px;
-  color: transparent;
+// Step 3: newly-mounted flanking gaps start collapsed (0 width, invisible)
+// and grow in once the class is removed a frame later (see growInNewGaps).
+.timeline-gap.entering {
+  width: 0;
+  opacity: 0;
+  border-width: 0;
+}
+
+// Step 2: the tapped gap itself hosts the settling poster — solid border,
+// no "+", not interactive while it's mid-placement.
+.timeline-gap.placing-gap {
   border-style: solid;
+  cursor: default;
+  padding: 0;
 }
 
-// A cloned poster driven entirely by inline :style (see guess() in the
-// script) — position:fixed makes its place in the DOM/template irrelevant,
-// it's positioned purely by the left/top/width/height values set there.
+.timeline-gap.placing-gap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.timeline-gap.placing-gap.wide {
+  width: 84px;
+}
+
+// Step 1: the clone that travels from the mystery card's spot to the
+// tapped gap's (narrow) position — position:fixed so its place in the
+// DOM/template doesn't matter, purely driven by :style + this class.
 .flying-card {
   position: fixed;
   z-index: 50;
@@ -391,6 +477,10 @@ export default {
   object-fit: cover;
   pointer-events: none;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.flying-card.animating {
+  transition: left var(--step-duration, 0.45s) cubic-bezier(0.22, 1, 0.36, 1), top var(--step-duration, 0.45s) cubic-bezier(0.22, 1, 0.36, 1), width var(--step-duration, 0.45s) cubic-bezier(0.22, 1, 0.36, 1), height var(--step-duration, 0.45s) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 // No title/year text below it anymore — just the poster; correct/incorrect

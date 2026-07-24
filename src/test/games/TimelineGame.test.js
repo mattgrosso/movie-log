@@ -39,6 +39,12 @@ describe('TimelineGame', () => {
     vi.useFakeTimers();
   });
   afterEach(() => {
+    // A safety net, not just the per-test cleanup below — if a test in the
+    // describe block below fails partway through (an assertion throws),
+    // its own trailing vi.restoreAllMocks() never runs, leaking the
+    // stubbed getBoundingClientRect into whatever test runs next in the
+    // same file/worker.
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -87,57 +93,149 @@ describe('TimelineGame', () => {
     expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/timelineBestStreak', value: 1 });
   });
 
-  it('flies the poster from the mystery card into the tapped gap, growing the gap to match (bug report: "the poster... slides up into the slot I chose and the slot gets larger to accommodate it")', async () => {
-    const wrapper = factory(tenMovies());
-    await wrapper.find('.btn-game-primary').trigger('click');
-
+  describe('the 3-step placement animation (bug report: "slide into the space of the plus sign slot, once it\'s there... expand out... then... the two new plus sign slots grow")', () => {
     // jsdom reports every element's geometry as zero by default — the
     // fromRect/toRect guard in guess() already covers that (exercised
     // implicitly by every other passing test above, where the whole
-    // fly/grow branch is skipped). Stub real, DIFFERING rects here
-    // specifically to exercise the flight itself: the mystery card
-    // (large, bottom of the page) as the "from" position vs. the tapped
-    // gap (small, up in the timeline row) as the "to" position.
-    const mysteryRect = { width: 143, height: 214, left: 100, top: 500 };
-    const gapRect = { width: 34, height: 126, left: 20, top: 200 };
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
-      return this.classList.contains('mystery-card') ? mysteryRect : gapRect;
+    // animated branch is skipped). Stub real, DIFFERING rects here
+    // specifically to exercise the sequence: the mystery card (large,
+    // bottom of the page) as the "from" position vs. the tapped gap
+    // (small, up in the timeline row) as the "to" position.
+    function stubRects () {
+      const mysteryRect = { width: 143, height: 214, left: 100, top: 500 };
+      const gapRect = { width: 34, height: 126, left: 20, top: 200 };
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
+        return this.classList.contains('mystery-card') ? mysteryRect : gapRect;
+      });
+      return { mysteryRect, gapRect };
+    }
+
+    it('step 1: slides+shrinks a clone from the mystery card to the tapped gap\'s own position, hiding the real mystery card the whole sequence', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+      const { mysteryRect, gapRect } = stubRects();
+
+      const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
+      await wrapper.findAll('.timeline-gap')[correctSlot].trigger('click');
+
+      // After the pre-flight pause, the flying clone exists at the
+      // mystery card's OWN rect (not yet moved), with no transition —
+      // and the real mystery-card is already hidden for the whole
+      // sequence, not just this first step.
+      await vi.advanceTimersByTimeAsync(400);
+      expect(wrapper.vm.isPlacing).toBe(true);
+      expect(wrapper.vm.flyingCard).toBeTruthy();
+      expect(wrapper.vm.flyingCardAnimating).toBe(false);
+      expect(wrapper.find('.mystery-card').exists()).toBe(false);
+      expect(wrapper.find('.flying-card').exists()).toBe(true);
+      expect(wrapper.vm.flyingCard.style.left).toBe(`${mysteryRect.left}px`);
+      expect(wrapper.vm.flyingCard.style.top).toBe(`${mysteryRect.top}px`);
+
+      // Two animation frames later (needed to guarantee a real committed
+      // paint of the "from" state before flipping — a single forced
+      // reflow isn't reliable enough for an element set up this same
+      // tick), it flips to the gap's rect WITH the animating class,
+      // which is what actually drives the CSS transition.
+      await vi.advanceTimersByTimeAsync(50);
+      expect(wrapper.vm.flyingCard.style.left).toBe(`${gapRect.left}px`);
+      expect(wrapper.vm.flyingCard.style.top).toBe(`${gapRect.top}px`);
+      expect(wrapper.vm.flyingCardAnimating).toBe(true);
+
+      vi.restoreAllMocks();
     });
 
-    const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
-    await wrapper.findAll('.timeline-gap')[correctSlot].trigger('click');
+    it('step 2: once seated, the clone is replaced by the poster living INSIDE the real tapped gap, which then widens to the full card size', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+      stubRects();
 
-    // After the pre-flight pause, the flying clone exists, starts at the
-    // mystery card's own rect (no transition yet), the real mystery-card
-    // is hidden (it starts pixel-aligned with the clone, so the swap is
-    // invisible), and the tapped gap is marked as growing.
-    await vi.advanceTimersByTimeAsync(150);
-    expect(wrapper.vm.flyingCard).toBeTruthy();
-    expect(wrapper.find('.mystery-card').exists()).toBe(false);
-    expect(wrapper.find('.flying-card').exists()).toBe(true);
-    expect(wrapper.vm.flyingCard.style.left).toBe('100px');
-    expect(wrapper.vm.flyingCard.style.top).toBe('500px');
-    expect(wrapper.vm.flyingCard.style.transition).toBe('none');
-    expect(wrapper.vm.growingGapIndex).toBe(correctSlot);
-    expect(wrapper.find('.timeline-gap.growing').exists()).toBe(true);
+      const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
+      await wrapper.findAll('.timeline-gap')[correctSlot].trigger('click');
 
-    // Two animation frames later, it flips to the gap's rect WITH a real
-    // transition — this is what actually produces visible motion (a
-    // single forced-reflow, the old approach, wasn't reliable for an
-    // element created the same tick — see guess()'s nextFrame comment).
-    await vi.advanceTimersByTimeAsync(50);
-    expect(wrapper.vm.flyingCard.style.left).toBe('20px');
-    expect(wrapper.vm.flyingCard.style.top).toBe('200px');
-    expect(wrapper.vm.flyingCard.style.transition).toContain('0.45s');
+      // Advanced in checkpoints (pre-pause, then the step-1 flip's two
+      // rAFs, then the full step-1 wait) rather than one combined sum —
+      // landing a single big jump exactly on a boundary where a fired
+      // timer's continuation immediately schedules new rAFs is a real
+      // flakiness risk; separate calls give the fake-timer queue a chance
+      // to fully settle between each.
+      await vi.advanceTimersByTimeAsync(400);
+      await vi.advanceTimersByTimeAsync(50);
+      await vi.advanceTimersByTimeAsync(wrapper.vm.stepDurationMs);
+      // Past the full step-1 duration: the clone is gone, replaced by the
+      // real gap hosting the poster — still narrow at first.
+      expect(wrapper.vm.flyingCard).toBeNull();
+      expect(wrapper.vm.placingGapIndex).toBe(correctSlot);
+      expect(wrapper.vm.placingPosterUrl).toBeTruthy();
+      expect(wrapper.vm.placingWide).toBe(false);
+      const placingEl = wrapper.find('.timeline-gap.placing-gap');
+      expect(placingEl.exists()).toBe(true);
+      expect(placingEl.classes()).not.toContain('wide');
+      expect(placingEl.find('img').exists()).toBe(true);
+      // Still isPlacing -- the mystery card must not reappear mid-sequence.
+      expect(wrapper.vm.isPlacing).toBe(true);
+      expect(wrapper.find('.mystery-card').exists()).toBe(false);
 
-    // Once the flight duration elapses, the real card lands in the
-    // timeline and the temporary clone/growing-gap state both clear.
-    await vi.advanceTimersByTimeAsync(500);
-    expect(wrapper.vm.flyingCard).toBeNull();
-    expect(wrapper.vm.growingGapIndex).toBeNull();
-    expect(wrapper.vm.timeline).toHaveLength(2);
+      // A frame later, it widens to the final card size.
+      await vi.advanceTimersByTimeAsync(50);
+      expect(wrapper.vm.placingWide).toBe(true);
+      expect(wrapper.find('.timeline-gap.placing-gap').classes()).toContain('wide');
 
-    vi.restoreAllMocks();
+      vi.restoreAllMocks();
+    });
+
+    // Step 3 is triggered by step 2's own wait() resolving, which chains
+    // straight into setting up step 3's rAFs in the SAME continuation —
+    // driving this through the full click + coarse advanceTimersByTimeAsync
+    // chain makes the "just entered, still collapsed" window (which only
+    // lasts two rAFs) unreliable to freeze on, since a single advance call
+    // can end up sweeping through a just-scheduled rAF pair as part of
+    // settling the timer that triggered them. Testing the named helper
+    // directly sidesteps that entirely and is more precise anyway.
+    it('growInNewGaps: the two new flanking gaps grow in from 0 width instead of popping in', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+
+      const promise = wrapper.vm.growInNewGaps(0);
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.enteringGapIndices).toEqual([0, 1]);
+      const gaps = wrapper.findAll('.timeline-gap');
+      expect(gaps[0].classes()).toContain('entering');
+      expect(gaps[1].classes()).toContain('entering');
+
+      await vi.advanceTimersByTimeAsync(50);
+      expect(wrapper.vm.enteringGapIndices).toEqual([]);
+      expect(wrapper.findAll('.timeline-gap')[0].classes()).not.toContain('entering');
+
+      await vi.advanceTimersByTimeAsync(wrapper.vm.stepDurationMs);
+      await promise;
+    });
+
+    it('runs the full sequence end to end: card lands in the timeline, streak grows, best streak persists, next mystery card is ready', async () => {
+      const wrapper = factory(tenMovies());
+      await wrapper.find('.btn-game-primary').trigger('click');
+      stubRects();
+
+      const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
+      await wrapper.findAll('.timeline-gap')[correctSlot].trigger('click');
+
+      // One generous lump-sum advance covering the pre-pause plus all 3
+      // steps' rAFs and waits — unlike the per-step tests above, this one
+      // only cares about the settled END state, so the exact granularity
+      // of intermediate advances doesn't matter here.
+      await vi.advanceTimersByTimeAsync(400 + wrapper.vm.stepDurationMs * 3 + 200);
+
+      expect(wrapper.vm.flyingCard).toBeNull();
+      expect(wrapper.vm.placingGapIndex).toBeNull();
+      expect(wrapper.vm.enteringGapIndices).toEqual([]);
+      expect(wrapper.vm.isPlacing).toBe(false);
+      expect(wrapper.vm.timeline).toHaveLength(2);
+      expect(wrapper.vm.streak).toBe(1);
+      expect(wrapper.vm.mysteryCard).toBeTruthy();
+      expect(wrapper.vm.revealed).toBe(false);
+      expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/timelineBestStreak', value: 1 });
+
+      vi.restoreAllMocks();
+    });
   });
 
   it('an incorrect guess ends the game, reveals the true year, and highlights where it actually belonged', async () => {
