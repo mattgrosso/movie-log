@@ -56,11 +56,26 @@ describe('HigherLowerGame', () => {
 
     const leftId = wrapper.vm.leftCard.movie.id;
     const rightId = wrapper.vm.rightCard.movie.id;
-    // revealedSide starts 'left', so tapping 'right' guesses "mystery is
-    // higher" and tapping 'left' guesses "mystery is lower" — tap whichever
-    // one that makes a TRUE statement.
-    const winningSide = rightId > leftId ? 'right' : 'left';
-    const cardIndex = winningSide === 'right' ? 1 : 0;
+    // Flaky-test fix: the winning VALUE always ends up persisted in
+    // mysterySide (the card that "proved itself"), regardless of which
+    // physical button was TAPPED to submit the correct guess. The old
+    // version of this test conflated those two things — it derived
+    // "winningSide" from which slot had the numerically higher rating,
+    // which only matches mysterySide when the mystery card happens to BE
+    // the higher-rated one. When the mystery card was the LOWER one
+    // (correctly guessed by tapping the already-revealed side), the old
+    // "winningSide" pointed at the wrong slot and the assertion below
+    // failed — hence the ~50%, shuffle-dependent flake. mysterySide is
+    // deterministically 'right' here (revealedSide always starts 'left' in
+    // start()), but read it from the component rather than hardcoding it,
+    // so this doesn't silently break if that default ever changes.
+    const winningSide = wrapper.vm.mysterySide;
+    const winningId = wrapper.vm.mysteryCard.movie.id;
+    // Tap whichever button actually makes a TRUE statement (tapping the
+    // mystery side guesses "higher"; tapping the revealed side guesses
+    // "lower" — see the component's own guess() comment).
+    const tapSide = rightId > leftId ? 'right' : 'left';
+    const cardIndex = tapSide === 'right' ? 1 : 0;
 
     await wrapper.findAll('.hl-card')[cardIndex].trigger('click');
 
@@ -68,7 +83,6 @@ describe('HigherLowerGame', () => {
     expect(wrapper.vm.streak).toBe(1);
     expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/higherLowerBestStreak', value: 1 });
 
-    const winningId = winningSide === 'right' ? rightId : leftId;
     await vi.advanceTimersByTimeAsync(1000);
 
     // The winner is STILL in the exact same slot — never moved.
