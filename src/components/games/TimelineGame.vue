@@ -491,29 +491,49 @@ export default {
   height: 126px;
   justify-content: center;
   overflow: hidden;
+  padding: 0;
   width: 34px;
-  // Layout width is a CONSTANT 34px now, never animated — see .entering
-  // below for why. transform/opacity duration comes from --step-duration
-  // (set on the root element from stepDurationMs) so step 3's grow-in
-  // can never drift out of sync with the JS `wait`s driving it.
-  // :active overrides transform's duration back to fast (0.1s) below,
-  // since tap-press feedback needs to feel instant, not tied to the
-  // (much slower) grow-in speed.
-  transition: border-color 0.1s ease, background 0.1s ease, transform var(--step-duration, 0.45s) ease, opacity var(--step-duration, 0.45s) ease;
+  // Flex items default to min-width: auto, meaning they refuse to shrink
+  // below their own content's intrinsic size no matter what `width`
+  // says — the classic flexbox min-width footgun. And a <button> has
+  // real UA-default padding contributing to that intrinsic size too
+  // (content-box: width + padding), which is why `padding: 0` is set
+  // explicitly above rather than left at the browser default — the "+"
+  // stays centered fine via flex align/justify, padding was never doing
+  // anything for it. Without BOTH of these, .entering's `width: 0` only
+  // actually reached ~12px (0 content width + leftover default button
+  // padding), a small but real visible sliver instead of a true 0.
+  min-width: 0;
+  // width/border-width/opacity duration comes from --step-duration (set
+  // on the root element from stepDurationMs) so step 3's grow-in can
+  // never drift out of sync with the JS `wait`s driving it. width and
+  // border-width MUST both actually animate (not just visually scale a
+  // constant-size box via transform — that was tried and reserves the
+  // full 34px of LAYOUT SPACE the instant the element mounts, since
+  // transforms don't affect layout, which is exactly what read as "the
+  // space pops open, then the box grows into it" — the space itself
+  // needs to grow, not just its visible content).
+  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease, width var(--step-duration, 0.45s) ease, border-width var(--step-duration, 0.45s) ease, opacity var(--step-duration, 0.45s) ease;
 }
 
-// Step 3: newly-mounted flanking gaps start visually collapsed to a
-// single vertical line and grow outward from it to full width — a
-// transform (scaleX), NOT width/border-width. Animating width/border-
-// width directly (tried first) was jerky, especially for a DASHED
-// border, which has to recompute its dash pattern on every frame rather
-// than just scaling cleanly the way a GPU-composited transform does.
-// Layout width stays a constant 34px throughout (see the base rule
-// above) — only the VISUAL rendering scales, so there's no reflow to
-// wait on either. Grows back to normal (transform: none, i.e. scaleX(1))
-// once the class is removed a frame later — see settleNewGaps.
-.timeline-gap.entering {
-  transform: scaleX(0);
+// Step 3: newly-mounted flanking gaps start collapsed (0 width, no
+// border, invisible) and grow in — width, border-width, AND opacity all
+// animate together (see the base .timeline-gap transition above) once
+// the class is removed a frame later (see settleNewGaps), so the space
+// itself grows in lockstep with its visible content.
+//
+// The extra `:disabled` in this selector is deliberate, not incidental:
+// entering gaps are ALWAYS disabled too (:disabled="revealed || ..." is
+// true for the whole placement sequence), and `.timeline-gap:disabled`
+// (opacity: 0.35) has the SAME specificity as a plain `.timeline-gap.
+// entering` would — a real, previously-shipped bug where :disabled's
+// opacity silently won by source order, so a "collapsed" gap was
+// actually rendering at 35% opacity instead of invisible the whole
+// time. Matching :disabled here explicitly guarantees this rule wins
+// regardless of source order, instead of being one more implicit tie.
+.timeline-gap.entering:disabled {
+  width: 0;
+  border-width: 0;
   opacity: 0;
 }
 
@@ -579,14 +599,10 @@ export default {
 }
 
 // Mobile-first: :active only, no :hover (this app has no reliable pointer
-// device — see CLAUDE.md). transition is re-declared here (not just
-// relying on the base rule) so this press feedback stays fast (0.1s) —
-// the base .timeline-gap transition's own `transform` duration is the
-// much slower --step-duration, meant for the entering grow-in, not taps.
+// device — see CLAUDE.md).
 .timeline-gap:active:not(:disabled) {
   background: rgba(255, 255, 255, 0.14);
   transform: scale(0.94);
-  transition: transform 0.1s ease, background 0.1s ease;
 }
 
 .timeline-gap:disabled {
