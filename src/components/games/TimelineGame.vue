@@ -70,14 +70,25 @@
            hidden through the settle+expand step too or it'd reappear at
            the bottom while the poster is still settling into the
            timeline above. -->
-      <div
-        v-if="mysteryCard && !isPlacing"
-        ref="mysteryCardEl"
-        class="mystery-card"
-        :class="{ correct: revealed && lastGuessCorrect, incorrect: revealed && lastGuessCorrect === false }"
-      >
-        <img v-if="gamePosterUrl(mysteryCard)" :src="gamePosterUrl(mysteryCard, 'w342')" :alt="mysteryCard.movie.title">
-      </div>
+      <!-- Wrapped in a Transition purely so the NEXT mystery card fades in
+           softly instead of popping into existence (bug report: "make
+           that fade in a little bit softer") — a plain CSS transition on
+           the div itself wouldn't animate this, since v-if unmounts the
+           old card and mounts a brand new element for the new one, not a
+           property change on the same node. Only an enter transition is
+           defined (see .mystery-fade-* below) — leaving is still
+           instant, unchanged from before, since only the arrival was
+           reported as abrupt. -->
+      <Transition name="mystery-fade">
+        <div
+          v-if="mysteryCard && !isPlacing"
+          ref="mysteryCardEl"
+          class="mystery-card"
+          :class="{ correct: revealed && lastGuessCorrect, incorrect: revealed && lastGuessCorrect === false }"
+        >
+          <img v-if="gamePosterUrl(mysteryCard)" :src="gamePosterUrl(mysteryCard, 'w342')" :alt="mysteryCard.movie.title">
+        </div>
+      </Transition>
 
       <!-- Step 1: the poster mid-flight from the mystery card's spot to
            the tapped gap's own (narrow) position — see guess()/
@@ -683,6 +694,21 @@ export default {
 
 .mystery-card.incorrect {
   border-color: #ff6a6a;
+}
+
+// A new mystery card fading softly into place instead of popping in (bug
+// report: "make that fade in a little bit softer") — only the enter side;
+// leaving stays instant (unchanged), only the arrival was reported as
+// abrupt. A fixed, independent duration rather than --step-duration: this
+// is about softening one specific pop, not part of the placement
+// sequence's own choreography, so it shouldn't get faster/slower as
+// stepDurationMs gets tuned.
+.mystery-fade-enter-active {
+  transition: opacity 0.4s ease;
+}
+
+.mystery-fade-enter-from {
+  opacity: 0;
 }
 
 // Mobile-first: :active only, no :hover (this app has no reliable pointer
