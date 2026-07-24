@@ -14,6 +14,7 @@ export default defineConfig({
       exclude: [
         'node_modules/',
         '.history/', // VS Code Local History snapshots — not real source
+        'aws-lambda/', // separate deployable (own package.json/node_modules), not part of this app's test universe — same "pollutes the number" issue .history/ had
         'src/test/',
         '**/*.test.js',
         '**/*.spec.js',
