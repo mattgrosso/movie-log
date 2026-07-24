@@ -3,8 +3,27 @@ import { mount, flushPromises } from '@vue/test-utils';
 import ClueBudgetGame from '@/components/games/ClueBudgetGame.vue';
 import axios from 'axios';
 
+// Dispatches based on which TMDB endpoint is being hit, matching the real
+// component's three-fetch pattern (movie+credits, discover-by-keyword,
+// discover-by-company). Individual tests override specific pieces via
+// axios.get.mockImplementation when they need particular values.
+function defaultAxiosImpl (url) {
+  if (url.includes('/discover/movie')) {
+    return Promise.resolve({ data: { total_results: 500 } });
+  }
+  return Promise.resolve({
+    data: {
+      tagline: 'A test tagline.',
+      credits: {
+        cast: [{ name: 'Cast One', popularity: 40 }, { name: 'Cast Two', popularity: 5 }],
+        crew: [{ name: 'Some Director', job: 'Director', popularity: 20 }]
+      }
+    }
+  });
+}
+
 vi.mock('axios', () => ({
-  default: { get: vi.fn(() => Promise.resolve({ data: { tagline: 'A test tagline.' } })) }
+  default: { get: vi.fn() }
 }));
 
 function entry (id, overrides = {}) {
@@ -20,7 +39,8 @@ function entry (id, overrides = {}) {
       genres: [{ name: 'Drama' }],
       cast: [{ name: 'Cast One' }, { name: 'Cast Two' }],
       crew: [{ name: 'Some Director', job: 'Director' }],
-      production_companies: [{ name: 'A24' }],
+      production_companies: [{ id: 999, name: 'A24' }],
+      keywords: [{ id: 111, name: 'heist' }],
       flatKeywords: ['heist'],
       ...overrides
     }
@@ -49,8 +69,8 @@ function tenMovies () {
 
 describe('ClueBudgetGame', () => {
   beforeEach(() => {
-    axios.get.mockClear();
-    axios.get.mockResolvedValue({ data: { tagline: 'A test tagline.' } });
+    axios.get.mockReset();
+    axios.get.mockImplementation(defaultAxiosImpl);
   });
 
   it('shows a not-enough-movies message when the library is small', () => {
@@ -58,17 +78,82 @@ describe('ClueBudgetGame', () => {
     expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
   });
 
-  it('starts a round with a full $100 budget, a full clue deck, and fetches the tagline', async () => {
+  it('starts a round with a full $100 budget, a full clue deck, and fetches live TMDB data', async () => {
     const wrapper = factory(tenMovies());
     await flushPromises();
 
     expect(wrapper.vm.target).toBeTruthy();
     expect(wrapper.vm.budget).toBe(100);
     expect(wrapper.vm.status).toBe('playing');
-    expect(wrapper.vm.purchasedKeys).toEqual([]);
+    expect(wrapper.vm.purchasedClues).toEqual([]);
     expect(axios.get).toHaveBeenCalledWith(expect.stringContaining(`/movie/${wrapper.vm.target.movie.id}?`));
-    // The tagline fetch resolved and folded into the deck.
+    // Tagline resolved and folded into the deck.
     expect(wrapper.vm.clueDeck.find((c) => c.key === 'tagline')?.value).toBe('A test tagline.');
+  });
+
+  it('fetches real popularity for cast/crew (via append_to_response=credits) and prices those clues from it', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('append_to_response=credits'));
+    const directorClue = wrapper.vm.clueDeck.find((c) => c.key === 'director');
+    const cast0 = wrapper.vm.clueDeck.find((c) => c.key === 'cast-0'); // popularity 40
+    const cast1 = wrapper.vm.clueDeck.find((c) => c.key === 'cast-1'); // popularity 5
+    // Real popularity, not the old fixed fallback values.
+    expect(directorClue.cost).not.toBe(20);
+    expect(cast0.cost).toBeGreaterThan(cast1.cost); // more popular costs more
+  });
+
+  it('fetches keyword rarity for keywords with a resolvable TMDB id, and prices that clue from it', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('with_keywords=111')) return Promise.resolve({ data: { total_results: 4 } }); // rare
+      return defaultAxiosImpl(url);
+    });
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('with_keywords=111'));
+    const keywordClue = wrapper.vm.clueDeck.find((c) => c.key === 'keyword-0');
+    expect(keywordClue.cost).not.toBe(10); // not the fallback — a rare keyword prices high
+    expect(keywordClue.cost).toBeGreaterThan(20);
+  });
+
+  it('does not fetch keyword rarity for a keyword with no matching TMDB id (AI/custom keyword)', async () => {
+    const movies = [entry(0, { keywords: [], flatKeywords: ['a made-up ai keyword'] })];
+    const wrapper = factory(movies);
+    await flushPromises();
+
+    expect(axios.get).not.toHaveBeenCalledWith(expect.stringContaining('with_keywords'));
+    expect(wrapper.vm.clueDeck.find((c) => c.key === 'keyword-0').cost).toBe(10); // fallback
+  });
+
+  it('fetches production-company rarity and prices that clue from it', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('with_companies=999')) return Promise.resolve({ data: { total_results: 6000 } }); // prolific
+      return defaultAxiosImpl(url);
+    });
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('with_companies=999'));
+    const companyClue = wrapper.vm.clueDeck.find((c) => c.key === 'company');
+    expect(companyClue.cost).not.toBe(10); // not the fallback — a prolific studio prices low
+    expect(companyClue.cost).toBeLessThan(10);
+  });
+
+  it('a clue bought BEFORE live data resolves keeps its fallback price even after the deck later updates', async () => {
+    // Never resolves during this test — buyClue happens while everything
+    // is still on fallback pricing.
+    axios.get.mockImplementation(() => new Promise(() => {}));
+    const wrapper = factory(tenMovies());
+    await wrapper.vm.$nextTick();
+
+    const directorClue = wrapper.vm.clueDeck.find((c) => c.key === 'director');
+    expect(directorClue.cost).toBe(20); // fallback, nothing has resolved yet
+    wrapper.vm.buyClue(directorClue);
+
+    expect(wrapper.vm.purchasedClues[0].cost).toBe(20);
+    expect(wrapper.vm.budget).toBe(80);
   });
 
   it('buying a clue deducts its cost from the budget and moves it to the purchased list', async () => {
@@ -80,7 +165,7 @@ describe('ClueBudgetGame', () => {
     await wrapper.findAll('.clue-chip').find((c) => c.text().includes('Decade')).trigger('click');
 
     expect(wrapper.vm.budget).toBe(before - clue.cost);
-    expect(wrapper.vm.purchasedKeys).toContain('decade');
+    expect(wrapper.vm.purchasedClues.map((c) => c.key)).toContain('decade');
     expect(wrapper.find('.purchased-clues').text()).toContain('Decade');
   });
 
@@ -171,7 +256,7 @@ describe('ClueBudgetGame', () => {
     expect(dispatch).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/games/clueBudgetBestSavings' }));
   });
 
-  it('"New Round" resets the budget, clears purchases, and fetches a fresh tagline for a different movie', async () => {
+  it('"New Round" resets the budget, clears purchases, and fetches fresh live data for a different movie', async () => {
     const wrapper = factory(tenMovies());
     await flushPromises();
     const firstTarget = wrapper.vm.target;
@@ -182,7 +267,7 @@ describe('ClueBudgetGame', () => {
     await flushPromises();
 
     expect(wrapper.vm.budget).toBe(100);
-    expect(wrapper.vm.purchasedKeys).toEqual([]);
+    expect(wrapper.vm.purchasedClues).toEqual([]);
     expect(wrapper.vm.status).toBe('playing');
     expect(wrapper.vm.target.dbKey).not.toBe(firstTarget.dbKey);
     expect(axios.get).toHaveBeenCalled();

@@ -40,7 +40,7 @@
       </div>
 
       <ul v-if="purchasedClues.length" class="purchased-clues">
-        <li v-for="clue in purchasedClues" :key="clue.key"><strong>{{ clue.label }}:</strong> {{ clue.value }}</li>
+        <li v-for="clue in purchasedClues" :key="clue.key"><strong>{{ clue.label }}:</strong> {{ clue.value }} <span class="purchased-clue-cost">(${{ clue.cost }})</span></li>
       </ul>
 
       <div v-if="status === 'playing'" class="clue-shop">
@@ -97,7 +97,16 @@ export default {
       target: null,
       budget: STARTING_BUDGET,
       clueDeck: [],
-      purchasedKeys: [],
+      // Full clue objects, snapshotted at the moment they're bought — NOT
+      // derived from clueDeck by key. Dynamic pricing means a clue's cost
+      // in clueDeck can change after purchase (once live TMDB data for a
+      // LATER clue resolves and the deck is rebuilt) — snapshotting is
+      // what guarantees the purchased list always shows what was actually
+      // paid, never a since-updated live price for the same key.
+      purchasedClues: [],
+      // Accumulates tagline/peoplePopularity/keywordMovieCounts/
+      // companyMovieCount as each live fetch resolves — see fetchLiveData.
+      liveExtras: {},
       status: 'playing',
       guessInput: '',
       suggestions: []
@@ -108,12 +117,8 @@ export default {
       return this.$store.state.settings?.games?.clueBudgetBestSavings ?? null;
     },
     availableClues () {
-      return this.clueDeck.filter((clue) => !this.purchasedKeys.includes(clue.key));
-    },
-    purchasedClues () {
-      return this.purchasedKeys
-        .map((key) => this.clueDeck.find((clue) => clue.key === key))
-        .filter(Boolean);
+      const purchasedKeys = this.purchasedClues.map((clue) => clue.key);
+      return this.clueDeck.filter((clue) => !purchasedKeys.includes(clue.key));
     }
   },
   watch: {
@@ -155,9 +160,9 @@ export default {
       if (entryKey(entry) === entryKey(this.target)) this.win();
     },
     buyClue (clue) {
-      if (this.status !== 'playing' || this.purchasedKeys.includes(clue.key) || clue.cost > this.budget) return;
+      if (this.status !== 'playing' || this.purchasedClues.some((p) => p.key === clue.key) || clue.cost > this.budget) return;
       this.budget -= clue.cost;
-      this.purchasedKeys.push(clue.key);
+      this.purchasedClues.push(clue);
       if (this.budget <= 0) this.lose();
     },
     // The one rule handed down whole: revealing the poster always costs
@@ -185,31 +190,99 @@ export default {
       const choices = candidates.length ? candidates : pool;
       this.target = choices[Math.floor(Math.random() * choices.length)];
       this.budget = STARTING_BUDGET;
-      this.purchasedKeys = [];
+      this.purchasedClues = [];
       this.status = 'playing';
       this.guessInput = '';
       this.suggestions = [];
+      this.liveExtras = {};
+      // Fallback-priced deck immediately — the round is fully playable
+      // before any network request resolves. Each of the three live
+      // fetches below independently refines whichever clues it covers.
       this.clueDeck = buildClueDeck(this.target);
-      this.fetchTagline();
+      this.fetchLiveData(this.target);
     },
-    // Tagline isn't persisted locally (see CLAUDE.md) — fetched live, once
-    // per round, and folded into the deck if it arrives. Best-effort: on
-    // failure, or if this movie genuinely has no tagline on TMDB, the deck
-    // just never gets a Tagline clue this round.
-    async fetchTagline () {
-      const movieId = this.target?.movie?.id;
+    // Merges a partial extras update and rebuilds the deck from it. Never
+    // touches purchasedClues (see its own comment) — a clue's LIVE price
+    // can keep changing after it's been bought, that's fine, only
+    // availableClues (still-unpurchased) reflects it.
+    mergeLiveExtras (patch) {
+      this.liveExtras = { ...this.liveExtras, ...patch };
+      this.clueDeck = buildClueDeck(this.target, this.liveExtras);
+    },
+    // Three independent, best-effort live TMDB lookups feeding the dynamic
+    // pricing in clueBudget.js — none of this is persisted locally (see
+    // CLAUDE.md), so it's fetched fresh once per round. Fired in parallel
+    // (not awaited in sequence) so one slow endpoint doesn't hold back the
+    // others; each guards against a stale response landing after "New
+    // Round" already moved on to a different target.
+    fetchLiveData (roundTarget) {
+      this.fetchTaglineAndPopularity(roundTarget);
+      this.fetchKeywordRarity(roundTarget);
+      this.fetchCompanyRarity(roundTarget);
+    },
+    // Tagline + every cast/crew member's real TMDB popularity, in one
+    // request (append_to_response=credits) — the same movie-details call
+    // already needed for tagline also returns full credits with a
+    // popularity score baked into every person.
+    async fetchTaglineAndPopularity (roundTarget) {
+      const movieId = roundTarget?.movie?.id;
       if (!movieId) return;
-      const roundTarget = this.target;
       try {
-        const response = await axios.get(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US`);
-        const tagline = response?.data?.tagline;
-        // Guards against a slow response landing after "New Round" already
-        // moved on to a different target.
-        if (tagline && this.target === roundTarget) {
-          this.clueDeck = buildClueDeck(this.target, { tagline });
-        }
+        const response = await axios.get(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&append_to_response=credits`);
+        if (this.target !== roundTarget) return;
+        const data = response?.data || {};
+        const peoplePopularity = {};
+        [...(data.credits?.cast || []), ...(data.credits?.crew || [])].forEach((person) => {
+          if (person?.name && typeof person.popularity === 'number') peoplePopularity[person.name] = person.popularity;
+        });
+        this.mergeLiveExtras({ tagline: data.tagline, peoplePopularity });
       } catch {
-        // Best-effort — see above.
+        // Best-effort — those clues just keep their fallback prices (and
+        // Tagline isn't offered at all) this round.
+      }
+    },
+    // How many movies share each offered keyword's TMDB id — only
+    // resolvable for keywords that actually came from TMDB (movie.keywords
+    // carries {id, name}; AI/custom keywords have no id and just keep
+    // their fallback price). Looked up in parallel, one request per
+    // keyword actually shown (at most 3).
+    async fetchKeywordRarity (roundTarget) {
+      const idByName = {};
+      (roundTarget?.movie?.keywords || []).forEach((k) => {
+        if (k?.name && k?.id != null) idByName[k.name] = k.id;
+      });
+      const offeredKeywords = (roundTarget?.movie?.flatKeywords || []).filter(Boolean).slice(0, 3);
+
+      const lookups = offeredKeywords
+        .filter((keyword) => idByName[keyword] != null)
+        .map(async (keyword) => {
+          try {
+            const response = await axios.get(`https://api.themoviedb.org/3/discover/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&with_keywords=${idByName[keyword]}`);
+            return [keyword, response?.data?.total_results];
+          } catch {
+            return null;
+          }
+        });
+      if (!lookups.length) return;
+
+      const results = await Promise.all(lookups);
+      if (this.target !== roundTarget) return;
+      const keywordMovieCounts = {};
+      results.filter(Boolean).forEach(([keyword, count]) => {
+        if (typeof count === 'number') keywordMovieCounts[keyword] = count;
+      });
+      if (Object.keys(keywordMovieCounts).length) this.mergeLiveExtras({ keywordMovieCounts });
+    },
+    // How many movies the primary production company has made.
+    async fetchCompanyRarity (roundTarget) {
+      const companyId = roundTarget?.movie?.production_companies?.[0]?.id;
+      if (companyId == null) return;
+      try {
+        const response = await axios.get(`https://api.themoviedb.org/3/discover/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&with_companies=${companyId}`);
+        if (this.target !== roundTarget) return;
+        if (typeof response?.data?.total_results === 'number') this.mergeLiveExtras({ companyMovieCount: response.data.total_results });
+      } catch {
+        // Best-effort — Production Company just keeps its fallback price.
       }
     }
   }
@@ -333,6 +406,11 @@ export default {
 
 .purchased-clues strong {
   color: #ffc107;
+}
+
+.purchased-clue-cost {
+  color: #777;
+  font-size: 0.8em;
 }
 
 .clue-shop {

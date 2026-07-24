@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildClueDeck, STARTING_BUDGET } from '@/assets/javascript/games/clueBudget.js';
+import {
+  buildClueDeck,
+  STARTING_BUDGET,
+  priceFromPersonPopularity,
+  priceFromKeywordRarity,
+  priceFromCompanyRarity
+} from '@/assets/javascript/games/clueBudget.js';
 
 // Mid-month release dates — see CLAUDE.md's documented test pitfall
 // (new Date('YYYY-01-01') can shift a year/decade in this repo's test env).
@@ -106,5 +112,104 @@ describe('buildClueDeck', () => {
   it('every individual clue costs less than the full starting budget (each one is affordable on its own)', () => {
     const deck = buildClueDeck(entry(), { tagline: 'Tagline here.' });
     deck.forEach((clue) => expect(clue.cost).toBeLessThan(STARTING_BUDGET));
+  });
+
+  describe('dynamic pricing from live TMDB data', () => {
+    it('prices a person clue from real popularity instead of the fallback tier, once it is known', () => {
+      const obscure = buildClueDeck(entry(), { peoplePopularity: { 'Some Director': 1 } });
+      const famous = buildClueDeck(entry(), { peoplePopularity: { 'Some Director': 80 } });
+      const fallback = buildClueDeck(entry());
+
+      const obscureCost = obscure.find((c) => c.key === 'director').cost;
+      const famousCost = famous.find((c) => c.key === 'director').cost;
+      const fallbackCost = fallback.find((c) => c.key === 'director').cost;
+
+      expect(famousCost).toBeGreaterThan(obscureCost);
+      // Dynamic pricing replaces the fallback entirely once known — it's
+      // not blended with it.
+      expect(obscureCost).not.toBe(fallbackCost);
+      expect(famousCost).not.toBe(fallbackCost);
+    });
+
+    it('a person missing from peoplePopularity keeps the fallback cost for their clue (never blocks the clue)', () => {
+      const deck = buildClueDeck(entry(), { peoplePopularity: { 'Someone Else Entirely': 50 } });
+      const directorClue = deck.find((c) => c.key === 'director');
+      expect(directorClue).toBeTruthy();
+      expect(directorClue.cost).toBe(20); // the original fallback
+    });
+
+    it('prices a keyword by how many movies share it, only for keywords with a resolvable TMDB id', () => {
+      const rare = buildClueDeck(entry(), { keywordMovieCounts: { heist: 4 } });
+      const common = buildClueDeck(entry(), { keywordMovieCounts: { heist: 8000 } });
+      const rareCost = rare.find((c) => c.key === 'keyword-0').cost;
+      const commonCost = common.find((c) => c.key === 'keyword-0').cost;
+
+      // Inverse of person pricing: RARER costs MORE.
+      expect(rareCost).toBeGreaterThan(commonCost);
+
+      // A keyword not present in keywordMovieCounts (no TMDB id resolved,
+      // e.g. an AI/custom keyword) keeps its fallback cost untouched.
+      const otherKeywordClue = rare.find((c) => c.key === 'keyword-1');
+      expect(otherKeywordClue.cost).toBe(15); // fallback for slot index 1
+    });
+
+    it('prices production company inversely to how many movies it has made', () => {
+      const boutique = buildClueDeck(entry(), { companyMovieCount: 5 });
+      const major = buildClueDeck(entry(), { companyMovieCount: 6000 });
+      expect(boutique.find((c) => c.key === 'company').cost).toBeGreaterThan(major.find((c) => c.key === 'company').cost);
+    });
+
+    it('prices a multi-name group clue (writers) by the MOST popular name in the group', () => {
+      const deck = buildClueDeck(
+        entry({ movie: { crew: [
+          { name: 'Director X', job: 'Director' },
+          { name: 'Obscure Writer', job: 'Writer' },
+          { name: 'Famous Writer', job: 'Writer' }
+        ] } }),
+        { peoplePopularity: { 'Obscure Writer': 1, 'Famous Writer': 80 } }
+      );
+      const writerClue = deck.find((c) => c.key === 'writer');
+      expect(writerClue.value).toBe('Obscure Writer, Famous Writer');
+      expect(writerClue.cost).toBe(priceFromPersonPopularity(80));
+    });
+  });
+});
+
+describe('priceFromPersonPopularity', () => {
+  it('increases monotonically with popularity', () => {
+    expect(priceFromPersonPopularity(0)).toBeLessThan(priceFromPersonPopularity(5));
+    expect(priceFromPersonPopularity(5)).toBeLessThan(priceFromPersonPopularity(30));
+    expect(priceFromPersonPopularity(30)).toBeLessThan(priceFromPersonPopularity(200));
+  });
+
+  it('clamps to a sane range regardless of extreme input', () => {
+    expect(priceFromPersonPopularity(0)).toBeGreaterThanOrEqual(8);
+    expect(priceFromPersonPopularity(-5)).toBeGreaterThanOrEqual(8);
+    expect(priceFromPersonPopularity(100000)).toBeLessThanOrEqual(35);
+  });
+});
+
+describe('priceFromKeywordRarity', () => {
+  it('decreases monotonically as the movie count grows (rarer = pricier)', () => {
+    expect(priceFromKeywordRarity(2)).toBeGreaterThan(priceFromKeywordRarity(50));
+    expect(priceFromKeywordRarity(50)).toBeGreaterThan(priceFromKeywordRarity(5000));
+  });
+
+  it('clamps to a sane range regardless of extreme input', () => {
+    expect(priceFromKeywordRarity(0)).toBeLessThanOrEqual(30);
+    expect(priceFromKeywordRarity(1)).toBeLessThanOrEqual(30);
+    expect(priceFromKeywordRarity(10000000)).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe('priceFromCompanyRarity', () => {
+  it('decreases monotonically as the movie count grows (a more prolific studio costs less)', () => {
+    expect(priceFromCompanyRarity(2)).toBeGreaterThan(priceFromCompanyRarity(50));
+    expect(priceFromCompanyRarity(50)).toBeGreaterThan(priceFromCompanyRarity(5000));
+  });
+
+  it('clamps to a sane, narrower range than the other two (a noisier signal)', () => {
+    expect(priceFromCompanyRarity(0)).toBeLessThanOrEqual(25);
+    expect(priceFromCompanyRarity(10000000)).toBeGreaterThanOrEqual(6);
   });
 });
