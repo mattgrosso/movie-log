@@ -22,9 +22,9 @@
             v-if="item.type === 'gap'"
             type="button"
             class="timeline-gap"
-            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss }"
+            :class="{ 'correct-gap': item.slotIndex === correctSlotOnLoss, growing: item.slotIndex === growingGapIndex }"
             :disabled="revealed || !mysteryCard"
-            @click="guess(item.slotIndex)"
+            @click="guess(item.slotIndex, $event)"
           >+</button>
           <div v-else class="timeline-card" :data-card-key="item.key">
             <img v-if="gamePosterUrl(item.entry)" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title">
@@ -35,15 +35,29 @@
 
       <!-- No title/year shown here — tap a gap directly; correct/incorrect
            feedback is a border-color change on the card itself instead of
-           separate text, and the year appears once it joins the timeline. -->
+           separate text, and the year appears once it joins the timeline.
+           Hidden the instant flightCard takes over (it starts at exactly
+           this element's own position/size, so the swap is invisible). -->
       <div
-        v-if="mysteryCard"
+        v-if="mysteryCard && !flyingCard"
         ref="mysteryCardEl"
         class="mystery-card"
         :class="{ correct: revealed && lastGuessCorrect, incorrect: revealed && lastGuessCorrect === false }"
       >
         <img v-if="gamePosterUrl(mysteryCard)" :src="gamePosterUrl(mysteryCard, 'w342')" :alt="mysteryCard.movie.title">
       </div>
+
+      <!-- The poster mid-flight from the mystery card's spot up into the
+           gap the player tapped — see guess() for how fromRect/toRect
+           drive :style. position:fixed means its place in the template
+           doesn't matter for layout. -->
+      <img
+        v-if="flyingCard"
+        class="flying-card"
+        :src="flyingCard.posterUrl"
+        :style="flyingCard.style"
+        alt=""
+      >
 
       <div v-if="gameOver" class="game-over">
         <button type="button" class="btn-game btn-game-primary cta-btn full-width" @click="start">Play Again</button>
@@ -88,7 +102,9 @@ export default {
       lastGuessCorrect: null,
       streak: 0,
       gameOver: false,
-      ranOutOfMovies: false
+      ranOutOfMovies: false,
+      flyingCard: null,
+      growingGapIndex: null
     };
   },
   computed: {
@@ -146,7 +162,22 @@ export default {
       this.poolIndex += 1;
       return next;
     },
-    guess (slotIndex) {
+    wait (ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    },
+    // Two animation frames, not one: a single forced-reflow (the previous
+    // approach here) isn't reliably enough to make a transition actually
+    // play on an element created THIS SAME TICK — without a real committed
+    // paint of the "from" state to transition away from, browsers can just
+    // jump straight to the end state with no visible motion at all. That
+    // turned out to be exactly why "there's really no animation at all"
+    // (bug report) despite the FLIP math itself being correct. Two rAFs is
+    // the standard, reliable fix. vi.advanceTimersByTimeAsync fakes
+    // requestAnimationFrame too, so this stays fully testable.
+    nextFrame () {
+      return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    },
+    async guess (slotIndex, event) {
       if (this.revealed || this.gameOver || !this.mysteryCard) return;
 
       const correct = isValidPlacement(this.timeline, slotIndex, this.mysteryCard);
@@ -158,73 +189,72 @@ export default {
         return;
       }
 
-      // Brief pause so the revealed (green) border is readable before the
-      // card slides into the timeline and the next mystery card appears.
-      // Bug report: "there's a delay... make that a nice animation of the
-      // card going into place" (shortened from 900ms), then a follow-up
-      // ("motion to the slot... if it zoomed up there") asking for the
-      // placed card to visually travel from the mystery card's own spot
-      // into its slot, not just fade in — see flyCardIntoSlot below.
-      setTimeout(async () => {
-        // Capture the mystery card's on-screen position/size (the "First" in
-        // FLIP) before anything about it changes.
-        const mysteryEl = this.$refs.mysteryCardEl;
-        const firstRect = mysteryEl ? mysteryEl.getBoundingClientRect() : null;
-        const placedKey = entryKey(this.mysteryCard);
+      const placedEntry = this.mysteryCard;
+      const posterUrl = this.gamePosterUrl(placedEntry, 'w342');
+      const fromRect = this.$refs.mysteryCardEl ? this.$refs.mysteryCardEl.getBoundingClientRect() : null;
+      const toRect = event && event.currentTarget ? event.currentTarget.getBoundingClientRect() : null;
 
-        this.timeline = insertAtSlot(this.timeline, slotIndex, this.mysteryCard);
-        this.streak += 1;
-        if (this.streak > this.bestStreak) {
-          this.$store.dispatch('setDBValue', { path: 'settings/games/timelineBestStreak', value: this.streak });
-        }
+      // Brief pause so the green border is actually readable before the
+      // poster launches — bug report: "when I click a slot, I want it to
+      // look like the poster from the bottom slides up into the slot I
+      // chose and the slot gets larger to accommodate it."
+      await this.wait(150);
 
-        const next = this.nextCard();
-        if (!next) {
-          this.mysteryCard = null;
-          this.ranOutOfMovies = true;
-          this.gameOver = true;
-          return;
-        }
+      if (fromRect && fromRect.width && toRect && toRect.width) {
+        this.growingGapIndex = slotIndex;
+        this.flyingCard = {
+          posterUrl,
+          style: {
+            position: 'fixed',
+            left: `${fromRect.left}px`,
+            top: `${fromRect.top}px`,
+            width: `${fromRect.width}px`,
+            height: `${fromRect.height}px`,
+            transition: 'none'
+          }
+        };
 
-        this.mysteryCard = next;
-        this.revealed = false;
-        this.lastGuessCorrect = null;
+        await this.nextFrame();
 
-        await this.$nextTick();
-        this.flyCardIntoSlot(placedKey, firstRect);
-      }, 400);
-    },
-    // FLIP transition: the newly-placed card starts (visually) at the
-    // mystery card's old position and size, then transitions to its actual
-    // slot — reads as the card "zooming up" from where it was tapped from
-    // into place, rather than a generic fade-in. Falls back to no animation
-    // (the card just appears) if either rect is unavailable/zero-size —
-    // e.g. jsdom in tests, or a genuinely hidden tab.
-    flyCardIntoSlot (cardKey, firstRect) {
-      if (!firstRect || !firstRect.width || !cardKey) return;
-      // Matched via dataset comparison in JS rather than an interpolated
-      // CSS attribute selector — avoids relying on CSS.escape (unavailable
-      // in jsdom) for what a dbKey/movie id never actually needs escaped
-      // anyway, and sidesteps the question entirely.
-      const el = Array.from(this.$el.querySelectorAll('.timeline-card')).find((node) => node.dataset.cardKey === String(cardKey));
-      if (!el) return;
-      const lastRect = el.getBoundingClientRect();
-      if (!lastRect.width) return;
+        // Now flip to the target values WITH a transition — the gap
+        // (.timeline-gap.growing, driven by CSS) widens on the same
+        // timeline so the poster and its destination grow into place
+        // together, not the poster arriving at a slot that's still narrow.
+        this.flyingCard = {
+          posterUrl,
+          style: {
+            position: 'fixed',
+            left: `${toRect.left}px`,
+            top: `${toRect.top}px`,
+            width: `${toRect.width}px`,
+            height: `${toRect.height}px`,
+            transition: 'left 0.45s cubic-bezier(0.22, 1, 0.36, 1), top 0.45s cubic-bezier(0.22, 1, 0.36, 1), width 0.45s cubic-bezier(0.22, 1, 0.36, 1), height 0.45s cubic-bezier(0.22, 1, 0.36, 1)'
+          }
+        };
 
-      const scale = firstRect.width / lastRect.width;
-      const dx = (firstRect.left + firstRect.width / 2) - (lastRect.left + lastRect.width / 2);
-      const dy = (firstRect.top + firstRect.height / 2) - (lastRect.top + lastRect.height / 2);
+        await this.wait(450);
+      }
 
-      el.style.transition = 'none';
-      el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
-      el.style.opacity = '0';
-      // Force a reflow so the browser commits the "from" state above before
-      // clearing it below — without this the two style writes would just
-      // coalesce and there'd be nothing to transition from.
-      el.offsetHeight;
-      el.style.transition = '';
-      el.style.transform = '';
-      el.style.opacity = '';
+      this.timeline = insertAtSlot(this.timeline, slotIndex, placedEntry);
+      this.streak += 1;
+      if (this.streak > this.bestStreak) {
+        this.$store.dispatch('setDBValue', { path: 'settings/games/timelineBestStreak', value: this.streak });
+      }
+
+      this.flyingCard = null;
+      this.growingGapIndex = null;
+
+      const next = this.nextCard();
+      if (!next) {
+        this.mysteryCard = null;
+        this.ranOutOfMovies = true;
+        this.gameOver = true;
+        return;
+      }
+
+      this.mysteryCard = next;
+      this.revealed = false;
+      this.lastGuessCorrect = null;
     }
   }
 };
@@ -306,14 +336,9 @@ export default {
 // LATER, unrelated request to shrink the mystery card down 25% got
 // misremembered as having shrunk this too — regardless, "bigger than they
 // are right now" is unambiguous, so back to 84px).
-// transform/opacity are plain transitions (not a CSS `animation`) because
-// flyCardIntoSlot (a JS FLIP transition — see guess()) drives them via
-// inline styles on the newly-placed card: an `animation` would win the
-// cascade over that and fight it instead of playing it.
 .timeline-card {
   flex-shrink: 0;
   width: 84px;
-  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
 }
 
 .timeline-card img {
@@ -344,7 +369,28 @@ export default {
   height: 126px;
   justify-content: center;
   width: 34px;
-  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease;
+  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease, width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+// Widens to match .timeline-card's own width while the poster is flying
+// into it (see guess()'s growingGapIndex) — the "+" fades out at the same
+// time so the slot reads as emptying out to make room, not just resizing.
+.timeline-gap.growing {
+  width: 84px;
+  color: transparent;
+  border-style: solid;
+}
+
+// A cloned poster driven entirely by inline :style (see guess() in the
+// script) — position:fixed makes its place in the DOM/template irrelevant,
+// it's positioned purely by the left/top/width/height values set there.
+.flying-card {
+  position: fixed;
+  z-index: 50;
+  border-radius: 0.3rem;
+  object-fit: cover;
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
 }
 
 // No title/year text below it anymore — just the poster; correct/incorrect

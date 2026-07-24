@@ -87,36 +87,55 @@ describe('TimelineGame', () => {
     expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/timelineBestStreak', value: 1 });
   });
 
-  it('flies the newly-placed card in from the mystery card\'s old position/size (bug report: "motion to the slot... if it zoomed up there")', async () => {
+  it('flies the poster from the mystery card into the tapped gap, growing the gap to match (bug report: "the poster... slides up into the slot I chose and the slot gets larger to accommodate it")', async () => {
     const wrapper = factory(tenMovies());
     await wrapper.find('.btn-game-primary').trigger('click');
 
-    // jsdom reports every element's geometry as zero by default —
-    // flyCardIntoSlot's own early-return-on-zero-width guard already covers
-    // that (exercised implicitly by every other passing test above). Stub
-    // real, DIFFERING rects here specifically to exercise the FLIP math
-    // itself: the mystery card (large) "First" position vs. the placed
-    // timeline card (small) "Last" position.
+    // jsdom reports every element's geometry as zero by default — the
+    // fromRect/toRect guard in guess() already covers that (exercised
+    // implicitly by every other passing test above, where the whole
+    // fly/grow branch is skipped). Stub real, DIFFERING rects here
+    // specifically to exercise the flight itself: the mystery card
+    // (large, bottom of the page) as the "from" position vs. the tapped
+    // gap (small, up in the timeline row) as the "to" position.
     const mysteryRect = { width: 143, height: 214, left: 100, top: 500 };
-    const slotRect = { width: 62, height: 93, left: 20, top: 200 };
+    const gapRect = { width: 34, height: 126, left: 20, top: 200 };
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
-      return this.classList.contains('mystery-card') ? mysteryRect : slotRect;
+      return this.classList.contains('mystery-card') ? mysteryRect : gapRect;
     });
 
     const correctSlot = correctSlotIndex(wrapper.vm.timeline, wrapper.vm.mysteryCard);
-    const placedDbKey = wrapper.vm.mysteryCard.dbKey;
     await wrapper.findAll('.timeline-gap')[correctSlot].trigger('click');
-    await vi.advanceTimersByTimeAsync(1000);
 
-    // The transition already ran (synchronously, in flyCardIntoSlot) and
-    // cleared back to the stylesheet-driven natural state by the time this
-    // assertion runs — a real browser then visually tweens from the
-    // inline "from" values it briefly held to this cleared state. Located
-    // by its own data-card-key (not just "the first .timeline-card") since
-    // the placed card could land before OR after the existing seed card.
-    const placedCard = wrapper.find(`[data-card-key="${placedDbKey}"]`);
-    expect(placedCard.exists()).toBe(true);
-    expect(placedCard.attributes('style') || '').not.toContain('translate');
+    // After the pre-flight pause, the flying clone exists, starts at the
+    // mystery card's own rect (no transition yet), the real mystery-card
+    // is hidden (it starts pixel-aligned with the clone, so the swap is
+    // invisible), and the tapped gap is marked as growing.
+    await vi.advanceTimersByTimeAsync(150);
+    expect(wrapper.vm.flyingCard).toBeTruthy();
+    expect(wrapper.find('.mystery-card').exists()).toBe(false);
+    expect(wrapper.find('.flying-card').exists()).toBe(true);
+    expect(wrapper.vm.flyingCard.style.left).toBe('100px');
+    expect(wrapper.vm.flyingCard.style.top).toBe('500px');
+    expect(wrapper.vm.flyingCard.style.transition).toBe('none');
+    expect(wrapper.vm.growingGapIndex).toBe(correctSlot);
+    expect(wrapper.find('.timeline-gap.growing').exists()).toBe(true);
+
+    // Two animation frames later, it flips to the gap's rect WITH a real
+    // transition — this is what actually produces visible motion (a
+    // single forced-reflow, the old approach, wasn't reliable for an
+    // element created the same tick — see guess()'s nextFrame comment).
+    await vi.advanceTimersByTimeAsync(50);
+    expect(wrapper.vm.flyingCard.style.left).toBe('20px');
+    expect(wrapper.vm.flyingCard.style.top).toBe('200px');
+    expect(wrapper.vm.flyingCard.style.transition).toContain('0.45s');
+
+    // Once the flight duration elapses, the real card lands in the
+    // timeline and the temporary clone/growing-gap state both clear.
+    await vi.advanceTimersByTimeAsync(500);
+    expect(wrapper.vm.flyingCard).toBeNull();
+    expect(wrapper.vm.growingGapIndex).toBeNull();
+    expect(wrapper.vm.timeline).toHaveLength(2);
 
     vi.restoreAllMocks();
   });
