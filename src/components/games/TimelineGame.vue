@@ -301,15 +301,18 @@ export default {
   padding: 0 1rem 0.5rem;
 }
 
-// Bug report: "make the one that we know about a little bit smaller" — the
-// already-placed (revealed) cards, shrunk down from the original 84px.
+// Sized back up to the original 84px (bug report: an earlier "make the
+// already-placed cards a little smaller" pass shrunk this to 62px, then a
+// LATER, unrelated request to shrink the mystery card down 25% got
+// misremembered as having shrunk this too — regardless, "bigger than they
+// are right now" is unambiguous, so back to 84px).
 // transform/opacity are plain transitions (not a CSS `animation`) because
 // flyCardIntoSlot (a JS FLIP transition — see guess()) drives them via
 // inline styles on the newly-placed card: an `animation` would win the
 // cascade over that and fight it instead of playing it.
 .timeline-card {
   flex-shrink: 0;
-  width: 62px;
+  width: 84px;
   transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
 }
 
@@ -337,9 +340,10 @@ export default {
   display: flex;
   flex-shrink: 0;
   font-size: 1rem;
-  height: 93px;
+  // Matches .timeline-card's restored 84px width (2:3 poster aspect ratio).
+  height: 126px;
   justify-content: center;
-  width: 28px;
+  width: 34px;
   transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease;
 }
 
