@@ -44,7 +44,7 @@
         </transition>
 
         <!-- Additional Filter Chips -->
-        <transition-group name="chip-fade" tag="div" class="d-inline-flex flex-wrap align-items-center">
+        <transition-group v-if="!isLoneYearChipActive" name="chip-fade" tag="div" class="d-inline-flex flex-wrap align-items-center">
           <span v-for="filter in activeFiltersMinusTemps" :key="filter.id" class="badge text-bg-secondary me-2 my-1 d-inline-flex align-items-center chip-transition" style="padding: 0.25rem 0.4rem; font-weight: normal; font-size: 0.75rem; line-height: 1.2;">
             {{ filter.display }}
             <button
@@ -55,6 +55,30 @@
             </button>
           </span>
         </transition-group>
+
+        <!-- Special case for a lone year chip: instead of a single badge,
+             a horizontally-scrolling strip of every year present in the
+             library, so you can swipe/tap your way between years instead
+             of re-typing each one — feature request: "instead of showing
+             all the chips across the bottom, I want some sort of UI that
+             takes up the same amount of space... goes horizontally all
+             the way across and lets me quickly travel between years."
+             flex-basis 100% (via .year-scroller) forces it onto its own
+             full-width row in this flex-wrap container, same as the
+             request's "same amount of space... goes horizontally all the
+             way across" — the quick-link chip above and the Wikipedia/Add
+             Filter/Clear All controls below are untouched, just wrap onto
+             their own line below it. -->
+        <div v-else ref="yearScroller" class="year-scroller">
+          <button
+            v-for="year in availableYears"
+            :key="year"
+            type="button"
+            class="btn btn-sm year-scroller-pill"
+            :class="year === activeYearChipValue ? 'btn-primary selected' : 'btn-outline-secondary'"
+            @click="selectYear(year)"
+          >{{ year }}</button>
+        </div>
 
         <!-- Wikipedia Button - only show when there's exactly one chip -->
         <button v-if="activeFiltersMinusTemps.length === 1" class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center" style="font-size: 0.9rem; text-decoration: none; opacity: 0.7;" @click="goToWikipediaForChip" title="Wikipedia Info">
@@ -1021,6 +1045,15 @@ export default {
         this.unratedMoviesError = null;
       }
     },
+    // Covers both "the year-scroller just appeared" (null -> a year, e.g.
+    // typing a year into the search bar, or state restored on mount) and
+    // "a different year was tapped while it was already showing" — in
+    // both cases the newly-active pill should be scrolled into view.
+    activeYearChipValue (newYear) {
+      if (newYear != null) {
+        this.$nextTick(() => this.centerYearScrollerPill());
+      }
+    },
   },
   mounted () {
     // Capture navigation intent at the start - needed for various logic below
@@ -1292,6 +1325,20 @@ export default {
     activeFiltersMinusTemps () {
       // Return only non-temporary filters
       return this.activeFilters.filter((filter) => !filter.temp);
+    },
+    // Drives the year-scroller special case (see the chip row template) —
+    // deliberately scoped to EXACTLY one chip that's a plain 'year' type
+    // (not 'yearRange'/decades, and not combined with any other filter),
+    // matching "whenever a year is the search chip." Combined with another
+    // chip (e.g. year + director), the normal chip row still renders as
+    // before — this only replaces the row when a year is the WHOLE story.
+    isLoneYearChipActive () {
+      return this.activeFiltersMinusTemps.length === 1 && this.activeFiltersMinusTemps[0].type === 'year';
+    },
+    activeYearChipValue () {
+      if (!this.isLoneYearChipActive) return null;
+      const parsed = parseInt(this.activeFiltersMinusTemps[0].value, 10);
+      return Number.isNaN(parsed) ? null : parsed;
     },
     allActiveFilters () {
       const filters = [];
@@ -3423,6 +3470,30 @@ export default {
         this.showAddFilterModal = false;
       }
     },
+    // year-scroller tap handler — replaces activeFilters wholesale with a
+    // single new year chip rather than mutating the existing one in place,
+    // since isLoneYearChipActive already guarantees there's exactly one
+    // chip (or none, on first tap) to replace.
+    selectYear (year) {
+      this.activeFilters = [{
+        id: `year-${Date.now()}`,
+        type: 'year',
+        value: year.toString(),
+        display: year.toString()
+      }];
+      this.hasAutoRandomChip = false;
+    },
+    // Keeps the currently-selected year pill scrolled into view — both when
+    // the scroller first appears and again each time a different year is
+    // tapped, so the current selection never drifts out of sight as you
+    // "travel between years." scrollIntoView is guarded (jsdom/older
+    // browsers may not implement it) rather than assumed present.
+    centerYearScrollerPill () {
+      const activePill = this.$refs.yearScroller?.querySelector('.year-scroller-pill.selected');
+      if (activePill && typeof activePill.scrollIntoView === 'function') {
+        activePill.scrollIntoView({ inline: 'center', block: 'nearest' });
+      }
+    },
     addGenreFilter (event) {
       const genre = event.target.value;
       if (genre) {
@@ -5052,6 +5123,34 @@ export default {
   width: 0.75rem;
   height: 0.75rem;
   margin-left: 0.25rem;
+}
+
+/* Year-scroller special case (see isLoneYearChipActive). flex-basis 100%
+   forces it onto its own full-width row within the chip row's flex-wrap
+   container ("goes horizontally all the way across"); min-width: 0 is the
+   standard flexbox fix that lets it actually shrink to that row width
+   instead of growing to fit all its pills (without it, overflow-x: auto
+   would have nothing to ever actually overflow). */
+.year-scroller {
+  display: flex;
+  flex: 1 1 100%;
+  min-width: 0;
+  gap: 0.4rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.15rem 0.1rem;
+}
+
+.year-scroller-pill {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Mobile-first: no reliable :hover device, so press feedback is an :active
+   opacity dip only — same convention as .did-you-mean-link/.group-header
+   elsewhere in this file. */
+.year-scroller-pill:active {
+  opacity: 0.7;
 }
 
 /* Chip Animation Transitions */
