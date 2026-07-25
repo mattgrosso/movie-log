@@ -43,33 +43,25 @@
           </span>
         </transition>
 
-        <!-- Additional Filter Chips -->
-        <transition-group v-if="!isLoneYearChipActive" name="chip-fade" tag="div" class="d-inline-flex flex-wrap align-items-center">
-          <span v-for="filter in activeFiltersMinusTemps" :key="filter.id" class="badge text-bg-secondary me-2 my-1 d-inline-flex align-items-center chip-transition" style="padding: 0.25rem 0.4rem; font-weight: normal; font-size: 0.75rem; line-height: 1.2;">
-            {{ filter.display }}
-            <button
-              class="btn-close btn-close-white ms-1"
-              @click.stop.prevent="removeFilter(filter.id)"
-              style="font-size: 0.5rem; line-height: 1;"
-              title="Remove filter">
-            </button>
-          </span>
-        </transition-group>
-
-        <!-- Special case for a lone year chip: instead of a single badge,
-             a horizontally-scrolling strip of every year present in the
-             library, so you can swipe/tap your way between years instead
-             of re-typing each one — feature request: "instead of showing
-             all the chips across the bottom, I want some sort of UI that
-             takes up the same amount of space... goes horizontally all
-             the way across and lets me quickly travel between years."
-             flex-basis 100% (via .year-scroller) forces it onto its own
-             full-width row in this flex-wrap container, same as the
-             request's "same amount of space... goes horizontally all the
-             way across" — the quick-link chip above and the Wikipedia/Add
-             Filter/Clear All controls below are untouched, just wrap onto
-             their own line below it. -->
-        <div v-else ref="yearScroller" class="year-scroller">
+        <!-- Special case for an active year chip: instead of a plain
+             badge, a horizontally-scrolling strip of every year present
+             in the library, so you can swipe/tap your way between years
+             instead of re-typing each one — feature request: "instead of
+             showing all the chips across the bottom, I want some sort of
+             UI that takes up the same amount of space... goes
+             horizontally all the way across and lets me quickly travel
+             between years." Works alongside OTHER filters too (e.g. year
+             + genre) — follow-up: "I do want it to also be able to work
+             with other filters... additional filter chips that just
+             exist below the new year selector." flex-basis 100% (via
+             .year-scroller) forces it onto its own full-width row in
+             this flex-wrap container; since it comes BEFORE the other-
+             filter badges below in DOM order, and it always consumes the
+             whole row width, those badges naturally wrap onto the line
+             right after it — no extra positioning needed for "below the
+             year selector," that's just how flex-wrap lays out a
+             full-width item followed by normal ones. -->
+        <div v-if="hasActiveYearChip" ref="yearScroller" class="year-scroller">
           <button
             v-for="year in availableYears"
             :key="year"
@@ -79,6 +71,23 @@
             @click="selectYear(year)"
           >{{ year }}</button>
         </div>
+
+        <!-- Additional Filter Chips — every active chip EXCEPT a year one
+             (which renders as the scroller above instead). When no year
+             chip is active, otherActiveFilters is just
+             activeFiltersMinusTemps unfiltered, so this behaves exactly
+             as the plain chip row always has. -->
+        <transition-group name="chip-fade" tag="div" class="d-inline-flex flex-wrap align-items-center">
+          <span v-for="filter in otherActiveFilters" :key="filter.id" class="badge text-bg-secondary me-2 my-1 d-inline-flex align-items-center chip-transition" style="padding: 0.25rem 0.4rem; font-weight: normal; font-size: 0.75rem; line-height: 1.2;">
+            {{ filter.display }}
+            <button
+              class="btn-close btn-close-white ms-1"
+              @click.stop.prevent="removeFilter(filter.id)"
+              style="font-size: 0.5rem; line-height: 1;"
+              title="Remove filter">
+            </button>
+          </span>
+        </transition-group>
 
         <!-- Wikipedia Button - only show when there's exactly one chip -->
         <button v-if="activeFiltersMinusTemps.length === 1" class="btn btn-link text-light p-0 my-1 d-inline-flex align-items-center" style="font-size: 0.9rem; text-decoration: none; opacity: 0.7;" @click="goToWikipediaForChip" title="Wikipedia Info">
@@ -1327,18 +1336,27 @@ export default {
       return this.activeFilters.filter((filter) => !filter.temp);
     },
     // Drives the year-scroller special case (see the chip row template) —
-    // deliberately scoped to EXACTLY one chip that's a plain 'year' type
-    // (not 'yearRange'/decades, and not combined with any other filter),
-    // matching "whenever a year is the search chip." Combined with another
-    // chip (e.g. year + director), the normal chip row still renders as
-    // before — this only replaces the row when a year is the WHOLE story.
-    isLoneYearChipActive () {
-      return this.activeFiltersMinusTemps.length === 1 && this.activeFiltersMinusTemps[0].type === 'year';
+    // true whenever ANY active chip is a plain 'year' type (not
+    // 'yearRange'/decades). Follow-up: "I do want it to also be able to
+    // work with other filters" — combining a year with e.g. a genre chip
+    // still shows the scroller, with the genre chip rendered as a normal
+    // badge below it (see otherActiveFilters).
+    hasActiveYearChip () {
+      return this.activeFiltersMinusTemps.some((filter) => filter.type === 'year');
     },
     activeYearChipValue () {
-      if (!this.isLoneYearChipActive) return null;
-      const parsed = parseInt(this.activeFiltersMinusTemps[0].value, 10);
+      const yearChip = this.activeFiltersMinusTemps.find((filter) => filter.type === 'year');
+      if (!yearChip) return null;
+      const parsed = parseInt(yearChip.value, 10);
       return Number.isNaN(parsed) ? null : parsed;
+    },
+    // Everything the chip row still shows as a plain badge — every active
+    // chip EXCEPT a 'year' one, which the scroller above represents
+    // instead. Equals activeFiltersMinusTemps unchanged whenever no year
+    // chip is active, so the plain chip row's existing behavior is
+    // preserved exactly in that case.
+    otherActiveFilters () {
+      return this.activeFiltersMinusTemps.filter((filter) => filter.type !== 'year');
     },
     allActiveFilters () {
       const filters = [];
@@ -3470,17 +3488,18 @@ export default {
         this.showAddFilterModal = false;
       }
     },
-    // year-scroller tap handler — replaces activeFilters wholesale with a
-    // single new year chip rather than mutating the existing one in place,
-    // since isLoneYearChipActive already guarantees there's exactly one
-    // chip (or none, on first tap) to replace.
+    // year-scroller tap handler — drops any existing year chip(s) (incl. a
+    // stray temp one) and appends a fresh one, but LEAVES every other
+    // active chip alone, so tapping around the scroller doesn't clear a
+    // combined filter like year + genre.
     selectYear (year) {
-      this.activeFilters = [{
+      const yearChip = {
         id: `year-${Date.now()}`,
         type: 'year',
         value: year.toString(),
         display: year.toString()
-      }];
+      };
+      this.activeFilters = [...this.activeFilters.filter((filter) => filter.type !== 'year'), yearChip];
       this.hasAutoRandomChip = false;
     },
     // Keeps the currently-selected year pill scrolled into view — both when
@@ -5125,7 +5144,7 @@ export default {
   margin-left: 0.25rem;
 }
 
-/* Year-scroller special case (see isLoneYearChipActive). flex-basis 100%
+/* Year-scroller special case (see hasActiveYearChip). flex-basis 100%
    forces it onto its own full-width row within the chip row's flex-wrap
    container ("goes horizontally all the way across"); min-width: 0 is the
    standard flexbox fix that lets it actually shrink to that row width
