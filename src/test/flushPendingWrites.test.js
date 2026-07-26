@@ -193,47 +193,32 @@ describe('flushPendingWrites', () => {
   })
 })
 
-describe('flushSingleEntry', () => {
-  it('writes the given entry directly and removes it (type "write") on success, independent of isFlushingPendingWrites', async () => {
-    // Simulates a general sweep already being mid-flight - flushSingleEntry
-    // must not be blocked by that guard (unlike flushPendingWrites itself).
+describe('writeDatabaseEntryNow', () => {
+  it('writes the given entry directly, with no queue involvement at all, independent of isFlushingPendingWrites', async () => {
+    // Simulates a general sweep already being mid-flight - this action must
+    // not be blocked by that guard (unlike flushPendingWrites itself).
     store.commit('setIsFlushingPendingWrites', true)
 
-    await store.dispatch('flushSingleEntry', { id: 'x', type: 'write', dbEntry: { path: 'movieLog/x', value: { v: 1 } } })
+    await store.dispatch('writeDatabaseEntryNow', { path: 'movieLog/x', value: { v: 1 } })
 
     expect(setMock).toHaveBeenCalledWith('testing-database/movieLog/x', { v: 1 })
-    expect(removePendingWriteMock).toHaveBeenCalledWith('x')
-  })
-
-  it('marks a "placeholder" entry written but keeps it queued, same as the general sweep', async () => {
-    await store.dispatch('flushSingleEntry', { id: 'y', type: 'placeholder', dbEntry: { path: 'movieLog/y', value: {} } })
-
+    expect(listPendingWritesMock).not.toHaveBeenCalled()
     expect(removePendingWriteMock).not.toHaveBeenCalled()
-    expect(updatePendingWriteMock).toHaveBeenCalledWith('y', { written: true })
+    expect(updatePendingWriteMock).not.toHaveBeenCalled()
   })
 
-  it('records attempts/lastError on failure without throwing', async () => {
+  it('propagates a failure (including a timed-out write) so the caller can decide what to do, rather than silently swallowing it', async () => {
     setMock.mockImplementation(() => Promise.reject(new Error('nope')))
 
-    await store.dispatch('flushSingleEntry', { id: 'z', type: 'write', attempts: 0, dbEntry: { path: 'movieLog/z', value: {} } })
-
-    expect(updatePendingWriteMock).toHaveBeenCalledWith('z', { attempts: 1, lastError: expect.stringContaining('nope') })
-    expect(removePendingWriteMock).not.toHaveBeenCalled()
+    await expect(store.dispatch('writeDatabaseEntryNow', { path: 'movieLog/z', value: {} })).rejects.toThrow('nope')
   })
 
-  it('does nothing when offline', async () => {
+  it('is unaffected by connectivity state at the Vuex level (callers check store.state.isOnline themselves before calling this)', async () => {
     Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
 
-    await store.dispatch('flushSingleEntry', { id: 'x', type: 'write', dbEntry: { path: 'movieLog/x', value: {} } })
+    await store.dispatch('writeDatabaseEntryNow', { path: 'movieLog/x', value: {} })
 
-    expect(setMock).not.toHaveBeenCalled()
-  })
-
-  it('does nothing when the entry is missing a dbEntry', async () => {
-    await store.dispatch('flushSingleEntry', { id: 'x', type: 'write' })
-    await store.dispatch('flushSingleEntry', null)
-
-    expect(setMock).not.toHaveBeenCalled()
+    expect(setMock).toHaveBeenCalled()
   })
 })
 

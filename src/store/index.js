@@ -596,37 +596,30 @@ export default createStore({
         context.commit('setIsFlushingPendingWrites', false);
       }
     },
-    // Bug fix (Jul 2026): attempts ONE specific queue entry's write directly,
-    // completely bypassing flushPendingWrites' isFlushingPendingWrites guard.
-    // AddRating.js/ReconcilePlaceholder.vue call this (awaited) immediately
-    // after enqueueing a fresh write, so the save is actually attempted
-    // before the caller proceeds - dispatching the SHARED flushPendingWrites
-    // there instead was the root cause of a real data-loss bug: if another
-    // flush pass (e.g. from initializeDB firing on the very next navigation)
-    // was already mid-flight, its isFlushingPendingWrites guard silently
-    // skipped the brand-new entry, and nothing else was scheduled to retry
-    // it until some unrelated later trigger happened to fire - if the user
-    // reloaded before that, the rating never reached Firebase at all, even
-    // though it had briefly appeared locally via the optimistic commit.
-    // A concurrent flushPendingWrites pass MAY also pick up this same entry
-    // (harmless - writing the same data twice is idempotent, and removing an
-    // already-removed queue entry is a no-op in pendingWriteQueue.js).
-    async flushSingleEntry (context, entry) {
-      if (!entry || !entry.dbEntry) return;
-      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-      if (!context.getters.databaseTopKey) return;
-
-      try {
-        await performDatabaseWrite(context, entry.dbEntry);
-        if (entry.type === 'write') {
-          await removePendingWrite(entry.id);
-        } else {
-          await updatePendingWrite(entry.id, { written: true });
-        }
-        context.dispatch('refreshPendingReconciliations');
-      } catch (error) {
-        await updatePendingWrite(entry.id, { attempts: (entry.attempts || 0) + 1, lastError: String(error) });
-      }
+    // Bug fix (Jul 2026), superseding an earlier fix that turned out to be
+    // insufficient: AddRating.js originally routed EVERY save (online or
+    // not) through the offline queue + a shared, guarded flush action. A
+    // live incident showed the actual bug this created - a movie rated
+    // normally, while online, vanished, because navigating home right after
+    // triggers another background flush pass (via initializeDB), and
+    // whichever pass's isFlushingPendingWrites guard "won" the race could
+    // silently skip the brand-new entry with nothing left to retry it
+    // before the app was closed. An interim fix (a dedicated, guard-free
+    // flushSingleEntry action) closed that specific race but kept the same
+    // fundamental shape: every online save STILL depended on a queue write
+    // succeeding and a follow-up action running correctly.
+    //
+    // This action is the actual fix: a raw, direct write with NO queue
+    // involvement at all - no dependency on IndexedDB succeeding, no shared
+    // state, nothing another concurrent call could interfere with. When
+    // online (the common case), AddRating.js/ReconcilePlaceholder.vue now
+    // await THIS directly and only fall back to the durable queue if it
+    // throws (a genuine failure/timeout) or the device is offline to begin
+    // with - restoring the same "the write is confirmed before we tell the
+    // user it succeeded" guarantee the app had before the offline-rating
+    // feature existed, for the case that actually broke.
+    async writeDatabaseEntryNow (context, dbEntry) {
+      await performDatabaseWrite(context, dbEntry);
     },
     // This action adds a TV show to the list of recently rated TV shows in the user's settings.
   },

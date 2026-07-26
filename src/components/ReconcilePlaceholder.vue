@@ -52,7 +52,7 @@
 import axios from 'axios';
 import MediaResultGrid from './MediaResultGrid.vue';
 import { shapeTmdbMovie } from '../assets/javascript/AddRating.js';
-import { listPendingWrites, enqueueWrite, removePendingWrite } from '../utils/pendingWriteQueue.js';
+import { listPendingWrites, removePendingWrite } from '../utils/pendingWriteQueue.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 
 export default {
@@ -126,18 +126,19 @@ export default {
         const key = dbEntry.path.split('movieLog/')[1];
         this.$store.commit('setMovieLogEntry', { key, value: dbEntry.value });
 
-        // Awaited, direct attempt at this specific entry - see
-        // flushSingleEntry's comment in store/index.js for why the shared,
-        // guarded flushPendingWrites isn't safe to rely on here alone.
-        const queuedRecord = await enqueueWrite({ type: 'write', dbEntry });
-        if (queuedRecord) {
-          await this.$store.dispatch('flushSingleEntry', queuedRecord);
-        } else {
-          this.$store.dispatch('flushPendingWrites');
-        }
+        // A direct, awaited write with no queue involvement at all - see
+        // writeDatabaseEntryNow's comment in store/index.js for why this
+        // (not enqueue-then-background-flush) is what guarantees the match
+        // is actually confirmed before this screen tells the user it's
+        // done. Reconciliation inherently requires connectivity (the search
+        // above already needed it), so there's no offline fallback path to
+        // consider here - if this throws, the catch block below surfaces a
+        // real error and leaves the placeholder queue entry untouched so
+        // the user can retry.
+        await this.$store.dispatch('writeDatabaseEntryNow', dbEntry);
 
-        // The placeholder queue entry's job is done - the finalized write is
-        // its own fresh 'write'-type entry, tracked independently.
+        // The placeholder queue entry's job is done now that the write is
+        // confirmed.
         await removePendingWrite(this.queueEntry.id);
         await this.$store.dispatch('refreshPendingReconciliations');
 

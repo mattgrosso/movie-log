@@ -92,7 +92,7 @@ describe('ReconcilePlaceholder', () => {
   })
 
   describe('selectMatch', () => {
-    it('finalizes the placeholder: shapes the real TMDb movie, commits it locally at the SAME dbKey, queues + flushes the write, and clears the placeholder queue entry', async () => {
+    it('finalizes the placeholder: shapes the real TMDb movie, commits it locally at the SAME dbKey, writes it directly (no queue involvement), and clears the placeholder queue entry', async () => {
       const finalMovie = { id: 603, title: 'The Matrix', poster_path: '/matrix.jpg', genres: [] }
       shapeTmdbMovieMock.mockResolvedValue(finalMovie)
       const { wrapper, commit, dispatch, push } = factory()
@@ -107,27 +107,40 @@ describe('ReconcilePlaceholder', () => {
         key: 'offline-key',
         value: { movie: finalMovie, ratings: QUEUE_ENTRY.ratings }
       })
-      expect(enqueueWriteMock).toHaveBeenCalledWith({
-        type: 'write',
-        dbEntry: { path: 'movieLog/offline-key', value: { movie: finalMovie, ratings: QUEUE_ENTRY.ratings } }
+      // A direct, awaited write - not enqueue-then-background-flush (see
+      // writeDatabaseEntryNow's comment in store/index.js for why this is
+      // what guarantees the match is actually confirmed).
+      expect(dispatch).toHaveBeenCalledWith('writeDatabaseEntryNow', {
+        path: 'movieLog/offline-key', value: { movie: finalMovie, ratings: QUEUE_ENTRY.ratings }
       })
-      // Awaited, direct attempt at this specific entry - not the shared/
-      // guarded flushPendingWrites (see flushSingleEntry's comment in
-      // store/index.js for the data-loss bug this avoids).
-      expect(dispatch).toHaveBeenCalledWith('flushSingleEntry', expect.objectContaining({
-        id: 'finalize-queued-1',
-        type: 'write',
-        dbEntry: { path: 'movieLog/offline-key', value: { movie: finalMovie, ratings: QUEUE_ENTRY.ratings } }
-      }))
-      expect(dispatch).not.toHaveBeenCalledWith('flushPendingWrites')
+      expect(enqueueWriteMock).not.toHaveBeenCalled()
       expect(removePendingWriteMock).toHaveBeenCalledWith('queue-1')
       expect(dispatch).toHaveBeenCalledWith('refreshPendingReconciliations')
       expect(push).toHaveBeenCalledWith('/')
     })
 
-    it('shows an error and does not navigate away if finalizing fails', async () => {
+    it('shows an error and does not navigate away if shaping the TMDb movie fails', async () => {
       shapeTmdbMovieMock.mockRejectedValue(new Error('network down'))
       const { wrapper, push } = factory()
+      await wrapper.vm.$nextTick()
+      await Promise.resolve()
+      await Promise.resolve()
+
+      await wrapper.vm.selectMatch({ id: 603, title: 'The Matrix' })
+
+      expect(wrapper.vm.searchError).toBeTruthy()
+      expect(push).not.toHaveBeenCalled()
+      expect(removePendingWriteMock).not.toHaveBeenCalled()
+    })
+
+    it('shows an error, leaves the queue entry untouched, and does not navigate away if the direct write itself fails', async () => {
+      const finalMovie = { id: 603, title: 'The Matrix', poster_path: '/matrix.jpg', genres: [] }
+      shapeTmdbMovieMock.mockResolvedValue(finalMovie)
+      const { wrapper, dispatch, push } = factory()
+      dispatch.mockImplementation((action) => {
+        if (action === 'writeDatabaseEntryNow') return Promise.reject(new Error('write failed'))
+        return Promise.resolve()
+      })
       await wrapper.vm.$nextTick()
       await Promise.resolve()
       await Promise.resolve()

@@ -276,52 +276,79 @@ const addRating = async (ratings) => {
     return;
   }
 
+  const isPlaceholder = isPlaceholderId(id);
   let dbEntry;
-  let queueEntry;
 
-  if (isPlaceholderId(id)) {
+  if (isPlaceholder) {
     const movie = buildPlaceholderMovie(ratings);
     const ratingsWithoutOwnership = stripOwnership(ratings);
     const key = findKeyForMovieInDatabase(id) || safeTitleKey(movie.title);
     dbEntry = { path: `movieLog/${key}`, value: { movie, ratings: ratingsWithoutOwnership } };
-    queueEntry = {
-      type: 'placeholder',
-      dbEntry,
-      placeholderMovieId: id,
-      title: movie.title,
-      year: ratings[0].year || null,
-      ratings: ratingsWithoutOwnership,
-      status: 'unreconciled'
-    };
   } else {
     dbEntry = await addMovieRating(ratings);
     if (!dbEntry) {
       return;
     }
-    queueEntry = { type: 'write', dbEntry };
   }
 
   // Optimistic local commit - the movie shows up in the grid/previous-
-  // viewings/a same-session re-edit immediately, regardless of connectivity.
-  // See setMovieLogEntry's own comment in store/index.js for why this is
-  // needed (Firebase's own optimistic-echo-via-onValue never fires here
-  // while offline, since set() is never called until the queue flushes).
+  // viewings/a same-session re-edit immediately, regardless of connectivity
+  // or what happens below. See setMovieLogEntry's own comment in
+  // store/index.js.
   const key = dbEntry.path.split('movieLog/')[1];
   store.commit('setMovieLogEntry', { key, value: dbEntry.value });
 
-  // Durable queue write, then AWAIT a direct attempt at THIS entry
-  // specifically (flushSingleEntry, not the shared/guarded
-  // flushPendingWrites - see that action's own comment for the real
-  // data-loss bug this fixes). A fast, confirmed success when online;
-  // correctly left queued for later background retry when not.
-  const queuedRecord = await enqueueWrite(queueEntry);
-  if (queuedRecord) {
-    await store.dispatch('flushSingleEntry', queuedRecord);
-  } else {
-    // enqueueWrite itself failed (e.g. IndexedDB unavailable) - nothing
-    // durable to hand flushSingleEntry, so fall back to a best-effort
-    // attempt via the general sweep instead of silently giving up.
-    store.dispatch('flushPendingWrites');
+  if (isPlaceholder) {
+    // Placeholders always get a durable, trackable queue entry regardless of
+    // connectivity - not primarily for write-retry (see below), but because
+    // this is how the reconciliation banner/screen find "things still
+    // needing a real TMDB match." enqueueWrite dedupes by path, so re-rating
+    // the same still-unreconciled placeholder just updates this one entry.
+    await enqueueWrite({
+      type: 'placeholder',
+      dbEntry,
+      placeholderMovieId: id,
+      title: dbEntry.value.movie.title,
+      year: ratings[0].year || null,
+      ratings: dbEntry.value.ratings,
+      status: 'unreconciled'
+    });
+  }
+
+  // THE ACTUAL FIX for a real data-loss bug report (Jul 2026): a direct,
+  // AWAITED write attempt with no dependency on the offline queue or any
+  // shared/guarded background action - see writeDatabaseEntryNow's own
+  // comment in store/index.js for the full history of why. This restores
+  // the same guarantee the app always had before the offline-rating feature
+  // existed for the common (online) case: if this resolves, the write is
+  // CONFIRMED on the server before the caller is told the rating succeeded.
+  // Only falls back to the durable queue - a background retry, not an
+  // immediate guarantee - when genuinely offline, or when this attempt
+  // itself fails/times out (in which case the failure is re-thrown so the
+  // caller shows a real error instead of silently trusting an unconfirmed
+  // save; RateMovie.vue already has this handling).
+  if (store.state.isOnline) {
+    try {
+      await store.dispatch('writeDatabaseEntryNow', dbEntry);
+    } catch (error) {
+      if (isPlaceholder) {
+        // Placeholders already have their durable queue entry (above) as
+        // the safety net regardless of this attempt's outcome - the whole
+        // point of the feature is "sync eventually," so swallow this and
+        // let the background sweep pick it up rather than hard-failing a
+        // flow whose UX already expects a "Pending match" deferred state.
+        console.error('Direct write failed for a placeholder rating, will retry via the background queue:', error);
+      } else {
+        await enqueueWrite({ type: 'write', dbEntry });
+        throw error;
+      }
+    }
+  } else if (!isPlaceholder) {
+    // Genuinely offline - no point attempting a write we know can't reach
+    // the server. Durably queue it; App.vue's triggers + initializeDB pick
+    // this up once connectivity returns. (Placeholders already got their
+    // own queue entry above.)
+    await enqueueWrite({ type: 'write', dbEntry });
   }
 
   // Fire-and-forget: get this movie's poster/backdrop into the offline image
