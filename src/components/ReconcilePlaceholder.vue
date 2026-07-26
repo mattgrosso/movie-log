@@ -126,8 +126,15 @@ export default {
         const key = dbEntry.path.split('movieLog/')[1];
         this.$store.commit('setMovieLogEntry', { key, value: dbEntry.value });
 
-        await enqueueWrite({ type: 'write', dbEntry });
-        this.$store.dispatch('flushPendingWrites');
+        // Awaited, direct attempt at this specific entry - see
+        // flushSingleEntry's comment in store/index.js for why the shared,
+        // guarded flushPendingWrites isn't safe to rely on here alone.
+        const queuedRecord = await enqueueWrite({ type: 'write', dbEntry });
+        if (queuedRecord) {
+          await this.$store.dispatch('flushSingleEntry', queuedRecord);
+        } else {
+          this.$store.dispatch('flushPendingWrites');
+        }
 
         // The placeholder queue entry's job is done - the finalized write is
         // its own fresh 'write'-type entry, tracked independently.

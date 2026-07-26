@@ -165,6 +165,76 @@ describe('flushPendingWrites', () => {
     expect(store.state.pendingReconciliations).toHaveLength(1)
     expect(store.state.pendingReconciliations[0].id).toBe('1')
   })
+
+  it('never hangs forever on a stuck write - a timed-out set() is treated as a failure so isFlushingPendingWrites always resets (bug fix)', async () => {
+    vi.useFakeTimers()
+    try {
+      setMock.mockImplementation(() => new Promise(() => {})) // never resolves/rejects, simulating a hung connection
+      listPendingWritesMock.mockResolvedValue([
+        { id: 'stuck', type: 'write', dbEntry: { path: 'movieLog/stuck', value: {} } }
+      ])
+
+      const flushPromise = store.dispatch('flushPendingWrites')
+      await vi.advanceTimersByTimeAsync(20000) // past the 15s write timeout
+      await flushPromise
+
+      expect(updatePendingWriteMock).toHaveBeenCalledWith('stuck', { attempts: 1, lastError: expect.stringContaining('timed out') })
+      expect(store.state.isFlushingPendingWrites).toBe(false)
+
+      // Confirms the guard is genuinely clear, not just that this action
+      // returned - a second call would previously also have looked fine
+      // even if the flag were stuck, since dispatch always resolves.
+      listPendingWritesMock.mockResolvedValue([])
+      await store.dispatch('flushPendingWrites')
+      expect(listPendingWritesMock).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('flushSingleEntry', () => {
+  it('writes the given entry directly and removes it (type "write") on success, independent of isFlushingPendingWrites', async () => {
+    // Simulates a general sweep already being mid-flight - flushSingleEntry
+    // must not be blocked by that guard (unlike flushPendingWrites itself).
+    store.commit('setIsFlushingPendingWrites', true)
+
+    await store.dispatch('flushSingleEntry', { id: 'x', type: 'write', dbEntry: { path: 'movieLog/x', value: { v: 1 } } })
+
+    expect(setMock).toHaveBeenCalledWith('testing-database/movieLog/x', { v: 1 })
+    expect(removePendingWriteMock).toHaveBeenCalledWith('x')
+  })
+
+  it('marks a "placeholder" entry written but keeps it queued, same as the general sweep', async () => {
+    await store.dispatch('flushSingleEntry', { id: 'y', type: 'placeholder', dbEntry: { path: 'movieLog/y', value: {} } })
+
+    expect(removePendingWriteMock).not.toHaveBeenCalled()
+    expect(updatePendingWriteMock).toHaveBeenCalledWith('y', { written: true })
+  })
+
+  it('records attempts/lastError on failure without throwing', async () => {
+    setMock.mockImplementation(() => Promise.reject(new Error('nope')))
+
+    await store.dispatch('flushSingleEntry', { id: 'z', type: 'write', attempts: 0, dbEntry: { path: 'movieLog/z', value: {} } })
+
+    expect(updatePendingWriteMock).toHaveBeenCalledWith('z', { attempts: 1, lastError: expect.stringContaining('nope') })
+    expect(removePendingWriteMock).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when offline', async () => {
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+
+    await store.dispatch('flushSingleEntry', { id: 'x', type: 'write', dbEntry: { path: 'movieLog/x', value: {} } })
+
+    expect(setMock).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when the entry is missing a dbEntry', async () => {
+    await store.dispatch('flushSingleEntry', { id: 'x', type: 'write' })
+    await store.dispatch('flushSingleEntry', null)
+
+    expect(setMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('refreshPendingReconciliations', () => {

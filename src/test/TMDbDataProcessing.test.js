@@ -37,7 +37,9 @@ vi.mock('@/assets/javascript/offlinePosterCache.js', async () => {
   }
 })
 
-const enqueueWriteMock = vi.fn()
+// enqueueWrite resolves the stored record (as the real implementation does)
+// so addRating's flushSingleEntry dispatch gets a realistic payload.
+const enqueueWriteMock = vi.fn((entry) => Promise.resolve({ id: 'queued-1', attempts: 0, lastError: null, createdAt: Date.now(), ...entry }))
 vi.mock('@/utils/pendingWriteQueue.js', () => ({
   enqueueWrite: (...args) => enqueueWriteMock(...args)
 }))
@@ -537,7 +539,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
   })
 
   describe('Store Integration', () => {
-    it('commits the entry to local state immediately, queues it for durable sync, and dispatches a flush', async () => {
+    it('commits the entry to local state immediately, queues it for durable sync, and awaits a direct flush attempt for that entry (bug fix: NOT the shared/guarded flushPendingWrites, which could silently skip a brand-new entry if another pass was already mid-flight)', async () => {
       const result = await addRating(mockRatings)
 
       // Optimistic local commit - see setMovieLogEntry's comment in
@@ -549,7 +551,17 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
         value: result.value
       })
       expect(enqueueWriteMock).toHaveBeenCalledWith({ type: 'write', dbEntry: result })
+      expect(store.dispatch).toHaveBeenCalledWith('flushSingleEntry', expect.objectContaining({ id: 'queued-1', type: 'write', dbEntry: result }))
+      expect(store.dispatch).not.toHaveBeenCalledWith('flushPendingWrites')
+    })
+
+    it('falls back to the general flushPendingWrites sweep if enqueueWrite itself fails (e.g. IndexedDB unavailable, so there is no queued record to hand flushSingleEntry)', async () => {
+      enqueueWriteMock.mockResolvedValueOnce(null)
+
+      await addRating(mockRatings)
+
       expect(store.dispatch).toHaveBeenCalledWith('flushPendingWrites')
+      expect(store.dispatch).not.toHaveBeenCalledWith('flushSingleEntry', expect.anything())
     })
 
     it('should return database entry structure', async () => {

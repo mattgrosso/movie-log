@@ -8,7 +8,7 @@ vi.mock('axios', () => ({
 }))
 
 const listPendingWritesMock = vi.fn()
-const enqueueWriteMock = vi.fn(() => Promise.resolve())
+const enqueueWriteMock = vi.fn((entry) => Promise.resolve({ id: 'finalize-queued-1', attempts: 0, lastError: null, createdAt: Date.now(), ...entry }))
 const removePendingWriteMock = vi.fn(() => Promise.resolve())
 vi.mock('@/utils/pendingWriteQueue.js', () => ({
   listPendingWrites: (...args) => listPendingWritesMock(...args),
@@ -111,7 +111,15 @@ describe('ReconcilePlaceholder', () => {
         type: 'write',
         dbEntry: { path: 'movieLog/offline-key', value: { movie: finalMovie, ratings: QUEUE_ENTRY.ratings } }
       })
-      expect(dispatch).toHaveBeenCalledWith('flushPendingWrites')
+      // Awaited, direct attempt at this specific entry - not the shared/
+      // guarded flushPendingWrites (see flushSingleEntry's comment in
+      // store/index.js for the data-loss bug this avoids).
+      expect(dispatch).toHaveBeenCalledWith('flushSingleEntry', expect.objectContaining({
+        id: 'finalize-queued-1',
+        type: 'write',
+        dbEntry: { path: 'movieLog/offline-key', value: { movie: finalMovie, ratings: QUEUE_ENTRY.ratings } }
+      }))
+      expect(dispatch).not.toHaveBeenCalledWith('flushPendingWrites')
       expect(removePendingWriteMock).toHaveBeenCalledWith('queue-1')
       expect(dispatch).toHaveBeenCalledWith('refreshPendingReconciliations')
       expect(push).toHaveBeenCalledWith('/')

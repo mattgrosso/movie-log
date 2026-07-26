@@ -54,6 +54,28 @@ const removeNaNAndUndefined = (obj) => {
   return obj;
 };
 
+// Firebase RTDB's set() has no built-in timeout - while genuinely offline it
+// resolves optimistically against the local cache (fine), but under a
+// degraded/flaky connection (navigator.onLine still true, but the socket
+// can't actually reach the server) it can stay pending INDEFINITELY, never
+// resolving OR rejecting. Left unbounded, that hung promise would (a) block
+// flushPendingWrites' one write forever and, worse, (b) keep
+// isFlushingPendingWrites stuck true for the rest of the session, silently
+// disabling every future flush attempt (a real data-loss bug - see the Jul
+// 2026 bug report in CLAUDE.md's Offline Movie Rating section). Racing every
+// write against a bounded timeout guarantees performDatabaseWrite always
+// settles, so a stuck write becomes a recorded failure (retried on the next
+// trigger) instead of a silent permanent stall.
+const DATABASE_WRITE_TIMEOUT_MS = 15000;
+
+const withTimeout = (promise, ms, errorMessage) => {
+  let timer;
+  const timeout = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(errorMessage)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
 // Shared write core behind both setDBValue (debounced, direct UI saves) and
 // flushPendingWrites (queued offline/retry saves, which deliberately bypass
 // that debounce - a queued entry is already a single, deliberately-deduped
@@ -61,7 +83,11 @@ const removeNaNAndUndefined = (obj) => {
 const performDatabaseWrite = async (context, dbEntry) => {
   try {
     const cleanedValue = removeNaNAndUndefined(dbEntry.value);
-    await set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedValue);
+    await withTimeout(
+      set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedValue),
+      DATABASE_WRITE_TIMEOUT_MS,
+      `Database write timed out after ${DATABASE_WRITE_TIMEOUT_MS}ms: ${dbEntry.path}`
+    );
   } catch (error) {
     console.error('Error setting database value:', error);
     ErrorLogService.error('Error setting database value:', dbEntry.path, error);
@@ -568,6 +594,38 @@ export default createStore({
         await context.dispatch('refreshPendingReconciliations');
       } finally {
         context.commit('setIsFlushingPendingWrites', false);
+      }
+    },
+    // Bug fix (Jul 2026): attempts ONE specific queue entry's write directly,
+    // completely bypassing flushPendingWrites' isFlushingPendingWrites guard.
+    // AddRating.js/ReconcilePlaceholder.vue call this (awaited) immediately
+    // after enqueueing a fresh write, so the save is actually attempted
+    // before the caller proceeds - dispatching the SHARED flushPendingWrites
+    // there instead was the root cause of a real data-loss bug: if another
+    // flush pass (e.g. from initializeDB firing on the very next navigation)
+    // was already mid-flight, its isFlushingPendingWrites guard silently
+    // skipped the brand-new entry, and nothing else was scheduled to retry
+    // it until some unrelated later trigger happened to fire - if the user
+    // reloaded before that, the rating never reached Firebase at all, even
+    // though it had briefly appeared locally via the optimistic commit.
+    // A concurrent flushPendingWrites pass MAY also pick up this same entry
+    // (harmless - writing the same data twice is idempotent, and removing an
+    // already-removed queue entry is a no-op in pendingWriteQueue.js).
+    async flushSingleEntry (context, entry) {
+      if (!entry || !entry.dbEntry) return;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      if (!context.getters.databaseTopKey) return;
+
+      try {
+        await performDatabaseWrite(context, entry.dbEntry);
+        if (entry.type === 'write') {
+          await removePendingWrite(entry.id);
+        } else {
+          await updatePendingWrite(entry.id, { written: true });
+        }
+        context.dispatch('refreshPendingReconciliations');
+      } catch (error) {
+        await updatePendingWrite(entry.id, { attempts: (entry.attempts || 0) + 1, lastError: String(error) });
       }
     },
     // This action adds a TV show to the list of recently rated TV shows in the user's settings.

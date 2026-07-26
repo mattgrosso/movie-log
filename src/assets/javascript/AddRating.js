@@ -309,11 +309,20 @@ const addRating = async (ratings) => {
   const key = dbEntry.path.split('movieLog/')[1];
   store.commit('setMovieLogEntry', { key, value: dbEntry.value });
 
-  // Durable queue write, then attempt an immediate flush - a fast no-op
-  // success when online, and correctly retried later when not. See
-  // pendingWriteQueue.js + store's flushPendingWrites action.
-  await enqueueWrite(queueEntry);
-  store.dispatch('flushPendingWrites');
+  // Durable queue write, then AWAIT a direct attempt at THIS entry
+  // specifically (flushSingleEntry, not the shared/guarded
+  // flushPendingWrites - see that action's own comment for the real
+  // data-loss bug this fixes). A fast, confirmed success when online;
+  // correctly left queued for later background retry when not.
+  const queuedRecord = await enqueueWrite(queueEntry);
+  if (queuedRecord) {
+    await store.dispatch('flushSingleEntry', queuedRecord);
+  } else {
+    // enqueueWrite itself failed (e.g. IndexedDB unavailable) - nothing
+    // durable to hand flushSingleEntry, so fall back to a best-effort
+    // attempt via the general sweep instead of silently giving up.
+    store.dispatch('flushPendingWrites');
+  }
 
   // Fire-and-forget: get this movie's poster/backdrop into the offline image
   // cache immediately, rather than only whenever it's next viewed. Not
