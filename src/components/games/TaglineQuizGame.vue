@@ -193,9 +193,11 @@ export default {
   color: #eee;
   min-height: 100vh;
   // Safety margin against BackLink overlapping this screen's own content
-  // when the global Header happens to have zero height — same fix as the
-  // other game components.
-  padding: 2.5rem 0 2rem;
+  // when the global Header happens to have zero height — trimmed from
+  // 2.5rem, same tradeoff other games made, to help everything fit on one
+  // screen (bug report: "all four posters show up on a single screen...
+  // I don't have to scroll to see anything").
+  padding: 1.75rem 0 1rem;
   text-align: center;
 }
 
@@ -212,7 +214,7 @@ export default {
 .streak-line {
   color: #777;
   font-size: 0.8rem;
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.5rem;
 }
 
 /* Always rendered so its text can swap in place without adding/removing an
@@ -220,7 +222,7 @@ export default {
 .status-line {
   color: #adb5bd;
   text-align: center;
-  min-height: 1.6rem;
+  min-height: 1.4rem;
   margin: 0.5rem 0.5rem 0.15rem;
   display: flex;
   align-items: center;
@@ -229,20 +231,28 @@ export default {
 
 .tagline-text {
   color: #fff;
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-style: italic;
   font-weight: 600;
-  margin: 0.5rem 1.25rem 1.25rem;
-  min-height: 3rem;
+  margin: 0.35rem 1rem 1rem;
+  min-height: 2.6rem;
 }
 
+/* Side by side across the screen, one row, no scrolling — bug report:
+   "I think they could be side by side across the screen instead of being
+   larger and two by two." A single row of 4 is naturally much SHORTER
+   overall than a 2x2 grid was (one poster-height instead of two), which is
+   what actually frees up enough room for the whole screen to fit without
+   scrolling — not just the posters themselves. max-width keeps them from
+   growing oversized on a wide viewport; 1fr columns share whatever width
+   is actually available on a narrow phone. */
 .tq-options-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  max-width: 420px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  max-width: 380px;
   margin: 0 auto;
-  padding: 0 0.75rem;
+  padding: 0 0.5rem;
 }
 
 .tq-option {
