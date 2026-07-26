@@ -192,23 +192,49 @@ describe('buildCandidateCategories', () => {
     });
   });
 
-  describe('awards categories (feature request: "movies that have all won the best actor or best picture... any of the Academy Awards or really any of the awards", wins only)', () => {
+  describe('awards categories (feature request: "movies that have all won the best actor or best picture... any of the Academy Awards or really any of the awards", wins only; kept strictly SEPARATE per follow-up — "they should be separate. So only match movies within each award")', () => {
     // Award-winning movies, distinct from buildSolvableLibrary's fixtures so
     // an awards category never accidentally overlaps another group's tiles.
     function awardWinners (idPrefix, count) {
       return Array.from({ length: count }, (_, i) => entry({ id: `${idPrefix}-${i}`, title: `${idPrefix} ${i}`, director: `${idPrefix}D${i}`, genre: `${idPrefix}G${i}`, year: 1980 + i }));
     }
 
-    it('builds a "Won Best Picture" category from Academy-cached Best Picture winners', () => {
+    // Raw film-awards-api record shape (`tmdb` comes back as a numeric-
+    // looking STRING from the real API — confirmed live).
+    function academyRecord (tmdb, category, isWinner = true) {
+      return { id: `${tmdb}-${category}`, tmdb: String(tmdb), category, isWinner, isActing: false };
+    }
+
+    it('builds a "Won Best Picture (Academy)" category from the full academy dataset, not just a Best-Picture-only slice', () => {
       const winners = awardWinners('bp', 4);
       const library = [...buildSolvableLibrary(), ...winners];
-      const awardsData = { personalAwards: {}, bestPictureWinnerIds: new Set(winners.map((e) => e.movie.id)) };
+      const awardsData = { personalAwards: {}, allAcademyAwards: winners.map((e) => academyRecord(e.movie.id, 'Best Picture')) };
 
       const candidates = buildCandidateCategories(library, awardsData);
-      const category = candidates.find((c) => c.label === 'Won Best Picture');
+      const category = candidates.find((c) => c.label === 'Won Best Picture (Academy)');
       expect(category).toBeTruthy();
       expect(category.kind).toBe('awards');
       expect(category.movies).toHaveLength(4);
+    });
+
+    it('builds a category from a NON-Best-Picture Academy category too, now that the full dataset is available', () => {
+      const winners = awardWinners('bd', 4);
+      const library = [...buildSolvableLibrary(), ...winners];
+      const awardsData = { personalAwards: {}, allAcademyAwards: winners.map((e) => academyRecord(e.movie.id, 'Best Director')) };
+
+      const candidates = buildCandidateCategories(library, awardsData);
+      const category = candidates.find((c) => c.label === 'Won Best Director (Academy)');
+      expect(category).toBeTruthy();
+      expect(category.movies).toHaveLength(4);
+    });
+
+    it('does NOT count an Academy NOMINATION (isWinner: false) as a win', () => {
+      const nominees = awardWinners('nom', 4);
+      const library = [...buildSolvableLibrary(), ...nominees];
+      const awardsData = { personalAwards: {}, allAcademyAwards: nominees.map((e) => academyRecord(e.movie.id, 'Best Actor', false)) };
+
+      const candidates = buildCandidateCategories(library, awardsData);
+      expect(candidates.some((c) => c.label.includes('Best Actor'))).toBe(false);
     });
 
     it('builds a category from personal-award WINS, using the real category display name', () => {
@@ -221,42 +247,70 @@ describe('buildCandidateCategories', () => {
           2022: { categories: { bestDirector: { winner: { movieId: winners[2].movie.id } } } },
           2023: { categories: { bestDirector: { winner: { movieId: winners[3].movie.id } } } }
         },
-        bestPictureWinnerIds: new Set()
+        allAcademyAwards: []
       };
 
       const candidates = buildCandidateCategories(library, awardsData);
-      const category = candidates.find((c) => c.label === 'Won Best Director');
+      const category = candidates.find((c) => c.label === 'Won Best Director (Personal)');
       expect(category).toBeTruthy();
       expect(category.movies).toHaveLength(4);
     });
 
     it('does NOT count a personal-award NOMINATION (only nominees, no winner) as a win', () => {
-      const nominees = awardWinners('nom', 4);
+      const nominees = awardWinners('nom2', 4);
       const library = [...buildSolvableLibrary(), ...nominees];
       const awardsData = {
         personalAwards: {
           2020: { categories: { bestActor: { nominees: nominees.map((e) => ({ movieId: e.movie.id })), winner: null } } }
         },
-        bestPictureWinnerIds: new Set()
+        allAcademyAwards: []
       };
 
       const candidates = buildCandidateCategories(library, awardsData);
-      expect(candidates.some((c) => c.label === 'Won Best Actor')).toBe(false);
+      expect(candidates.some((c) => c.label.includes('Best Actor'))).toBe(false);
     });
 
-    it('merges a movie that won via EITHER system into the same shared "Won Best Picture" group', () => {
-      const academyWinners = awardWinners('acad', 3);
-      const personalWinner = awardWinners('pers', 1)[0];
-      const library = [...buildSolvableLibrary(), ...academyWinners, personalWinner];
+    it('keeps a movie that won via BOTH systems in TWO separate categories, never merged (bug report: "I don\'t want that. They should be separate")', () => {
+      // Every one of these 4 movies wins Best Picture in BOTH systems.
+      const winners = awardWinners('both', 4);
+      const library = [...buildSolvableLibrary(), ...winners];
+      const personalAwards = {};
+      winners.forEach((e, i) => { personalAwards[2000 + i] = { categories: { bestPicture: { winner: { movieId: e.movie.id } } } }; });
       const awardsData = {
-        personalAwards: { 2020: { categories: { bestPicture: { winner: { movieId: personalWinner.movie.id } } } } },
-        bestPictureWinnerIds: new Set(academyWinners.map((e) => e.movie.id))
+        personalAwards,
+        allAcademyAwards: winners.map((e) => academyRecord(e.movie.id, 'Best Picture'))
       };
 
       const candidates = buildCandidateCategories(library, awardsData);
-      const category = candidates.find((c) => c.label === 'Won Best Picture');
-      expect(category.movies).toHaveLength(4);
-      expect(category.movies.map((e) => e.movie.id)).toContain(personalWinner.movie.id);
+      const academyCategory = candidates.find((c) => c.label === 'Won Best Picture (Academy)');
+      const personalCategory = candidates.find((c) => c.label === 'Won Best Picture (Personal)');
+
+      expect(academyCategory).toBeTruthy();
+      expect(personalCategory).toBeTruthy();
+      expect(academyCategory.movies).toHaveLength(4);
+      expect(personalCategory.movies).toHaveLength(4);
+      // Confirm they're genuinely two distinct candidate objects, not one
+      // shared/merged category counted twice.
+      expect(academyCategory).not.toBe(personalCategory);
+    });
+
+    it('a movie that only won the Academy award (not personally) never counts toward the Personal category, and vice versa', () => {
+      const academyOnly = awardWinners('aonly', 4);
+      const personalOnly = awardWinners('ponly', 4);
+      const library = [...buildSolvableLibrary(), ...academyOnly, ...personalOnly];
+      const personalAwards = {};
+      personalOnly.forEach((e, i) => { personalAwards[2000 + i] = { categories: { bestPicture: { winner: { movieId: e.movie.id } } } }; });
+      const awardsData = {
+        personalAwards,
+        allAcademyAwards: academyOnly.map((e) => academyRecord(e.movie.id, 'Best Picture'))
+      };
+
+      const candidates = buildCandidateCategories(library, awardsData);
+      const academyCategory = candidates.find((c) => c.label === 'Won Best Picture (Academy)');
+      const personalCategory = candidates.find((c) => c.label === 'Won Best Picture (Personal)');
+
+      expect(academyCategory.movies.map((e) => e.movie.id).sort()).toEqual(academyOnly.map((e) => e.movie.id).sort());
+      expect(personalCategory.movies.map((e) => e.movie.id).sort()).toEqual(personalOnly.map((e) => e.movie.id).sort());
     });
 
     it('produces no awards categories at all when awardsData is omitted (graceful no-op, same as every other pre-existing call site)', () => {

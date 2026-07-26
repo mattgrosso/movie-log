@@ -128,17 +128,18 @@ export default {
       return 'playing';
     },
     // Pre-extracted from the Vuex store into the plain shape
-    // connectionsGenerator.js's pure movieWonAwardCategories expects — see
-    // its own comment for why Academy data is Best-Picture-only. Both
-    // pieces load asynchronously (personalAwards via a Firebase listener,
-    // academyAwardWinners once at initializeDB) and may still be empty on a
+    // connectionsGenerator.js's pure movieWonAwardCategories expects.
+    // allAcademyAwards is the FULL raw Academy dataset (all categories, not
+    // just Best Picture — see store/index.js). Both pieces load
+    // asynchronously (personalAwards via a Firebase listener,
+    // allAcademyAwards once at initializeDB) and may still be empty on a
     // cold direct navigation straight to this route; that's tolerated as a
     // soft degrade (the awards category just won't be a candidate for
     // THAT one puzzle) rather than something this game blocks on.
     awardsData () {
       return {
         personalAwards: this.$store.state.settings?.personalAwards || {},
-        bestPictureWinnerIds: new Set((this.$store.state.academyAwardWinners?.bestPicture || []).map((movie) => movie.id))
+        allAcademyAwards: this.$store.state.allAcademyAwards || []
       };
     }
   },

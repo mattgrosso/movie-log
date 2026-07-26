@@ -94,36 +94,61 @@ function movieIsSingleWordTitle (entry) {
   return title && !/\s/.test(title) ? ['Single-word title'] : [];
 }
 
+// Builds a { tmdbId -> Set<categoryName> } lookup ONCE from the full raw
+// Academy Awards dataset (~11k win+nomination records across every category
+// since the 1st ceremony — see store/index.js's allAcademyAwards), so a
+// per-entry win check is an O(1) Set lookup instead of re-scanning ~11k
+// records for every eligible library movie. Keyed by STRING id — `tmdb`
+// comes back from the API as a numeric-looking string; comparing as
+// strings (String(record.tmdb) vs String(entry.movie.id)) sidesteps any
+// Number()-coercion edge case entirely, rather than assuming both sides
+// are cleanly numeric.
+function buildAcademyWinsByTmdbId (allAcademyAwards) {
+  const byTmdbId = new Map();
+  (allAcademyAwards || []).forEach((record) => {
+    if (!record?.isWinner || record.tmdb == null) return;
+    const tmdbId = String(record.tmdb);
+    if (!byTmdbId.has(tmdbId)) byTmdbId.set(tmdbId, new Set());
+    byTmdbId.get(tmdbId).add(record.category);
+  });
+  return byTmdbId;
+}
+
 // Every award category `entry` actually WON (nominations don't count — user
 // was explicit: "let's go ahead and say it's wins only"), combining both
-// award systems the app tracks:
+// award systems the app tracks — but kept as two DISTINCT category
+// namespaces, not merged: "are you saying you smushed together my personal
+// awards and the Academy Awards... I don't want that. They should be
+// separate. So only match movies within each award." A movie that won
+// "Best Picture" in both systems now produces TWO separate candidate
+// categories ("Won Best Picture (Academy)" and "Won Best Picture
+// (Personal)"), each only ever grouping movies that won within that SAME
+// system — never mixed.
 //  - Personal awards: `settings.personalAwards[year].categories[key].winner`
 //    is checked for every year/category, synchronously, no fetch needed —
 //    `winner.movieId` is a TMDB id, directly comparable to `entry.movie.id`.
-//  - Academy Awards: ONLY Best Picture is available this way. The Academy
-//    data cached in the Vuex store (`state.academyAwardWinners`) is
-//    Best-Picture-only (see CLAUDE.md) — every OTHER Academy category
-//    (Director, Actor, etc.) only exists behind a live per-movie network
-//    call (`MovieDetail.vue`'s getAwardsData), which isn't something a
-//    puzzle generator can afford to do once per eligible library movie.
-//    `bestPictureWinnerIds` deliberately uses the SAME "Best Picture" label
-//    string the personal-awards side uses, so a movie that won Best Picture
-//    via EITHER system lands in the same shared category rather than two
-//    separate near-duplicate ones.
+//  - Academy Awards: now ALL categories, not just Best Picture — see
+//    store/index.js's `allAcademyAwards` (the full dataset, fetched once
+//    and cached locally per the user's own follow-up: "there aren't that
+//    many Academy Awards... pull it down and store it locally so we can
+//    use it wherever we want to"). `academyWinsByTmdbId` is the pre-built
+//    lookup from that dataset (see buildAcademyWinsByTmdbId above).
 //
-// `awardsData` is `{ personalAwards, bestPictureWinnerIds }` — both plain,
+// `awardsData` is `{ personalAwards, allAcademyAwards }` — both plain,
 // pre-extracted from the Vuex store by the caller (ConnectionsGame.vue),
 // since this module has no store access of its own. Either/both may be
 // absent (e.g. not yet loaded on a cold direct navigation) — this function
 // tolerates missing pieces rather than throwing, same as the rest of this
 // pure module tolerates sparse/incomplete entry data.
-function movieWonAwardCategories (entry, awardsData) {
+function movieWonAwardCategories (entry, awardsData, academyWinsByTmdbId) {
   const movieId = entry?.movie?.id;
   if (movieId == null) return [];
 
   const categories = new Set();
-  if (awardsData?.bestPictureWinnerIds?.has(movieId)) {
-    categories.add('Best Picture');
+
+  const academyCategories = academyWinsByTmdbId?.get(String(movieId));
+  if (academyCategories) {
+    academyCategories.forEach((name) => categories.add(`${name} (Academy)`));
   }
 
   const personalAwards = awardsData?.personalAwards;
@@ -133,7 +158,8 @@ function movieWonAwardCategories (entry, awardsData) {
       Object.keys(yearCategories).forEach((categoryKey) => {
         const winner = yearCategories[categoryKey]?.winner;
         if (winner?.movieId === movieId) {
-          categories.add(PERSONAL_AWARD_CATEGORY_NAMES[categoryKey] || categoryKey);
+          const name = PERSONAL_AWARD_CATEGORY_NAMES[categoryKey] || categoryKey;
+          categories.add(`${name} (Personal)`);
         }
       });
     });
@@ -184,6 +210,9 @@ export function buildCandidateCategories (eligibleEntries, awardsData) {
   const keywordCandidates = groupBy(eligibleEntries, movieKeywords, (name) => `Keyword: ${name}`, 'keyword')
     .filter((candidate) => candidate.movies.length >= KEYWORD_MIN_MOVIE_COUNT && candidate.movies.length <= KEYWORD_MAX_MOVIE_COUNT);
 
+  // Built ONCE per call (not per-entry) — see buildAcademyWinsByTmdbId.
+  const academyWinsByTmdbId = buildAcademyWinsByTmdbId(awardsData?.allAcademyAwards);
+
   return [
     ...groupBy(eligibleEntries, movieDirectors, (name) => `Directed by ${name}`, 'director'),
     ...groupBy(eligibleEntries, movieGenreNames, (name) => `Genre: ${name}`, 'genre'),
@@ -192,7 +221,7 @@ export function buildCandidateCategories (eligibleEntries, awardsData) {
     ...groupBy(eligibleEntries, movieFirstLetter, (letter) => `Starts with "${letter}"`, 'title'),
     ...groupBy(eligibleEntries, movieIsSingleWordTitle, () => 'One-word titles', 'title'),
     ...keywordCandidates,
-    ...groupBy(eligibleEntries, (entry) => movieWonAwardCategories(entry, awardsData), (name) => `Won ${name}`, 'awards')
+    ...groupBy(eligibleEntries, (entry) => movieWonAwardCategories(entry, awardsData, academyWinsByTmdbId), (name) => `Won ${name}`, 'awards')
   ];
 }
 

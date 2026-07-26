@@ -84,6 +84,17 @@ export default createStore({
       { name: "soundtrack", weight: 0.3 },
     ],
     academyAwardWinners: {},
+    // The FULL raw Academy Awards dataset (every category, every year, wins
+    // AND nominations — ~11k records from the same self-built film-awards-api
+    // service `academyAwardWinners` above already uses, just the bare
+    // `/awards` endpoint with no `category` filter, "let's just go ahead and
+    // pull it down and store it locally so we can use it wherever we want").
+    // Separate from `academyAwardWinners` (Best-Picture-only, TMDB-enriched
+    // for the existing Home.vue "Best Picture" quick-link feature) rather
+    // than replacing it — this is the raw, unenriched, ALL-category dataset
+    // other features (e.g. the Connections game's awards category) can
+    // synchronously filter/match against without a per-movie network call.
+    allAcademyAwards: [],
     userEmail: null,
     databaseTopKey: null,
     newEntrySearchResults: [],
@@ -178,6 +189,9 @@ export default createStore({
     },
     setAcademyAwardWinners (state, value) {
       state.academyAwardWinners = value
+    },
+    setAllAcademyAwards (state, value) {
+      state.allAcademyAwards = value;
     },
     setUserEmail (state, value) {
       state.userEmail = value;
@@ -292,6 +306,11 @@ export default createStore({
       context.commit('setMovieLog', {});
       context.commit('setSettings', {});
       context.commit('setAcademyAwardWinners', {});
+      // allAcademyAwards deliberately NOT reset here — unlike movieLog/
+      // settings/academyAwardWinners (all scoped to whichever account this
+      // is switching to/from), the full awards dataset isn't user-specific
+      // at all, so there's no reason to discard and re-fetch ~11k records
+      // just because the active account changed.
 
       await context.dispatch('initializeDB');
     },
@@ -378,6 +397,49 @@ export default createStore({
         } catch (error) {
           console.error('Failed to get awards data:', error);
           ErrorLogService.error('Failed to get awards data:', error);
+        }
+      }
+      // Full, all-category, all-year Academy Awards dataset — "there aren't
+      // that many Academy Awards, it'd be like one JSON thing we could pull
+      // down... store it locally so we can use it wherever we want to."
+      // ~11k raw records (wins AND nominations, every category since the
+      // 1st ceremony), same self-built film-awards-api service as above,
+      // just the bare /awards endpoint with no category filter — confirmed
+      // live (curl) to return the complete dataset, ~5.5MB. NOT TMDB-enriched
+      // per record (unlike academyAwardWinners' Best Picture list) — that
+      // would mean a per-record TMDB fetch across ~11k rows, defeating the
+      // "not that big" simplicity this is explicitly meant to have.
+      // Consumers needing more than the raw tmdb id (e.g. a poster) already
+      // have the movie's own local entry to fall back to when it's in the
+      // library, or can look it up live for the rare case it isn't.
+      const allAcademyAwardsHasData = context.state.allAcademyAwards.length > 0;
+      if (!allAcademyAwardsHasData) {
+        // Not user-specific, so a single fixed cache key rather than
+        // per-account topKey — same IndexedDB snapshot mechanism
+        // movieLog/settings already use for offline cold starts, applied
+        // here mainly to avoid re-downloading ~5.5MB from scratch on every
+        // single session once it's already been fetched once on this device.
+        loadSnapshot('global', 'allAcademyAwards').then((cached) => {
+          if (cached && !context.state.allAcademyAwards.length) {
+            context.commit('setAllAcademyAwards', cached);
+          }
+          return null;
+        }).catch(() => {});
+
+        try {
+          const response = await axios.get('https://web-production-b8145.up.railway.app/awards');
+          const data = response.data.map((item) => {
+            return {
+              ...item,
+              isWinner: ['TRUE', '1', true].includes(item.isWinner),
+              isActing: ['TRUE', '1', true].includes(item.isActing)
+            };
+          });
+          context.commit('setAllAcademyAwards', data);
+          saveSnapshot('global', 'allAcademyAwards', data);
+        } catch (error) {
+          console.error('Failed to get full awards dataset:', error);
+          ErrorLogService.error('Failed to get full awards dataset:', error);
         }
       }
     },

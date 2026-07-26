@@ -257,7 +257,7 @@ describe('ConnectionsGame', () => {
     expect(wrapper.findAll('.solved-tile img').length).toBe(8);
   });
 
-  describe('awards category wiring (feature request: "let\'s say it\'s wins only, and let\'s include Academy Awards and personal awards")', () => {
+  describe('awards category wiring (feature request: "let\'s say it\'s wins only, and let\'s include Academy Awards and personal awards"; kept separate per follow-up — "they should be separate. So only match movies within each award")', () => {
     function awardWinners (idPrefix, count, year) {
       return Array.from({ length: count }, (_, i) => entry({ id: `${idPrefix}-${i}`, director: `${idPrefix}D${i}`, genre: `${idPrefix}G${i}`, year: year + i }));
     }
@@ -272,14 +272,15 @@ describe('ConnectionsGame', () => {
     // to a real candidate — by calling the pure buildCandidateCategories
     // directly with the component's own derived state, same as
     // connectionsGenerator.test.js does at the unit level.
-    it('builds awardsData from the store so "Won Best Picture" is a real candidate from Academy-cached winners', () => {
+    it('builds awardsData.allAcademyAwards from the store so "Won Best Picture (Academy)" is a real candidate', () => {
       const bpWinners = awardWinners('bp', 4, 1985);
       const library = [...buildSolvableLibrary(), ...bpWinners];
+      const allAcademyAwards = bpWinners.map((e) => ({ id: `${e.movie.id}-bp`, tmdb: String(e.movie.id), category: 'Best Picture', isWinner: true }));
       const wrapper = mount(ConnectionsGame, {
         global: {
           mocks: {
             $store: {
-              state: { settings: {}, academyAwardWinners: { bestPicture: bpWinners.map((e) => ({ id: e.movie.id })) } },
+              state: { settings: {}, allAcademyAwards },
               getters: { allMediaAsArray: library },
               commit: vi.fn()
             },
@@ -288,14 +289,14 @@ describe('ConnectionsGame', () => {
         }
       });
 
-      expect(wrapper.vm.awardsData.bestPictureWinnerIds.has(bpWinners[0].movie.id)).toBe(true);
+      expect(wrapper.vm.awardsData.allAcademyAwards).toEqual(allAcademyAwards);
       const candidates = buildCandidateCategories(wrapper.vm.eligibleGameEntries, wrapper.vm.awardsData);
-      const category = candidates.find((c) => c.label === 'Won Best Picture');
+      const category = candidates.find((c) => c.label === 'Won Best Picture (Academy)');
       expect(category).toBeTruthy();
       expect(category.movies).toHaveLength(4);
     });
 
-    it('builds awardsData from settings.personalAwards so "Won Best Director" is a real candidate', () => {
+    it('builds awardsData from settings.personalAwards so "Won Best Director (Personal)" is a real candidate, kept separate from any Academy category', () => {
       const winners = awardWinners('pd', 4, 1995);
       const library = [...buildSolvableLibrary(), ...winners];
       const personalAwards = {};
@@ -315,9 +316,10 @@ describe('ConnectionsGame', () => {
       });
 
       const candidates = buildCandidateCategories(wrapper.vm.eligibleGameEntries, wrapper.vm.awardsData);
-      const category = candidates.find((c) => c.label === 'Won Best Director');
+      const category = candidates.find((c) => c.label === 'Won Best Director (Personal)');
       expect(category).toBeTruthy();
       expect(category.movies).toHaveLength(4);
+      expect(candidates.some((c) => c.label === 'Won Best Director (Academy)')).toBe(false);
     });
 
     it('tolerates missing awards data entirely (cold direct navigation before it loads) without throwing', () => {
@@ -332,7 +334,7 @@ describe('ConnectionsGame', () => {
       });
 
       expect(wrapper.vm.puzzle).not.toBeNull();
-      expect(wrapper.vm.awardsData.bestPictureWinnerIds.size).toBe(0);
+      expect(wrapper.vm.awardsData.allAcademyAwards).toEqual([]);
       expect(wrapper.vm.awardsData.personalAwards).toEqual({});
     });
 
