@@ -191,6 +191,80 @@ describe('buildCandidateCategories', () => {
       expect(candidates.some((c) => c.label === 'One-word titles')).toBe(false);
     });
   });
+
+  describe('awards categories (feature request: "movies that have all won the best actor or best picture... any of the Academy Awards or really any of the awards", wins only)', () => {
+    // Award-winning movies, distinct from buildSolvableLibrary's fixtures so
+    // an awards category never accidentally overlaps another group's tiles.
+    function awardWinners (idPrefix, count) {
+      return Array.from({ length: count }, (_, i) => entry({ id: `${idPrefix}-${i}`, title: `${idPrefix} ${i}`, director: `${idPrefix}D${i}`, genre: `${idPrefix}G${i}`, year: 1980 + i }));
+    }
+
+    it('builds a "Won Best Picture" category from Academy-cached Best Picture winners', () => {
+      const winners = awardWinners('bp', 4);
+      const library = [...buildSolvableLibrary(), ...winners];
+      const awardsData = { personalAwards: {}, bestPictureWinnerIds: new Set(winners.map((e) => e.movie.id)) };
+
+      const candidates = buildCandidateCategories(library, awardsData);
+      const category = candidates.find((c) => c.label === 'Won Best Picture');
+      expect(category).toBeTruthy();
+      expect(category.kind).toBe('awards');
+      expect(category.movies).toHaveLength(4);
+    });
+
+    it('builds a category from personal-award WINS, using the real category display name', () => {
+      const winners = awardWinners('pd', 4);
+      const library = [...buildSolvableLibrary(), ...winners];
+      const awardsData = {
+        personalAwards: {
+          2020: { categories: { bestDirector: { winner: { movieId: winners[0].movie.id } } } },
+          2021: { categories: { bestDirector: { winner: { movieId: winners[1].movie.id } } } },
+          2022: { categories: { bestDirector: { winner: { movieId: winners[2].movie.id } } } },
+          2023: { categories: { bestDirector: { winner: { movieId: winners[3].movie.id } } } }
+        },
+        bestPictureWinnerIds: new Set()
+      };
+
+      const candidates = buildCandidateCategories(library, awardsData);
+      const category = candidates.find((c) => c.label === 'Won Best Director');
+      expect(category).toBeTruthy();
+      expect(category.movies).toHaveLength(4);
+    });
+
+    it('does NOT count a personal-award NOMINATION (only nominees, no winner) as a win', () => {
+      const nominees = awardWinners('nom', 4);
+      const library = [...buildSolvableLibrary(), ...nominees];
+      const awardsData = {
+        personalAwards: {
+          2020: { categories: { bestActor: { nominees: nominees.map((e) => ({ movieId: e.movie.id })), winner: null } } }
+        },
+        bestPictureWinnerIds: new Set()
+      };
+
+      const candidates = buildCandidateCategories(library, awardsData);
+      expect(candidates.some((c) => c.label === 'Won Best Actor')).toBe(false);
+    });
+
+    it('merges a movie that won via EITHER system into the same shared "Won Best Picture" group', () => {
+      const academyWinners = awardWinners('acad', 3);
+      const personalWinner = awardWinners('pers', 1)[0];
+      const library = [...buildSolvableLibrary(), ...academyWinners, personalWinner];
+      const awardsData = {
+        personalAwards: { 2020: { categories: { bestPicture: { winner: { movieId: personalWinner.movie.id } } } } },
+        bestPictureWinnerIds: new Set(academyWinners.map((e) => e.movie.id))
+      };
+
+      const candidates = buildCandidateCategories(library, awardsData);
+      const category = candidates.find((c) => c.label === 'Won Best Picture');
+      expect(category.movies).toHaveLength(4);
+      expect(category.movies.map((e) => e.movie.id)).toContain(personalWinner.movie.id);
+    });
+
+    it('produces no awards categories at all when awardsData is omitted (graceful no-op, same as every other pre-existing call site)', () => {
+      const library = buildSolvableLibrary();
+      const candidates = buildCandidateCategories(library);
+      expect(candidates.some((c) => c.kind === 'awards')).toBe(false);
+    });
+  });
 });
 
 describe('generateConnectionsPuzzle', () => {
@@ -254,7 +328,7 @@ describe('generateConnectionsPuzzle', () => {
 
 describe('CATEGORY_KIND_LABELS', () => {
   it('lists every candidate kind with a label and difficulty', () => {
-    expect(CATEGORY_KIND_LABELS).toHaveLength(6);
+    expect(CATEGORY_KIND_LABELS).toHaveLength(7);
     CATEGORY_KIND_LABELS.forEach((entry) => {
       expect(entry.label).toBeTruthy();
       expect(entry.tier).toBeGreaterThanOrEqual(1);

@@ -1,5 +1,6 @@
 import { entryKey, movieDirectors, movieGenreNames, movieDecade, movieCastNames, shuffle, pickRandomDistinct } from './gameUtils.js';
 import { computeFlatKeywords } from '../../../utils/keywords.js';
+import { PERSONAL_AWARD_CATEGORY_NAMES } from '../personalAwardsCategories.js';
 
 const GROUP_SIZE = 4;
 const CATEGORY_COUNT = 4;
@@ -39,7 +40,14 @@ export const DIFFICULTY_BY_KIND = {
   // measurement; revisit if it plays easier/harder than director/cast in
   // practice.
   title: { tier: 3, name: 'Blue', color: '#4a90d9' },
-  keyword: { tier: 4, name: 'Purple', color: '#9b59b6' }
+  keyword: { tier: 4, name: 'Purple', color: '#9b59b6' },
+  // Awards (Jul 2026, user idea — "movies that have all won the best actor
+  // or best picture... any of the Academy Awards or really any of the
+  // awards"). Placed alongside director/cast/title — recalling a specific
+  // award win is roughly the same kind of specific-fact recall as a
+  // director, not a surface trait (decade/genre) or a deep-cut theme
+  // (keyword). A judgment call, not measured.
+  awards: { tier: 3, name: 'Blue', color: '#4a90d9' }
 };
 
 // The generic category kinds a puzzle can draw from — shown to the player as
@@ -52,7 +60,8 @@ export const CATEGORY_KIND_LABELS = [
   { kind: 'director', label: 'Director', ...DIFFICULTY_BY_KIND.director },
   { kind: 'cast', label: 'Cast', ...DIFFICULTY_BY_KIND.cast },
   { kind: 'title', label: 'Title', ...DIFFICULTY_BY_KIND.title },
-  { kind: 'keyword', label: 'Keyword', ...DIFFICULTY_BY_KIND.keyword }
+  { kind: 'keyword', label: 'Keyword', ...DIFFICULTY_BY_KIND.keyword },
+  { kind: 'awards', label: 'Awards', ...DIFFICULTY_BY_KIND.awards }
 ];
 
 function movieKeywords (entry) {
@@ -83,6 +92,54 @@ function movieFirstLetter (entry) {
 function movieIsSingleWordTitle (entry) {
   const title = movieTitle(entry);
   return title && !/\s/.test(title) ? ['Single-word title'] : [];
+}
+
+// Every award category `entry` actually WON (nominations don't count — user
+// was explicit: "let's go ahead and say it's wins only"), combining both
+// award systems the app tracks:
+//  - Personal awards: `settings.personalAwards[year].categories[key].winner`
+//    is checked for every year/category, synchronously, no fetch needed —
+//    `winner.movieId` is a TMDB id, directly comparable to `entry.movie.id`.
+//  - Academy Awards: ONLY Best Picture is available this way. The Academy
+//    data cached in the Vuex store (`state.academyAwardWinners`) is
+//    Best-Picture-only (see CLAUDE.md) — every OTHER Academy category
+//    (Director, Actor, etc.) only exists behind a live per-movie network
+//    call (`MovieDetail.vue`'s getAwardsData), which isn't something a
+//    puzzle generator can afford to do once per eligible library movie.
+//    `bestPictureWinnerIds` deliberately uses the SAME "Best Picture" label
+//    string the personal-awards side uses, so a movie that won Best Picture
+//    via EITHER system lands in the same shared category rather than two
+//    separate near-duplicate ones.
+//
+// `awardsData` is `{ personalAwards, bestPictureWinnerIds }` — both plain,
+// pre-extracted from the Vuex store by the caller (ConnectionsGame.vue),
+// since this module has no store access of its own. Either/both may be
+// absent (e.g. not yet loaded on a cold direct navigation) — this function
+// tolerates missing pieces rather than throwing, same as the rest of this
+// pure module tolerates sparse/incomplete entry data.
+function movieWonAwardCategories (entry, awardsData) {
+  const movieId = entry?.movie?.id;
+  if (movieId == null) return [];
+
+  const categories = new Set();
+  if (awardsData?.bestPictureWinnerIds?.has(movieId)) {
+    categories.add('Best Picture');
+  }
+
+  const personalAwards = awardsData?.personalAwards;
+  if (personalAwards) {
+    Object.values(personalAwards).forEach((yearData) => {
+      const yearCategories = yearData?.categories || {};
+      Object.keys(yearCategories).forEach((categoryKey) => {
+        const winner = yearCategories[categoryKey]?.winner;
+        if (winner?.movieId === movieId) {
+          categories.add(PERSONAL_AWARD_CATEGORY_NAMES[categoryKey] || categoryKey);
+        }
+      });
+    });
+  }
+
+  return [...categories];
 }
 
 function groupBy (entries, extractValues, labelFor, kind) {
@@ -118,7 +175,12 @@ function groupBy (entries, extractValues, labelFor, kind) {
 // KEYWORD_MIN_MOVIE_COUNT for the same "sweet spot" reasoning (see its own
 // comment) — GROUP_SIZE alone (enforced by groupBy for every kind) only
 // guarantees a category is mechanically usable, not that it's a good one.
-export function buildCandidateCategories (eligibleEntries) {
+//
+// `awardsData` (optional — see movieWonAwardCategories) is the one category
+// input that can't be derived from `entry.movie` alone, so it's threaded
+// through as a second parameter rather than embedded per-entry like every
+// other category's source data.
+export function buildCandidateCategories (eligibleEntries, awardsData) {
   const keywordCandidates = groupBy(eligibleEntries, movieKeywords, (name) => `Keyword: ${name}`, 'keyword')
     .filter((candidate) => candidate.movies.length >= KEYWORD_MIN_MOVIE_COUNT && candidate.movies.length <= KEYWORD_MAX_MOVIE_COUNT);
 
@@ -129,7 +191,8 @@ export function buildCandidateCategories (eligibleEntries) {
     ...groupBy(eligibleEntries, (entry) => movieCastNames(entry, 8), (name) => `Starring ${name}`, 'cast'),
     ...groupBy(eligibleEntries, movieFirstLetter, (letter) => `Starts with "${letter}"`, 'title'),
     ...groupBy(eligibleEntries, movieIsSingleWordTitle, () => 'One-word titles', 'title'),
-    ...keywordCandidates
+    ...keywordCandidates,
+    ...groupBy(eligibleEntries, (entry) => movieWonAwardCategories(entry, awardsData), (name) => `Won ${name}`, 'awards')
   ];
 }
 
@@ -146,8 +209,8 @@ const DIFFICULTY_TIERS = [1, 2, 3, 4];
 // difficulties (yellow/green/blue/purple) instead of clustering on whichever
 // type happens to shuffle first — per user feedback that puzzles felt
 // uniformly "too hard, impossible" without any easier way in.
-export function generateConnectionsPuzzle (eligibleEntries, rng = Math.random) {
-  const candidates = shuffle(buildCandidateCategories(eligibleEntries), rng);
+export function generateConnectionsPuzzle (eligibleEntries, rng = Math.random, awardsData) {
+  const candidates = shuffle(buildCandidateCategories(eligibleEntries, awardsData), rng);
   const usedKeys = new Set();
   const chosen = [];
 

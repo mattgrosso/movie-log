@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { reactive } from 'vue';
 import ConnectionsGame from '@/components/games/ConnectionsGame.vue';
+import { buildCandidateCategories } from '@/assets/javascript/games/connectionsGenerator.js';
 
 vi.mock('@/assets/javascript/GetRating.js', () => ({
   getRating: vi.fn(() => ({ calculatedTotal: 5 }))
@@ -254,6 +255,91 @@ describe('ConnectionsGame', () => {
     expect(wrapper.findAll('.solved-group').length).toBe(2);
     // The first group's posters are still there, not replaced.
     expect(wrapper.findAll('.solved-tile img').length).toBe(8);
+  });
+
+  describe('awards category wiring (feature request: "let\'s say it\'s wins only, and let\'s include Academy Awards and personal awards")', () => {
+    function awardWinners (idPrefix, count, year) {
+      return Array.from({ length: count }, (_, i) => entry({ id: `${idPrefix}-${i}`, director: `${idPrefix}D${i}`, genre: `${idPrefix}G${i}`, year: year + i }));
+    }
+
+    // Real puzzle generation only keeps 4 of potentially many candidate
+    // categories (buildSolvableLibrary alone already offers several tier-3
+    // candidates — director, cast, awards all share a tier), so whether
+    // "awards" specifically wins its slot in any ONE random puzzle isn't
+    // deterministic without a seeded rng the component doesn't expose.
+    // These tests instead confirm the WIRING — that the component derives
+    // awardsData from the store correctly and feeds it all the way through
+    // to a real candidate — by calling the pure buildCandidateCategories
+    // directly with the component's own derived state, same as
+    // connectionsGenerator.test.js does at the unit level.
+    it('builds awardsData from the store so "Won Best Picture" is a real candidate from Academy-cached winners', () => {
+      const bpWinners = awardWinners('bp', 4, 1985);
+      const library = [...buildSolvableLibrary(), ...bpWinners];
+      const wrapper = mount(ConnectionsGame, {
+        global: {
+          mocks: {
+            $store: {
+              state: { settings: {}, academyAwardWinners: { bestPicture: bpWinners.map((e) => ({ id: e.movie.id })) } },
+              getters: { allMediaAsArray: library },
+              commit: vi.fn()
+            },
+            $router: { push: vi.fn() }
+          }
+        }
+      });
+
+      expect(wrapper.vm.awardsData.bestPictureWinnerIds.has(bpWinners[0].movie.id)).toBe(true);
+      const candidates = buildCandidateCategories(wrapper.vm.eligibleGameEntries, wrapper.vm.awardsData);
+      const category = candidates.find((c) => c.label === 'Won Best Picture');
+      expect(category).toBeTruthy();
+      expect(category.movies).toHaveLength(4);
+    });
+
+    it('builds awardsData from settings.personalAwards so "Won Best Director" is a real candidate', () => {
+      const winners = awardWinners('pd', 4, 1995);
+      const library = [...buildSolvableLibrary(), ...winners];
+      const personalAwards = {};
+      winners.forEach((e, i) => { personalAwards[2000 + i] = { categories: { bestDirector: { winner: { movieId: e.movie.id } } } }; });
+
+      const wrapper = mount(ConnectionsGame, {
+        global: {
+          mocks: {
+            $store: {
+              state: { settings: { personalAwards } },
+              getters: { allMediaAsArray: library },
+              commit: vi.fn()
+            },
+            $router: { push: vi.fn() }
+          }
+        }
+      });
+
+      const candidates = buildCandidateCategories(wrapper.vm.eligibleGameEntries, wrapper.vm.awardsData);
+      const category = candidates.find((c) => c.label === 'Won Best Director');
+      expect(category).toBeTruthy();
+      expect(category.movies).toHaveLength(4);
+    });
+
+    it('tolerates missing awards data entirely (cold direct navigation before it loads) without throwing', () => {
+      const library = buildSolvableLibrary();
+      const wrapper = mount(ConnectionsGame, {
+        global: {
+          mocks: {
+            $store: { state: {}, getters: { allMediaAsArray: library }, commit: vi.fn() },
+            $router: { push: vi.fn() }
+          }
+        }
+      });
+
+      expect(wrapper.vm.puzzle).not.toBeNull();
+      expect(wrapper.vm.awardsData.bestPictureWinnerIds.size).toBe(0);
+      expect(wrapper.vm.awardsData.personalAwards).toEqual({});
+    });
+
+    it('shows "Awards" in the category-kind legend', () => {
+      const wrapper = factory(buildSolvableLibrary());
+      expect(wrapper.text()).toContain('Awards');
+    });
   });
 
   describe('progress persistence (bug report: "I had like one match going and then today I opened it... it was gone and it reset")', () => {

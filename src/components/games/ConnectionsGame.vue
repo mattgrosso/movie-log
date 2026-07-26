@@ -126,6 +126,20 @@ export default {
       if (!this.puzzle) return 'playing';
       if (this.solvedLabels.length === this.puzzle.categories.length) return 'won';
       return 'playing';
+    },
+    // Pre-extracted from the Vuex store into the plain shape
+    // connectionsGenerator.js's pure movieWonAwardCategories expects — see
+    // its own comment for why Academy data is Best-Picture-only. Both
+    // pieces load asynchronously (personalAwards via a Firebase listener,
+    // academyAwardWinners once at initializeDB) and may still be empty on a
+    // cold direct navigation straight to this route; that's tolerated as a
+    // soft degrade (the awards category just won't be a candidate for
+    // THAT one puzzle) rather than something this game blocks on.
+    awardsData () {
+      return {
+        personalAwards: this.$store.state.settings?.personalAwards || {},
+        bestPictureWinnerIds: new Set((this.$store.state.academyAwardWinners?.bestPicture || []).map((movie) => movie.id))
+      };
     }
   },
   // Same "empty-graph race" class of bug Six Degrees had (see CLAUDE.md):
@@ -160,7 +174,7 @@ export default {
     // "New Puzzle" always overwrites whatever was saved — same convention
     // Reel Wordle/Six Degrees already use for their own "start fresh" calls.
     start () {
-      this.puzzle = generateConnectionsPuzzle(this.eligibleGameEntries, Math.random);
+      this.puzzle = generateConnectionsPuzzle(this.eligibleGameEntries, Math.random, this.awardsData);
       this.solvedLabels = [];
       this.selectedKeys = [];
       this.mistakes = 0;
