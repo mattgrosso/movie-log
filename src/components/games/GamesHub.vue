@@ -92,6 +92,12 @@ export default {
           name: 'Clue Budget',
           icon: GAME_ICONS['/games/clue-budget'],
           description: "Spend a $100 budget on clues — cast, director, tagline, and more — to guess the movie before you're broke."
+        },
+        {
+          path: '/games/tagline',
+          name: 'Tagline Guess',
+          icon: GAME_ICONS['/games/tagline'],
+          description: 'See a real movie tagline, pick which of 4 posters it belongs to. Keep your streak alive.'
         }
       ]
     };
