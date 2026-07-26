@@ -101,6 +101,18 @@ describe('flushPendingWrites', () => {
     expect(updatePendingWriteMock).toHaveBeenCalledWith('1', { written: true })
   })
 
+  it('skips re-attempting a "placeholder" entry that is already marked written - it stays queued for reconciliation, not for retry', async () => {
+    listPendingWritesMock.mockResolvedValue([
+      { id: '1', type: 'placeholder', status: 'unreconciled', written: true, dbEntry: { path: 'movieLog/a', value: {} } }
+    ])
+
+    await store.dispatch('flushPendingWrites')
+
+    expect(setMock).not.toHaveBeenCalled()
+    expect(updatePendingWriteMock).not.toHaveBeenCalled()
+    expect(removePendingWriteMock).not.toHaveBeenCalled()
+  })
+
   it('records attempts/lastError on a failed write, without aborting the rest of the queue', async () => {
     setMock.mockImplementation((path) => {
       if (path === 'testing-database/movieLog/bad') {

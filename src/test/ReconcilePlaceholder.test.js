@@ -92,7 +92,7 @@ describe('ReconcilePlaceholder', () => {
   })
 
   describe('selectMatch', () => {
-    it('finalizes the placeholder: shapes the real TMDb movie, commits it locally at the SAME dbKey, writes it directly (no queue involvement), and clears the placeholder queue entry', async () => {
+    it('finalizes the placeholder: shapes the real TMDb movie, commits it locally at the SAME dbKey, durably queues the finalized write BEFORE attempting it, writes it directly, and clears BOTH queue entries once confirmed', async () => {
       const finalMovie = { id: 603, title: 'The Matrix', poster_path: '/matrix.jpg', genres: [] }
       shapeTmdbMovieMock.mockResolvedValue(finalMovie)
       const { wrapper, commit, dispatch, push } = factory()
@@ -107,13 +107,21 @@ describe('ReconcilePlaceholder', () => {
         key: 'offline-key',
         value: { movie: finalMovie, ratings: QUEUE_ENTRY.ratings }
       })
-      // A direct, awaited write - not enqueue-then-background-flush (see
-      // writeDatabaseEntryNow's comment in store/index.js for why this is
-      // what guarantees the match is actually confirmed).
-      expect(dispatch).toHaveBeenCalledWith('writeDatabaseEntryNow', {
-        path: 'movieLog/offline-key', value: { movie: finalMovie, ratings: QUEUE_ENTRY.ratings }
-      })
-      expect(enqueueWriteMock).not.toHaveBeenCalled()
+      const finalizedDbEntry = { path: 'movieLog/offline-key', value: { movie: finalMovie, ratings: QUEUE_ENTRY.ratings } }
+      // Bulletproofing (Jul 2026): durably queued BEFORE the write attempt,
+      // not only as a fallback after failure - survives being killed
+      // mid-write, not just mid-idle.
+      expect(enqueueWriteMock).toHaveBeenCalledWith({ type: 'write', dbEntry: finalizedDbEntry })
+      const enqueueOrder = enqueueWriteMock.mock.invocationCallOrder[0]
+      const writeOrder = dispatch.mock.calls.findIndex((call) => call[0] === 'writeDatabaseEntryNow')
+      expect(enqueueOrder).toBeLessThan(dispatch.mock.invocationCallOrder[writeOrder])
+      // A direct, awaited write - see writeDatabaseEntryNow's comment in
+      // store/index.js for why this is what guarantees the match is
+      // actually confirmed.
+      expect(dispatch).toHaveBeenCalledWith('writeDatabaseEntryNow', finalizedDbEntry)
+      // Confirmed - BOTH the new finalized entry and the old placeholder
+      // tracking entry are cleared.
+      expect(removePendingWriteMock).toHaveBeenCalledWith('finalize-queued-1')
       expect(removePendingWriteMock).toHaveBeenCalledWith('queue-1')
       expect(dispatch).toHaveBeenCalledWith('refreshPendingReconciliations')
       expect(push).toHaveBeenCalledWith('/')
@@ -133,7 +141,7 @@ describe('ReconcilePlaceholder', () => {
       expect(removePendingWriteMock).not.toHaveBeenCalled()
     })
 
-    it('shows an error, leaves the queue entry untouched, and does not navigate away if the direct write itself fails', async () => {
+    it('shows an error but leaves BOTH queue entries untouched (the finalized write stays durably queued for retry) if the direct write itself fails', async () => {
       const finalMovie = { id: 603, title: 'The Matrix', poster_path: '/matrix.jpg', genres: [] }
       shapeTmdbMovieMock.mockResolvedValue(finalMovie)
       const { wrapper, dispatch, push } = factory()
@@ -149,6 +157,10 @@ describe('ReconcilePlaceholder', () => {
 
       expect(wrapper.vm.searchError).toBeTruthy()
       expect(push).not.toHaveBeenCalled()
+      // The finalized write WAS durably queued (that's the whole point -
+      // it's not lost even though the direct attempt failed) but neither
+      // queue entry is removed, so a retry has everything it needs.
+      expect(enqueueWriteMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'write' }))
       expect(removePendingWriteMock).not.toHaveBeenCalled()
     })
   })

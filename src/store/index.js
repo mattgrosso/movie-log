@@ -578,6 +578,14 @@ export default createStore({
 
         for (const entry of pending) {
           if (!entry.dbEntry) continue;
+          // A 'placeholder' entry stays queued (for reconciliation tracking)
+          // even after its write already succeeded once - written:true means
+          // there's nothing left to (re-)attempt here, only actual
+          // reconciliation (ReconcilePlaceholder.vue) removes it. Without
+          // this, an unreconciled placeholder would get redundantly
+          // re-written to Firebase on every single background sweep for as
+          // long as it sits unreconciled.
+          if (entry.type === 'placeholder' && entry.written) continue;
 
           try {
             await performDatabaseWrite(context, entry.dbEntry);

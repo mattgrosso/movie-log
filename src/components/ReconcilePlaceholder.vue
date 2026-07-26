@@ -52,7 +52,7 @@
 import axios from 'axios';
 import MediaResultGrid from './MediaResultGrid.vue';
 import { shapeTmdbMovie } from '../assets/javascript/AddRating.js';
-import { listPendingWrites, removePendingWrite } from '../utils/pendingWriteQueue.js';
+import { listPendingWrites, enqueueWrite, removePendingWrite } from '../utils/pendingWriteQueue.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 
 export default {
@@ -126,19 +126,27 @@ export default {
         const key = dbEntry.path.split('movieLog/')[1];
         this.$store.commit('setMovieLogEntry', { key, value: dbEntry.value });
 
-        // A direct, awaited write with no queue involvement at all - see
-        // writeDatabaseEntryNow's comment in store/index.js for why this
-        // (not enqueue-then-background-flush) is what guarantees the match
-        // is actually confirmed before this screen tells the user it's
-        // done. Reconciliation inherently requires connectivity (the search
-        // above already needed it), so there's no offline fallback path to
-        // consider here - if this throws, the catch block below surfaces a
-        // real error and leaves the placeholder queue entry untouched so
-        // the user can retry.
+        // Durably queue the finalized write FIRST, before attempting it -
+        // same "survives being killed mid-write" guarantee AddRating.js's
+        // addRating() uses (see its own comment, and writeDatabaseEntryNow's
+        // in store/index.js). Coexists fine alongside the old placeholder
+        // entry below - different queue `type`, so enqueueWrite's
+        // type:'write' dedupe never touches it.
+        const finalizedRecord = await enqueueWrite({ type: 'write', dbEntry });
+
+        // A direct, awaited write - see writeDatabaseEntryNow's comment in
+        // store/index.js for why this (not enqueue-then-background-flush
+        // alone) is what guarantees the match is actually confirmed before
+        // this screen tells the user it's done.
         await this.$store.dispatch('writeDatabaseEntryNow', dbEntry);
 
-        // The placeholder queue entry's job is done now that the write is
-        // confirmed.
+        // Confirmed - drop both queue entries now that the real write
+        // landed. If anything above throws instead, both stay queued
+        // (nothing removed past this point), so the retry - via the
+        // background sweep - has everything it needs.
+        if (finalizedRecord) {
+          await removePendingWrite(finalizedRecord.id);
+        }
         await removePendingWrite(this.queueEntry.id);
         await this.$store.dispatch('refreshPendingReconciliations');
 

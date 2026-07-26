@@ -39,8 +39,12 @@ vi.mock('@/assets/javascript/offlinePosterCache.js', async () => {
 
 // enqueueWrite resolves the stored record, matching the real implementation.
 const enqueueWriteMock = vi.fn((entry) => Promise.resolve({ id: 'queued-1', attempts: 0, lastError: null, createdAt: Date.now(), ...entry }))
+const removePendingWriteMock = vi.fn(() => Promise.resolve())
+const updatePendingWriteMock = vi.fn(() => Promise.resolve())
 vi.mock('@/utils/pendingWriteQueue.js', () => ({
-  enqueueWrite: (...args) => enqueueWriteMock(...args)
+  enqueueWrite: (...args) => enqueueWriteMock(...args),
+  removePendingWrite: (...args) => removePendingWriteMock(...args),
+  updatePendingWrite: (...args) => updatePendingWriteMock(...args)
 }))
 
 describe('TMDb Data Processing & Movie Rating Addition', () => {
@@ -544,7 +548,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
   })
 
   describe('Store Integration', () => {
-    it('commits the entry to local state immediately and attempts a direct, confirmed write - no queue involvement at all when online and successful (bug fix: the previous design routed EVERY online save through the offline queue + a shared/guarded flush action, which could silently skip a brand-new entry if another pass was already mid-flight - a live data-loss incident)', async () => {
+    it('commits the entry to local state, ALWAYS durably queues it before attempting anything, then attempts a direct write and removes the queue entry once confirmed (bulletproofing, Jul 2026: enqueue must happen before the network attempt, not only as a fallback after failure, so a rating survives even if the app is killed mid-write - not just mid-idle)', async () => {
       const result = await addRating(mockRatings)
 
       // Optimistic local commit - see setMovieLogEntry's comment in
@@ -554,11 +558,18 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
         key: result.path.split('movieLog/')[1],
         value: result.value
       })
+      // Enqueued BEFORE the write attempt - this is the actual durability
+      // guarantee, not an afterthought.
+      expect(enqueueWriteMock).toHaveBeenCalledWith({ type: 'write', dbEntry: result })
+      const enqueueOrder = enqueueWriteMock.mock.invocationCallOrder[0]
+      const dispatchOrder = store.dispatch.mock.invocationCallOrder[0]
+      expect(enqueueOrder).toBeLessThan(dispatchOrder)
       expect(store.dispatch).toHaveBeenCalledWith('writeDatabaseEntryNow', result)
-      expect(enqueueWriteMock).not.toHaveBeenCalled()
+      // Confirmed - the now-redundant queue entry is removed.
+      expect(removePendingWriteMock).toHaveBeenCalledWith('queued-1')
     })
 
-    it('durably queues the write AND re-throws if the direct write fails while nominally online, so the caller surfaces a real error instead of trusting an unconfirmed save', async () => {
+    it('leaves the queue entry in place (does not remove it) AND re-throws if the direct write fails while nominally online, so the caller surfaces a real error instead of trusting an unconfirmed save - the data itself is never at risk either way', async () => {
       store.dispatch.mockImplementation((action) => {
         if (action === 'writeDatabaseEntryNow') return Promise.reject(new Error('write failed'))
         return Promise.resolve()
@@ -566,18 +577,20 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
 
       await expect(addRating(mockRatings)).rejects.toThrow('write failed')
       expect(enqueueWriteMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'write' }))
+      expect(removePendingWriteMock).not.toHaveBeenCalled()
     })
 
-    it('skips the direct write attempt entirely and durably queues instead when offline, without throwing', async () => {
+    it('skips the direct write attempt entirely and leaves it durably queued when offline, without throwing', async () => {
       store.state.isOnline = false
 
       const result = await addRating(mockRatings)
 
       expect(store.dispatch).not.toHaveBeenCalledWith('writeDatabaseEntryNow', expect.anything())
       expect(enqueueWriteMock).toHaveBeenCalledWith({ type: 'write', dbEntry: result })
+      expect(removePendingWriteMock).not.toHaveBeenCalled()
     })
 
-    it('a placeholder rating swallows a direct-write failure instead of throwing - its queue entry (already durably created) is the safety net, matching the feature\'s existing "sync eventually" UX', async () => {
+    it('a placeholder rating swallows a direct-write failure instead of throwing, and does NOT remove its queue entry - reconciliation tracking (and the safety net for a retry) stays intact regardless of this attempt\'s outcome, matching the feature\'s existing "sync eventually" UX', async () => {
       store.dispatch.mockImplementation((action) => {
         if (action === 'writeDatabaseEntryNow') return Promise.reject(new Error('write failed'))
         return Promise.resolve()
@@ -587,6 +600,16 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
 
       expect(result).toBeDefined()
       expect(enqueueWriteMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'placeholder' }))
+      expect(removePendingWriteMock).not.toHaveBeenCalled()
+      expect(updatePendingWriteMock).not.toHaveBeenCalledWith('queued-1', { written: true })
+    })
+
+    it('a placeholder rating marks its queue entry "written" (kept for reconciliation, not removed) once the direct write succeeds', async () => {
+      const result = await addRating([{ id: 'offline-written-test', title: 'Some Movie', love: 5 }])
+
+      expect(result).toBeDefined()
+      expect(updatePendingWriteMock).toHaveBeenCalledWith('queued-1', { written: true })
+      expect(removePendingWriteMock).not.toHaveBeenCalled()
     })
 
     it('should return database entry structure', async () => {
