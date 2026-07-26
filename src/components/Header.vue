@@ -18,6 +18,14 @@
         <span class="app-title">Cinema Roll</span>
         <span class="version">{{version}}</span>
       </div>
+      <!-- hideHeaderLogo (a game's custom banner) hides the "Cinema Roll"
+           title, but the version number should stay visible in the same
+           corner regardless — bug report: "the version number... doesn't
+           appear with our new game headers... just the exact same spot...
+           over the new banner image." -->
+      <div v-else class="version-only" @click="goHome">
+        <span class="version">{{version}}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -139,6 +147,27 @@ export default {
           font-size: 0.5rem;
           position: absolute;
           right: 3px;
+        }
+      }
+
+      // Same bottom-right corner + dark pill treatment as .home-link, minus
+      // the big "Cinema Roll" title text — shown instead of .home-link
+      // whenever hideHeaderLogo hides that title (a game's custom banner
+      // already has its own name baked in), so the version number still has
+      // somewhere to render.
+      .version-only {
+        background: rgba(0, 0, 0, 0.6);
+        border-top-left-radius: 6px;
+        bottom: -2px;
+        color: white;
+        cursor: pointer;
+        padding: 3px 8px;
+        position: absolute;
+        right: 0;
+
+        .version {
+          font-family: "Roboto Condensed", sans-serif;
+          font-size: 0.65rem;
         }
       }
     }

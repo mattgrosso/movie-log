@@ -68,7 +68,14 @@ import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { generateConnectionsPuzzle, CATEGORY_KIND_LABELS } from '../../assets/javascript/games/connectionsGenerator.js';
+import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import connectionsBanner from '../../assets/images/games/connections-banner.jpg';
+
+// Bug report: "I had like one match going and then today I opened it...
+// it was gone and it reset" — Connections had no persistence at all,
+// unlike Reel Wordle/Six Degrees/Timeline, which all follow this same
+// localStorage-key pattern.
+const STORAGE_KEY = 'cinemaRoll.connections.current';
 
 export default {
   name: 'ConnectionsGame',
@@ -121,12 +128,26 @@ export default {
       return 'playing';
     }
   },
+  // Same "empty-graph race" class of bug Six Degrees had (see CLAUDE.md):
+  // eligibleGameEntries can still be empty on a fresh/direct navigation
+  // before the library has loaded, and a synchronous created()-time start()
+  // call would build against that empty set and never retry once real data
+  // arrives. Watching with immediate:true retries as soon as real entries
+  // land, and no-ops once a puzzle already exists.
+  watch: {
+    eligibleGameEntries: {
+      immediate: true,
+      handler (entries) {
+        if (this.puzzle || !entries.length) return;
+        this.loadOrStart();
+      }
+    }
+  },
   // Custom banner graphic (with its own "Connections / Cinema Roll Games"
   // branding baked in) in place of the usual movie-backdrop banner, and
   // hides the "Cinema Roll" title overlay so it doesn't compete with that
   // baked-in branding - same pattern as Six Degrees, see CLAUDE.md.
   created () {
-    this.start();
     this.previousBannerUrl = this.$store.state?.bannerUrl;
     this.$store.commit?.('setBannerUrl', connectionsBanner);
     this.$store.commit?.('setHideHeaderLogo', true);
@@ -136,6 +157,8 @@ export default {
     this.$store.commit?.('setHideHeaderLogo', false);
   },
   methods: {
+    // "New Puzzle" always overwrites whatever was saved — same convention
+    // Reel Wordle/Six Degrees already use for their own "start fresh" calls.
     start () {
       this.puzzle = generateConnectionsPuzzle(this.eligibleGameEntries, Math.random);
       this.solvedLabels = [];
@@ -144,6 +167,67 @@ export default {
       this.lastGuessFeedback = null;
       this.categoryHintNumbers = {};
       this.tileHints = {};
+      this.persistState();
+    },
+    loadOrStart () {
+      if (!this.tryRestore()) this.start();
+    },
+    // A puzzle's random generation (which categories, which 16 tiles, in
+    // what shuffled order) can't be reproduced from a compact seed the way
+    // Reel Wordle's single target movie or Six Degrees' source/target pair
+    // can — so the persisted shape stores the actual tile ORDER (as entry
+    // keys) and category structure directly, then re-resolves each tile's
+    // real `entry` object from the CURRENT library on restore (same
+    // "persist identity, re-derive data" principle those other games use).
+    persistState () {
+      if (!this.puzzle) return;
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          tileOrder: this.puzzle.tiles.map((tile) => tile.key),
+          categories: this.puzzle.categories,
+          solvedLabels: this.solvedLabels,
+          mistakes: this.mistakes,
+          categoryHintNumbers: this.categoryHintNumbers,
+          tileHints: this.tileHints
+        }));
+      } catch {
+        // localStorage can throw in private-browsing/quota-exceeded situations - harmless to skip.
+      }
+    },
+    // Returns false (falling through to a fresh start()) whenever the saved
+    // state can't be trusted: nothing saved, a tile's movie is no longer
+    // eligible (unrated/removed since), or the puzzle was already WON — a
+    // finished puzzle isn't resumed, same "don't resume a finished round"
+    // decision already made for Reel Wordle/Six Degrees.
+    tryRestore () {
+      let saved;
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        saved = JSON.parse(raw);
+      } catch {
+        return false;
+      }
+      if (!saved || !Array.isArray(saved.tileOrder) || !Array.isArray(saved.categories)) return false;
+      if (saved.solvedLabels?.length === saved.categories.length) return false;
+
+      const entryByKey = new Map(this.eligibleGameEntries.map((entry) => [entryKey(entry), entry]));
+      const tiles = [];
+      for (const key of saved.tileOrder) {
+        const entry = entryByKey.get(key);
+        if (!entry) return false;
+        const category = saved.categories.find((c) => c.keys.includes(key));
+        tiles.push({ key, entry, categoryLabel: category?.label });
+      }
+
+      this.puzzle = { categories: saved.categories, tiles };
+      this.solvedLabels = saved.solvedLabels || [];
+      this.selectedKeys = [];
+      this.mistakes = saved.mistakes || 0;
+      this.lastGuessFeedback = null;
+      this.categoryHintNumbers = saved.categoryHintNumbers || {};
+      this.tileHints = saved.tileHints || {};
+      return true;
     },
     toggleTile (key) {
       if (this.status !== 'playing') return;
@@ -196,6 +280,7 @@ export default {
         }
       }
       this.selectedKeys = [];
+      this.persistState();
     }
   }
 };

@@ -41,4 +41,26 @@ describe('Header', () => {
     expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setGoHome', true);
     expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/');
   });
+
+  describe('version number stays visible even when the logo is hidden (bug report: "the version number... doesn\'t appear with our new game headers... just the exact same spot")', () => {
+    it('shows the version inside .home-link by default', () => {
+      const wrapper = factory();
+      expect(wrapper.find('.home-link .version').exists()).toBe(true);
+      expect(wrapper.find('.version-only').exists()).toBe(false);
+    });
+
+    it('falls back to a standalone .version-only element when hideHeaderLogo is true', () => {
+      const wrapper = factory({ hideHeaderLogo: true });
+      expect(wrapper.find('.home-link').exists()).toBe(false);
+      expect(wrapper.find('.version-only .version').exists()).toBe(true);
+    });
+
+    it('.version-only also navigates home on click, same as the normal title', async () => {
+      const wrapper = factory({ hideHeaderLogo: true });
+      await wrapper.find('.version-only').trigger('click');
+
+      expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setGoHome', true);
+      expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/');
+    });
+  });
 });

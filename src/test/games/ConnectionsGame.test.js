@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { reactive } from 'vue';
 import ConnectionsGame from '@/components/games/ConnectionsGame.vue';
 
 vi.mock('@/assets/javascript/GetRating.js', () => ({
@@ -50,6 +51,15 @@ function factory (mediaEntries) {
 }
 
 describe('ConnectionsGame', () => {
+  // Fixtures across tests in this file reuse the same dbKeys
+  // (buildSolvableLibrary is identical every call), so persisted state from
+  // one test could otherwise leak into and change the outcome of the next
+  // one — same guard ReelWordleGame's/SixDegreesGame's tests use for the
+  // same reason.
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it('shows a gate message when the library cannot support a full puzzle', () => {
     const wrapper = factory([]);
     expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
@@ -244,6 +254,91 @@ describe('ConnectionsGame', () => {
     expect(wrapper.findAll('.solved-group').length).toBe(2);
     // The first group's posters are still there, not replaced.
     expect(wrapper.findAll('.solved-tile img').length).toBe(8);
+  });
+
+  describe('progress persistence (bug report: "I had like one match going and then today I opened it... it was gone and it reset")', () => {
+    it('restores a solved category, mistakes, and hints across a remount', async () => {
+      const library = buildSolvableLibrary();
+      const wrapperA = factory(library);
+      const category = wrapperA.vm.puzzle.categories[0];
+      category.keys.forEach((key) => wrapperA.vm.toggleTile(key));
+      wrapperA.vm.submitGuess();
+      await wrapperA.vm.$nextTick();
+      expect(wrapperA.vm.solvedLabels).toContain(category.label);
+
+      const [otherA, otherB] = wrapperA.vm.puzzle.categories.filter((c) => c.label !== category.label);
+      wrapperA.vm.selectedKeys = [otherA.keys[0], otherA.keys[1], otherB.keys[0], otherB.keys[1]];
+      wrapperA.vm.submitGuess();
+      await wrapperA.vm.$nextTick();
+      expect(wrapperA.vm.mistakes).toBe(1);
+
+      // A brand new mount (fresh component instance) against the SAME
+      // library (same dbKeys), so restoration can re-resolve every tile.
+      const wrapperB = factory(library);
+      expect(wrapperB.vm.solvedLabels).toEqual(wrapperA.vm.solvedLabels);
+      expect(wrapperB.vm.mistakes).toBe(1);
+      expect(wrapperB.vm.categoryHintNumbers).toEqual(wrapperA.vm.categoryHintNumbers);
+      expect(wrapperB.vm.puzzle.categories).toEqual(wrapperA.vm.puzzle.categories);
+      expect(wrapperB.vm.puzzle.tiles.map((t) => t.key)).toEqual(wrapperA.vm.puzzle.tiles.map((t) => t.key));
+    });
+
+    it('does NOT resume a fully solved (won) puzzle — starts a fresh one instead', async () => {
+      const library = buildSolvableLibrary();
+      const wrapperA = factory(library);
+      for (const category of wrapperA.vm.puzzle.categories) {
+        category.keys.forEach((key) => wrapperA.vm.toggleTile(key));
+        wrapperA.vm.submitGuess();
+        await wrapperA.vm.$nextTick();
+      }
+      expect(wrapperA.vm.status).toBe('won');
+
+      const wrapperB = factory(library);
+      expect(wrapperB.vm.status).toBe('playing');
+      expect(wrapperB.vm.solvedLabels).toEqual([]);
+    });
+
+    it('"New Puzzle" overwrites the saved state rather than leaving stale progress behind', async () => {
+      const library = buildSolvableLibrary();
+      const wrapperA = factory(library);
+      const category = wrapperA.vm.puzzle.categories[0];
+      category.keys.forEach((key) => wrapperA.vm.toggleTile(key));
+      wrapperA.vm.submitGuess();
+      await wrapperA.vm.$nextTick();
+      expect(wrapperA.vm.solvedLabels).toHaveLength(1);
+
+      wrapperA.vm.start();
+      expect(wrapperA.vm.solvedLabels).toEqual([]);
+
+      const wrapperB = factory(library);
+      expect(wrapperB.vm.solvedLabels).toEqual([]);
+    });
+
+    it("falls back to a fresh puzzle if a saved tile's movie is no longer eligible", () => {
+      const library = buildSolvableLibrary();
+      const wrapperA = factory(library);
+      expect(wrapperA.vm.puzzle).not.toBeNull();
+
+      // Remount against a library whose dbKeys don't match anything saved —
+      // every persisted tile key is now unresolvable.
+      const differentLibrary = buildSolvableLibrary().map((e) => ({ ...e, dbKey: `other-${e.dbKey}` }));
+      const wrapperB = factory(differentLibrary);
+      expect(wrapperB.vm.puzzle).not.toBeNull();
+      expect(wrapperB.vm.solvedLabels).toEqual([]);
+      expect(wrapperB.vm.mistakes).toBe(0);
+    });
+
+    it('recovers once the library finishes loading, instead of permanently stranding on "not enough movies" (the same empty-graph race Six Degrees had)', async () => {
+      const getters = reactive({ allMediaAsArray: [] });
+      const wrapper = mount(ConnectionsGame, {
+        global: { mocks: { $store: { getters, state: {}, commit: vi.fn() }, $router: { push: vi.fn() } } }
+      });
+      expect(wrapper.vm.puzzle).toBeNull();
+
+      getters.allMediaAsArray = buildSolvableLibrary();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.puzzle).not.toBeNull();
+    });
   });
 
   describe('custom header banner (a graphic made for this game, same pattern as Six Degrees)', () => {
