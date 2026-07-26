@@ -185,6 +185,8 @@
 
       <hr>
 
+      <p v-if="submitError" class="text-danger text-center mb-2">{{ submitError }}</p>
+
       <button
         class="submit-button btn btn-primary col-12 mt-5 mb-4"
         @click.prevent="addRating"
@@ -293,6 +295,7 @@ import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 import { countViewingTagUsage, sortVocabularyByUsage } from "../utils/tags.js";
 import RatingSelect from "./RatingSelect.vue";
+import notFoundImage from "../assets/images/Image_not_available.png";
 
 // Option label text for each rating scale, indexed by option value ("0", "1"…).
 // The leading empty option is rendered by RatingSelect, not listed here.
@@ -376,7 +379,8 @@ export default {
       movieContextLoading: false,
       showDeleteModal: false,
       tagToDelete: null,
-      ratingFields: RATING_FIELDS
+      ratingFields: RATING_FIELDS,
+      submitError: null
     }
   },
   mounted () {
@@ -387,7 +391,9 @@ export default {
 
     this.$store.commit("setShowHeader", false);
     this.title = this.movieToRate.title;
-    this.year = new Date(this.movieToRate.release_date).getFullYear();
+    // An offline placeholder (see AddRating.js/placeholderId.js) has no
+    // release_date yet - new Date(null).getFullYear() would produce NaN.
+    this.year = this.movieToRate.release_date ? new Date(this.movieToRate.release_date).getFullYear() : '';
     this.id = this.movieToRate.id;
 
     this.getChatGPTKeywords();
@@ -510,6 +516,12 @@ export default {
       if (this.movieToRate) {
         // Check for custom backdrop in previousEntry
         const backdropPath = this.previousEntry?.customBackdropPath || this.movieToRate.backdrop_path;
+        // An offline placeholder has no backdrop_path yet - without this
+        // check we'd render ".../w500null" instead of hiding the banner
+        // (the template's v-if="rateBannerUrl" already handles `false`).
+        if (!backdropPath) {
+          return false;
+        }
         return `https://image.tmdb.org/t/p/w500${backdropPath}`;
       } else {
         return false;
@@ -659,10 +671,15 @@ export default {
     posterUrl (movie, result) {
       // Check if user has selected a custom poster in the result object
       const posterPath = result?.customPosterPath || movie.poster_path;
+      // An offline placeholder has no poster_path yet.
+      if (!posterPath) {
+        return notFoundImage;
+      }
       return `https://image.tmdb.org/t/p/w500${posterPath}`;
     },
     async addRating () {
       this.loading = true;
+      this.submitError = null;
 
       let ratings = [];
 
@@ -691,7 +708,19 @@ export default {
 
       ratings.push(rating);
 
-      const dbEntry = await addRating(ratings);
+      // AddRating.js can throw (e.g. a brand-new movie whose TMDB fetch
+      // failed while online, with no local data to fall back to) - surface
+      // that instead of leaving the button stuck on "Submitting..." forever.
+      let dbEntry;
+      try {
+        dbEntry = await addRating(ratings);
+      } catch (error) {
+        console.error('Failed to save rating:', error);
+        ErrorLogService.error('Failed to save rating:', error);
+        this.loading = false;
+        this.submitError = 'Could not save this rating. Please check your connection and try again.';
+        return;
+      }
       this.dbEntry = dbEntry;
 
       window.scroll({
@@ -770,7 +799,7 @@ export default {
     async getChatGPTKeywords () {
       try {
         const title = this.movieToRate.title;
-        const year = new Date(this.movieToRate.release_date).getFullYear() || "";
+        const year = this.movieToRate.release_date ? new Date(this.movieToRate.release_date).getFullYear() : "";
 
         const apiUrl = `${process.env.VUE_APP_AI_API_URL}/keywords`;
 

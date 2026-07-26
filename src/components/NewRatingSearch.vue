@@ -15,6 +15,11 @@
         <button class="btn btn-primary" @click="searchTMDB(false)" id="new-rating-button">Show More Results</button>
       </div>
     </div>
+    <div v-else-if="offlineFallback" class="offline-fallback">
+      <p>You're offline, so "{{ value }}" can't be looked up on TMDB right now.</p>
+      <p>You can still rate it from memory — once you're back online, you'll be asked to confirm which movie it was.</p>
+      <button class="btn btn-primary" @click="rateOffline">Rate "{{ value }}" from memory</button>
+    </div>
     <div v-else-if="noResults" ref="noResults">
       <p>No results found in your Movie Log or on TMDB.</p>
       <p>I'm pretty sure that movie doesn't exist.</p>
@@ -33,6 +38,7 @@ import axios from 'axios';
 import debounce from 'lodash/debounce';
 import RatingChangeRibbon from './RatingChangeRibbon.vue';
 import PickMedia from './PickMedia.vue';
+import { makePlaceholderId } from '../utils/placeholderId.js';
 
 export default {
   components: {
@@ -54,12 +60,19 @@ export default {
       quickPickResults: null,
       noResults: false,
       suggestions: [],
-      suggestionsPage: 1
+      suggestionsPage: 1,
+      offlineFallback: false
     }
   },
   mounted () {
     if (this.suggestionsMode) {
       this.fetchSuggestions();
+    } else if (!this.$store.state.isOnline) {
+      // No point firing a doomed TMDB search - offer the offline "rate from
+      // memory" path immediately instead of waiting on a request that can't
+      // succeed. See AddRating.js/placeholderId.js for the placeholder-
+      // rating + later-reconciliation mechanics.
+      this.offlineFallback = true;
     } else {
       setTimeout(() => {
         this.searchTMDB(true);
@@ -68,9 +81,15 @@ export default {
   },
   watch: {
     value () {
-      if (!this.suggestionsMode) {
-        this.searchTMDB(true);
+      if (this.suggestionsMode) {
+        return;
       }
+      if (!this.$store.state.isOnline) {
+        this.offlineFallback = true;
+        return;
+      }
+      this.offlineFallback = false;
+      this.searchTMDB(true);
     }
   },
   computed: {
@@ -104,11 +123,21 @@ export default {
       if (!this.value) {
         return;
       }
-      const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
+      let resp;
+      try {
+        resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.value}`);
+      } catch (error) {
+        // Covers both a hard offline drop mid-request and any other network
+        // failure - either way TMDB can't be reached right now, so offer the
+        // same "rate from memory" recovery rather than hanging on the spinner.
+        this.offlineFallback = true;
+        return;
+      }
       if (!resp || !resp.data || !resp.data.results) {
         this.showNoResultsMessage();
         return;
       }
+      this.offlineFallback = false;
       if (quickPick && resp.data.results.length) {
         this.quickPickEntrySearch(resp.data.results);
       } else if (resp.data.results.length) {
@@ -132,6 +161,25 @@ export default {
     newEntrySearch (results) {
       this.$store.commit('setNewEntrySearchResults', results)
       this.$router.push(`/pick-media/${this.value}`);
+    },
+    // Bypasses TMDB search entirely - builds a synthetic movieToRate with a
+    // placeholder id so RateMovie.vue can be used with just a typed title.
+    // AddRating.js recognizes the placeholder id and routes the save through
+    // the offline queue instead of a TMDB-dependent path; the movie shows up
+    // immediately with a "Pending match" badge until reconciled.
+    rateOffline () {
+      if (!this.value) {
+        return;
+      }
+      const media = {
+        id: makePlaceholderId(),
+        title: this.value,
+        release_date: null,
+        poster_path: null,
+        backdrop_path: null
+      };
+      this.$store.commit('setMovieToRate', media);
+      this.$router.push('/rate-movie');
     },
   }
 }

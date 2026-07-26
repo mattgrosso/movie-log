@@ -17,11 +17,13 @@ vi.mock('@/store/index', () => ({
     state: {
       currentLog: 'movieLog',
       movieLog: {},
-      tvLog: {}
+      tvLog: {},
+      isOnline: true
     },
     getters: {
       allMediaSortedByRating: []
     },
+    commit: vi.fn(),
     dispatch: vi.fn()
   }
 }))
@@ -34,6 +36,11 @@ vi.mock('@/assets/javascript/offlinePosterCache.js', async () => {
     warmImageCache: (...args) => warmImageCacheMock(...args)
   }
 })
+
+const enqueueWriteMock = vi.fn()
+vi.mock('@/utils/pendingWriteQueue.js', () => ({
+  enqueueWrite: (...args) => enqueueWriteMock(...args)
+}))
 
 describe('TMDb Data Processing & Movie Rating Addition', () => {
   let mockTMDbData
@@ -141,6 +148,7 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     // Reset store state
     store.state.movieLog = {}
     store.state.currentLog = 'movieLog'
+    store.state.isOnline = true
   })
 
   describe('TMDb API Data Fetching', () => {
@@ -183,15 +191,10 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/tv/550/keywords'))
     })
 
-    it('should handle API errors gracefully', async () => {
+    it('throws rather than silently writing a broken entry when every TMDb call fails for a new movie', async () => {
       axios.get.mockRejectedValue(new Error('API Error'))
 
-      const result = await addRating(mockRatings)
-
-      expect(result).toBeDefined()
-      expect(result.value.movie.title).toBe('') // Should use empty string when no TMDb data
-      expect(result.value.movie.cast).toEqual([])
-      expect(result.value.movie.crew).toEqual([])
+      await expect(addRating(mockRatings)).rejects.toThrow('Failed to fetch TMDB data for id 550')
     })
 
     it('should handle missing ratings gracefully', async () => {
@@ -420,8 +423,38 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       expect(movieData.keywords).toEqual([]) // Empty array from mockKeywordsData
     })
 
-    it('should handle partial API failures', async () => {
+    it('should throw rather than write a broken entry when TMDb fails for a genuinely new movie (bug fix - the old behavior silently wrote id: null, title: "", no cast/crew)', async () => {
       // Main movie data succeeds, but credits and keywords fail
+      axios.get.mockImplementation((url) => {
+        if (url.includes('/movie/550?')) {
+          return Promise.resolve({ data: mockTMDbData })
+        }
+        return Promise.reject(new Error('API Error'))
+      })
+
+      await expect(addRating(mockRatings)).rejects.toThrow('Failed to fetch TMDB data for id 550')
+    })
+
+    it('falls back to the existing local movie data instead of throwing when TMDb fails for a movie already in the library', async () => {
+      store.state.movieLog = {
+        'existing-key-fight-club': {
+          movie: {
+            id: 550,
+            title: 'Fight Club',
+            poster_path: '/old-poster.jpg',
+            backdrop_path: '/old-backdrop.jpg',
+            genres: [{ id: 18, name: 'Drama' }],
+            cast: [{ name: 'Brad Pitt', character: 'Tyler Durden' }],
+            crew: [{ name: 'David Fincher', job: 'Director' }],
+            keywords: [],
+            production_companies: [],
+            imdb_id: 'tt0137523',
+            runtime: 139,
+            chatGPTKeywords: ['existing-keyword']
+          },
+          ratings: [{ id: 550, love: 7 }]
+        }
+      }
       axios.get.mockImplementation((url) => {
         if (url.includes('/movie/550?')) {
           return Promise.resolve({ data: mockTMDbData })
@@ -431,11 +464,12 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
 
       const result = await addRating(mockRatings)
 
-      // When any API call fails, getTMDBData returns undefined, so we get fallback values
-      expect(result).toBeDefined()
-      expect(result.value.movie.title).toBe('') // Empty string is the fallback for title
-      expect(result.value.movie.cast).toEqual([]) // Empty array is the fallback
-      expect(result.value.movie.crew).toEqual([])
+      expect(result.path).toBe('movieLog/existing-key-fight-club')
+      expect(result.value.movie.title).toBe('Fight Club')
+      expect(result.value.movie.poster_path).toBe('/old-poster.jpg')
+      expect(result.value.movie.cast).toEqual([{ name: 'Brad Pitt', character: 'Tyler Durden' }])
+      // New rating's chatGPTKeywords merged with the previously-stored ones
+      expect(result.value.movie.chatGPTKeywords).toEqual(expect.arrayContaining(['existing-keyword', 'psychological', 'underground']))
     })
 
     it('should handle malformed API responses', async () => {
@@ -503,10 +537,19 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
   })
 
   describe('Store Integration', () => {
-    it('should dispatch setDBValue action with correct data', async () => {
+    it('commits the entry to local state immediately, queues it for durable sync, and dispatches a flush', async () => {
       const result = await addRating(mockRatings)
 
-      expect(store.dispatch).toHaveBeenCalledWith('setDBValue', result)
+      // Optimistic local commit - see setMovieLogEntry's comment in
+      // store/index.js for why the movie needs to show up immediately
+      // regardless of connectivity, rather than only via setDBValue's
+      // dispatch (which is no longer called directly here).
+      expect(store.commit).toHaveBeenCalledWith('setMovieLogEntry', {
+        key: result.path.split('movieLog/')[1],
+        value: result.value
+      })
+      expect(enqueueWriteMock).toHaveBeenCalledWith({ type: 'write', dbEntry: result })
+      expect(store.dispatch).toHaveBeenCalledWith('flushPendingWrites')
     })
 
     it('should return database entry structure', async () => {
@@ -528,11 +571,10 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       ])
     })
 
-    it('should not attempt to warm the cache when there is no poster/backdrop (TMDb fetch failed)', async () => {
+    it('should not attempt to warm the cache when TMDb fetch fails for a new movie (addRating throws first)', async () => {
       axios.get.mockRejectedValue(new Error('API Error'))
 
-      await addRating(mockRatings)
-
+      await expect(addRating(mockRatings)).rejects.toThrow()
       expect(warmImageCacheMock).not.toHaveBeenCalled()
     })
 
@@ -553,6 +595,102 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
 
       // Restore API key
       process.env.VUE_APP_TMDB_API_KEY = originalApiKey
+    })
+  })
+
+  describe('Offline rating support', () => {
+    it('skips the TMDb fetch entirely when offline and the movie already has local data', async () => {
+      store.state.isOnline = false
+      store.state.movieLog = {
+        'existing-key-fight-club': {
+          movie: {
+            id: 550,
+            title: 'Fight Club',
+            poster_path: '/old-poster.jpg',
+            backdrop_path: '/old-backdrop.jpg',
+            genres: [],
+            cast: [],
+            crew: [],
+            keywords: [],
+            production_companies: [],
+            imdb_id: 'tt0137523',
+            runtime: 139,
+            chatGPTKeywords: []
+          },
+          ratings: [{ id: 550, love: 7 }]
+        }
+      }
+
+      const result = await addRating(mockRatings)
+
+      expect(axios.get).not.toHaveBeenCalled()
+      expect(result.path).toBe('movieLog/existing-key-fight-club')
+      expect(result.value.movie.poster_path).toBe('/old-poster.jpg')
+      expect(store.commit).toHaveBeenCalledWith('setMovieLogEntry', {
+        key: 'existing-key-fight-club',
+        value: result.value
+      })
+    })
+
+    it('builds a placeholder entry for a brand-new movie rated offline, with no TMDb call and no id: null / empty-title fallout', async () => {
+      const placeholderRatings = [{
+        id: 'offline-abc-123',
+        title: 'Some Movie I Remember',
+        year: '2010',
+        love: 8,
+        overall: 7
+      }]
+
+      const result = await addRating(placeholderRatings)
+
+      expect(axios.get).not.toHaveBeenCalled()
+      expect(result.value.movie).toMatchObject({
+        id: 'offline-abc-123',
+        title: 'Some Movie I Remember',
+        release_date: '2010-01-01',
+        runtime: 90,
+        poster_path: null,
+        backdrop_path: null,
+        genres: [],
+        cast: [],
+        crew: [],
+        isPendingReconciliation: true
+      })
+      expect(enqueueWriteMock).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'placeholder',
+        placeholderMovieId: 'offline-abc-123',
+        title: 'Some Movie I Remember',
+        year: '2010',
+        status: 'unreconciled'
+      }))
+      expect(store.commit).toHaveBeenCalledWith('setMovieLogEntry', expect.objectContaining({
+        value: expect.objectContaining({ movie: expect.objectContaining({ isPendingReconciliation: true }) })
+      }))
+    })
+
+    it('defaults a placeholder release_date/runtime to safe non-null values when no year was typed (avoids breaking date-parsing call sites and the "shorts" filter, which treats null runtime as 0)', async () => {
+      const placeholderRatings = [{ id: 'offline-no-year', title: 'Untitled Memory', love: 5 }]
+
+      const result = await addRating(placeholderRatings)
+
+      const currentYear = new Date().getFullYear()
+      expect(result.value.movie.release_date).toBe(`${currentYear}-01-01`)
+      expect(result.value.movie.runtime).toBe(90)
+    })
+
+    it('reuses the same movieLog key for a second offline edit of the same not-yet-reconciled placeholder', async () => {
+      const id = 'offline-repeat'
+      const first = await addRating([{ id, title: 'Repeat Movie', love: 5 }])
+
+      // Simulate the optimistic commit having actually landed in local state,
+      // the way store/index.js's real setMovieLogEntry mutation would -
+      // findKeyForMovieInDatabase reads store.state.movieLog directly.
+      const key = first.path.split('movieLog/')[1]
+      store.state.movieLog = { [key]: first.value }
+
+      const second = await addRating([{ id, title: 'Repeat Movie', love: 8 }])
+
+      expect(second.path).toBe(first.path)
     })
   })
 })

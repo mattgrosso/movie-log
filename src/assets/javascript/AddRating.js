@@ -1,6 +1,8 @@
 import axios from 'axios';
 import store from '../../store/index';
 import { warmImageCache, posterUrl, backdropUrl } from './offlinePosterCache.js';
+import { isPlaceholderId } from '../../utils/placeholderId.js';
+import { enqueueWrite } from '../../utils/pendingWriteQueue.js';
 
 const getTMDBData = async (rating) => {
   const apiKey = process.env.VUE_APP_TMDB_API_KEY;
@@ -112,11 +114,7 @@ const createTVShowRatingFromEpisodeRatings = (ratings) => {
   return averages;
 };
 
-const addMovieRating = async (ratings) => {
-  if (!ratings[0].id) {
-    return;
-  }
-
+const collectChatGPTKeywords = (ratings) => {
   const chatGPTKeywords = [];
   ratings.forEach((rating) => {
     if (rating.chatGPTKeywords) {
@@ -127,60 +125,144 @@ const addMovieRating = async (ratings) => {
       });
     }
   });
+  return chatGPTKeywords;
+}
 
-  const tmdbData = await getTMDBData(ratings[0]);
+const stripOwnership = (ratings) => {
+  return ratings.map((rating) => {
+    const tempRating = { ...rating };
+    delete tempRating.ownership;
+    return tempRating;
+  });
+}
 
-  let crew;
-  let cast;
+const safeTitleKey = (title) => {
+  return `${new Date().getTime()}-${crypto.randomUUID()}-${title.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./#]/g, "-")}`;
+}
 
-  if (tmdbData) {
-    crew = tmdbData.crew.map((person) => {
-      return {
-        job: person.job,
-        name: person.name
-      }
-    })
+// Shapes a live TMDB response + the ratings collected for it into the
+// `movie` sub-object AddRating stores. Pulled out of addMovieRating so the
+// reconciliation flow (matching an offline placeholder rating to a real
+// TMDB movie) can reuse the exact same shaping logic.
+const shapeTmdbDataIntoMovie = (tmdbData, ratings) => {
+  const crew = tmdbData.crew.map((person) => ({ job: person.job, name: person.name }));
+  const cast = tmdbData.cast.map((person) => ({ name: person.name, character: person.character }));
 
-    cast = tmdbData.cast.map((person) => {
-      return {
-        name: person.name,
-        character: person.character
-      }
-    })
+  return {
+    backdrop_path: tmdbData.backdrop_path,
+    cast,
+    crew,
+    genres: tmdbData.genres,
+    id: tmdbData.id,
+    imdb_id: tmdbData.imdb_id,
+    ownership: ratings[0].ownership || null,
+    poster_path: tmdbData.poster_path,
+    production_companies: tmdbData.production_companies,
+    release_date: tmdbData.release_date,
+    runtime: tmdbData.runtime,
+    title: tmdbData.title,
+    keywords: tmdbData.keywords,
+    chatGPTKeywords: collectChatGPTKeywords(ratings)
+  };
+}
+
+// A transient TMDB fetch failure shouldn't wipe out previously-good local
+// data (the old, buggy behavior) - and offline, there's no TMDB call to make
+// at all when the movie is already local. Both cases reuse what's already
+// stored, just refreshing ownership/chatGPTKeywords from the new rating.
+const buildMovieFromLocalData = (previousMovie, ratings) => {
+  return {
+    ...previousMovie,
+    ownership: ratings[0].ownership || previousMovie.ownership || null,
+    chatGPTKeywords: [...new Set([...(previousMovie.chatGPTKeywords || []), ...collectChatGPTKeywords(ratings)])]
+  };
+}
+
+// Fetches real TMDB data for `tmdbId` and shapes it with `ratings`. Used by
+// the reconciliation flow to finalize a placeholder rating once the user has
+// picked which real movie it was - deliberately takes an explicit id rather
+// than reading it off ratings[0] (which still carries the OLD placeholder
+// id at that point). Throws if the fetch fails; the caller decides how to
+// surface that (e.g. let the user retry the search).
+export const shapeTmdbMovie = async (tmdbId, ratings) => {
+  const tmdbData = await getTMDBData({ id: tmdbId });
+  if (!tmdbData) {
+    throw new Error(`Failed to fetch TMDB data for id ${tmdbId}`);
+  }
+  return shapeTmdbDataIntoMovie(tmdbData, ratings);
+}
+
+// Builds a placeholder movie object for a rating made offline with no TMDB
+// lookup possible (just a typed title, optionally a year) - marked with
+// isPendingReconciliation so it durably survives being written to Firebase
+// and can be found again later for the "did you mean this movie?" prompt.
+// Fields are deliberately non-null, sensible DEFAULTS rather than an
+// all-null shape:
+//   - release_date always resolves to a real (if approximate) date - a null
+//     release_date would break date-parsing call sites throughout the app
+//     (MovieDetail, Insights, sort-by-date) that assume a parseable value.
+//   - runtime defaults to 90, not null - the "include shorts" filter is
+//     `runtime <= 40`, and `null <= 40` is true in JS (null coerces to 0),
+//     so a null-runtime placeholder would be silently excluded whenever
+//     that setting is off.
+const buildPlaceholderMovie = (ratings) => {
+  const rating = ratings[0];
+  const typedYear = /^\d{4}$/.test(String(rating.year || '').trim()) ? String(rating.year).trim() : null;
+  const year = typedYear || String(new Date().getFullYear());
+
+  return {
+    id: rating.id,
+    title: rating.title,
+    release_date: `${year}-01-01`,
+    runtime: 90,
+    poster_path: null,
+    backdrop_path: null,
+    genres: [],
+    cast: [],
+    crew: [],
+    keywords: [],
+    production_companies: [],
+    imdb_id: null,
+    ownership: rating.ownership || null,
+    chatGPTKeywords: collectChatGPTKeywords(ratings),
+    isPendingReconciliation: true
+  };
+}
+
+const addMovieRating = async (ratings) => {
+  if (!ratings[0].id) {
+    return;
   }
 
-  const tmdbDataWeStore = {
-    backdrop_path: tmdbData ? tmdbData.backdrop_path : null,
-    cast: tmdbData ? cast : [],
-    crew: tmdbData ? crew : [],
-    genres: tmdbData ? tmdbData.genres : [],
-    id: tmdbData ? tmdbData.id : null,
-    imdb_id: tmdbData ? tmdbData.imdb_id : null,
-    ownership: ratings[0].ownership || null,
-    poster_path: tmdbData ? tmdbData.poster_path : null,
-    production_companies: tmdbData ? tmdbData.production_companies : [],
-    release_date: tmdbData ? tmdbData.release_date : null,
-    runtime: tmdbData ? tmdbData.runtime : null,
-    title: tmdbData ? tmdbData.title : "",
-    keywords: tmdbData ? tmdbData.keywords : [],
-    chatGPTKeywords
-  };
+  const existingKey = findKeyForMovieInDatabase(ratings[0].id);
+  const existingEntry = existingKey ? store.state.movieLog[existingKey] : null;
 
-  const ratingsWithoutOwnership = ratings.map((rating) => {
-    const tempRating = { ...rating };
+  let tmdbDataWeStore;
 
-    delete tempRating.ownership;
+  if (!store.state.isOnline && existingEntry) {
+    // Offline re-rate: the movie's TMDB data is already local, skip the
+    // network call entirely.
+    tmdbDataWeStore = buildMovieFromLocalData(existingEntry.movie, ratings);
+  } else {
+    const tmdbData = await getTMDBData(ratings[0]);
 
-    return tempRating;
-  })
+    if (tmdbData) {
+      tmdbDataWeStore = shapeTmdbDataIntoMovie(tmdbData, ratings);
+    } else if (existingEntry) {
+      tmdbDataWeStore = buildMovieFromLocalData(existingEntry.movie, ratings);
+    } else {
+      // Genuinely new movie, but the TMDB fetch failed - surface this rather
+      // than silently writing a broken entry (id: null, no poster, etc.).
+      throw new Error(`Failed to fetch TMDB data for id ${ratings[0].id}`);
+    }
+  }
 
   const movieWithRating = {
     movie: tmdbDataWeStore,
-    ratings: ratingsWithoutOwnership
+    ratings: stripOwnership(ratings)
   };
 
-  const safeTitle = tmdbDataWeStore.title.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./#]/g, "-");
-  const key = findKeyForMovieInDatabase(ratings[0].id) || `${new Date().getTime()}-${crypto.randomUUID()}-${safeTitle}`;
+  const key = existingKey || safeTitleKey(tmdbDataWeStore.title);
 
   return {
     path: `movieLog/${key}`,
@@ -189,14 +271,55 @@ const addMovieRating = async (ratings) => {
 }
 
 const addRating = async (ratings) => {
-  const dbEntry = await addMovieRating(ratings);
-  store.dispatch('setDBValue', dbEntry);
+  const id = ratings[0].id;
+  if (!id) {
+    return;
+  }
+
+  let dbEntry;
+  let queueEntry;
+
+  if (isPlaceholderId(id)) {
+    const movie = buildPlaceholderMovie(ratings);
+    const ratingsWithoutOwnership = stripOwnership(ratings);
+    const key = findKeyForMovieInDatabase(id) || safeTitleKey(movie.title);
+    dbEntry = { path: `movieLog/${key}`, value: { movie, ratings: ratingsWithoutOwnership } };
+    queueEntry = {
+      type: 'placeholder',
+      dbEntry,
+      placeholderMovieId: id,
+      title: movie.title,
+      year: ratings[0].year || null,
+      ratings: ratingsWithoutOwnership,
+      status: 'unreconciled'
+    };
+  } else {
+    dbEntry = await addMovieRating(ratings);
+    if (!dbEntry) {
+      return;
+    }
+    queueEntry = { type: 'write', dbEntry };
+  }
+
+  // Optimistic local commit - the movie shows up in the grid/previous-
+  // viewings/a same-session re-edit immediately, regardless of connectivity.
+  // See setMovieLogEntry's own comment in store/index.js for why this is
+  // needed (Firebase's own optimistic-echo-via-onValue never fires here
+  // while offline, since set() is never called until the queue flushes).
+  const key = dbEntry.path.split('movieLog/')[1];
+  store.commit('setMovieLogEntry', { key, value: dbEntry.value });
+
+  // Durable queue write, then attempt an immediate flush - a fast no-op
+  // success when online, and correctly retried later when not. See
+  // pendingWriteQueue.js + store's flushPendingWrites action.
+  await enqueueWrite(queueEntry);
+  store.dispatch('flushPendingWrites');
 
   // Fire-and-forget: get this movie's poster/backdrop into the offline image
   // cache immediately, rather than only whenever it's next viewed. Not
-  // awaited - this must never slow down or fail the actual save.
-  const movie = dbEntry?.value?.movie;
-  const newImageUrls = [posterUrl(movie?.poster_path), backdropUrl(movie?.backdrop_path)].filter(Boolean);
+  // awaited - this must never slow down or fail the actual save. No-op for
+  // a placeholder (both paths are null until reconciled).
+  const newImageUrls = [posterUrl(dbEntry.value.movie?.poster_path), backdropUrl(dbEntry.value.movie?.backdrop_path)].filter(Boolean);
   if (newImageUrls.length) {
     warmImageCache(newImageUrls);
   }

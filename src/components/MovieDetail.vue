@@ -25,6 +25,10 @@
     <!-- Movie details content -->
     <div class="movie-content" v-if="movie">
       <div class="container">
+        <div v-if="movie.isPendingReconciliation" class="pending-reconciliation-notice">
+          Rated offline - not yet matched to a real movie.
+          <router-link :to="`/reconcile/${result.dbKey}`">Find the match</router-link>
+        </div>
         <div class="rating-runtime-and-date">
           <div class="line-one">
             <h3>
@@ -1805,6 +1809,23 @@ export default {
   p {
     font-size: 1rem;
     margin-bottom: 1rem;
+  }
+
+  .pending-reconciliation-notice {
+    background-color: #332701;
+    border: 1px solid #ffc107;
+    color: #ffe69c;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+
+    a {
+      color: #ffc107;
+      font-weight: 600;
+      margin-left: 0.5rem;
+      text-decoration: underline;
+    }
   }
 
   .rating-runtime-and-date {

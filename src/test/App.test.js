@@ -18,15 +18,21 @@ function factory () {
     listeners[`window:${event}`] = handler
   })
 
+  const store = {
+    state: { dbLoaded: false, isOnline: true },
+    commit: vi.fn(),
+    dispatch: vi.fn()
+  }
+
   shallowMount(App, {
     global: {
       mocks: {
-        $store: { state: { dbLoaded: false } }
+        $store: store
       }
     }
   })
 
-  return listeners
+  return { listeners, store }
 }
 
 describe('App - service worker update checks', () => {
@@ -50,7 +56,7 @@ describe('App - service worker update checks', () => {
   })
 
   it('checks for an update on visibilitychange when the page becomes visible', async () => {
-    const listeners = factory()
+    const { listeners } = factory()
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
 
     listeners['document:visibilitychange']()
@@ -58,7 +64,7 @@ describe('App - service worker update checks', () => {
   })
 
   it('does NOT check on visibilitychange when the page becomes hidden', async () => {
-    const listeners = factory()
+    const { listeners } = factory()
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
 
     listeners['document:visibilitychange']()
@@ -70,14 +76,14 @@ describe('App - service worker update checks', () => {
   // iOS's visibilitychange unreliability for standalone/home-screen PWAs is
   // exactly why these two exist as independent fallback triggers.
   it('also checks for an update on window pageshow (iOS visibilitychange fallback)', async () => {
-    const listeners = factory()
+    const { listeners } = factory()
 
     listeners['window:pageshow']()
     await vi.waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1))
   })
 
   it('also checks for an update on window focus (iOS visibilitychange fallback)', async () => {
-    const listeners = factory()
+    const { listeners } = factory()
 
     listeners['window:focus']()
     await vi.waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1))
@@ -97,7 +103,7 @@ describe('App - service worker update checks', () => {
 
   it('does not throw when the service worker API is unavailable', async () => {
     delete navigator.serviceWorker
-    const listeners = factory()
+    const { listeners } = factory()
 
     listeners['window:focus']()
     await Promise.resolve()
@@ -106,9 +112,59 @@ describe('App - service worker update checks', () => {
 
   it('swallows a failed update check instead of throwing', async () => {
     getRegistrationMock.mockRejectedValue(new Error('network error'))
-    const listeners = factory()
+    const { listeners } = factory()
 
     listeners['window:focus']()
     await vi.waitFor(() => expect(getRegistrationMock).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe('App - offline detection + pending-write flush wiring', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    Object.defineProperty(navigator, 'serviceWorker', { value: undefined, configurable: true })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('flips store.state.isOnline and dispatches a flush on the online event', () => {
+    const { listeners, store } = factory()
+
+    listeners['window:online']()
+
+    expect(store.commit).toHaveBeenCalledWith('setIsOnline', true)
+    expect(store.dispatch).toHaveBeenCalledWith('flushPendingWrites')
+  })
+
+  it('flips store.state.isOnline to false on the offline event, without dispatching a flush', () => {
+    const { listeners, store } = factory()
+
+    listeners['window:offline']()
+
+    expect(store.commit).toHaveBeenCalledWith('setIsOnline', false)
+    expect(store.dispatch).not.toHaveBeenCalledWith('flushPendingWrites')
+  })
+
+  it('attempts a flush from each of the iOS-reliability triggers too, not just the online event', () => {
+    const { listeners, store } = factory()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+
+    listeners['document:visibilitychange']()
+    listeners['window:pageshow']()
+    listeners['window:focus']()
+
+    expect(store.dispatch).toHaveBeenCalledWith('flushPendingWrites')
+    expect(store.dispatch.mock.calls.filter((call) => call[0] === 'flushPendingWrites')).toHaveLength(3)
+  })
+
+  it('attempts a flush on the periodic interval backstop too', async () => {
+    const { store } = factory()
+
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+
+    expect(store.dispatch).toHaveBeenCalledWith('flushPendingWrites')
   })
 })

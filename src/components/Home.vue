@@ -32,6 +32,15 @@
       <p v-if="didYouMeanLineSuggestions.length" class="did-you-mean-inline mb-1">Did you mean?: <template v-for="(suggestion, index) in didYouMeanLineSuggestions" :key="`${suggestion.typeLabel}-${suggestion.value}`"><a href="#" class="did-you-mean-link" @click.prevent="applyDidYouMeanSuggestion(suggestion)">{{ suggestion.value }}</a><span v-if="index < didYouMeanLineSuggestions.length - 1">, </span></template></p>
     </div>
 
+    <!-- Movies rated offline that still need to be matched to a real TMDB
+         movie (see AddRating.js/ReconcilePlaceholder.vue). Only actionable
+         once online, since reconciliation needs a TMDB search. -->
+    <div v-if="pendingReconciliations.length && $store.state.isOnline" class="pending-reconciliation-banner mx-auto my-2">
+      <router-link :to="`/reconcile/${firstPendingReconciliationDbKey}`">
+        {{ pendingReconciliations.length }} movie<span v-if="pendingReconciliations.length > 1">s</span> rated offline need{{ pendingReconciliations.length > 1 ? '' : 's' }} a match — Review
+      </router-link>
+    </div>
+
     <!-- Active Filter Chips - only show when filters are active -->
     <div v-if="activeFiltersMinusTemps.length || activeQuickLinkList !== 'title'" class="active-filters-section mx-auto my-2">
       <div class="d-flex flex-wrap align-items-center">
@@ -735,8 +744,11 @@
               <button class="btn btn-sm btn-outline-dark" @click="startNewSearch">Try Another Search</button>
             </div>
           </div>
-          <div v-else class="button-wrapper d-flex justify-content-end mb-5">
+          <div v-else-if="$store.state.isOnline" class="button-wrapper d-flex justify-content-end mb-5">
             <button class="btn btn-primary" @click="searchTMDB" id="new-rating-button">Search TMDB for {{titleCase(effectiveSearchTerm)}}</button>
+          </div>
+          <div v-else class="button-wrapper d-flex justify-content-end mb-5">
+            <button class="btn btn-primary" @click="rateOffline" id="rate-offline-button">Rate "{{titleCase(effectiveSearchTerm)}}" from memory</button>
           </div>
         </div>
         <div v-else class="no-results-but-search-type">
@@ -912,6 +924,7 @@ import {
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
 import { LAST_PLAYED_KEY, GAME_ICONS } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
+import { makePlaceholderId } from '../utils/placeholderId.js';
 import {
   countDirectors as countDirectorsUtil,
   countCastCrew as countCastCrewUtil,
@@ -1256,6 +1269,13 @@ export default {
     next();
   },
   computed: {
+    pendingReconciliations () {
+      return this.$store.state.pendingReconciliations || [];
+    },
+    firstPendingReconciliationDbKey () {
+      const entry = this.pendingReconciliations[0];
+      return entry ? entry.dbEntry.path.split('movieLog/')[1] : '';
+    },
     // The Games entry-point button shows the specific game's own icon (via
     // GAME_ICONS) whenever goToGames() would jump straight back into it, or
     // the generic controller icon whenever it would land on the hub
@@ -3180,6 +3200,23 @@ export default {
 
       this.$router.push(`/pick-media/${this.effectiveSearchTerm}`);
     },
+    // Offline counterpart to searchTMDB - bypasses TMDB search entirely with
+    // a placeholder movieToRate. See AddRating.js/placeholderId.js for how
+    // the save is queued and later reconciled against a real TMDB match.
+    rateOffline () {
+      if (!this.effectiveSearchTerm) {
+        return;
+      }
+      const media = {
+        id: makePlaceholderId(),
+        title: this.effectiveSearchTerm,
+        release_date: null,
+        poster_path: null,
+        backdrop_path: null
+      };
+      this.$store.commit('setMovieToRate', media);
+      this.$router.push('/rate-movie');
+    },
     showNoResultsMessage () {
       // No auto-revert timer - it used to silently dismiss this message and
       // flip the UI back after 30s, which read as stressful/unpredictable.
@@ -4980,6 +5017,23 @@ export default {
 }
 .did-you-mean-link:active {
   /* Mobile-first: no-hover affordance, visible press feedback */
+  opacity: 0.7;
+}
+.pending-reconciliation-banner {
+  background-color: #332701;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+  max-width: 500px;
+
+  a {
+    color: #ffe69c;
+    font-weight: 600;
+    text-decoration: underline;
+  }
+}
+.pending-reconciliation-banner a:active {
   opacity: 0.7;
 }
 .settings-panel-inline {

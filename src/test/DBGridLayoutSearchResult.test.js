@@ -66,7 +66,36 @@ describe('DBGridLayoutSearchResult — Academy Award wins/nominations, sourced f
     expect(wrapper.vm.academyAwardWins).toEqual([])
     expect(wrapper.vm.academyAwardNominations).toEqual([])
   })
+})
 
+describe('DBGridLayoutSearchResult — offline placeholder ratings (isPendingReconciliation)', () => {
+  it('shows a "Pending match" badge and falls back to the not-found poster for a placeholder result', () => {
+    const result = makeResult({ movie: { id: 'offline-abc', poster_path: null, isPendingReconciliation: true } })
+    const wrapper = factory({ result })
+
+    expect(wrapper.find('.pending-match-badge').exists()).toBe(true)
+    expect(wrapper.vm.posterImageUrl(result)).not.toContain('image.tmdb.org')
+  })
+
+  it('does not show the badge for a normal, already-matched result', () => {
+    const wrapper = factory()
+
+    expect(wrapper.find('.pending-match-badge').exists()).toBe(false)
+  })
+
+  it('routes to /reconcile/:dbKey instead of /movie/:id when a pending-reconciliation card is tapped', () => {
+    const result = makeResult({ dbKey: 'my-db-key', movie: { id: 'offline-abc', isPendingReconciliation: true } })
+    const push = vi.fn()
+    const wrapper = factory({ result })
+    wrapper.vm.$router = { push }
+
+    wrapper.vm.showDetails()
+
+    expect(push).toHaveBeenCalledWith('/reconcile/my-db-key')
+  })
+})
+
+describe('DBGridLayoutSearchResult — Academy Award wins/nominations (continued)', () => {
   it('tolerates a missing allAcademyAwards entirely without throwing (cold direct load before it has fetched)', () => {
     const result = makeResult()
     const mockStore = {

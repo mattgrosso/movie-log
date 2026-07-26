@@ -12,8 +12,9 @@ vi.mock('axios', () => ({
 }))
 
 // addRating hits Firebase — stub it to a predictable db path.
+const addRatingMock = vi.fn(() => Promise.resolve({ path: 'test-user/movieLog/new-key' }))
 vi.mock('@/assets/javascript/AddRating.js', () => ({
-  default: vi.fn(() => Promise.resolve({ path: 'test-user/movieLog/new-key' }))
+  default: (...args) => addRatingMock(...args)
 }))
 
 // Deterministic getRating: calculatedTotal = explicit value, else `overall`,
@@ -66,6 +67,7 @@ describe('RateMovie', () => {
 
   beforeEach(async () => {
     pushSpy = vi.fn()
+    addRatingMock.mockReset().mockImplementation(() => Promise.resolve({ path: 'test-user/movieLog/new-key' }))
     mockStore = {
       state: {
         movieLog: {},
@@ -220,6 +222,77 @@ describe('RateMovie', () => {
       expect(mockStore.commit).toHaveBeenCalledWith('setShowHeader', true)
       expect(pushSpy).toHaveBeenCalled()
       expect(pushSpy.mock.calls[0][0].path).toBe('/')
+    })
+  })
+
+  describe('offline placeholder rating (movieToRate with no real TMDb data yet)', () => {
+    async function mountWithPlaceholder () {
+      pushSpy = vi.fn()
+      addRatingMock.mockReset().mockImplementation(() => Promise.resolve({ path: 'test-user/movieLog/offline-key' }))
+      mockStore = {
+        state: {
+          movieLog: {},
+          movieToRate: {
+            id: 'offline-abc-123',
+            title: 'Remembered Movie',
+            release_date: null,
+            poster_path: null,
+            backdrop_path: null
+          },
+          settings: { tags: { 'viewing-tags': {} } },
+          weights: WEIGHTS,
+          databaseTopKey: 'test-user'
+        },
+        getters: { allMoviesAsArray: [] },
+        commit: vi.fn(),
+        dispatch: vi.fn()
+      }
+      const w = shallowMount(RateMovie, {
+        global: {
+          mocks: { $store: mockStore, $route: { query: {} }, $router: { push: pushSpy } },
+          stubs: { Modal: true, ToggleableRating: true, StickinessInline: true }
+        }
+      })
+      await w.vm.$nextTick()
+      return w
+    }
+
+    it('does not produce a NaN year from a null release_date', async () => {
+      const w = await mountWithPlaceholder()
+      expect(w.vm.year).toBe('')
+    })
+
+    it('rateBannerUrl is false rather than a ".../w500null" URL', async () => {
+      const w = await mountWithPlaceholder()
+      expect(w.vm.rateBannerUrl).toBe(false)
+    })
+
+    it('posterUrl falls back to the not-found image instead of ".../w500null"', async () => {
+      const w = await mountWithPlaceholder()
+      const url = w.vm.posterUrl(w.vm.movieToRate, undefined)
+      expect(url).not.toContain('null')
+      expect(url).not.toContain('image.tmdb.org')
+    })
+
+    it('still completes a normal submit flow for a placeholder id', async () => {
+      const w = await mountWithPlaceholder()
+      const result = await w.vm.addRating()
+      expect(addRatingMock).toHaveBeenCalled()
+      expect(pushSpy).toHaveBeenCalled()
+      expect(result).toBeUndefined() // addRating() (the method) doesn't return a value
+    })
+  })
+
+  describe('submit failure handling', () => {
+    it('resets loading and shows an inline error instead of hanging when AddRating.js throws', async () => {
+      addRatingMock.mockReset().mockImplementation(() => Promise.reject(new Error('Failed to fetch TMDB data for id 555')))
+
+      wrapper.vm.loading = true
+      await wrapper.vm.addRating()
+
+      expect(wrapper.vm.loading).toBe(false)
+      expect(wrapper.vm.submitError).toBeTruthy()
+      expect(pushSpy).not.toHaveBeenCalled()
     })
   })
 })

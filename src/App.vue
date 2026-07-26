@@ -42,6 +42,22 @@ export default {
         // Best-effort - a failed check just means we try again on the next
         // trigger rather than blocking anything the user is doing.
       }
+    },
+    // Offline rating support: attempt a queue flush whenever we might have
+    // just regained connectivity. Cheap/no-op if actually still offline
+    // (flushPendingWrites checks navigator.onLine itself), so it's safe to
+    // call from every trigger below rather than just the 'online' event -
+    // same reasoning as checkForServiceWorkerUpdate needing four independent
+    // triggers instead of trusting any single browser event.
+    attemptPendingWritesFlush () {
+      this.$store.dispatch('flushPendingWrites');
+    },
+    handleOnline () {
+      this.$store.commit('setIsOnline', true);
+      this.attemptPendingWritesFlush();
+    },
+    handleOffline () {
+      this.$store.commit('setIsOnline', false);
     }
   },
   async mounted () {
@@ -56,16 +72,22 @@ export default {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         this.checkForServiceWorkerUpdate();
+        this.attemptPendingWritesFlush();
       }
     });
     window.addEventListener('pageshow', () => {
       this.checkForServiceWorkerUpdate();
+      this.attemptPendingWritesFlush();
     });
     window.addEventListener('focus', () => {
       this.checkForServiceWorkerUpdate();
+      this.attemptPendingWritesFlush();
     });
+    window.addEventListener('online', this.handleOnline);
+    window.addEventListener('offline', this.handleOffline);
     setInterval(() => {
       this.checkForServiceWorkerUpdate();
+      this.attemptPendingWritesFlush();
     }, 30 * 60 * 1000);
   },
 }

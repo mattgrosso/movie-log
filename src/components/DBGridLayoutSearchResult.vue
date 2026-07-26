@@ -8,7 +8,7 @@
     <img
       class="poster"
       v-lazy="{
-        src: `https://image.tmdb.org/t/p/w342${getPosterPath(result)}`,
+        src: posterImageUrl(result),
         loading: placeholderImage
       }"
     >
@@ -19,6 +19,9 @@
         <span class="visually-hidden">Loading...</span>
       </div>
     </div>
+
+    <!-- Rated offline, not yet matched to a real TMDB movie (see AddRating.js) -->
+    <span v-if="topStructure(result).isPendingReconciliation" class="pending-match-badge">Pending match</span>
 
     <div class="details">
       <span v-if="activeQuickLinkList === 'bestPicture'">
@@ -265,6 +268,7 @@ import InsetBrowserModal from './InsetBrowserModal.vue';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import placeholderImage from '../assets/images/sheen-placeholder.jpg';
+import notFoundImage from '../assets/images/Image_not_available.png';
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
@@ -427,6 +431,11 @@ export default {
     showDetails () {
       if (this.result.falseEntry) {
         this.goToWikipedia(this.result.movie.title);
+        return;
+      }
+
+      if (this.topStructure(this.result).isPendingReconciliation) {
+        this.$router.push(`/reconcile/${this.result.dbKey}`);
         return;
       }
 
@@ -678,6 +687,16 @@ export default {
       // Check if user has selected a custom poster
       return result.customPosterPath || this.topStructure(result).poster_path;
     },
+    posterImageUrl (result) {
+      const path = this.getPosterPath(result);
+      // A placeholder rating (or any entry with no poster path yet) has
+      // nothing to append here - fall back to the same "not found" image
+      // PickMedia.vue already uses, instead of ".../w342null".
+      if (!path) {
+        return notFoundImage;
+      }
+      return `https://image.tmdb.org/t/p/w342${path}`;
+    },
     getBackdropPath (result) {
       // Check if user has selected a custom backdrop
       return result.customBackdropPath || this.topStructure(result).backdrop_path;
@@ -756,6 +775,19 @@ export default {
       justify-content: space-between;
       padding: 0.5rem;
       align-items: center;
+    }
+
+    .pending-match-badge {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      background-color: #ffc107;
+      color: #000;
+      font-size: 0.55rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      z-index: 5;
     }
   }
 

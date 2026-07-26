@@ -8,6 +8,7 @@ import { getRating } from "../assets/javascript/GetRating";
 import router from '@/router';
 import ErrorLogService from "../services/ErrorLogService.js";
 import { saveSnapshot, loadSnapshot } from "../utils/offlineStore.js";
+import { listPendingWrites, removePendingWrite, updatePendingWrite } from "../utils/pendingWriteQueue.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -51,6 +52,21 @@ const removeNaNAndUndefined = (obj) => {
     }
   }
   return obj;
+};
+
+// Shared write core behind both setDBValue (debounced, direct UI saves) and
+// flushPendingWrites (queued offline/retry saves, which deliberately bypass
+// that debounce - a queued entry is already a single, deliberately-deduped
+// write, see pendingWriteQueue.js's enqueueWrite).
+const performDatabaseWrite = async (context, dbEntry) => {
+  try {
+    const cleanedValue = removeNaNAndUndefined(dbEntry.value);
+    await set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedValue);
+  } catch (error) {
+    console.error('Error setting database value:', error);
+    ErrorLogService.error('Error setting database value:', dbEntry.path, error);
+    throw error;
+  }
 };
 
 // Firebase
@@ -135,6 +151,16 @@ export default createStore({
     // Simple save debouncing
     lastSavePath: null,
     lastSaveTime: 0,
+    // Offline rating support: isOnline drives which entry points/paths are
+    // reachable (see AddRating.js, RateMovie.vue, Home.vue), and is flipped
+    // by App.vue's 'online'/'offline' listeners. isFlushingPendingWrites
+    // guards flushPendingWrites against overlapping passes when its several
+    // triggers (see App.vue) fire close together. pendingReconciliations
+    // mirrors the pendingWriteQueue's unreconciled placeholder entries, kept
+    // in Vuex so Home.vue can reactively show a "needs a match" banner.
+    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    isFlushingPendingWrites: false,
+    pendingReconciliations: [],
   },
   getters: {
     allMediaAsArray: (state) => {
@@ -207,6 +233,25 @@ export default createStore({
     },
     setMovieToRate (state, movie) {
       state.movieToRate = movie;
+    },
+    // Applies a single movieLog write to local state immediately, regardless
+    // of connectivity - the optimistic-commit half of offline rating support
+    // (see AddRating.js). Without this, an offline write would only queue to
+    // IndexedDB and wouldn't show up anywhere (grid, previous viewings, a
+    // same-session re-edit) until the queue actually flushes. setMovieLog
+    // freezes movieLog wholesale, so this rebuilds+refreezes a new object
+    // rather than mutating the existing (frozen) one in place.
+    setMovieLogEntry (state, { key, value }) {
+      state.movieLog = Object.freeze({ ...state.movieLog, [key]: value });
+    },
+    setIsOnline (state, value) {
+      state.isOnline = value;
+    },
+    setIsFlushingPendingWrites (state, value) {
+      state.isFlushingPendingWrites = value;
+    },
+    setPendingReconciliations (state, value) {
+      state.pendingReconciliations = value;
     },
     setDBSearchValue (state, value) {
       state.DBSearchValue = value;
@@ -442,6 +487,13 @@ export default createStore({
           ErrorLogService.error('Failed to get full awards dataset:', error);
         }
       }
+
+      // Covers a cold start with leftover queue items from a previously
+      // offline-killed session: flush if already online (no-ops otherwise),
+      // and always refresh the reconciliation banner state regardless of
+      // connectivity.
+      context.dispatch('flushPendingWrites');
+      context.dispatch('refreshPendingReconciliations');
     },
     // todo: should I delete this? Nothing is calling it but it seems like something I kind of need...
     async initiateNewDatabase (context) {
@@ -472,13 +524,50 @@ export default createStore({
         return;
       }
 
+      await performDatabaseWrite(context, dbEntry);
+    },
+    // Recomputes state.pendingReconciliations from the pendingWriteQueue -
+    // cheap, purely local (IndexedDB) read, safe to call regardless of
+    // connectivity so Home.vue's "needs a match" banner reflects reality
+    // even before the next successful flush.
+    async refreshPendingReconciliations (context) {
+      const pending = await listPendingWrites();
+      context.commit('setPendingReconciliations', pending.filter((entry) => entry.type === 'placeholder' && entry.status !== 'reconciled'));
+    },
+    // Processes the durable offline-write queue (see pendingWriteQueue.js) in
+    // order once online: attempts each entry's write, removes 'write' entries
+    // on success, marks 'placeholder' entries written (kept for
+    // reconciliation), and records attempts/lastError on failure without
+    // aborting the rest of the pass. Triggered from App.vue's 'online' event
+    // + its other iOS-reliability triggers/interval, and once from
+    // initializeDB on a cold start that's already online.
+    async flushPendingWrites (context) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      if (context.state.isFlushingPendingWrites) return;
+      if (!context.getters.databaseTopKey) return;
+
+      context.commit('setIsFlushingPendingWrites', true);
       try {
-        const cleanedValue = removeNaNAndUndefined(dbEntry.value);
-        await set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedValue);
-      } catch (error) {
-        console.error('Error setting database value:', error);
-        ErrorLogService.error('Error setting database value:', dbEntry.path, error);
-        throw error;
+        const pending = await listPendingWrites();
+
+        for (const entry of pending) {
+          if (!entry.dbEntry) continue;
+
+          try {
+            await performDatabaseWrite(context, entry.dbEntry);
+            if (entry.type === 'write') {
+              await removePendingWrite(entry.id);
+            } else {
+              await updatePendingWrite(entry.id, { written: true });
+            }
+          } catch (error) {
+            await updatePendingWrite(entry.id, { attempts: (entry.attempts || 0) + 1, lastError: String(error) });
+          }
+        }
+
+        await context.dispatch('refreshPendingReconciliations');
+      } finally {
+        context.commit('setIsFlushingPendingWrites', false);
       }
     },
     // This action adds a TV show to the list of recently rated TV shows in the user's settings.

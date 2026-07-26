@@ -5,6 +5,7 @@ const Home = () => import(/* webpackChunkName: "home" */ "../components/Home.vue
 const Login = () => import(/* webpackChunkName: "login" */ "../components/Login.vue");
 const PickMedia = () => import(/* webpackChunkName: "pick-media" */ "../components/PickMedia.vue");
 const RateMovie = () => import(/* webpackChunkName: "rate-movie" */ "../components/RateMovie.vue");
+const ReconcilePlaceholder = () => import(/* webpackChunkName: "reconcile-placeholder" */ "../components/ReconcilePlaceholder.vue");
 const Insights = () => import(/* webpackChunkName: "insights" */ "../components/Insights.vue");
 const ShareDBResults = () => import(/* webpackChunkName: "share-db-results" */ "../components/ShareDBResults.vue");
 const MovieDetail = () => import(/* webpackChunkName: "movie-detail" */ "../components/MovieDetail.vue");
@@ -63,6 +64,20 @@ const routes = [
   {
     path: '/rate-movie',
     component: RateMovie,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/reconcile/:dbKey',
+    component: ReconcilePlaceholder,
     meta: {
       requiresLogin: true
     },

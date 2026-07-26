@@ -1,31 +1,12 @@
 <template>
-  <div class="pick-media mx-auto">
-    <ul class="p-0 d-flex justify-content-around flex-wrap">
-      <li class="card shadow border" v-for="media in displayList" :key="media.id" @click="rateMedia(media)">
-        <img
-          v-if="media.poster_path"
-          class="card-img-top"
-          :src="`https://image.tmdb.org/t/p/w500${media.poster_path}`"
-          align="center"
-        >
-        <img
-          v-else
-          class="card-img-top not-found"
-          src="../assets/images/Image_not_available.png"
-          align="center"
-        >
-        <p class="my-3 mx-1 card-text text-center" :title="getTitle(media)">
-          {{truncate(getTitle(media))}}
-          <br>
-          {{getReleaseDate(media)}}
-        </p>
-      </li>
-    </ul>
-  </div>
+  <MediaResultGrid :mediaList="displayList" :isTVShow="currentLogIsTVLog" @select="rateMedia" />
 </template>
 
 <script>
+import MediaResultGrid from './MediaResultGrid.vue';
+
 export default {
+  components: { MediaResultGrid },
   props: {
     quickPick: {
       type: Boolean,
@@ -67,55 +48,6 @@ export default {
         this.$router.push('/rate-movie');
       }
     },
-    getTitle (media) {
-      if (this.currentLogIsTVLog) {
-        return media.name;
-      } else {
-        return media.title;
-      }
-    },
-    getReleaseDate (media) {
-      if (this.currentLogIsTVLog) {
-        return media.first_air_date;
-      } else {
-        return media.release_date;
-      }
-    },
-    truncate (string) {
-      if (string.length > 15) {
-        return `${string.substr(0, 13)}...`;
-      } else {
-        return string;
-      }
-    }
   },
 }
 </script>
-
-<style lang="scss">
-  .pick-media {
-    max-width: 832px;
-
-    ul {
-      column-gap: 1rem;
-      list-style: none;
-      margin: 1rem 1rem 2rem;
-      row-gap: 1rem;
-
-      .card {
-        border-radius: 4px;
-        cursor: pointer;
-        width: calc((100% - 2rem) / 3);
-
-        .not-found {
-          padding: 48px 0;
-        }
-
-        p {
-          color: black;
-          font-size: .75rem;
-        }
-      }
-    }
-  }
-</style>
