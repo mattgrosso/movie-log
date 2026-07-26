@@ -308,7 +308,6 @@ export default {
       getAllRatings,
       showInsetBrowserModal: false,
       insetBrowserUrl: "",
-      awardsData: null,
       letterboxdData: null,
       placeholderImage,
       isLoading: false
@@ -325,9 +324,6 @@ export default {
   },
   watch: {
     async showDetailsModal (val) {
-      if (val && !this.awardsData) {
-        this.awardsData = this.getAwardsData();
-      }
       if (val && this.$store.state.settings.letterboxdConnected && this.$store.state.settings.letterboxdUsername) {
         this.checkLetterboxdData();
       }
@@ -344,17 +340,24 @@ export default {
         return entry.dbKey === this.result.dbKey;
       })
     },
+    // Reads the locally-cached, already-normalized FULL Academy Awards
+    // dataset (state.allAcademyAwards — see CLAUDE.md's "Full Academy
+    // Awards Dataset, Cached Locally") instead of a live per-movie fetch.
+    // Being a plain computed also fixes a real latent bug the old fetch-
+    // on-modal-open mechanism had: `showDetailsModal`'s watcher used to do
+    // `this.awardsData = this.getAwardsData()`, assigning the un-awaited
+    // PROMISE (getAwardsData is async) rather than the resolved array, so
+    // `Array.isArray(this.awardsData)` was always false and this whole
+    // section silently rendered empty for every user, every time.
+    awardsForResult () {
+      const movieId = String(this.topStructure(this.result).id);
+      return (this.$store.state.allAcademyAwards || []).filter((award) => String(award.tmdb) === movieId);
+    },
     academyAwardWins () {
-      if (!Array.isArray(this.awardsData)) {
-        return [];
-      }
-      return sortByAcademyCategoryOrder(this.awardsData.filter((award) => award.isWinner));
+      return sortByAcademyCategoryOrder(this.awardsForResult.filter((award) => award.isWinner));
     },
     academyAwardNominations () {
-      if (!Array.isArray(this.awardsData)) {
-        return [];
-      }
-      return sortByAcademyCategoryOrder(this.awardsData.filter((award) => !award.isWinner));
+      return sortByAcademyCategoryOrder(this.awardsForResult.filter((award) => !award.isWinner));
     },
     sortedFlatKeywords () {
       return this.topStructure(this.result).flatKeywords.sort((a, b) => {
@@ -363,21 +366,6 @@ export default {
     }
   },
   methods: {
-    async getAwardsData () {
-      try {
-        const response = await axios.get(`https://web-production-b8145.up.railway.app/awards/tmdb/${this.topStructure(this.result).id}`);
-        this.awardsData = response.data.map((item) => {
-          return {
-            ...item,
-            isActing: ['TRUE', '1', true].includes(item.isActing),
-            isWinner: ['TRUE', '1', true].includes(item.isWinner)
-          }
-        });
-      } catch (error) {
-        console.error('Failed to get awards data:', error);
-        ErrorLogService.error('Failed to get awards data:', error);
-      }
-    },
     async checkLetterboxdData () {
       if (!this.$store.state.settings.letterboxdConnected) {
         return;

@@ -527,7 +527,6 @@ export default {
       movie: null,
       result: null, // Will be constructed from movie data
       previousEntry: null,
-      awardsData: null,
       letterboxdData: null,
       getAllRatings,
       isLoading: false,
@@ -575,17 +574,28 @@ export default {
     }
   },
   computed: {
+    // Reads the locally-cached, already-normalized FULL Academy Awards
+    // dataset (state.allAcademyAwards, fetched once at initializeDB — see
+    // CLAUDE.md's "Full Academy Awards Dataset, Cached Locally") instead of
+    // a live per-movie network call this page used to make on every visit.
+    // Compared as strings on both sides — the API's `tmdb` field is a
+    // numeric-looking string, and string comparison sidesteps any
+    // Number()-coercion edge case (same reasoning as
+    // connectionsGenerator.js's buildAcademyWinsByTmdbId, which hits this
+    // exact same dataset). Being a plain computed (derived from this.movie
+    // + the store) also structurally eliminates the stale-data-across-
+    // navigation bug the old manually-managed `data().awardsData` field
+    // used to need an explicit reset for — there's nothing to reset now.
+    awardsForMovie () {
+      if (!this.movie) return [];
+      const movieId = String(this.movie.id);
+      return (this.$store.state.allAcademyAwards || []).filter((award) => String(award.tmdb) === movieId);
+    },
     academyAwardWins () {
-      if (!Array.isArray(this.awardsData)) {
-        return [];
-      }
-      return sortByAcademyCategoryOrder(this.awardsData.filter((award) => award.isWinner));
+      return sortByAcademyCategoryOrder(this.awardsForMovie.filter((award) => award.isWinner));
     },
     academyAwardNominations () {
-      if (!Array.isArray(this.awardsData)) {
-        return [];
-      }
-      return sortByAcademyCategoryOrder(this.awardsData.filter((award) => !award.isWinner));
+      return sortByAcademyCategoryOrder(this.awardsForMovie.filter((award) => !award.isWinner));
     },
     // My personal awards (PersonalAwardsModal.vue) — settings.personalAwards is
     // keyed by year, each year holding { categories: { <key>: { nominees, winner } } }.
@@ -839,15 +849,6 @@ export default {
   methods: {
     async loadMovieData (tmdbId) {
       try {
-        // Reset per-movie data fetched from external APIs. MovieDetail's
-        // component instance is REUSED (not remounted) when navigating from
-        // one movie's page to another's — only $route.params.tmdbId changes —
-        // so without this, awardsData from the previous movie stayed truthy
-        // and the `if (!this.awardsData)` guard below silently skipped
-        // fetching the new movie's awards, leaving the old movie's Academy
-        // Award wins/nominations displayed on the new movie's page.
-        this.awardsData = null;
-
         // Wait for database to be loaded if it isn't already
         if (!this.$store.state.dbLoaded) {
           // Wait for database to load
@@ -877,11 +878,6 @@ export default {
           // For now, redirect back to home if movie not found
           this.$router.push('/');
           return;
-        }
-
-        // Load awards data if available
-        if (!this.awardsData) {
-          await this.getAwardsData();
         }
 
         // Load Letterboxd data if available
@@ -1020,22 +1016,6 @@ export default {
     formattedDate (date) {
       if (!date) return '';
       return new Date(date).toLocaleDateString();
-    },
-
-    async getAwardsData () {
-      try {
-        const response = await axios.get(`https://web-production-b8145.up.railway.app/awards/tmdb/${this.movie.id}`);
-        this.awardsData = response.data.map((item) => {
-          return {
-            ...item,
-            isActing: ['TRUE', '1', true].includes(item.isActing),
-            isWinner: ['TRUE', '1', true].includes(item.isWinner)
-          }
-        });
-      } catch (error) {
-        console.error('Failed to get awards data:', error);
-        ErrorLogService.error('Failed to get awards data:', error);
-      }
     },
 
     // Same pattern as Insights.resumeAwards — jump straight into that year's

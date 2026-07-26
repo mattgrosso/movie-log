@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import MovieDetail from '@/components/MovieDetail.vue'
-import axios from 'axios'
 
 vi.mock('axios', () => ({
   default: {
@@ -203,29 +202,30 @@ describe('MovieDetail - awards sections', () => {
     })
   })
 
-  describe('loadMovieData does not leak Academy Award data across movies', () => {
-    // Regression test: MovieDetail's component instance is REUSED (not
-    // remounted) when navigating from one movie's page directly to
-    // another's via router params — found while manually verifying the new
-    // awards sections in the browser, where the "Other Ceremonies"/"My
-    // Awards" work made the pre-existing bug obvious (the second movie kept
-    // showing the FIRST movie's Academy Award wins/nominations).
-    it('refetches and replaces awardsData when the route moves to a different movie', async () => {
+  describe('Academy Award wins/nominations, sourced from the locally-cached full dataset (state.allAcademyAwards) instead of a live per-movie fetch', () => {
+    // Formerly a regression test for a real leak bug: MovieDetail's
+    // component instance is REUSED (not remounted) when navigating from one
+    // movie's page directly to another's via router params, and the old
+    // manually-managed `data().awardsData` field stayed stale across that
+    // navigation unless explicitly reset. Now that academyAwardWins/
+    // academyAwardNominations are a plain computed derived from
+    // `this.movie` + the store (see MovieDetail.vue's awardsForMovie), that
+    // whole class of bug is structurally impossible — there's no cached
+    // field left to go stale. Kept as a behavioral test of the same
+    // scenario (switching movies shows the right movie's wins) rather than
+    // deleted, since the underlying behavior still deserves coverage.
+    it('shows only the CURRENT movie\'s wins/nominations, filtered from the shared full dataset, and switches cleanly when the route changes', async () => {
       const movieA = { id: 42, title: 'Oppenheimer', release_date: '2023-07-19', runtime: 180, poster_path: '/a.jpg', genres: [], crew: [] };
       const movieB = { id: 99, title: 'Some Other Film', release_date: '2010-01-01', runtime: 100, poster_path: '/b.jpg', genres: [], crew: [] };
 
-      axios.get.mockImplementation((url) => {
-        if (url.includes('/awards/tmdb/42')) {
-          return Promise.resolve({ data: [{ id: 1, category: 'Best Original Score', isActing: '0', isWinner: '1' }] });
-        }
-        if (url.includes('/awards/tmdb/99')) {
-          return Promise.resolve({ data: [{ id: 2, category: 'Best Original Screenplay', isActing: '0', isWinner: '1' }] });
-        }
-        return Promise.resolve({ data: [] });
-      });
+      const allAcademyAwards = [
+        { id: 1, tmdb: '42', category: 'Best Original Score', isActing: false, isWinner: true },
+        { id: 2, tmdb: '42', category: 'Best Original Screenplay', isActing: false, isWinner: false },
+        { id: 3, tmdb: '99', category: 'Best Original Screenplay', isActing: false, isWinner: true }
+      ];
 
       const mockStore = {
-        state: { movieLog: {}, settings: { tags: { 'viewing-tags': {} } }, academyAwardWinners: {}, dbLoaded: true },
+        state: { movieLog: {}, settings: { tags: { 'viewing-tags': {} } }, academyAwardWinners: {}, allAcademyAwards, dbLoaded: true },
         getters: { allMediaAsArray: [{ dbKey: 'a', movie: movieA, ratings: [] }, { dbKey: 'b', movie: movieB, ratings: [] }] },
         commit: vi.fn(),
         dispatch: vi.fn()
@@ -244,9 +244,36 @@ describe('MovieDetail - awards sections', () => {
 
       await wrapper.vm.loadMovieData('42');
       expect(wrapper.vm.academyAwardWins.map((a) => a.category)).toEqual(['Best Original Score']);
+      expect(wrapper.vm.academyAwardNominations.map((a) => a.category)).toEqual(['Best Original Screenplay']);
 
       await wrapper.vm.loadMovieData('99');
       expect(wrapper.vm.academyAwardWins.map((a) => a.category)).toEqual(['Best Original Screenplay']);
+      expect(wrapper.vm.academyAwardNominations).toEqual([]);
+    });
+
+    it('tolerates a missing/empty allAcademyAwards (cold direct navigation before it loads) without throwing', async () => {
+      const movieA = { id: 42, title: 'Oppenheimer', release_date: '2023-07-19', runtime: 180, poster_path: '/a.jpg', genres: [], crew: [] };
+      const mockStore = {
+        state: { movieLog: {}, settings: { tags: { 'viewing-tags': {} } }, academyAwardWinners: {}, dbLoaded: true },
+        getters: { allMediaAsArray: [{ dbKey: 'a', movie: movieA, ratings: [] }] },
+        commit: vi.fn(),
+        dispatch: vi.fn()
+      };
+
+      const wrapper = shallowMount(MovieDetail, {
+        global: {
+          mocks: {
+            $store: mockStore,
+            $route: { params: { tmdbId: '42' }, query: {} },
+            $router: { push: vi.fn() }
+          },
+          stubs: { ToggleableRating: true, Modal: true }
+        }
+      });
+
+      await wrapper.vm.loadMovieData('42');
+      expect(wrapper.vm.academyAwardWins).toEqual([]);
+      expect(wrapper.vm.academyAwardNominations).toEqual([]);
     });
   });
 })
