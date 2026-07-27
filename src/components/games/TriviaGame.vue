@@ -1,0 +1,409 @@
+<template>
+  <div class="trivia-game">
+    <BackLink label="Games" @click="$router.push('/games')"/>
+
+    <div v-if="eligibleGameEntries.length < 5" class="not-enough-movies">
+      <p>Rate a few more movies before there's enough to quiz you on.</p>
+      <NewRatingSearch value="" :suggestionsMode="true"/>
+    </div>
+
+    <template v-else>
+      <p class="game-subtitle">Real trivia, hardest fact first. Guess the movie in as few facts as you can.</p>
+
+      <div class="score-row">
+        <span>Facts used: <strong>{{ revealedCount }}</strong></span>
+        <span>Best: <strong>{{ bestFactsUsed != null ? bestFactsUsed : '—' }}</strong></span>
+      </div>
+
+      <p v-if="loading" class="status-line">Digging up trivia&hellip;</p>
+
+      <div v-else-if="loadError" class="load-error">
+        <p>Couldn't load trivia for this movie right now.</p>
+        <div class="error-actions">
+          <button type="button" class="btn-game btn-game-secondary btn-game-sm" @click="fetchFacts(target)">Try Again</button>
+          <button type="button" class="btn-game btn-game-secondary btn-game-sm" @click="startNewRound">New Movie</button>
+        </div>
+      </div>
+
+      <template v-else>
+        <ul class="fact-list">
+          <li
+            v-for="(fact, index) in visibleFacts"
+            :key="index"
+            class="fact-row"
+            :class="{ current: index === visibleFacts.length - 1 && status === 'playing' }"
+          >
+            <span class="fact-number">{{ index + 1 }}</span>
+            <span class="fact-text">{{ fact }}</span>
+          </li>
+        </ul>
+
+        <div v-if="status === 'playing'" class="guess-form">
+          <input
+            v-model="guessInput"
+            type="text"
+            class="game-input"
+            placeholder="Guess the movie…"
+            @input="onInput"
+          >
+          <ul v-if="suggestions.length" class="suggestions">
+            <li v-for="entry in suggestions" :key="entryKeyFor(entry)">
+              <button type="button" class="suggestion-item" @click="submitGuess(entry)">
+                {{ entry.movie.title }} <span class="suggestion-year">({{ suggestionYear(entry) }})</span>
+              </button>
+            </li>
+          </ul>
+
+          <div class="playing-actions">
+            <button
+              type="button"
+              class="btn-game btn-game-secondary btn-game-sm"
+              :disabled="revealedCount >= facts.length"
+              @click="revealNextFact"
+            >
+              Next Clue
+            </button>
+            <button type="button" class="btn-game btn-game-secondary btn-game-sm" @click="giveUp">Reveal Answer</button>
+          </div>
+        </div>
+
+        <div v-else class="result-banner" :class="status">
+          <p v-if="status === 'won'">Got it — <strong>{{ target.movie.title }}</strong>! Solved in {{ revealedCount }} fact{{ revealedCount === 1 ? '' : 's' }}.</p>
+          <p v-else>It was <strong>{{ target.movie.title }}</strong>.</p>
+          <img v-if="gamePosterUrl(target)" :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
+          <button type="button" class="btn-game btn-game-primary btn-game-sm full-width" @click="startNewRound">New Round</button>
+        </div>
+      </template>
+    </template>
+  </div>
+</template>
+
+<script>
+import axios from 'axios';
+import BackLink from './BackLink.vue';
+import NewRatingSearch from '../NewRatingSearch.vue';
+import gameDataMixin from '../../mixins/gameData.js';
+import { entryKey } from '../../assets/javascript/games/gameUtils.js';
+import { pickTriviaTarget, clampRevealedCount, isNewBestScore } from '../../assets/javascript/games/trivia.js';
+import triviaBanner from '../../assets/images/games/trivia-banner.jpg';
+
+export default {
+  name: 'TriviaGame',
+  components: { BackLink, NewRatingSearch },
+  mixins: [gameDataMixin],
+  // Custom banner graphic (with its own "Trivia / Cinema Roll Games"
+  // branding baked in) in place of the usual movie-backdrop banner, and
+  // hides the "Cinema Roll" title overlay so it doesn't compete with that
+  // baked-in branding — same pattern as every other game, see CLAUDE.md.
+  created () {
+    this.previousBannerUrl = this.$store.state?.bannerUrl;
+    this.$store.commit?.('setBannerUrl', triviaBanner);
+    this.$store.commit?.('setHideHeaderLogo', true);
+  },
+  beforeUnmount () {
+    this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
+    this.$store.commit?.('setHideHeaderLogo', false);
+  },
+  data () {
+    return {
+      target: null,
+      facts: [],
+      revealedCount: 1,
+      status: 'playing',
+      loading: false,
+      loadError: false,
+      guessInput: '',
+      suggestions: []
+    };
+  },
+  computed: {
+    bestFactsUsed () {
+      return this.$store.state.settings?.games?.triviaBestFactsUsed ?? null;
+    },
+    visibleFacts () {
+      return this.facts.slice(0, this.revealedCount);
+    }
+  },
+  // Same "wait for real data, only act if nothing's loaded yet" pattern as
+  // Reel Wordle/Six Degrees/Clue Budget — the library may still be loading
+  // when this component mounts.
+  watch: {
+    eligibleGameEntries: {
+      immediate: true,
+      handler (entries) {
+        if (this.target || !entries.length) return;
+        this.startNewRound();
+      }
+    }
+  },
+  methods: {
+    entryKeyFor: entryKey,
+    suggestionYear (entry) {
+      const date = entry?.movie?.release_date;
+      return date ? new Date(date).getFullYear() : 'Unknown';
+    },
+    onInput () {
+      const term = this.guessInput.trim().toLowerCase();
+      if (term.length < 2) {
+        this.suggestions = [];
+        return;
+      }
+      this.suggestions = this.eligibleGameEntries
+        .filter((entry) => entry.movie.title.toLowerCase().includes(term))
+        .slice(0, 8);
+    },
+    // A guess is always picked from the player's own library (via the
+    // suggestions dropdown, never free text), so it's always a real movie
+    // — comparing identity is simpler and more reliable than fuzzy title
+    // matching (handles remakes/shared titles for free too). A wrong guess
+    // costs a clue, same as tapping "Next Clue" — both just advance the
+    // same revealedCount, so the score doesn't care which path got you
+    // there.
+    submitGuess (entry) {
+      if (this.status !== 'playing' || !this.target) return;
+      this.guessInput = '';
+      this.suggestions = [];
+      if (entryKey(entry) === entryKey(this.target)) {
+        this.win();
+      } else {
+        this.revealNextFact();
+      }
+    },
+    revealNextFact () {
+      if (this.status !== 'playing') return;
+      this.revealedCount = clampRevealedCount(this.revealedCount + 1, this.facts.length);
+    },
+    // Always available while playing — ends the round without a score,
+    // same "give up" convention as Clue Budget's Reveal Poster / Six
+    // Degrees' Give Up.
+    giveUp () {
+      if (this.status !== 'playing') return;
+      this.revealedCount = this.facts.length;
+      this.status = 'revealed';
+    },
+    win () {
+      this.status = 'won';
+      if (isNewBestScore(this.revealedCount, this.bestFactsUsed)) {
+        this.$store.dispatch('setDBValue', { path: 'settings/games/triviaBestFactsUsed', value: this.revealedCount });
+      }
+    },
+    startNewRound () {
+      const pool = this.eligibleGameEntries;
+      if (!pool.length) return;
+      const excludeKey = this.target ? entryKey(this.target) : null;
+      const nextTarget = pickTriviaTarget(pool, excludeKey, Math.random);
+      this.target = nextTarget;
+      this.facts = [];
+      this.revealedCount = 1;
+      this.status = 'playing';
+      this.loadError = false;
+      this.guessInput = '';
+      this.suggestions = [];
+      this.fetchFacts(nextTarget);
+    },
+    // Claude-backed AI lambda (see aws-lambda/claude-ai.js's /trivia route)
+    // — real, hardest-to-easiest trivia about the movie, not just TMDB
+    // fields (the same distinction Clue Budget's clues deliberately DON'T
+    // make — this game exists specifically because that request wanted
+    // "more trivia-like questions" than structured data can provide).
+    async fetchFacts (roundTarget) {
+      const title = roundTarget?.movie?.title;
+      if (!title) return;
+      // Compare by identity KEY, not object reference — Vue wraps this.target
+      // in a reactive proxy on read, so `this.target !== roundTarget` (the raw
+      // object captured before assignment) never matches, permanently
+      // stalling this fetch. Same class of bug as ClueBudgetGame.vue's three
+      // near-identical staleness guards, discovered here via a real test.
+      const roundKey = entryKey(roundTarget);
+      this.loading = true;
+      this.loadError = false;
+      try {
+        const year = roundTarget.movie.release_date ? new Date(roundTarget.movie.release_date).getFullYear() : '';
+        const response = await axios.post(
+          `${process.env.VUE_APP_AI_API_URL}/trivia`,
+          { title, year },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+        if (entryKey(this.target) !== roundKey) return; // a newer round has since started
+        const facts = Array.isArray(response?.data?.facts) ? response.data.facts.filter((fact) => typeof fact === 'string' && fact.trim()) : [];
+        if (!facts.length) {
+          this.loadError = true;
+        } else {
+          this.facts = facts;
+          this.revealedCount = clampRevealedCount(this.revealedCount, facts.length);
+        }
+      } catch (error) {
+        if (entryKey(this.target) !== roundKey) return;
+        this.loadError = true;
+      } finally {
+        if (entryKey(this.target) === roundKey) this.loading = false;
+      }
+    }
+  }
+};
+</script>
+
+<style lang="scss" scoped>
+@import '@/assets/scss/game-buttons';
+@import '@/assets/scss/game-inputs';
+
+.trivia-game {
+  color: #eee;
+  min-height: 100vh;
+  // Safety margin against BackLink overlapping this screen's own content
+  // when the global Header happens to have zero height — same fix as
+  // every other game component.
+  padding: 1.75rem 1rem 2rem;
+}
+
+.game-subtitle {
+  color: #adb5bd;
+  margin-top: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.not-enough-movies {
+  color: #adb5bd;
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.score-row strong {
+  color: #4caf50;
+}
+
+/* Always rendered so its text can swap in place without adding/removing an
+   element — same anti-layout-jump convention used across every game. */
+.status-line {
+  color: #adb5bd;
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+.load-error {
+  color: #adb5bd;
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+.error-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+.fact-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.fact-row {
+  align-items: flex-start;
+  background: #1a1a1a;
+  border-left: 4px solid #333;
+  border-radius: 0.4rem;
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+  padding: 0.65rem 0.8rem;
+}
+
+.fact-row.current {
+  border-left-color: #ffc107;
+}
+
+.fact-number {
+  color: #777;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.fact-row.current .fact-number {
+  color: #ffc107;
+}
+
+.fact-text {
+  color: #eee;
+  font-size: 0.95rem;
+}
+
+.guess-form {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.suggestions {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 0.35rem;
+  list-style: none;
+  margin: 0.25rem 0 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 5;
+}
+
+.suggestion-item {
+  background: transparent;
+  border: none;
+  color: #eee;
+  display: block;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  width: 100%;
+}
+
+.suggestion-item:active {
+  background: #333;
+}
+
+.suggestion-year {
+  color: #adb5bd;
+  font-size: 0.85em;
+}
+
+.playing-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.playing-actions .btn-game {
+  flex: 1;
+}
+
+// Left-accent-bar callout, same treatment as Clue Budget/Reel
+// Wordle/Connections' result banners — a purpose-built look rather than a
+// generic colored box.
+.result-banner {
+  background: #1a1a1a;
+  border-left: 4px solid #4caf50;
+  border-radius: 0.4rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.result-banner.revealed {
+  border-left-color: #ff6a6a;
+}
+
+.reveal-poster {
+  border-radius: 0.35rem;
+  max-width: 160px;
+  margin: 0.5rem auto;
+  display: block;
+  width: 100%;
+}
+</style>

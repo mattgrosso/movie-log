@@ -98,6 +98,12 @@ export default {
           name: 'Tag',
           icon: GAME_ICONS['/games/tagline'],
           description: 'See a real movie tagline, pick which of 4 posters it belongs to. Keep your streak alive.'
+        },
+        {
+          path: '/games/trivia',
+          name: 'Trivia',
+          icon: GAME_ICONS['/games/trivia'],
+          description: 'Real trivia about a random movie, hardest fact first. Guess it in as few facts as you can.'
         }
       ]
     };

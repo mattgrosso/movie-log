@@ -281,6 +281,24 @@ describe('ClueBudgetGame', () => {
     expect(wrapper.vm.suggestions.map((e) => e.movie.title)).toEqual(['Movie 3']);
   });
 
+  // Regression guard for a real bug found while building the Trivia game:
+  // this.target !== roundTarget compared a reactive-proxy-wrapped read
+  // against the raw object captured before assignment, which never matches
+  // once Vue actually wraps the value — silently discarding every live
+  // fetch below and leaving every clue on its static fallback price. No
+  // prior test exercised the SUCCESS path (only the fallback-pricing
+  // shape), so this was never caught. Fixed by comparing entryKey(...)
+  // instead of object identity.
+  it('live TMDB data actually merges into the clue deck once the fetches resolve', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    expect(wrapper.vm.liveExtras.tagline).toBe('A test tagline.');
+    expect(wrapper.vm.liveExtras.peoplePopularity).toEqual({ 'Cast One': 40, 'Cast Two': 5, 'Some Director': 20 });
+    expect(wrapper.vm.liveExtras.keywordMovieCounts).toEqual({ heist: 500 });
+    expect(wrapper.vm.liveExtras.companyMovieCount).toBe(500);
+  });
+
   describe('custom header banner (a graphic made for this game, same pattern as the other 5)', () => {
     it('sets the header banner to the custom graphic and hides the "Cinema Roll" logo on mount', () => {
       const wrapper = factory(tenMovies());

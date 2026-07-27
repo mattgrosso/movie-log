@@ -18,7 +18,8 @@ export const GAME_ICONS = {
   '/games/six-degrees': 'bi-diagram-3-fill',
   '/games/timeline': 'bi-clock-history',
   '/games/clue-budget': 'bi-cash-coin',
-  '/games/tagline': 'bi-chat-quote-fill'
+  '/games/tagline': 'bi-chat-quote-fill',
+  '/games/trivia': 'bi-question-circle-fill'
 };
 
 // Shared plumbing for every game in src/components/games/ — which library

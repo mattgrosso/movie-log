@@ -229,7 +229,17 @@ export default {
       if (movieId == null) return;
       try {
         const response = await axios.get(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&append_to_response=credits`);
-        if (this.target !== roundTarget) return;
+        // Compare by identity KEY, not object reference — Vue wraps
+        // this.target in a reactive proxy on read, so this.target !==
+        // roundTarget (the raw object captured before assignment) never
+        // matches. Confirmed via a real test while building Trivia: with a
+        // plain (non-Vuex) mock store — the norm in this test suite — this
+        // guard was ALWAYS true, silently discarding every live fetch and
+        // leaving every clue on its fallback price. Real Vuex state is
+        // already reactive-wrapped before it ever reaches here, so this is
+        // less likely to bite in production, but the fix is correct either
+        // way and makes the guard actually testable.
+        if (entryKey(roundTarget) !== entryKey(this.target)) return;
         const data = response?.data || {};
         const peoplePopularity = {};
         [...(data.credits?.cast || []), ...(data.credits?.crew || [])].forEach((person) => {
@@ -266,7 +276,7 @@ export default {
       if (!lookups.length) return;
 
       const results = await Promise.all(lookups);
-      if (this.target !== roundTarget) return;
+      if (entryKey(roundTarget) !== entryKey(this.target)) return;
       const keywordMovieCounts = {};
       results.filter(Boolean).forEach(([keyword, count]) => {
         if (typeof count === 'number') keywordMovieCounts[keyword] = count;
@@ -279,7 +289,7 @@ export default {
       if (companyId == null) return;
       try {
         const response = await axios.get(`https://api.themoviedb.org/3/discover/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&with_companies=${companyId}`);
-        if (this.target !== roundTarget) return;
+        if (entryKey(roundTarget) !== entryKey(this.target)) return;
         if (typeof response?.data?.total_results === 'number') this.mergeLiveExtras({ companyMovieCount: response.data.total_results });
       } catch {
         // Best-effort — Production Company just keeps its fallback price.
