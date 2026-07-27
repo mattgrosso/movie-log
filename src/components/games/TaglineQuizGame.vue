@@ -51,11 +51,22 @@ import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import { buildRoundOptions } from '../../assets/javascript/games/taglineQuiz.js';
+import tagBanner from '../../assets/images/games/tag-banner.jpg';
 
 export default {
   name: 'TaglineQuizGame',
   components: { BackLink, NewRatingSearch },
   mixins: [gameDataMixin],
+  // Custom banner graphic (with its own "TAG / Cinema Roll Games" branding
+  // baked in) in place of the usual movie-backdrop banner, and hides the
+  // "Cinema Roll" title overlay so it doesn't compete with that baked-in
+  // branding - same pattern as every other game, see CLAUDE.md. This game
+  // previously had no banner at all; merged into the existing created()
+  // hook rather than adding a second one (not valid on one component).
+  beforeUnmount () {
+    this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
+    this.$store.commit?.('setHideHeaderLogo', false);
+  },
   data () {
     return {
       target: null,
@@ -89,6 +100,9 @@ export default {
     }
   },
   created () {
+    this.previousBannerUrl = this.$store.state?.bannerUrl;
+    this.$store.commit?.('setBannerUrl', tagBanner);
+    this.$store.commit?.('setHideHeaderLogo', true);
     this.startNewRound();
   },
   methods: {

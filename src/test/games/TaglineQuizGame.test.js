@@ -171,4 +171,23 @@ describe('TaglineQuizGame', () => {
 
     expect(wrapper.vm.tagline).not.toBe('A stale tagline that should never appear.');
   });
+
+  describe('custom header banner (same pattern as the other games)', () => {
+    it('sets the header banner to the custom graphic and hides the "Cinema Roll" logo on mount', () => {
+      const wrapper = factory(tenMovies());
+      const lastBannerCall = wrapper.vm.$store.commit.mock.calls.find((call) => call[0] === 'setBannerUrl');
+      expect(lastBannerCall[1]).toContain('tag-banner');
+      expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setHideHeaderLogo', true);
+    });
+
+    it('restores the previous banner and un-hides the logo on unmount', () => {
+      const store = { state: { settings: {}, bannerUrl: 'https://example.com/some-movie-backdrop.jpg' }, getters: { allMediaAsArray: tenMovies() }, dispatch: vi.fn(), commit: vi.fn() };
+      const wrapper = mount(TaglineQuizGame, { global: { mocks: { $store: store, $router: { push: vi.fn() } } } });
+      wrapper.unmount();
+
+      const calls = store.commit.mock.calls.filter((call) => call[0] === 'setBannerUrl');
+      expect(calls[calls.length - 1][1]).toBe('https://example.com/some-movie-backdrop.jpg');
+      expect(store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
+    });
+  });
 });

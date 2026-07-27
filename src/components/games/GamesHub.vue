@@ -95,7 +95,7 @@ export default {
         },
         {
           path: '/games/tagline',
-          name: 'Tagline Guess',
+          name: 'Tag',
           icon: GAME_ICONS['/games/tagline'],
           description: 'See a real movie tagline, pick which of 4 posters it belongs to. Keep your streak alive.'
         }
