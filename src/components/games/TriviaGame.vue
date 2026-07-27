@@ -87,6 +87,13 @@ import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import { pickTriviaTarget, clampRevealedCount, isNewBestScore } from '../../assets/javascript/games/trivia.js';
 import triviaBanner from '../../assets/images/games/trivia-banner.jpg';
 
+// Bug report: "started the trivia game and then went to the home screen
+// and then came back it reset" - Trivia never persisted progress at all
+// (unlike Reel Wordle/Six Degrees/Connections/Timeline, which all follow
+// this same localStorage pattern), so leaving and returning always looked
+// like a full reset because it WAS one - a brand new round every time.
+const STORAGE_KEY = 'cinemaRoll.trivia.current';
+
 export default {
   name: 'TriviaGame',
   components: { BackLink, NewRatingSearch },
@@ -132,7 +139,7 @@ export default {
       immediate: true,
       handler (entries) {
         if (this.target || !entries.length) return;
-        this.startNewRound();
+        this.loadOrStart();
       }
     }
   },
@@ -172,6 +179,7 @@ export default {
     revealNextFact () {
       if (this.status !== 'playing') return;
       this.revealedCount = clampRevealedCount(this.revealedCount + 1, this.facts.length);
+      this.persistState();
     },
     // Always available while playing — ends the round without a score,
     // same "give up" convention as Clue Budget's Reveal Poster / Six
@@ -180,12 +188,14 @@ export default {
       if (this.status !== 'playing') return;
       this.revealedCount = this.facts.length;
       this.status = 'revealed';
+      this.persistState(); // status !== 'playing' now, so this clears the save
     },
     win () {
       this.status = 'won';
       if (isNewBestScore(this.revealedCount, this.bestFactsUsed)) {
         this.$store.dispatch('setDBValue', { path: 'settings/games/triviaBestFactsUsed', value: this.revealedCount });
       }
+      this.persistState(); // status !== 'playing' now, so this clears the save
     },
     startNewRound () {
       const pool = this.eligibleGameEntries;
@@ -199,7 +209,58 @@ export default {
       this.loadError = false;
       this.guessInput = '';
       this.suggestions = [];
+      this.persistState(); // no facts loaded yet - clears whatever was previously saved
       this.fetchFacts(nextTarget);
+    },
+    // Progress is only meaningful to resume once real facts exist for the
+    // CURRENT target - a round with nothing revealed yet, or one that's
+    // already finished (won/revealed), is cleared instead of saved. Single
+    // gate for every call site rather than special-casing win()/giveUp()
+    // separately.
+    persistState () {
+      try {
+        if (this.status !== 'playing' || !this.target || !this.facts.length) {
+          window.localStorage.removeItem(STORAGE_KEY);
+          return;
+        }
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          targetKey: entryKey(this.target),
+          facts: this.facts,
+          revealedCount: this.revealedCount
+        }));
+      } catch (error) {
+        // localStorage can throw in private-browsing/quota-exceeded situations;
+        // the round still works for this session, it just won't persist.
+        console.error('Failed to persist Trivia progress:', error);
+      }
+    },
+    // Resumes an in-progress round from localStorage if one exists, its
+    // target movie is still in the library, and it actually has facts to
+    // show (the facts themselves are saved, not re-fetched — Claude's
+    // output isn't deterministic, so re-fetching could hand back different
+    // facts than the ones already seen). Falls back to a fresh round
+    // otherwise, same "movie no longer eligible" convention every other
+    // persisted game already follows.
+    loadOrStart () {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          const target = this.eligibleGameEntries.find((entry) => entryKey(entry) === saved?.targetKey);
+          if (target && Array.isArray(saved.facts) && saved.facts.length) {
+            this.target = target;
+            this.facts = saved.facts;
+            this.revealedCount = clampRevealedCount(saved.revealedCount || 1, saved.facts.length);
+            this.status = 'playing';
+            this.loading = false;
+            this.loadError = false;
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load persisted Trivia progress:', error);
+      }
+      this.startNewRound();
     },
     // Claude-backed AI lambda (see aws-lambda/claude-ai.js's /trivia route)
     // — real, hardest-to-easiest trivia about the movie, not just TMDB
@@ -231,6 +292,7 @@ export default {
         } else {
           this.facts = facts;
           this.revealedCount = clampRevealedCount(this.revealedCount, facts.length);
+          this.persistState();
         }
       } catch (error) {
         if (entryKey(this.target) !== roundKey) return;
