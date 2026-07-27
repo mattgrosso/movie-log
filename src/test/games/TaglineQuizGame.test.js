@@ -172,6 +172,28 @@ describe('TaglineQuizGame', () => {
     expect(wrapper.vm.tagline).not.toBe('A stale tagline that should never appear.');
   });
 
+  it('excludes the just-finished round\'s target when picking the next one, so consecutive rounds don\'t repeat (bug report, filed twice)', async () => {
+    // Force deterministic "always pick the first candidate" selection so the
+    // exclusion logic itself (not luck) is what's under test — without the
+    // fix, the first candidate is always movie id 0 every round; with the
+    // fix, movie id 0 is excluded on round 2 once it's been the target.
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    try {
+      const wrapper = factory(tenMovies());
+      await flushPromises();
+      const firstTargetId = wrapper.vm.target.movie.id;
+      expect(firstTargetId).toBe(0);
+
+      await wrapper.vm.startNewRound();
+      await flushPromises();
+      const secondTargetId = wrapper.vm.target.movie.id;
+
+      expect(secondTargetId).not.toBe(firstTargetId);
+    } finally {
+      randomSpy.mockRestore();
+    }
+  });
+
   describe('custom header banner (same pattern as the other games)', () => {
     it('sets the header banner to the custom graphic and hides the "Cinema Roll" logo on mount', () => {
       const wrapper = factory(tenMovies());

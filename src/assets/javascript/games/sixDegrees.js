@@ -204,15 +204,52 @@ export function pickConnectedPair (eligibleEntries, graph, rng = Math.random, { 
 //     only to enumerate a person's candidate movies, so a hint can surface
 //     a real connection outside the top-10-billing cap, same reasoning the
 //     in-play autocomplete already uses.
+//   usedPersonNames: Set of person names already in the chain (bug report:
+//     "kept giving me Bruce Willis over and over again" - the movie branch
+//     used to always return the raw shortest-path's next person with no
+//     memory of who'd already been suggested, so a well-connected hub actor
+//     could dominate every single hint in a chain). Defaults to empty for
+//     callers that don't care (e.g. a first hint, with nobody used yet).
 // Returns { type: 'person', name } or { type: 'movie', key }, or null if
 // no continuation toward the target could be found (already at the
 // target, or genuinely stuck within shortestPath's own hop ceiling).
-export function nextHintStep (lastLink, usedMovieKeys, graph, playGraph, targetKey) {
+export function nextHintStep (lastLink, usedMovieKeys, graph, playGraph, targetKey, usedPersonNames = new Set()) {
   if (lastLink.type === 'movie') {
     if (lastLink.key === targetKey) return null;
-    const path = shortestPath(graph, lastLink.key, targetKey);
-    if (!path || path.length < 2) return null;
-    return { type: 'person', name: path[1] };
+
+    // The true shortest path's own next person is still preferred when
+    // they haven't already been used - this is the common case and keeps
+    // hints matching the puzzle's own notion of "optimal."
+    const directPath = shortestPath(graph, lastLink.key, targetKey);
+    if (directPath && directPath.length >= 2 && !usedPersonNames.has(directPath[1])) {
+      return { type: 'person', name: directPath[1] };
+    }
+
+    // The direct route's connector is already in the chain (or there's no
+    // direct route at all) - scan every OTHER person credited on this movie
+    // (via the capped graph, matching how the puzzle/difficulty itself is
+    // defined) for whichever unused connector's own best movie yields the
+    // shortest remaining path to target. Mirrors the person-branch's own
+    // "iterate candidates, pick shortest" logic below, one level up.
+    const people = [...(graph.peopleByMovie.get(lastLink.key) || [])].filter((name) => !usedPersonNames.has(name));
+    let best = null;
+    let bestLen = Infinity;
+    for (const name of people) {
+      const movies = [...(playGraph.moviesByPerson.get(name) || [])].filter((key) => key !== lastLink.key && !usedMovieKeys.has(key));
+      for (const movieKey of movies) {
+        if (movieKey === targetKey) return { type: 'person', name };
+        const path = shortestPath(graph, movieKey, targetKey);
+        if (path && path.length < bestLen) {
+          bestLen = path.length;
+          best = name;
+        }
+      }
+    }
+    if (best) return { type: 'person', name: best };
+    // Genuinely nobody else connects this movie toward the target at all -
+    // a repeat is still a better hint than none.
+    if (directPath && directPath.length >= 2) return { type: 'person', name: directPath[1] };
+    return null;
   }
 
   const candidates = [...(playGraph.moviesByPerson.get(lastLink.name) || [])].filter((key) => !usedMovieKeys.has(key));

@@ -295,4 +295,35 @@ describe('nextHintStep ("Give me one" - reveals just the next step, not the whol
     const hint = nextHintStep({ type: 'person', name: 'Rare Actor' }, new Set(['key-b']), graph, playGraph, 'key-a');
     expect(hint).toEqual({ type: 'movie', key: 'key-a' });
   });
+
+  // Bug report: "kept giving me Bruce Willis over and over again" - the
+  // movie branch used to always return the raw shortest path's own next
+  // person with no memory of who'd already been hinted, so a well-connected
+  // hub actor could dominate every single hint. key-1 has two equally-short
+  // (2-hop) routes to the target: key-1 -Hub- key-2 -X- key-4, and
+  // key-1 -Alt- key-3 -Y- key-4. Hub is inserted first, so the naive
+  // shortest-path search finds it before ever exploring Alt.
+  function buildHubLibrary () {
+    return [entry(1, ['Hub', 'Alt']), entry(2, ['Hub', 'X']), entry(3, ['Alt', 'Y']), entry(4, ['X', 'Y'])];
+  }
+
+  it('prefers the natural shortest-path connector when nobody has been used yet', () => {
+    const graph = buildCastGraph(buildHubLibrary());
+    const hint = nextHintStep({ type: 'movie', key: 'key-1' }, new Set(), graph, graph, 'key-4');
+    expect(hint).toEqual({ type: 'person', name: 'Hub' });
+  });
+
+  it('falls back to an alternative connector when the natural next person has already been used, instead of repeating them', () => {
+    const graph = buildCastGraph(buildHubLibrary());
+    const hint = nextHintStep({ type: 'movie', key: 'key-1' }, new Set(), graph, graph, 'key-4', new Set(['Hub']));
+    expect(hint).toEqual({ type: 'person', name: 'Alt' });
+  });
+
+  it('falls back to reusing the already-used person rather than returning no hint at all, when truly nobody else connects', () => {
+    // key-1's ONLY credited person is Hub - no alternative exists at all.
+    const entries = [entry(1, ['Hub']), entry(2, ['Hub', 'X']), entry(4, ['X'])];
+    const graph = buildCastGraph(entries);
+    const hint = nextHintStep({ type: 'movie', key: 'key-1' }, new Set(), graph, graph, 'key-4', new Set(['Hub']));
+    expect(hint).toEqual({ type: 'person', name: 'Hub' });
+  });
 });

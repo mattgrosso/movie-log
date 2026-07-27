@@ -141,6 +141,13 @@ export default {
       this.roundId += 1;
       const myRoundId = this.roundId;
 
+      // Bug report (filed twice): "repeated the same tagline twice in a
+      // row." attemptedKeys used to start fresh every round with no memory
+      // of what the PREVIOUS round's target was, so a small library had a
+      // real, non-negligible chance of drawing the same movie right back -
+      // same fix Reel Wordle's startNewPuzzle already uses (excludeKey).
+      const previousTargetKey = this.target ? entryKey(this.target) : null;
+
       this.loading = true;
       this.tagline = null;
       this.options = [];
@@ -154,7 +161,14 @@ export default {
       const attemptedKeys = new Set();
       const maxAttempts = 8;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const candidates = this.eligibleGameEntries.filter((entry) => !attemptedKeys.has(entryKey(entry)));
+        const notYetAttempted = this.eligibleGameEntries.filter((entry) => !attemptedKeys.has(entryKey(entry)));
+        // Exclude the just-finished round's target - but only as long as
+        // something else is actually available. A tiny library (or one
+        // where every other candidate has already failed the tagline check
+        // this round) falls back to allowing it again rather than dead-
+        // ending on "no tagline found" when a perfectly good one exists.
+        const excludingPrevious = notYetAttempted.filter((entry) => entryKey(entry) !== previousTargetKey);
+        const candidates = excludingPrevious.length ? excludingPrevious : notYetAttempted;
         if (!candidates.length) break;
         const candidate = candidates[Math.floor(Math.random() * candidates.length)];
         attemptedKeys.add(entryKey(candidate));

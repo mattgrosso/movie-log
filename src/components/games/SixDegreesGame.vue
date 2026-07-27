@@ -513,7 +513,7 @@ export default {
       const last = this.chain[this.chain.length - 1];
       const lastLink = last.type === 'movie' ? { type: 'movie', key: entryKey(last.entry) } : { type: 'person', name: last.name };
       const targetKey = entryKey(this.pair.target);
-      const hint = nextHintStep(lastLink, this.usedMovieKeys, this.graph, this.playGraph, targetKey);
+      const hint = nextHintStep(lastLink, this.usedMovieKeys, this.graph, this.playGraph, targetKey, this.usedPersonNames);
       if (!hint) return;
       if (hint.type === 'person') {
         this.pick({ name: hint.name });
