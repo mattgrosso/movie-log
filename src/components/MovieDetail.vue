@@ -157,6 +157,16 @@
           </p>
         </div>
 
+        <!-- Box Office -->
+        <div v-if="hasBoxOfficeInfo" class="box-office mb-3">
+          <h4>Box Office</h4>
+          <p class="long-list mb-0">
+            <span v-if="movieBudget">Budget: {{ formatCurrency(movieBudget) }}</span>
+            <br v-if="movieBudget && movieRevenue">
+            <span v-if="movieRevenue">Box Office: {{ formatCurrency(movieRevenue) }}</span>
+          </p>
+        </div>
+
         <!-- Awards -->
         <div v-if="academyAwardWins.length || academyAwardNominations.length || personalAwardWins.length || personalAwardNominations.length || otherAwardWins.length || otherAwardNominations.length" class="awards mb-3">
           <h4>Awards</h4>
@@ -601,6 +611,23 @@ export default {
     academyAwardNominations () {
       return sortByAcademyCategoryOrder(this.awardsForMovie.filter((award) => !award.isWinner));
     },
+    // TMDB's /movie/{id} response already includes budget/revenue (both USD,
+    // 0 meaning "not available" - TMDB doesn't distinguish that from a
+    // genuinely free production), and AddRating.js now stores them alongside
+    // everything else it already pulls from that same response - no extra
+    // network call. Only movies rated/re-rated after that change have these
+    // fields locally; older entries just render nothing here (same
+    // graceful-degradation convention every other optional section on this
+    // page already follows, e.g. Cast/Keywords/Production Companies).
+    movieBudget () {
+      return this.movie?.budget || 0;
+    },
+    movieRevenue () {
+      return this.movie?.revenue || 0;
+    },
+    hasBoxOfficeInfo () {
+      return this.movieBudget > 0 || this.movieRevenue > 0;
+    },
     // My personal awards (PersonalAwardsModal.vue) — settings.personalAwards is
     // keyed by year, each year holding { categories: { <key>: { nominees, winner } } }.
     // Nominees/winner are "minimal" objects (convertNomineeToMinimal) carrying
@@ -987,6 +1014,10 @@ export default {
 
     multipleEntries (array) {
       return Array.isArray(array) && array.length > 1;
+    },
+
+    formatCurrency (amount) {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
     },
 
     turnArrayIntoList (array, key) {

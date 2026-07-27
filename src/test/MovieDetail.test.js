@@ -122,6 +122,51 @@ describe('MovieDetail', () => {
     })
   })
 
+  describe('Box Office', () => {
+    it('shows Budget and Box Office when both are present, formatted as USD currency', async () => {
+      await wrapper.setData({ movie: { ...makeResult().movie, budget: 160000000, revenue: 2797800564 } })
+
+      expect(wrapper.vm.hasBoxOfficeInfo).toBe(true)
+      const section = wrapper.find('.box-office')
+      expect(section.exists()).toBe(true)
+      expect(section.text()).toContain('Budget: $160,000,000')
+      expect(section.text()).toContain('Box Office: $2,797,800,564')
+    })
+
+    it('shows only Budget when revenue is unknown (0)', async () => {
+      await wrapper.setData({ movie: { ...makeResult().movie, budget: 5000000, revenue: 0 } })
+
+      const section = wrapper.find('.box-office')
+      expect(section.exists()).toBe(true)
+      expect(section.text()).toContain('Budget: $5,000,000')
+      expect(section.text()).not.toContain('Box Office:')
+    })
+
+    it('shows only Box Office when budget is unknown (0)', async () => {
+      await wrapper.setData({ movie: { ...makeResult().movie, budget: 0, revenue: 900000 } })
+
+      const section = wrapper.find('.box-office')
+      expect(section.exists()).toBe(true)
+      expect(section.text()).not.toContain('Budget:')
+      expect(section.text()).toContain('Box Office: $900,000')
+    })
+
+    it('hides the whole section for a movie with neither figure - e.g. rated before this feature existed', async () => {
+      await wrapper.setData({ movie: { ...makeResult().movie, budget: 0, revenue: 0 } })
+
+      expect(wrapper.vm.hasBoxOfficeInfo).toBe(false)
+      expect(wrapper.find('.box-office').exists()).toBe(false)
+    })
+
+    it('hides the section when budget/revenue are entirely absent from an older, locally-stored movie', async () => {
+      // makeResult()'s base movie shape has no budget/revenue keys at all,
+      // characterizing a movie rated before this feature existed.
+      await wrapper.setData({ movie: makeResult().movie })
+
+      expect(wrapper.find('.box-office').exists()).toBe(false)
+    })
+  })
+
   describe('crew + structure', () => {
     it('getCrewMember strict matches the exact job; loose matches substrings', () => {
       // 'strict' → only exact "Director"

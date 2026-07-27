@@ -72,7 +72,9 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       production_companies: [
         { id: 508, name: '20th Century Fox' },
         { id: 711, name: 'Fox 2000 Pictures' }
-      ]
+      ],
+      budget: 63000000,
+      revenue: 100853753
     }
 
     mockCreditsData = {
@@ -238,6 +240,10 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       expect(movieData.backdrop_path).toBe('/fCayJrkfRaCRCTh8GqN30f8oyQF.jpg')
       expect(movieData.poster_path).toBe('/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg')
       expect(movieData.imdb_id).toBe('tt0137523')
+      // budget/revenue are already present on the same /movie/{id} response
+      // this test's other assertions come from - no extra TMDb call needed.
+      expect(movieData.budget).toBe(63000000)
+      expect(movieData.revenue).toBe(100853753)
     })
 
     it('should process cast data correctly', async () => {

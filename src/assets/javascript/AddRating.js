@@ -150,6 +150,7 @@ const shapeTmdbDataIntoMovie = (tmdbData, ratings) => {
 
   return {
     backdrop_path: tmdbData.backdrop_path,
+    budget: tmdbData.budget,
     cast,
     crew,
     genres: tmdbData.genres,
@@ -159,6 +160,7 @@ const shapeTmdbDataIntoMovie = (tmdbData, ratings) => {
     poster_path: tmdbData.poster_path,
     production_companies: tmdbData.production_companies,
     release_date: tmdbData.release_date,
+    revenue: tmdbData.revenue,
     runtime: tmdbData.runtime,
     title: tmdbData.title,
     keywords: tmdbData.keywords,

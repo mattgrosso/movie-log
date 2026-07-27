@@ -612,6 +612,30 @@
                 </div>
               </div>
 
+              <div class="mb-3">
+                <label class="form-label d-block">Box office data</label>
+                <small class="form-text text-white d-block mb-2">
+                  Fetches budget/box office numbers for movies rated before that data started being saved automatically. Safe to run again anytime — it only fetches whatever's still missing.
+                </small>
+                <button
+                  class="btn btn-outline-info btn-sm"
+                  @click="backfillBoxOfficeData"
+                  :disabled="boxOfficeBackfill.status === 'running'"
+                >
+                  <span v-if="boxOfficeBackfill.status === 'running'">
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Fetching {{ boxOfficeBackfill.completed }}/{{ boxOfficeBackfill.total }}...
+                  </span>
+                  <span v-else>
+                    <i class="bi bi-cash-coin"></i> Fill in box office data for all movies
+                  </span>
+                </button>
+                <div v-if="boxOfficeBackfill.status === 'done'" class="text-success mt-2">
+                  <small v-if="boxOfficeBackfill.total"><i class="bi bi-check-circle"></i> {{ boxOfficeBackfill.total }} movie{{ boxOfficeBackfill.total === 1 ? '' : 's' }} updated{{ boxOfficeBackfill.failed ? ` (${boxOfficeBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
+                  <small v-else><i class="bi bi-check-circle"></i> Everything's already filled in.</small>
+                </div>
+              </div>
+
               <!-- Matt Only Settings Section -->
               <div v-if="isMatt" class="mt-4">
                 <hr>
@@ -924,6 +948,7 @@ import {
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
 import { LAST_PLAYED_KEY, GAME_ICONS } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
+import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
 import { makePlaceholderId } from '../utils/placeholderId.js';
 import {
   countDirectors as countDirectorsUtil,
@@ -1009,6 +1034,7 @@ export default {
       noResults: false, // Show no results message for TMDB search
       numberOfResultsToShow: 25,
       offlineDownload: { status: 'idle', completed: 0, total: 0, failed: 0 },
+      boxOfficeBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
       quickLinksSortType: "count",
       scrapingTest: {
         loading: false,
@@ -3387,6 +3413,42 @@ export default {
       });
 
       this.offlineDownload = { status: 'done', ...result };
+    },
+    async backfillBoxOfficeData () {
+      if (this.boxOfficeBackfill.status === 'running') {
+        return;
+      }
+
+      const candidateCount = collectMoviesNeedingBoxOffice(this.$store.state.movieLog).length;
+      this.boxOfficeBackfill = { status: 'running', completed: 0, total: candidateCount, failed: 0 };
+
+      const result = await backfillBoxOffice(this.$store.state.movieLog, async (dbKey, boxOffice) => {
+        // Read fresh from state (not a captured closure) so this reflects
+        // whatever else might be true of the entry right now, and commit an
+        // updated copy immediately so the grid/detail page reflect it
+        // without needing a reload.
+        const existingEntry = this.$store.state.movieLog[dbKey];
+        if (!existingEntry) return;
+        const updatedEntry = { ...existingEntry, movie: { ...existingEntry.movie, ...boxOffice } };
+        this.$store.commit('setMovieLogEntry', { key: dbKey, value: updatedEntry });
+
+        // Two separate leaf-path writes (not one write to the whole `movie`
+        // object) so this can never clobber sibling fields like cast/crew/
+        // genres with a possibly-stale local snapshot. No durable-queue
+        // treatment needed here (unlike a user-authored rating) - this is
+        // re-fetchable TMDB metadata, not irreplaceable data, and the whole
+        // operation is naturally safe to just re-run if anything fails.
+        await Promise.all([
+          this.$store.dispatch('writeDatabaseEntryNow', { path: `movieLog/${dbKey}/movie/budget`, value: boxOffice.budget }),
+          this.$store.dispatch('writeDatabaseEntryNow', { path: `movieLog/${dbKey}/movie/revenue`, value: boxOffice.revenue })
+        ]);
+      }, {
+        onProgress: (progress) => {
+          this.boxOfficeBackfill = { ...this.boxOfficeBackfill, ...progress };
+        }
+      });
+
+      this.boxOfficeBackfill = { status: 'done', ...result };
     },
     saveStickinessPromptState (value) {
       this.stickinessPromptState = value;
