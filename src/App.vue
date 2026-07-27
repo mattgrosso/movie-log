@@ -3,6 +3,7 @@
     <!-- Invisible scroll-to-top trigger area -->
     <div class="scroll-to-top-trigger" @click.stop="scrollToTop"></div>
     <AppHeader/>
+    <UpdateAvailableBanner/>
     <router-view></router-view>
     <AppFooter v-if="$store.state.dbLoaded"/>
     <BugReportButton/>
@@ -13,13 +14,15 @@
 import AppFooter from "./components/Footer.vue";
 import AppHeader from "./components/Header.vue";
 import BugReportButton from "./components/BugReportButton.vue";
+import UpdateAvailableBanner from "./components/UpdateAvailableBanner.vue";
 
 export default {
   name: "Cinema-Roll",
   components: {
     AppFooter,
     AppHeader,
-    BugReportButton
+    BugReportButton,
+    UpdateAvailableBanner
   },
   methods: {
     scrollToTop () {

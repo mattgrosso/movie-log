@@ -168,3 +168,19 @@ describe('App - offline detection + pending-write flush wiring', () => {
     expect(store.dispatch).toHaveBeenCalledWith('flushPendingWrites')
   })
 })
+
+describe('App - renders UpdateAvailableBanner globally', () => {
+  it('always renders the banner component (its own v-if handles whether anything shows)', () => {
+    vi.spyOn(document, 'addEventListener').mockImplementation(() => {})
+    vi.spyOn(window, 'addEventListener').mockImplementation(() => {})
+
+    const wrapper = shallowMount(App, {
+      global: {
+        mocks: { $store: { state: { dbLoaded: false, isOnline: true, updateAvailable: false }, commit: vi.fn(), dispatch: vi.fn() } }
+      }
+    })
+
+    expect(wrapper.findComponent({ name: 'UpdateAvailableBanner' }).exists()).toBe(true)
+    vi.restoreAllMocks()
+  })
+})

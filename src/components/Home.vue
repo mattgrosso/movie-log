@@ -3422,26 +3422,38 @@ export default {
       const candidateCount = collectMoviesNeedingBoxOffice(this.$store.state.movieLog).length;
       this.boxOfficeBackfill = { status: 'running', completed: 0, total: candidateCount, failed: 0 };
 
-      const result = await backfillBoxOffice(this.$store.state.movieLog, async (dbKey, boxOffice) => {
-        // Read fresh from state (not a captured closure) so this reflects
-        // whatever else might be true of the entry right now, and commit an
-        // updated copy immediately so the grid/detail page reflect it
-        // without needing a reload.
-        const existingEntry = this.$store.state.movieLog[dbKey];
-        if (!existingEntry) return;
-        const updatedEntry = { ...existingEntry, movie: { ...existingEntry.movie, ...boxOffice } };
-        this.$store.commit('setMovieLogEntry', { key: dbKey, value: updatedEntry });
+      // Batched, not one write per movie (bug report, Jul 2026: a per-item
+      // design froze/crashed the tab on a real library - see
+      // backfillBoxOffice.js's own comment for the full story). Each batch
+      // becomes ONE combined local commit (setMovieLogEntries) and ONE
+      // combined remote multi-path update, instead of N of each.
+      const result = await backfillBoxOffice(this.$store.state.movieLog, async (batch) => {
+        const entries = [];
+        const updates = {};
 
-        // Two separate leaf-path writes (not one write to the whole `movie`
-        // object) so this can never clobber sibling fields like cast/crew/
-        // genres with a possibly-stale local snapshot. No durable-queue
-        // treatment needed here (unlike a user-authored rating) - this is
-        // re-fetchable TMDB metadata, not irreplaceable data, and the whole
-        // operation is naturally safe to just re-run if anything fails.
-        await Promise.all([
-          this.$store.dispatch('writeDatabaseEntryNow', { path: `movieLog/${dbKey}/movie/budget`, value: boxOffice.budget }),
-          this.$store.dispatch('writeDatabaseEntryNow', { path: `movieLog/${dbKey}/movie/revenue`, value: boxOffice.revenue })
-        ]);
+        batch.forEach(({ dbKey, boxOffice }) => {
+          // Read fresh from state (not a captured closure) so this reflects
+          // whatever else might be true of the entry right now.
+          const existingEntry = this.$store.state.movieLog[dbKey];
+          if (!existingEntry) return;
+          entries.push({ key: dbKey, value: { ...existingEntry, movie: { ...existingEntry.movie, ...boxOffice } } });
+          // Individual leaf-path keys (not the whole `movie` object) so this
+          // can never clobber sibling fields like cast/crew/genres with a
+          // possibly-stale local snapshot.
+          updates[`movieLog/${dbKey}/movie/budget`] = boxOffice.budget;
+          updates[`movieLog/${dbKey}/movie/revenue`] = boxOffice.revenue;
+        });
+
+        if (entries.length) {
+          this.$store.commit('setMovieLogEntries', entries);
+        }
+        if (Object.keys(updates).length) {
+          // No durable-queue treatment needed here (unlike a user-authored
+          // rating) - this is re-fetchable TMDB metadata, not irreplaceable
+          // data, and the whole operation is naturally safe to just re-run
+          // if a batch write fails.
+          await this.$store.dispatch('updateDatabaseEntriesNow', updates);
+        }
       }, {
         onProgress: (progress) => {
           this.boxOfficeBackfill = { ...this.boxOfficeBackfill, ...progress };

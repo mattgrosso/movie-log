@@ -12,11 +12,13 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
 }))
 
 const setMock = vi.fn(() => Promise.resolve())
+const updateMock = vi.fn(() => Promise.resolve())
 vi.mock('firebase/database', () => ({
   getDatabase: vi.fn(() => ({})),
   ref: vi.fn((db, path) => path),
   onValue: vi.fn(),
-  set: (...args) => setMock(...args)
+  set: (...args) => setMock(...args),
+  update: (...args) => updateMock(...args)
 }))
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(() => ({}))
@@ -49,6 +51,8 @@ beforeEach(async () => {
   vi.resetModules()
   setMock.mockClear()
   setMock.mockImplementation(() => Promise.resolve())
+  updateMock.mockClear()
+  updateMock.mockImplementation(() => Promise.resolve())
   listPendingWritesMock.mockReset().mockResolvedValue([])
   removePendingWriteMock.mockReset()
   updatePendingWriteMock.mockReset()
@@ -256,6 +260,61 @@ describe('setMovieLogEntry mutation', () => {
     expect(store.state.movieLog['new-key']).toEqual({ movie: { id: 2 }, ratings: [] })
     expect(store.state.movieLog.existing).toEqual({ movie: { id: 1 } }) // untouched
     expect(Object.isFrozen(store.state.movieLog)).toBe(true)
+  })
+})
+
+describe('setMovieLogEntries mutation (batched, bug fix Jul 2026)', () => {
+  it('applies many entries in ONE spread+freeze instead of one per entry', () => {
+    store.commit('setMovieLog', { existing: { movie: { id: 1 } } })
+
+    store.commit('setMovieLogEntries', [
+      { key: 'new-key-1', value: { movie: { id: 2 } } },
+      { key: 'new-key-2', value: { movie: { id: 3 } } }
+    ])
+
+    expect(store.state.movieLog['new-key-1']).toEqual({ movie: { id: 2 } })
+    expect(store.state.movieLog['new-key-2']).toEqual({ movie: { id: 3 } })
+    expect(store.state.movieLog.existing).toEqual({ movie: { id: 1 } }) // untouched
+    expect(Object.isFrozen(store.state.movieLog)).toBe(true)
+  })
+
+  it('a batch of entries results in exactly one movieLog reassignment, not one per entry (the actual perf fix)', async () => {
+    store.commit('setMovieLog', {})
+    const reassignments = []
+    // Vuex state is reactive - watch the store's own getter to count how
+    // many times the movieLog REFERENCE actually changes. Vue watchers
+    // flush on nextTick, not synchronously, hence the awaits below.
+    const unwatch = store.watch((state) => state.movieLog, () => reassignments.push(1))
+
+    store.commit('setMovieLogEntries', Array.from({ length: 20 }, (_, i) => ({ key: `k${i}`, value: { movie: { id: i } } })))
+    await flushMicrotasks()
+
+    expect(reassignments).toHaveLength(1)
+    unwatch()
+  })
+})
+
+describe('updateDatabaseEntriesNow (batched multi-path write, bug fix Jul 2026)', () => {
+  it('sends one atomic Firebase update() call covering every path given, not one write per path', async () => {
+    await store.dispatch('updateDatabaseEntriesNow', {
+      'movieLog/key1/movie/budget': 100,
+      'movieLog/key1/movie/revenue': 200,
+      'movieLog/key2/movie/budget': 300
+    })
+
+    expect(updateMock).toHaveBeenCalledTimes(1)
+    expect(updateMock).toHaveBeenCalledWith('testing-database', {
+      'movieLog/key1/movie/budget': 100,
+      'movieLog/key1/movie/revenue': 200,
+      'movieLog/key2/movie/budget': 300
+    })
+    expect(setMock).not.toHaveBeenCalled()
+  })
+
+  it('propagates a failure (including a timed-out update) to the caller', async () => {
+    updateMock.mockImplementation(() => Promise.reject(new Error('nope')))
+
+    await expect(store.dispatch('updateDatabaseEntriesNow', { 'movieLog/x/movie/budget': 1 })).rejects.toThrow('nope')
   })
 })
 

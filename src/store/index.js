@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { createStore } from "vuex"
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue, set } from "firebase/database";
+import { getDatabase, ref, onValue, set, update } from "firebase/database";
 import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import * as Sentry from "@sentry/vue";
 import { getRating } from "../assets/javascript/GetRating";
@@ -187,6 +187,13 @@ export default createStore({
     isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
     isFlushingPendingWrites: false,
     pendingReconciliations: [],
+    // Flipped by registerServiceWorker.js's `updated` hook once a new
+    // version has installed and activated in the background. Deliberately
+    // does NOT auto-reload (see UpdateAvailableBanner.vue's own comment for
+    // the bug report this fixed) - an unconditional window.location.reload()
+    // there used to yank the page out from under whatever the user was
+    // doing (e.g. mid-way through the box office backfill button).
+    updateAvailable: false,
   },
   getters: {
     allMediaAsArray: (state) => {
@@ -270,6 +277,18 @@ export default createStore({
     setMovieLogEntry (state, { key, value }) {
       state.movieLog = Object.freeze({ ...state.movieLog, [key]: value });
     },
+    // Batched counterpart to setMovieLogEntry - applies MANY entries in one
+    // spread+freeze+reactivity-trigger instead of one per entry (bug fix,
+    // Jul 2026: the box office backfill button called setMovieLogEntry once
+    // per movie as each one completed - for a large library that's hundreds
+    // of full movieLog copies + reactivity cascades in rapid succession,
+    // severe enough to freeze/crash the tab on a real device. Batching
+    // callers, e.g. backfillBoxOffice.js, cuts that down by the batch size).
+    setMovieLogEntries (state, entries) {
+      const updated = { ...state.movieLog };
+      entries.forEach(({ key, value }) => { updated[key] = value; });
+      state.movieLog = Object.freeze(updated);
+    },
     setIsOnline (state, value) {
       state.isOnline = value;
     },
@@ -278,6 +297,9 @@ export default createStore({
     },
     setPendingReconciliations (state, value) {
       state.pendingReconciliations = value;
+    },
+    setUpdateAvailable (state, value) {
+      state.updateAvailable = value;
     },
     setDBSearchValue (state, value) {
       state.DBSearchValue = value;
@@ -628,6 +650,24 @@ export default createStore({
     // feature existed, for the case that actually broke.
     async writeDatabaseEntryNow (context, dbEntry) {
       await performDatabaseWrite(context, dbEntry);
+    },
+    // Atomic multi-path write via Firebase's update() (not set()) - `updates`
+    // is a flat object whose keys are full paths relative to the account
+    // root, e.g. { 'movieLog/key1/movie/budget': 100, 'movieLog/key2/movie/revenue': 200 }.
+    // Lets a caller patch many different movies' individual fields in ONE
+    // network round trip / ONE onValue listener refire, instead of one write
+    // per field per movie - the remote-write half of the same batching fix
+    // setMovieLogEntries is the local half of (see its own comment). Used
+    // for bulk background patches (e.g. backfillBoxOffice.js) where
+    // minimizing the NUMBER of separate writes matters far more than the
+    // single-entry durability guarantees a user-authored rating needs.
+    async updateDatabaseEntriesNow (context, updates) {
+      const cleanedUpdates = removeNaNAndUndefined({ ...updates });
+      await withTimeout(
+        update(ref(db, context.getters.databaseTopKey), cleanedUpdates),
+        DATABASE_WRITE_TIMEOUT_MS,
+        `Database batch update timed out after ${DATABASE_WRITE_TIMEOUT_MS}ms`
+      );
     },
     // This action adds a TV show to the list of recently rated TV shows in the user's settings.
   },

@@ -83,16 +83,46 @@ describe('backfillBoxOffice', () => {
     return movieLog
   }
 
-  it('fetches and writes box office data for every candidate movie', async () => {
-    const movieLog = buildLibrary(2)
+  it('fetches every candidate but writes in ONE batch when everything fits under batchSize (bug fix: not one write per movie)', async () => {
+    const movieLog = buildLibrary(5)
     const fetchFn = vi.fn().mockResolvedValue({ data: { budget: 1000, revenue: 2000 } })
-    const writeFn = vi.fn().mockResolvedValue()
+    const writeBatchFn = vi.fn().mockResolvedValue()
 
-    const result = await backfillBoxOffice(movieLog, writeFn, { fetchFn, concurrency: 2 })
+    const result = await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn, concurrency: 4, batchSize: 20 })
 
-    expect(result).toEqual({ completed: 2, total: 2, failed: 0 })
-    expect(writeFn).toHaveBeenCalledWith('movie-0', { budget: 1000, revenue: 2000 }, movieLog['movie-0'])
-    expect(writeFn).toHaveBeenCalledWith('movie-1', { budget: 1000, revenue: 2000 }, movieLog['movie-1'])
+    expect(result).toEqual({ completed: 5, total: 5, failed: 0 })
+    expect(fetchFn).toHaveBeenCalledTimes(5)
+    expect(writeBatchFn).toHaveBeenCalledTimes(1)
+    const batch = writeBatchFn.mock.calls[0][0]
+    expect(batch).toHaveLength(5)
+    expect(batch.map((b) => b.dbKey).sort()).toEqual(['movie-0', 'movie-1', 'movie-2', 'movie-3', 'movie-4'])
+    expect(batch[0].boxOffice).toEqual({ budget: 1000, revenue: 2000 })
+  })
+
+  it('flushes a full batch as soon as batchSize is reached, without waiting for every candidate to finish', async () => {
+    const movieLog = buildLibrary(25)
+    const fetchFn = vi.fn().mockResolvedValue({ data: { budget: 1, revenue: 1 } })
+    const writeBatchFn = vi.fn().mockResolvedValue()
+
+    const result = await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn, concurrency: 1, batchSize: 10 })
+
+    expect(result).toEqual({ completed: 25, total: 25, failed: 0 })
+    // 25 candidates, batch size 10 -> two full batches of 10 flushed as they
+    // fill, plus one final flush of the remaining 5.
+    expect(writeBatchFn).toHaveBeenCalledTimes(3)
+    const sizes = writeBatchFn.mock.calls.map((call) => call[0].length).sort((a, b) => a - b)
+    expect(sizes).toEqual([5, 10, 10])
+  })
+
+  it('flushes a smaller, final partial batch at the end even if it never reached batchSize', async () => {
+    const movieLog = buildLibrary(3)
+    const fetchFn = vi.fn().mockResolvedValue({ data: { budget: 1, revenue: 1 } })
+    const writeBatchFn = vi.fn().mockResolvedValue()
+
+    await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn, concurrency: 1, batchSize: 20 })
+
+    expect(writeBatchFn).toHaveBeenCalledTimes(1)
+    expect(writeBatchFn.mock.calls[0][0]).toHaveLength(3)
   })
 
   it('skips movies that already have box office data', async () => {
@@ -101,23 +131,24 @@ describe('backfillBoxOffice', () => {
       'movie-1': { movie: { id: 1, title: 'Already has it', budget: 5, revenue: 10 } }
     }
     const fetchFn = vi.fn().mockResolvedValue({ data: { budget: 1000, revenue: 2000 } })
-    const writeFn = vi.fn().mockResolvedValue()
+    const writeBatchFn = vi.fn().mockResolvedValue()
 
-    const result = await backfillBoxOffice(movieLog, writeFn, { fetchFn })
+    const result = await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn })
 
     expect(result.total).toBe(1)
     expect(fetchFn).toHaveBeenCalledTimes(1)
-    expect(writeFn).toHaveBeenCalledTimes(1)
-    expect(writeFn).toHaveBeenCalledWith('movie-0', expect.anything(), expect.anything())
+    expect(writeBatchFn).toHaveBeenCalledTimes(1)
+    expect(writeBatchFn.mock.calls[0][0]).toHaveLength(1)
+    expect(writeBatchFn.mock.calls[0][0][0].dbKey).toBe('movie-0')
   })
 
-  it('reports progress incrementally via onProgress', async () => {
+  it('reports progress incrementally via onProgress, once per fetch completion (not per batch flush)', async () => {
     const movieLog = buildLibrary(3)
     const fetchFn = vi.fn().mockResolvedValue({ data: { budget: 1, revenue: 1 } })
-    const writeFn = vi.fn().mockResolvedValue()
+    const writeBatchFn = vi.fn().mockResolvedValue()
     const progressCalls = []
 
-    await backfillBoxOffice(movieLog, writeFn, { fetchFn, concurrency: 1, onProgress: (p) => progressCalls.push({ ...p }) })
+    await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn, concurrency: 1, batchSize: 20, onProgress: (p) => progressCalls.push({ ...p }) })
 
     expect(progressCalls).toEqual([
       { completed: 1, total: 3, failed: 0 },
@@ -126,41 +157,39 @@ describe('backfillBoxOffice', () => {
     ])
   })
 
-  it('counts a failed fetch without stopping the rest of the batch, and does not call writeFn for it', async () => {
+  it('counts a failed fetch without stopping the rest of the batch, and excludes it from the eventual write batch', async () => {
     const movieLog = buildLibrary(3)
     const fetchFn = vi.fn()
       .mockResolvedValueOnce({ data: { budget: 1, revenue: 1 } })
       .mockRejectedValueOnce(new Error('network error'))
       .mockResolvedValueOnce({ data: { budget: 1, revenue: 1 } })
-    const writeFn = vi.fn().mockResolvedValue()
+    const writeBatchFn = vi.fn().mockResolvedValue()
 
-    const result = await backfillBoxOffice(movieLog, writeFn, { fetchFn, concurrency: 1 })
+    const result = await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn, concurrency: 1, batchSize: 20 })
 
     expect(result).toEqual({ completed: 3, total: 3, failed: 1 })
-    expect(writeFn).toHaveBeenCalledTimes(2)
+    expect(writeBatchFn.mock.calls[0][0]).toHaveLength(2)
   })
 
-  it('counts a failed write the same way, without stopping the batch', async () => {
-    const movieLog = buildLibrary(2)
+  it('counts every movie in a batch as failed if the batch write itself fails, without stopping the run', async () => {
+    const movieLog = buildLibrary(3)
     const fetchFn = vi.fn().mockResolvedValue({ data: { budget: 1, revenue: 1 } })
-    const writeFn = vi.fn()
-      .mockRejectedValueOnce(new Error('firebase write failed'))
-      .mockResolvedValueOnce()
+    const writeBatchFn = vi.fn().mockRejectedValue(new Error('firebase update failed'))
 
-    const result = await backfillBoxOffice(movieLog, writeFn, { fetchFn, concurrency: 1 })
+    const result = await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn, concurrency: 1, batchSize: 20 })
 
-    expect(result).toEqual({ completed: 2, total: 2, failed: 1 })
+    expect(result).toEqual({ completed: 3, total: 3, failed: 3 })
   })
 
   it('is a no-op when nothing needs backfilling', async () => {
     const movieLog = { 'movie-0': { movie: { id: 0, budget: 5, revenue: 10 } } }
     const fetchFn = vi.fn()
-    const writeFn = vi.fn()
+    const writeBatchFn = vi.fn()
 
-    const result = await backfillBoxOffice(movieLog, writeFn, { fetchFn })
+    const result = await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn })
 
     expect(fetchFn).not.toHaveBeenCalled()
-    expect(writeFn).not.toHaveBeenCalled()
+    expect(writeBatchFn).not.toHaveBeenCalled()
     expect(result).toEqual({ completed: 0, total: 0, failed: 0 })
   })
 
@@ -175,9 +204,9 @@ describe('backfillBoxOffice', () => {
       }
       return { data: { budget: 1, revenue: 1 } }
     })
-    const writeFn = vi.fn().mockResolvedValue()
+    const writeBatchFn = vi.fn().mockResolvedValue()
 
-    const result = await backfillBoxOffice(movieLog, writeFn, { fetchFn, concurrency: 1, signal: controller.signal })
+    const result = await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn, concurrency: 1, signal: controller.signal })
 
     expect(result.completed).toBeLessThan(5)
   })
@@ -185,9 +214,9 @@ describe('backfillBoxOffice', () => {
   it('caps concurrency at the number of candidates when concurrency exceeds the list size', async () => {
     const movieLog = buildLibrary(2)
     const fetchFn = vi.fn().mockResolvedValue({ data: { budget: 1, revenue: 1 } })
-    const writeFn = vi.fn().mockResolvedValue()
+    const writeBatchFn = vi.fn().mockResolvedValue()
 
-    const result = await backfillBoxOffice(movieLog, writeFn, { fetchFn, concurrency: 6 })
+    const result = await backfillBoxOffice(movieLog, writeBatchFn, { fetchFn, concurrency: 6 })
 
     expect(result).toEqual({ completed: 2, total: 2, failed: 0 })
   })
