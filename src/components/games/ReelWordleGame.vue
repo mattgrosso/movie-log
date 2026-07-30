@@ -77,7 +77,7 @@
                    exact match (green, n === total) from a partial overlap
                    (yellow, n < total) — the color alone wasn't legible
                    (bug report: "what's the difference between these two"). -->
-              <span class="clue-value">{{ clue.genres.shared.length ? `${clue.genres.shared.join(', ')} (${clue.genres.shared.length}/${clue.genres.total})` : '✗' }}</span>
+              <span class="clue-value wrap">{{ clue.genres.shared.length ? `${clue.genres.shared.join(', ')} (${clue.genres.shared.length}/${clue.genres.total})` : '✗' }}</span>
             </div>
             <div class="clue-cell" :class="directionClass(clue.runtime)">
               <span class="clue-label">Runtime</span>
@@ -423,6 +423,7 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   min-width: 0;
   text-align: center;
 }
@@ -444,6 +445,21 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Bug report: "when I get more than one genre I can't see most of the
+   second word" - every other cell is a short, fixed-format value (a year,
+   "1990s", an arrow), so the single-line truncation above never actually
+   clips anything real. Genre is the one value that can genuinely run long
+   (2+ shared genre names + a fraction) - let it wrap onto a second line
+   instead of hiding real signal. .clue-cell's justify-content:center keeps
+   the other 5 (unwrapped) cells in the same row visually centered once
+   this one grows taller. */
+.clue-value.wrap {
+  overflow-wrap: break-word;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .match {

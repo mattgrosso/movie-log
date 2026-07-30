@@ -8,7 +8,7 @@
     </div>
 
     <template v-else>
-      <p class="game-subtitle">Real trivia, hardest fact first. Guess the movie in as few facts as you can.</p>
+      <p class="game-subtitle">Real trivia, hardest fact first. You get ONE guess — reveal as many facts as you need before you take it.</p>
 
       <div class="score-row">
         <span>Facts used: <strong>{{ revealedCount }}</strong></span>
@@ -69,8 +69,11 @@
 
         <div v-else class="result-banner" :class="status">
           <p v-if="status === 'won'">Got it — <strong>{{ target.movie.title }}</strong>! Solved in {{ revealedCount }} fact{{ revealedCount === 1 ? '' : 's' }}.</p>
+          <p v-else-if="status === 'lost'">Not quite — it was <strong>{{ target.movie.title }}</strong>.</p>
           <p v-else>It was <strong>{{ target.movie.title }}</strong>.</p>
-          <img v-if="gamePosterUrl(target)" :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
+          <button v-if="gamePosterUrl(target)" type="button" class="reveal-poster-btn" @click="goToMovie(target)">
+            <img :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
+          </button>
           <button type="button" class="btn-game btn-game-primary btn-game-sm full-width" @click="startNewRound">New Round</button>
         </div>
       </template>
@@ -145,6 +148,13 @@ export default {
   },
   methods: {
     entryKeyFor: entryKey,
+    // Bug report: "when you get the answer... you should be able to click
+    // on the poster and go to facts about the movie" - same navigation
+    // Six Degrees' chain-step tap already uses.
+    goToMovie (entry) {
+      if (!entry?.movie?.id) return;
+      this.$router.push(`/movie/${entry.movie.id}`);
+    },
     suggestionYear (entry) {
       const date = entry?.movie?.release_date;
       return date ? new Date(date).getFullYear() : 'Unknown';
@@ -162,10 +172,16 @@ export default {
     // A guess is always picked from the player's own library (via the
     // suggestions dropdown, never free text), so it's always a real movie
     // — comparing identity is simpler and more reliable than fuzzy title
-    // matching (handles remakes/shared titles for free too). A wrong guess
-    // costs a clue, same as tapping "Next Clue" — both just advance the
-    // same revealedCount, so the score doesn't care which path got you
-    // there.
+    // matching (handles remakes/shared titles for free too).
+    //
+    // Bug report: "it will be more fun if you only get one guess... that
+    // way you can't guess every movie I've ever rated." The ORIGINAL design
+    // let a wrong guess just cost a clue (unlimited guesses), which meant a
+    // sufficiently patient/impatient player could brute-force through the
+    // whole suggestions list without ever really using the trivia. Guessing
+    // is now one-shot: "Next Clue" is still free and unlimited for BROWSING
+    // (no penalty, no guess consumed), but submitGuess() itself always ends
+    // the round, win or lose.
     submitGuess (entry) {
       if (this.status !== 'playing' || !this.target) return;
       this.guessInput = '';
@@ -173,7 +189,7 @@ export default {
       if (entryKey(entry) === entryKey(this.target)) {
         this.win();
       } else {
-        this.revealNextFact();
+        this.lose();
       }
     },
     revealNextFact () {
@@ -183,11 +199,20 @@ export default {
     },
     // Always available while playing — ends the round without a score,
     // same "give up" convention as Clue Budget's Reveal Poster / Six
-    // Degrees' Give Up.
+    // Degrees' Give Up. Distinct from lose() (a wrong GUESS) purely for
+    // messaging — "It was X" vs "Not quite — it was X" — both are terminal,
+    // non-winning, no-score outcomes.
     giveUp () {
       if (this.status !== 'playing') return;
       this.revealedCount = this.facts.length;
       this.status = 'revealed';
+      this.persistState(); // status !== 'playing' now, so this clears the save
+    },
+    // The single wrong guess that ends the round — see submitGuess's own
+    // comment for why guessing is one-shot now.
+    lose () {
+      this.revealedCount = this.facts.length;
+      this.status = 'lost';
       this.persistState(); // status !== 'playing' now, so this clears the save
     },
     win () {
@@ -457,14 +482,31 @@ export default {
   text-align: center;
 }
 
-.result-banner.revealed {
+.result-banner.revealed,
+.result-banner.lost {
   border-left-color: #ff6a6a;
+}
+
+.reveal-poster-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: block;
+  margin: 0.5rem auto;
+  max-width: 160px;
+  padding: 0;
+  width: 100%;
+}
+
+/* Mobile-first: :active only, no :hover (this app has no reliable pointer
+   device — see CLAUDE.md). */
+.reveal-poster-btn:active .reveal-poster {
+  opacity: 0.8;
+  transform: scale(0.97);
 }
 
 .reveal-poster {
   border-radius: 0.35rem;
-  max-width: 160px;
-  margin: 0.5rem auto;
   display: block;
   width: 100%;
 }

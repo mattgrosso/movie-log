@@ -73,8 +73,9 @@ describe('TriviaGame', () => {
     expect(wrapper.find('.fact-row').text()).toContain(wrapper.vm.facts[0]);
   });
 
-  it('a wrong guess reveals the next fact instead of ending the round', async () => {
-    const wrapper = factory(tenMovies());
+  it('a wrong guess ends the round immediately — only one guess is allowed', async () => {
+    const dispatch = vi.fn();
+    const wrapper = factory(tenMovies(), dispatch);
     await flushPromises();
 
     const targetId = wrapper.vm.target.movie.id;
@@ -82,9 +83,26 @@ describe('TriviaGame', () => {
     wrapper.vm.submitGuess(wrongEntry);
     await flushPromises();
 
+    expect(wrapper.vm.status).toBe('lost');
+    expect(wrapper.vm.revealedCount).toBe(5); // every fact revealed on loss
+    expect(wrapper.find('.result-banner').text()).toContain('Not quite');
+    expect(wrapper.find('.result-banner').text()).toContain(`Movie ${targetId}`);
+    expect(wrapper.find('.result-banner').classes()).toContain('lost');
+    expect(dispatch).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/games/triviaBestFactsUsed' }));
+
+    // Guessing again is no longer possible - the guess form itself is gone.
+    expect(wrapper.find('.guess-form').exists()).toBe(false);
+  });
+
+  it('"Next Clue" is still free and unlimited before guessing — it never ends the round', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    for (let i = 0; i < 4; i++) {
+      await wrapper.find('.playing-actions button').trigger('click');
+    }
     expect(wrapper.vm.status).toBe('playing');
-    expect(wrapper.vm.revealedCount).toBe(2);
-    expect(wrapper.findAll('.fact-row')).toHaveLength(2);
+    expect(wrapper.vm.revealedCount).toBe(5);
   });
 
   it('"Next Clue" reveals the next fact without requiring a guess, and disables once every fact is shown', async () => {
@@ -112,6 +130,18 @@ describe('TriviaGame', () => {
     expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/triviaBestFactsUsed', value: 1 });
     expect(wrapper.find('.result-banner').text()).toContain(`Movie ${targetId}`);
     expect(wrapper.find('.reveal-poster').exists()).toBe(true);
+  });
+
+  it('clicking the revealed poster navigates to the movie\'s detail page', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    const targetId = wrapper.vm.target.movie.id;
+    wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.movie.id === targetId));
+    await flushPromises();
+
+    await wrapper.find('.reveal-poster-btn').trigger('click');
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith(`/movie/${targetId}`);
   });
 
   it('does not overwrite an existing better best with a worse one', async () => {
@@ -164,7 +194,9 @@ describe('TriviaGame', () => {
     wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.movie.id === firstTargetId));
     await flushPromises();
 
-    await wrapper.find('.result-banner button').trigger('click');
+    // .result-banner now also contains the poster button (see the
+    // click-to-movie test below) - target "New Round" specifically.
+    await wrapper.find('.result-banner .btn-game-primary').trigger('click');
     await flushPromises();
 
     expect(wrapper.vm.status).toBe('playing');
