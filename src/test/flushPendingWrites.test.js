@@ -36,10 +36,12 @@ vi.mock('@/utils/offlineStore.js', () => ({
 const listPendingWritesMock = vi.fn(() => Promise.resolve([]))
 const removePendingWriteMock = vi.fn()
 const updatePendingWriteMock = vi.fn()
+const enqueueWriteMock = vi.fn((entry) => Promise.resolve({ id: 'queued-id', createdAt: Date.now(), attempts: 0, lastError: null, ...entry }))
 vi.mock('@/utils/pendingWriteQueue.js', () => ({
   listPendingWrites: (...args) => listPendingWritesMock(...args),
   removePendingWrite: (...args) => removePendingWriteMock(...args),
-  updatePendingWrite: (...args) => updatePendingWriteMock(...args)
+  updatePendingWrite: (...args) => updatePendingWriteMock(...args),
+  enqueueWrite: (...args) => enqueueWriteMock(...args)
 }))
 
 let store
@@ -56,6 +58,7 @@ beforeEach(async () => {
   listPendingWritesMock.mockReset().mockResolvedValue([])
   removePendingWriteMock.mockReset()
   updatePendingWriteMock.mockReset()
+  enqueueWriteMock.mockReset().mockImplementation((entry) => Promise.resolve({ id: 'queued-id', createdAt: Date.now(), attempts: 0, lastError: null, ...entry }))
 
   const storeModule = await import('@/store/index.js')
   store = storeModule.default
@@ -315,6 +318,80 @@ describe('updateDatabaseEntriesNow (batched multi-path write, bug fix Jul 2026)'
     updateMock.mockImplementation(() => Promise.reject(new Error('nope')))
 
     await expect(store.dispatch('updateDatabaseEntriesNow', { 'movieLog/x/movie/budget': 1 })).rejects.toThrow('nope')
+  })
+})
+
+describe('applyDbPathLocally mutation (offline support extension, Jul 2026)', () => {
+  it('sets a top-level settings/* value, creating settings if it did not exist', () => {
+    store.commit('setSettings', {})
+    store.commit('applyDbPathLocally', { path: 'settings/lastTweak', value: 12345 })
+    expect(store.state.settings.lastTweak).toBe(12345)
+  })
+
+  it('sets a NESTED settings/* value without disturbing sibling keys at any level', () => {
+    store.commit('setSettings', { personalAwards: { 2023: { completed: true } }, otherKey: 'untouched' })
+    store.commit('applyDbPathLocally', { path: 'settings/personalAwards/2024', value: { completed: false } })
+
+    expect(store.state.settings.personalAwards[2024]).toEqual({ completed: false })
+    expect(store.state.settings.personalAwards[2023]).toEqual({ completed: true }) // untouched
+    expect(store.state.settings.otherKey).toBe('untouched') // untouched
+  })
+
+  it('a single-segment movieLog/<key> path behaves exactly like setMovieLogEntry (frozen, full-entry replace)', () => {
+    store.commit('setMovieLog', { existing: { movie: { id: 1 } } })
+    store.commit('applyDbPathLocally', { path: 'movieLog/new-key', value: { movie: { id: 2 } } })
+
+    expect(store.state.movieLog['new-key']).toEqual({ movie: { id: 2 } })
+    expect(store.state.movieLog.existing).toEqual({ movie: { id: 1 } }) // untouched
+    expect(Object.isFrozen(store.state.movieLog)).toBe(true)
+  })
+})
+
+describe('writeDurably action (offline support extension, Jul 2026 — Stickiness/Tiebreak/Personal Awards)', () => {
+  it('commits the value locally BEFORE attempting the network write, and durably enqueues it', async () => {
+    store.commit('setSettings', {})
+    let sawLocalValueDuringWrite = null
+    setMock.mockImplementation(() => {
+      sawLocalValueDuringWrite = store.state.settings.tieBreakTournament
+      return Promise.resolve()
+    })
+
+    await store.dispatch('writeDurably', { path: 'settings/tieBreakTournament', value: { contestantIds: ['a', 'b'] } })
+
+    expect(sawLocalValueDuringWrite).toEqual({ contestantIds: ['a', 'b'] })
+    expect(enqueueWriteMock).toHaveBeenCalledWith({ type: 'write', dbEntry: { path: 'settings/tieBreakTournament', value: { contestantIds: ['a', 'b'] } } })
+  })
+
+  it('removes the queued entry once the direct write is confirmed', async () => {
+    store.commit('setSettings', {})
+    await store.dispatch('writeDurably', { path: 'settings/lastTweak', value: 999 })
+
+    expect(setMock).toHaveBeenCalledWith('testing-database/settings/lastTweak', 999)
+    expect(removePendingWriteMock).toHaveBeenCalledWith('queued-id')
+  })
+
+  it('leaves the entry queued (does not remove it) and does not throw when the direct write fails', async () => {
+    store.commit('setSettings', {})
+    setMock.mockImplementation(() => Promise.reject(new Error('network down')))
+
+    await expect(store.dispatch('writeDurably', { path: 'settings/lastTweak', value: 1 })).resolves.toBeUndefined()
+
+    expect(removePendingWriteMock).not.toHaveBeenCalled()
+  })
+
+  it('when offline, commits locally and enqueues but never attempts the network write', async () => {
+    // state.isOnline is set via App.vue's online/offline listeners (the
+    // setIsOnline mutation), not re-read live from navigator.onLine on every
+    // check — commit it directly rather than toggling navigator.onLine,
+    // which only affects isOnline at STORE-CREATION time.
+    store.commit('setIsOnline', false)
+    store.commit('setSettings', {})
+
+    await store.dispatch('writeDurably', { path: 'settings/lastTweak', value: 1 })
+
+    expect(store.state.settings.lastTweak).toBe(1)
+    expect(enqueueWriteMock).toHaveBeenCalled()
+    expect(setMock).not.toHaveBeenCalled()
   })
 })
 

@@ -83,7 +83,7 @@ describe('TweakInline', () => {
       // No "Tournament Complete!" standings screen/Done tap for a 2-way tie
       // — per bug report feedback, it should just apply and move on.
       expect(wrapper.text()).not.toContain('Tournament Complete!')
-      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/tieBreakTournament', value: null })
+      expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/tieBreakTournament', value: null })
     })
 
     it('always closes and stamps the daily-quota clock once a 2-way tie resolves, even when another tied group exists (bug report: "it didn\'t actually close... that should count as my tiebreak for this time")', async () => {
@@ -101,7 +101,7 @@ describe('TweakInline', () => {
 
       expect(wrapper.text()).not.toContain('Tournament Complete!')
       expect(wrapper.vm.showTweakInline).toBe(false)
-      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+      expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/lastTweak', value: expect.any(Number) })
     })
 
     it('does not offer "Save for later" for a single-match (2-way) tie', async () => {
@@ -225,17 +225,17 @@ describe('TweakInline', () => {
       }
       // 5 of 6 matches done — tournament still in progress.
       expect(wrapper.text()).not.toContain('Tournament Complete!')
-      expect(dispatch).not.toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+      expect(dispatch).not.toHaveBeenCalledWith('writeDurably', { path: 'settings/lastTweak', value: expect.any(Number) })
 
       // The 6th (final) match completes the tournament but still doesn't
       // stamp the clock — that only happens once the results are acknowledged.
       await wrapper.findAll('.poster-container')[0].trigger('click')
       expect(wrapper.text()).toContain('Tournament Complete!')
-      expect(dispatch).not.toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+      expect(dispatch).not.toHaveBeenCalledWith('writeDurably', { path: 'settings/lastTweak', value: expect.any(Number) })
 
       dispatch.mockClear()
       await wrapper.find('.btn').trigger('click') // "Done"
-      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+      expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/lastTweak', value: expect.any(Number) })
     })
 
     it('offers "Save for later" mid-tournament — tapping it pauses without losing progress', async () => {
@@ -249,9 +249,9 @@ describe('TweakInline', () => {
 
       // Collapses back to the notice, resets the quota clock...
       expect(wrapper.find('.tweak-container').text()).toContain('You have a tie to deal with')
-      expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastTweak', value: expect.any(Number) })
+      expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/lastTweak', value: expect.any(Number) })
       // ...but does NOT clear the tournament — progress is preserved.
-      expect(dispatch).not.toHaveBeenCalledWith('setDBValue', { path: 'settings/tieBreakTournament', value: null })
+      expect(dispatch).not.toHaveBeenCalledWith('writeDurably', { path: 'settings/tieBreakTournament', value: null })
 
       // Reopening resumes the SAME tournament, one match further along.
       await wrapper.find('.tweak-container').trigger('click')
@@ -320,7 +320,7 @@ describe('TweakInline', () => {
       const movies = [movie('a', 'A', 8), movie('b', 'B', 8), movie('c', 'C', 8)]
       const { wrapper, dispatch } = mountTweak(movies, { tieBreakTournament: existingTournament })
 
-      expect(dispatch).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/tieBreakTournament' }))
+      expect(dispatch).not.toHaveBeenCalledWith('writeDurably', expect.objectContaining({ path: 'settings/tieBreakTournament' }))
 
       const notice = wrapper.find('.tweak-container')
       expect(notice.exists()).toBe(true)

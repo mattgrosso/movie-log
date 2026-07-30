@@ -152,7 +152,10 @@ export default {
     // on the poster and go to facts about the movie" - same navigation
     // Six Degrees' chain-step tap already uses.
     goToMovie (entry) {
-      if (!entry?.movie?.id) return;
+      // == null, not a bare falsy check - a real TMDB id is never 0, but
+      // this guarded against it as if it were, same class of bug documented
+      // elsewhere in this codebase (backfillBoxOffice's !movie.id typo).
+      if (entry?.movie?.id == null) return;
       this.$router.push(`/movie/${entry.movie.id}`);
     },
     suggestionYear (entry) {

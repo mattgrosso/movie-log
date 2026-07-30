@@ -8,7 +8,8 @@ import { getRating } from "../assets/javascript/GetRating";
 import router from '@/router';
 import ErrorLogService from "../services/ErrorLogService.js";
 import { saveSnapshot, loadSnapshot } from "../utils/offlineStore.js";
-import { listPendingWrites, removePendingWrite, updatePendingWrite } from "../utils/pendingWriteQueue.js";
+import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite } from "../utils/pendingWriteQueue.js";
+import { setValueAtPath } from "../utils/statePath.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -288,6 +289,36 @@ export default createStore({
       const updated = { ...state.movieLog };
       entries.forEach(({ key, value }) => { updated[key] = value; });
       state.movieLog = Object.freeze(updated);
+    },
+    // General-purpose counterpart to setMovieLogEntry/setMovieLogEntries for
+    // any OTHER db path — settings/* (any depth: settings/lastTweak,
+    // settings/personalAwards/2024, ...) and deeper movieLog/* paths that
+    // aren't a plain full-entry replace. Added for the offline-support
+    // extension to Stickiness/Tiebreak/Personal Awards (Jul 2026) — those
+    // three write mostly to settings/*, which had NO local-optimistic-commit
+    // mutation at all before this (unlike movieLog, which got one during the
+    // original offline-rating work) - without it, an offline write to e.g.
+    // settings/tieBreakTournament wouldn't show up anywhere until the queue
+    // actually flushed. Reuses setMovieLogEntry's exact shape for the common
+    // movieLog/<key> case (freeze + reactivity trigger) rather than routing
+    // it through the generic recursive path, since that's already proven and
+    // used by every existing movieLog writer.
+    applyDbPathLocally (state, { path, value }) {
+      const segments = (path || '').split('/').filter(Boolean);
+      const [root, ...rest] = segments;
+      if (!root || !rest.length) return;
+
+      if (root === 'movieLog' && rest.length === 1) {
+        state.movieLog = Object.freeze({ ...state.movieLog, [rest[0]]: value });
+        return;
+      }
+      if (root === 'movieLog') {
+        state.movieLog = Object.freeze(setValueAtPath(state.movieLog, rest, value));
+        return;
+      }
+      if (root === 'settings') {
+        state.settings = setValueAtPath(state.settings, rest, value);
+      }
     },
     setIsOnline (state, value) {
       state.isOnline = value;
@@ -650,6 +681,37 @@ export default createStore({
     // feature existed, for the case that actually broke.
     async writeDatabaseEntryNow (context, dbEntry) {
       await performDatabaseWrite(context, dbEntry);
+    },
+    // General-purpose "offline-safe write" for the features that don't need
+    // AddRating.js's placeholder/reconciliation machinery, just its core
+    // durability guarantee (bug report, Jul 2026: "updates to the stickiness
+    // rating and the tiebreaker values and any [Personal Awards] changes...
+    // should be able to be done offline and then push to the database when
+    // I'm back online"). Same overall shape as AddRating.js's write path -
+    // optimistic local commit, THEN durably enqueue BEFORE attempting -
+    // generalized via applyDbPathLocally so it isn't limited to movieLog/*
+    // paths the way setMovieLogEntry is.
+    //
+    // Deliberately does NOT re-throw on a failed online attempt (unlike
+    // AddRating.js's non-placeholder path) - none of these three callers had
+    // dedicated per-write error UI before this, and their existing
+    // try/catch+console.error/ErrorLogService handling is the right level of
+    // visibility to preserve. The durable queue entry is the real safety net
+    // either way; a failed attempt just means the background flush
+    // (App.vue's triggers / initializeDB) retries it, same as offline.
+    async writeDurably (context, dbEntry) {
+      context.commit('applyDbPathLocally', dbEntry);
+
+      const queuedRecord = await enqueueWrite({ type: 'write', dbEntry });
+
+      if (!context.state.isOnline) return; // already durably queued above
+      try {
+        await context.dispatch('writeDatabaseEntryNow', dbEntry);
+        if (queuedRecord) await removePendingWrite(queuedRecord.id);
+      } catch (error) {
+        // Already durably queued above regardless of this failure.
+        console.error('writeDurably: direct write failed, will retry via the background queue:', dbEntry.path, error);
+      }
     },
     // Atomic multi-path write via Firebase's update() (not set()) - `updates`
     // is a flat object whose keys are full paths relative to the account

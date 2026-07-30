@@ -562,8 +562,8 @@ export default {
         if (alreadyPersisted) return;
 
         try {
-          this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYear', value: newYear });
-          this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYearDate', value: today });
+          this.$store.dispatch('writeDurably', { path: 'settings/dailyAwardsYear', value: newYear });
+          this.$store.dispatch('writeDurably', { path: 'settings/dailyAwardsYearDate', value: today });
         } catch (error) {
           console.error('Error persisting daily awards selection:', error);
           ErrorLogService.error('Error persisting daily awards selection:', error);
@@ -575,7 +575,7 @@ export default {
     if (this.autoOpen) {
       this.openModal();
       // Reset forced state so it doesn't re-trigger on next visit
-      this.$store.dispatch('setDBValue', { path: 'settings/awardsPromptState', value: null });
+      this.$store.dispatch('writeDurably', { path: 'settings/awardsPromptState', value: null });
     }
   },
   methods: {
@@ -631,13 +631,13 @@ export default {
       try {
         this.completingYear = true; // Set flag to prevent further saves
         // Record completion date
-        await this.$store.dispatch('setDBValue', {
+        await this.$store.dispatch('writeDurably', {
           path: 'settings/lastAwardCompletionDate',
           value: new Date().toDateString()
         });
 
         // Clear daily selection
-        await this.$store.dispatch('setDBValue', {
+        await this.$store.dispatch('writeDurably', {
           path: 'settings/dailyAwardsYear',
           value: null
         });
@@ -739,8 +739,14 @@ export default {
           categories: cleanedCategories
         };
 
-        // Queue the save - store handles deduplication and sequencing
-        await this.$store.dispatch('setDBValue', {
+        // writeDurably (not setDBValue, everywhere in this component) - bug
+        // report: personal awards changes should work offline and sync once
+        // back online, same as ratings/stickiness/tiebreak. Commits locally
+        // first (via applyDbPathLocally) so awardsData/this.$store.state
+        // reflects the save immediately regardless of connectivity, then
+        // durably queues before attempting the network write. See
+        // CLAUDE.md's Offline Support Extension section.
+        await this.$store.dispatch('writeDurably', {
           path: `settings/personalAwards/${this.currentYear}`,
           value: awardsEntry
         });

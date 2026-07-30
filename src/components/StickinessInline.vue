@@ -270,7 +270,11 @@ export default {
           value: movieWithRating
         }
 
-        this.$store.dispatch('setDBValue', dbEntry);
+        // writeDurably (not setDBValue): commits locally first, then
+        // durably queues before attempting the network write, so this
+        // survives being offline (bug report - see CLAUDE.md's Offline
+        // Support Extension section).
+        this.$store.dispatch('writeDurably', dbEntry);
 
         this.submittingStickiness = false;
         this.stickinessRating = "";

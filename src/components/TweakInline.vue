@@ -287,6 +287,16 @@ export default {
 
       return mostRecentRatingIndex;
     },
+    // Every write in this component goes through writeDurably (not
+    // setDBValue) — bug report: tiebreaker picks should work offline and
+    // sync once back online, same guarantee AddRating.js's ratings already
+    // have. writeDurably commits locally (via applyDbPathLocally) before
+    // durably queuing, so localTournament here is now belt-and-suspenders
+    // rather than the only thing standing between a pick and a stale UI —
+    // still kept as-is since Firebase's own onValue listener update is a
+    // separate, slightly-later event either way. See CLAUDE.md's Offline
+    // Support Extension section.
+    //
     // Returns true if a tournament is (now) in progress, false if there was
     // nothing left to start it for — callers use this to decide whether to
     // keep the panel open on the next match or collapse it.
@@ -298,7 +308,7 @@ export default {
       // contestant's matches plays before the next contestant's begin.
       const tournament = createRoundRobinTournament(this.tiedGroupDbKeys, Math.random);
       this.localTournament = tournament;
-      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: tournament });
+      this.$store.dispatch('writeDurably', { path: 'settings/tieBreakTournament', value: tournament });
       // Every contestant in a round-robin tournament is known upfront - warm
       // the browser's image cache for all of them now rather than letting
       // each match's poster load cold, staggered by individual network/
@@ -321,7 +331,7 @@ export default {
     },
     clearCompletedTournament () {
       this.localTournament = null;
-      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: null });
+      this.$store.dispatch('writeDurably', { path: 'settings/tieBreakTournament', value: null });
     },
     async chooseWinner (winnerResult) {
       if (!winnerResult || !this.currentTournament) return;
@@ -330,7 +340,7 @@ export default {
 
       const updatedTournament = recordMatchResult(this.currentTournament, winnerResult.dbKey);
       this.localTournament = updatedTournament;
-      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTournament', value: updatedTournament });
+      this.$store.dispatch('writeDurably', { path: 'settings/tieBreakTournament', value: updatedTournament });
       // NOT stamping settings/lastTweak here unconditionally anymore — that
       // used to reset the daily-quota clock after EVERY match, which made
       // shouldShowTieBreakModal (Home.vue) go false and hide this whole
@@ -378,7 +388,7 @@ export default {
         if (updatedTournament.contestantIds.length <= 2) {
           this.clearCompletedTournament();
           this.closeTweakInline();
-          this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
+          this.$store.dispatch('writeDurably', { path: 'settings/lastTweak', value: Date.now() });
         }
         // 3+-contestant completion falls through to the "Tournament
         // Complete!" screen — acknowledgeResults stamps lastTweak once the
@@ -418,7 +428,7 @@ export default {
           })
         };
 
-        return this.$store.dispatch('setDBValue', { path: `movieLog/${movie.dbKey}`, value: movieWithRating });
+        return this.$store.dispatch('writeDurably', { path: `movieLog/${movie.dbKey}`, value: movieWithRating });
       }).filter(Boolean);
 
       return Promise.all(writes);
@@ -429,7 +439,7 @@ export default {
       // The multi-match-tournament equivalent of the 2-way fast path's
       // session-end stamp above — this tournament is fully done and
       // acknowledged, so reset the daily-quota clock now.
-      this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
+      this.$store.dispatch('writeDurably', { path: 'settings/lastTweak', value: Date.now() });
       // Immediately (rather than waiting on the watcher's next tick) start
       // the next tournament if another tied group is already sitting there —
       // most relevant with "force tiebreak" enabled, where showTweakModal
@@ -444,7 +454,7 @@ export default {
     // pick) and resets the daily-quota clock so the panel doesn't immediately
     // reopen; it'll resume right where it was left, whenever it's next due.
     saveForLater () {
-      this.$store.dispatch('setDBValue', { path: 'settings/lastTweak', value: Date.now() });
+      this.$store.dispatch('writeDurably', { path: 'settings/lastTweak', value: Date.now() });
       this.closeTweakInline();
       this.$emit('tweak-updated');
     }
