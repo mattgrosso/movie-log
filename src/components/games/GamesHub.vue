@@ -208,8 +208,11 @@ export default {
 }
 
 /* Green (not the tiles' amber) so "done today" reads as its own distinct
-   signal rather than blending into the tile's own icon color. */
-.won-today {
+   signal rather than blending into the tile's own icon color. Scoped under
+   .game-tile deliberately: the `.game-tile i` rule above is (0,1,1) and
+   would otherwise out-specify a bare `.won-today` (0,1,0), painting this
+   amber like the tile's own icon — exactly the blending this avoids. */
+.game-tile .won-today {
   color: #4caf50;
   font-size: 1rem;
 }
