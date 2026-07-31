@@ -139,7 +139,12 @@ export default {
     awardsData () {
       return {
         personalAwards: this.$store.state.settings?.personalAwards || {},
-        allAcademyAwards: this.$store.state.allAcademyAwards || []
+        allAcademyAwards: this.$store.state.allAcademyAwards || [],
+        // Bug report: a personal-award category read "Won Best Picture
+        // (Personal)" - it should use the user's OWN name for their awards
+        // ("The Groskers"), which the settings panel already asks them to
+        // name so it reads naturally after "the".
+        personalAwardName: this.$store.state.settings?.personalAwardName
       };
     }
   },
@@ -150,6 +155,11 @@ export default {
   // arrives. Watching with immediate:true retries as soon as real entries
   // land, and no-ops once a puzzle already exists.
   watch: {
+    // status is a computed (derived from solvedLabels), so watch it rather
+    // than hooking an imperative win moment — see ReelWordleGame.
+    status (newStatus) {
+      if (newStatus === 'won') this.recordGameWin();
+    },
     eligibleGameEntries: {
       immediate: true,
       handler (entries) {

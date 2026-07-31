@@ -93,6 +93,7 @@ const FALLBACK_COSTS = {
   editor: 10,
   composer: 12,
   cinematographer: 12,
+  yourRating: 12,
   tagline: 15,
   writer: 15,
   director: 20
@@ -114,11 +115,13 @@ const FALLBACK_COSTS = {
 //     populated for keywords that came from TMDB (have a resolvable
 //     keyword id; AI/custom keywords don't and always use the fallback).
 //   - companyMovieCount: total_results for the primary production company.
+//   - yourRating: the player's own calculated score for this movie (number).
+//     Not derivable here — see the Your Rating clue below.
 // Call buildClueDeck again as each extra resolves to refresh prices in
 // place — the component re-merges rather than replacing already-purchased
 // clues, so a price update never retroactively changes what was paid.
 export function buildClueDeck (entry, extras = {}) {
-  const { tagline, peoplePopularity = {}, keywordMovieCounts = {}, companyMovieCount } = extras;
+  const { tagline, peoplePopularity = {}, keywordMovieCounts = {}, companyMovieCount, yourRating } = extras;
   const clues = [];
 
   const decade = movieDecade(entry);
@@ -129,6 +132,18 @@ export function buildClueDeck (entry, extras = {}) {
 
   const genres = movieGenreNames(entry);
   if (genres.length) clues.push({ key: 'genres', label: genres.length > 1 ? 'Genres' : 'Genre', cost: 8, value: genres.join(', ') });
+
+  // User request: "we should add my rating as a buyable clue." Passed in via
+  // extras (not read off the entry) because a rating needs GetRating.js +
+  // the Vuex weight getters to compute, which this store-free module can't
+  // reach — same reason tagline comes in that way. Flat-priced: unlike the
+  // people/keyword/company clues there's no TMDB signal to scale against,
+  // and how identifying a given score is depends entirely on the shape of
+  // the player's own library (a 9.4 narrows hard, a 6.5 barely at all), so
+  // a mid-range fixed cost is the honest choice rather than a fake curve.
+  if (typeof yourRating === 'number' && Number.isFinite(yourRating)) {
+    clues.push({ key: 'yourRating', label: 'Your Rating', cost: FALLBACK_COSTS.yourRating, value: yourRating.toFixed(2) });
+  }
 
   const producers = movieProducers(entry);
   if (producers.length) {

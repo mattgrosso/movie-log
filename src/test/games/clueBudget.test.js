@@ -114,6 +114,36 @@ describe('buildClueDeck', () => {
     deck.forEach((clue) => expect(clue.cost).toBeLessThan(STARTING_BUDGET));
   });
 
+  // Feature request: "we should add my rating as a buyable clue on the
+  // trivia budget game." Comes in via extras since a rating can't be
+  // computed without the store (see buildClueDeck's own comment).
+  describe('the Your Rating clue', () => {
+    it('is offered, formatted to 2 decimals, when a finite rating is supplied', () => {
+      const clue = buildClueDeck(entry(), { yourRating: 8.456 }).find((c) => c.key === 'yourRating');
+      expect(clue).toBeTruthy();
+      expect(clue.label).toBe('Your Rating');
+      expect(clue.value).toBe('8.46');
+      expect(clue.cost).toBeGreaterThan(0);
+    });
+
+    it('is offered for a legitimate zero rating (not treated as missing)', () => {
+      const clue = buildClueDeck(entry(), { yourRating: 0 }).find((c) => c.key === 'yourRating');
+      expect(clue).toBeTruthy();
+      expect(clue.value).toBe('0.00');
+    });
+
+    it('is omitted entirely when no rating is supplied, or when it is not a real number', () => {
+      expect(buildClueDeck(entry()).some((c) => c.key === 'yourRating')).toBe(false);
+      expect(buildClueDeck(entry(), { yourRating: NaN }).some((c) => c.key === 'yourRating')).toBe(false);
+      expect(buildClueDeck(entry(), { yourRating: null }).some((c) => c.key === 'yourRating')).toBe(false);
+    });
+
+    it('costs less than the starting budget, like every other clue', () => {
+      const clue = buildClueDeck(entry(), { yourRating: 5 }).find((c) => c.key === 'yourRating');
+      expect(clue.cost).toBeLessThan(STARTING_BUDGET);
+    });
+  });
+
   describe('dynamic pricing from live TMDB data', () => {
     it('prices a person clue from real popularity instead of the fallback tier, once it is known', () => {
       const obscure = buildClueDeck(entry(), { peoplePopularity: { 'Some Director': 1 } });

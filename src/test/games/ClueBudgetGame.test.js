@@ -26,6 +26,14 @@ vi.mock('axios', () => ({
   default: { get: vi.fn() }
 }));
 
+// These fixtures carry only a calculatedTotal, not the individual criteria
+// the real weighted math needs, so the real getRating returns NaN for them
+// (which buildClueDeck correctly refuses to offer as a Your Rating clue).
+// Mock it so the rating-clue path is exercised against a realistic value.
+vi.mock('@/assets/javascript/GetRating.js', () => ({
+  getRating: vi.fn(() => ({ calculatedTotal: 7.5 }))
+}));
+
 function entry (id, overrides = {}) {
   return {
     dbKey: `key-${id}`,
@@ -218,14 +226,48 @@ describe('ClueBudgetGame', () => {
     expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/clueBudgetBestSavings', value: 70 });
   });
 
-  it('guessing the WRONG movie does not end the round', async () => {
+  it('guessing the WRONG movie does not end the round, but DOES say so (bug report: "there\'s no real feedback right now")', async () => {
     const wrapper = factory(tenMovies());
     await flushPromises();
     const wrong = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== wrapper.vm.target.dbKey);
 
     wrapper.vm.submitGuess(wrong);
+    await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.status).toBe('playing');
+    expect(wrapper.vm.lastGuessFeedback).toContain(wrong.movie.title);
+    const feedback = wrapper.find('.guess-feedback');
+    expect(feedback.classes()).toContain('visible');
+    expect(feedback.text()).toContain(wrong.movie.title);
+
+    // Guesses are free - a wrong one must not cost budget.
+    expect(wrapper.vm.budget).toBe(100);
+  });
+
+  it('clears the wrong-guess message as soon as the player starts typing again', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+    const wrong = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== wrapper.vm.target.dbKey);
+    wrapper.vm.submitGuess(wrong);
+    expect(wrapper.vm.lastGuessFeedback).toBeTruthy();
+
+    wrapper.vm.guessInput = 'mov';
+    wrapper.vm.onInput();
+
+    expect(wrapper.vm.lastGuessFeedback).toBeNull();
+  });
+
+  // Feature request: "we should add my rating as a buyable clue on the
+  // trivia budget game."
+  it('offers the player\'s own rating as a buyable clue, available from the first render (no fetch needed)', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    const ratingClue = wrapper.vm.clueDeck.find((c) => c.key === 'yourRating');
+    expect(ratingClue).toBeTruthy();
+    expect(ratingClue.label).toBe('Your Rating');
+    expect(Number(ratingClue.value)).toBeCloseTo(wrapper.vm.gameRatingFor(wrapper.vm.target));
+    expect(ratingClue.cost).toBeGreaterThan(0);
   });
 
   it('does not overwrite a better (higher-savings) best score with a worse one', async () => {

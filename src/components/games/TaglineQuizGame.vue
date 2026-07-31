@@ -202,6 +202,7 @@ export default {
       }
 
       this.streak += 1;
+      this.recordGameWin(); // one correct pick counts — see the mixin
       if (this.streak > this.bestStreak) {
         this.$store.dispatch('setDBValue', { path: 'settings/games/taglineQuizBestStreak', value: this.streak });
       }

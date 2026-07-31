@@ -30,6 +30,11 @@
             </button>
           </li>
         </ul>
+
+        <!-- Always rendered (visibility, not v-if) so the message appearing
+             can never reflow the clue shop below it — same anti-layout-jump
+             convention Connections' guess feedback already uses. -->
+        <p class="guess-feedback" :class="{ visible: lastGuessFeedback }">{{ lastGuessFeedback || '&nbsp;' }}</p>
       </div>
 
       <div v-else class="result-banner" :class="status">
@@ -109,7 +114,8 @@ export default {
       liveExtras: {},
       status: 'playing',
       guessInput: '',
-      suggestions: []
+      suggestions: [],
+      lastGuessFeedback: null
     };
   },
   computed: {
@@ -140,6 +146,10 @@ export default {
       return date ? new Date(date).getFullYear() : 'Unknown';
     },
     onInput () {
+      // Clear the previous wrong-guess message as soon as they start typing
+      // a new one, so it can't linger past the guess it was about (same as
+      // Connections clears its feedback on the next tile tap).
+      this.lastGuessFeedback = null;
       const term = this.guessInput.trim().toLowerCase();
       if (term.length < 2) {
         this.suggestions = [];
@@ -157,7 +167,17 @@ export default {
       if (this.status !== 'playing' || !this.target) return;
       this.guessInput = '';
       this.suggestions = [];
-      if (entryKey(entry) === entryKey(this.target)) this.win();
+      if (entryKey(entry) === entryKey(this.target)) {
+        this.win();
+        return;
+      }
+      // Bug report: "if I guess wrong it should say so. There's no real
+      // feedback right now" - a wrong guess used to silently do nothing at
+      // all, indistinguishable from a tap that didn't register. Guesses are
+      // still free (this game charges for CLUES, not guesses), so this is
+      // purely feedback. Same always-rendered/reserved-height treatment as
+      // Connections' own guess feedback so it can't reflow the layout.
+      this.lastGuessFeedback = `Not ${entry.movie.title}. Try again.`;
     },
     buyClue (clue) {
       if (this.status !== 'playing' || this.purchasedClues.some((p) => p.key === clue.key) || clue.cost > this.budget) return;
@@ -178,6 +198,7 @@ export default {
     },
     win () {
       this.status = 'won';
+      this.recordGameWin();
       if (this.bestSavings == null || this.budget > this.bestSavings) {
         this.$store.dispatch('setDBValue', { path: 'settings/games/clueBudgetBestSavings', value: this.budget });
       }
@@ -194,11 +215,15 @@ export default {
       this.status = 'playing';
       this.guessInput = '';
       this.suggestions = [];
-      this.liveExtras = {};
+      this.lastGuessFeedback = null;
+      // yourRating is local (GetRating + Vuex weights), not fetched — seed
+      // it into extras up front so the Your Rating clue is offered from the
+      // very first render rather than waiting on any network round trip.
+      this.liveExtras = { yourRating: this.gameRatingFor(this.target) };
       // Fallback-priced deck immediately — the round is fully playable
       // before any network request resolves. Each of the three live
       // fetches below independently refines whichever clues it covers.
-      this.clueDeck = buildClueDeck(this.target);
+      this.clueDeck = buildClueDeck(this.target, this.liveExtras);
       this.fetchLiveData(this.target);
     },
     // Merges a partial extras update and rebuilds the deck from it. Never
@@ -374,6 +399,19 @@ export default {
 .suggestion-year {
   color: #adb5bd;
   font-size: 0.85em;
+}
+
+.guess-feedback {
+  color: #ff6a6a;
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+  min-height: 1.2rem;
+  text-align: center;
+  visibility: hidden;
+}
+
+.guess-feedback.visible {
+  visibility: visible;
 }
 
 // Left-accent-bar callout, same treatment as Reel Wordle/Connections'

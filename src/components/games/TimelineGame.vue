@@ -449,6 +449,7 @@ export default {
 
       this.timeline = insertAtSlot(this.timeline, slotIndex, placedEntry);
       this.streak += 1;
+      this.recordGameWin(); // one correct placement counts — see the mixin
       if (this.streak > this.bestStreak) {
         this.$store.dispatch('setDBValue', { path: 'settings/games/timelineBestStreak', value: this.streak });
       }

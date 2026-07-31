@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import GamesHub from '@/components/games/GamesHub.vue';
-import { LAST_PLAYED_KEY } from '@/mixins/gameData.js';
+import { LAST_PLAYED_KEY, todayStamp } from '@/mixins/gameData.js';
 
 vi.mock('@/assets/javascript/GetRating.js', () => ({
   getRating: vi.fn(() => ({ calculatedTotal: 5 }))
@@ -21,12 +21,15 @@ function entry (id) {
   };
 }
 
-function factory (movieCount) {
+function factory (movieCount, settings = {}) {
   const pushSpy = vi.fn();
   const wrapper = mount(GamesHub, {
     global: {
       mocks: {
-        $store: { getters: { allMediaAsArray: Array.from({ length: movieCount }, (_, i) => entry(i)) } },
+        $store: {
+          state: { settings },
+          getters: { allMediaAsArray: Array.from({ length: movieCount }, (_, i) => entry(i)) }
+        },
         $router: { push: pushSpy }
       }
     }
@@ -74,5 +77,38 @@ describe('GamesHub', () => {
     const { wrapper } = factory(10);
     await wrapper.findAll('.game-tile')[0].trigger('click');
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' });
+  });
+
+  // Feature request: "it would be nice to have a checkmark on the game if
+  // I've won a game of that today. Then I'll be able to play each one each
+  // day and feel satisfied." Explicitly NOT a play limit.
+  describe('won-today checkmarks', () => {
+    it('shows no checkmarks when nothing has been won today', () => {
+      const { wrapper } = factory(10);
+      expect(wrapper.findAll('.won-today')).toHaveLength(0);
+    });
+
+    it('marks only the games whose stored stamp is today', () => {
+      const { wrapper } = factory(10, {
+        games: { wins: { wordle: todayStamp(), connections: todayStamp() } }
+      });
+
+      expect(wrapper.findAll('.won-today')).toHaveLength(2);
+      const markedTiles = wrapper.findAll('.game-tile').filter((t) => t.find('.won-today').exists());
+      expect(markedTiles.map((t) => t.find('.game-tile-name').text())).toEqual(['Reel Wordle', 'Connections']);
+    });
+
+    it('ignores a stamp from a previous day (nothing to expire or clear)', () => {
+      const { wrapper } = factory(10, {
+        games: { wins: { wordle: new Date('2020-05-05T12:00:00').toDateString() } }
+      });
+      expect(wrapper.findAll('.won-today')).toHaveLength(0);
+    });
+
+    it('never gates play - a won game is still tappable', async () => {
+      const { wrapper, pushSpy } = factory(10, { games: { wins: { 'higher-lower': todayStamp() } } });
+      await wrapper.findAll('.game-tile')[0].trigger('click');
+      expect(pushSpy).toHaveBeenCalledWith('/games/higher-lower');
+    });
   });
 });

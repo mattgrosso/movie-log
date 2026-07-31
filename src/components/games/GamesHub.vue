@@ -22,7 +22,14 @@
         @click="selectGame(game.path)"
       >
         <i :class="['bi', game.icon]"></i>
-        <span class="game-tile-name">{{ game.name }}</span>
+        <span class="game-tile-name">
+          {{ game.name }}
+          <!-- Feature request: "it would be nice to have a checkmark on the
+               game if I've won a game of that today... then I'll be able to
+               play each one each day and feel satisfied." Purely a marker —
+               it never gates or limits play. -->
+          <i v-if="wonToday(game.path)" class="bi bi-check-circle-fill won-today" title="Won today"></i>
+        </span>
         <span class="game-tile-description">{{ game.description }}</span>
       </button>
     </div>
@@ -32,7 +39,7 @@
 <script>
 import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
-import gameDataMixin, { LAST_PLAYED_KEY, GAME_ICONS } from '../../mixins/gameData.js';
+import gameDataMixin, { LAST_PLAYED_KEY, GAME_ICONS, gameWinKey, todayStamp } from '../../mixins/gameData.js';
 
 export default {
   name: 'GamesHub',
@@ -109,6 +116,13 @@ export default {
     };
   },
   methods: {
+    // A stamp that isn't today's simply reads as "not won today" — nothing
+    // ever needs clearing or expiring. See gameData.js's recordGameWin.
+    wonToday (path) {
+      const key = gameWinKey(path);
+      if (!key) return false;
+      return this.$store.state?.settings?.games?.wins?.[key] === todayStamp();
+    },
     // Bug report: choosing a game while scrolled down in the tile grid left
     // the new game's page scrolled down too (Vue Router doesn't reset scroll
     // position on navigation by default). Scroll to top BEFORE navigating so
@@ -186,8 +200,18 @@ export default {
 }
 
 .game-tile-name {
+  align-items: center;
+  display: flex;
   font-size: 1.15rem;
   font-weight: 600;
+  gap: 0.4rem;
+}
+
+/* Green (not the tiles' amber) so "done today" reads as its own distinct
+   signal rather than blending into the tile's own icon color. */
+.won-today {
+  color: #4caf50;
+  font-size: 1rem;
 }
 
 .game-tile-description {

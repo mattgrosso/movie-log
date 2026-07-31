@@ -288,6 +288,12 @@ export default {
     }
   },
   watch: {
+    // status is a computed (derived from the chain reaching the target), so
+    // watch it rather than hooking an imperative win moment — see
+    // ReelWordleGame.
+    status (newStatus) {
+      if (newStatus === 'won') this.recordGameWin();
+    },
     // eligibleGameEntries can be empty for a tick while the library is still
     // loading from Firebase (most visible on a direct/deep-link navigation
     // straight to this route, before dbLoaded settles) — calling loadOrStart

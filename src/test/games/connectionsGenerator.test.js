@@ -247,11 +247,12 @@ describe('buildCandidateCategories', () => {
           2022: { categories: { bestDirector: { winner: { movieId: winners[2].movie.id } } } },
           2023: { categories: { bestDirector: { winner: { movieId: winners[3].movie.id } } } }
         },
-        allAcademyAwards: []
+        allAcademyAwards: [],
+        personalAwardName: 'Groskers'
       };
 
       const candidates = buildCandidateCategories(library, awardsData);
-      const category = candidates.find((c) => c.label === 'Won Best Director (Personal)');
+      const category = candidates.find((c) => c.label === 'Won Best Director (The Groskers)');
       expect(category).toBeTruthy();
       expect(category.movies).toHaveLength(4);
     });
@@ -278,12 +279,13 @@ describe('buildCandidateCategories', () => {
       winners.forEach((e, i) => { personalAwards[2000 + i] = { categories: { bestPicture: { winner: { movieId: e.movie.id } } } }; });
       const awardsData = {
         personalAwards,
-        allAcademyAwards: winners.map((e) => academyRecord(e.movie.id, 'Best Picture'))
+        allAcademyAwards: winners.map((e) => academyRecord(e.movie.id, 'Best Picture')),
+        personalAwardName: 'Groskers'
       };
 
       const candidates = buildCandidateCategories(library, awardsData);
       const academyCategory = candidates.find((c) => c.label === 'Won Best Picture (Academy)');
-      const personalCategory = candidates.find((c) => c.label === 'Won Best Picture (Personal)');
+      const personalCategory = candidates.find((c) => c.label === 'Won Best Picture (The Groskers)');
 
       expect(academyCategory).toBeTruthy();
       expect(personalCategory).toBeTruthy();
@@ -302,15 +304,32 @@ describe('buildCandidateCategories', () => {
       personalOnly.forEach((e, i) => { personalAwards[2000 + i] = { categories: { bestPicture: { winner: { movieId: e.movie.id } } } }; });
       const awardsData = {
         personalAwards,
-        allAcademyAwards: academyOnly.map((e) => academyRecord(e.movie.id, 'Best Picture'))
+        allAcademyAwards: academyOnly.map((e) => academyRecord(e.movie.id, 'Best Picture')),
+        personalAwardName: 'Groskers'
       };
 
       const candidates = buildCandidateCategories(library, awardsData);
       const academyCategory = candidates.find((c) => c.label === 'Won Best Picture (Academy)');
-      const personalCategory = candidates.find((c) => c.label === 'Won Best Picture (Personal)');
+      const personalCategory = candidates.find((c) => c.label === 'Won Best Picture (The Groskers)');
 
       expect(academyCategory.movies.map((e) => e.movie.id).sort()).toEqual(academyOnly.map((e) => e.movie.id).sort());
       expect(personalCategory.movies.map((e) => e.movie.id).sort()).toEqual(personalOnly.map((e) => e.movie.id).sort());
+    });
+
+    // Bug report: "when the connection is that the movies won a personal
+    // award of mine you put in parentheses that it was 'personal'. You
+    // should use the name of the awards there... you can add the 'the'."
+    it('falls back to the default award name when personalAwardName is not set', () => {
+      const winners = awardWinners('nodefault', 4);
+      const library = [...buildSolvableLibrary(), ...winners];
+      const personalAwards = {};
+      winners.forEach((e, i) => { personalAwards[2000 + i] = { categories: { bestPicture: { winner: { movieId: e.movie.id } } } }; });
+
+      const candidates = buildCandidateCategories(library, { personalAwards, allAcademyAwards: [] });
+
+      expect(candidates.some((c) => c.label === 'Won Best Picture (The Oscar)')).toBe(true);
+      // The old generic label is gone entirely.
+      expect(candidates.some((c) => c.label.includes('(Personal)'))).toBe(false);
     });
 
     it('produces no awards categories at all when awardsData is omitted (graceful no-op, same as every other pre-existing call site)', () => {

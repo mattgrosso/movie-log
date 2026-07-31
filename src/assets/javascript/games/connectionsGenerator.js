@@ -1,6 +1,7 @@
 import { entryKey, movieDirectors, movieGenreNames, movieDecade, movieCastNames, shuffle, pickRandomDistinct } from './gameUtils.js';
 import { computeFlatKeywords } from '../../../utils/keywords.js';
 import { PERSONAL_AWARD_CATEGORY_NAMES } from '../personalAwardsCategories.js';
+import { awardNameWithThe } from '../personalAwards.js';
 
 const GROUP_SIZE = 4;
 const CATEGORY_COUNT = 4;
@@ -153,13 +154,20 @@ function movieWonAwardCategories (entry, awardsData, academyWinsByTmdbId) {
 
   const personalAwards = awardsData?.personalAwards;
   if (personalAwards) {
+    // Bug report: this used to read "(Personal)", a generic internal label.
+    // The user names their own awards in settings ("The Groskers"), and the
+    // setting's own instructions tell them to pick a name that reads
+    // naturally after "the" - so awardNameWithThe is safe to use directly.
+    // Falls back to "The Oscars" via awardNameWithThe's own default when
+    // the name hasn't been set (or awardsData predates this field).
+    const personalLabel = awardNameWithThe(awardsData?.personalAwardName);
     Object.values(personalAwards).forEach((yearData) => {
       const yearCategories = yearData?.categories || {};
       Object.keys(yearCategories).forEach((categoryKey) => {
         const winner = yearCategories[categoryKey]?.winner;
         if (winner?.movieId === movieId) {
           const name = PERSONAL_AWARD_CATEGORY_NAMES[categoryKey] || categoryKey;
-          categories.add(`${name} (Personal)`);
+          categories.add(`${name} (${personalLabel})`);
         }
       });
     });

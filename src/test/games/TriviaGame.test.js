@@ -37,7 +37,10 @@ function factory (movies, dispatch = vi.fn()) {
           dispatch,
           commit: vi.fn()
         },
-        $router: { push: vi.fn() }
+        $router: { push: vi.fn() },
+        // recordGameWin derives its key from the route (see gameData.js),
+        // so it no-ops without one.
+        $route: { path: '/games/trivia' }
       }
     }
   });
@@ -235,6 +238,36 @@ describe('TriviaGame', () => {
     await flushPromises();
 
     expect(wrapper.vm.facts).not.toContain('A stale fact that should never appear.');
+  });
+
+  // Feature request: a checkmark on the hub for each game won today.
+  describe('recording a daily win', () => {
+    it('stamps today\'s date under this game\'s own key on a win', async () => {
+      const dispatch = vi.fn();
+      const wrapper = factory(tenMovies(), dispatch);
+      await flushPromises();
+
+      const targetId = wrapper.vm.target.movie.id;
+      wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.movie.id === targetId));
+      await flushPromises();
+
+      expect(dispatch).toHaveBeenCalledWith('writeDurably', {
+        path: 'settings/games/wins/trivia',
+        value: new Date().toDateString()
+      });
+    });
+
+    it('does NOT stamp a win when the round is lost', async () => {
+      const dispatch = vi.fn();
+      const wrapper = factory(tenMovies(), dispatch);
+      await flushPromises();
+
+      const targetId = wrapper.vm.target.movie.id;
+      wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.movie.id !== targetId));
+      await flushPromises();
+
+      expect(dispatch).not.toHaveBeenCalledWith('writeDurably', expect.objectContaining({ path: 'settings/games/wins/trivia' }));
+    });
   });
 
   describe('progress persistence (bug report: "went to the home screen and then came back it reset")', () => {

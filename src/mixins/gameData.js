@@ -22,6 +22,25 @@ export const GAME_ICONS = {
   '/games/trivia': 'bi-question-circle-fill'
 };
 
+// Feature request: "I don't want to limit the number of times I can play a
+// game in one day but it would be nice to have a checkmark on the game if
+// I've won a game of that today. Then I'll be able to play each one each
+// day and feel satisfied." Wins are recorded per game at
+// settings/games/wins/<key> = a toDateString() stamp (the same
+// today-stamp convention settings/dailyAwardsYearDate already uses), so a
+// stamp that isn't today's simply reads as "not won today" with nothing to
+// clear or expire. The key is the route's last segment, derived by this one
+// helper on BOTH sides (the game recording a win, and GamesHub reading it
+// back) so the two can't drift apart.
+export function gameWinKey (routePath) {
+  if (!routePath || !routePath.startsWith('/games/')) return null;
+  return routePath.slice('/games/'.length);
+}
+
+export function todayStamp () {
+  return new Date().toDateString();
+}
+
 // Shared plumbing for every game in src/components/games/ — which library
 // entries are usable (poster + release date + at least one rating) and how
 // to read a numeric rating off one. Kept as a mixin (matching the
@@ -51,6 +70,22 @@ export default {
     }
   },
   methods: {
+    // Called by each game at ITS OWN definition of a win. For the games with
+    // a discrete win state (Wordle/Connections/Six Degrees/Clue Budget/
+    // Trivia) that's unambiguous; for the endless streak games (Higher or
+    // Lower/Timeline/Tag) there's no "finish", so the judgment call is that
+    // one correct answer counts — the point of the checkmark is "I played
+    // this one today and did something," not a difficulty gate.
+    // writeDurably (not setDBValue) so it works offline like everything else.
+    recordGameWin () {
+      const key = gameWinKey(this.$route?.path);
+      if (!key) return;
+      const today = todayStamp();
+      // Already stamped today — skip the redundant write entirely rather
+      // than re-writing the same value on every subsequent win.
+      if (this.$store.state?.settings?.games?.wins?.[key] === today) return;
+      this.$store.dispatch('writeDurably', { path: `settings/games/wins/${key}`, value: today });
+    },
     gameRatingFor (entry) {
       return ratingFor(entry, getRating);
     },

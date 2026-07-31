@@ -96,6 +96,25 @@ const performDatabaseWrite = async (context, dbEntry) => {
   }
 };
 
+// Re-tops a freshly-arrived server snapshot with any local writes that are
+// still in flight (committed locally, not yet server-confirmed), so a
+// snapshot that legitimately predates one of them can't momentarily revert
+// it in the UI. `rootKey` is which top-level branch this snapshot is
+// ('settings' or 'movieLog'); only in-flight paths under that branch apply.
+// See the trackInFlightWrite mutation for the bug this fixes.
+const reapplyInFlightWrites = (state, rootKey, data) => {
+  const paths = Object.keys(state.inFlightWrites || {});
+  if (!paths.length) return data;
+
+  let result = data;
+  paths.forEach((path) => {
+    const segments = path.split('/').filter(Boolean);
+    if (segments[0] !== rootKey || segments.length < 2) return;
+    result = setValueAtPath(result, segments.slice(1), state.inFlightWrites[path]);
+  });
+  return result;
+};
+
 // Firebase
 const firebaseConfig = {
   apiKey: process.env.VUE_APP_GOOGLE_API_KEY,
@@ -186,6 +205,9 @@ export default createStore({
     // mirrors the pendingWriteQueue's unreconciled placeholder entries, kept
     // in Vuex so Home.vue can reactively show a "needs a match" banner.
     isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    // { [dbPath]: value } for writes committed locally but not yet confirmed
+    // by the server — see the trackInFlightWrite mutation for why.
+    inFlightWrites: {},
     isFlushingPendingWrites: false,
     pendingReconciliations: [],
     // Flipped by registerServiceWorker.js's `updated` hook once a new
@@ -319,6 +341,30 @@ export default createStore({
       if (root === 'settings') {
         state.settings = setValueAtPath(state.settings, rest, value);
       }
+    },
+    // Bug report (Jul 2026): "After I break a tie, I get the tie break
+    // message again just for a second or two." A tiebreak fires several
+    // writeDurably calls back to back (the tournament record, the movieLog
+    // score adjustments, the settings/lastTweak quota stamp). Each one
+    // commits locally first, but its Firebase set() was serialized BEHIND an
+    // IndexedDB enqueue - so the first write reached the server while a
+    // later one (lastTweak) hadn't been issued yet. The server's onValue
+    // then fired with a snapshot that legitimately predated lastTweak, and
+    // setSettings replaces settings WHOLESALE - clobbering the local commit
+    // and flipping the quota check back to "due", which re-showed the
+    // notice until the lastTweak write finally landed.
+    //
+    // These two mutations track a write from the moment it's committed
+    // locally until the server confirms it, so an incoming snapshot can be
+    // re-topped with anything still in flight (see reapplyInFlightWrites)
+    // instead of momentarily reverting it.
+    trackInFlightWrite (state, { path, value }) {
+      state.inFlightWrites = { ...state.inFlightWrites, [path]: value };
+    },
+    untrackInFlightWrite (state, path) {
+      const next = { ...state.inFlightWrites };
+      delete next[path];
+      state.inFlightWrites = next;
     },
     setIsOnline (state, value) {
       state.isOnline = value;
@@ -467,7 +513,11 @@ export default createStore({
           const data = snapshot.val();
 
           if (data) {
-            context.commit('setMovieLog', data);
+            // Same in-flight re-top as the settings listener below — a
+            // tiebreak's score adjustments are movieLog writes, and a
+            // snapshot predating them would otherwise briefly restore the
+            // pre-tiebreak scores (re-showing the tie).
+            context.commit('setMovieLog', reapplyInFlightWrites(context.state, 'movieLog', data));
             saveSnapshot(topKey, 'movieLog', data);
           }
           context.commit('setDbLoaded', true);
@@ -486,7 +536,10 @@ export default createStore({
           const data = snapshot.val();
 
           if (data) {
-            context.commit('setSettings', data);
+            // Snapshot the raw server data offline, but show the version
+            // re-topped with still-unconfirmed local writes (see
+            // reapplyInFlightWrites) so a just-made change can't flicker back.
+            context.commit('setSettings', reapplyInFlightWrites(context.state, 'settings', data));
             saveSnapshot(topKey, 'settings', data);
           }
         });
@@ -701,16 +754,41 @@ export default createStore({
     // (App.vue's triggers / initializeDB) retries it, same as offline.
     async writeDurably (context, dbEntry) {
       context.commit('applyDbPathLocally', dbEntry);
+      context.commit('trackInFlightWrite', dbEntry);
 
-      const queuedRecord = await enqueueWrite({ type: 'write', dbEntry });
+      // Bug report ("I get the tie break message again just for a second or
+      // two"): this used to `await enqueueWrite(...)` BEFORE issuing the
+      // network write, which meant every Firebase set() sat behind an
+      // IndexedDB open + full-queue scan + put. With several writeDurably
+      // calls back to back (a tiebreak fires 3+), an early one could reach
+      // the server and bounce back an onValue snapshot while a later one
+      // hadn't even been sent yet. Kicking both off together keeps the same
+      // durability (the IndexedDB record still lands regardless of what
+      // happens to the network write) without the network write inheriting
+      // IndexedDB's latency. trackInFlightWrite above covers the remaining
+      // in-flight window.
+      const queuedPromise = enqueueWrite({ type: 'write', dbEntry });
 
-      if (!context.state.isOnline) return; // already durably queued above
       try {
+        // Offline: nothing to attempt, just make sure it's durably queued.
+        if (!context.state.isOnline) {
+          await queuedPromise;
+          return;
+        }
+
         await context.dispatch('writeDatabaseEntryNow', dbEntry);
+        const queuedRecord = await queuedPromise;
         if (queuedRecord) await removePendingWrite(queuedRecord.id);
       } catch (error) {
-        // Already durably queued above regardless of this failure.
+        // Already durably queued regardless of this failure.
+        await queuedPromise.catch(() => null);
         console.error('writeDurably: direct write failed, will retry via the background queue:', dbEntry.path, error);
+      } finally {
+        // Always untrack, including the offline path — otherwise
+        // inFlightWrites would grow unboundedly across an offline session.
+        // The local value still stands on its own (applyDbPathLocally
+        // committed it) and the durable queue owns getting it to the server.
+        context.commit('untrackInFlightWrite', dbEntry.path);
       }
     },
     // Atomic multi-path write via Firebase's update() (not set()) - `updates`

@@ -296,7 +296,7 @@ describe('ConnectionsGame', () => {
       expect(category.movies).toHaveLength(4);
     });
 
-    it('builds awardsData from settings.personalAwards so "Won Best Director (Personal)" is a real candidate, kept separate from any Academy category', () => {
+    it('builds awardsData from settings.personalAwards so "Won Best Director (The Groskers)" is a real candidate, kept separate from any Academy category', () => {
       const winners = awardWinners('pd', 4, 1995);
       const library = [...buildSolvableLibrary(), ...winners];
       const personalAwards = {};
@@ -306,7 +306,10 @@ describe('ConnectionsGame', () => {
         global: {
           mocks: {
             $store: {
-              state: { settings: { personalAwards } },
+              // Bug report: the personal-award label used to read a
+              // generic "(Personal)" - it now uses the user's OWN name for
+              // their awards, read from settings.personalAwardName.
+              state: { settings: { personalAwards, personalAwardName: 'Groskers' } },
               getters: { allMediaAsArray: library },
               commit: vi.fn()
             },
@@ -316,7 +319,7 @@ describe('ConnectionsGame', () => {
       });
 
       const candidates = buildCandidateCategories(wrapper.vm.eligibleGameEntries, wrapper.vm.awardsData);
-      const category = candidates.find((c) => c.label === 'Won Best Director (Personal)');
+      const category = candidates.find((c) => c.label === 'Won Best Director (The Groskers)');
       expect(category).toBeTruthy();
       expect(category.movies).toHaveLength(4);
       expect(candidates.some((c) => c.label === 'Won Best Director (Academy)')).toBe(false);

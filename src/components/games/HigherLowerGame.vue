@@ -194,6 +194,7 @@ export default {
       }
 
       this.streak += 1;
+      this.recordGameWin(); // one correct guess counts — see the mixin
       if (this.streak > this.bestStreak) {
         this.$store.dispatch('setDBValue', { path: 'settings/games/higherLowerBestStreak', value: this.streak });
       }

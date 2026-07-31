@@ -220,6 +220,7 @@ export default {
     },
     win () {
       this.status = 'won';
+      this.recordGameWin();
       if (isNewBestScore(this.revealedCount, this.bestFactsUsed)) {
         this.$store.dispatch('setDBValue', { path: 'settings/games/triviaBestFactsUsed', value: this.revealedCount });
       }

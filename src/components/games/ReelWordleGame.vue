@@ -160,6 +160,13 @@ export default {
     }
   },
   watch: {
+    // status is a computed here (derived from the guess list), so there's no
+    // single imperative "win moment" to hook — watch it instead. Same for
+    // Connections and Six Degrees; the games that set status directly just
+    // call recordGameWin() inline.
+    status (newStatus) {
+      if (newStatus === 'won') this.recordGameWin();
+    },
     // Fires once eligibleGameEntries has real data (it may be empty for a
     // tick while the library is still loading). Only initializes if nothing
     // is loaded yet — a later change to the library (e.g. rating a movie

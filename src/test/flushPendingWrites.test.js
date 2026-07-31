@@ -13,13 +13,23 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
 
 const setMock = vi.fn(() => Promise.resolve())
 const updateMock = vi.fn(() => Promise.resolve())
+const onValueMock = vi.fn()
 vi.mock('firebase/database', () => ({
   getDatabase: vi.fn(() => ({})),
   ref: vi.fn((db, path) => path),
-  onValue: vi.fn(),
+  onValue: (...args) => onValueMock(...args),
   set: (...args) => setMock(...args),
   update: (...args) => updateMock(...args)
 }))
+
+// Invokes the real onValue callback the store registered for a given branch,
+// with a fake snapshot - the only way to exercise the listener's own
+// clobber-protection logic, since onValue itself is mocked.
+function fireSnapshot (branch, data) {
+  const call = onValueMock.mock.calls.find(([path]) => path === `testing-database/${branch}`)
+  if (!call) throw new Error(`no onValue listener registered for ${branch}`)
+  call[1]({ val: () => data })
+}
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(() => ({}))
 }))
@@ -55,6 +65,7 @@ beforeEach(async () => {
   setMock.mockImplementation(() => Promise.resolve())
   updateMock.mockClear()
   updateMock.mockImplementation(() => Promise.resolve())
+  onValueMock.mockReset()
   listPendingWritesMock.mockReset().mockResolvedValue([])
   removePendingWriteMock.mockReset()
   updatePendingWriteMock.mockReset()
@@ -392,6 +403,72 @@ describe('writeDurably action (offline support extension, Jul 2026 — Stickines
     expect(store.state.settings.lastTweak).toBe(1)
     expect(enqueueWriteMock).toHaveBeenCalled()
     expect(setMock).not.toHaveBeenCalled()
+  })
+})
+
+// Bug report (Jul 2026): "After I break a tie, I get the tie break message
+// again just for a second or two." See the trackInFlightWrite mutation.
+describe('in-flight writes are not clobbered by a server snapshot that predates them', () => {
+  it('issues the network write without waiting on the IndexedDB enqueue first', async () => {
+    const order = []
+    enqueueWriteMock.mockImplementation(async (entry) => {
+      order.push('enqueue-start')
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      order.push('enqueue-done')
+      return { id: 'queued-id', ...entry }
+    })
+    setMock.mockImplementation(() => {
+      order.push('network-write')
+      return Promise.resolve()
+    })
+
+    await store.dispatch('writeDurably', { path: 'settings/lastTweak', value: 1 })
+
+    // The network write must not be stuck behind IndexedDB — that delay is
+    // exactly what let an early snapshot beat a later write to the server.
+    expect(order.indexOf('network-write')).toBeLessThan(order.indexOf('enqueue-done'))
+  })
+
+  it('keeps a locally-committed value visible while its write is still in flight, even if a stale snapshot arrives', async () => {
+    await store.dispatch('initializeDB') // registers the real onValue listeners
+    store.commit('setSettings', { lastTweak: 100 })
+
+    // Hold the network write open so the write stays in flight.
+    let releaseWrite
+    setMock.mockImplementation(() => new Promise((resolve) => { releaseWrite = resolve }))
+    const writing = store.dispatch('writeDurably', { path: 'settings/lastTweak', value: 999 })
+    await flushMicrotasks()
+
+    expect(store.state.settings.lastTweak).toBe(999)
+    expect(store.state.inFlightWrites['settings/lastTweak']).toBe(999)
+
+    // A server snapshot that legitimately predates the write lands now.
+    // Before the fix this reverted lastTweak to 100 - the actual bug.
+    fireSnapshot('settings', { lastTweak: 100, other: 'x' })
+
+    expect(store.state.settings.lastTweak).toBe(999)
+    expect(store.state.settings.other).toBe('x') // the rest of the snapshot still applies
+
+    releaseWrite()
+    await writing
+    expect(store.state.inFlightWrites['settings/lastTweak']).toBeUndefined()
+  })
+
+  it('stops overriding snapshots once the write settles, including when it fails', async () => {
+    setMock.mockImplementation(() => Promise.reject(new Error('network down')))
+
+    await store.dispatch('writeDurably', { path: 'settings/lastTweak', value: 5 })
+
+    expect(store.state.inFlightWrites['settings/lastTweak']).toBeUndefined()
+  })
+
+  it('does not leak in-flight entries across an offline session', async () => {
+    store.commit('setIsOnline', false)
+
+    await store.dispatch('writeDurably', { path: 'settings/lastTweak', value: 7 })
+
+    expect(store.state.settings.lastTweak).toBe(7)
+    expect(Object.keys(store.state.inFlightWrites)).toHaveLength(0)
   })
 })
 
