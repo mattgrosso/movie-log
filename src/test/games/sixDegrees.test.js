@@ -1,15 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { buildCastGraph, shortestPath, pickConnectedPair, scorePathDifficulty, difficultyForScore, nextHintStep } from '@/assets/javascript/games/sixDegrees.js';
+import { buildPeopleGraph, shortestPath, pickConnectedPair, scorePathDifficulty, difficultyForScore, nextHintStep } from '@/assets/javascript/games/sixDegrees.js';
 import { makeSeededRng } from '@/assets/javascript/games/gameUtils.js';
 
-function entry (id, cast) {
-  return { dbKey: `key-${id}`, movie: { id, title: `Movie ${id}`, poster_path: '/p.jpg', release_date: '2010-06-15', cast: cast.map((name) => ({ name })) } };
+function entry (id, cast, directors = []) {
+  return {
+    dbKey: `key-${id}`,
+    movie: {
+      id,
+      title: `Movie ${id}`,
+      poster_path: '/p.jpg',
+      release_date: '2010-06-15',
+      cast: cast.map((name) => ({ name })),
+      crew: directors.map((name) => ({ name, job: 'Director' }))
+    }
+  };
 }
 
-describe('buildCastGraph', () => {
+describe('buildPeopleGraph', () => {
   it('maps each movie to its cast and each person to the movies they appear in', () => {
     const entries = [entry(1, ['Alice', 'Bob']), entry(2, ['Bob', 'Carol'])];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
 
     expect(graph.peopleByMovie.get('key-1')).toEqual(new Set(['Alice', 'Bob']));
     expect(graph.moviesByPerson.get('Bob')).toEqual(new Set(['key-1', 'key-2']));
@@ -17,20 +27,56 @@ describe('buildCastGraph', () => {
 
   it('caps cast to castLimit per movie', () => {
     const bigCast = Array.from({ length: 20 }, (_, i) => `Actor ${i}`);
-    const graph = buildCastGraph([entry(1, bigCast)], 5);
+    const graph = buildPeopleGraph([entry(1, bigCast)], 5);
     expect(graph.peopleByMovie.get('key-1').size).toBe(5);
+  });
+
+  // Bug report: "I think I should be able to connect through a director as
+  // well as a performer."
+  it('includes directors as connectors alongside cast', () => {
+    const entries = [entry(1, ['Alice'], ['Kubrick']), entry(2, ['Bob'], ['Kubrick'])];
+    const graph = buildPeopleGraph(entries);
+
+    expect(graph.peopleByMovie.get('key-1')).toEqual(new Set(['Alice', 'Kubrick']));
+    expect(graph.moviesByPerson.get('Kubrick')).toEqual(new Set(['key-1', 'key-2']));
+  });
+
+  it('never applies the billing cap to directors - they survive a cast-heavy movie', () => {
+    const bigCast = Array.from({ length: 20 }, (_, i) => `Actor ${i}`);
+    const graph = buildPeopleGraph([entry(1, bigCast, ['Kubrick'])], 3);
+
+    const people = graph.peopleByMovie.get('key-1');
+    expect(people.has('Kubrick')).toBe(true);
+    expect(people.size).toBe(4); // 3 capped cast + the director
+  });
+
+  it('merges a person who both directed and acted in the same movie into one node', () => {
+    const graph = buildPeopleGraph([entry(1, ['Welles', 'Alice'], ['Welles'])]);
+    expect(graph.peopleByMovie.get('key-1')).toEqual(new Set(['Welles', 'Alice']));
+  });
+
+  it('lets shortestPath connect two movies that share only a director', () => {
+    const entries = [entry(1, ['Alice'], ['Kubrick']), entry(2, ['Bob'], ['Kubrick'])];
+    const path = shortestPath(buildPeopleGraph(entries), 'key-1', 'key-2');
+    expect(path).toEqual(['key-1', 'Kubrick', 'key-2']);
+  });
+
+  it('tolerates a movie with no crew data at all', () => {
+    const noCrew = { dbKey: 'key-9', movie: { id: 9, title: 'M9', cast: [{ name: 'Solo' }] } };
+    const graph = buildPeopleGraph([noCrew]);
+    expect(graph.peopleByMovie.get('key-9')).toEqual(new Set(['Solo']));
   });
 });
 
 describe('shortestPath', () => {
   it('returns an empty array when source and target are the same movie', () => {
-    const graph = buildCastGraph([entry(1, ['Alice'])]);
+    const graph = buildPeopleGraph([entry(1, ['Alice'])]);
     expect(shortestPath(graph, 'key-1', 'key-1')).toEqual([]);
   });
 
   it('finds a direct 1-hop path when two movies share a cast member', () => {
     const entries = [entry(1, ['Alice']), entry(2, ['Alice'])];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const path = shortestPath(graph, 'key-1', 'key-2');
     expect(path).toEqual(['key-1', 'Alice', 'key-2']);
   });
@@ -38,7 +84,7 @@ describe('shortestPath', () => {
   it('finds a multi-hop path through intermediate movies/people', () => {
     // key-1 --Alice-- key-2 --Bob-- key-3
     const entries = [entry(1, ['Alice']), entry(2, ['Alice', 'Bob']), entry(3, ['Bob'])];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const path = shortestPath(graph, 'key-1', 'key-3');
     expect(path).toEqual(['key-1', 'Alice', 'key-2', 'Bob', 'key-3']);
   });
@@ -50,21 +96,21 @@ describe('shortestPath', () => {
       entry(2, ['Alice', 'Bob']),
       entry(3, ['Bob', 'Zoe'])
     ];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const path = shortestPath(graph, 'key-1', 'key-3');
     expect(path).toEqual(['key-1', 'Zoe', 'key-3']);
   });
 
   it('returns null when no path exists', () => {
     const entries = [entry(1, ['Alice']), entry(2, ['Bob'])];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     expect(shortestPath(graph, 'key-1', 'key-2')).toBeNull();
   });
 
   it('returns null when the only path exceeds maxHops', () => {
     // key-1 -Alice- key-2 -Bob- key-3 -Carol- key-4 : 3 hops
     const entries = [entry(1, ['Alice']), entry(2, ['Alice', 'Bob']), entry(3, ['Bob', 'Carol']), entry(4, ['Carol'])];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     expect(shortestPath(graph, 'key-1', 'key-4', 2)).toBeNull();
     expect(shortestPath(graph, 'key-1', 'key-4', 3)).not.toBeNull();
   });
@@ -80,7 +126,7 @@ describe('pickConnectedPair', () => {
       entry(4, ['C', 'D']),
       entry(5, ['D'])
     ];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const result = pickConnectedPair(entries, graph, makeSeededRng(1), { minHops: 2, maxHops: 4 });
 
     expect(result).not.toBeNull();
@@ -90,18 +136,18 @@ describe('pickConnectedPair', () => {
   });
 
   it('returns null when the library has fewer than 2 movies', () => {
-    expect(pickConnectedPair([entry(1, ['A'])], buildCastGraph([entry(1, ['A'])]))).toBeNull();
+    expect(pickConnectedPair([entry(1, ['A'])], buildPeopleGraph([entry(1, ['A'])]))).toBeNull();
   });
 
   it('returns null when no pair in the library is connected at all', () => {
     const entries = [entry(1, ['Alice']), entry(2, ['Bob'])]; // disjoint casts
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     expect(pickConnectedPair(entries, graph, makeSeededRng(1))).toBeNull();
   });
 
   it('is deterministic for a fixed rng', () => {
     const entries = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B', 'C']), entry(4, ['C'])];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const a = pickConnectedPair(entries, graph, makeSeededRng(5));
     const b = pickConnectedPair(entries, graph, makeSeededRng(5));
     expect(a.source.dbKey).toBe(b.source.dbKey);
@@ -110,7 +156,7 @@ describe('pickConnectedPair', () => {
 });
 
 // Hand-built entries for scorePathDifficulty's own tests - full control over
-// year and cast-billing-order, independent of buildCastGraph/shortestPath.
+// year and cast-billing-order, independent of buildPeopleGraph/shortestPath.
 function scoreEntry (id, { year = 2010, cast = [] } = {}) {
   return { dbKey: `key-${id}`, movie: { id, title: `Movie ${id}`, release_date: `${year}-06-15`, cast: cast.map((name) => ({ name })) } };
 }
@@ -210,7 +256,7 @@ describe('pickConnectedPair with a difficulty filter', () => {
 
   it('finds a pair and tags it with a difficulty when none is requested', () => {
     const entries = buildChainLibrary();
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const pair = pickConnectedPair(entries, graph, makeSeededRng(1));
     expect(pair).not.toBeNull();
     expect(['easy', 'medium', 'hard']).toContain(pair.difficulty);
@@ -219,7 +265,7 @@ describe('pickConnectedPair with a difficulty filter', () => {
 
   it('finds a pair when the requested difficulty matches what the library can produce', () => {
     const entries = buildChainLibrary();
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const pair = pickConnectedPair(entries, graph, makeSeededRng(1), { difficulty: 'easy' });
     expect(pair).not.toBeNull();
     expect(pair.difficulty).toBe('easy');
@@ -227,7 +273,7 @@ describe('pickConnectedPair with a difficulty filter', () => {
 
   it('returns null when no pair in the library reaches the requested difficulty', () => {
     const entries = buildChainLibrary();
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const pair = pickConnectedPair(entries, graph, makeSeededRng(1), { difficulty: 'hard' });
     expect(pair).toBeNull();
   });
@@ -241,14 +287,14 @@ describe('nextHintStep ("Give me one" - reveals just the next step, not the whol
 
   it('from a movie, hints the next person toward the target', () => {
     const entries = buildChainLibrary();
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const hint = nextHintStep({ type: 'movie', key: 'key-1' }, new Set(), graph, graph, 'key-4');
     expect(hint).toEqual({ type: 'person', name: 'A' });
   });
 
   it('from a person, hints whichever unused movie minimizes the remaining distance to the target', () => {
     const entries = buildChainLibrary();
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     // Player already used key-1 (that's where they found "A").
     const hint = nextHintStep({ type: 'person', name: 'A' }, new Set(['key-1']), graph, graph, 'key-4');
     expect(hint).toEqual({ type: 'movie', key: 'key-2' });
@@ -256,14 +302,14 @@ describe('nextHintStep ("Give me one" - reveals just the next step, not the whol
 
   it('hints the target movie directly when the current person was in it', () => {
     const entries = [entry(1, ['A']), entry(2, ['A', 'Z']), entry(9, ['Z'])];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const hint = nextHintStep({ type: 'person', name: 'Z' }, new Set(['key-2']), graph, graph, 'key-9');
     expect(hint).toEqual({ type: 'movie', key: 'key-9' });
   });
 
   it('returns null when already at the target', () => {
     const entries = buildChainLibrary();
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     expect(nextHintStep({ type: 'movie', key: 'key-4' }, new Set(), graph, graph, 'key-4')).toBeNull();
   });
 
@@ -272,20 +318,20 @@ describe('nextHintStep ("Give me one" - reveals just the next step, not the whol
     // remaining candidate is key-1, which is a dead end (not the target and
     // no further connection to key-9 exists), so no hint is possible.
     const entries = [entry(1, ['A']), entry(2, ['A']), entry(9, ['Z'])];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const hint = nextHintStep({ type: 'person', name: 'A' }, new Set(['key-2']), graph, graph, 'key-9');
     expect(hint).toBeNull();
   });
 
   it('uses the UNCAPPED playGraph to find candidate movies outside the capped graph\'s billing limit', () => {
-    // "Rare Actor" is 11th-billed in movie 'a' - outside buildCastGraph's
+    // "Rare Actor" is 11th-billed in movie 'a' - outside buildPeopleGraph's
     // default 10-person cap - so the capped graph doesn't know they're in
     // it, but the uncapped playGraph does.
     const fillers = Array.from({ length: 10 }, (_, i) => `Filler ${i}`);
     const movieA = entry('a', [...fillers, 'Rare Actor']);
     const movieB = entry('b', ['Rare Actor']);
-    const graph = buildCastGraph([movieA, movieB]);
-    const playGraph = buildCastGraph([movieA, movieB], Infinity);
+    const graph = buildPeopleGraph([movieA, movieB]);
+    const playGraph = buildPeopleGraph([movieA, movieB], Infinity);
 
     expect([...playGraph.moviesByPerson.get('Rare Actor')]).toContain('key-a');
     // Capped graph knows about 'Rare Actor' via movie 'b' (where they're the
@@ -308,13 +354,13 @@ describe('nextHintStep ("Give me one" - reveals just the next step, not the whol
   }
 
   it('prefers the natural shortest-path connector when nobody has been used yet', () => {
-    const graph = buildCastGraph(buildHubLibrary());
+    const graph = buildPeopleGraph(buildHubLibrary());
     const hint = nextHintStep({ type: 'movie', key: 'key-1' }, new Set(), graph, graph, 'key-4');
     expect(hint).toEqual({ type: 'person', name: 'Hub' });
   });
 
   it('falls back to an alternative connector when the natural next person has already been used, instead of repeating them', () => {
-    const graph = buildCastGraph(buildHubLibrary());
+    const graph = buildPeopleGraph(buildHubLibrary());
     const hint = nextHintStep({ type: 'movie', key: 'key-1' }, new Set(), graph, graph, 'key-4', new Set(['Hub']));
     expect(hint).toEqual({ type: 'person', name: 'Alt' });
   });
@@ -322,7 +368,7 @@ describe('nextHintStep ("Give me one" - reveals just the next step, not the whol
   it('falls back to reusing the already-used person rather than returning no hint at all, when truly nobody else connects', () => {
     // key-1's ONLY credited person is Hub - no alternative exists at all.
     const entries = [entry(1, ['Hub']), entry(2, ['Hub', 'X']), entry(4, ['X'])];
-    const graph = buildCastGraph(entries);
+    const graph = buildPeopleGraph(entries);
     const hint = nextHintStep({ type: 'movie', key: 'key-1' }, new Set(), graph, graph, 'key-4', new Set(['Hub']));
     expect(hint).toEqual({ type: 'person', name: 'Hub' });
   });

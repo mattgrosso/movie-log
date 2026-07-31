@@ -33,7 +33,7 @@
            round ends, in the SAME spot at the top (bug report: "'Connected
            in X hops...' it looks bad. Let's instead put that message at
            the top in place of the input and the game description"). -->
-      <p v-if="status === 'playing'" class="game-subtitle">Connect these two through shared cast members.</p>
+      <p v-if="status === 'playing'" class="game-subtitle">Connect these two through shared cast members or directors.</p>
       <p v-else class="result-message" :class="status">
         <template v-if="status === 'won'">
           Connected in {{ hopsSoFar }} hop{{ hopsSoFar === 1 ? '' : 's' }}
@@ -79,35 +79,50 @@
            entries the player actually added (not the source, not a
            placeholder, not the goal marker), carries a small delete badge
            that trims the chain back to that point. -->
-      <div class="chain-row">
-        <template v-for="(item, index) in displayChain" :key="item.itemKey">
-          <button
-            type="button"
-            class="chain-step"
-            :class="[item.type, { goal: item.isGoal, placeholder: item.isPlaceholder }]"
-            @click="handleChainItemClick(item)"
-          >
-            <span
-              v-if="status === 'playing' && index > 0 && !item.isGoal && !item.isPlaceholder"
-              class="chain-delete-badge"
-              title="Remove this and everything after it"
-              @click.stop="deleteFromChain(index)"
-            ><i class="bi bi-x"></i></span>
-            <template v-if="item.isPlaceholder">
-              <div v-if="item.type === 'movie'" class="chain-poster chain-placeholder">?</div>
-              <div v-else class="chain-photo chain-placeholder">?</div>
-            </template>
-            <template v-else>
-              <img v-if="item.type === 'movie'" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title" class="chain-poster">
-              <template v-else>
-                <img v-if="personPhotoUrl(item.name)" :src="personPhotoUrl(item.name)" :alt="item.name" class="chain-photo">
-                <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(item.name) }}</div>
+      <!-- One row per chain: always the player's own, plus (only after a WIN,
+           and only if they ask for it) a second, read-only row showing the
+           shortest path that existed - bug report: "at the end when I win...
+           I could click something to reveal that path. Ideally it would
+           reveal that path without losing my own path. It would just show me
+           what could've been." Giving up still REPLACES the row rather than
+           adding one (that was its own earlier bug report); the two cases
+           are deliberately different. -->
+      <template v-for="row in chainRows" :key="row.key">
+        <p v-if="row.label" class="chain-row-label">{{ row.label }}</p>
+        <div class="chain-row" :ref="(el) => { if (row.key === 'main') chainRowEl = el; }">
+          <template v-for="(item, index) in row.items" :key="item.itemKey">
+            <button
+              type="button"
+              class="chain-step"
+              :class="[item.type, { goal: item.isGoal, placeholder: item.isPlaceholder }]"
+              @click="handleChainItemClick(item)"
+            >
+              <span
+                v-if="row.interactive && status === 'playing' && index > 0 && !item.isGoal && !item.isPlaceholder"
+                class="chain-delete-badge"
+                title="Remove this and everything after it"
+                @click.stop="deleteFromChain(index)"
+              ><i class="bi bi-x"></i></span>
+              <template v-if="item.isPlaceholder">
+                <div v-if="item.type === 'movie'" class="chain-poster chain-placeholder">?</div>
+                <div v-else class="chain-photo chain-placeholder">?</div>
               </template>
-            </template>
-            <span v-if="item.type === 'person' && !item.isPlaceholder" class="chain-step-label" :title="item.name">{{ item.name }}</span>
-          </button>
-          <i v-if="index < displayChain.length - 1" class="bi bi-arrow-right chain-arrow"></i>
-        </template>
+              <template v-else>
+                <img v-if="item.type === 'movie'" :src="gamePosterUrl(item.entry, 'w185')" :alt="item.entry.movie.title" class="chain-poster">
+                <template v-else>
+                  <img v-if="personPhotoUrl(item.name)" :src="personPhotoUrl(item.name)" :alt="item.name" class="chain-photo">
+                  <div v-else class="chain-photo chain-photo-fallback">{{ personInitials(item.name) }}</div>
+                </template>
+              </template>
+              <span v-if="item.type === 'person' && !item.isPlaceholder" class="chain-step-label" :title="item.name">{{ item.name }}</span>
+            </button>
+            <i v-if="index < row.items.length - 1" class="bi bi-arrow-right chain-arrow"></i>
+          </template>
+        </div>
+      </template>
+
+      <div v-if="canShowComparison" class="comparison-actions">
+        <button type="button" class="hint-segment" @click="showComparisonPath">Show the shortest path</button>
       </div>
 
       <!-- Replaces the single "Reveal shortest path" button (bug report:
@@ -151,7 +166,7 @@
 import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
-import { buildCastGraph, pickConnectedPair, shortestPath, scorePathDifficulty, difficultyForScore, DIFFICULTY_LEVELS, nextHintStep } from '../../assets/javascript/games/sixDegrees.js';
+import { buildPeopleGraph, pickConnectedPair, shortestPath, scorePathDifficulty, difficultyForScore, DIFFICULTY_LEVELS, nextHintStep } from '../../assets/javascript/games/sixDegrees.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import sixDegreesBanner from '../../assets/images/games/six-degrees-banner.jpg';
 
@@ -202,6 +217,13 @@ export default {
       guessInput: '',
       suggestions: [],
       revealedChain: null,
+      // The optimal path shown ALONGSIDE a winning chain (opt-in, after a
+      // win). Deliberately separate from revealedChain, which is the
+      // give-up path that REPLACES the player's own row - see chainRows.
+      comparisonChain: null,
+      // Set by the template's function ref so pick() can scroll the row to
+      // follow each new entry.
+      chainRowEl: null,
       // null = "Any" (the original unconstrained 2-4 hop range) - not
       // persisted across sessions, same as other purely-in-session game
       // preferences elsewhere (e.g. Reel Wordle's local-only round state).
@@ -253,6 +275,30 @@ export default {
         return this.revealedChain.map((link, index) => ({ ...link, itemKey: `revealed-${index}` }));
       }
       return this.chainDisplayItems;
+    },
+    // The player's own row, plus the optional "what could've been" row after
+    // a win. Driven off one list rather than duplicating the (heavily
+    // iterated-on) chain-step markup in the template.
+    chainRows () {
+      const rows = [{ key: 'main', label: null, items: this.displayChain, interactive: true }];
+      if (this.comparisonChain) {
+        rows.push({
+          key: 'comparison',
+          label: `The shortest path was ${this.pair?.optimalHops} hop${this.pair?.optimalHops === 1 ? '' : 's'}:`,
+          items: this.comparisonChain.map((link, index) => ({ ...link, itemKey: `comparison-${index}` })),
+          interactive: false
+        });
+      }
+      return rows;
+    },
+    // Only worth offering when they actually WON and took a longer route
+    // than the optimum - if they already found the shortest path there's
+    // nothing "could've been" to show them.
+    canShowComparison () {
+      return this.status === 'won' &&
+        !this.comparisonChain &&
+        this.pair?.optimalPath?.length > 0 &&
+        this.pair.optimalHops < this.hopsSoFar;
     },
     needType () {
       const last = this.chain[this.chain.length - 1];
@@ -316,8 +362,8 @@ export default {
     // current) — per bug report, leaving the page (e.g. to poke around Home
     // for inspiration) and coming back was silently discarding progress.
     loadOrStart () {
-      this.graph = buildCastGraph(this.eligibleGameEntries);
-      this.playGraph = buildCastGraph(this.eligibleGameEntries, Infinity);
+      this.graph = buildPeopleGraph(this.eligibleGameEntries);
+      this.playGraph = buildPeopleGraph(this.eligibleGameEntries, Infinity);
       if (this.tryRestore()) return;
       this.start();
     },
@@ -368,6 +414,7 @@ export default {
         this.guessInput = '';
         this.suggestions = [];
         this.revealedChain = null;
+        this.comparisonChain = null;
         this.ensurePersonPhotosFor(this.chain);
         if (saved.revealed) this.revealPath();
         return true;
@@ -399,14 +446,15 @@ export default {
       // chain). Same 'instant' convention GamesHub's own "new screen, jump
       // to top" navigation already uses.
       window.scrollTo({ top: 0, behavior: 'instant' });
-      this.graph = buildCastGraph(this.eligibleGameEntries);
-      this.playGraph = buildCastGraph(this.eligibleGameEntries, Infinity);
+      this.graph = buildPeopleGraph(this.eligibleGameEntries);
+      this.playGraph = buildPeopleGraph(this.eligibleGameEntries, Infinity);
       const options = this.selectedDifficulty ? { difficulty: this.selectedDifficulty } : {};
       this.pair = pickConnectedPair(this.eligibleGameEntries, this.graph, Math.random, options);
       this.chain = this.pair ? [{ type: 'movie', entry: this.pair.source }] : [];
       this.guessInput = '';
       this.suggestions = [];
       this.revealedChain = null;
+      this.comparisonChain = null;
       this.persistState();
     },
     // Picks the tier AND immediately starts a fresh pair (bug report:
@@ -468,6 +516,7 @@ export default {
       this.guessInput = '';
       this.suggestions = [];
       this.persistState();
+      this.scrollChainToEnd();
     },
     // Bug report: "I should be able to delete an entry in the chain and it
     // removes everything after it." index refers to chainDisplayItems, which
@@ -528,21 +577,46 @@ export default {
         if (entry) this.pick({ key: hint.key, entry });
       }
     },
+    // A shortestPath-shaped array ([movieKey, person, movieKey, ...]) into
+    // the {type, entry|name} link shape the chain row renders.
+    linksFromPath (path) {
+      return path.map((step, i) => (
+        i % 2 === 0
+          ? { type: 'movie', entry: this.eligibleGameEntries.find((e) => entryKey(e) === step) }
+          : { type: 'person', name: step }
+      ));
+    },
     revealPath () {
       if (!this.pair?.optimalPath) return;
-      const path = this.pair.optimalPath;
-      const links = [];
-      for (let i = 0; i < path.length; i++) {
-        if (i % 2 === 0) {
-          const entry = this.eligibleGameEntries.find((e) => entryKey(e) === path[i]);
-          links.push({ type: 'movie', entry });
-        } else {
-          links.push({ type: 'person', name: path[i] });
-        }
-      }
+      const links = this.linksFromPath(this.pair.optimalPath);
       this.revealedChain = links;
       this.ensurePersonPhotosFor(links);
       this.persistState();
+    },
+    // "Show the shortest path" after a WIN - additive, unlike revealPath.
+    // Not persisted: it's a purely presentational "what could've been" peek
+    // at an already-finished round, and a finished round isn't resumed
+    // anyway (see tryRestore).
+    showComparisonPath () {
+      if (!this.pair?.optimalPath) return;
+      const links = this.linksFromPath(this.pair.optimalPath);
+      this.comparisonChain = links;
+      this.ensurePersonPhotosFor(links);
+    },
+    // Bug report: "after each correct guess it would be nice if it would
+    // scroll to the right for me." The chain row scrolls horizontally and
+    // only grows, so a new entry lands off-screen without this.
+    scrollChainToEnd () {
+      this.$nextTick(() => {
+        const el = this.chainRowEl;
+        if (!el) return;
+        if (typeof el.scrollTo === 'function') {
+          el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+        } else {
+          // jsdom (and very old browsers) have no scrollTo on elements.
+          el.scrollLeft = el.scrollWidth;
+        }
+      });
     },
     // Circular avatar image for a chain "person" step. Not stored locally
     // (AddRating.js only keeps {name, character} for cast, no profile_path -
@@ -726,6 +800,23 @@ $difficulty-tier-colors: (
 // justify-content is flex-start (not center) deliberately - centered
 // content that later overflows a scroll container can leave its own start
 // unreachable in some browsers.
+// Heads the read-only "what could've been" row after a win — see chainRows.
+.chain-row-label {
+  color: #adb5bd;
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}
+
+.comparison-actions {
+  display: flex;
+  margin-bottom: 1rem;
+}
+
+.comparison-actions .hint-segment {
+  border-radius: 8px;
+  flex: 1;
+}
+
 .chain-row {
   align-items: center;
   display: flex;

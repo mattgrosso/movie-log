@@ -1,20 +1,27 @@
-import { entryKey, movieCastNames, movieYear, shuffle } from './gameUtils.js';
+import { entryKey, movieCastNames, movieDirectors, movieYear, shuffle } from './gameUtils.js';
 
-// Builds a bipartite movie<->cast-member graph from the library. Cast is
-// capped per movie (default 10) — using the full cast for a movie with 50+
+// Builds a bipartite movie<->person graph from the library. Cast is capped
+// per movie (default 10) — using the full cast for a movie with 50+
 // credited actors would make almost every movie in the library "connected"
 // to almost every other one in a single hop, which isn't an interesting
 // puzzle. 10 keeps it to the actors actually billed prominently.
-export function buildCastGraph (eligibleEntries, castLimit = 10) {
+//
+// DIRECTORS are always included and are deliberately NOT subject to that cap
+// (bug report: "I think I should be able to connect through a director as
+// well as a performer") — a movie has one or two, and a director is exactly
+// the kind of strong, memorable connector the cap exists to preserve, not
+// the long tail of bit-part actors it exists to cut. A person who is both
+// cast and director on the same movie merges to one node via the Set.
+export function buildPeopleGraph (eligibleEntries, castLimit = 10) {
   const moviesByPerson = new Map();
   const peopleByMovie = new Map();
 
   eligibleEntries.forEach((entry) => {
     const key = entryKey(entry);
-    const cast = movieCastNames(entry, castLimit);
-    peopleByMovie.set(key, new Set(cast));
+    const people = new Set([...movieCastNames(entry, castLimit), ...movieDirectors(entry)]);
+    peopleByMovie.set(key, people);
 
-    cast.forEach((name) => {
+    people.forEach((name) => {
       if (!moviesByPerson.has(name)) moviesByPerson.set(name, new Set());
       moviesByPerson.get(name).add(key);
     });
@@ -79,7 +86,7 @@ const YEAR_GAP_WEIGHT = 0.1;
 const AGE_WEIGHT = 0.1;
 
 const HOPS_NORMALIZATION_MAX = 6; // shortestPath's own default maxHops
-const BILLING_NORMALIZATION_MAX = 9; // buildCastGraph's own default castLimit (10) minus 1
+const BILLING_NORMALIZATION_MAX = 9; // buildPeopleGraph's own default castLimit (10) minus 1
 const YEAR_GAP_NORMALIZATION_MAX = 50; // the user's own "50 years apart is really hard" example
 const AGE_NORMALIZATION_MAX = 60; // roughly "pre-1960s-ish" fully maxes this component out
 
@@ -91,6 +98,11 @@ function clamp01 (value) {
 // (uncapped) cast list, or -1 if they're not credited at all. Reads
 // movie.cast directly rather than movieCastNames (which truncates) since
 // the exact index is the whole point here.
+//
+// A DIRECTOR who isn't also in the cast returns -1 here, which every caller
+// clamps to 0 (top-billed). That's deliberate, not an accident of the
+// clamp: this score measures how hard a connector is to RECALL, and a
+// film's director is about as prominent as a connector gets.
 function billingIndexOf (entry, personName) {
   const cast = entry?.movie?.cast;
   if (!Array.isArray(cast)) return -1;
@@ -200,7 +212,7 @@ export function pickConnectedPair (eligibleEntries, graph, rng = Math.random, { 
 //     chain's current last entry.
 //   usedMovieKeys: Set of movie keys already in the chain (only consulted
 //     for the person branch, to avoid hinting a movie already used).
-//   playGraph: the UNCAPPED graph (see buildCastGraph's castLimit) - used
+//   playGraph: the UNCAPPED graph (see buildPeopleGraph's castLimit) - used
 //     only to enumerate a person's candidate movies, so a hint can surface
 //     a real connection outside the top-10-billing cap, same reasoning the
 //     in-play autocomplete already uses.

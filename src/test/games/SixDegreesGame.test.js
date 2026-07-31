@@ -103,7 +103,7 @@ describe('SixDegreesGame', () => {
   it('the description no longer shows a running hop count (bug report: "unnecessary. Lose it.")', () => {
     const wrapper = factory(buildConnectedLibrary());
     const subtitle = wrapper.find('.game-subtitle').text();
-    expect(subtitle).toBe('Connect these two through shared cast members.');
+    expect(subtitle).toBe('Connect these two through shared cast members or directors.');
     expect(subtitle).not.toMatch(/hop/i);
   });
 
@@ -681,6 +681,136 @@ describe('SixDegreesGame', () => {
       const wrapper = factory(buildConnectedLibrary());
       wrapper.unmount();
       expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
+    });
+  });
+
+  // Bug report (Jul 2026): three Six Degrees asks in one report.
+  describe('scrolling the chain to follow each new entry', () => {
+    // NOTE: chainRowEl is assigned by a function ref in the template, which
+    // re-fires on every re-render - so a stub assigned before pick() would
+    // be overwritten by the real element mid-update. The scroll behaviour
+    // and the fact that pick() triggers it are therefore tested separately.
+    it('scrolls the chain row to its right edge', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const scrollTo = vi.fn();
+      wrapper.vm.chainRowEl = { scrollTo, scrollWidth: 1234 };
+
+      wrapper.vm.scrollChainToEnd();
+      await wrapper.vm.$nextTick();
+
+      expect(scrollTo).toHaveBeenCalledWith({ left: 1234, behavior: 'smooth' });
+    });
+
+    it('falls back to setting scrollLeft when the element has no scrollTo (jsdom/old browsers)', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const el = { scrollWidth: 500, scrollLeft: 0 };
+      wrapper.vm.chainRowEl = el;
+
+      wrapper.vm.scrollChainToEnd();
+      await wrapper.vm.$nextTick();
+
+      expect(el.scrollLeft).toBe(500);
+    });
+
+    it('does not throw when the chain row element is not available', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      wrapper.vm.chainRowEl = null;
+
+      wrapper.vm.scrollChainToEnd();
+      await expect(wrapper.vm.$nextTick()).resolves.not.toThrow();
+    });
+
+    it('is triggered by adding a link to the chain', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      forceLongPair(wrapper, library);
+      const spy = vi.spyOn(wrapper.vm, 'scrollChainToEnd');
+
+      const person = [...wrapper.vm.playGraph.peopleByMovie.get(entryKey(wrapper.vm.pair.source))][0];
+      wrapper.vm.pick({ name: person });
+
+      expect(spy).toHaveBeenCalled();
+    });
+  });
+
+  describe('showing the shortest path after a win, alongside your own', () => {
+    // Wins with a deliberately longer-than-optimal route so there's
+    // something "could've been" to show.
+    function winTheLongWay (wrapper, library) {
+      forceLongPair(wrapper, library);
+      const source = library[0];
+      const target = library[library.length - 1];
+      const full = shortestPath(wrapper.vm.graph, entryKey(source), entryKey(target));
+      wrapper.vm.chain = full.map((step, i) => (
+        i % 2 === 0 ? { type: 'movie', entry: library.find((e) => entryKey(e) === step) } : { type: 'person', name: step }
+      ));
+      // Pretend the optimum was shorter than the route actually taken.
+      wrapper.vm.pair = { ...wrapper.vm.pair, optimalHops: 1 };
+    }
+
+    it('offers the comparison only after a win that was longer than the optimum', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+
+      forceLongPair(wrapper, library);
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('.comparison-actions').exists()).toBe(false); // still playing
+
+      winTheLongWay(wrapper, library);
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.status).toBe('won');
+      expect(wrapper.find('.comparison-actions').exists()).toBe(true);
+    });
+
+    it('does NOT offer it when the player already found the shortest path', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      winTheLongWay(wrapper, library);
+      // Optimum equals what they actually did - nothing to show.
+      wrapper.vm.pair = { ...wrapper.vm.pair, optimalHops: wrapper.vm.hopsSoFar };
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.canShowComparison).toBe(false);
+      expect(wrapper.find('.comparison-actions').exists()).toBe(false);
+    });
+
+    it('adds a second row WITHOUT replacing the player\'s own (unlike giving up)', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      winTheLongWay(wrapper, library);
+      await wrapper.vm.$nextTick();
+
+      const ownChainLength = wrapper.vm.displayChain.length;
+      await wrapper.find('.comparison-actions button').trigger('click');
+
+      expect(wrapper.findAll('.chain-row')).toHaveLength(2);
+      expect(wrapper.vm.chainRows[0].items).toHaveLength(ownChainLength); // own row untouched
+      expect(wrapper.vm.chainRows[1].interactive).toBe(false);
+      expect(wrapper.find('.chain-row-label').text()).toContain('shortest path');
+      expect(wrapper.vm.status).toBe('won'); // still a win, not 'revealed'
+    });
+
+    it('giving up still REPLACES the row rather than adding one', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      forceLongPair(wrapper, library);
+
+      wrapper.vm.revealPath();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.status).toBe('revealed');
+      expect(wrapper.findAll('.chain-row')).toHaveLength(1);
+    });
+
+    it('clears the comparison row when a new game starts', async () => {
+      const library = buildConnectedLibrary();
+      const wrapper = factory(library);
+      winTheLongWay(wrapper, library);
+      wrapper.vm.showComparisonPath();
+      expect(wrapper.vm.comparisonChain).toBeTruthy();
+
+      wrapper.vm.start();
+      expect(wrapper.vm.comparisonChain).toBeNull();
     });
   });
 });
