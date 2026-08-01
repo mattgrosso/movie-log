@@ -73,10 +73,14 @@ describe('GamesHub', () => {
     expect(pushSpy).toHaveBeenCalledWith('/games/higher-lower');
   });
 
-  it('scrolls to top before navigating (bug report: chosen game kept the hub\'s scroll position)', async () => {
-    const { wrapper } = factory(10);
+  // Scroll-to-top on entering a game moved to the router's scrollBehavior
+  // (see scrollBehavior.test.js) - this component must NOT also do it, or
+  // there'd be two competing mechanisms for the same thing.
+  it('leaves scroll-to-top to the router rather than doing it itself', async () => {
+    const { wrapper, pushSpy } = factory(10);
     await wrapper.findAll('.game-tile')[0].trigger('click');
-    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' });
+    expect(pushSpy).toHaveBeenCalledWith('/games/higher-lower');
+    expect(window.scrollTo).not.toHaveBeenCalled();
   });
 
   // Feature request: "it would be nice to have a checkmark on the game if

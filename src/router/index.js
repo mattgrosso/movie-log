@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import store from "../store";
+import { gameAwareScrollBehavior } from "./scrollBehavior.js";
 
 const Home = () => import(/* webpackChunkName: "home" */ "../components/Home.vue");
 const Login = () => import(/* webpackChunkName: "login" */ "../components/Login.vue");
@@ -309,7 +310,10 @@ const routes = [
 
 const router = createRouter({
   history: createWebHashHistory(),
-  routes
+  routes,
+  // Scoped to game routes only — see scrollBehavior.js for why this isn't
+  // a blanket scroll-to-top.
+  scrollBehavior: gameAwareScrollBehavior
 })
 
 // Safety net for scroll-lock leaks. Modals/overlays across the app lock body

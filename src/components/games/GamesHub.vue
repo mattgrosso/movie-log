@@ -123,13 +123,11 @@ export default {
       if (!key) return false;
       return this.$store.state?.settings?.games?.wins?.[key] === todayStamp();
     },
-    // Bug report: choosing a game while scrolled down in the tile grid left
-    // the new game's page scrolled down too (Vue Router doesn't reset scroll
-    // position on navigation by default). Scroll to top BEFORE navigating so
-    // the new page always mounts already at the top, rather than letting a
-    // stale scroll position carry over.
+    // Scroll-to-top on entering a game is handled by the router's
+    // scrollBehavior now (see src/router/scrollBehavior.js) rather than
+    // here. This used to call window.scrollTo itself, which fixed exactly
+    // this one entry path and missed every other way into a game.
     selectGame (path) {
-      window.scrollTo({ top: 0, behavior: 'instant' });
       this.$router.push(path);
     }
   }
