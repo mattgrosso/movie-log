@@ -917,6 +917,7 @@
 
 <script>
 import axios from 'axios';
+import { scrollWindowTo } from '../utils/scrollWindowTo.js';
 import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
 import cloneDeep from 'lodash/cloneDeep';
@@ -1156,13 +1157,11 @@ export default {
         // Use captured navigation intent
         if (navigationIntent === 'search') {
           // For search navigation, always scroll to top
-          document.documentElement.scrollTop = 0;
-          document.body.scrollTop = 0;
+          scrollWindowTo(0);
         } else if (navigationIntent === 'close' || navigationIntent === null) {
           // For close navigation or normal restoration, restore saved position
           if (this.$store.state.homePageScrollPosition > 0) {
-            document.documentElement.scrollTop = this.$store.state.homePageScrollPosition;
-            document.body.scrollTop = this.$store.state.homePageScrollPosition; // For Safari
+            scrollWindowTo(this.$store.state.homePageScrollPosition);
           }
         }
       });
@@ -1194,8 +1193,7 @@ export default {
       }
     } else {
       // Normal behavior - scroll to top instantly
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
+      scrollWindowTo(0);
       // Clear navigation intent and sort order
       this.$store.commit('setHomePageNavigationIntent', null);
       this.$store.commit('setHomePageSortOrder', null);
@@ -2962,7 +2960,7 @@ export default {
         this.$router.push('/rate-movie');
         // Scroll to top when navigating to rate movie page
         this.$nextTick(() => {
-          window.scrollTo(0, 0);
+          scrollWindowTo(0);
         });
       }
     },
