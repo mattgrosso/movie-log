@@ -17,9 +17,22 @@ function buildAppStateSummary (store, route) {
     movieCount: state.movieLog ? Object.keys(state.movieLog).length : 0,
     sortValue: state.DBSortValue,
     sortOrder: state.DBSortOrder,
+    // NOTE: these three are the PERSISTED NAVIGATION fields (saved by
+    // Home's beforeRouteLeave, cleared again by its mounted() restore) -
+    // NOT what Home is actually filtering by right now. They were the only
+    // search-ish state in the store, so early reports used them; a report
+    // filed from Home will almost always show them empty/stale regardless
+    // of what's on screen. Kept for continuity with older reports, but read
+    // `homeLive` below for the real answer.
     searchValue: state.homePageSearchValue,
     searchChips: state.homePageSearchChips,
     numberOfResultsShown: state.homePageNumberOfResults,
+    // Home's LIVE filter/result state, published by Home itself (see its
+    // liveDebugState watcher). Added after an "the entire list of movies is
+    // empty" report that couldn't be diagnosed, because nothing in the
+    // snapshot could distinguish "no results matched the active filter"
+    // from "the list genuinely failed to render".
+    homeLive: state.homePageLiveState || null
   };
 }
 

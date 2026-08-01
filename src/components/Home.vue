@@ -1068,6 +1068,19 @@ export default {
     }
   },
   watch: {
+    // Publishes a small summary of what's actually on screen to the store,
+    // purely so in-app bug reports can include it (see bugReports.js). Added
+    // after an "the entire list of movies is empty" report that couldn't be
+    // diagnosed: the snapshot only had the PERSISTED navigation fields,
+    // which mounted() clears on restore, so it showed an empty search and
+    // no chips no matter what was really filtering the list. Nothing reads
+    // this for behaviour.
+    liveDebugState: {
+      immediate: true,
+      handler (value) {
+        this.$store.commit('setHomePageLiveState', value);
+      }
+    },
     allEntriesWithFlatKeywordsAdded (newVal, oldval) {
       if (!oldval.length && newVal.length) {
         this.buildCastMembersCache();
@@ -1295,6 +1308,20 @@ export default {
     next();
   },
   computed: {
+    // Diagnostic only - see the liveDebugState watcher above.
+    liveDebugState () {
+      return {
+        quickLink: this.activeQuickLinkList,
+        typedSearch: this.inputValue || '',
+        chips: this.activeFilters.map((filter) => `${filter.type}:${filter.value}`),
+        resultsRendered: this.paginatedSortedResults.length,
+        resultsMatched: this.sortedResults.length,
+        libraryEntries: this.allEntriesWithFlatKeywordsAdded.length,
+        numberToShow: this.numberOfResultsToShow,
+        grouped: Boolean(this.groupedByAllCategories),
+        sort: `${this.sortValue}/${this.sortOrder}`
+      };
+    },
     pendingReconciliations () {
       return this.$store.state.pendingReconciliations || [];
     },

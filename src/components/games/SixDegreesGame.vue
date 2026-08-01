@@ -95,6 +95,7 @@
               type="button"
               class="chain-step"
               :class="[item.type, { goal: item.isGoal, placeholder: item.isPlaceholder }]"
+              :data-chain-index="row.interactive && !item.isGoal && !item.isPlaceholder ? index : null"
               @click="handleChainItemClick(item)"
             >
               <span
@@ -171,6 +172,10 @@ import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import sixDegreesBanner from '../../assets/images/games/six-degrees-banner.jpg';
 
 const STORAGE_KEY = 'cinemaRoll.sixDegrees.current';
+
+// How much breathing room to leave to the right of the newest chain entry
+// when auto-scrolling to it (see scrollChainToEnd).
+const SCROLL_MARGIN_PX = 12;
 
 export default {
   name: 'SixDegreesGame',
@@ -284,7 +289,7 @@ export default {
       if (this.comparisonChain) {
         rows.push({
           key: 'comparison',
-          label: `The shortest path was ${this.pair?.optimalHops} hop${this.pair?.optimalHops === 1 ? '' : 's'}:`,
+          label: this.comparisonLabel,
           items: this.comparisonChain.map((link, index) => ({ ...link, itemKey: `comparison-${index}` })),
           interactive: false
         });
@@ -295,10 +300,25 @@ export default {
     // than the optimum - if they already found the shortest path there's
     // nothing "could've been" to show them.
     canShowComparison () {
-      return this.status === 'won' &&
-        !this.comparisonChain &&
-        this.pair?.optimalPath?.length > 0 &&
-        this.pair.optimalHops < this.hopsSoFar;
+      // Follow-up bug report: "I still don't see a way to reveal the
+      // shortest path after I find my own path." The first cut also
+      // required optimalHops < hopsSoFar - i.e. it hid the button whenever
+      // the player MATCHED the optimum, on the reasoning that there'd be
+      // nothing "could've been" to show. That was too clever: matching the
+      // shortest path is precisely when you want it confirmed, and from the
+      // player's side an absent button is indistinguishable from a broken
+      // one. Now it's offered after every win (the label below says which
+      // case it is).
+      return this.status === 'won' && !this.comparisonChain && this.pair?.optimalPath?.length > 0;
+    },
+    // Distinguishes "here's the shorter route you missed" from "you already
+    // found it" - the button shows in both cases now (see canShowComparison).
+    comparisonLabel () {
+      const hops = this.pair?.optimalHops;
+      const hopText = `${hops} hop${hops === 1 ? '' : 's'}`;
+      return hops >= this.hopsSoFar
+        ? `You found it — the shortest path was also ${hopText}:`
+        : `The shortest path was ${hopText}:`;
     },
     needType () {
       const last = this.chain[this.chain.length - 1];
@@ -606,15 +626,35 @@ export default {
     // Bug report: "after each correct guess it would be nice if it would
     // scroll to the right for me." The chain row scrolls horizontally and
     // only grows, so a new entry lands off-screen without this.
+    //
+    // Follow-up bug report: "the scrolling is better but it should scroll so
+    // that I can still see my most recent addition to the chain." The first
+    // cut scrolled to scrollWidth (the far right) - but the row doesn't END
+    // at the newest entry: the "?" placeholders and the goal poster all sit
+    // AFTER it, so scrolling fully right pushed the thing the player just
+    // added back off the left. Now it scrolls only far enough to bring the
+    // newest REAL entry's right edge into view (with a small margin), and
+    // not at all if it's already visible.
     scrollChainToEnd () {
       this.$nextTick(() => {
         const el = this.chainRowEl;
         if (!el) return;
+
+        const newest = el.querySelector(`[data-chain-index="${this.chain.length - 1}"]`);
+        let left = el.scrollWidth; // fallback: the old behaviour
+        if (newest && typeof newest.getBoundingClientRect === 'function') {
+          const rowRight = el.getBoundingClientRect().right;
+          const newestRight = newest.getBoundingClientRect().right;
+          const delta = newestRight - rowRight + SCROLL_MARGIN_PX;
+          if (delta <= 0) return; // already fully visible - don't yank it around
+          left = el.scrollLeft + delta;
+        }
+
         if (typeof el.scrollTo === 'function') {
-          el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+          el.scrollTo({ left, behavior: 'smooth' });
         } else {
           // jsdom (and very old browsers) have no scrollTo on elements.
-          el.scrollLeft = el.scrollWidth;
+          el.scrollLeft = left;
         }
       });
     },

@@ -264,28 +264,43 @@ export default {
         };
       }
 
-      setTimeout(() => {
-        const dbEntry = {
-          path: `movieLog/${this.firstStickinessResult.dbKey}`,
-          value: movieWithRating
-        }
+      // Captured BEFORE the write: writeDurably commits to local state
+      // synchronously, so the moment it's dispatched firstStickinessResult
+      // already points at the NEXT movie in the queue.
+      const dbEntry = {
+        path: `movieLog/${this.firstStickinessResult.dbKey}`,
+        value: movieWithRating
+      };
 
-        // writeDurably (not setDBValue): commits locally first, then
-        // durably queues before attempting the network write, so this
-        // survives being offline (bug report - see CLAUDE.md's Offline
-        // Support Extension section).
-        this.$store.dispatch('writeDurably', dbEntry);
+      // writeDurably (not setDBValue): commits locally first, then
+      // durably queues before attempting the network write, so this
+      // survives being offline (bug report - see CLAUDE.md's Offline
+      // Support Extension section).
+      this.$store.dispatch('writeDurably', dbEntry);
 
-        this.submittingStickiness = false;
-        this.stickinessRating = "";
+      this.submittingStickiness = false;
+      this.stickinessRating = "";
 
-        // Emit event to parent to update data
-        this.$emit('stickiness-updated');
+      // Emit event to parent to update data
+      this.$emit('stickiness-updated');
 
-        if (!this.resultsThatNeedStickiness.length) {
-          this.closeStickinessInline();
-        }
-      }, 2000);
+      // Bug report: "after each one it should just immediately take me to
+      // the next stickiness that is ready to go." Two things were in the
+      // way. (1) This whole block used to sit behind a 2-SECOND setTimeout
+      // - a holdover from when the save had to round-trip before local
+      // state caught up. writeDurably commits locally first, so there's
+      // nothing left to wait for and the delay was pure dead time between
+      // each entry. (2) Advancing relied on showStickinessInline merely
+      // never having been set false; anything that knocked it back (a
+      // remount, a transient empty list) dumped the player on the notice
+      // banner with no way forward but tapping it again. Now staying on
+      // the form is asserted explicitly, and the panel only collapses once
+      // the queue is genuinely empty.
+      if (this.resultsThatNeedStickiness.length) {
+        this.showStickinessInline = true;
+      } else {
+        this.closeStickinessInline();
+      }
     },
     mostRecentRating (media) {
       return getRating(media);

@@ -690,26 +690,52 @@ describe('SixDegreesGame', () => {
     // re-fires on every re-render - so a stub assigned before pick() would
     // be overwritten by the real element mid-update. The scroll behaviour
     // and the fact that pick() triggers it are therefore tested separately.
-    it('scrolls the chain row to its right edge', async () => {
+    // Stubs a row whose newest real entry sits `overhangPx` beyond the row's
+    // right edge - the scroll should close exactly that gap (plus the margin),
+    // NOT jump to scrollWidth (which is past the trailing "?" placeholders and
+    // goal poster, and would push the new entry back off-screen).
+    function stubRow (wrapper, { overhangPx, scrollLeft = 0, withScrollTo = true }) {
+      const newest = { getBoundingClientRect: () => ({ right: 400 + overhangPx }) };
+      const el = {
+        scrollLeft,
+        scrollWidth: 9999,
+        querySelector: () => newest,
+        getBoundingClientRect: () => ({ right: 400 })
+      };
+      if (withScrollTo) el.scrollTo = vi.fn((opts) => { el.scrollLeft = opts.left; });
+      wrapper.vm.chainRowEl = el;
+      return el;
+    }
+
+    it('scrolls just far enough to bring the newest entry into view, not to the far end', async () => {
       const wrapper = factory(buildConnectedLibrary());
-      const scrollTo = vi.fn();
-      wrapper.vm.chainRowEl = { scrollTo, scrollWidth: 1234 };
+      const el = stubRow(wrapper, { overhangPx: 100, scrollLeft: 50 });
 
       wrapper.vm.scrollChainToEnd();
       await wrapper.vm.$nextTick();
 
-      expect(scrollTo).toHaveBeenCalledWith({ left: 1234, behavior: 'smooth' });
+      // 50 (current) + 100 (overhang) + 12 (margin) — not scrollWidth (9999).
+      expect(el.scrollTo).toHaveBeenCalledWith({ left: 162, behavior: 'smooth' });
+    });
+
+    it('does not scroll at all when the newest entry is already fully visible', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      const el = stubRow(wrapper, { overhangPx: -200 });
+
+      wrapper.vm.scrollChainToEnd();
+      await wrapper.vm.$nextTick();
+
+      expect(el.scrollTo).not.toHaveBeenCalled();
     });
 
     it('falls back to setting scrollLeft when the element has no scrollTo (jsdom/old browsers)', async () => {
       const wrapper = factory(buildConnectedLibrary());
-      const el = { scrollWidth: 500, scrollLeft: 0 };
-      wrapper.vm.chainRowEl = el;
+      const el = stubRow(wrapper, { overhangPx: 88, withScrollTo: false });
 
       wrapper.vm.scrollChainToEnd();
       await wrapper.vm.$nextTick();
 
-      expect(el.scrollLeft).toBe(500);
+      expect(el.scrollLeft).toBe(100); // 0 + 88 + 12
     });
 
     it('does not throw when the chain row element is not available', async () => {
@@ -762,16 +788,22 @@ describe('SixDegreesGame', () => {
       expect(wrapper.find('.comparison-actions').exists()).toBe(true);
     });
 
-    it('does NOT offer it when the player already found the shortest path', async () => {
+    // Follow-up bug report: "I still don't see a way to reveal the shortest
+    // path after I find my own path." The first cut hid the button whenever
+    // the player matched the optimum; from their side that's
+    // indistinguishable from it being broken.
+    it('STILL offers it when the player already matched the shortest path, saying so', async () => {
       const library = buildConnectedLibrary();
       const wrapper = factory(library);
       winTheLongWay(wrapper, library);
-      // Optimum equals what they actually did - nothing to show.
       wrapper.vm.pair = { ...wrapper.vm.pair, optimalHops: wrapper.vm.hopsSoFar };
       await wrapper.vm.$nextTick();
 
-      expect(wrapper.vm.canShowComparison).toBe(false);
-      expect(wrapper.find('.comparison-actions').exists()).toBe(false);
+      expect(wrapper.vm.canShowComparison).toBe(true);
+      expect(wrapper.find('.comparison-actions').exists()).toBe(true);
+
+      await wrapper.find('.comparison-actions button').trigger('click');
+      expect(wrapper.find('.chain-row-label').text()).toContain('You found it');
     });
 
     it('adds a second row WITHOUT replacing the player\'s own (unlike giving up)', async () => {

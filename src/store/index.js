@@ -171,6 +171,11 @@ export default createStore({
     // branding baked into the image instead of the usual overlay.
     hideHeaderLogo: false,
     goHome: false,
+    // A small summary of Home.vue's LIVE filter/result state, published by
+    // Home itself so in-app bug reports can actually show what was on
+    // screen (see bugReports.js). Purely diagnostic - nothing reads it for
+    // behaviour, and it is never persisted.
+    homePageLiveState: null,
     devModeTopKey: 'testing-database',
     // devModeTopKey: 'natalierosegrosso-gmail-com',
     // devModeTopKey: 'carrieseltzer-gmail-com',
@@ -395,6 +400,9 @@ export default createStore({
     },
     setGoHome (state, value) {
       state.goHome = value;
+    },
+    setHomePageLiveState (state, value) {
+      state.homePageLiveState = value;
     },
     setDbLoaded (state, value) {
       state.dbLoaded = value;
