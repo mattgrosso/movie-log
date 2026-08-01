@@ -1152,6 +1152,18 @@ export default {
         }
       }
 
+      // Captured NOW, not read inside the $nextTick below. This restore has
+      // never actually worked: the callback used to read
+      // this.$store.state.homePageScrollPosition, but the "clear stored
+      // state" block a few lines down sets that to 0 SYNCHRONOUSLY - i.e.
+      // always before the deferred callback runs - so the `> 0` guard was
+      // false every single time and the page never moved. (A second,
+      // independent bug was hiding behind it: the restore used
+      // `documentElement.scrollTop = x`, which this app's
+      // `scroll-behavior: smooth` silently swallows - see
+      // utils/scrollWindowTo.js.)
+      const scrollPositionToRestore = this.$store.state.homePageScrollPosition;
+
       // Restore scroll position after DOM updates and result rendering
       this.$nextTick(() => {
         // Use captured navigation intent
@@ -1160,8 +1172,8 @@ export default {
           scrollWindowTo(0);
         } else if (navigationIntent === 'close' || navigationIntent === null) {
           // For close navigation or normal restoration, restore saved position
-          if (this.$store.state.homePageScrollPosition > 0) {
-            scrollWindowTo(this.$store.state.homePageScrollPosition);
+          if (scrollPositionToRestore > 0) {
+            scrollWindowTo(scrollPositionToRestore);
           }
         }
       });
