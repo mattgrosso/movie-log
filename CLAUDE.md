@@ -982,6 +982,24 @@ Replaced with a router-level `scrollBehavior` (`src/router/scrollBehavior.js`, w
 
 Tests: `SixDegreesGame.test.js` — the scroll tests rewritten around a stub row exposing `querySelector`/`getBoundingClientRect` (asserting it scrolls just far enough, and NOT at all when the newest entry is already visible), and the old "does NOT offer it when they matched the optimum" test inverted to assert the button now shows with the "You found it" label.
 
+## Stickiness prompt: `{...array}` corrupted the rating shape (Aug 2026)
+
+Bug report: "The stickiness prompt is still acting weirdly... it's still showing up when I don't really have a stickiness... It's clearly not correct."
+
+**Root cause — a genuine, long-latent data-shape bug.** `StickinessInline.addStickinessRating` built its updated entry as:
+```js
+ratings: { ...this.firstStickinessResult.ratings, [index]: { ...updated } }
+```
+Spreading an **array** into an object literal produces a plain object (`{0: …, 1: …}`) with **no `length`**. `GetRating.js` opens with `if (!media?.ratings?.length) return null` → `calculatePostStickyRatingFor(null)` → `{ calculatedTotal: 0 }`. So the instant a movie was saved this way its local copy lost `date`, `userAddedStickiness`, and its real score. In `resultsThatNeedStickiness` that reads as: flag `undefined` → "hasn't rated stickiness"; `date` `undefined` → defaults to `"1/1/2021"` → "more than a week ago" → **the movie goes straight back into the queue**, permanently, and displays a rating of 0.
+
+**Why it only surfaced now**: `setDBValue` never wrote to local state at all — the malformed object went to Firebase, which normalises sequential numeric keys back into a real array, and the corrected shape came back via the `onValue` listener. Switching this component to `writeDurably` (which commits locally FIRST, by design — see the Offline Support Extension section) made the broken intermediate shape visible for the first time. **Stored data was never affected**, only the local copy, so there's nothing to repair.
+
+Fix: build the new ratings with `.map()`, preserving the array. (`TweakInline.applyTournamentResults` already did it correctly with `.slice().map()` — this was the only site with the object-spread form.)
+
+**Generalisable lesson**: `{ ...someArray }` is never what you want when the value must stay an array, and it fails silently — the object looks right in a debugger and even round-trips through Firebase correctly. Anywhere local state is committed optimistically (which is now most write paths), the malformed shape is what the app actually runs on.
+
+Tests: `src/test/StickinessInline.test.js` (new file — this component had none). The mocked `getRating` deliberately reproduces the real `!ratings?.length` bail so the bug is reproducible in test, and the mocked `dispatch` applies the write back onto the fixture to mirror `writeDurably`'s synchronous local commit. **Verified as a real regression guard** by temporarily reinstating the object spread: 3 of the 5 tests fail. Fixture dates are relative (`daysAgo`) rather than fixed, so an entry can't silently drift into the six-month window as time passes.
+
 ## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
 

@@ -234,35 +234,41 @@ export default {
     addStickinessRating () {
       this.submittingStickiness = true;
 
-      let movieWithRating;
+      const ratingIndex = this.mostRecentRatingIndex;
+      // Which of the two stickiness passes this is: the one-week prompt the
+      // first time, the six-month one after that.
+      const isFirstStickinessPass = !this.firstStickinessResult.ratings[ratingIndex].userAddedStickiness;
 
-      if (!this.firstStickinessResult.ratings[this.mostRecentRatingIndex].userAddedStickiness) {
-        movieWithRating = {
-          ...this.firstStickinessResult,
-          ratings: {
-            ...this.firstStickinessResult.ratings,
-            [this.mostRecentRatingIndex]: {
-              ...this.firstStickinessResult.ratings[this.mostRecentRatingIndex],
-              rating: this.ratingWithStickiness,
-              stickiness: parseFloat(this.stickinessRating),
-              userAddedStickiness: true
-            }
-          }
+      // .map(), NOT an object spread. Both branches here used to build
+      // `ratings: { ...this.firstStickinessResult.ratings, [i]: {...} }` —
+      // and spreading an ARRAY into an object literal yields a plain object
+      // ({0: …, 1: …}) with NO `length`. GetRating.js bails on
+      // `!media?.ratings?.length` and falls back to `{calculatedTotal: 0}`,
+      // so the moment a movie was saved this way it lost `date`,
+      // `userAddedStickiness` and its real score locally — which put it
+      // straight back into resultsThatNeedStickiness (undefined flag reads
+      // as "hasn't rated", missing date defaults to 2021 = "more than a week
+      // ago") and showed its rating as 0.
+      //
+      // This was latent for a long time because setDBValue never wrote to
+      // local state at all — the object went to Firebase, which normalises
+      // sequential numeric keys back into an array, and the corrected shape
+      // came back via the onValue listener. Switching this component to
+      // writeDurably (which commits locally first, by design) made the
+      // broken intermediate shape visible, surfacing as "the stickiness
+      // prompt is still showing up when I don't really have a stickiness".
+      // Stored data was never affected — only the local copy.
+      const updatedRatings = this.firstStickinessResult.ratings.map((rating, index) => {
+        if (index !== ratingIndex) return rating;
+        return {
+          ...rating,
+          rating: this.ratingWithStickiness,
+          stickiness: parseFloat(this.stickinessRating),
+          ...(isFirstStickinessPass ? { userAddedStickiness: true } : { userAddedSixMonthStickiness: true })
         };
-      } else {
-        movieWithRating = {
-          ...this.firstStickinessResult,
-          ratings: {
-            ...this.firstStickinessResult.ratings,
-            [this.mostRecentRatingIndex]: {
-              ...this.firstStickinessResult.ratings[this.mostRecentRatingIndex],
-              rating: this.ratingWithStickiness,
-              stickiness: parseFloat(this.stickinessRating),
-              userAddedSixMonthStickiness: true
-            }
-          }
-        };
-      }
+      });
+
+      const movieWithRating = { ...this.firstStickinessResult, ratings: updatedRatings };
 
       // Captured BEFORE the write: writeDurably commits to local state
       // synchronously, so the moment it's dispatched firstStickinessResult
