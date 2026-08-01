@@ -18,9 +18,18 @@
 // Returning `false` for everything else means "leave the scroll position
 // alone", i.e. exactly the pre-existing behaviour for non-game routes —
 // including Home's own restoration, which stays in charge of itself.
+// `behavior: 'instant'` is REQUIRED here, not a preference. The app sets
+// `scroll-behavior: smooth` on <html>, and with that in effect a plain
+// window.scrollTo({top: 0}) silently does nothing at all in this app —
+// verified live: the position stayed exactly where it was, and a
+// window.scrollTo(0, 300) didn't move either, while the same call with
+// behavior:'instant' worked immediately. (Vue Router passes whatever this
+// returns straight through to window.scrollTo, so the override belongs
+// here.) The GamesHub workaround this replaced happened to pass 'instant'
+// too, which is why it worked and a first cut of this function did not.
 export function gameAwareScrollBehavior (to) {
   if (to?.path?.startsWith('/games')) {
-    return { top: 0 };
+    return { top: 0, behavior: 'instant' };
   }
   return false;
 }
