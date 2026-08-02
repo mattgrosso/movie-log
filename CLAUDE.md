@@ -1021,7 +1021,20 @@ Lookups are driven by a `personWinnersNeedingPhotos` computed (distinct names ac
 
 Tests: `TrophyCase.test.js` — stored-photo case, the **"never substitutes a poster for a person"** guard (asserts the poster URL appears nowhere), the TMDB lookup being made/used and called exactly once for a two-time winner, no lookup when a photo was already stored, and movie winners still showing posters. `fetch` is stubbed in `beforeEach` to "found nothing" so unrelated tests get the initials path rather than a real request.
 
-**Not built, mentioned in the same report**: "it would be interesting to see what movie had the most nominations across categories as well." Phrased as an aside next to the emphatic photo complaint, and it's a new feature (a movie-side counterpart to Most Decorated, counting NOMINATIONS rather than wins — `categorizedWins` only tracks winners today) rather than a fix, so it was surfaced back to the user instead of assumed.
+### Trophy Case leaderboards (Aug 2026)
+Follow-up request: "movies with the most wins, movies with the most nominations... once we've unlocked nominations, we could also do people with the most nominations."
+
+Unlocking nominations was the real work — `categorizedWins` only ever walked `category.winner`, so the whole nominee side of the stored data was untouched. New pure module **`src/assets/javascript/awardStats.js`**: `collectAwardEntries(personalAwards, library)` walks every year/category once and expands BOTH the winner and each nominee into `{ wins, nominations }` (flat lists of `{year, categoryKey, expanded}`), plus `rankPeople` / `rankMovies` leaderboards over either list. Store-free and unit-tested without mounting, per this repo's usual split.
+
+Two modelling decisions, both deliberate and documented in the module:
+- **A winner is also a nominee.** `PersonalAwardsModal` only lets you pick a winner from nominees you already selected, so `nominees` contains the winner. Nomination counts therefore include wins — which is what people expect ("Titanic: 14 nominations, 11 wins"), not double-counting.
+- **A person's award counts for their film.** Every expanded nominee carries `.movie` (a movie-type entry, or a person expanded with the film they were nominated for), so both roll up identically. This matches how real tallies work — "Titanic won 11 Oscars" includes its acting and directing wins, not just Best Picture.
+
+Ties break alphabetically so ordering doesn't depend on year-walk order; `minCount` defaults to 2 because a leaderboard where everyone has one award is just a list of every award. Each section hides itself when nothing clears that threshold, so a new/small awards history doesn't render empty shelves.
+
+Three new sections join the existing Most Decorated (people by wins): **Most Nominated People**, **Most Awarded Movies**, **Most Nominated Movies**. `personWinnersNeedingPhotos` was widened to cover nominees as well as winners, since someone can be nominated repeatedly without ever winning and still needs a face. Movie rows use `.decorated-poster` — same footprint as the person photos so the rows line up, but `object-fit: contain` rather than `cover`, since cropping a poster loses the title.
+
+Tests: `src/test/awardStats.test.js` (pure — collection across years, missing/partial data, nominees whose movie left the library, person-vs-movie discrimination, cross-category counting, remakes staying separate by id, wins-included-in-nominations, tie ordering, limit/minCount) and a `leaderboards` describe block in `TrophyCase.test.js` (a sweep topping Most Awarded Movies via its people's wins, nomination-only films outranking it on nominations, poster rendering + movie links, everything hidden when nothing repeats, and photo lookups firing for never-won nominees).
 
 Note the original fix could NOT be visually verified end-to-end on the `testing-database` account: it has no repeat winners, so `mostDecoratedPeople` is empty and the row doesn't render at all there. Covered by the regression test instead.
 

@@ -39,6 +39,46 @@
         </div>
       </div>
 
+      <!-- Leaderboards (user request: "movies with the most wins, movies
+           with the most nominations... people with the most nominations").
+           Each hides itself when nothing clears the repeat threshold, so a
+           small or brand-new awards history doesn't render empty shelves. -->
+      <div v-if="mostNominatedPeople.length" class="most-decorated">
+        <h2 class="section-title">Most Nominated People</h2>
+        <div class="decorated-list">
+          <div v-for="person in mostNominatedPeople" :key="person.name" class="decorated-person" @click="goToMovie(person.entries[0])">
+            <img v-if="winnerImage(person.entries[0].expanded)" :src="winnerImage(person.entries[0].expanded)" :alt="person.name" class="decorated-photo">
+            <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
+            <div class="decorated-name">{{ person.name }}</div>
+            <div class="decorated-count">{{ person.count }} nomination{{ person.count === 1 ? '' : 's' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="mostAwardedMovies.length" class="most-decorated">
+        <h2 class="section-title">Most Awarded Movies</h2>
+        <div class="decorated-list">
+          <div v-for="film in mostAwardedMovies" :key="film.movieId" class="decorated-person" @click="goToMovieId(film.movieId)">
+            <img v-if="film.movie.poster_path" :src="`https://image.tmdb.org/t/p/w185${film.movie.poster_path}`" :alt="film.movie.title" class="decorated-poster">
+            <div v-else class="decorated-poster decorated-photo-placeholder">{{ film.movie.title.charAt(0) }}</div>
+            <div class="decorated-name">{{ film.movie.title }}</div>
+            <div class="decorated-count">{{ film.count }} win{{ film.count === 1 ? '' : 's' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="mostNominatedMovies.length" class="most-decorated">
+        <h2 class="section-title">Most Nominated Movies</h2>
+        <div class="decorated-list">
+          <div v-for="film in mostNominatedMovies" :key="film.movieId" class="decorated-person" @click="goToMovieId(film.movieId)">
+            <img v-if="film.movie.poster_path" :src="`https://image.tmdb.org/t/p/w185${film.movie.poster_path}`" :alt="film.movie.title" class="decorated-poster">
+            <div v-else class="decorated-poster decorated-photo-placeholder">{{ film.movie.title.charAt(0) }}</div>
+            <div class="decorated-name">{{ film.movie.title }}</div>
+            <div class="decorated-count">{{ film.count }} nomination{{ film.count === 1 ? '' : 's' }}</div>
+          </div>
+        </div>
+      </div>
+
       <div v-for="category in categoriesInOrder" :key="category.key" class="trophy-category">
         <h2 class="section-title">{{ category.name }}</h2>
         <div class="trophy-row">
@@ -58,6 +98,7 @@
 <script>
 import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
 import { expandNomineeFromMinimal } from '../assets/javascript/personalAwards.js';
+import { collectAwardEntries, rankPeople, rankMovies } from '../assets/javascript/awardStats.js';
 
 export default {
   name: 'TrophyCase',
@@ -123,15 +164,33 @@ export default {
     },
     // Person-type winners who've won more than once, ranked by win count —
     // the "show off people" angle: recurring favorites across categories/years.
+    // Every win AND nomination, expanded once and shared by the three
+    // leaderboards below (see awardStats.js - a winner is also a nominee,
+    // and a person's award counts for their film, both deliberate).
+    awardEntries () {
+      return collectAwardEntries(
+        this.$store.state.settings?.personalAwards || {},
+        this.$store.getters.allMediaAsArray
+      );
+    },
+    mostNominatedPeople () {
+      return rankPeople(this.awardEntries.nominations);
+    },
+    mostAwardedMovies () {
+      return rankMovies(this.awardEntries.wins);
+    },
+    mostNominatedMovies () {
+      return rankMovies(this.awardEntries.nominations);
+    },
     // Distinct names of person winners with no profile path already stored
     // (older awards, picked before that was captured). Drives the lookup
     // watcher above.
+    // Covers nominees as well as winners now that Most Nominated People
+    // shows faces too - a person can be nominated without ever winning.
     personWinnersNeedingPhotos () {
       const names = new Set();
-      Object.values(this.categorizedWins).forEach((wins) => {
-        wins.forEach(({ expanded }) => {
-          if (expanded?.name && !expanded.details?.profile_path) names.add(expanded.name);
-        });
+      [...this.awardEntries.wins, ...this.awardEntries.nominations].forEach(({ expanded }) => {
+        if (expanded?.name && !expanded.details?.profile_path) names.add(expanded.name);
       });
       return [...names];
     },
@@ -203,6 +262,9 @@ export default {
       } catch {
         // Best-effort - stays null, falls back to the initial.
       }
+    },
+    goToMovieId (movieId) {
+      if (movieId) this.$router.push(`/movie/${movieId}`);
     },
     goToMovie (win) {
       const movieId = win.expanded.movie?.id || win.expanded.movieId;
@@ -289,6 +351,16 @@ export default {
 }
 
 .trophy-image-placeholder,
+/* Same footprint as .decorated-photo so the movie leaderboards line up with
+   the people ones - posters just aren't cropped, since a cropped poster
+   loses the title. */
+.decorated-poster {
+  border-radius: 0.35rem;
+  height: 140px;
+  object-fit: contain;
+  width: 100px;
+}
+
 .decorated-photo-placeholder {
   align-items: center;
   background: #1a1a1a;

@@ -187,4 +187,103 @@ describe('TrophyCase', () => {
     expect(commitSpy).toHaveBeenCalledWith('setShowHeader', true)
     expect(pushSpy).toHaveBeenCalledWith('/')
   })
+
+  // User request: "movies with the most wins, movies with the most
+  // nominations... people with the most nominations."
+  describe('leaderboards', () => {
+    const library = [libraryEntry(1, 'Sweeper', '/sweeper.jpg'), libraryEntry(2, 'Runner Up', '/runner.jpg')]
+    // Sweeper wins Picture + Director + Actor; Runner Up is only nominated.
+    const personalAwards = {
+      2020: {
+        categories: {
+          bestPicture: {
+            nominees: [{ type: 'movie', movieId: 1 }, { type: 'movie', movieId: 2 }],
+            winner: { type: 'movie', movieId: 1 }
+          },
+          bestDirector: {
+            nominees: [{ type: 'person', id: 'd1', name: 'Sweep Director', movieId: 1 }],
+            winner: { type: 'person', id: 'd1', name: 'Sweep Director', movieId: 1 }
+          },
+          bestActor: {
+            nominees: [
+              { type: 'person', id: 'a1', name: 'Sweep Star', movieId: 1 },
+              { type: 'person', id: 'a2', name: 'Nominated Only', movieId: 2 }
+            ],
+            winner: { type: 'person', id: 'a1', name: 'Sweep Star', movieId: 1 }
+          },
+          bestEditing: {
+            nominees: [{ type: 'movie', movieId: 2 }],
+            winner: null
+          }
+        }
+      },
+      2021: {
+        categories: {
+          bestActor: {
+            nominees: [{ type: 'person', id: 'a2', name: 'Nominated Only', movieId: 2 }],
+            winner: null
+          }
+        }
+      }
+    }
+
+    it("counts a person's award toward their film, so a sweep tops Most Awarded Movies", () => {
+      const { wrapper } = mountTrophyCase(personalAwards, library)
+
+      expect(wrapper.vm.mostAwardedMovies[0]).toMatchObject({ movieId: 1, count: 3 })
+      expect(wrapper.text()).toContain('Most Awarded Movies')
+      expect(wrapper.text()).toContain('3 wins')
+    })
+
+    it('ranks Most Nominated Movies, counting nominations that never won', () => {
+      const { wrapper } = mountTrophyCase(personalAwards, library)
+
+      const ranked = wrapper.vm.mostNominatedMovies
+      // Sweeper: Picture + Director + Actor = 3. Runner Up: Picture + Editing + 2x Actor = 4.
+      expect(ranked[0]).toMatchObject({ movieId: 2, count: 4 })
+      expect(ranked[1]).toMatchObject({ movieId: 1, count: 3 })
+      expect(wrapper.text()).toContain('Most Nominated Movies')
+    })
+
+    it('ranks Most Nominated People across years and categories', () => {
+      const { wrapper } = mountTrophyCase(personalAwards, library)
+
+      expect(wrapper.vm.mostNominatedPeople[0]).toMatchObject({ name: 'Nominated Only', count: 2 })
+      expect(wrapper.text()).toContain('Most Nominated People')
+    })
+
+    it('renders posters for the movie leaderboards and links to the movie', async () => {
+      const { wrapper, pushSpy } = mountTrophyCase(personalAwards, library)
+
+      const poster = wrapper.find('.decorated-poster')
+      expect(poster.element.tagName).toBe('IMG')
+      expect(poster.attributes('src')).toContain('/sweeper.jpg')
+
+      await poster.trigger('click')
+      expect(pushSpy).toHaveBeenCalledWith('/movie/1')
+    })
+
+    it('hides every leaderboard when nothing repeats, rather than showing empty shelves', () => {
+      const sparse = {
+        2020: { categories: { bestPicture: { nominees: [{ type: 'movie', movieId: 1 }], winner: { type: 'movie', movieId: 1 } } } }
+      }
+      const { wrapper } = mountTrophyCase(sparse, library)
+
+      expect(wrapper.vm.mostAwardedMovies).toHaveLength(0)
+      expect(wrapper.vm.mostNominatedMovies).toHaveLength(0)
+      expect(wrapper.vm.mostNominatedPeople).toHaveLength(0)
+      expect(wrapper.text()).not.toContain('Most Awarded Movies')
+      expect(wrapper.text()).not.toContain('Most Nominated')
+    })
+
+    it('looks up photos for people who were only ever nominated, never a winner', async () => {
+      global.fetch = vi.fn(() => Promise.resolve({
+        json: () => Promise.resolve({ results: [{ profile_path: '/nominee-face.jpg' }] })
+      }))
+      mountTrophyCase(personalAwards, library)
+      await flushPromises()
+
+      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining(encodeURIComponent('Nominated Only')))
+    })
+  })
 })
