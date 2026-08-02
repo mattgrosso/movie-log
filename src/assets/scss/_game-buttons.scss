@@ -52,6 +52,27 @@
   width: 100%;
 }
 
+// End-of-run action row (bug report: "on all of the games where there's a
+// play again button we should have that space shared play again or back to
+// Games so we can exit"). Two equal-width buttons sharing the space the
+// single primary button used to fill - the top-left BackLink already goes
+// to the hub, but after finishing a run your thumb is at the BOTTOM of the
+// screen, which is exactly where the "I'm done" action should be.
+.end-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0 auto;
+  max-width: 420px;
+  width: 100%;
+}
+
+.end-actions .btn-game {
+  flex: 1;
+  // Beats .cta-btn's own max-width, which would otherwise keep each half
+  // narrow and leave a gap in the middle of the row.
+  max-width: none;
+}
+
 // Primary: the "do the main thing" action (Start, Submit, New Puzzle...).
 // Bright/warm, matching the amber accent (#ffc107) already used for icons
 // throughout the games section, but as a pill with real depth instead of

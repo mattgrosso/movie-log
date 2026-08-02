@@ -50,9 +50,16 @@
            order) are untouched. -->
       <div v-if="guesses.length" class="clue-grid">
         <div v-for="clue in displayGuesses" :key="clue.entryKey" class="clue-row" :class="{ correct: clue.isCorrect }">
+          <!-- Title, plus the guess's OWN year and rating. Both are plain
+               labels for "what did I just guess", not hints about the
+               target - the Year and Rating cells below still show only a
+               direction arrow until you match (bug report: "in addition to
+               the year, it would also show me the rating on the movies
+               after I guessed the wrong ones"). -->
           <p class="clue-title">
             {{ clue.title }}
             <span v-if="clue.year.value != null" class="clue-title-year">({{ clue.year.value }})</span>
+            <span v-if="clue.yourRating.value != null" class="clue-title-rating">{{ clue.yourRating.value.toFixed(2) }}</span>
           </p>
           <div class="clue-cells">
             <div class="clue-cell" :class="directionClass(clue.year)">
@@ -407,6 +414,13 @@ export default {
 
 .clue-row.correct {
   outline: 2px solid #4caf50;
+}
+
+.clue-title-rating {
+  color: #ffc107;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-left: 0.35rem;
 }
 
 .clue-title {

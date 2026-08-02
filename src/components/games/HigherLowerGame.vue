@@ -46,7 +46,10 @@
       </div>
 
       <div v-if="gameOver" class="game-over">
-        <button type="button" class="btn-game btn-game-primary cta-btn" @click="start">Play Again</button>
+        <div class="end-actions">
+          <button type="button" class="btn-game btn-game-primary cta-btn" @click="start">Play Again</button>
+          <button type="button" class="btn-game btn-game-secondary cta-btn" @click="$router.push('/games')">Back to Games</button>
+        </div>
       </div>
     </template>
   </div>

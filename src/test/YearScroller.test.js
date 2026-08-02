@@ -13,7 +13,7 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
 
 // Four distinct release years, one movie each, plus a fifth movie sharing
 // 2010 with the first — gives availableYears = [2020, 2015, 2010, 2005]
-// (descending) and a non-trivial "2010" result count to check filtering
+// which the scroller renders ascending, and a non-trivial "2010" result count to check filtering
 // actually still works through the scroller. "Movie 2010 A" is also given
 // a Crime genre so a year+genre combined-filter case has something real to
 // narrow down to (mirrors the follow-up feature request's own example:
@@ -90,18 +90,29 @@ describe('Year-scroller special case (feature request: "instead of showing all t
     expect(wrapper.find('.active-filters-section .badge.text-bg-secondary').exists()).toBe(false)
   })
 
-  it('lists every distinct year present in the library, descending, with the active one highlighted', async () => {
+  // Bug report: "I want the years to go ascending to the right... the next
+  // year should be to the right of the current year." The scroller reads
+  // left-to-right like a timeline; the "Add Filter" Year <select> keeps its
+  // own newest-first order (see availableYearsAscending).
+  it('lists every distinct year present in the library, ASCENDING, with the active one highlighted', async () => {
     wrapper.vm.activeFilters = [{ id: 'year-1', type: 'year', value: '2010', display: '2010' }]
     await wrapper.vm.$nextTick()
 
     const pills = wrapper.findAll('.year-scroller-pill')
-    expect(pills.map((p) => p.text())).toEqual(['2020', '2015', '2010', '2005'])
+    expect(pills.map((p) => p.text())).toEqual(['2005', '2010', '2015', '2020'])
 
     const activePill = pills.find((p) => p.text() === '2010')
     expect(activePill.classes()).toContain('btn-primary')
     pills.filter((p) => p.text() !== '2010').forEach((p) => {
       expect(p.classes()).toContain('btn-outline-secondary')
     })
+  })
+
+  it('leaves the "Add Filter" year dropdown newest-first, unlike the scroller', async () => {
+    // Same source list, two different display orders on purpose - a picker
+    // wants the most likely (recent) year first, a timeline reads L-to-R.
+    expect(wrapper.vm.availableYears).toEqual([2020, 2015, 2010, 2005])
+    expect(wrapper.vm.availableYearsAscending).toEqual([2005, 2010, 2015, 2020])
   })
 
   it('tapping a different year pill replaces the chip and updates the filtered results', async () => {

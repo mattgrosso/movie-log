@@ -1063,6 +1063,13 @@ Two things that made the data actually useful:
 
 Scripts were one-off and not committed. **Gotcha for any future admin-SDK script**: it must live INSIDE the repo — Node resolves `firebase-admin` relative to the importing file, so a script in the scratchpad fails with `ERR_MODULE_NOT_FOUND`. A backup of the pre-change awards is in the session scratchpad.
 
+## Three small reports (Aug 2026): year direction, Wordle rating, exit-from-game
+
+- **Year scroller now runs ascending left-to-right** ("the next year should be to the right of the current year, not the other way around"). New `availableYearsAscending` computed rather than flipping `availableYears` itself — that same list also fills the "Add Filter" Year `<select>`, where newest-first is the right default for picking a recent year. One source of truth for WHICH years exist, two display orders. A test pins both orders so they can't be conflated later.
+- **Reel Wordle shows the guessed movie's own rating** next to its title, beside the year ("in addition to the year, it would also show me the rating on the movies after I guessed the wrong ones"). `clue.yourRating.value` already held it — it just wasn't rendered. Like the year, this is a plain "what did I guess" label; the Rating CELL below still shows only a direction arrow, so it gives nothing away about the target.
+- **"Back to Games" now shares the end-of-run row with Play Again** across Higher or Lower, Timeline, Trivia, Clue Budget and Tag ("on all of the games where there's a play again button we should have that space shared... so we can exit"). Shared `.end-actions` class in `_game-buttons.scss` (two equal halves; overrides `.cta-btn`'s own `max-width`, which would otherwise leave a gap down the middle). The top-left `BackLink` already reaches the hub, but after finishing a run your thumb is at the BOTTOM of the screen — that's where the "I'm done" action belongs. Tag's two near-identical `v-if` blocks (Play Again / Try Again) collapsed into one with a conditional label while doing this.
+  - **Test gotcha**: each game's end-of-run block sits inside the `v-else` that requires a started run, so setting `gameOver = true` alone renders nothing — call `start()` first.
+
 ## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
 

@@ -72,7 +72,7 @@
              full-width item followed by normal ones. -->
         <div v-if="hasActiveYearChip" ref="yearScroller" class="year-scroller">
           <button
-            v-for="year in availableYears"
+            v-for="year in availableYearsAscending"
             :key="year"
             type="button"
             class="btn btn-sm year-scroller-pill"
@@ -1577,6 +1577,16 @@ export default {
         .map(movie => new Date(movie.movie.release_date).getFullYear())
         .filter(year => !isNaN(year));
       return [...new Set(years)].sort((a, b) => b - a);
+    },
+    // Bug report: "I want the years to go ascending to the right, not
+    // descending... the next year should be to the right of the current
+    // year, not the other way around." Reversed here rather than flipping
+    // availableYears itself, because that same list also fills the "Add
+    // Filter" Year <select>, where newest-first is the right default for
+    // picking a recent year. Still one source of truth for WHICH years
+    // exist - only the display order differs.
+    availableYearsAscending () {
+      return [...this.availableYears].reverse();
     },
     bestMovieFromEachYear () {
       const years = {};

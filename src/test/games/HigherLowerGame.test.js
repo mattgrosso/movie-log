@@ -186,4 +186,20 @@ describe('HigherLowerGame', () => {
       expect(store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
     });
   });
+
+  // Bug report: "on all of the games where there's a play again button we
+  // should have that space shared play again or back to Games so we can
+  // exit back to the home screen cause that's often what I want to do."
+  it('offers "Back to Games" alongside "Play Again" when a run ends', async () => {
+    const wrapper = factory(10);
+    wrapper.vm.start(); // the end-of-run block only renders once a run exists
+    wrapper.vm.gameOver = true;
+    await wrapper.vm.$nextTick();
+
+    const buttons = wrapper.findAll('.end-actions button');
+    expect(buttons.map((b) => b.text())).toEqual(['Play Again', 'Back to Games']);
+
+    await buttons[1].trigger('click');
+    expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/games');
+  });
 });

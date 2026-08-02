@@ -74,7 +74,10 @@
           <button v-if="gamePosterUrl(target)" type="button" class="reveal-poster-btn" @click="goToMovie(target)">
             <img :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
           </button>
-          <button type="button" class="btn-game btn-game-primary btn-game-sm full-width" @click="startNewRound">New Round</button>
+          <div class="end-actions">
+            <button type="button" class="btn-game btn-game-primary btn-game-sm" @click="startNewRound">New Round</button>
+            <button type="button" class="btn-game btn-game-secondary btn-game-sm" @click="$router.push('/games')">Back to Games</button>
+          </div>
         </div>
       </template>
     </template>
