@@ -1010,7 +1010,20 @@ Bug report: "in the trophy case I'm missing a bunch of images on that top row fo
 
 **`expanded.details` IS real** — I initially mis-read it as a dead branch (a `grep` for `details:` in `personalAwards.js` looked empty), then live verification showed the Best Actor row rendering actual face photos, which disproved that. The chain is: `PersonalAwardsModal.convertNomineeToMinimal` stores `minimal.profilePath = nominee.details.profile_path` at selection time, and `expandNomineeFromMinimal` rebuilds it as `expanded.details = { profile_path: … }`. So a person winner shows their real TMDB photo when a `profilePath` was captured, falling back to the movie poster when it wasn't. Worth remembering: **grepping one file was not enough to conclude a branch was dead** — the producer and consumer were two hops apart.
 
-Note the fix could NOT be visually verified end-to-end on the `testing-database` account: it has no repeat winners, so `mostDecoratedPeople` is empty and the row doesn't render at all there. Covered by the regression test instead.
+### Follow-up: people get PEOPLE pictures, never a poster (same day)
+Report: "they are... some of them are movie posters, which isn't really what we want... I don't wanna show Steven Spielberg but then show the poster for one of his movies, that's not right."
+
+`winnerImage` used to fall through to `expanded.movie.poster_path` for ANY winner without a stored profile path — so a person whose award predates the `profilePath` capture rendered as one of their films. Now it branches on winner type (`expanded.name` present = person, the same discriminator `winnerTitle` and the `trophy-subtitle` `v-if` already use):
+- **Person** → stored `details.profile_path`, else a TMDB `/search/person` lookup by name (`ensurePersonPhoto`, the same cache shape SixDegreesGame uses: `undefined` = never looked up, `null` = looked up/in-flight with nothing found), else their **initial**. Deliberately never a poster — a wrong picture is worse than a letter.
+- **Movie** → its poster, unchanged.
+
+Lookups are driven by a `personWinnersNeedingPhotos` computed (distinct names across all categories that lack a stored path) via an `immediate` watcher, so a repeat winner costs one request no matter how many awards they hold. This makes Trophy Case the first page here to fetch on load; it's best-effort and degrades to initials.
+
+Tests: `TrophyCase.test.js` — stored-photo case, the **"never substitutes a poster for a person"** guard (asserts the poster URL appears nowhere), the TMDB lookup being made/used and called exactly once for a two-time winner, no lookup when a photo was already stored, and movie winners still showing posters. `fetch` is stubbed in `beforeEach` to "found nothing" so unrelated tests get the initials path rather than a real request.
+
+**Not built, mentioned in the same report**: "it would be interesting to see what movie had the most nominations across categories as well." Phrased as an aside next to the emphatic photo complaint, and it's a new feature (a movie-side counterpart to Most Decorated, counting NOMINATIONS rather than wins — `categorizedWins` only tracks winners today) rather than a fix, so it was surfaced back to the user instead of assumed.
+
+Note the original fix could NOT be visually verified end-to-end on the `testing-database` account: it has no repeat winners, so `mostDecoratedPeople` is empty and the row doesn't render at all there. Covered by the regression test instead.
 
 ## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.

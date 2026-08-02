@@ -64,6 +64,23 @@ export default {
   created () {
     this.$store.commit('setShowHeader', false);
   },
+  data () {
+    return {
+      // { [personName]: profilePath | null } - see ensurePersonPhoto.
+      personPhotoCache: {}
+    };
+  },
+  watch: {
+    // Looks up a photo for every person winner that doesn't already carry
+    // one. Deduped by name via the cache, so a repeat winner across
+    // categories/years costs a single request.
+    personWinnersNeedingPhotos: {
+      immediate: true,
+      handler (names) {
+        names.forEach((name) => this.ensurePersonPhoto(name));
+      }
+    }
+  },
   beforeUnmount () {
     this.$store.commit('setShowHeader', true);
   },
@@ -106,6 +123,18 @@ export default {
     },
     // Person-type winners who've won more than once, ranked by win count —
     // the "show off people" angle: recurring favorites across categories/years.
+    // Distinct names of person winners with no profile path already stored
+    // (older awards, picked before that was captured). Drives the lookup
+    // watcher above.
+    personWinnersNeedingPhotos () {
+      const names = new Set();
+      Object.values(this.categorizedWins).forEach((wins) => {
+        wins.forEach(({ expanded }) => {
+          if (expanded?.name && !expanded.details?.profile_path) names.add(expanded.name);
+        });
+      });
+      return [...names];
+    },
     mostDecoratedPeople () {
       const counts = {};
 
@@ -135,14 +164,45 @@ export default {
     winnerTitle (expanded) {
       return expanded.name || expanded.movie?.title || 'Unknown';
     },
+    // A PERSON gets a picture of the person - never a poster of one of
+    // their films (bug report: "I don't wanna show Steven Spielberg but
+    // then show the poster for one of his movies, that's not right"). The
+    // preferred source is the profile path captured when the award was
+    // picked; failing that we look the person up on TMDB by name (see
+    // ensurePersonPhoto), and failing THAT we show their initial rather
+    // than falling back to a poster, which would be actively misleading.
+    // Only movie-type winners resolve to a poster.
     winnerImage (expanded) {
-      if (expanded.details?.profile_path) {
-        return `https://image.tmdb.org/t/p/w185${expanded.details.profile_path}`;
+      if (expanded?.name) {
+        const storedPath = expanded.details?.profile_path;
+        const lookedUpPath = this.personPhotoCache[expanded.name];
+        const profilePath = storedPath || lookedUpPath;
+        return profilePath ? `https://image.tmdb.org/t/p/w185${profilePath}` : null;
       }
-      if (expanded.movie?.poster_path) {
+      if (expanded?.movie?.poster_path) {
         return `https://image.tmdb.org/t/p/w185${expanded.movie.poster_path}`;
       }
       return null;
+    },
+    // Same shape as SixDegreesGame's own person-photo lookup: undefined =
+    // never looked up, null = looked up and there's nothing (or a lookup is
+    // in flight, marked immediately so concurrent calls for the same name
+    // don't double-fetch). Person photos aren't stored locally at rating
+    // time (AddRating.js keeps only {name, character} for cast), so this is
+    // the only way to get one for a winner whose award predates the
+    // profilePath capture.
+    async ensurePersonPhoto (name) {
+      if (!name || Object.prototype.hasOwnProperty.call(this.personPhotoCache, name)) return;
+      this.personPhotoCache = { ...this.personPhotoCache, [name]: null };
+      try {
+        const query = encodeURIComponent(name);
+        const url = `https://api.themoviedb.org/3/search/person?api_key=${process.env.VUE_APP_TMDB_API_KEY}&query=${query}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        this.personPhotoCache = { ...this.personPhotoCache, [name]: data?.results?.[0]?.profile_path || null };
+      } catch {
+        // Best-effort - stays null, falls back to the initial.
+      }
     },
     goToMovie (win) {
       const movieId = win.expanded.movie?.id || win.expanded.movieId;

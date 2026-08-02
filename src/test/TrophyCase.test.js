@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount, flushPromises } from '@vue/test-utils';
 import TrophyCase from '@/components/TrophyCase.vue';
 
 function libraryEntry (id, title, posterPath = '/p.jpg') {
@@ -25,6 +25,13 @@ function mountTrophyCase (personalAwards, library = []) {
 }
 
 describe('TrophyCase', () => {
+  beforeEach(() => {
+    // The component looks up person photos on TMDB; default to "found
+    // nothing" so tests that don't care get the initials fallback rather
+    // than a real network call.
+    global.fetch = vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ results: [] }) }));
+  });
+
   it('shows an empty state when there are no wins yet', () => {
     const { wrapper } = mountTrophyCase({});
     expect(wrapper.find('.empty-state').exists()).toBe(true);
@@ -81,35 +88,77 @@ describe('TrophyCase', () => {
   // back undefined and the whole row fell through to the initials
   // placeholder. The pre-existing test above only checked the computed and
   // the text, which is exactly why this went unnoticed.
-  it('renders a real image for each Most Decorated person, not the initials placeholder', () => {
+  it('renders the PERSON\'s own photo in Most Decorated when one was stored with the award', () => {
     const library = [libraryEntry(1, 'Film A', '/film-a.jpg'), libraryEntry(2, 'Film B', '/film-b.jpg')]
     const personalAwards = {
-      2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 1 } } } },
-      2020: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 2 } } } }
+      2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 1, profilePath: '/face.jpg' } } } },
+      2020: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 2, profilePath: '/face.jpg' } } } }
     }
     const { wrapper } = mountTrophyCase(personalAwards, library)
 
     const photo = wrapper.find('.decorated-photo')
     expect(photo.element.tagName).toBe('IMG')
-    // Sourced from the person's FIRST listed win (wins are newest-year
-    // first) - asserted against the data rather than a hardcoded film so
-    // this doesn't break if that ordering ever changes.
-    const expectedPoster = wrapper.vm.mostDecoratedPeople[0].wins[0].expanded.movie.poster_path
-    expect(photo.attributes('src')).toContain(expectedPoster)
+    expect(photo.attributes('src')).toContain('/face.jpg')
     expect(wrapper.find('.decorated-photo-placeholder').exists()).toBe(false)
   })
 
-  it('still falls back to the initial letter when the win genuinely has no image', () => {
-    // Winner's movie isn't in the library, so there's no poster to show.
+  // The heart of the follow-up report: "I don't wanna show Steven Spielberg
+  // but then show the poster for one of his movies, that's not right."
+  it('never substitutes a movie poster for a person, even when the poster is available', () => {
+    const library = [libraryEntry(1, 'Film A', '/film-a.jpg'), libraryEntry(2, 'Film B', '/film-b.jpg')]
     const personalAwards = {
-      2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Ghost Director', movieId: 404 } } } },
-      2020: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Ghost Director', movieId: 405 } } } }
+      2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Photoless Director', movieId: 1 } } } },
+      2020: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Photoless Director', movieId: 2 } } } }
     }
-    const { wrapper } = mountTrophyCase(personalAwards, [])
+    const { wrapper } = mountTrophyCase(personalAwards, library)
 
-    if (wrapper.vm.mostDecoratedPeople.length) {
-      expect(wrapper.find('.decorated-photo-placeholder').exists()).toBe(true)
+    // No stored photo and (with fetch stubbed to find nothing) no looked-up
+    // one either - so an initial, NOT the film's poster.
+    expect(wrapper.find('.decorated-photo-placeholder').exists()).toBe(true)
+    expect(wrapper.html()).not.toContain('/film-a.jpg')
+    expect(wrapper.html()).not.toContain('/film-b.jpg')
+  })
+
+  it('looks a person up on TMDB by name when no photo was stored, and uses the result', async () => {
+    global.fetch = vi.fn(() => Promise.resolve({
+      json: () => Promise.resolve({ results: [{ profile_path: '/looked-up.jpg' }] })
+    }))
+    const library = [libraryEntry(1, 'Film A', '/film-a.jpg'), libraryEntry(2, 'Film B', '/film-b.jpg')]
+    const personalAwards = {
+      2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Findable Director', movieId: 1 } } } },
+      2020: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Findable Director', movieId: 2 } } } }
     }
+    const { wrapper } = mountTrophyCase(personalAwards, library)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('search/person'))
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining(encodeURIComponent('Findable Director')))
+    // Two wins for the same person - looked up once, not per win.
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.decorated-photo').attributes('src')).toContain('/looked-up.jpg')
+  })
+
+  it('does not look up anyone whose photo was already stored with the award', async () => {
+    global.fetch = vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ results: [] }) }))
+    const library = [libraryEntry(1, 'Film A')]
+    const personalAwards = {
+      2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Known Director', movieId: 1, profilePath: '/face.jpg' } } } }
+    }
+    mountTrophyCase(personalAwards, library)
+    await flushPromises()
+
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('movie-category winners still show their poster', () => {
+    const library = [libraryEntry(1, 'Best Film', '/best.jpg')]
+    const personalAwards = {
+      2020: { categories: { bestPicture: { winner: { type: 'movie', movieId: 1 } } } }
+    }
+    const { wrapper } = mountTrophyCase(personalAwards, library)
+
+    expect(wrapper.find('.trophy-image').attributes('src')).toContain('/best.jpg')
   })
 
   it('does not throw when the winning movie is no longer in the library', () => {
