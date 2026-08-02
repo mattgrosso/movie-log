@@ -2689,7 +2689,12 @@ export default {
       return this.allEntriesWithFlatKeywordsAdded.length;
     },
     isBrandNewUser () {
-      return this.userRatedMovieCount === 0;
+      // dbLoaded is load-bearing, not belt-and-braces: until the library
+      // arrives userRatedMovieCount is 0, which is indistinguishable from a
+      // genuinely new account. Without this an established user sees a flash
+      // of the "want help getting started?" onboarding on every fresh load.
+      // (The window widened when initializeDB started awaiting authReady.)
+      return this.$store.state.dbLoaded && this.userRatedMovieCount === 0;
     },
     // A genuinely 0-rated user has nothing else to look at, so the "rate
     // something to get started" suggestions show immediately - no reason to
