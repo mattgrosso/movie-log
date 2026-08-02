@@ -20,7 +20,18 @@
         <h2 class="section-title">Most Decorated</h2>
         <div class="decorated-list">
           <div v-for="person in mostDecoratedPeople" :key="person.name" class="decorated-person" @click="goToMovie(person.wins[0])">
-            <img v-if="winnerImage(person.wins[0])" :src="winnerImage(person.wins[0])" :alt="person.name" class="decorated-photo">
+            <!-- .expanded, not the win wrapper. mostDecoratedPeople pushes
+                 whole WIN objects ({year, expanded, …}) into person.wins,
+                 and winnerImage reads .details/.movie off an EXPANDED
+                 nominee - so passing the wrapper meant both lookups were
+                 undefined and every single person in this row fell through
+                 to the initial-letter placeholder (bug report: "missing a
+                 bunch of images on that top row... they just have letters
+                 for all their names"). The category rows below always got
+                 this right, which is why only this row was affected.
+                 goToMovie on the parent DOES want the wrapper - it reads
+                 win.expanded itself - so that stays as-is. -->
+            <img v-if="winnerImage(person.wins[0].expanded)" :src="winnerImage(person.wins[0].expanded)" :alt="person.name" class="decorated-photo">
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
             <div class="decorated-name">{{ person.name }}</div>
             <div class="decorated-count">{{ person.count }}&times; winner</div>

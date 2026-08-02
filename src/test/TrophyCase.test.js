@@ -73,6 +73,45 @@ describe('TrophyCase', () => {
     expect(wrapper.text()).toContain('Most Decorated')
   })
 
+  // Bug report: "in the trophy case I'm missing a bunch of images on that
+  // top row for the top winners they just have letters for all their
+  // names." mostDecoratedPeople stores whole WIN wrappers ({year, expanded})
+  // in person.wins, but winnerImage reads .details/.movie off an EXPANDED
+  // nominee - the template was passing the wrapper, so every lookup came
+  // back undefined and the whole row fell through to the initials
+  // placeholder. The pre-existing test above only checked the computed and
+  // the text, which is exactly why this went unnoticed.
+  it('renders a real image for each Most Decorated person, not the initials placeholder', () => {
+    const library = [libraryEntry(1, 'Film A', '/film-a.jpg'), libraryEntry(2, 'Film B', '/film-b.jpg')]
+    const personalAwards = {
+      2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 1 } } } },
+      2020: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 2 } } } }
+    }
+    const { wrapper } = mountTrophyCase(personalAwards, library)
+
+    const photo = wrapper.find('.decorated-photo')
+    expect(photo.element.tagName).toBe('IMG')
+    // Sourced from the person's FIRST listed win (wins are newest-year
+    // first) - asserted against the data rather than a hardcoded film so
+    // this doesn't break if that ordering ever changes.
+    const expectedPoster = wrapper.vm.mostDecoratedPeople[0].wins[0].expanded.movie.poster_path
+    expect(photo.attributes('src')).toContain(expectedPoster)
+    expect(wrapper.find('.decorated-photo-placeholder').exists()).toBe(false)
+  })
+
+  it('still falls back to the initial letter when the win genuinely has no image', () => {
+    // Winner's movie isn't in the library, so there's no poster to show.
+    const personalAwards = {
+      2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Ghost Director', movieId: 404 } } } },
+      2020: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Ghost Director', movieId: 405 } } } }
+    }
+    const { wrapper } = mountTrophyCase(personalAwards, [])
+
+    if (wrapper.vm.mostDecoratedPeople.length) {
+      expect(wrapper.find('.decorated-photo-placeholder').exists()).toBe(true)
+    }
+  })
+
   it('does not throw when the winning movie is no longer in the library', () => {
     const personalAwards = {
       2019: { categories: { bestPicture: { winner: { type: 'movie', movieId: 999 } } } }

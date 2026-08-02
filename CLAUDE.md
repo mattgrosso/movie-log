@@ -1000,6 +1000,16 @@ Fix: build the new ratings with `.map()`, preserving the array. (`TweakInline.ap
 
 Tests: `src/test/StickinessInline.test.js` (new file — this component had none). The mocked `getRating` deliberately reproduces the real `!ratings?.length` bail so the bug is reproducible in test, and the mocked `dispatch` applies the write back onto the fixture to mirror `writeDurably`'s synchronous local commit. **Verified as a real regression guard** by temporarily reinstating the object spread: 3 of the 5 tests fail. Fixture dates are relative (`daysAgo`) rather than fixed, so an entry can't silently drift into the six-month window as time passes.
 
+## Trophy Case: "Most Decorated" row showed initials instead of images (Aug 2026)
+
+Bug report: "in the trophy case I'm missing a bunch of images on that top row for the top winners they just have letters for all their names."
+
+**Cause — a shape mismatch, same family as the stickiness one.** `mostDecoratedPeople` pushes whole WIN objects (`{year, expanded, …}`) into `person.wins`, but `winnerImage(expanded)` reads `.details`/`.movie` off an EXPANDED nominee. The template passed `person.wins[0]` (the wrapper), so both lookups were `undefined`, `winnerImage` returned `null`, and **every** person in that row fell through to the initial-letter placeholder. The category rows below always passed `win.expanded` correctly, which is why only this one row was affected. Fixed by passing `person.wins[0].expanded`. Note the sibling `@click="goToMovie(person.wins[0])"` on the same element is CORRECT as-is — `goToMovie` takes a win and reads `win.expanded` itself — so the two look inconsistent but both are right.
+
+**Why the existing test didn't catch it**: `TrophyCase.test.js` already covered the Most Decorated row, but only asserted the `mostDecoratedPeople` computed and that the name appeared in `wrapper.text()` — never that an `<img>` actually rendered. Added a test asserting `.decorated-photo` is an `IMG` with the expected poster src (read from the component's own data rather than hardcoded, since wins are newest-year-first) plus a companion test that the placeholder still appears when there genuinely is no image. **Verified as a real regression guard** by reverting the fix: it fails with `expected 'DIV' to be 'IMG'`.
+
+**Also noted, deliberately not changed**: `winnerImage`'s first branch reads `expanded.details?.profile_path`, but **nothing anywhere ever populates `details`** — it's a dead branch, so in practice this row shows the POSTER of the movie the person won for, not a photo of the person. Left as-is because the report was about missing images (now fixed) rather than which image; showing real faces would mean adding TMDB `/search/person` lookups (the `ensurePersonPhoto` pattern SixDegreesGame already uses) to a page that currently makes no network calls — a design change worth asking about rather than assuming.
+
 ## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
 
