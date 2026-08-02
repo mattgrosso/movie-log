@@ -1,0 +1,5 @@
+{
+  "_comment": "Characters replaced with '-' when deriving a user's top-level database key from their email address. Shared verbatim by src/assets/javascript/databaseKey.js (the app) and scripts/generate-database-rules.mjs (the security rules) so the two can never drift. FROZEN: real user data is already keyed by this exact list; changing it orphans existing accounts.",
+  "replacement": "-",
+  "characters": ["-", "!", "$", "%", "@", "^", "&", "*", "(", ")", "_", "+", "|", "~", "=", "`", "{", "}", "[", "]", ":", "\"", ";", "'", "<", ">", "?", ",", ".", "/"]
+}

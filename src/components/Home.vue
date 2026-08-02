@@ -636,6 +636,21 @@
                 </div>
               </div>
 
+              <!-- Account -->
+              <div class="mt-4">
+                <hr>
+                <h6 class="mb-2 text-white">Account</h6>
+                <p v-if="$store.state.userEmail" class="text-muted small mb-2">
+                  Signed in as {{ $store.state.userEmail }}
+                </p>
+                <button
+                  class="btn btn-outline-light btn-sm w-100"
+                  @click="signOut"
+                >
+                  <i class="bi bi-box-arrow-right"></i> Sign out
+                </button>
+              </div>
+
               <!-- Matt Only Settings Section -->
               <div v-if="isMatt" class="mt-4">
                 <hr>
@@ -3460,6 +3475,9 @@ export default {
       });
 
       this.offlineDownload = { status: 'done', ...result };
+    },
+    async signOut () {
+      await this.$store.dispatch('logout');
     },
     async backfillBoxOfficeData () {
       if (this.boxOfficeBackfill.status === 'running') {

@@ -2,7 +2,18 @@ import axios from 'axios';
 import { createStore } from "vuex"
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set, update } from "firebase/database";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  signOut,
+  onAuthStateChanged
+} from "firebase/auth";
 import * as Sentry from "@sentry/vue";
 import { getRating } from "../assets/javascript/GetRating";
 import router from '@/router';
@@ -10,6 +21,7 @@ import ErrorLogService from "../services/ErrorLogService.js";
 import { saveSnapshot, loadSnapshot } from "../utils/offlineStore.js";
 import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite } from "../utils/pendingWriteQueue.js";
 import { setValueAtPath } from "../utils/statePath.js";
+import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -129,7 +141,32 @@ const firebaseConfig = {
 
 initializeApp(firebaseConfig);
 
+// getAuth() MUST be called before getDatabase(), and at module load rather than
+// lazily inside an action. The Realtime Database SDK picks up its auth-token
+// provider from whatever is already registered on the app when it initialises;
+// if Auth has never been instantiated it simply sends unauthenticated requests.
+// That is invisible today (the database rules are open) but becomes a hard
+// failure the moment those rules require `auth != null`.
+const auth = getAuth();
+
 const db = getDatabase();
+
+// Firebase restores a persisted session asynchronously after page load. The
+// router guard, meanwhile, decides you're logged in synchronously from
+// localStorage — so without this, database listeners can be attached before the
+// auth token exists. Anything that reads user data waits on this promise.
+//
+// Resolves with the restored user, or null if there is no live session.
+let resolveAuthReady;
+export const authReady = new Promise((resolve) => {
+  resolveAuthReady = resolve;
+});
+
+onAuthStateChanged(auth, (user) => {
+  // Only the FIRST callback settles the promise; later ones (sign-in, sign-out)
+  // are ordinary state changes, and a promise can't be re-resolved anyway.
+  resolveAuthReady(user);
+});
 
 export default createStore({
   state: {
@@ -284,7 +321,7 @@ export default createStore({
       state.userEmail = value;
     },
     setDatabaseTopKey (state, value) {
-      state.databaseTopKey = value.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-");
+      state.databaseTopKey = emailToDatabaseKey(value);
     },
     setNewEntrySearchResults (state, value) {
       const results = [...value];
@@ -453,32 +490,118 @@ export default createStore({
     }
   },
   actions: {
-    async login (context) {
-      const auth = getAuth();
-      const provider = new GoogleAuthProvider();
+    // Shared tail of EVERY sign-in method (Google, Apple, email/password).
+    // A user's whole library is keyed by their email address, so this is the
+    // one place that derives the key, persists it, and boots the database —
+    // no provider gets to do that its own way.
+    completeLogin (context, user) {
+      const email = user?.email;
 
-      try {
-        const result = await signInWithPopup(auth, provider);
-        // Handle the result.
-        if (result) {
-          const userData = result.user;
-
-          context.commit('setUserEmail', userData.email);
-
-          if (context.state.userEmail) {
-            context.dispatch('setDatabaseTopKey', context.state.userEmail);
-            window.localStorage.setItem('databaseTopKey', context.state.userEmail.replaceAll(/[-!$%@^&*()_+|~=`{}[\]:";'<>?,./]/g, "-"));
-            context.dispatch('initializeDB');
-            router.push('/');
-          } else {
-            console.error("Login attempted but the user data didn't work");
-            ErrorLogService.error("Login attempted but the user data didn't work", userData);
-          }
-        }
-      } catch (error) {
-        console.error(error);
-        ErrorLogService.error('Error during login:', error);
+      if (!email) {
+        // Every provider we enable returns an email (Apple's "Hide My Email"
+        // returns a stable per-app relay address, which works fine as a key).
+        // If one somehow doesn't, failing loudly is much safer than dropping
+        // the user into an empty, wrongly-keyed database.
+        ErrorLogService.error('Sign-in succeeded but returned no email address', user);
+        throw new Error("Signed in, but no email address came back. Cinema Roll keys your library by email, so it can't continue.");
       }
+
+      context.commit('setUserEmail', email);
+      // NOTE: this used to `dispatch` — but setDatabaseTopKey is a MUTATION,
+      // never an action, so that dispatch was a silent no-op and state.databaseTopKey
+      // stayed null through login. It only worked because the router guard
+      // re-read the key from localStorage on the very next navigation and
+      // committed it there. Committing directly makes the flow correct rather
+      // than accidentally correct.
+      context.commit('setDatabaseTopKey', email);
+      window.localStorage.setItem('databaseTopKey', emailToDatabaseKey(email));
+      // Kept alongside the key so the "Signed in as ..." line survives a
+      // reload. state.databaseTopKey is sanitized and can't be turned back
+      // into an address, so the raw email has to be stored separately.
+      window.localStorage.setItem('userEmail', email);
+      context.dispatch('initializeDB');
+      router.push('/');
+    },
+    async login (context) {
+      // Kept under its original name so existing callers keep working.
+      return context.dispatch('loginWithGoogle');
+    },
+    async loginWithGoogle (context) {
+      const result = await signInWithPopup(getAuth(), new GoogleAuthProvider());
+      context.dispatch('completeLogin', result.user);
+    },
+    async loginWithApple (context) {
+      // Apple is an OAuth provider rather than a first-class one in the
+      // Firebase SDK. The email scope is required — without it Apple returns
+      // no address at all and completeLogin would (correctly) refuse.
+      const provider = new OAuthProvider('apple.com');
+      provider.addScope('email');
+      provider.addScope('name');
+
+      const result = await signInWithPopup(getAuth(), provider);
+      context.dispatch('completeLogin', result.user);
+    },
+    async loginWithEmail (context, { email, password }) {
+      const result = await signInWithEmailAndPassword(getAuth(), email, password);
+      context.dispatch('completeLogin', result.user);
+    },
+    async signUpWithEmail (context, { email, password }) {
+      const result = await createUserWithEmailAndPassword(getAuth(), email, password);
+
+      // Fire and forget, and deliberately not enforced anywhere yet — a library
+      // is keyed by email address, so being able to prove you own that address
+      // matters. Firebase's "one account per email" setting is what actually
+      // stops someone registering an address that's already in use; this is the
+      // groundwork for tightening that later without blocking sign-ups now.
+      sendEmailVerification(result.user).catch((error) => {
+        ErrorLogService.error('Could not send verification email', error);
+      });
+
+      context.dispatch('completeLogin', result.user);
+    },
+    async sendPasswordReset (context, email) {
+      await sendPasswordResetEmail(getAuth(), email);
+    },
+    async logout (context) {
+      await signOut(getAuth());
+      window.localStorage.removeItem('databaseTopKey');
+      window.localStorage.removeItem('userEmail');
+      context.commit('setUserEmail', null);
+      context.commit('setDatabaseTopKey', null);
+      await context.dispatch('resetLocalDB');
+      router.push('/login');
+    },
+    // The router decides you're signed in synchronously from localStorage,
+    // which is the only thing that ever gated access while the database rules
+    // were open. Once they aren't, a stale key (session expired, password
+    // changed, signed out on another device) would show an empty library with
+    // no explanation. This reconciles the two once Firebase has had its say.
+    async verifyRestoredSession (context) {
+      const storedKey = window.localStorage.getItem('databaseTopKey');
+      if (!storedKey) {
+        return;
+      }
+
+      const user = await authReady;
+      if (user) {
+        // Keep the in-memory identity honest even if localStorage is stale —
+        // the restored session is the authority on who you actually are.
+        if (user.email && user.email !== context.state.userEmail) {
+          context.commit('setUserEmail', user.email);
+          window.localStorage.setItem('userEmail', user.email);
+        }
+        return;
+      }
+
+      // Only act when we can actually tell a revoked session apart from a
+      // flaky one. Firebase restores sessions from local persistence without
+      // a network, so this is belt-and-braces rather than strictly required.
+      if (!context.state.isOnline) {
+        return;
+      }
+
+      ErrorLogService.error('Stored login found but no Firebase session — signing out', { storedKey });
+      await context.dispatch('logout');
     },
     async resetLocalDB (context) {
       context.commit('setMovieLog', {});
@@ -496,6 +619,17 @@ export default createStore({
       if (!context.getters.databaseTopKey) {
         return;
       }
+
+      // Wait for Firebase to restore (or rule out) a persisted session before
+      // attaching any listener, so reads always carry an auth token. Harmless
+      // while the database rules are open; load-bearing once they aren't.
+      //
+      // Deliberately NOT gated on the result: the offline path below has to
+      // keep working from the IndexedDB snapshot even when there's no live
+      // session to restore, and the router owns the "you're signed out, go to
+      // /login" decision (see verifyRestoredSession).
+      await authReady;
+
       const topKey = context.getters.databaseTopKey;
 
       const movieLogHasData = Boolean(Object.keys(context.state.movieLog).length);

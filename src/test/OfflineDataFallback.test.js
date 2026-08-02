@@ -24,7 +24,16 @@ vi.mock('firebase/app', () => ({
 vi.mock('firebase/auth', () => ({
   getAuth: vi.fn(),
   GoogleAuthProvider: vi.fn(),
-  signInWithPopup: vi.fn()
+  OAuthProvider: vi.fn(),
+  signInWithPopup: vi.fn(),
+  signInWithEmailAndPassword: vi.fn(),
+  createUserWithEmailAndPassword: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
+  sendEmailVerification: vi.fn(() => Promise.resolve()),
+  signOut: vi.fn(),
+  // Must invoke its callback: store/index.js's `authReady` promise only
+  // settles from in here, and initializeDB awaits it.
+  onAuthStateChanged: vi.fn((auth, callback) => { callback(null); return vi.fn() })
 }))
 
 const loadSnapshotMock = vi.fn()

@@ -64,6 +64,11 @@ export default {
     }
   },
   async mounted () {
+    // Reconcile the router's localStorage-based "you're signed in" assumption
+    // against whether Firebase actually restored a session. Fire and forget —
+    // it resolves itself once auth settles and must not delay first paint.
+    this.$store.dispatch('verifyRestoredSession');
+
     // visibilitychange alone is unreliable on iOS, particularly for a
     // home-screen-installed PWA - it's a long-standing WebKit quirk that it
     // sometimes just doesn't fire when the app is brought back to the

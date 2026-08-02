@@ -31,6 +31,13 @@ const loggedIn = () => {
     return true;
   } else if (databaseTopKeyFromLocalStorage) {
     store.commit('setDatabaseTopKey', databaseTopKeyFromLocalStorage);
+    // The sanitized key can't be turned back into an address, so the raw
+    // email is stored separately purely so the settings panel can show who
+    // you're signed in as after a reload.
+    const userEmailFromLocalStorage = window.localStorage.getItem('userEmail');
+    if (userEmailFromLocalStorage) {
+      store.commit('setUserEmail', userEmailFromLocalStorage);
+    }
     store.dispatch('initializeDB');
     return true;
   } else {
