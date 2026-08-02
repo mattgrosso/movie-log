@@ -346,6 +346,7 @@ import { getRating } from '../assets/javascript/GetRating.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { pickEligibleAwardsYear } from '../utils/awards.js';
 import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
+import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
 import { expandNomineeFromMinimal as expandNomineeFromMinimalShared } from '../assets/javascript/personalAwards.js';
 
 export default {
@@ -1148,25 +1149,10 @@ export default {
           }
 
           const details = await this.getDetailsForCastMember(person.name);
-          // If we can't determine gender, include the person (inclusive approach)
-          if (!details || typeof details.gender !== 'number') {
-            filteredCast.push({
-              ...person,
-              details,
-              needsGenderCheck: false
-            });
-            continue;
-          }
 
-          // Apply inclusive gender logic
-          let genderMatches = false;
-          if (person.isActress) {
-            genderMatches = details.gender === 0 || details.gender === 1 || details.gender === 3; // Female + Other
-          } else {
-            genderMatches = details.gender === 0 || details.gender === 2 || details.gender === 3; // Male + Other
-          }
-
-          if (genderMatches) {
+          // See genderEligibility.js - anything that isn't a definite
+          // female/male reading counts for EVERY acting category.
+          if (isEligibleForActingCategory(details?.gender, { isActress: person.isActress })) {
             filteredCast.push({
               ...person,
               details,
@@ -1412,25 +1398,11 @@ export default {
           count++;
           const details = await this.getDetailsForCastMember(person.name);
 
-          // If we can't determine gender, include the person (inclusive approach)
-          if (!details || typeof details.gender !== 'number') {
-            filteredPeople.push({
-              ...person,
-              details, // Include the full TMDb details
-              needsGenderCheck: false
-            });
-            continue;
-          }
-
-          // Apply inclusive gender logic
-          let genderMatches = false;
-          if (person.isActress) {
-            genderMatches = details.gender === 1 || details.gender === 3; // Female + Other for actress categories
-          } else {
-            genderMatches = details.gender === 2 || details.gender === 3; // Male + Other for actor categories
-          }
-
-          if (genderMatches) {
+          // Shared with the cast-grouping path above (genderEligibility.js).
+          // This branch used to exclude TMDB gender 0 ("not specified") from
+          // BOTH actor and actress categories, so those people could never
+          // be nominated at all - while the other path included them.
+          if (isEligibleForActingCategory(details?.gender, { isActress: person.isActress })) {
             filteredPeople.push({
               ...person,
               details, // Include the full TMDb details

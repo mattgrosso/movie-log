@@ -1038,6 +1038,31 @@ Tests: `src/test/awardStats.test.js` (pure — collection across years, missing/
 
 Note the original fix could NOT be visually verified end-to-end on the `testing-database` account: it has no repeat winners, so `mostDecoratedPeople` is empty and the row doesn't render at all there. Covered by the regression test instead.
 
+## Acting-category gender eligibility, unified (Aug 2026)
+
+While filling the test account with award data, the generated acting slates ignored gender (men nominated for Best Actress) because `AddRating.js` strips TMDB's `gender` from stored cast. User: "we should try to bring in gender. Just, if you're unsure about gender go ahead and count them as all genders."
+
+**That surfaced a real bug in the app.** `PersonalAwardsModal` had TWO copies of the gender filter — one in the cast-grouping path, one in the person-filter path — and they had **drifted apart**:
+- cast-grouping: actress ← gender `0 | 1 | 3`; actor ← `0 | 2 | 3`
+- person-filter: actress ← gender `1 | 3`; actor ← `2 | 3`
+
+TMDB's `gender` is an enum (`0` not specified, `1` female, `2` male, `3` non-binary), so the second path **silently excluded every "not specified" person from BOTH acting categories** — making them impossible to nominate anywhere, with no error and no way to notice. Which behaviour you got depended purely on which code path happened to load that person.
+
+New pure module **`src/assets/javascript/genderEligibility.js`** — `isEligibleForActingCategory(gender, { isActress })` plus a `TMDB_GENDER` enum — is now the single source, used by both call sites. The rule matches the user's: anything that isn't a definite female/male reading (missing, `0`, or `3`) is eligible for **every** acting category. Rationale worth keeping: being wrongly offered a nomination is harmless (you just don't pick them); being silently unnominatable is not.
+
+**Its own test caught a second bug in the first draft**: the guard was `typeof gender !== 'number'`, but `typeof NaN === 'number'` — so a garbled value sailed through as a definite reading and excluded the person from one side. Now `Number.isFinite`.
+
+Tests: `src/test/genderEligibility.test.js` (definite female/male matching one side only, non-binary and not-specified counting for both, missing/null/NaN/string all treated as unknown, and the no-options default).
+
+### Test-account award data (same session)
+The `testing-database` account had no repeat winners, so Most Decorated never rendered. With the user's explicit go-ahead ("as long as it's only on the test account"), 10 new complete award years were generated from that account's own library (1991, 1993, 1998, 2000, 2001, 2018, 2020-2023), taking it from 35 awards across 3 years to 145 across 13. Deliberately untouched: **1994/1999/2015** (the user's real picks) and **1992**, which is left partially complete because it's the fixture that exercises Insights' "Resume Awards" flow.
+
+Two things that made the data actually useful:
+- Winners drawn purely from each year's top films almost never repeat a person (first pass produced exactly ONE multi-win person). A follow-up pass promotes anyone nominated across multiple years to winner in the categories they were nominated in — which preserves the "winner is always among the nominees" invariant `awardStats.js` relies on, rather than inventing winners.
+- A second pass then re-ran every acting nominee through the real `isEligibleForActingCategory`, swapping 59 mis-gendered picks for genuinely eligible castmates from the same film (0 dropped, 0 remaining violations). It imports the app's own helper rather than reimplementing the rule, so the fixtures can't drift from the shipped logic.
+
+Scripts were one-off and not committed. **Gotcha for any future admin-SDK script**: it must live INSIDE the repo — Node resolves `firebase-admin` relative to the importing file, so a script in the scratchpad fails with `ERR_MODULE_NOT_FOUND`. A backup of the pre-change awards is in the session scratchpad.
+
 ## Important Notes for Claude
 **Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
 
