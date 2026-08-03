@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 //
-// Generates src/assets/data/worldMap.json — the land outline, country borders
-// and city labels behind WorldMap.vue.
+// Generates src/assets/data/worldMap.json — the land outline, country and
+// state/province borders, and city labels behind WorldMap.vue.
 //
 // Source is Natural Earth (public domain, no attribution required, though it's
 // credited in the output anyway). Everything is pre-projected to SVG path data
 // at build time so the runtime does no geometry work and needs no mapping
-// library, no API key and no tile server — which is what keeps the maps working
-// offline.
+// library, no API key and no tile server.
 //
 // WHY 50m AND NOT 110m: 110m is drawn for world-scale maps and visibly
 // staircases into rectangles past about 5x zoom. 50m stays smooth to ~16x.
@@ -136,9 +135,13 @@ function cityPoints (geojson) {
     .sort((a, b) => a[3] - b[3]);
 }
 
-const [landJson, borderJson, cityJson] = await Promise.all([
+const [landJson, borderJson, stateJson, cityJson] = await Promise.all([
   fetchGeoJson('ne_50m_land'),
   fetchGeoJson('ne_50m_admin_0_boundary_lines_land'),
+  // Internal boundaries matter more than usual for this app: Wikidata very
+  // often returns a US state as a film's location, so "Colorado" should land
+  // inside a visible outline rather than an anonymous patch of continent.
+  fetchGeoJson('ne_50m_admin_1_states_provinces_lines'),
   fetchGeoJson('ne_50m_populated_places_simple')
 ]);
 
@@ -153,6 +156,7 @@ const output = {
   viewBox: `0 ${top} ${WIDTH} ${bottom - top}`,
   land: polygonPaths(landJson),
   borders: linePaths(borderJson),
+  stateBorders: linePaths(stateJson),
   cities: cityPoints(cityJson)
 };
 
@@ -164,5 +168,6 @@ const gzipped = gzipSync(serialised, { level: 9 }).length / 1024;
 console.log('Wrote src/assets/data/worldMap.json');
 console.log(`  land     ${output.land.length} paths`);
 console.log(`  borders  ${output.borders.length} paths`);
+console.log(`  states   ${output.stateBorders.length} paths`);
 console.log(`  cities   ${output.cities.length} points`);
 console.log(`  size     ${raw.toFixed(0)}K raw, ${gzipped.toFixed(0)}K gzipped`);

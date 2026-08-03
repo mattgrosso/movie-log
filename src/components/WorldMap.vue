@@ -10,6 +10,17 @@
         class="land"
       />
 
+      <!-- State/province lines are drawn under country lines and more faintly,
+           so the two read as a hierarchy rather than competing. They earn their
+           weight here because Wikidata often gives a US STATE as a film's
+           location, and "Colorado" should land inside a visible outline. -->
+      <path
+        v-for="(path, index) in worldMap.stateBorders"
+        :key="`state-${index}`"
+        :d="path"
+        class="state-border"
+      />
+
       <path
         v-for="(path, index) in worldMap.borders"
         :key="`border-${index}`"
@@ -277,6 +288,14 @@ export default {
     fill: none;
     stroke: #5b7186;
     stroke-dasharray: 4 3;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .state-border {
+    fill: none;
+    stroke: #44586b;
+    stroke-dasharray: 2 4;
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
   }
