@@ -1140,7 +1140,7 @@ User found [readingmaps.com](https://readingmaps.com) — a hand-curated atlas p
 - **`locations: []` is meaningful, not a no-op**: it records "checked, found nothing," so re-running the backfill doesn't re-query every locationless film forever. `backfillBoxOffice` *can't* make that distinction (TMDB uses `0` for both "no data" and a real zero), which is why that one re-fetches figure-less films on every run.
 
 ### The map: hand-rolled SVG, not Leaflet
-`src/components/WorldMap.vue` + `src/assets/data/worldLand.json` (Natural Earth 110m land, **public domain**, pre-projected to SVG paths — 43KB, which webpack auto-split into its own ~44KB chunk shared by MovieDetail and Insights). Deliberately **not** a tile-based map: no new runtime dependency, no API key, no tile-server usage policy to respect, and it keeps working offline — which this app supports properly and shouldn't regress.
+`src/components/WorldMap.vue` + `src/assets/data/worldMap.json` (Natural Earth, **public domain**, pre-projected to SVG paths by `scripts/generate-world-map-data.mjs`; webpack auto-splits it into its own chunk shared by MovieDetail and Insights). **Originally 110m land only at 43KB; upgraded to 50m land + country borders + city labels — see the Aug 2026 section below for why and what it cost.** Deliberately **not** a tile-based map: no new runtime dependency, no API key, no tile-server usage policy to respect, and it keeps working offline — which this app supports properly and shouldn't regress.
 - Equirectangular projection, matching how the paths were baked.
 - **`viewBox` (display) and `width`/`height` (projection) are deliberately different.** The display window crops the empty polar caps (Antarctica + high Arctic are ~20% of the height and never hold a film location), so the useful world is bigger on a phone. Deriving projection size from the cropped viewBox would silently skew every point northward — pinned by test.
 - Verified visually, not just by unit test: rendered to PNG via `rsvg-convert` with known reference cities (Null Island on the crosshair, London on the UK, Sydney on SE Australia) and again with the real Inception/Forrest Gump location sets. A projection bug is exactly the kind of thing that passes tests and looks obviously wrong.
@@ -1188,3 +1188,33 @@ Tests: `TMDbDataProcessing.test.js` — an `automatically on a new rating` block
 **Letterboxd log date** (reported by Natalie) — *"it should have the date automatically filled in ... Even if I didn't watch it today and also even if I have watched it multiple times."* `generateUrls` was always sending **today**. It now takes `options.viewingDate` and uses the date the movie was actually watched, falling back to today only when there isn't a usable one. Both call sites (`MovieDetail`, `DBGridLayoutSearchResult`) pass `mostRecentRating(result)?.date` — the latest viewing, which is the one being logged for a rewatch. New `toLocalISODate(value)` generalises `todayLocalISODate`, and keeps the local-components approach for the same reason: `toISOString()` is UTC and would report the previous day for an evening viewing in a western timezone.
 
 Tests: `mapViewBox.test.js` (12), auto-fit block in `WorldMap.test.js`, viewing-date blocks in `LetterboxdUrlService.test.js`.
+
+## Map Data Upgrade: 50m + borders + city labels (Aug 2026)
+
+*"How can we get even more zoomed in with the maps? ... it would be really fun to see the exact information if we have it."*
+
+**First finding: our own coordinates are far better than assumed.** Measured the `geoPrecision` of 132 real places from the library — only ~15% are country centroids; **64% are precise to ~100m or better** (41% at ~31m, i.e. building-level). So the data genuinely supports close zoom. The bottleneck was the map, not the points.
+
+**Second finding, by measurement not guesswork:** rendered southern California at 16x with 110m / 50m / 10m land and compared PNGs. 110m visibly **staircases into rectangles**. 50m is smooth and picks up the Channel Islands. **10m adds almost nothing over 50m for ~6x the bytes** — ruled out.
+
+**Third finding, the important one:** most of what made a zoomed map unreadable wasn't coastline fidelity, it was that **nothing was named**. City labels cost **13K gzipped** and buy more legibility than the 228K of finer coastline. A dot off the California coast means nothing; a dot beside "Los Angeles" means everything.
+
+Shipped (user picked the full upgrade from a costed menu):
+
+| | raw | gzipped |
+|---|---|---|
+| was: 110m land | 42K | 17K |
+| now: 50m land + country borders + 1,160 city labels | 847K | **318K** |
+
+- **Lives in a lazily-loaded, content-hashed chunk** — only downloads when a map is opened, once per device, not per deploy. Measured in the real build at 852K raw / 321K gzipped.
+- **`scripts/generate-world-map-data.mjs`** (committed, like the rules generator) fetches Natural Earth GeoJSON and emits `worldMap.json`. Re-run it to change layers or resolution.
+- **Grid moved from 2000x1000 to 20000x10000.** At the old grid one unit is ~20km, which would throw away most of what 50m data contains; the new one is ~2km/unit, finer than anything visible at max zoom. Everything drawn on top (dot radii, label sizes) is in grid units and scaled 10x accordingly — `Insights` passes `dotRadius: 50`, not 5.
+- **`mapViewBox`'s `minWidth` floor moved 800 → 1250** (of 20000), i.e. the zoom cap went from ~2.5x to ~16x, which is where 50m stops being smooth.
+- **City labels are zoom-gated and de-cluttered**: hidden entirely above `cityZoomThreshold` (0.6 of the world) where they'd be noise, then filtered to the current view, spacing-culled so names don't sit on each other, and capped at `maxVisibleCities` (30). `worldMap.cities` is pre-sorted by Natural Earth `scalerank`, so simply taking the first N that fit yields the notable ones.
+- **`vector-effect: non-scaling-stroke`** on land/border/dot strokes — they're in grid units too and would otherwise thicken as the map zooms.
+
+**Deliberately NOT done:**
+- **State/province lines** (`ne_50m_admin_1_states_provinces_lines`, +63K gzipped). Genuinely useful here since Wikidata often returns US states as location values, but it was 20% beyond the costed scope the user approved. One line in the generator to add.
+- **Street-level detail.** No bundled world dataset reaches it; that needs real map tiles, which means a network connection and an API key, and would cost the offline support this app deliberately has. An "open in OpenStreetMap" link-out was offered as a zero-byte alternative and **declined** — the user wants it self-contained.
+
+Tests: `WorldMap.test.js` rebased onto the 20000x10000 grid, plus a context-layers block (borders render, city labels hidden at world zoom / shown when zoomed, only in-view, capped, zoom-scaled). One test had to switch from the raw `labelHeight` to the **rendered** height attribute — the component clamps using the zoom-scaled value.

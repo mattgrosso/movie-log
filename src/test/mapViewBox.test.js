@@ -8,7 +8,7 @@ const parse = (viewBox) => {
   return { x, y, width, height, right: x + width, bottom: y + height };
 };
 
-const fit = (points, options = {}) => parse(fitViewBox(points, { ...WORLD, ...options }));
+const fit = (points, options = {}) => parse(fitViewBox(points, { minWidth: 400, ...WORLD, ...options }));
 
 // Every point must end up inside the box — that's the whole contract.
 const containsAll = (box, points) => points.every(
@@ -41,8 +41,10 @@ describe('fitViewBox', () => {
 
     expect(containsAll(box, points)).toBe(true);
     // A floor on the zoom, set by the resolution of the land outline rather
-    // than by taste — past ~2.5x, Natural Earth 110m is an unrecognisable blur.
-    expect(box.width).toBeGreaterThanOrEqual(800);
+    // than by taste. Expressed against this test's own 2000-wide world; the
+    // real default (1250 of 20000, ~16x) is where Natural Earth 50m stops
+    // being smooth.
+    expect(box.width).toBeGreaterThanOrEqual(400);
   });
 
   it('keeps a landscape shape even for a vertically-arranged set', () => {

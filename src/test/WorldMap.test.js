@@ -21,7 +21,7 @@ describe('WorldMap', () => {
   });
 
   describe('projection', () => {
-    // Equirectangular over a 2000x1000 viewBox. Getting lat/lon the wrong way
+    // Equirectangular over the 20000x10000 grid. Getting lat/lon the wrong way
     // round is the classic mistake here, so the poles and prime meridian are
     // pinned explicitly rather than trusted.
     const at = (lat, lon) => {
@@ -31,23 +31,23 @@ describe('WorldMap', () => {
     };
 
     it('puts 0,0 at the centre', () => {
-      expect(at(0, 0)).toEqual({ x: 1000, y: 500 });
+      expect(at(0, 0)).toEqual({ x: 10000, y: 5000 });
     });
 
     it('puts the north pole at the top and the south pole at the bottom', () => {
       expect(at(90, 0).y).toBe(0);
-      expect(at(-90, 0).y).toBe(1000);
+      expect(at(-90, 0).y).toBe(10000);
     });
 
     it('puts the antimeridian at each edge', () => {
       expect(at(0, -180).x).toBe(0);
-      expect(at(0, 180).x).toBe(2000);
+      expect(at(0, 180).x).toBe(20000);
     });
 
     it('places a real city where it belongs — west and north of centre', () => {
       const paris = at(48.85, 2.35);
-      expect(paris.x).toBeGreaterThan(1000); // just east of Greenwich
-      expect(paris.y).toBeLessThan(500); // northern hemisphere
+      expect(paris.x).toBeGreaterThan(10000); // just east of Greenwich
+      expect(paris.y).toBeLessThan(5000); // northern hemisphere
     });
   });
 
@@ -90,8 +90,8 @@ describe('WorldMap', () => {
     const x = Number(box.attributes('x'));
     const width = Number(box.attributes('width'));
 
-    expect(x).toBeLessThan(1990);
-    expect(x + width).toBeLessThanOrEqual(2000);
+    expect(x).toBeLessThan(19900);
+    expect(x + width).toBeLessThanOrEqual(20000);
   });
 
   it('keeps a label inside the VISIBLE window, not the full projection space', async () => {
@@ -101,17 +101,21 @@ describe('WorldMap', () => {
     await wrapper.find('circle.place-dot').trigger('click');
 
     const [, top, , height] = wrapper.find('svg').attributes('viewBox').split(' ').map(Number);
-    const y = Number(wrapper.find('rect.label-bg').attributes('y'));
+    const box = wrapper.find('rect.label-bg');
+    const y = Number(box.attributes('y'));
+    // The RENDERED height, not the raw grid value — the label is drawn at the
+    // zoom-scaled size, and that's what the clamp uses.
+    const renderedHeight = Number(box.attributes('height'));
 
     expect(y).toBeGreaterThanOrEqual(top);
-    expect(y + wrapper.vm.labelHeight).toBeLessThanOrEqual(top + height);
+    expect(y + renderedHeight).toBeLessThanOrEqual(top + height);
   });
 
   it('projects against the full world grid even though the view is cropped', () => {
     // Deriving the projection size from the cropped viewBox would skew every
     // point northward — this pins that they stay separate.
     const wrapper = mount(WorldMap, { props: { points: [point({ lat: 0, lon: 0 })] } });
-    expect(Number(wrapper.find('circle.place-dot').attributes('cy'))).toBe(500);
+    expect(Number(wrapper.find('circle.place-dot').attributes('cy'))).toBe(5000);
   });
 
   it('gives every point a distinct key, even for the same place in both roles', () => {
@@ -125,8 +129,8 @@ describe('WorldMap', () => {
   });
 
   it('honours a custom dot radius, at the un-zoomed scale', () => {
-    const wrapper = mount(WorldMap, { props: { points: [point()], dotRadius: 3, fit: false } });
-    expect(wrapper.find('circle.place-dot').attributes('r')).toBe('3');
+    const wrapper = mount(WorldMap, { props: { points: [point()], dotRadius: 30, fit: false } });
+    expect(wrapper.find('circle.place-dot').attributes('r')).toBe('30');
   });
 
   describe('auto-fit zoom', () => {
@@ -138,7 +142,7 @@ describe('WorldMap', () => {
       });
 
       const [, , width] = viewBoxOf(wrapper);
-      expect(width).toBeLessThan(2000);
+      expect(width).toBeLessThan(20000);
     });
 
     it('still contains every point after zooming', () => {
@@ -165,19 +169,76 @@ describe('WorldMap', () => {
       // would render 5x bigger dots.
       const zoomed = mount(WorldMap, { props: { points: [point()] } });
       const [, , zoomedWidth] = viewBoxOf(zoomed);
-      const expected = 9 * (zoomedWidth / 2000);
+      const expected = 90 * (zoomedWidth / 20000);
 
       expect(Number(zoomed.find('circle.place-dot').attributes('r'))).toBeCloseTo(expected, 5);
     });
 
     it('falls back to the whole-world view when there is nothing to fit', () => {
       const wrapper = mount(WorldMap, { props: { points: [] } });
-      expect(wrapper.find('svg').attributes('viewBox')).toBe('0 33 2000 789');
+      expect(wrapper.find('svg').attributes('viewBox')).toBe('0 333 20000 7889');
     });
 
     it('can be turned off', () => {
       const wrapper = mount(WorldMap, { props: { points: [point()], fit: false } });
-      expect(wrapper.find('svg').attributes('viewBox')).toBe('0 33 2000 789');
+      expect(wrapper.find('svg').attributes('viewBox')).toBe('0 333 20000 7889');
     });
   });
 });
+
+describe('WorldMap context layers', () => {
+  const point = (over = {}) => ({ name: 'Paris', lat: 48.85, lon: 2.35, type: 'filming', id: 'Q90', ...over });
+
+  it('draws country borders', () => {
+    const wrapper = mount(WorldMap, { props: { points: [], fit: false } });
+    expect(wrapper.findAll('path.border').length).toBeGreaterThan(100);
+  });
+
+  it('hides city labels at world zoom, where they would be clutter', () => {
+    const wrapper = mount(WorldMap, { props: { points: [], fit: false } });
+    expect(wrapper.findAll('g.city')).toHaveLength(0);
+  });
+
+  it('shows city labels once zoomed in', () => {
+    // Two nearby points force a tight box.
+    const wrapper = mount(WorldMap, {
+      props: { points: [point({ lat: 34.05, lon: -118.24 }), point({ name: 'San Diego', lat: 32.7, lon: -117.16 })] }
+    });
+
+    const cities = wrapper.findAll('g.city');
+    expect(cities.length).toBeGreaterThan(0);
+    expect(wrapper.text()).toContain('Los Angeles');
+  });
+
+  it('only labels cities inside the current view', () => {
+    const wrapper = mount(WorldMap, {
+      props: { points: [point({ lat: 34.05, lon: -118.24 }), point({ name: 'San Diego', lat: 32.7, lon: -117.16 })] }
+    });
+
+    const [left, top, width, height] = wrapper.find('svg').attributes('viewBox').split(' ').map(Number);
+    wrapper.findAll('g.city circle').forEach((dot) => {
+      const x = Number(dot.attributes('cx'));
+      const y = Number(dot.attributes('cy'));
+      expect(x).toBeGreaterThanOrEqual(left);
+      expect(x).toBeLessThanOrEqual(left + width);
+      expect(y).toBeGreaterThanOrEqual(top);
+      expect(y).toBeLessThanOrEqual(top + height);
+    });
+  })
+
+  it('caps how many city labels it will draw', () => {
+    const wrapper = mount(WorldMap, {
+      props: { points: [point({ lat: 50, lon: 5 }), point({ name: 'Berlin', lat: 52.5, lon: 13.4 })] }
+    });
+    expect(wrapper.findAll('g.city').length).toBeLessThanOrEqual(wrapper.vm.maxVisibleCities);
+  })
+
+  it('scales city labels with zoom, like everything else drawn on the map', () => {
+    const wrapper = mount(WorldMap, {
+      props: { points: [point({ lat: 34.05, lon: -118.24 }), point({ name: 'San Diego', lat: 32.7, lon: -117.16 })] }
+    });
+
+    const expected = wrapper.vm.cityDotRadius * wrapper.vm.zoomScale;
+    expect(Number(wrapper.find('g.city circle').attributes('r'))).toBeCloseTo(expected, 5);
+  })
+})

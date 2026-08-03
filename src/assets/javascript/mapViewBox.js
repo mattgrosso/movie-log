@@ -24,10 +24,13 @@ const clamp = (value, low, high) => Math.min(Math.max(value, low), high);
  *                      the SOURCE DATA, not taste. The land outline is Natural
  *                      Earth 110m — drawn for world-scale maps, with no borders
  *                      or labels — so past roughly 2.5x it degrades into an
- *                      unrecognisable blur. 800/2000 is that limit, and was
- *                      picked by rendering a single-location movie at 600/800/
- *                      1000 and comparing. Raising it needs higher-resolution
- *                      land data, which is a real bundle-size tradeoff.
+ *                      unrecognisable blur. With the 50m upgrade that limit
+ *                      moved out to ~16x, i.e. 1250 of the 20000-unit grid,
+ *                      measured by rendering southern California at 110m/50m/
+ *                      10m and comparing where the coastline stops
+ *                      staircasing. Going closer than this needs real map
+ *                      tiles, which would mean a network connection and an API
+ *                      key — and would cost the offline support.
  *
  * KNOWN LIMITATION: no antimeridian wrapping. Points in Tokyo and Los Angeles
  * produce a box spanning the long way round (~257°) rather than the short way
@@ -41,7 +44,7 @@ export function fitViewBox (plottedPoints, {
   fallback,
   targetAspect = 2.5,
   paddingFraction = 0.35,
-  minWidth = 800
+  minWidth = 1250
 } = {}) {
   const points = (plottedPoints || []).filter(
     (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y)

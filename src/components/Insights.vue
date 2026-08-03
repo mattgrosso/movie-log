@@ -344,7 +344,7 @@
           @click="locationFilter = option.value"
         >{{ option.label }}</button>
       </div>
-      <WorldMap :points="libraryLocationPoints" :dotRadius="5" ariaLabel="Map of every place your library touches"/>
+      <WorldMap :points="libraryLocationPoints" :dotRadius="50" ariaLabel="Map of every place your library touches"/>
       <p class="location-map-summary">
         {{ libraryLocationPoints.length }} place{{ libraryLocationPoints.length === 1 ? '' : 's' }}
         across {{ moviesWithLocationsCount }} movie{{ moviesWithLocationsCount === 1 ? '' : 's' }}.
