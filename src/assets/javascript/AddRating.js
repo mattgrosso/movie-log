@@ -1,6 +1,7 @@
 import axios from 'axios';
 import store from '../../store/index';
 import { warmImageCache, posterUrl, backdropUrl } from './offlinePosterCache.js';
+import { fetchLocationsForIds } from './movieLocations.js';
 import { isPlaceholderId } from '../../utils/placeholderId.js';
 import { enqueueWrite, removePendingWrite, updatePendingWrite } from '../../utils/pendingWriteQueue.js';
 
@@ -236,6 +237,65 @@ const buildPlaceholderMovie = (ratings) => {
   };
 }
 
+// Movie fields that are stored on the entry but don't come from TMDB, so a
+// re-rate has to carry them across explicitly. `locations` comes from
+// Wikidata (see movieLocations.js).
+const CARRIED_OVER_MOVIE_FIELDS = ['locations'];
+
+// Look up filming/story locations for a freshly-rated movie and store them,
+// so the maps fill in on their own and the Settings backfill button is only
+// ever needed as a one-time catch-up for the existing library.
+//
+// Deliberately NOT awaited by the caller: Wikidata being slow or down must
+// never delay or fail an actual rating. Anything missed here is picked up by
+// the backfill, since a movie only counts as "checked" once `locations` is
+// actually written.
+const storeLocationsForRating = async (dbEntry) => {
+  const movie = dbEntry?.value?.movie;
+
+  // Placeholders have no real TMDB id to join on; they get locations once
+  // they're reconciled and re-saved with a real one.
+  if (!movie || movie.id == null || isPlaceholderId(movie.id)) {
+    return;
+  }
+  // Already known — either carried over from a previous rating or filled in
+  // by the backfill. Re-querying would be pure waste.
+  if (movie.locations !== undefined) {
+    return;
+  }
+  if (!store.state.isOnline) {
+    return;
+  }
+
+  const key = dbEntry.path.split('movieLog/')[1];
+
+  try {
+    const found = await fetchLocationsForIds([String(movie.id)]);
+    const locations = found[String(movie.id)] || [];
+
+    // Re-read rather than reusing dbEntry: by the time this resolves the
+    // entry may have been touched again, and this write should only ever add
+    // the one field.
+    const existing = store.state.movieLog[key];
+    if (!existing) {
+      return;
+    }
+
+    store.commit('setMovieLogEntry', {
+      key,
+      value: { ...existing, movie: { ...existing.movie, locations } }
+    });
+    // A leaf path, so this can never clobber sibling movie fields with a
+    // possibly-stale snapshot.
+    await store.dispatch('writeDatabaseEntryNow', {
+      path: `movieLog/${key}/movie/locations`,
+      value: locations
+    });
+  } catch (error) {
+    console.error('Could not look up locations for this rating; the Settings backfill will catch it:', error);
+  }
+};
+
 const addMovieRating = async (ratings) => {
   if (!ratings[0].id) {
     return;
@@ -264,7 +324,37 @@ const addMovieRating = async (ratings) => {
     }
   }
 
+  // Carry forward locally-owned data that a re-rate would otherwise destroy.
+  //
+  // This matters because saving a rating does a full set() of movieLog/<key>,
+  // and shapeTmdbDataIntoMovie builds a BRAND NEW movie object from the TMDB
+  // response - so anything not explicitly copied across is silently wiped.
+  // That's how re-rating a movie used to lose its custom poster.
+  //
+  // Entry level: everything except the two fields we're deliberately
+  // replacing. Nothing at this level comes from TMDB, so it's all worth
+  // keeping, and an allowlist would silently start dropping any field added
+  // later. `dbKey` is excluded because the store injects it when reading, so
+  // it isn't real stored data.
+  const entryExtras = {};
+  Object.keys(existingEntry || {}).forEach((field) => {
+    if (field !== 'movie' && field !== 'ratings' && field !== 'dbKey') {
+      entryExtras[field] = existingEntry[field];
+    }
+  });
+
+  // Movie level: an explicit allowlist rather than a merge. Merging the whole
+  // previous movie object would also resurrect fields we WANT the fresh TMDB
+  // response to correct, and would keep isPendingReconciliation set on a
+  // placeholder being finalised.
+  CARRIED_OVER_MOVIE_FIELDS.forEach((field) => {
+    if (tmdbDataWeStore[field] === undefined && existingEntry?.movie?.[field] !== undefined) {
+      tmdbDataWeStore[field] = existingEntry.movie[field];
+    }
+  });
+
   const movieWithRating = {
+    ...entryExtras,
     movie: tmdbDataWeStore,
     ratings: stripOwnership(ratings)
   };
@@ -388,6 +478,10 @@ const addRating = async (ratings) => {
   if (newImageUrls.length) {
     warmImageCache(newImageUrls);
   }
+
+  // Also fire-and-forget, same reasoning: the maps fill themselves in for new
+  // ratings so the Settings backfill is only ever a one-time catch-up.
+  storeLocationsForRating(dbEntry);
 
   return dbEntry;
 }

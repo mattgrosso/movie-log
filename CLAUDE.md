@@ -1157,3 +1157,20 @@ TMDB returns `production_countries` and `spoken_languages` on the very same `/mo
 The concurrency + batched-write machinery was extracted out of `backfillBoxOffice.js` into `src/assets/javascript/tmdbBackfill.js` (`runTmdbBackfill`, `hasRealTmdbId`) and is now shared with the production-countries backfill. Extracted rather than copied because that logic is subtle (worker pool, plus a flush whose grab-and-clear is deliberately synchronous so concurrent workers can't race it) and two copies would drift — the same mistake that produced the duplicated count maps later consolidated into `entityCounts.js`. `backfillBoxOffice`'s public API is unchanged and all 18 of its pre-existing tests pass untouched. **Batched writes are a bug fix, not an optimisation** — see the Jul 2026 incident where a per-movie design froze and crashed the tab on a real library. `Home.vue`'s `writeMovieFieldBatch(batch, fieldsFor)` is the one shared write path for all three backfills: leaf-path updates only (never the whole `movie` object, which could clobber siblings with a stale snapshot), one combined local commit + one combined remote multi-path update per batch.
 
 Tests: `movieLocations.test.js` (32), `WorldMap.test.js` (14), `backfillProductionCountries.test.js` (10), plus a geography describe block in `MovieDetail.test.js`.
+
+### Locations fill in automatically on new ratings (Aug 2026)
+Follow-up ask: *"Every new movie should automatically pull that data and include it so that I don't need to push that button except just once right now in order to catch up for past entries."*
+
+- **Production countries were already automatic** — `shapeTmdbDataIntoMovie` keeps them, so any rating saved after that change has them. Only locations needed wiring.
+- **`storeLocationsForRating(dbEntry)`** in `AddRating.js`, called fire-and-forget at the end of `addRating` alongside `warmImageCache` and for the same reason: Wikidata being slow or down must never delay or fail an actual rating. Skips placeholders (no TMDB id to join on), skips when offline, and skips when `locations` is already known. Writes the **leaf path** `movieLog/<key>/movie/locations` so it can't clobber sibling fields, and re-reads the entry from state rather than reusing the captured `dbEntry`. Anything it misses is still caught by the backfill, since a movie only counts as "checked" once `locations` is actually written.
+
+### Re-rating used to destroy locally-owned data (fixed in the same pass)
+Found while wiring the above, and **wider than locations**. Saving a rating does a full `set()` of `movieLog/<key>`, and `shapeTmdbDataIntoMovie` builds a **brand new** movie object from the TMDB response — so anything not explicitly rebuilt was silently wiped:
+- `movie.locations` (would have been, had this not been fixed at the same time)
+- **`customPosterPath` / `customBackdropPath` — a genuine pre-existing bug.** These live at the ENTRY level, as siblings of `movie`/`ratings`, so re-rating a movie with a custom poster lost it. Confirmed by test: reverting the fix fails `keeps a custom poster across a re-rate`.
+
+Fixed in `addMovieRating` with two deliberately different strategies:
+- **Entry level — copy everything** except `movie`/`ratings` (being replaced) and `dbKey` (injected by the store's getter at read time, not real stored data). Nothing at this level comes from TMDB, so it's all worth keeping, and an allowlist would silently start dropping whatever gets added next.
+- **Movie level — an explicit allowlist** (`CARRIED_OVER_MOVIE_FIELDS = ['locations']`), applied only where the fresh TMDB object doesn't define the field. A blanket merge would resurrect stale values that re-fetching exists to correct, and would keep `isPendingReconciliation: true` set on a placeholder being finalised.
+
+Tests: `TMDbDataProcessing.test.js` — an `automatically on a new rating` block (looks up and stores, leaf path, explicit `[]` when nothing is found, skips offline/placeholder/already-known, and a Wikidata failure never affecting the rating) and a `re-rating preserves locally-owned data` block. All verified as real guards by reverting the fix and watching 3 fail.
