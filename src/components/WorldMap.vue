@@ -1,5 +1,5 @@
 <template>
-  <div class="world-map">
+  <div ref="wrapper" class="world-map">
     <svg :viewBox="viewBox" class="world-map-svg" role="img" :aria-label="ariaLabel">
       <rect class="ocean" x="0" y="0" :width="width" :height="height"/>
 
@@ -33,11 +33,11 @@
            readable: a dot off the coast of California means nothing, a dot
            next to "Los Angeles" means everything. -->
       <g v-for="city in visibleCities" :key="`city-${city.name}-${city.x}`" class="city">
-        <circle :cx="city.x" :cy="city.y" :r="scaled(cityDotRadius)"/>
+        <circle :cx="city.x" :cy="city.y" :r="px(cityDotRadius)"/>
         <text
-          :x="city.x + scaled(cityLabelOffset)"
-          :y="city.y + scaled(cityFontSize) * 0.35"
-          :style="{ fontSize: `${scaled(cityFontSize)}px` }"
+          :x="city.x + px(cityLabelOffset)"
+          :y="city.y + px(cityFontSize) * 0.35"
+          :style="{ fontSize: `${px(cityFontSize)}px` }"
         >{{ city.name }}</text>
       </g>
 
@@ -45,10 +45,21 @@
         v-for="point in plottedPoints"
         :key="point.key"
       >
+        <!-- Invisible, much larger tap target sitting under the visible dot.
+             The dot itself is only ~7px across, which is nowhere near a usable
+             touch target (bug report: "the tiny little points on the map are
+             way too small to actually click on"). -->
         <circle
           :cx="point.x"
           :cy="point.y"
-          :r="scaled(dotRadius)"
+          :r="px(tapTargetRadius)"
+          class="place-hit"
+          @click="select(point)"
+        />
+        <circle
+          :cx="point.x"
+          :cy="point.y"
+          :r="px(dotRadius)"
           class="place-dot"
           :class="point.type"
           @click="select(point)"
@@ -60,15 +71,15 @@
             :x="labelBox(point).x"
             :y="labelBox(point).y"
             :width="labelBox(point).width"
-            :height="scaled(labelHeight)"
+            :height="px(labelHeight)"
             class="label-bg"
-            :rx="scaled(40)"
+            :rx="px(4)"
           />
           <text
-            :x="labelBox(point).x + scaled(labelPadding)"
-            :y="labelBox(point).y + scaled(labelHeight) * 0.7"
+            :x="labelBox(point).x + px(labelPadding)"
+            :y="labelBox(point).y + px(labelHeight) * 0.7"
             class="label-text"
-            :style="{ fontSize: `${scaled(labelFontSize)}px` }"
+            :style="{ fontSize: `${px(labelFontSize)}px` }"
           >{{ point.name }}</text>
         </template>
       </g>
@@ -95,10 +106,14 @@ export default {
       default: () => []
     },
     // Insights plots the whole library at once and wants smaller dots than a
-    // single movie's handful of places. Sized in grid units (see worldMap.width).
+    // single movie's handful of places.
+    //
+    // In CSS PIXELS, not grid units. Grid units were the original design and
+    // were badly wrong: a radius of 90 renders as 90/20000 of the container, so
+    // ~1.6px on a phone — visible, but impossible to tap.
     dotRadius: {
       type: Number,
-      default: 90
+      default: 7
     },
     ariaLabel: {
       type: String,
@@ -115,12 +130,19 @@ export default {
   data () {
     return {
       selectedKey: null,
-      labelHeight: 340,
-      labelPadding: 80,
-      labelFontSize: 240,
-      cityFontSize: 150,
-      cityDotRadius: 45,
-      cityLabelOffset: 110,
+      // All in CSS pixels — see the dotRadius prop.
+      tapTargetRadius: 18,
+      labelHeight: 26,
+      labelPadding: 6,
+      labelFontSize: 15,
+      cityFontSize: 11,
+      cityDotRadius: 3,
+      cityLabelOffset: 7,
+      // Rendered width of the map in CSS pixels, which is what converts pixel
+      // sizes into the grid units SVG actually draws in. Measured after mount;
+      // the default only stands in for that first tick (and for jsdom, which
+      // has no layout at all).
+      containerWidth: 360,
       // Above this fraction of the world, city labels are noise rather than
       // orientation, so they're hidden entirely.
       cityZoomThreshold: 0.6,
@@ -149,11 +171,17 @@ export default {
         fallback: worldMap.viewBox
       });
     },
-    // How zoomed in we are, 1 = whole world. Everything drawn on top of the map
-    // is sized in grid units, so without this a 5x zoom would render 5x bigger
-    // dots and text. Scaling by this keeps their apparent size constant.
+    // How zoomed in we are, 1 = whole world. Only used for deciding WHAT to
+    // draw (city labels), not how big — see unitsPerPixel for that.
     zoomScale () {
       return this.visibleWidth / this.width;
+    },
+    // One CSS pixel expressed in grid units at the current zoom and container
+    // size. Everything drawn on top of the map is sized through this, so a dot
+    // is the same number of real pixels whether you're looking at the whole
+    // world on a phone or one city on a desktop.
+    unitsPerPixel () {
+      return this.visibleWidth / (this.containerWidth || 360);
     },
     // The PROJECTION space, which is always the full -180..180 / 90..-90 grid.
     // Kept separate from viewBox on purpose — deriving these from the cropped
@@ -185,7 +213,7 @@ export default {
       const bottom = this.visibleTop + this.visibleHeight;
       // Roughly a label's width — enough to stop two names sitting on top of
       // each other without doing real text measurement.
-      const minGap = this.scaled(this.cityFontSize) * 6;
+      const minGap = this.px(this.cityFontSize) * 6;
 
       const chosen = [];
       // worldMap.cities is pre-sorted by importance, so taking them in order
@@ -215,11 +243,38 @@ export default {
         }));
     }
   },
+  mounted () {
+    this.measure();
+    // The map is fluid-width, so its pixel size changes on rotate/resize and
+    // every pixel-sized thing on it has to be recomputed.
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.measure());
+      this.resizeObserver.observe(this.$refs.wrapper);
+    } else {
+      window.addEventListener('resize', this.measure);
+    }
+  },
+  beforeUnmount () {
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    } else {
+      window.removeEventListener('resize', this.measure);
+    }
+  },
   methods: {
-    // Grid units -> current-zoom units, so anything drawn on top of the map
-    // keeps a constant apparent size however far in we are.
-    scaled (value) {
-      return value * this.zoomScale;
+    measure () {
+      const width = this.$refs.wrapper?.offsetWidth;
+      // jsdom reports 0 for everything; keep the default rather than dividing
+      // the map into nothing.
+      if (width) {
+        this.containerWidth = width;
+      }
+    },
+    // CSS pixels -> grid units, so anything drawn on top of the map keeps a
+    // constant real size however far in we are and however wide the container.
+    px (pixels) {
+      return pixels * this.unitsPerPixel;
     },
     // Equirectangular, matching the projection the paths were baked with.
     // Simple and undistorted enough at this size; the alternative projections
@@ -234,9 +289,9 @@ export default {
       // Character-width estimate rather than real text measurement — same
       // approach (and same reasoning) as the "Did you mean?" fit logic: it
       // only has to be close, and erring wide is the safe direction.
-      const estimatedWidth = point.name.length * this.scaled(this.labelFontSize) * 0.55 +
-                             this.scaled(this.labelPadding) * 2;
-      const gap = this.scaled(this.dotRadius + 40);
+      const estimatedWidth = point.name.length * this.px(this.labelFontSize) * 0.55 +
+                             this.px(this.labelPadding) * 2;
+      const gap = this.px(this.dotRadius + 4);
       const rawX = point.x + gap;
       const rightEdge = this.visibleLeft + this.visibleWidth;
 
@@ -246,8 +301,8 @@ export default {
         // Clamped to the VISIBLE window, not the full projection space, or a
         // label near the edge of a zoomed-in box would be cut off.
         y: Math.min(
-          Math.max(point.y - this.scaled(this.labelHeight) / 2, this.visibleTop),
-          this.visibleTop + this.visibleHeight - this.scaled(this.labelHeight)
+          Math.max(point.y - this.px(this.labelHeight) / 2, this.visibleTop),
+          this.visibleTop + this.visibleHeight - this.px(this.labelHeight)
         ),
         width: estimatedWidth
       };
@@ -313,8 +368,18 @@ export default {
     }
   }
 
+  .place-hit {
+    cursor: pointer;
+    fill: transparent;
+  }
+
   .place-dot {
     cursor: pointer;
+    // The transparent circle underneath is what catches the tap; without this
+    // the visible dot would swallow taps meant for its own larger target only
+    // where they overlap, which is fine — but pointer-events on both keeps the
+    // centre responsive regardless of stacking.
+    pointer-events: auto;
     stroke: #14202b;
     stroke-width: 2;
     vector-effect: non-scaling-stroke;

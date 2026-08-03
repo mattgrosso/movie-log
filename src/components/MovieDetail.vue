@@ -555,10 +555,17 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import axios from 'axios';
 import ToggleableRating from './ToggleableRating.vue';
 import WorldMap from './WorldMap.vue';
-const LocationDetailMap = () => import(/* webpackChunkName: "location-detail-map" */ './LocationDetailMap.vue');
+// defineAsyncComponent, NOT a bare `() => import(...)`. That's Vue 2 syntax;
+// in Vue 3 a plain function registered as a component is treated as a
+// FUNCTIONAL component, so Vue calls it as a render function, gets a Promise
+// back, and renders it as the text "[object Promise]".
+const LocationDetailMap = defineAsyncComponent(
+  () => import(/* webpackChunkName: "location-detail-map" */ './LocationDetailMap.vue')
+);
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';

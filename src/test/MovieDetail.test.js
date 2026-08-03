@@ -392,3 +392,45 @@ describe('MovieDetail geography sections', () => {
     })
   })
 })
+
+describe('LocationDetailMap registration', () => {
+  it('is registered as a real async component, not a bare import function', () => {
+    // Bug report: tapping a map dot rendered the text "object, comma, promise".
+    // `const X = () => import('./X.vue')` is Vue 2 syntax. In Vue 3 a plain
+    // function registered as a component is treated as a FUNCTIONAL component,
+    // so Vue calls it as a render function, gets a Promise, and renders that as
+    // text. defineAsyncComponent returns an object instead.
+    const registered = MovieDetail.components.LocationDetailMap
+
+    expect(registered).toBeTruthy()
+    expect(typeof registered).not.toBe('function')
+    expect(typeof registered).toBe('object')
+  })
+
+  // NOTE: a smoke test, not a guard for the bug above — shallowMount stubs the
+  // async component, so this passes either way. The structural assertion is
+  // what actually catches it.
+  it('renders without error when a location is selected', async () => {
+    const wrapper = shallowMount(MovieDetail, {
+      global: {
+        mocks: {
+          $store: {
+            state: { movieLog: {}, settings: { tags: { 'viewing-tags': {} } }, academyAwardWinners: {} },
+            getters: { allMoviesAsArray: [], allMediaAsArray: [] },
+            commit: vi.fn(),
+            dispatch: vi.fn()
+          },
+          $route: { params: { tmdbId: '42' }, query: {} },
+          $router: { push: vi.fn() }
+        },
+        stubs: { ToggleableRating: true, Modal: true }
+      }
+    })
+
+    const paris = { name: 'Paris', lat: 48.85, lon: 2.35, type: 'filming', id: 'Q90' }
+    const result = makeResult({ movie: { locations: [paris] } })
+    await wrapper.setData({ result, movie: result.movie, selectedLocation: paris })
+
+    expect(wrapper.find('.locations').exists()).toBe(true)
+  })
+})

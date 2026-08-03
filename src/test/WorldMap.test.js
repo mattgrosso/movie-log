@@ -128,9 +128,52 @@ describe('WorldMap', () => {
     expect(wrapper.findAll('circle.place-dot')).toHaveLength(2);
   });
 
-  it('honours a custom dot radius, at the un-zoomed scale', () => {
-    const wrapper = mount(WorldMap, { props: { points: [point()], dotRadius: 30, fit: false } });
-    expect(wrapper.find('circle.place-dot').attributes('r')).toBe('30');
+  // Bug report: "the tiny little points on the map are way too small to
+  // actually click on." Sizes used to be in grid units, so a dot rendered at
+  // radius/20000 of the container — about 1.6 real pixels on a phone.
+  describe('dot sizing, in real pixels', () => {
+    // r is in grid units; this converts back to the CSS pixels a user sees.
+    const renderedPx = (wrapper, selector) => {
+      const [, , visibleWidth] = wrapper.find('svg').attributes('viewBox').split(' ').map(Number);
+      const r = Number(wrapper.find(selector).attributes('r'));
+      return r / visibleWidth * wrapper.vm.containerWidth;
+    };
+
+    it('renders a dot at its stated pixel size', () => {
+      const wrapper = mount(WorldMap, { props: { points: [point()], dotRadius: 7 } });
+      expect(renderedPx(wrapper, 'circle.place-dot')).toBeCloseTo(7, 5);
+    });
+
+    it('is the same real size zoomed in as zoomed out', () => {
+      const tight = mount(WorldMap, {
+        props: { points: [point({ lat: 51.5, lon: -0.13 }), point({ name: 'Oxford', lat: 51.75, lon: -1.26 })] }
+      });
+      const world = mount(WorldMap, { props: { points: [point()], fit: false } });
+
+      expect(renderedPx(tight, 'circle.place-dot')).toBeCloseTo(renderedPx(world, 'circle.place-dot'), 5);
+    });
+
+    it('is big enough to actually tap', () => {
+      const wrapper = mount(WorldMap, { props: { points: [point()] } });
+      // The visible dot is deliberately small; the invisible target under it is
+      // what has to be thumb-sized.
+      expect(renderedPx(wrapper, 'circle.place-hit') * 2).toBeGreaterThanOrEqual(32);
+    });
+
+    it('puts a much larger invisible tap target under each dot', () => {
+      const wrapper = mount(WorldMap, { props: { points: [point()] } });
+
+      const hit = Number(wrapper.find('circle.place-hit').attributes('r'));
+      const dot = Number(wrapper.find('circle.place-dot').attributes('r'));
+      expect(hit).toBeGreaterThan(dot * 2);
+    });
+
+    it('selects the point when the tap target is hit, not just the dot', async () => {
+      const wrapper = mount(WorldMap, { props: { points: [point()] } });
+      await wrapper.find('circle.place-hit').trigger('click');
+
+      expect(wrapper.emitted('select')[0][0]).toMatchObject({ name: 'Paris' });
+    });
   });
 
   describe('auto-fit zoom', () => {
@@ -165,11 +208,12 @@ describe('WorldMap', () => {
     });
 
     it('keeps dots a constant apparent size as it zooms', () => {
-      // Dots are sized in viewBox units, so without compensation a 5x zoom
-      // would render 5x bigger dots.
+      // Sizes are in CSS pixels, converted to grid units through the current
+      // zoom — so the grid-unit radius grows as the view narrows, and the real
+      // rendered size stays put.
       const zoomed = mount(WorldMap, { props: { points: [point()] } });
       const [, , zoomedWidth] = viewBoxOf(zoomed);
-      const expected = 90 * (zoomedWidth / 20000);
+      const expected = 7 * (zoomedWidth / zoomed.vm.containerWidth);
 
       expect(Number(zoomed.find('circle.place-dot').attributes('r'))).toBeCloseTo(expected, 5);
     });
@@ -233,12 +277,12 @@ describe('WorldMap context layers', () => {
     expect(wrapper.findAll('g.city').length).toBeLessThanOrEqual(wrapper.vm.maxVisibleCities);
   })
 
-  it('scales city labels with zoom, like everything else drawn on the map', () => {
+  it('sizes city labels in real pixels too, like everything else on the map', () => {
     const wrapper = mount(WorldMap, {
       props: { points: [point({ lat: 34.05, lon: -118.24 }), point({ name: 'San Diego', lat: 32.7, lon: -117.16 })] }
     });
 
-    const expected = wrapper.vm.cityDotRadius * wrapper.vm.zoomScale;
+    const expected = wrapper.vm.cityDotRadius * wrapper.vm.unitsPerPixel;
     expect(Number(wrapper.find('g.city circle').attributes('r'))).toBeCloseTo(expected, 5);
   })
 })

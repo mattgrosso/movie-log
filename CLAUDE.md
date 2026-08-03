@@ -1242,3 +1242,18 @@ Read at [operations.osmfoundation.org/policies/tiles](https://operations.osmfoun
 OSM standard was picked because it needs no account — the only option shippable while the user was away from his computer. It's a light street map in an otherwise dark app. **Revisit with him** (memory: `project-revisit-map-tile-source`): **Stadia/MapTiler** have dark styles that would match and domain-locked keys safe to commit; **Esri World Imagery** (satellite) serves without a key and is the most compelling for a filming location, but its terms were never verified — check before relying on it; **Carto dark** still serves but now restricts tile access to enterprise/grant licences, so it's out. Swapping is a one-line change to `TILE_URL` + `ATTRIBUTION`.
 
 Tests: `LocationDetailMap.test.js` (12) — Leaflet is mocked (it needs real layout and a canvas, neither of which jsdom has), so the assertions are about how we drive it: tile URL, attribution present, the precision-to-zoom mapping, marker colour by type, move-don't-rebuild on prop change, and teardown.
+
+### Two bugs in the first street-level cut (Aug 2026)
+*"The tiny little points on the map are way too small to actually click on, but I did manage to click on one, and I just got back... a text underneath the map that says object, comma, promise."*
+
+**1. `[object Promise]` under the map.** `MovieDetail.vue` registered the lazy component as `const LocationDetailMap = () => import('./LocationDetailMap.vue')` — **Vue 2 syntax**. In Vue 3 a plain function registered as a component is a **functional component**, so Vue calls it as a render function, gets a Promise back, and renders that as text. Fixed with `defineAsyncComponent(() => import(...))`. Guarded by a structural assertion in `MovieDetail.test.js` (the registered component must be an object, not a function) — verified to fail when reverted. **A rendering test does NOT catch this**: `shallowMount` stubs the async component, so it passes either way; the sibling smoke test is named honestly to say so.
+
+**2. Dots ~1.6px across.** Everything drawn on the map was sized in GRID units, so a `dotRadius` of 90 rendered as `90/20000` of the container — about 1.6px on a phone. The "keep apparent size constant while zooming" logic was working exactly as written; the size it held constant was simply far too small, and it was only ever eyeballed in 1000px-wide test renders where it looked passable.
+
+Everything on top of the map is now sized in **CSS pixels**, converted through `unitsPerPixel = visibleWidth / containerWidth`:
+- `containerWidth` is measured after mount and kept current by a `ResizeObserver` (the map is fluid-width, so rotating a phone changes every pixel-sized thing on it). Falls back to 360 for the first tick and for jsdom, which reports 0 for all layout.
+- `px(pixels)` replaces the old `scaled(gridUnits)` everywhere — dots, labels, city text, the de-clutter spacing.
+- **`dotRadius` is now a PIXEL value**: default 7, `Insights` passes 4 (was 90/50 in grid units).
+- **Each dot has an invisible `.place-hit` circle under it at 18px radius** — a 36px target. The visible dot stays small deliberately; a dot big enough to tap comfortably would swamp the map when several places cluster.
+
+Tests: a `dot sizing, in real pixels` block in `WorldMap.test.js` — stated pixel size honoured, identical real size zoomed in vs out, the tap target at least 32px across, the target larger than the dot, and tapping the target (not just the dot) selecting the point.
