@@ -17,7 +17,7 @@
         <circle
           :cx="point.x"
           :cy="point.y"
-          :r="dotRadius"
+          :r="scaledDotRadius"
           class="place-dot"
           :class="point.type"
           @click="select(point)"
@@ -29,15 +29,15 @@
             :x="labelBox(point).x"
             :y="labelBox(point).y"
             :width="labelBox(point).width"
-            :height="labelHeight"
+            :height="scaledLabelHeight"
             class="label-bg"
             rx="4"
           />
           <text
-            :x="labelBox(point).x + labelPadding"
-            :y="labelBox(point).y + labelHeight * 0.7"
+            :x="labelBox(point).x + scaledLabelPadding"
+            :y="labelBox(point).y + scaledLabelHeight * 0.7"
             class="label-text"
-            :style="{ fontSize: `${labelFontSize}px` }"
+            :style="{ fontSize: `${scaledLabelFontSize}px` }"
           >{{ point.name }}</text>
         </template>
       </g>
@@ -47,6 +47,7 @@
 
 <script>
 import worldLand from '../assets/data/worldLand.json';
+import { fitViewBox } from '../assets/javascript/mapViewBox.js';
 
 // Natural Earth 110m land, pre-projected to SVG paths at build time (public
 // domain). Deliberately not a tile-based map: no new runtime dependency, no
@@ -68,6 +69,12 @@ export default {
     ariaLabel: {
       type: String,
       default: 'World map'
+    },
+    // Zoom to the tightest box containing every point, rather than always
+    // showing the whole world.
+    fit: {
+      type: Boolean,
+      default: true
     }
   },
   emits: ['select'],
@@ -83,12 +90,49 @@ export default {
     landPaths () {
       return worldLand.paths;
     },
-    // The DISPLAY window, which is deliberately narrower than the projection
-    // space: it crops the empty polar caps (Antarctica and the high Arctic are
-    // ~20% of an equirectangular map's height and essentially never hold a
-    // film location), so the useful part of the world is bigger on a phone.
+    // The DISPLAY window.
+    //
+    // With points to show, this zooms to the tightest sensible box containing
+    // all of them (bug report: the full-globe view was too far out to read).
+    // With none — or with `fit` off — it falls back to the stored world view,
+    // which is itself deliberately narrower than the projection space: it crops
+    // the empty polar caps (Antarctica and the high Arctic are ~20% of an
+    // equirectangular map's height and essentially never hold a film location).
     viewBox () {
-      return worldLand.viewBox;
+      if (!this.fit) {
+        return worldLand.viewBox;
+      }
+
+      return fitViewBox(this.plottedPoints, {
+        width: this.width,
+        height: this.height,
+        fallback: worldLand.viewBox
+      });
+    },
+    // How zoomed in we are, 1 = whole world. Dots and labels are sized in
+    // viewBox units, so without this they'd balloon as the box shrinks — a
+    // 5x zoom would render 5x bigger dots. Scaling by this keeps their
+    // apparent size on screen roughly constant at any zoom.
+    zoomScale () {
+      return this.visibleWidth / this.width;
+    },
+    scaledDotRadius () {
+      return this.dotRadius * this.zoomScale;
+    },
+    scaledLabelHeight () {
+      return this.labelHeight * this.zoomScale;
+    },
+    scaledLabelFontSize () {
+      return this.labelFontSize * this.zoomScale;
+    },
+    scaledLabelPadding () {
+      return this.labelPadding * this.zoomScale;
+    },
+    visibleLeft () {
+      return Number(this.viewBox.split(' ')[0]);
+    },
+    visibleWidth () {
+      return Number(this.viewBox.split(' ')[2]);
     },
     // The PROJECTION space, which is always the full -180..180 / 90..-90 grid.
     // Kept separate from viewBox on purpose — deriving these from the cropped
@@ -132,17 +176,19 @@ export default {
       // Character-width estimate rather than real text measurement — same
       // approach (and same reasoning) as the "Did you mean?" fit logic: it
       // only has to be close, and erring wide is the safe direction.
-      const estimatedWidth = point.name.length * this.labelFontSize * 0.55 + this.labelPadding * 2;
-      const rawX = point.x + this.dotRadius + 4;
+      const estimatedWidth = point.name.length * this.scaledLabelFontSize * 0.55 + this.scaledLabelPadding * 2;
+      const gap = this.scaledDotRadius + 4 * this.zoomScale;
+      const rawX = point.x + gap;
+      const rightEdge = this.visibleLeft + this.visibleWidth;
 
       return {
         // Flip to the left of the dot rather than overflow the right edge.
-        x: rawX + estimatedWidth > this.width ? point.x - this.dotRadius - 4 - estimatedWidth : rawX,
+        x: rawX + estimatedWidth > rightEdge ? point.x - gap - estimatedWidth : rawX,
         // Clamped to the VISIBLE window, not the full projection space, or a
-        // label near the crop edge would be cut off.
+        // label near the edge of a zoomed-in box would be cut off.
         y: Math.min(
-          Math.max(point.y - this.labelHeight / 2, this.visibleTop),
-          this.visibleTop + this.visibleHeight - this.labelHeight
+          Math.max(point.y - this.scaledLabelHeight / 2, this.visibleTop),
+          this.visibleTop + this.visibleHeight - this.scaledLabelHeight
         ),
         width: estimatedWidth
       };
@@ -174,12 +220,14 @@ export default {
     fill: #33475b;
     stroke: #22323f;
     stroke-width: 1;
+    vector-effect: non-scaling-stroke;
   }
 
   .place-dot {
     cursor: pointer;
     stroke: #14202b;
     stroke-width: 2;
+    vector-effect: non-scaling-stroke;
 
     // Mobile-first: press feedback only, never :hover — this app has no
     // reliable pointer device and sticky :hover on iOS is a documented problem.

@@ -124,8 +124,60 @@ describe('WorldMap', () => {
     expect(wrapper.findAll('circle.place-dot')).toHaveLength(2);
   });
 
-  it('honours a custom dot radius', () => {
-    const wrapper = mount(WorldMap, { props: { points: [point()], dotRadius: 3 } });
+  it('honours a custom dot radius, at the un-zoomed scale', () => {
+    const wrapper = mount(WorldMap, { props: { points: [point()], dotRadius: 3, fit: false } });
     expect(wrapper.find('circle.place-dot').attributes('r')).toBe('3');
+  });
+
+  describe('auto-fit zoom', () => {
+    const viewBoxOf = (wrapper) => wrapper.find('svg').attributes('viewBox').split(' ').map(Number);
+
+    it('zooms in on a tight cluster instead of showing the whole world', () => {
+      const wrapper = mount(WorldMap, {
+        props: { points: [point({ lat: 51.5, lon: -0.13 }), point({ name: 'Oxford', lat: 51.75, lon: -1.26 })] }
+      });
+
+      const [, , width] = viewBoxOf(wrapper);
+      expect(width).toBeLessThan(2000);
+    });
+
+    it('still contains every point after zooming', () => {
+      const points = [
+        point({ lat: 51.5, lon: -0.13 }),
+        point({ name: 'Paris', lat: 48.85, lon: 2.35 }),
+        point({ name: 'Madrid', lat: 40.4, lon: -3.7 })
+      ];
+      const wrapper = mount(WorldMap, { props: { points } });
+      const [x, y, width, height] = viewBoxOf(wrapper);
+
+      wrapper.findAll('circle.place-dot').forEach((dot) => {
+        const cx = Number(dot.attributes('cx'));
+        const cy = Number(dot.attributes('cy'));
+        expect(cx).toBeGreaterThanOrEqual(x);
+        expect(cx).toBeLessThanOrEqual(x + width);
+        expect(cy).toBeGreaterThanOrEqual(y);
+        expect(cy).toBeLessThanOrEqual(y + height);
+      });
+    });
+
+    it('keeps dots a constant apparent size as it zooms', () => {
+      // Dots are sized in viewBox units, so without compensation a 5x zoom
+      // would render 5x bigger dots.
+      const zoomed = mount(WorldMap, { props: { points: [point()] } });
+      const [, , zoomedWidth] = viewBoxOf(zoomed);
+      const expected = 9 * (zoomedWidth / 2000);
+
+      expect(Number(zoomed.find('circle.place-dot').attributes('r'))).toBeCloseTo(expected, 5);
+    });
+
+    it('falls back to the whole-world view when there is nothing to fit', () => {
+      const wrapper = mount(WorldMap, { props: { points: [] } });
+      expect(wrapper.find('svg').attributes('viewBox')).toBe('0 33 2000 789');
+    });
+
+    it('can be turned off', () => {
+      const wrapper = mount(WorldMap, { props: { points: [point()], fit: false } });
+      expect(wrapper.find('svg').attributes('viewBox')).toBe('0 33 2000 789');
+    });
   });
 });

@@ -659,7 +659,11 @@ export default {
         // Movie not logged - use the log action to open rating/review interface,
         // pre-filling the star rating from Cinema Roll's normalized score.
         const success = LetterboxdUrlService.logMovie(movie.title, this.getYear(this.result), {
-          normalizedRating: this.normalizedRatingForMedia(this.result)
+          normalizedRating: this.normalizedRatingForMedia(this.result),
+          // The date it was actually watched, not today. mostRecentRating is
+          // the latest viewing, which is the one being logged when a movie has
+          // been seen more than once.
+          viewingDate: this.mostRecentRating(this.result)?.date
         });
 
         if (!success) {

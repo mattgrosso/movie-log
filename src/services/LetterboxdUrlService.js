@@ -37,10 +37,26 @@ class LetterboxdUrlService {
    * log the wrong day for late-evening viewings in western timezones.
    */
   static todayLocalISODate () {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
+    return this.toLocalISODate(new Date());
+  }
+
+  /**
+   * Any date-ish value (timestamp, Date, parseable string) as a local
+   * YYYY-MM-DD string. Returns null if it isn't a real date.
+   *
+   * Built from LOCAL components for the same reason as todayLocalISODate:
+   * toISOString() is UTC and would report the previous day for anything
+   * watched in the evening in a western timezone.
+   */
+  static toLocalISODate (value) {
+    if (value === null || value === undefined || value === '') return null;
+
+    const date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return null;
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
 
@@ -62,6 +78,8 @@ class LetterboxdUrlService {
   /**
    * Generate full Letterboxd URLs.
    * options.normalizedRating (0–10) is forwarded to the log link as a star rating.
+   * options.viewingDate (timestamp/Date/string) sets the logged viewing date;
+   * defaults to today only when there isn't a usable one.
    */
   static generateUrls (title, year, options = {}) {
     const slug = this.generateMovieSlug(title, year);
@@ -71,9 +89,15 @@ class LetterboxdUrlService {
     const encodedTitle = encodeURIComponent(title);
 
     // Letterboxd's log deep link no longer defaults the viewing date to today
-    // (an app update changed this), so we pass today's date explicitly. Without
-    // it, logs follow-through from Cinema Roll on mobile land with no date.
-    const today = this.todayLocalISODate();
+    // (an app update changed this), so we pass a date explicitly. Without it,
+    // logs followed through from Cinema Roll on mobile land with no date.
+    //
+    // Use the date the movie was actually WATCHED, not today. Bug report: "it
+    // should have the date automatically filled in ... Even if I didn't watch
+    // it today and also even if I have watched it multiple times." Callers pass
+    // the viewing being logged (the most recent one); today is only the
+    // fallback for a rating with no usable date.
+    const viewingDate = this.toLocalISODate(options.viewingDate) || this.todayLocalISODate();
 
     // Pre-fill the star rating from Cinema Roll when we have one.
     const stars = this.normalizedRatingToStars(options.normalizedRating);
@@ -83,7 +107,7 @@ class LetterboxdUrlService {
       slug,
       webUrl: `https://letterboxd.com/film/${slug}/`,
       appUrl: `letterboxd://x-callback-url/search?query=${encodedTitle}&type=film`,
-      appLogUrl: `letterboxd://x-callback-url/log?name=${encodedTitle}&date=${today}${ratingParam}`,
+      appLogUrl: `letterboxd://x-callback-url/log?name=${encodedTitle}&date=${viewingDate}${ratingParam}`,
       reviewsUrl: `https://letterboxd.com/film/${slug}/reviews/`
     };
   }

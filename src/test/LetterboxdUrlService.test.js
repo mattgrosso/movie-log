@@ -87,3 +87,52 @@ describe('LetterboxdUrlService', () => {
     })
   })
 })
+
+// Bug report: "When I click the letterbox button ... it should have the date
+// automatically filled in in the page. Even if I didn't watch it today and also
+// even if I have watched it multiple times."
+describe('logged viewing date', () => {
+  const logDateFrom = (options) => {
+    const urls = LetterboxdUrlService.generateUrls('Fight Club', 1999, options)
+    return new URL(urls.appLogUrl.replace('letterboxd://', 'https://')).searchParams.get('date')
+  }
+
+  it('uses the date the movie was actually watched, not today', () => {
+    // Local noon so the assertion can't be flipped by the runner's timezone.
+    const watched = new Date(2021, 4, 17, 12, 0, 0).getTime()
+    expect(logDateFrom({ viewingDate: watched })).toBe('2021-05-17')
+  })
+
+  it('accepts a Date as well as a timestamp', () => {
+    expect(logDateFrom({ viewingDate: new Date(2019, 0, 3, 12) })).toBe('2019-01-03')
+  })
+
+  it('falls back to today when the rating has no usable date', () => {
+    const today = LetterboxdUrlService.todayLocalISODate()
+
+    expect(logDateFrom({})).toBe(today)
+    expect(logDateFrom({ viewingDate: null })).toBe(today)
+    expect(logDateFrom({ viewingDate: 'not a date' })).toBe(today)
+  })
+
+  it('reports the local day for a late-evening viewing, not the UTC one', () => {
+    // toISOString() would roll this into the next day in any western timezone —
+    // the same trap todayLocalISODate already exists to avoid.
+    const lateNight = new Date(2022, 10, 8, 23, 30, 0)
+    expect(logDateFrom({ viewingDate: lateNight.getTime() })).toBe('2022-11-08')
+  })
+})
+
+describe('toLocalISODate', () => {
+  it('rejects anything that is not a real date', () => {
+    expect(LetterboxdUrlService.toLocalISODate(null)).toBeNull()
+    expect(LetterboxdUrlService.toLocalISODate(undefined)).toBeNull()
+    expect(LetterboxdUrlService.toLocalISODate('')).toBeNull()
+    expect(LetterboxdUrlService.toLocalISODate('nope')).toBeNull()
+    expect(LetterboxdUrlService.toLocalISODate(NaN)).toBeNull()
+  })
+
+  it('zero-pads month and day', () => {
+    expect(LetterboxdUrlService.toLocalISODate(new Date(2020, 0, 5, 12))).toBe('2020-01-05')
+  })
+})

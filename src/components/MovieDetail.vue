@@ -157,40 +157,6 @@
           </p>
         </div>
 
-        <!-- Box Office -->
-        <div v-if="hasBoxOfficeInfo" class="box-office mb-3">
-          <h4>Box Office</h4>
-          <p class="long-list mb-0">
-            <span v-if="movieBudget">Budget: {{ formatCurrency(movieBudget) }}</span>
-            <br v-if="movieBudget && movieRevenue">
-            <span v-if="movieRevenue">Box Office: {{ formatCurrency(movieRevenue) }}</span>
-          </p>
-        </div>
-
-        <!-- Production countries -->
-        <div v-if="productionCountries.length" class="production-countries mb-3">
-          <h4>Made In</h4>
-          <p class="long-list mb-0">{{ productionCountries.join(' · ') }}</p>
-        </div>
-
-        <!-- Filming & story locations, from Wikidata -->
-        <div v-if="hasLocations" class="locations mb-3">
-          <h4>On The Map</h4>
-          <WorldMap :points="movieLocations" :ariaLabel="`Map of locations for ${movie.title}`" @select="selectedLocation = $event"/>
-          <p class="map-legend mb-1">
-            <span v-if="filmingLocations.length" class="legend-item"><span class="swatch filming"></span>Filmed</span>
-            <span v-if="narrativeLocations.length" class="legend-item"><span class="swatch narrative"></span>Set</span>
-          </p>
-          <div class="long-list">
-            <p v-if="filmingLocations.length" class="mb-1">
-              <strong>Filmed in:</strong> {{ filmingLocations.map((location) => location.name).join(' · ') }}
-            </p>
-            <p v-if="narrativeLocations.length" class="mb-0">
-              <strong>Set in:</strong> {{ narrativeLocations.map((location) => location.name).join(' · ') }}
-            </p>
-          </div>
-        </div>
-
         <!-- Awards -->
         <div v-if="academyAwardWins.length || academyAwardNominations.length || personalAwardWins.length || personalAwardNominations.length || otherAwardWins.length || otherAwardNominations.length" class="awards mb-3">
           <h4>Awards</h4>
@@ -324,6 +290,40 @@
               @click.stop="addTypedKeyword">
               Add new keyword "{{ trimmedKeywordInput }}"
             </button>
+          </div>
+        </div>
+
+        <!-- Box Office -->
+        <div v-if="hasBoxOfficeInfo" class="box-office mb-3">
+          <h4>Box Office</h4>
+          <p class="long-list mb-0">
+            <span v-if="movieBudget">Budget: {{ formatCurrency(movieBudget) }}</span>
+            <br v-if="movieBudget && movieRevenue">
+            <span v-if="movieRevenue">Box Office: {{ formatCurrency(movieRevenue) }}</span>
+          </p>
+        </div>
+
+        <!-- Production countries -->
+        <div v-if="productionCountries.length" class="production-countries mb-3">
+          <h4>Made In</h4>
+          <p class="long-list mb-0">{{ productionCountries.join(' · ') }}</p>
+        </div>
+
+        <!-- Filming & story locations, from Wikidata -->
+        <div v-if="hasLocations" class="locations mb-3">
+          <h4>On The Map</h4>
+          <WorldMap :points="movieLocations" :ariaLabel="`Map of locations for ${movie.title}`" @select="selectedLocation = $event"/>
+          <p class="map-legend mb-1">
+            <span v-if="filmingLocations.length" class="legend-item"><span class="swatch filming"></span>Filmed</span>
+            <span v-if="narrativeLocations.length" class="legend-item"><span class="swatch narrative"></span>Set</span>
+          </p>
+          <div class="long-list">
+            <p v-if="filmingLocations.length" class="mb-1">
+              <strong>Filmed in:</strong> {{ filmingLocations.map((location) => location.name).join(' · ') }}
+            </p>
+            <p v-if="narrativeLocations.length" class="mb-0">
+              <strong>Set in:</strong> {{ narrativeLocations.map((location) => location.name).join(' · ') }}
+            </p>
           </div>
         </div>
 
@@ -1180,7 +1180,11 @@ export default {
         // Movie not logged - use the log action to open rating/review interface,
         // pre-filling the star rating from Cinema Roll's normalized score.
         const success = LetterboxdUrlService.logMovie(movie.title, this.getYear(this.result), {
-          normalizedRating: this.normalizedRatingForMedia(this.result)
+          normalizedRating: this.normalizedRatingForMedia(this.result),
+          // The date it was actually watched, not today. mostRecentRating is
+          // the latest viewing, which is the one being logged when a movie has
+          // been seen more than once.
+          viewingDate: this.mostRecentRating(this.result)?.date
         });
 
         if (!success) {
