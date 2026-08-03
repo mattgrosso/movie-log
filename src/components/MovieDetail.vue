@@ -319,12 +319,26 @@
           </p>
           <div class="long-list">
             <p v-if="filmingLocations.length" class="mb-1">
-              <strong>Filmed in:</strong> {{ filmingLocations.map((location) => location.name).join(' · ') }}
+              <strong>Filmed in:</strong>
+              <template v-for="(location, index) in filmingLocations" :key="`f-${location.id || location.name}-${index}`">
+                <button type="button" class="location-link" @click="selectedLocation = location">{{ location.name }}</button><span v-if="index < filmingLocations.length - 1"> &middot; </span>
+              </template>
             </p>
             <p v-if="narrativeLocations.length" class="mb-0">
-              <strong>Set in:</strong> {{ narrativeLocations.map((location) => location.name).join(' · ') }}
+              <strong>Set in:</strong>
+              <template v-for="(location, index) in narrativeLocations" :key="`n-${location.id || location.name}-${index}`">
+                <button type="button" class="location-link" @click="selectedLocation = location">{{ location.name }}</button><span v-if="index < narrativeLocations.length - 1"> &middot; </span>
+              </template>
             </p>
           </div>
+
+          <!-- Street-level view of whichever place was tapped, on real map
+               tiles. Needs a connection; the overview above doesn't. -->
+          <LocationDetailMap
+            v-if="selectedLocation"
+            :location="selectedLocation"
+            @close="selectedLocation = null"
+          />
         </div>
 
         <!-- Tags -->
@@ -544,6 +558,7 @@
 import axios from 'axios';
 import ToggleableRating from './ToggleableRating.vue';
 import WorldMap from './WorldMap.vue';
+const LocationDetailMap = () => import(/* webpackChunkName: "location-detail-map" */ './LocationDetailMap.vue');
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
@@ -560,7 +575,8 @@ export default {
   name: 'MovieDetail',
   components: {
     ToggleableRating,
-    WorldMap
+    WorldMap,
+    LocationDetailMap
   },
   data () {
     return {
@@ -1837,6 +1853,20 @@ export default {
     display: inline-block;
     height: 9px;
     width: 9px;
+  }
+
+  /* Tappable place names in the Filmed in / Set in lists — styled as inline
+     text, not buttons, so the lists still read as prose. */
+  .location-link {
+    background: none;
+    border: none;
+    color: #7fb3ff;
+    padding: 0;
+    text-align: left;
+
+    &:active {
+      opacity: 0.7;
+    }
   }
 
   .swatch.filming { background: #f0ad4e; }

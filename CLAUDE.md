@@ -1218,3 +1218,27 @@ Shipped (user picked the full upgrade from a costed menu):
 **A second correction from the same exchange: offline support is NOT a blanket requirement.** The app genuinely has offline support and the user did ask for it — but that was extrapolated into a standing veto over any feature that needs a network, which they never said. Their words: *"I don't care about the offline support. That was never a requirement either. That would be a nice to have, but the feature is most useful when you're online."* Weigh it as a nice-to-have per feature, not a constraint.
 
 Tests: `WorldMap.test.js` rebased onto the 20000x10000 grid, plus a context-layers block (borders render, city labels hidden at world zoom / shown when zoomed, only in-view, capped, zoom-scaled). One test had to switch from the raw `labelHeight` to the **rendered** height attribute — the component clamps using the zoom-scaled value.
+
+## Street-Level Maps: Leaflet + OSM tiles (Aug 2026)
+
+*"If we did wanna jump [to] street level, I don't care about the offline support. That was never a requirement... the feature is most useful when you're online."*
+
+**`src/components/LocationDetailMap.vue`** — tap a dot on the `WorldMap` overview (or a place name in the Filmed in / Set in lists) and a real tile map opens beneath it, centred on that point.
+
+- **Layered on, not replacing.** The SVG overview is good at "everywhere this movie went, at a glance" and works offline; this is good at "where exactly is that one" and needs a connection. Both earn their place.
+- **Lazily imported** (`webpackChunkName: "location-detail-map"`), so Leaflet only downloads when someone actually opens a close-in map. Measured: 147K raw / **42K gzipped** in its own chunk, `chunk-vendors` unchanged.
+- **Initial zoom is derived from how precise the point is** — counted from the decimal places on the stored lat/lon. A country or state centroid is an arbitrary spot in the middle of a landmass, so dropping someone at street level there would be actively misleading; those open at zoom 7, a district-level point at 12, a real address at 16.
+- **`L.circleMarker`, not `L.marker`** — Leaflet's default marker is a PNG referenced by relative path, which breaks under webpack unless the asset paths are patched. A circle needs no assets and matches the overview dots.
+- **`scrollWheelZoom: false`** — otherwise the map hijacks trackpad scrolling on a page you're mostly scrolling past.
+- Changing the location moves the existing map (`setView`) rather than tearing it down.
+
+### OSM tile policy — what it requires, and what we must not break
+Read at [operations.osmfoundation.org/policies/tiles](https://operations.osmfoundation.org/policies/tiles/). Normal interactive viewing is permitted. Requirements, all satisfied:
+- **Visible attribution** — Leaflet's control, configured on the tile layer.
+- **No bulk or offline prefetching.** `vue.config.js`'s `runtimeCaching` rules are host-specific (TMDB images, Google fonts), so tiles are never precached. **Do not add a broad image-caching rule** — it would silently put us in breach.
+- **No SLA**: tiles can stop serving without notice, so nothing else on the page depends on them.
+
+### Tile provider is a starting choice, not a settled one
+OSM standard was picked because it needs no account — the only option shippable while the user was away from his computer. It's a light street map in an otherwise dark app. **Revisit with him** (memory: `project-revisit-map-tile-source`): **Stadia/MapTiler** have dark styles that would match and domain-locked keys safe to commit; **Esri World Imagery** (satellite) serves without a key and is the most compelling for a filming location, but its terms were never verified — check before relying on it; **Carto dark** still serves but now restricts tile access to enterprise/grant licences, so it's out. Swapping is a one-line change to `TILE_URL` + `ATTRIBUTION`.
+
+Tests: `LocationDetailMap.test.js` (12) — Leaflet is mocked (it needs real layout and a canvas, neither of which jsdom has), so the assertions are about how we drive it: tile URL, attribution present, the precision-to-zoom mapping, marker colour by type, move-don't-rebuild on prop change, and teardown.
