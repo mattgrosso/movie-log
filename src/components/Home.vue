@@ -637,30 +637,6 @@
               </div>
 
               <div class="mt-4">
-                <label class="form-label d-block">Filming &amp; story locations</label>
-                <small class="form-text text-white d-block mb-2">
-                  Looks up where each movie was filmed and where its story is set, from Wikidata. Shows up on movie pages and as a world map in Insights. Safe to run again anytime.
-                </small>
-                <button
-                  class="btn btn-outline-info btn-sm"
-                  @click="backfillLocationsData"
-                  :disabled="locationsBackfill.status === 'running'"
-                >
-                  <span v-if="locationsBackfill.status === 'running'">
-                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                    Looking up {{ locationsBackfill.completed }}/{{ locationsBackfill.total }}...
-                  </span>
-                  <span v-else>
-                    <i class="bi bi-geo-alt"></i> Fill in locations for all movies
-                  </span>
-                </button>
-                <div v-if="locationsBackfill.status === 'done'" class="text-success mt-2">
-                  <small v-if="locationsBackfill.total"><i class="bi bi-check-circle"></i> Checked {{ locationsBackfill.total }} movie{{ locationsBackfill.total === 1 ? '' : 's' }}; {{ locationsBackfill.withLocations }} had locations{{ locationsBackfill.failed ? ` (${locationsBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
-                  <small v-else><i class="bi bi-check-circle"></i> Everything's already been checked.</small>
-                </div>
-              </div>
-
-              <div class="mt-4">
                 <label class="form-label d-block">Production countries</label>
                 <small class="form-text text-white d-block mb-2">
                   Fetches which countries produced each movie, and the languages spoken in it. Safe to run again anytime.
@@ -1014,7 +990,6 @@ import { LAST_PLAYED_KEY, GAME_ICONS } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
 import { backfillProductionCountries, collectMoviesNeedingCountries } from '../assets/javascript/backfillProductionCountries.js';
-import { backfillMovieLocations, collectMoviesNeedingLocations } from '../assets/javascript/movieLocations.js';
 import { makePlaceholderId } from '../utils/placeholderId.js';
 import {
   countDirectors as countDirectorsUtil,
@@ -1102,7 +1077,6 @@ export default {
       offlineDownload: { status: 'idle', completed: 0, total: 0, failed: 0 },
       boxOfficeBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
       countriesBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
-      locationsBackfill: { status: 'idle', completed: 0, total: 0, failed: 0, withLocations: 0 },
       quickLinksSortType: "count",
       scrapingTest: {
         loading: false,
@@ -3615,28 +3589,6 @@ export default {
       );
 
       this.countriesBackfill = { status: 'done', ...result };
-    },
-    async backfillLocationsData () {
-      if (this.locationsBackfill.status === 'running') {
-        return;
-      }
-
-      const candidateCount = collectMoviesNeedingLocations(this.$store.state.movieLog).length;
-      this.locationsBackfill = { status: 'running', completed: 0, total: candidateCount, failed: 0, withLocations: 0 };
-
-      // Wikidata rather than TMDB, and queried in large batches rather than
-      // per movie - ~1,400 films is about 7 requests, not 1,400.
-      const result = await backfillMovieLocations(
-        this.$store.state.movieLog,
-        (batch) => this.writeMovieFieldBatch(batch, (item) => ({ locations: item.locations })),
-        {
-          onProgress: (progress) => {
-            this.locationsBackfill = { ...this.locationsBackfill, ...progress };
-          }
-        }
-      );
-
-      this.locationsBackfill = { status: 'done', ...result };
     },
     saveStickinessPromptState (value) {
       this.stickinessPromptState = value;

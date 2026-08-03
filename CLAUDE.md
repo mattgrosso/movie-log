@@ -1126,43 +1126,80 @@ Until the library arrives, `userRatedMovieCount` is 0 — **indistinguishable fr
 
 Fixed at the concept rather than by adding a third call-site guard: `isBrandNewUser` now means "the library has loaded AND it's empty." The other two guards are now redundant but harmless. Tests: a `while the library is still loading` describe block in `NewUserOnboarding.test.js` (nothing renders pre-load; both appear once `dbLoaded` flips) — verified as a genuine regression guard by reverting the fix and watching both fail. The test harness's `mountHome` gained a `{ dbLoaded }` option and now returns its mock store so a test can flip that flag the way real loading does.
 
-## Geographic Data: Filming & Story Locations (Aug 2026)
+## Geography / Maps: BUILT AND REMOVED (Aug 2026)
 
-User found [readingmaps.com](https://readingmaps.com) — a hand-curated atlas plotting journeys from novels *and films* — and asked whether we could use it. **We can't, and shouldn't.** Their [Terms of Use](https://readingmaps.com/terms) explicitly prohibit exactly this: *"copy, scrape, harvest, or systematically extract the route data, waypoints, coordinates, or written descriptions, whether by hand or by automated means, without our written permission"* (also: no using the content to train/evaluate ML models, no redistribution). It's the original creative work of one person (Aires Loutsaris, UK) protected by copyright **and** database rights. What their terms DO permit, explicitly, is browsing and *"share links to it freely."*
+A filming-and-story-location feature was built out over several rounds and then
+**taken back out at the user's request**: *"I'm not sure we've really got it
+with this location stuff. I think there's a lot of good work here, and we've got
+some pieces of something that might work, but I think we should take the whole
+thing out."* Do not treat any of the below as describing current code — none of
+it exists. It's recorded because the research is expensive to redo and the
+findings are what a second attempt should start from.
 
-**Worth knowing so nobody rediscovers it and assumes it's fair game**: their frontend is a React app talking to a Supabase backend whose publishable/anon key sits in the client JS bundle, so the whole dataset is realistically one HTTP request away. That is their internal backend, not an offered API, and the terms cover it regardless. Do not use it. If we ever want this data, the path is emailing them — the user said they'd consider that separately.
+**Deleted**: `movieLocations.js`, `mapViewBox.js`, `worldMap.json`,
+`WorldMap.vue`, `LocationDetailMap.vue`, `scripts/generate-world-map-data.mjs`,
+the `leaflet` dependency, MovieDetail's "On The Map" section, Insights'
+"Around The World" pane, and Home's locations backfill button. All recoverable
+from git history (see the commits between "Add filming/story locations..." and
+"Fix unclickable map dots...").
 
-### What we built instead: Wikidata (CC0)
-- **Joins directly to what we already store**: `P4947` is the TMDB movie ID, so no fuzzy title matching. Measured against the real 1,367-movie library: **99% matched**, 58% had filming locations (`P915`), 71% narrative locations (`P840`), **79% had at least one**. Coordinates come from `P625` on the place item.
-- **`P915` (filmed in) and `P840` (set in) are kept distinct end to end** — they answer different questions, and "set in" is conceptually the closest thing to what Reading Maps does. A place can legitimately be both for the same film (Fight Club: LA is both), which is two facts, not a duplicate.
-- **The SPARQL query shape is load-bearing and was arrived at by measurement.** The obvious `{ ?film wdt:P915 ?place } UNION { ?film wdt:P840 ?place }` **times out on the live endpoint even at two ids** — the planner won't push the id constraint into both branches. Binding the predicate from a VALUES block instead (`VALUES (?prop ?type) { (wdt:P915 "filming") (wdt:P840 "narrative") }`) runs a **200-id batch in ~2.4s**. If you change this query, re-measure against query.wikidata.org rather than assuming. WDQS sends `access-control-allow-origin: *`, so browser-side queries work.
-- **`src/assets/javascript/movieLocations.js`** (pure, store-free): `buildLocationsQuery`, `parsePoint`, `parseLocationsResponse`, `aggregateLocations`, `collectMoviesNeedingLocations`, `fetchLocationsForIds`, `backfillMovieLocations`. **WKT is longitude-FIRST** (`Point(-118.24 34.05)`) — the opposite of how coordinates are usually written, and getting it backwards puts Los Angeles in the Indian Ocean; pinned by test.
-- **`locations: []` is meaningful, not a no-op**: it records "checked, found nothing," so re-running the backfill doesn't re-query every locationless film forever. `backfillBoxOffice` *can't* make that distinction (TMDB uses `0` for both "no data" and a real zero), which is why that one re-fetches figure-less films on every run.
+### Findings worth keeping for a second attempt
+- **Reading Maps (readingmaps.com) is off limits.** Their terms explicitly
+  prohibit extracting route data, waypoints, coordinates or descriptions. Their
+  frontend does expose a Supabase anon key in the client bundle, so the data is
+  a request away — that is not an invitation, and it was deliberately not used.
+  Linking is explicitly permitted. Emailing Aires Loutsaris is the legitimate
+  route.
+- **Wikidata is the open answer and it works well.** CC0, joins directly via
+  `P4947` (TMDB id) — **99% of the library matched**, 58% had filming locations
+  (`P915`), 71% narrative (`P840`), **79% had at least one**.
+- **The SPARQL query shape matters and was found by measurement.** The obvious
+  `{ ?film wdt:P915 ?p } UNION { ?film wdt:P840 ?p }` **times out even at two
+  ids**. Binding the predicate from a VALUES block
+  (`VALUES (?prop ?type) { (wdt:P915 "filming") (wdt:P840 "narrative") }`) runs
+  200 ids in ~2.4s. WDQS sends `access-control-allow-origin: *`.
+- **WKT is longitude-FIRST** (`Point(-118.24 34.05)`) — reversing it puts Los
+  Angeles in the Indian Ocean.
+- **Coordinate precision varies and matters.** Measured across 132 real places:
+  ~15% are country centroids, but **64% are precise to ~100m or better**. Any
+  zoom behaviour has to key off precision, or a country centroid gets presented
+  as a street address.
+- **Map data resolution, measured by rendering and comparing:** Natural Earth
+  110m staircases into rectangles past ~5x; 50m stays smooth to ~16x; 10m adds
+  almost nothing over 50m for ~6x the bytes. Costs gzipped: 110m land 17K; 50m
+  land + country borders + 1,160 city labels 318K; + state/province lines 381K.
+- **Labels beat geometry.** City labels cost 13K gzipped and did more for
+  legibility than 228K of finer coastline. A dot off the California coast means
+  nothing; a dot beside "Los Angeles" means everything.
+- **Anything drawn on an SVG map must be sized in CSS pixels, not grid units.**
+  Sizing in grid units produced dots ~1.6px across on a phone — the
+  zoom-compensation logic was correct, the constant it held was just far too
+  small, and it looked fine only in 1000px-wide test renders.
+- **OSM tiles** are usable for interactive viewing with visible attribution and
+  no offline prefetching, but carry no SLA. **Carto** now restricts tile access
+  to enterprise/grant licences. **Esri satellite** serves without a key and is
+  the most compelling for a filming location, but its terms were never verified.
+  **Stadia/MapTiler** have dark styles matching the app and domain-locked keys.
 
-### The map: hand-rolled SVG, not Leaflet
-`src/components/WorldMap.vue` + `src/assets/data/worldMap.json` (Natural Earth, **public domain**, pre-projected to SVG paths by `scripts/generate-world-map-data.mjs`; webpack auto-splits it into its own chunk shared by MovieDetail and Insights). **Originally 110m land only at 43KB; upgraded to 50m land + country borders + city labels — see the Aug 2026 section below for why and what it cost.** Deliberately **not** a tile-based map: no new runtime dependency, no API key, no tile-server usage policy to respect, and it keeps working offline — which this app supports properly and shouldn't regress.
-- Equirectangular projection, matching how the paths were baked.
-- **`viewBox` (display) and `width`/`height` (projection) are deliberately different.** The display window crops the empty polar caps (Antarctica + high Arctic are ~20% of the height and never hold a film location), so the useful world is bigger on a phone. Deriving projection size from the cropped viewBox would silently skew every point northward — pinned by test.
-- Verified visually, not just by unit test: rendered to PNG via `rsvg-convert` with known reference cities (Null Island on the crosshair, London on the UK, Sydney on SE Australia) and again with the real Inception/Forrest Gump location sets. A projection bug is exactly the kind of thing that passes tests and looks obviously wrong.
+### Stored data was deliberately NOT deleted
+If the backfill was ever run, entries carry `movie.locations`. That field is now
+unread, and removing it would mean re-querying Wikidata for the whole library on
+a second attempt. Leave it.
 
-### Where it shows up
-- **MovieDetail**: "Made In" (production countries) and "On The Map" (map + legend + "Filmed in:" / "Set in:" lists).
-- **Insights**: an "Around The World" pane with every place the library touches, All / Filmed in / Set in filter, and per-place counts folded into the label. The aggregation lives in `movieLocations.js` as `aggregateLocations` rather than as a computed, so it's testable without mounting a 3,000-line component.
-- **Settings**: two new backfills alongside box office — "Fill in locations for all movies" (Wikidata, batched: ~1,400 films is about 7 requests, not 1,400) and "Fill in production countries" (TMDB).
-
-### Production countries were already free
-TMDB returns `production_countries` and `spoken_languages` on the very same `/movie/{id}` call the app already makes — `shapeTmdbDataIntoMovie` simply never kept them, so the library had them for **1 movie out of 1,367**. Now stored going forward, plus a backfill for existing entries.
+### What survived the removal, and why
+- **Production countries** ("Made In" on MovieDetail + its backfill). Independent
+  of the maps, plain text, working. Flagged to the user as kept.
+- **`tmdbBackfill.js`**, the shared backfill engine — still used by box office
+  and production countries.
+- **The re-rate preservation fix** below, which fixed a genuine pre-existing bug
+  unrelated to maps. `CARRIED_OVER_MOVIE_FIELDS` is now empty but the mechanism
+  stays.
+- The Letterboxd viewing-date fix and the MovieDetail section reordering.
 
 ### `tmdbBackfill.js` — shared backfill engine
 The concurrency + batched-write machinery was extracted out of `backfillBoxOffice.js` into `src/assets/javascript/tmdbBackfill.js` (`runTmdbBackfill`, `hasRealTmdbId`) and is now shared with the production-countries backfill. Extracted rather than copied because that logic is subtle (worker pool, plus a flush whose grab-and-clear is deliberately synchronous so concurrent workers can't race it) and two copies would drift — the same mistake that produced the duplicated count maps later consolidated into `entityCounts.js`. `backfillBoxOffice`'s public API is unchanged and all 18 of its pre-existing tests pass untouched. **Batched writes are a bug fix, not an optimisation** — see the Jul 2026 incident where a per-movie design froze and crashed the tab on a real library. `Home.vue`'s `writeMovieFieldBatch(batch, fieldsFor)` is the one shared write path for all three backfills: leaf-path updates only (never the whole `movie` object, which could clobber siblings with a stale snapshot), one combined local commit + one combined remote multi-path update per batch.
 
-Tests: `movieLocations.test.js` (32), `WorldMap.test.js` (14), `backfillProductionCountries.test.js` (10), plus a geography describe block in `MovieDetail.test.js`.
-
-### Locations fill in automatically on new ratings (Aug 2026)
-Follow-up ask: *"Every new movie should automatically pull that data and include it so that I don't need to push that button except just once right now in order to catch up for past entries."*
-
-- **Production countries were already automatic** — `shapeTmdbDataIntoMovie` keeps them, so any rating saved after that change has them. Only locations needed wiring.
-- **`storeLocationsForRating(dbEntry)`** in `AddRating.js`, called fire-and-forget at the end of `addRating` alongside `warmImageCache` and for the same reason: Wikidata being slow or down must never delay or fail an actual rating. Skips placeholders (no TMDB id to join on), skips when offline, and skips when `locations` is already known. Writes the **leaf path** `movieLog/<key>/movie/locations` so it can't clobber sibling fields, and re-reads the entry from state rather than reusing the captured `dbEntry`. Anything it misses is still caught by the backfill, since a movie only counts as "checked" once `locations` is actually written.
+Tests: `backfillProductionCountries.test.js` (10), plus a `Made In` describe block in `MovieDetail.test.js`. (The locations/map test files went with the feature.)
 
 ### Re-rating used to destroy locally-owned data (fixed in the same pass)
 Found while wiring the above, and **wider than locations**. Saving a rating does a full `set()` of `movieLog/<key>`, and `shapeTmdbDataIntoMovie` builds a **brand new** movie object from the TMDB response — so anything not explicitly rebuilt was silently wiped:
@@ -1171,89 +1208,15 @@ Found while wiring the above, and **wider than locations**. Saving a rating does
 
 Fixed in `addMovieRating` with two deliberately different strategies:
 - **Entry level — copy everything** except `movie`/`ratings` (being replaced) and `dbKey` (injected by the store's getter at read time, not real stored data). Nothing at this level comes from TMDB, so it's all worth keeping, and an allowlist would silently start dropping whatever gets added next.
-- **Movie level — an explicit allowlist** (`CARRIED_OVER_MOVIE_FIELDS = ['locations']`), applied only where the fresh TMDB object doesn't define the field. A blanket merge would resurrect stale values that re-fetching exists to correct, and would keep `isPendingReconciliation: true` set on a placeholder being finalised.
+- **Movie level — an explicit allowlist** (`CARRIED_OVER_MOVIE_FIELDS`, now empty since `locations` went with the maps), applied only where the fresh TMDB object doesn't define the field. A blanket merge would resurrect stale values that re-fetching exists to correct, and would keep `isPendingReconciliation: true` set on a placeholder being finalised.
 
-Tests: `TMDbDataProcessing.test.js` — an `automatically on a new rating` block (looks up and stores, leaf path, explicit `[]` when nothing is found, skips offline/placeholder/already-known, and a Wikidata failure never affecting the rating) and a `re-rating preserves locally-owned data` block. All verified as real guards by reverting the fix and watching 3 fail.
+Tests: the `re-rating preserves locally-owned data` block in `TMDbDataProcessing.test.js`, verified as a real guard by reverting the fix. (The locations half of that block went with the feature.)
 
-### Three bug reports on the geography feature (Aug 2026)
+### Two bug reports from that round that still stand (Aug 2026)
 
-**Section order on MovieDetail** — *"we should move the awards at the cast and the keywords up above the box office."* Order is now Genres → Awards → Cast → Keywords → Box Office → Made In → On The Map → Tags.
-
-**Map was too far out** — *"it is too zoomed out ... we need to automatically scope the map zoomed in already ... the most zoomed in that it can be where it still contains all of the points of interest."* New pure module **`src/assets/javascript/mapViewBox.js`** (`fitViewBox`) computes the tightest box containing every point; `WorldMap` uses it by default (`fit` prop, default true) and falls back to the stored world view when there's nothing to fit.
-- **`minWidth` (800/2000, i.e. a ~2.5x zoom cap) is set by the SOURCE DATA, not taste.** Natural Earth 110m is drawn for world-scale maps and has no borders or labels, so past ~2.5x it degrades into an unrecognisable blur. Picked by rendering a single-location movie (Fight Club, LA only) at 600/800/1000 and comparing the PNGs. Raising it needs higher-resolution land data — a real bundle-size tradeoff.
-- **Dots, labels and strokes are scaled by `zoomScale`** (`visibleWidth / width`). They're sized in viewBox units, so without that a 5x zoom renders 5x bigger dots. Strokes additionally use `vector-effect: non-scaling-stroke`.
-- **Containment beats aspect ratio** — a bug its own test caught: points in opposite corners give a 2:1 span, which the 2.5:1 target widens past the world's width; clamping the width then re-derived a height *shorter than the points' own vertical span*, pushing them outside the box. There's now a final pass forcing the box to cover both spans.
-- **KNOWN LIMITATION, deliberate**: no antimeridian wrapping. Tokyo + Los Angeles spans the long way round (~257°) instead of across the Pacific (~103°). Correct, just wider than ideal; pinned by test so it reads as a choice.
+**Section order on MovieDetail** — *"we should move the awards at the cast and the keywords up above the box office."* Order is now Genres → Awards → Cast → Keywords → Box Office → Made In → Tags.
 
 **Letterboxd log date** (reported by Natalie) — *"it should have the date automatically filled in ... Even if I didn't watch it today and also even if I have watched it multiple times."* `generateUrls` was always sending **today**. It now takes `options.viewingDate` and uses the date the movie was actually watched, falling back to today only when there isn't a usable one. Both call sites (`MovieDetail`, `DBGridLayoutSearchResult`) pass `mostRecentRating(result)?.date` — the latest viewing, which is the one being logged for a rewatch. New `toLocalISODate(value)` generalises `todayLocalISODate`, and keeps the local-components approach for the same reason: `toISOString()` is UTC and would report the previous day for an evening viewing in a western timezone.
 
-Tests: `mapViewBox.test.js` (12), auto-fit block in `WorldMap.test.js`, viewing-date blocks in `LetterboxdUrlService.test.js`.
+Tests: viewing-date blocks in `LetterboxdUrlService.test.js`. (The map-zoom fix from this same round was removed along with the maps.)
 
-## Map Data Upgrade: 50m + borders + city labels (Aug 2026)
-
-*"How can we get even more zoomed in with the maps? ... it would be really fun to see the exact information if we have it."*
-
-**First finding: our own coordinates are far better than assumed.** Measured the `geoPrecision` of 132 real places from the library — only ~15% are country centroids; **64% are precise to ~100m or better** (41% at ~31m, i.e. building-level). So the data genuinely supports close zoom. The bottleneck was the map, not the points.
-
-**Second finding, by measurement not guesswork:** rendered southern California at 16x with 110m / 50m / 10m land and compared PNGs. 110m visibly **staircases into rectangles**. 50m is smooth and picks up the Channel Islands. **10m adds almost nothing over 50m for ~6x the bytes** — ruled out.
-
-**Third finding, the important one:** most of what made a zoomed map unreadable wasn't coastline fidelity, it was that **nothing was named**. City labels cost **13K gzipped** and buy more legibility than the 228K of finer coastline. A dot off the California coast means nothing; a dot beside "Los Angeles" means everything.
-
-Shipped (user picked the full upgrade from a costed menu):
-
-| | raw | gzipped |
-|---|---|---|
-| was: 110m land | 42K | 17K |
-| now: 50m land + country borders + 1,160 city labels | 847K | **318K** |
-
-- **Lives in a lazily-loaded, content-hashed chunk** — only downloads when a map is opened, once per device, not per deploy. Measured in the real build at 852K raw / 321K gzipped.
-- **`scripts/generate-world-map-data.mjs`** (committed, like the rules generator) fetches Natural Earth GeoJSON and emits `worldMap.json`. Re-run it to change layers or resolution.
-- **Grid moved from 2000x1000 to 20000x10000.** At the old grid one unit is ~20km, which would throw away most of what 50m data contains; the new one is ~2km/unit, finer than anything visible at max zoom. Everything drawn on top (dot radii, label sizes) is in grid units and scaled 10x accordingly — `Insights` passes `dotRadius: 50`, not 5.
-- **`mapViewBox`'s `minWidth` floor moved 800 → 1250** (of 20000), i.e. the zoom cap went from ~2.5x to ~16x, which is where 50m stops being smooth.
-- **City labels are zoom-gated and de-cluttered**: hidden entirely above `cityZoomThreshold` (0.6 of the world) where they'd be noise, then filtered to the current view, spacing-culled so names don't sit on each other, and capped at `maxVisibleCities` (30). `worldMap.cities` is pre-sorted by Natural Earth `scalerank`, so simply taking the first N that fit yields the notable ones.
-- **`vector-effect: non-scaling-stroke`** on land/border/dot strokes — they're in grid units too and would otherwise thicken as the map zooms.
-
-**State/province lines added immediately after (+63K gzipped, total 381K).** Initially left out on the grounds that they exceeded "the costed scope the user approved" — **that was a mistake, and worth recording as a process note**: the user had picked a set of LAYERS from a menu, not a byte budget, and never stated a size limit. Turning their menu selection into an invented ceiling, and then using that ceiling to rule out an option without asking, is the error. If a further layer seems worthwhile, just ask. They're especially valuable here because Wikidata so often returns a US STATE as a film's location — "Colorado" now lands inside a visible outline. Drawn beneath country lines and more faintly so the two read as a hierarchy.
-
-**A second correction from the same exchange: offline support is NOT a blanket requirement.** The app genuinely has offline support and the user did ask for it — but that was extrapolated into a standing veto over any feature that needs a network, which they never said. Their words: *"I don't care about the offline support. That was never a requirement either. That would be a nice to have, but the feature is most useful when you're online."* Weigh it as a nice-to-have per feature, not a constraint.
-
-Tests: `WorldMap.test.js` rebased onto the 20000x10000 grid, plus a context-layers block (borders render, city labels hidden at world zoom / shown when zoomed, only in-view, capped, zoom-scaled). One test had to switch from the raw `labelHeight` to the **rendered** height attribute — the component clamps using the zoom-scaled value.
-
-## Street-Level Maps: Leaflet + OSM tiles (Aug 2026)
-
-*"If we did wanna jump [to] street level, I don't care about the offline support. That was never a requirement... the feature is most useful when you're online."*
-
-**`src/components/LocationDetailMap.vue`** — tap a dot on the `WorldMap` overview (or a place name in the Filmed in / Set in lists) and a real tile map opens beneath it, centred on that point.
-
-- **Layered on, not replacing.** The SVG overview is good at "everywhere this movie went, at a glance" and works offline; this is good at "where exactly is that one" and needs a connection. Both earn their place.
-- **Lazily imported** (`webpackChunkName: "location-detail-map"`), so Leaflet only downloads when someone actually opens a close-in map. Measured: 147K raw / **42K gzipped** in its own chunk, `chunk-vendors` unchanged.
-- **Initial zoom is derived from how precise the point is** — counted from the decimal places on the stored lat/lon. A country or state centroid is an arbitrary spot in the middle of a landmass, so dropping someone at street level there would be actively misleading; those open at zoom 7, a district-level point at 12, a real address at 16.
-- **`L.circleMarker`, not `L.marker`** — Leaflet's default marker is a PNG referenced by relative path, which breaks under webpack unless the asset paths are patched. A circle needs no assets and matches the overview dots.
-- **`scrollWheelZoom: false`** — otherwise the map hijacks trackpad scrolling on a page you're mostly scrolling past.
-- Changing the location moves the existing map (`setView`) rather than tearing it down.
-
-### OSM tile policy — what it requires, and what we must not break
-Read at [operations.osmfoundation.org/policies/tiles](https://operations.osmfoundation.org/policies/tiles/). Normal interactive viewing is permitted. Requirements, all satisfied:
-- **Visible attribution** — Leaflet's control, configured on the tile layer.
-- **No bulk or offline prefetching.** `vue.config.js`'s `runtimeCaching` rules are host-specific (TMDB images, Google fonts), so tiles are never precached. **Do not add a broad image-caching rule** — it would silently put us in breach.
-- **No SLA**: tiles can stop serving without notice, so nothing else on the page depends on them.
-
-### Tile provider is a starting choice, not a settled one
-OSM standard was picked because it needs no account — the only option shippable while the user was away from his computer. It's a light street map in an otherwise dark app. **Revisit with him** (memory: `project-revisit-map-tile-source`): **Stadia/MapTiler** have dark styles that would match and domain-locked keys safe to commit; **Esri World Imagery** (satellite) serves without a key and is the most compelling for a filming location, but its terms were never verified — check before relying on it; **Carto dark** still serves but now restricts tile access to enterprise/grant licences, so it's out. Swapping is a one-line change to `TILE_URL` + `ATTRIBUTION`.
-
-Tests: `LocationDetailMap.test.js` (12) — Leaflet is mocked (it needs real layout and a canvas, neither of which jsdom has), so the assertions are about how we drive it: tile URL, attribution present, the precision-to-zoom mapping, marker colour by type, move-don't-rebuild on prop change, and teardown.
-
-### Two bugs in the first street-level cut (Aug 2026)
-*"The tiny little points on the map are way too small to actually click on, but I did manage to click on one, and I just got back... a text underneath the map that says object, comma, promise."*
-
-**1. `[object Promise]` under the map.** `MovieDetail.vue` registered the lazy component as `const LocationDetailMap = () => import('./LocationDetailMap.vue')` — **Vue 2 syntax**. In Vue 3 a plain function registered as a component is a **functional component**, so Vue calls it as a render function, gets a Promise back, and renders that as text. Fixed with `defineAsyncComponent(() => import(...))`. Guarded by a structural assertion in `MovieDetail.test.js` (the registered component must be an object, not a function) — verified to fail when reverted. **A rendering test does NOT catch this**: `shallowMount` stubs the async component, so it passes either way; the sibling smoke test is named honestly to say so.
-
-**2. Dots ~1.6px across.** Everything drawn on the map was sized in GRID units, so a `dotRadius` of 90 rendered as `90/20000` of the container — about 1.6px on a phone. The "keep apparent size constant while zooming" logic was working exactly as written; the size it held constant was simply far too small, and it was only ever eyeballed in 1000px-wide test renders where it looked passable.
-
-Everything on top of the map is now sized in **CSS pixels**, converted through `unitsPerPixel = visibleWidth / containerWidth`:
-- `containerWidth` is measured after mount and kept current by a `ResizeObserver` (the map is fluid-width, so rotating a phone changes every pixel-sized thing on it). Falls back to 360 for the first tick and for jsdom, which reports 0 for all layout.
-- `px(pixels)` replaces the old `scaled(gridUnits)` everywhere — dots, labels, city text, the de-clutter spacing.
-- **`dotRadius` is now a PIXEL value**: default 7, `Insights` passes 4 (was 90/50 in grid units).
-- **Each dot has an invisible `.place-hit` circle under it at 18px radius** — a 36px target. The visible dot stays small deliberately; a dot big enough to tap comfortably would swamp the map when several places cluster.
-
-Tests: a `dot sizing, in real pixels` block in `WorldMap.test.js` — stated pixel size honoured, identical real size zoomed in vs out, the tap target at least 32px across, the target larger than the dot, and tapping the target (not just the dot) selecting the point.

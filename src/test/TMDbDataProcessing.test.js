@@ -37,15 +37,6 @@ vi.mock('@/assets/javascript/offlinePosterCache.js', async () => {
   }
 })
 
-const fetchLocationsForIdsMock = vi.fn(() => Promise.resolve({}))
-vi.mock('@/assets/javascript/movieLocations.js', async () => {
-  const actual = await vi.importActual('@/assets/javascript/movieLocations.js')
-  return {
-    ...actual,
-    fetchLocationsForIds: (...args) => fetchLocationsForIdsMock(...args)
-  }
-})
-
 // enqueueWrite resolves the stored record, matching the real implementation.
 const enqueueWriteMock = vi.fn((entry) => Promise.resolve({ id: 'queued-1', attempts: 0, lastError: null, createdAt: Date.now(), ...entry }))
 const removePendingWriteMock = vi.fn(() => Promise.resolve())
@@ -769,139 +760,17 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
     })
   })
 })
-// The user's ask: "Every new movie should automatically pull that data... so
-// that I don't need to push that button except just once right now in order to
-// catch up for past entries."
-describe('locations are fetched automatically on a new rating', () => {
-  const paris = { name: 'Paris', lat: 48.85, lon: 2.35, type: 'filming', id: 'Q90' }
-
-  const tmdbOk = () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/credits')) return Promise.resolve({ data: { cast: [], crew: [] } })
-      if (url.includes('/keywords')) return Promise.resolve({ data: { keywords: [] } })
-      return Promise.resolve({ data: { id: 42, title: 'Test Movie', genres: [], production_countries: [], spoken_languages: [] } })
-    })
-  }
-
-  // storeLocationsForRating is fire-and-forget, so the assertions have to wait
-  // for the microtask queue rather than for addRating itself.
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    store.state.movieLog = {}
-    store.state.isOnline = true
-    fetchLocationsForIdsMock.mockResolvedValue({})
-    tmdbOk()
-  })
-
-  it('looks up and stores locations without being asked', async () => {
-    fetchLocationsForIdsMock.mockResolvedValue({ 42: [paris] })
-    store.commit.mockImplementation((type, payload) => {
-      if (type === 'setMovieLogEntry') store.state.movieLog[payload.key] = payload.value
-    })
-
-    await addRating([{ id: 42, title: 'Test Movie', date: Date.now() }])
-    await settle()
-
-    expect(fetchLocationsForIdsMock).toHaveBeenCalledWith(['42'])
-    const write = store.dispatch.mock.calls.find(([, arg]) => arg?.path?.endsWith('/movie/locations'))
-    expect(write).toBeTruthy()
-    expect(write[1].value).toEqual([paris])
-  })
-
-  it('writes a leaf path, so it cannot clobber sibling movie fields', async () => {
-    fetchLocationsForIdsMock.mockResolvedValue({ 42: [paris] })
-    store.commit.mockImplementation((type, payload) => {
-      if (type === 'setMovieLogEntry') store.state.movieLog[payload.key] = payload.value
-    })
-
-    await addRating([{ id: 42, title: 'Test Movie', date: Date.now() }])
-    await settle()
-
-    const write = store.dispatch.mock.calls.find(([, arg]) => arg?.path?.endsWith('/movie/locations'))
-    expect(write[1].path).toMatch(/^movieLog\/[^/]+\/movie\/locations$/)
-  })
-
-  it('records an explicit empty array when Wikidata knows nothing, so it is not re-queried forever', async () => {
-    fetchLocationsForIdsMock.mockResolvedValue({})
-    store.commit.mockImplementation((type, payload) => {
-      if (type === 'setMovieLogEntry') store.state.movieLog[payload.key] = payload.value
-    })
-
-    await addRating([{ id: 42, title: 'Test Movie', date: Date.now() }])
-    await settle()
-
-    const write = store.dispatch.mock.calls.find(([, arg]) => arg?.path?.endsWith('/movie/locations'))
-    expect(write[1].value).toEqual([])
-  })
-
-  it('does not look anything up while offline', async () => {
-    store.state.isOnline = false
-    store.state.movieLog = { existing: { movie: { id: 42, title: 'Test Movie' }, ratings: [] } }
-
-    await addRating([{ id: 42, title: 'Test Movie', date: Date.now() }])
-    await settle()
-
-    expect(fetchLocationsForIdsMock).not.toHaveBeenCalled()
-  })
-
-  it('does not look anything up for an offline placeholder, which has no TMDB id to join on', async () => {
-    await addRating([{ id: 'offline-abc', title: 'Half Remembered Movie', date: Date.now() }])
-    await settle()
-
-    expect(fetchLocationsForIdsMock).not.toHaveBeenCalled()
-  })
-
-  it('does not re-query a movie whose locations are already known', async () => {
-    // Re-rating a movie that already has them: the carry-over below means
-    // dbEntry.value.movie.locations is already set, so there is nothing to do.
-    store.state.movieLog = {
-      existing: { movie: { id: 42, title: 'Test Movie', locations: [paris] }, ratings: [] }
-    }
-
-    await addRating([{ id: 42, title: 'Test Movie', date: Date.now() }])
-    await settle()
-
-    expect(fetchLocationsForIdsMock).not.toHaveBeenCalled()
-  })
-
-  it('never lets a Wikidata failure affect the rating itself', async () => {
-    fetchLocationsForIdsMock.mockRejectedValue(new Error('WDQS down'))
-
-    // The rating must still resolve normally, not reject.
-    const dbEntry = await addRating([{ id: 42, title: 'Test Movie', date: Date.now() }])
-    await settle()
-
-    expect(dbEntry).toBeTruthy()
-    expect(dbEntry.value.movie.title).toBe('Test Movie')
-  })
-})
-
 // A rating save does a full set() of movieLog/<key>, and shapeTmdbDataIntoMovie
 // builds a brand new movie object — so anything not carried across is wiped.
 describe('re-rating preserves locally-owned data', () => {
-  const paris = { name: 'Paris', lat: 48.85, lon: 2.35, type: 'filming', id: 'Q90' }
-
   beforeEach(() => {
     vi.clearAllMocks()
     store.state.isOnline = true
-    fetchLocationsForIdsMock.mockResolvedValue({})
     axios.get.mockImplementation((url) => {
       if (url.includes('/credits')) return Promise.resolve({ data: { cast: [], crew: [] } })
       if (url.includes('/keywords')) return Promise.resolve({ data: { keywords: [] } })
       return Promise.resolve({ data: { id: 42, title: 'Test Movie', genres: [], production_countries: [], spoken_languages: [] } })
     })
-  })
-
-  it('keeps locations across a re-rate', async () => {
-    store.state.movieLog = {
-      existing: { movie: { id: 42, title: 'Test Movie', locations: [paris] }, ratings: [] }
-    }
-
-    const dbEntry = await addRating([{ id: 42, title: 'Test Movie', date: Date.now() }])
-
-    expect(dbEntry.value.movie.locations).toEqual([paris])
   })
 
   it('keeps a custom poster across a re-rate', async () => {

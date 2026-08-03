@@ -330,28 +330,6 @@
       <FavoriteProducers :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
     </InsightsPane>
 
-    <InsightsPane v-if="libraryLocationPoints.length">
-      <div class="insights-pane-header">
-        <p>Around The World</p>
-      </div>
-      <div class="location-map-controls">
-        <button
-          v-for="option in locationFilterOptions"
-          :key="option.value"
-          type="button"
-          class="location-filter"
-          :class="{ active: locationFilter === option.value }"
-          @click="locationFilter = option.value"
-        >{{ option.label }}</button>
-      </div>
-      <WorldMap :points="libraryLocationPoints" :dotRadius="4" ariaLabel="Map of every place your library touches"/>
-      <p class="location-map-summary">
-        {{ libraryLocationPoints.length }} place{{ libraryLocationPoints.length === 1 ? '' : 's' }}
-        across {{ moviesWithLocationsCount }} movie{{ moviesWithLocationsCount === 1 ? '' : 's' }}.
-        Tap a dot to see where it is.
-      </p>
-    </InsightsPane>
-
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Full Calendar</p>
@@ -379,8 +357,6 @@
 import Outliers from "./Outliers.vue";
 import YearlyAverage from "./YearlyAverage.vue";
 import FullCalendarView from "./FullCalendarView.vue";
-import WorldMap from "./WorldMap.vue";
-import { aggregateLocations } from "../assets/javascript/movieLocations.js";
 import FavoriteActresses from "./FavoriteActresses.vue";
 import FavoriteActors from "./FavoriteActors.vue";
 import FavoriteDirectors from "./FavoriteDirectors.vue";
@@ -408,7 +384,6 @@ export default {
     Outliers,
     YearlyAverage,
     FullCalendarView,
-    WorldMap,
     FavoriteActresses,
     FavoriteActors,
     FavoriteDirectors,
@@ -423,7 +398,6 @@ export default {
       selectedXAxis: 'runtime', // Will be randomized on mount
       selectedYAxis: 'userRating', // Will be randomized on mount
       selectedAwardsYear: null,
-      locationFilter: 'all',
       compactAwardsView: true,
       axisOptions: [
         { key: 'runtime', label: 'Runtime (minutes)' },
@@ -673,26 +647,6 @@ export default {
     includeShorts () {
       // Default to false if not set
       return this.$store.state.settings.includeShorts === true;
-    },
-    locationFilterOptions () {
-      return [
-        { value: 'all', label: 'All' },
-        { value: 'filming', label: 'Filmed in' },
-        { value: 'narrative', label: 'Set in' }
-      ];
-    },
-    // Every distinct place the library touches. The aggregation itself lives
-    // in movieLocations.js so it's testable without mounting this component.
-    libraryLocationPoints () {
-      return aggregateLocations(
-        this.filteredEntriesWithFlatKeywordsAdded.map((result) => this.topStructure(result)?.locations),
-        this.locationFilter
-      );
-    },
-    moviesWithLocationsCount () {
-      return this.filteredEntriesWithFlatKeywordsAdded
-        .filter((result) => (this.topStructure(result)?.locations || []).length > 0)
-        .length;
     },
     filteredEntriesWithFlatKeywordsAdded () {
       if (this.includeShorts) return this.allEntriesWithFlatKeywordsAdded;
@@ -3016,41 +2970,6 @@ export default {
 </script>
 
 <style lang="scss">
-  .location-map-controls {
-    display: flex;
-    gap: 0.4rem;
-    justify-content: center;
-    margin-bottom: 0.6rem;
-  }
-
-  .location-filter {
-    background: transparent;
-    border: 1px solid #555;
-    border-radius: 8px;
-    color: #adb5bd;
-    font-size: 0.78rem;
-    padding: 0.25rem 0.6rem;
-
-    // Mobile-first: press feedback only, no :hover (see CLAUDE.md).
-    &:active {
-      transform: scale(0.97);
-    }
-
-    &.active {
-      background: #f0ad4e;
-      border-color: #f0ad4e;
-      color: #1f1f1f;
-      font-weight: 600;
-    }
-  }
-
-  .location-map-summary {
-    color: #adb5bd;
-    font-size: 0.78rem;
-    margin: 0.5rem 0 0;
-    text-align: center;
-  }
-
   .insights {
     color: white;
     padding: 18px;

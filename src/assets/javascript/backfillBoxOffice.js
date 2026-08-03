@@ -17,7 +17,6 @@ import { runTmdbBackfill, hasRealTmdbId } from './tmdbBackfill.js';
 // fetched", because TMDB uses 0 for both. So a genuinely figure-less film
 // stays a candidate on every future run - a handful of wasted re-fetches,
 // deliberately traded for not needing a separate "already checked" marker.
-// (movieLocations.js can make that distinction and does.)
 export function collectMoviesNeedingBoxOffice (movieLog) {
   return Object.keys(movieLog || {})
     .map((dbKey) => ({ dbKey, entry: movieLog[dbKey] }))

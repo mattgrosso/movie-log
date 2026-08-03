@@ -309,38 +309,6 @@
           <p class="long-list mb-0">{{ productionCountries.join(' · ') }}</p>
         </div>
 
-        <!-- Filming & story locations, from Wikidata -->
-        <div v-if="hasLocations" class="locations mb-3">
-          <h4>On The Map</h4>
-          <WorldMap :points="movieLocations" :ariaLabel="`Map of locations for ${movie.title}`" @select="selectedLocation = $event"/>
-          <p class="map-legend mb-1">
-            <span v-if="filmingLocations.length" class="legend-item"><span class="swatch filming"></span>Filmed</span>
-            <span v-if="narrativeLocations.length" class="legend-item"><span class="swatch narrative"></span>Set</span>
-          </p>
-          <div class="long-list">
-            <p v-if="filmingLocations.length" class="mb-1">
-              <strong>Filmed in:</strong>
-              <template v-for="(location, index) in filmingLocations" :key="`f-${location.id || location.name}-${index}`">
-                <button type="button" class="location-link" @click="selectedLocation = location">{{ location.name }}</button><span v-if="index < filmingLocations.length - 1"> &middot; </span>
-              </template>
-            </p>
-            <p v-if="narrativeLocations.length" class="mb-0">
-              <strong>Set in:</strong>
-              <template v-for="(location, index) in narrativeLocations" :key="`n-${location.id || location.name}-${index}`">
-                <button type="button" class="location-link" @click="selectedLocation = location">{{ location.name }}</button><span v-if="index < narrativeLocations.length - 1"> &middot; </span>
-              </template>
-            </p>
-          </div>
-
-          <!-- Street-level view of whichever place was tapped, on real map
-               tiles. Needs a connection; the overview above doesn't. -->
-          <LocationDetailMap
-            v-if="selectedLocation"
-            :location="selectedLocation"
-            @close="selectedLocation = null"
-          />
-        </div>
-
         <!-- Tags -->
         <div v-if="(viewingTags && viewingTags.length) || isEditingTags" class="tags mb-3">
           <div class="tags-header d-flex align-items-center">
@@ -555,17 +523,8 @@
 </template>
 
 <script>
-import { defineAsyncComponent } from 'vue';
 import axios from 'axios';
 import ToggleableRating from './ToggleableRating.vue';
-import WorldMap from './WorldMap.vue';
-// defineAsyncComponent, NOT a bare `() => import(...)`. That's Vue 2 syntax;
-// in Vue 3 a plain function registered as a component is treated as a
-// FUNCTIONAL component, so Vue calls it as a render function, gets a Promise
-// back, and renders it as the text "[object Promise]".
-const LocationDetailMap = defineAsyncComponent(
-  () => import(/* webpackChunkName: "location-detail-map" */ './LocationDetailMap.vue')
-);
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
@@ -581,14 +540,11 @@ import { countDirectors, countCastCrew, countGenres, countKeywords, countStudios
 export default {
   name: 'MovieDetail',
   components: {
-    ToggleableRating,
-    WorldMap,
-    LocationDetailMap
+    ToggleableRating
   },
   data () {
     return {
       movie: null,
-      selectedLocation: null,
       result: null, // Will be constructed from movie data
       previousEntry: null,
       letterboxdData: null,
@@ -682,21 +638,6 @@ export default {
       return (this.movie?.production_countries || [])
         .map((country) => country?.name)
         .filter(Boolean);
-    },
-    // Filled in by the "Filming & story locations" backfill (Wikidata, CC0).
-    // A movie that's been checked and had nothing gets an explicit [], so this
-    // renders nothing rather than the section appearing empty.
-    movieLocations () {
-      return this.movie?.locations || [];
-    },
-    filmingLocations () {
-      return this.movieLocations.filter((location) => location.type === 'filming');
-    },
-    narrativeLocations () {
-      return this.movieLocations.filter((location) => location.type === 'narrative');
-    },
-    hasLocations () {
-      return this.movieLocations.length > 0;
     },
     // My personal awards (PersonalAwardsModal.vue) — settings.personalAwards is
     // keyed by year, each year holding { categories: { <key>: { nominees, winner } } }.
@@ -1835,50 +1776,6 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-  .locations .world-map {
-    border: 1px solid #333;
-    border-radius: 6px;
-    margin-bottom: 0.4rem;
-    overflow: hidden;
-  }
-
-  .map-legend {
-    display: flex;
-    font-size: 0.78rem;
-    gap: 1rem;
-  }
-
-  .legend-item {
-    align-items: center;
-    color: #adb5bd;
-    display: flex;
-    gap: 0.35rem;
-  }
-
-  .swatch {
-    border-radius: 50%;
-    display: inline-block;
-    height: 9px;
-    width: 9px;
-  }
-
-  /* Tappable place names in the Filmed in / Set in lists — styled as inline
-     text, not buttons, so the lists still read as prose. */
-  .location-link {
-    background: none;
-    border: none;
-    color: #7fb3ff;
-    padding: 0;
-    text-align: left;
-
-    &:active {
-      opacity: 0.7;
-    }
-  }
-
-  .swatch.filming { background: #f0ad4e; }
-  .swatch.narrative { background: #6ec1e4; }
-
 .movie-detail-page {
   min-height: 100vh;
   background: #000;
