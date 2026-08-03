@@ -167,6 +167,30 @@
           </p>
         </div>
 
+        <!-- Production countries -->
+        <div v-if="productionCountries.length" class="production-countries mb-3">
+          <h4>Made In</h4>
+          <p class="long-list mb-0">{{ productionCountries.join(' · ') }}</p>
+        </div>
+
+        <!-- Filming & story locations, from Wikidata -->
+        <div v-if="hasLocations" class="locations mb-3">
+          <h4>On The Map</h4>
+          <WorldMap :points="movieLocations" :ariaLabel="`Map of locations for ${movie.title}`" @select="selectedLocation = $event"/>
+          <p class="map-legend mb-1">
+            <span v-if="filmingLocations.length" class="legend-item"><span class="swatch filming"></span>Filmed</span>
+            <span v-if="narrativeLocations.length" class="legend-item"><span class="swatch narrative"></span>Set</span>
+          </p>
+          <div class="long-list">
+            <p v-if="filmingLocations.length" class="mb-1">
+              <strong>Filmed in:</strong> {{ filmingLocations.map((location) => location.name).join(' · ') }}
+            </p>
+            <p v-if="narrativeLocations.length" class="mb-0">
+              <strong>Set in:</strong> {{ narrativeLocations.map((location) => location.name).join(' · ') }}
+            </p>
+          </div>
+        </div>
+
         <!-- Awards -->
         <div v-if="academyAwardWins.length || academyAwardNominations.length || personalAwardWins.length || personalAwardNominations.length || otherAwardWins.length || otherAwardNominations.length" class="awards mb-3">
           <h4>Awards</h4>
@@ -519,6 +543,7 @@
 <script>
 import axios from 'axios';
 import ToggleableRating from './ToggleableRating.vue';
+import WorldMap from './WorldMap.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
@@ -534,11 +559,13 @@ import { countDirectors, countCastCrew, countGenres, countKeywords, countStudios
 export default {
   name: 'MovieDetail',
   components: {
-    ToggleableRating
+    ToggleableRating,
+    WorldMap
   },
   data () {
     return {
       movie: null,
+      selectedLocation: null,
       result: null, // Will be constructed from movie data
       previousEntry: null,
       letterboxdData: null,
@@ -627,6 +654,26 @@ export default {
     },
     hasBoxOfficeInfo () {
       return this.movieBudget > 0 || this.movieRevenue > 0;
+    },
+    productionCountries () {
+      return (this.movie?.production_countries || [])
+        .map((country) => country?.name)
+        .filter(Boolean);
+    },
+    // Filled in by the "Filming & story locations" backfill (Wikidata, CC0).
+    // A movie that's been checked and had nothing gets an explicit [], so this
+    // renders nothing rather than the section appearing empty.
+    movieLocations () {
+      return this.movie?.locations || [];
+    },
+    filmingLocations () {
+      return this.movieLocations.filter((location) => location.type === 'filming');
+    },
+    narrativeLocations () {
+      return this.movieLocations.filter((location) => location.type === 'narrative');
+    },
+    hasLocations () {
+      return this.movieLocations.length > 0;
     },
     // My personal awards (PersonalAwardsModal.vue) — settings.personalAwards is
     // keyed by year, each year holding { categories: { <key>: { nominees, winner } } }.
@@ -1761,6 +1808,36 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+  .locations .world-map {
+    border: 1px solid #333;
+    border-radius: 6px;
+    margin-bottom: 0.4rem;
+    overflow: hidden;
+  }
+
+  .map-legend {
+    display: flex;
+    font-size: 0.78rem;
+    gap: 1rem;
+  }
+
+  .legend-item {
+    align-items: center;
+    color: #adb5bd;
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .swatch {
+    border-radius: 50%;
+    display: inline-block;
+    height: 9px;
+    width: 9px;
+  }
+
+  .swatch.filming { background: #f0ad4e; }
+  .swatch.narrative { background: #6ec1e4; }
+
 .movie-detail-page {
   min-height: 100vh;
   background: #000;

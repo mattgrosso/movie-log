@@ -159,6 +159,11 @@ const shapeTmdbDataIntoMovie = (tmdbData, ratings) => {
     ownership: ratings[0].ownership || null,
     poster_path: tmdbData.poster_path,
     production_companies: tmdbData.production_companies,
+    // Where a film was made and what it's spoken in. Both come back on the
+    // same /movie/{id} call we already make, they were just never kept — see
+    // backfillProductionCountries for filling these in on older entries.
+    production_countries: tmdbData.production_countries || [],
+    spoken_languages: tmdbData.spoken_languages || [],
     release_date: tmdbData.release_date,
     revenue: tmdbData.revenue,
     runtime: tmdbData.runtime,

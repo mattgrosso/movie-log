@@ -314,3 +314,81 @@ describe('MovieDetail', () => {
     })
   })
 })
+
+describe('MovieDetail geography sections', () => {
+  let wrapper
+
+  const mountWith = async (movieFields) => {
+    const w = shallowMount(MovieDetail, {
+      global: {
+        mocks: {
+          $store: {
+            state: { movieLog: {}, settings: { tags: { 'viewing-tags': {} } }, academyAwardWinners: {} },
+            getters: { allMoviesAsArray: [], allMediaAsArray: [] },
+            commit: vi.fn(),
+            dispatch: vi.fn()
+          },
+          $route: { params: { tmdbId: '42' }, query: {} },
+          $router: { push: vi.fn() }
+        },
+        stubs: { ToggleableRating: true, Modal: true }
+      }
+    })
+    const result = makeResult({ movie: movieFields })
+    await w.setData({ result, movie: result.movie })
+    return w
+  }
+
+  const paris = { name: 'Paris', lat: 48.85, lon: 2.35, type: 'filming', id: 'Q90' }
+  const tokyo = { name: 'Tokyo', lat: 35.68, lon: 139.69, type: 'narrative', id: 'Q1490' }
+
+  describe('Made In', () => {
+    it('lists production country names', async () => {
+      wrapper = await mountWith({ production_countries: [{ name: 'France' }, { name: 'Ireland' }] })
+      expect(wrapper.vm.productionCountries).toEqual(['France', 'Ireland'])
+    })
+
+    it('is empty for an entry predating the field, so the section does not render', async () => {
+      // Older library entries simply lack it — the same graceful degradation
+      // every other optional section on this page uses.
+      wrapper = await mountWith({})
+      expect(wrapper.vm.productionCountries).toEqual([])
+    })
+
+    it('drops malformed entries rather than rendering blanks', async () => {
+      wrapper = await mountWith({ production_countries: [{ name: 'France' }, {}, null] })
+      expect(wrapper.vm.productionCountries).toEqual(['France'])
+    })
+  })
+
+  describe('On The Map', () => {
+    it('splits locations into filmed-in and set-in', async () => {
+      wrapper = await mountWith({ locations: [paris, tokyo] })
+
+      expect(wrapper.vm.hasLocations).toBe(true)
+      expect(wrapper.vm.filmingLocations.map((l) => l.name)).toEqual(['Paris'])
+      expect(wrapper.vm.narrativeLocations.map((l) => l.name)).toEqual(['Tokyo'])
+    })
+
+    it('shows a place that is both, in both lists', async () => {
+      wrapper = await mountWith({
+        locations: [paris, { ...paris, type: 'narrative' }]
+      })
+
+      expect(wrapper.vm.filmingLocations).toHaveLength(1)
+      expect(wrapper.vm.narrativeLocations).toHaveLength(1)
+    })
+
+    it('hides the section for a movie checked and found to have none', async () => {
+      // An explicit [] means "checked, nothing found" — not "not yet asked".
+      wrapper = await mountWith({ locations: [] })
+      expect(wrapper.vm.hasLocations).toBe(false)
+    })
+
+    it('hides the section for an entry that has never been checked', async () => {
+      wrapper = await mountWith({})
+      expect(wrapper.vm.hasLocations).toBe(false)
+      expect(wrapper.vm.movieLocations).toEqual([])
+    })
+  })
+})

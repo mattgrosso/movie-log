@@ -636,6 +636,54 @@
                 </div>
               </div>
 
+              <div class="mt-4">
+                <label class="form-label d-block">Filming &amp; story locations</label>
+                <small class="form-text text-white d-block mb-2">
+                  Looks up where each movie was filmed and where its story is set, from Wikidata. Shows up on movie pages and as a world map in Insights. Safe to run again anytime.
+                </small>
+                <button
+                  class="btn btn-outline-info btn-sm"
+                  @click="backfillLocationsData"
+                  :disabled="locationsBackfill.status === 'running'"
+                >
+                  <span v-if="locationsBackfill.status === 'running'">
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Looking up {{ locationsBackfill.completed }}/{{ locationsBackfill.total }}...
+                  </span>
+                  <span v-else>
+                    <i class="bi bi-geo-alt"></i> Fill in locations for all movies
+                  </span>
+                </button>
+                <div v-if="locationsBackfill.status === 'done'" class="text-success mt-2">
+                  <small v-if="locationsBackfill.total"><i class="bi bi-check-circle"></i> Checked {{ locationsBackfill.total }} movie{{ locationsBackfill.total === 1 ? '' : 's' }}; {{ locationsBackfill.withLocations }} had locations{{ locationsBackfill.failed ? ` (${locationsBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
+                  <small v-else><i class="bi bi-check-circle"></i> Everything's already been checked.</small>
+                </div>
+              </div>
+
+              <div class="mt-4">
+                <label class="form-label d-block">Production countries</label>
+                <small class="form-text text-white d-block mb-2">
+                  Fetches which countries produced each movie, and the languages spoken in it. Safe to run again anytime.
+                </small>
+                <button
+                  class="btn btn-outline-info btn-sm"
+                  @click="backfillProductionCountriesData"
+                  :disabled="countriesBackfill.status === 'running'"
+                >
+                  <span v-if="countriesBackfill.status === 'running'">
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Fetching {{ countriesBackfill.completed }}/{{ countriesBackfill.total }}...
+                  </span>
+                  <span v-else>
+                    <i class="bi bi-globe-americas"></i> Fill in production countries
+                  </span>
+                </button>
+                <div v-if="countriesBackfill.status === 'done'" class="text-success mt-2">
+                  <small v-if="countriesBackfill.total"><i class="bi bi-check-circle"></i> {{ countriesBackfill.total }} movie{{ countriesBackfill.total === 1 ? '' : 's' }} updated{{ countriesBackfill.failed ? ` (${countriesBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
+                  <small v-else><i class="bi bi-check-circle"></i> Everything's already filled in.</small>
+                </div>
+              </div>
+
               <!-- Account -->
               <div class="mt-4">
                 <hr>
@@ -965,6 +1013,8 @@ import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
 import { LAST_PLAYED_KEY, GAME_ICONS } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
+import { backfillProductionCountries, collectMoviesNeedingCountries } from '../assets/javascript/backfillProductionCountries.js';
+import { backfillMovieLocations, collectMoviesNeedingLocations } from '../assets/javascript/movieLocations.js';
 import { makePlaceholderId } from '../utils/placeholderId.js';
 import {
   countDirectors as countDirectorsUtil,
@@ -1051,6 +1101,8 @@ export default {
       numberOfResultsToShow: 25,
       offlineDownload: { status: 'idle', completed: 0, total: 0, failed: 0 },
       boxOfficeBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
+      countriesBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
+      locationsBackfill: { status: 'idle', completed: 0, total: 0, failed: 0, withLocations: 0 },
       quickLinksSortType: "count",
       scrapingTest: {
         loading: false,
@@ -3484,6 +3536,46 @@ export default {
     async signOut () {
       await this.$store.dispatch('logout');
     },
+    // Shared write path for every metadata backfill (box office, production
+    // countries, locations). `fieldsFor(item)` returns the movie fields that
+    // item contributes, e.g. { budget, revenue }.
+    //
+    // Batched, not one write per movie (bug report, Jul 2026: a per-item
+    // design froze/crashed the tab on a real library - see tmdbBackfill.js's
+    // own comment for the full story). Each batch becomes ONE combined local
+    // commit (setMovieLogEntries) and ONE combined remote multi-path update,
+    // instead of N of each.
+    async writeMovieFieldBatch (batch, fieldsFor) {
+      const entries = [];
+      const updates = {};
+
+      batch.forEach((item) => {
+        // Read fresh from state (not a captured closure) so this reflects
+        // whatever else might be true of the entry right now.
+        const existingEntry = this.$store.state.movieLog[item.dbKey];
+        if (!existingEntry) return;
+
+        const fields = fieldsFor(item);
+        entries.push({ key: item.dbKey, value: { ...existingEntry, movie: { ...existingEntry.movie, ...fields } } });
+        // Individual leaf-path keys (not the whole `movie` object) so this
+        // can never clobber sibling fields like cast/crew/genres with a
+        // possibly-stale local snapshot.
+        Object.entries(fields).forEach(([field, value]) => {
+          updates[`movieLog/${item.dbKey}/movie/${field}`] = value;
+        });
+      });
+
+      if (entries.length) {
+        this.$store.commit('setMovieLogEntries', entries);
+      }
+      if (Object.keys(updates).length) {
+        // No durable-queue treatment needed here (unlike a user-authored
+        // rating) - this is re-fetchable metadata, not irreplaceable data,
+        // and the whole operation is naturally safe to just re-run if a
+        // batch write fails.
+        await this.$store.dispatch('updateDatabaseEntriesNow', updates);
+      }
+    },
     async backfillBoxOfficeData () {
       if (this.boxOfficeBackfill.status === 'running') {
         return;
@@ -3492,45 +3584,59 @@ export default {
       const candidateCount = collectMoviesNeedingBoxOffice(this.$store.state.movieLog).length;
       this.boxOfficeBackfill = { status: 'running', completed: 0, total: candidateCount, failed: 0 };
 
-      // Batched, not one write per movie (bug report, Jul 2026: a per-item
-      // design froze/crashed the tab on a real library - see
-      // backfillBoxOffice.js's own comment for the full story). Each batch
-      // becomes ONE combined local commit (setMovieLogEntries) and ONE
-      // combined remote multi-path update, instead of N of each.
-      const result = await backfillBoxOffice(this.$store.state.movieLog, async (batch) => {
-        const entries = [];
-        const updates = {};
-
-        batch.forEach(({ dbKey, boxOffice }) => {
-          // Read fresh from state (not a captured closure) so this reflects
-          // whatever else might be true of the entry right now.
-          const existingEntry = this.$store.state.movieLog[dbKey];
-          if (!existingEntry) return;
-          entries.push({ key: dbKey, value: { ...existingEntry, movie: { ...existingEntry.movie, ...boxOffice } } });
-          // Individual leaf-path keys (not the whole `movie` object) so this
-          // can never clobber sibling fields like cast/crew/genres with a
-          // possibly-stale local snapshot.
-          updates[`movieLog/${dbKey}/movie/budget`] = boxOffice.budget;
-          updates[`movieLog/${dbKey}/movie/revenue`] = boxOffice.revenue;
-        });
-
-        if (entries.length) {
-          this.$store.commit('setMovieLogEntries', entries);
+      const result = await backfillBoxOffice(
+        this.$store.state.movieLog,
+        (batch) => this.writeMovieFieldBatch(batch, (item) => item.boxOffice),
+        {
+          onProgress: (progress) => {
+            this.boxOfficeBackfill = { ...this.boxOfficeBackfill, ...progress };
+          }
         }
-        if (Object.keys(updates).length) {
-          // No durable-queue treatment needed here (unlike a user-authored
-          // rating) - this is re-fetchable TMDB metadata, not irreplaceable
-          // data, and the whole operation is naturally safe to just re-run
-          // if a batch write fails.
-          await this.$store.dispatch('updateDatabaseEntriesNow', updates);
-        }
-      }, {
-        onProgress: (progress) => {
-          this.boxOfficeBackfill = { ...this.boxOfficeBackfill, ...progress };
-        }
-      });
+      );
 
       this.boxOfficeBackfill = { status: 'done', ...result };
+    },
+    async backfillProductionCountriesData () {
+      if (this.countriesBackfill.status === 'running') {
+        return;
+      }
+
+      const candidateCount = collectMoviesNeedingCountries(this.$store.state.movieLog).length;
+      this.countriesBackfill = { status: 'running', completed: 0, total: candidateCount, failed: 0 };
+
+      const result = await backfillProductionCountries(
+        this.$store.state.movieLog,
+        (batch) => this.writeMovieFieldBatch(batch, (item) => item.countries),
+        {
+          onProgress: (progress) => {
+            this.countriesBackfill = { ...this.countriesBackfill, ...progress };
+          }
+        }
+      );
+
+      this.countriesBackfill = { status: 'done', ...result };
+    },
+    async backfillLocationsData () {
+      if (this.locationsBackfill.status === 'running') {
+        return;
+      }
+
+      const candidateCount = collectMoviesNeedingLocations(this.$store.state.movieLog).length;
+      this.locationsBackfill = { status: 'running', completed: 0, total: candidateCount, failed: 0, withLocations: 0 };
+
+      // Wikidata rather than TMDB, and queried in large batches rather than
+      // per movie - ~1,400 films is about 7 requests, not 1,400.
+      const result = await backfillMovieLocations(
+        this.$store.state.movieLog,
+        (batch) => this.writeMovieFieldBatch(batch, (item) => ({ locations: item.locations })),
+        {
+          onProgress: (progress) => {
+            this.locationsBackfill = { ...this.locationsBackfill, ...progress };
+          }
+        }
+      );
+
+      this.locationsBackfill = { status: 'done', ...result };
     },
     saveStickinessPromptState (value) {
       this.stickinessPromptState = value;
