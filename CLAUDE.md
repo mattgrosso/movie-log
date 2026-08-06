@@ -1243,12 +1243,20 @@ Fixed by giving `.back-link` `z-index: 600` (above the strip) and a proper touch
 
 User idea: *"a game where you choose a tag that exists and then a list of movies that may or may not have that tag... the player swipes left or right on each poster to either confirm that tag, add it, or remove it... The tricky part would be choosing what movies to include in the game that might fit the tag but don't have it yet."*
 
+**Built against the wrong data first.** The first cut used VIEWING TAGS (`rating.tags`) and showed a picker. Corrected immediately: *"you're only offering me tags that are user defined... What I really wanna do is tag and remove the ones that we put on the movie coming from TMDB or even better, the ones that we have AI generating. I don't really care about the user generated ones, I assume those are all correct. And we don't need to show a list of tags to choose from. Just when the game starts, pick one."* The lesson worth keeping: **"tags" in conversation meant KEYWORDS, not the thing this codebase calls tags.** Two different concepts live side by side — `rating.tags` (per-viewing, user-authored) and `movie.keywords` / `chatGPTKeywords` / `customKeywords` / `removedKeywords` (per-movie, mostly machine-authored). Confirm which one is meant before building.
+
 `src/assets/javascript/games/stamp.js` (pure) + `src/components/games/StampGame.vue`, route `/games/stamp`.
 
 **Named "Stamp", not anything with "Tag" in it** — the tagline quiz already displays as **Tag** in the hub, and two tag-something tiles would be genuinely confusing.
 
-### Tags live on VIEWINGS, not movies
-Worth knowing before touching this: a tag is `rating.tags = [{ title }]` on an individual rating, with a vocabulary at `settings.tags['viewing-tags']` (`{ pushKey: { title } }`). So "does this movie have the tag" means "does ANY of its viewings", and `ratingsWithTag` reflects that asymmetry deliberately: **adding** goes on the most recent viewing only, **removing** sweeps every viewing — leaving it on an older one would keep the movie counting as tagged.
+### It works on keywords, and the write is asymmetric
+"Has this keyword" means **visible via `computeFlatKeywords`** — TMDB's + the AI's + user-added, minus `removedKeywords` — i.e. exactly what the movie page shows.
+
+`keywordChangeFor` mirrors MovieDetail's own add/remove, and the asymmetry is the interesting part: a keyword being **removed** may have come from TMDB or the AI, so it can't be deleted — it goes on `removedKeywords`, which `computeFlatKeywords` subtracts. One being **added back** may already exist upstream, so dropping it from `removedKeywords` is enough; also pushing it to `customKeywords` would duplicate it.
+
+**No picker.** A keyword is chosen on `created()` and you start swiping. `pickKeyword` prefers ones the AI generated (the least-checked data in the library) and won't hand back the keyword just finished.
+
+Eligibility is bounded at **5–40 movies**, measured against the real library: ~8,000 keywords sit on exactly one movie (nothing to learn from), while "friendship" is on 359 and "drama" on 214 — broad labels where four examples share nothing confirmable. Same problem and fix as Connections' genre-breadth cap. That leaves ~1,490 playable keywords, 1,264 of them AI-backed.
 
 ### Candidate selection — the actual question in the request
 Rather than trying to infer what a tag *means*, the movies already carrying it **are** the definition, and everything else is scored by how much it resembles them (`affinityScore`). Weights: director 4, keyword 3, cast 2, genre 1, decade 1 — a shared director is the strongest signal available in the data, genre/decade the weakest because a huge slice of any library shares them (same problem as Connections' genre-breadth cap). Per-tagged-movie contributions are **capped** (keywords at 3, cast/genre at 2) so one keyword-heavy film can't outrank a director shared across the whole tagged set, and evidence accumulates across *distinct* tagged movies rather than raw overlap.
@@ -1257,7 +1265,7 @@ A round is **6 already-tagged + 10 high-affinity + 4 random** (`ROUND_MIX`). The
 
 ### Writes — the first game that mutates the library
 Every other game is read-only. This one:
-- Writes the **`movieLog/<dbKey>/ratings` leaf**, never the whole entry (writing the entry risks clobbering siblings, and the store injects `dbKey` at read time which shouldn't be persisted).
+- Writes the **`movieLog/<dbKey>/movie/customKeywords` and `.../removedKeywords` leaves**, never the whole entry (writing the entry risks clobbering siblings, and the store injects `dbKey` at read time which shouldn't be persisted).
 - Goes through **`writeDurably`**, so it's offline-safe like ratings are.
 - **Only writes when something actually changed.** `resolveSwipe` names all four outcomes — `added`/`removed` write, `confirmed`/`skipped` are no-ops.
 - Reads the entry **fresh from the store** at decision time rather than trusting the copy captured when the round was built.
@@ -1266,4 +1274,6 @@ Every other game is read-only. This one:
 ### Swipe, built to avoid Timeline's failure
 Timeline's drag-to-place was built and then removed for leaving visual trails on a real device, traced to `filter: drop-shadow` recomputing on every `pointermove`. Stamp's card therefore uses **`translate3d` + rotation only, with no filter and no shadow**, plus `will-change: transform`. Tap Yes/No buttons are a first-class alternative, not a fallback. **This is still unverified on a real device** — if trails appear again, the buttons keep the game fully playable while it's investigated.
 
-Tests: `stamp.test.js` (24, pure — tag collection, affinity ordering and caps, round composition, the add-latest/remove-everywhere asymmetry, immutability) and `StampGame.test.js` (15 — gating, round start, leaf-path writes, no-write-on-no-change, undo reverting the write, swipe thresholds, and that the drag style stays composited).
+Sanity-checked against the REAL library, not just fixtures: "cult film" suggested Beetlejuice and Teen Wolf, "college" suggested Licorice Pizza. Some suggestions are noise, which is the point — judging them is the game.
+
+Tests: `stamp.test.js` (31, pure — keyword collection and its bounds, AI preference in `pickKeyword`, affinity ordering and caps, round composition, and the removedKeywords/customKeywords asymmetry incl. a remove-then-restore round trip) and `StampGame.test.js` (15 — gating, auto-started round with no picker, that viewing tags alone don't make it playable, leaf-path writes, no-write-on-no-change, undo reverting the write, swipe thresholds, and that the drag style stays composited).

@@ -2,35 +2,15 @@
   <div class="stamp-game">
     <BackLink label="Games" @click="$router.push('/games')"/>
 
-    <div v-if="playableTags.length === 0" class="not-enough-tags">
+    <div v-if="!round" class="not-enough-tags">
       <p v-if="eligibleGameEntries.length < 5">Rate a few more movies before there's enough to work with.</p>
-      <p v-else>
-        You need a tag on at least {{ minTagged }} movies before this game has anything to go on.
-        Add some tags from a movie's page and come back.
-      </p>
+      <p v-else>Nothing to sweep right now — no keyword sits on enough movies yet.</p>
       <NewRatingSearch v-if="eligibleGameEntries.length < 5" value="" :suggestionsMode="true"/>
     </div>
 
-    <!-- Tag picker -->
-    <template v-else-if="!round">
-      <p class="game-subtitle">Pick a tag, then sort your movies by whether it fits.</p>
-      <div class="tag-list">
-        <button
-          v-for="tag in playableTags"
-          :key="tag.title"
-          type="button"
-          class="tag-choice"
-          @click="startRound(tag.title)"
-        >
-          <span class="tag-choice-title">{{ tag.title }}</span>
-          <span class="tag-choice-count">{{ tag.count }}</span>
-        </button>
-      </div>
-    </template>
-
     <!-- Round finished -->
     <template v-else-if="finished">
-      <p class="game-subtitle">Done with &ldquo;{{ round.tag }}&rdquo;.</p>
+      <p class="game-subtitle">Done with &ldquo;{{ round.keyword }}&rdquo;.</p>
       <ul class="summary">
         <li><strong>{{ tally.confirmed }}</strong> confirmed</li>
         <li><strong>{{ tally.added }}</strong> newly tagged</li>
@@ -38,7 +18,7 @@
         <li><strong>{{ tally.skipped }}</strong> passed over</li>
       </ul>
       <div class="end-actions">
-        <button type="button" class="btn-game btn-game-primary cta-btn" @click="round = null">Another Tag</button>
+        <button type="button" class="btn-game btn-game-primary cta-btn" @click="startRound()">Next Keyword</button>
         <button type="button" class="btn-game btn-game-secondary cta-btn" @click="$router.push('/games')">Back to Games</button>
       </div>
     </template>
@@ -46,7 +26,7 @@
     <!-- Playing -->
     <template v-else>
       <p class="game-subtitle">
-        Is this <strong>{{ round.tag }}</strong>?
+        Is this <strong>{{ round.keyword }}</strong>?
       </p>
       <p class="progress-line">{{ currentIndex + 1 }} of {{ round.cards.length }}</p>
 
@@ -63,7 +43,7 @@
           @pointercancel="onPointerUp"
         >
           <img v-if="gamePosterUrl(currentCard.entry)" :src="gamePosterUrl(currentCard.entry, 'w342')" :alt="currentCard.entry.movie.title" draggable="false">
-          <span v-if="currentCard.hasTag" class="already-tagged">Currently tagged</span>
+          <span v-if="currentCard.hasTag" class="already-tagged">Already has it</span>
 
           <span class="verdict yes" :style="{ opacity: dragX > 0 ? Math.min(dragX / swipeThreshold, 1) : 0 }">Yes</span>
           <span class="verdict no" :style="{ opacity: dragX < 0 ? Math.min(-dragX / swipeThreshold, 1) : 0 }">No</span>
@@ -81,9 +61,12 @@
         </button>
       </div>
 
-      <button v-if="history.length" type="button" class="undo-btn" @click="undo">
-        <i class="bi bi-arrow-counterclockwise"></i> Undo {{ lastActionLabel }}
-      </button>
+      <div class="secondary-actions">
+        <button v-if="history.length" type="button" class="text-action undo-btn" @click="undo">
+          <i class="bi bi-arrow-counterclockwise"></i> Undo {{ lastActionLabel }}
+        </button>
+        <button type="button" class="text-action skip-keyword-btn" @click="startRound()">Different keyword</button>
+      </div>
     </template>
   </div>
 </template>
@@ -94,11 +77,11 @@ import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import {
-  collectPlayableTags,
+  collectPlayableKeywords,
+  pickKeyword,
   buildStampRound,
   resolveSwipe,
-  ratingsWithTag,
-  MIN_TAGGED_TO_PLAY
+  keywordChangeFor
 } from '../../assets/javascript/games/stamp.js';
 import stampBanner from '../../assets/images/games/stamp-banner.jpg';
 
@@ -117,13 +100,12 @@ export default {
       dragX: 0,
       dragStartX: 0,
       pointerId: null,
-      swipeThreshold: 90,
-      minTagged: MIN_TAGGED_TO_PLAY
+      swipeThreshold: 90
     };
   },
   computed: {
-    playableTags () {
-      return collectPlayableTags(this.eligibleGameEntries);
+    playableKeywords () {
+      return collectPlayableKeywords(this.eligibleGameEntries);
     },
     currentCard () {
       return this.round?.cards[this.currentIndex] || null;
@@ -152,6 +134,7 @@ export default {
     }
   },
   created () {
+    this.startRound();
     this.previousBannerUrl = this.$store.state?.bannerUrl;
     this.$store.commit?.('setBannerUrl', stampBanner);
     this.$store.commit?.('setHideHeaderLogo', true);
@@ -161,8 +144,17 @@ export default {
     this.$store.commit?.('setHideHeaderLogo', false);
   },
   methods: {
-    startRound (tagTitle) {
-      this.round = buildStampRound(this.eligibleGameEntries, tagTitle);
+    // No picker — a keyword is chosen for you and you just start swiping.
+    // Passing the current one as `exclude` means "Different keyword" and
+    // "Next Keyword" never hand back the one just finished.
+    startRound () {
+      const chosen = pickKeyword(this.playableKeywords, Math.random, this.round?.keyword);
+      if (!chosen) {
+        this.round = null;
+        return;
+      }
+
+      this.round = buildStampRound(this.eligibleGameEntries, chosen.keyword);
       this.currentIndex = 0;
       this.history = [];
       this.resetDrag();
@@ -201,16 +193,19 @@ export default {
       // Read fresh from the store rather than the captured card — the entry may
       // have been touched since the round was built.
       const dbKey = card.entry.dbKey;
-      const liveEntry = this.$store.state?.movieLog?.[dbKey];
-      const previousRatings = liveEntry?.ratings || card.entry.ratings;
+      const liveMovie = this.$store.state?.movieLog?.[dbKey]?.movie || card.entry.movie;
+      const previous = {
+        customKeywords: liveMovie.customKeywords || [],
+        removedKeywords: liveMovie.removedKeywords || []
+      };
 
-      this.history = [...this.history, { card, keep, outcome, previousRatings }];
+      this.history = [...this.history, { card, keep, outcome, previous }];
       this.currentIndex += 1;
       this.resetDrag();
 
       // 'confirmed' and 'skipped' change nothing, so they're never written.
       if (outcome === 'added' || outcome === 'removed') {
-        await this.saveRatings(dbKey, ratingsWithTag(previousRatings, this.round.tag, keep));
+        await this.saveKeywords(dbKey, keywordChangeFor(liveMovie, this.round.keyword, keep));
       }
     },
     async undo () {
@@ -222,20 +217,24 @@ export default {
       this.resetDrag();
 
       if (last.outcome === 'added' || last.outcome === 'removed') {
-        await this.saveRatings(last.card.entry.dbKey, last.previousRatings);
+        await this.saveKeywords(last.card.entry.dbKey, last.previous);
       }
     },
-    async saveRatings (dbKey, ratings) {
+    async saveKeywords (dbKey, { customKeywords, removedKeywords }) {
       try {
-        // The ratings leaf, not the whole entry — writing the entry would risk
+        // Leaf paths, not the whole entry — writing the entry would risk
         // clobbering siblings (and the store injects dbKey at read time, which
         // shouldn't be persisted).
         await this.$store.dispatch('writeDurably', {
-          path: `movieLog/${dbKey}/ratings`,
-          value: ratings
+          path: `movieLog/${dbKey}/movie/customKeywords`,
+          value: customKeywords
+        });
+        await this.$store.dispatch('writeDurably', {
+          path: `movieLog/${dbKey}/movie/removedKeywords`,
+          value: removedKeywords
         });
       } catch (error) {
-        console.error('Could not save tag change:', error);
+        console.error('Could not save keyword change:', error);
       }
     },
     entryKey
@@ -267,38 +266,6 @@ export default {
   color: #777;
   font-size: 0.8rem;
   margin: 0 0 0.75rem;
-}
-
-.tag-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin: 0 auto;
-  max-width: 340px;
-}
-
-.tag-choice {
-  align-items: center;
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-  color: #eee;
-  display: flex;
-  justify-content: space-between;
-  padding: 0.7rem 0.9rem;
-
-  // Mobile-first: press feedback only, no :hover (see CLAUDE.md).
-  &:active {
-    transform: scale(0.98);
-  }
-}
-
-.tag-choice-count {
-  background: #333;
-  border-radius: 10px;
-  color: #adb5bd;
-  font-size: 0.75rem;
-  padding: 0.1rem 0.5rem;
 }
 
 .card-area {
@@ -386,12 +353,19 @@ export default {
   flex: 1;
 }
 
-.undo-btn {
+.secondary-actions {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1.25rem;
+}
+
+.text-action {
   background: none;
   border: none;
   color: #777;
   font-size: 0.78rem;
-  margin-top: 1.25rem;
   text-decoration: underline;
 
   &:active {

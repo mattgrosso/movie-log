@@ -1,6 +1,13 @@
-// "Stamp" — pick one of your own tags, then swipe through a stack of movies
-// saying whether the tag applies. Confirms tags you already applied and, more
-// usefully, finds movies that should have had it all along.
+// "Stamp" — a keyword lands on screen, then you swipe through a stack of movies
+// saying whether it applies. Confirms keywords that are already there and, more
+// usefully, finds movies that should have had them.
+//
+// Works on KEYWORDS (TMDB's + the AI-generated ones), not viewing tags. Those
+// are the ones nobody hand-checked and are therefore worth checking:
+// *"I wanna be able to tag and remove tags that are the ones that we put on the
+// movie coming from TMDB or even better, the ones that we have AI generating.
+// I don't really care about the user generated ones. I assume those are all
+// correct."*
 //
 // Named "Stamp" rather than anything with "Tag" in it because there is already
 // a game displayed as "Tag" (the tagline quiz, /games/tagline) and two
@@ -19,14 +26,21 @@ import {
   shuffle
 } from './gameUtils.js';
 import { computeFlatKeywords } from '../../../utils/keywords.js';
-import { uniqueViewingTags } from '../../../utils/tags.js';
 
 export const ROUND_SIZE = 20;
 
-// A tag needs a few examples before "what does this tag look like?" is a
-// question with an answer — one tagged movie tells the affinity scoring almost
-// nothing, and the round would be pure guesswork.
-export const MIN_TAGGED_TO_PLAY = 3;
+// A keyword needs a few examples before "what does this keyword look like?" is
+// a question with an answer — one tagged movie tells the affinity scoring
+// almost nothing, and the round would be pure guesswork. Measured against the
+// real library, ~8,000 keywords sit on exactly one movie, so this cuts out the
+// overwhelming majority of unusable ones.
+export const MIN_TAGGED_TO_PLAY = 5;
+
+// ...and past a point a keyword stops being a claim about a film and becomes a
+// broad label — "friendship" is on 359 movies in the real library, "drama" on
+// 214, and four of those share nothing a player can meaningfully confirm. Same
+// problem, and the same fix, as Connections' genre-breadth cap.
+export const MAX_TAGGED_TO_PLAY = 40;
 
 // Roughly how a round is composed. Verification is the smaller half on purpose:
 // re-confirming tags you already applied is the boring part, and discovery is
@@ -48,38 +62,66 @@ export const AFFINITY_WEIGHTS = {
 
 const lower = (value) => String(value || '').toLowerCase();
 
-/** Every viewing tag on a movie, lowercased, as a Set. */
-export function tagsOnEntry (entry) {
-  return new Set(uniqueViewingTags(entry?.ratings).map(lower));
+/**
+ * The keywords currently VISIBLE on a movie — TMDB's, the AI's and any the user
+ * added, minus any the user removed. Deliberately the same view the rest of the
+ * app shows, so "has this keyword" means the same thing here as on the movie
+ * page.
+ */
+export function keywordsOnEntry (entry) {
+  return new Set(computeFlatKeywords(entry?.movie).map(lower));
 }
 
-export function entryHasTag (entry, tagTitle) {
-  return tagsOnEntry(entry).has(lower(tagTitle));
+export function entryHasKeyword (entry, keyword) {
+  return keywordsOnEntry(entry).has(lower(keyword));
 }
 
 /**
- * Tags worth playing: every tag applied to at least `minTagged` movies, with
- * how many movies carry it. Sorted commonest first.
+ * Keywords worth playing: those on between `min` and `max` movies.
+ *
+ * `aiCount` tracks how many of those movies got it from the AI rather than
+ * TMDB. The AI ones are the least-checked data in the library and the ones the
+ * user specifically wanted to sweep, so pickKeyword leans on this.
  */
-export function collectPlayableTags (entries, minTagged = MIN_TAGGED_TO_PLAY) {
+export function collectPlayableKeywords (entries, { min = MIN_TAGGED_TO_PLAY, max = MAX_TAGGED_TO_PLAY } = {}) {
   const counts = new Map();
 
   (entries || []).forEach((entry) => {
-    // Preserve the original casing for display, but count case-insensitively.
-    uniqueViewingTags(entry?.ratings).forEach((title) => {
-      const key = lower(title);
+    const movie = entry?.movie || {};
+    const aiKeywords = new Set((movie.chatGPTKeywords || []).map(lower));
+
+    keywordsOnEntry(entry).forEach((key) => {
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
+        if (aiKeywords.has(key)) existing.aiCount += 1;
       } else {
-        counts.set(key, { title, count: 1 });
+        counts.set(key, { keyword: key, count: 1, aiCount: aiKeywords.has(key) ? 1 : 0 });
       }
     });
   });
 
   return [...counts.values()]
-    .filter((tag) => tag.count >= minTagged)
-    .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
+    .filter((item) => item.count >= min && item.count <= max)
+    .sort((a, b) => b.count - a.count || a.keyword.localeCompare(b.keyword));
+}
+
+/**
+ * Choose the keyword for a round. No picker UI — *"we don't need to show a list
+ * of tags to choose from. Just when the game starts, pick one."*
+ *
+ * Prefers keywords the AI actually generated (*"even better, the ones that we
+ * have AI generating"*), falling back to the full eligible set when none
+ * qualify, so a library without AI keywords still plays.
+ */
+export function pickKeyword (playable, rng = Math.random, excludeKeyword = null) {
+  const pool = (playable || []).filter((item) => lower(item.keyword) !== lower(excludeKeyword));
+  const usable = pool.length ? pool : (playable || []);
+  if (!usable.length) return null;
+
+  const aiBacked = usable.filter((item) => item.aiCount > 0);
+  const from = aiBacked.length ? aiBacked : usable;
+  return from[Math.floor(rng() * from.length)] || from[0];
 }
 
 /** The traits used for affinity, as lowercased Sets, computed once per movie. */
@@ -140,13 +182,13 @@ export function affinityScore (candidateTraits, taggedTraitsList) {
  * so the few random cards are a deliberate control — they're the only way a
  * movie the scoring is blind to ever gets tagged.
  */
-export function buildStampRound (entries, tagTitle, { size = ROUND_SIZE, rng = Math.random, mix = ROUND_MIX } = {}) {
+export function buildStampRound (entries, keyword, { size = ROUND_SIZE, rng = Math.random, mix = ROUND_MIX } = {}) {
   const pool = entries || [];
-  const tagged = pool.filter((entry) => entryHasTag(entry, tagTitle));
-  const untagged = pool.filter((entry) => !entryHasTag(entry, tagTitle));
+  const tagged = pool.filter((entry) => entryHasKeyword(entry, keyword));
+  const untagged = pool.filter((entry) => !entryHasKeyword(entry, keyword));
 
   if (!tagged.length) {
-    return { tag: tagTitle, cards: [] };
+    return { keyword, cards: [] };
   }
 
   const taggedTraits = tagged.map(traitsOf);
@@ -175,9 +217,9 @@ export function buildStampRound (entries, tagTitle, { size = ROUND_SIZE, rng = M
 
   const cards = shuffle([...verifyCards, ...affinityPicks, ...randomPicks], rng)
     .slice(0, size)
-    .map((entry) => ({ entry, hasTag: entryHasTag(entry, tagTitle) }));
+    .map((entry) => ({ entry, hasTag: entryHasKeyword(entry, keyword) }));
 
-  return { tag: tagTitle, cards };
+  return { keyword, cards };
 }
 
 /**
@@ -193,31 +235,45 @@ export function resolveSwipe ({ hasTag, keep }) {
   return keep ? 'confirmed' : 'skipped';
 }
 
-/** Apply (or undo) a tag on a movie's MOST RECENT viewing, immutably. */
-export function ratingsWithTag (ratings, tagTitle, shouldHave) {
-  const list = Array.isArray(ratings) ? ratings : [];
-  if (!list.length) return list;
-
-  const title = String(tagTitle || '').trim();
-  if (!title) return list;
-
-  if (shouldHave) {
-    // Add to the most recent viewing — the same one the rest of the app treats
-    // as "the" rating for a movie.
-    const targetIndex = list.length - 1;
-    return list.map((rating, index) => {
-      if (index !== targetIndex) return rating;
-      const existing = rating.tags || [];
-      if (existing.some((tag) => lower(tag?.title) === lower(title))) return rating;
-      return { ...rating, tags: [...existing, { title }] };
-    });
+/**
+ * The `customKeywords` / `removedKeywords` patch for adding or removing a
+ * keyword, mirroring MovieDetail's own addKeyword/removeKeyword exactly.
+ *
+ * The asymmetry is the interesting part: a keyword the user is REMOVING may
+ * have come from TMDB or the AI, so it can't simply be deleted — it goes on
+ * `removedKeywords`, which computeFlatKeywords subtracts. And one being ADDED
+ * back may already exist upstream, in which case dropping it from
+ * `removedKeywords` is enough and pushing it to `customKeywords` too would
+ * duplicate it.
+ */
+export function keywordChangeFor (movie, keyword, shouldHave) {
+  const title = String(keyword || '').trim();
+  const existingCustom = movie?.customKeywords || [];
+  const existingRemoved = movie?.removedKeywords || [];
+  if (!title) {
+    return { customKeywords: existingCustom, removedKeywords: existingRemoved };
   }
 
-  // Removing has to sweep EVERY viewing: the tag may have been applied to an
-  // older one, and leaving it there would make the movie still count as tagged.
-  return list.map((rating) => {
-    const existing = rating.tags || [];
-    const next = existing.filter((tag) => lower(tag?.title) !== lower(title));
-    return next.length === existing.length ? rating : { ...rating, tags: next };
-  });
+  if (!shouldHave) {
+    return {
+      customKeywords: existingCustom.filter((k) => lower(k) !== lower(title)),
+      removedKeywords: existingRemoved.some((k) => lower(k) === lower(title))
+        ? existingRemoved
+        : [...existingRemoved, title]
+    };
+  }
+
+  const nextRemoved = existingRemoved.filter((k) => lower(k) !== lower(title));
+  // Would it already be visible once un-removed? If so, nothing to add.
+  const upstream = new Set([
+    ...(movie?.keywords || []).map((k) => lower(k?.name)),
+    ...(movie?.chatGPTKeywords || []).map(lower)
+  ]);
+  const needsCustom = !upstream.has(lower(title)) &&
+    !existingCustom.some((k) => lower(k) === lower(title));
+
+  return {
+    customKeywords: needsCustom ? [...existingCustom, title] : existingCustom,
+    removedKeywords: nextRemoved
+  };
 }

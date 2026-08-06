@@ -1,17 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import {
-  collectPlayableTags,
-  entryHasTag,
+  collectPlayableKeywords,
+  pickKeyword,
+  entryHasKeyword,
   traitsOf,
   affinityScore,
   buildStampRound,
   resolveSwipe,
-  ratingsWithTag,
+  keywordChangeFor,
   MIN_TAGGED_TO_PLAY
 } from '../../assets/javascript/games/stamp.js';
 
 let nextId = 1;
-const movie = ({ tags = [], keywords = [], directors = [], cast = [], genres = ['Drama'], year = 2015, ratings } = {}) => {
+const movie = ({
+  keywords = [], aiKeywords = [], customKeywords = [], removedKeywords = [],
+  directors = [], cast = [], genres = ['Drama'], year = 2015
+} = {}) => {
   const id = nextId++;
   return {
     dbKey: `key-${id}`,
@@ -22,68 +26,95 @@ const movie = ({ tags = [], keywords = [], directors = [], cast = [], genres = [
       release_date: `${year}-06-15`,
       genres: genres.map((name) => ({ name })),
       keywords: keywords.map((name) => ({ name })),
+      chatGPTKeywords: aiKeywords,
+      customKeywords,
+      removedKeywords,
       crew: directors.map((name) => ({ name, job: 'Director' })),
       cast: cast.map((name) => ({ name, character: 'Someone' }))
     },
-    ratings: ratings || [{ calculatedTotal: 7, date: Date.now(), tags: tags.map((title) => ({ title })) }]
+    ratings: [{ calculatedTotal: 7, date: Date.now() }]
   };
 };
 
 // Deterministic "shuffle" so round composition is testable.
 const noShuffle = () => 0;
 
-describe('entryHasTag', () => {
-  it('matches case-insensitively', () => {
-    const entry = movie({ tags: ['Watched With Carrie'] });
-    expect(entryHasTag(entry, 'watched with carrie')).toBe(true);
-    expect(entryHasTag(entry, 'Something Else')).toBe(false);
+describe('entryHasKeyword', () => {
+  it('matches case-insensitively across TMDB and AI keywords', () => {
+    expect(entryHasKeyword(movie({ keywords: ['Heist'] }), 'heist')).toBe(true);
+    expect(entryHasKeyword(movie({ aiKeywords: ['dinosaurs'] }), 'Dinosaurs')).toBe(true);
+    expect(entryHasKeyword(movie({ keywords: ['Heist'] }), 'romance')).toBe(false);
   });
 
-  it('finds a tag on ANY viewing, not just the latest', () => {
-    const entry = movie({ ratings: [
-      { calculatedTotal: 7, tags: [{ title: 'Rewatch' }] },
-      { calculatedTotal: 8, tags: [] }
-    ] });
-    expect(entryHasTag(entry, 'Rewatch')).toBe(true);
+  it('respects a keyword the user removed', () => {
+    // computeFlatKeywords subtracts removedKeywords, and this game has to agree
+    // with what the movie page shows.
+    expect(entryHasKeyword(movie({ keywords: ['Heist'], removedKeywords: ['Heist'] }), 'heist')).toBe(false);
   });
 });
 
-describe('collectPlayableTags', () => {
-  it('only offers tags with enough examples to learn from', () => {
+describe('collectPlayableKeywords', () => {
+  const withKeyword = (count, options) => Array.from({ length: count }, () => movie(options));
+
+  it('skips keywords with too few examples to learn from', () => {
+    const entries = [...withKeyword(6, { keywords: ['heist'] }), ...withKeyword(2, { keywords: ['rare'] })];
+    const words = collectPlayableKeywords(entries).map((k) => k.keyword);
+
+    expect(words).toContain('heist');
+    expect(words).not.toContain('rare');
+  });
+
+  it('skips broad labels that are on too much of the library', () => {
+    // "friendship" is on 359 movies in the real library — four of those share
+    // nothing a player can meaningfully confirm.
+    const entries = withKeyword(60, { keywords: ['friendship'] });
+    expect(collectPlayableKeywords(entries, { min: 5, max: 40 })).toEqual([]);
+  });
+
+  it('tracks how many of the examples came from the AI', () => {
     const entries = [
-      movie({ tags: ['Popular'] }), movie({ tags: ['Popular'] }), movie({ tags: ['Popular'] }),
-      movie({ tags: ['Rare'] })
+      ...withKeyword(4, { aiKeywords: ['dinosaurs'] }),
+      ...withKeyword(3, { keywords: ['dinosaurs'] })
     ];
+    const found = collectPlayableKeywords(entries).find((k) => k.keyword === 'dinosaurs');
 
-    const titles = collectPlayableTags(entries).map((t) => t.title);
-    expect(titles).toContain('Popular');
-    expect(titles).not.toContain('Rare');
+    expect(found.count).toBe(7);
+    expect(found.aiCount).toBe(4);
   });
 
-  it('counts movies, not viewings — a tag on two viewings of one film is one movie', () => {
-    const entries = [movie({ ratings: [
-      { tags: [{ title: 'Repeat' }] },
-      { tags: [{ title: 'Repeat' }] }
-    ] })];
+  it('tolerates an empty library', () => {
+    expect(collectPlayableKeywords([])).toEqual([]);
+    expect(collectPlayableKeywords(null)).toEqual([]);
+  });
+});
 
-    expect(collectPlayableTags(entries, 1)[0].count).toBe(1);
+describe('pickKeyword', () => {
+  const playable = [
+    { keyword: 'tmdb only', count: 9, aiCount: 0 },
+    { keyword: 'ai backed', count: 6, aiCount: 6 }
+  ];
+
+  it('prefers keywords the AI generated', () => {
+    // "even better, the ones that we have AI generating" — those are the
+    // least-checked data in the library.
+    expect(pickKeyword(playable, () => 0).keyword).toBe('ai backed');
+    expect(pickKeyword(playable, () => 0.99).keyword).toBe('ai backed');
   });
 
-  it('sorts commonest first and keeps display casing', () => {
-    const entries = [
-      ...Array.from({ length: 5 }, () => movie({ tags: ['Seth Recommended'] })),
-      ...Array.from({ length: 3 }, () => movie({ tags: ['Came Out Of Hat'] }))
-    ];
-
-    const tags = collectPlayableTags(entries);
-    expect(tags[0]).toMatchObject({ title: 'Seth Recommended', count: 5 });
-    expect(tags[1].title).toBe('Came Out Of Hat');
+  it('falls back to any eligible keyword when none are AI-backed', () => {
+    expect(pickKeyword([playable[0]], () => 0).keyword).toBe('tmdb only');
   });
 
-  it('tolerates an empty or tagless library', () => {
-    expect(collectPlayableTags([])).toEqual([]);
-    expect(collectPlayableTags(null)).toEqual([]);
-    expect(collectPlayableTags([movie()], MIN_TAGGED_TO_PLAY)).toEqual([]);
+  it('avoids handing back the keyword just finished', () => {
+    expect(pickKeyword(playable, () => 0, 'ai backed').keyword).toBe('tmdb only');
+  });
+
+  it('will reuse the only keyword there is rather than return nothing', () => {
+    expect(pickKeyword([playable[0]], () => 0, 'tmdb only').keyword).toBe('tmdb only');
+  });
+
+  it('returns null when there is nothing at all', () => {
+    expect(pickKeyword([], () => 0)).toBeNull();
   });
 });
 
@@ -131,29 +162,29 @@ describe('affinityScore', () => {
 
 describe('buildStampRound', () => {
   const taggedSet = (count, extra = {}) =>
-    Array.from({ length: count }, () => movie({ tags: ['Cosy'], ...extra }));
+    Array.from({ length: count }, () => movie({ aiKeywords: ['cosy'], ...extra }));
 
   it('returns nothing when the tag has no examples to learn from', () => {
-    expect(buildStampRound([movie()], 'Nonexistent').cards).toEqual([]);
+    expect(buildStampRound([movie()], 'nonexistent').cards).toEqual([]);
   });
 
   it('builds a round of the requested size', () => {
     const entries = [...taggedSet(8), ...Array.from({ length: 40 }, () => movie())];
-    expect(buildStampRound(entries, 'Cosy', { rng: noShuffle }).cards).toHaveLength(20);
+    expect(buildStampRound(entries, 'cosy', { rng: noShuffle }).cards).toHaveLength(20);
   });
 
   it('flags each card with whether the movie currently carries the tag', () => {
     const entries = [...taggedSet(8), ...Array.from({ length: 40 }, () => movie())];
-    const { cards } = buildStampRound(entries, 'Cosy', { rng: noShuffle });
+    const { cards } = buildStampRound(entries, 'cosy', { rng: noShuffle });
 
     cards.forEach((card) => {
-      expect(card.hasTag).toBe(entryHasTag(card.entry, 'Cosy'));
+      expect(card.hasTag).toBe(entryHasKeyword(card.entry, 'cosy'));
     });
   });
 
   it('mixes already-tagged movies in for verification', () => {
     const entries = [...taggedSet(8), ...Array.from({ length: 40 }, () => movie())];
-    const { cards } = buildStampRound(entries, 'Cosy', { rng: noShuffle });
+    const { cards } = buildStampRound(entries, 'cosy', { rng: noShuffle });
 
     expect(cards.filter((c) => c.hasTag).length).toBeGreaterThan(0);
     // ...but not ONLY tagged ones, or it's a re-confirmation chore.
@@ -162,13 +193,13 @@ describe('buildStampRound', () => {
 
   it('prefers untagged movies that resemble the tagged ones', () => {
     const entries = [
-      ...taggedSet(5, { directors: ['Agnes Varda'], keywords: ['cosy'] }),
-      // A strong candidate: same director, currently untagged.
-      movie({ directors: ['Agnes Varda'], keywords: ['cosy'] }),
+      ...taggedSet(5, { directors: ['Agnes Varda'] }),
+      // A strong candidate: same director, currently without the keyword.
+      movie({ directors: ['Agnes Varda'] }),
       ...Array.from({ length: 40 }, () => movie({ directors: ['Nobody At All'], genres: ['Horror'], year: 1930 }))
     ];
 
-    const { cards } = buildStampRound(entries, 'Cosy', { rng: noShuffle });
+    const { cards } = buildStampRound(entries, 'cosy', { rng: noShuffle });
     const suggested = cards.find((c) => !c.hasTag && c.entry.movie.crew.some((p) => p.name === 'Agnes Varda'));
 
     expect(suggested).toBeTruthy();
@@ -176,7 +207,7 @@ describe('buildStampRound', () => {
 
   it('never puts the same movie in a round twice', () => {
     const entries = [...taggedSet(8, { directors: ['Shared'] }), ...Array.from({ length: 40 }, () => movie({ directors: ['Shared'] }))];
-    const { cards } = buildStampRound(entries, 'Cosy', { rng: noShuffle });
+    const { cards } = buildStampRound(entries, 'cosy', { rng: noShuffle });
 
     const keys = cards.map((c) => c.entry.dbKey);
     expect(new Set(keys).size).toBe(keys.length);
@@ -184,7 +215,7 @@ describe('buildStampRound', () => {
 
   it('still builds a (shorter) round in a small library', () => {
     const entries = [...taggedSet(3), movie(), movie()];
-    const { cards } = buildStampRound(entries, 'Cosy', { rng: noShuffle });
+    const { cards } = buildStampRound(entries, 'cosy', { rng: noShuffle });
 
     expect(cards.length).toBeGreaterThan(0);
     expect(cards.length).toBeLessThanOrEqual(5);
@@ -200,40 +231,52 @@ describe('resolveSwipe', () => {
   });
 });
 
-describe('ratingsWithTag', () => {
-  const ratings = [
-    { calculatedTotal: 6, tags: [{ title: 'Old' }] },
-    { calculatedTotal: 8, tags: [] }
-  ];
-
-  it('adds to the most recent viewing only', () => {
-    const next = ratingsWithTag(ratings, 'Cosy', true);
-    expect(next[0].tags).toEqual([{ title: 'Old' }]);
-    expect(next[1].tags).toEqual([{ title: 'Cosy' }]);
+describe('keywordChangeFor', () => {
+  it('adds a brand-new keyword to customKeywords', () => {
+    const { customKeywords } = keywordChangeFor(movie({}).movie, 'heist', true);
+    expect(customKeywords).toEqual(['heist']);
   });
 
-  it('does not duplicate a tag already there', () => {
-    const next = ratingsWithTag(ratingsWithTag(ratings, 'Cosy', true), 'Cosy', true);
-    expect(next[1].tags).toHaveLength(1);
+  it('does NOT duplicate a keyword that already exists upstream — it just un-removes it', () => {
+    // The keyword came from TMDB and was removed; putting it back means
+    // dropping it from removedKeywords, not adding a custom copy.
+    const source = movie({ keywords: ['Heist'], removedKeywords: ['Heist'] }).movie;
+    const next = keywordChangeFor(source, 'Heist', true);
+
+    expect(next.removedKeywords).toEqual([]);
+    expect(next.customKeywords).toEqual([]);
   });
 
-  it('removes from EVERY viewing, not just the latest', () => {
-    // Leaving it on an older viewing would keep the movie counting as tagged.
-    const spread = [{ tags: [{ title: 'Cosy' }] }, { tags: [{ title: 'Cosy' }] }];
-    const next = ratingsWithTag(spread, 'Cosy', false);
+  it('removes by adding to removedKeywords, since TMDB/AI keywords cannot just be deleted', () => {
+    const source = movie({ aiKeywords: ['dinosaurs'] }).movie;
+    const next = keywordChangeFor(source, 'dinosaurs', false);
 
-    expect(next.every((r) => r.tags.length === 0)).toBe(true);
+    expect(next.removedKeywords).toEqual(['dinosaurs']);
   });
 
-  it('does not mutate the input', () => {
-    const original = JSON.parse(JSON.stringify(ratings));
-    ratingsWithTag(ratings, 'Cosy', true);
-    expect(ratings).toEqual(original);
+  it('drops a user-added keyword from customKeywords when removed', () => {
+    const source = movie({ customKeywords: ['heist'] }).movie;
+    const next = keywordChangeFor(source, 'heist', false);
+
+    expect(next.customKeywords).toEqual([]);
+    expect(next.removedKeywords).toEqual(['heist']);
   });
 
-  it('tolerates missing or empty ratings and blank titles', () => {
-    expect(ratingsWithTag(null, 'Cosy', true)).toEqual([]);
-    expect(ratingsWithTag([], 'Cosy', true)).toEqual([]);
-    expect(ratingsWithTag(ratings, '   ', true)).toBe(ratings);
+  it('does not duplicate an existing removal', () => {
+    const source = movie({ keywords: ['heist'], removedKeywords: ['heist'] }).movie;
+    expect(keywordChangeFor(source, 'heist', false).removedKeywords).toEqual(['heist']);
+  });
+
+  it('leaves everything alone for a blank keyword', () => {
+    const source = movie({ customKeywords: ['a'], removedKeywords: ['b'] }).movie;
+    expect(keywordChangeFor(source, '  ', true)).toEqual({ customKeywords: ['a'], removedKeywords: ['b'] });
+  });
+
+  it('round-trips: removing then re-adding leaves it visible again', () => {
+    const source = movie({ keywords: ['heist'] }).movie;
+    const removed = keywordChangeFor(source, 'heist', false);
+    const restored = keywordChangeFor({ ...source, ...removed }, 'heist', true);
+
+    expect(restored.removedKeywords).toEqual([]);
   });
 });
