@@ -1220,3 +1220,21 @@ Tests: the `re-rating preserves locally-owned data` block in `TMDbDataProcessing
 
 Tests: viewing-date blocks in `LetterboxdUrlService.test.js`. (The map-zoom fix from this same round was removed along with the maps.)
 
+
+## Bug report round, Aug 2026: game navigation + Connections tuning
+
+**"Back to Games" beside "New Puzzle"** (two reports, Wordle and Connections). Both now use the shared `.end-actions` row that Timeline/Trivia/Higher-or-Lower/Tag already had.
+
+**Wordle's "New Puzzle" was too easy to hit by accident** — *"Once you started the game and I accidentally pressed it a couple of times."* It was a full-width button pinned at the TOP, right above the input, and pressing it silently throws the round away. The prominent one now only appears once you've won (in `.end-actions`); mid-round there's just an understated `.give-up-puzzle` text link at the bottom of the page.
+
+**`BackLink` was sending people home instead of back** — *"I'm clicking the back to Games button in 6° and it's just sending me home."* Two compounding causes, both real:
+1. `.back-link-edge-swipe` (the left-edge swipe strip) is `position: fixed; width: 20px; z-index: 500`, and `.back-link` sits at `left: 6px` with **no z-index** — so the swipe strip painted over the leftmost ~14px of the link, *including part of the caret*. Taps there hit the strip, which only responds to a real swipe, so they did nothing.
+2. The link is a small target sitting **on top of the header banner, which is itself tap-to-home** (added so a game hiding the logo still had a way home). Any near-miss therefore navigates home.
+
+Fixed by giving `.back-link` `z-index: 600` (above the strip) and a proper touch target (`min-height: 40px`, roomier padding). The banner's tap-to-home was deliberately left alone — it was explicitly requested, and `.version-only` isn't a big enough affordance on its own.
+
+**Connections genre breadth** — *"you should try to avoid using genres keywords that have a lot of [entries], for example adventure."* Keywords were capped at `KEYWORD_MAX_MOVIE_COUNT` but **genres had no cap at all**, so Adventure (212 of ~1,370 in the real library) and Drama (718) were valid categories — and four films drawn at random from 212 share nothing a player can notice. New `GENRE_MAX_LIBRARY_FRACTION = 0.1`, expressed as a **fraction** so it scales with the collection rather than being tuned to one library, floored at `GROUP_SIZE` so a small library still gets genre categories. Measured against the real library it keeps Western/War/Music/Horror/Documentary/History/Animation/Mystery/Family/Fantasy and drops Drama, Comedy, Thriller, Romance, Action, Adventure, Crime, Sci-Fi. **Decade is deliberately NOT capped** — it's the tier-1 easy way in, and "released in the 2020s" is a crisp checkable fact where "these four are Dramas" isn't.
+
+**Does Connections use user tags?** (asked, not a bug) — it uses `computeFlatKeywords`, i.e. TMDB keywords + AI keywords + the user's own `customKeywords`, minus `removedKeywords`. It does **not** use *viewing tags* (`settings.tags['viewing-tags']`, attached per-viewing), which are a separate concept in this app. Not changed — that's a feature decision, not a defect.
+
+**Not reproducible: Six Degrees' Spielberg report** — *"I use Steven Spielberg as a cast member and then it did not connect to the movie that Steven Spielberg directed."* Investigated against the REAL library rather than by inspection alone: built the actual `playGraph` and confirmed Blues Brothers resolves 66 people including Spielberg, and `moviesByPerson['Steven Spielberg']` resolves 32 films including the ones he directed. `pick()`'s auto-complete uses the uncapped graph, `usedMovieKeys` only holds chain movies, and suggestions aren't over-filtered. **No speculative fix was shipped.** Knowing which target movie she was heading for would make it findable.

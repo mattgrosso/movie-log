@@ -11,10 +11,6 @@
     </div>
 
     <template v-else>
-      <button type="button" class="btn-game btn-game-secondary btn-game-sm new-puzzle-btn" @click="startNewPuzzle">
-        New Puzzle
-      </button>
-
       <ul v-if="activeClues.length" class="target-clues">
         <li v-for="(clue, index) in activeClues" :key="index">{{ clue }}</li>
       </ul>
@@ -39,7 +35,18 @@
       <div v-else class="result-banner won">
         <p>You got it in {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }} (score: {{ score }})!</p>
         <img v-if="gamePosterUrl(target)" :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
+        <div class="end-actions">
+          <button type="button" class="btn-game btn-game-primary cta-btn" @click="startNewPuzzle">New Puzzle</button>
+          <button type="button" class="btn-game btn-game-secondary cta-btn" @click="$router.push('/games')">Back to Games</button>
+        </div>
       </div>
+
+      <button
+        v-if="status === 'playing'"
+        type="button"
+        class="give-up-puzzle"
+        @click="startNewPuzzle"
+      >Give up on this one</button>
 
       <!-- Input pinned at the top (above); the guess list renders newest
            FIRST so each new guess appears right below the input and pushes
@@ -384,9 +391,25 @@ export default {
   padding: 0.6rem 0.9rem;
 }
 
-.new-puzzle-btn {
-  margin-bottom: 1rem;
-  width: 100%;
+/* Deliberately understated and at the BOTTOM of the page. Bug report: "The
+   new puzzle button in the Wordle game is too prominent. Once you started the
+   game and I accidentally pressed it a couple of times." It used to be a
+   full-width button at the very top, directly above the input — easy to hit by
+   mistake, and hitting it silently throws the round away. The prominent
+   "New Puzzle" now only appears once you've actually won. */
+.give-up-puzzle {
+  background: none;
+  border: none;
+  color: #777;
+  display: block;
+  font-size: 0.78rem;
+  margin: 2rem auto 0;
+  padding: 0.4rem 0.8rem;
+  text-decoration: underline;
+
+  &:active {
+    opacity: 0.6;
+  }
 }
 
 /* Fixed 6-column grid, one row per guess — NOT a flex-wrap chip row (that

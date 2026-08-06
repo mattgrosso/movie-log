@@ -409,3 +409,38 @@ describe('CATEGORY_KIND_LABELS', () => {
     });
   });
 });
+
+// Bug report: "you should try to avoid using genres keywords that have a lot
+// of [entries], for example adventure." Four films drawn at random from 212
+// Adventure movies share nothing a player can notice.
+describe('genre breadth cap', () => {
+  const movie = (id, genres) => ({
+    dbKey: `k-${id}`,
+    movie: { id, title: `Movie ${id}`, poster_path: `/p${id}.jpg`, release_date: '2015-06-15', genres: genres.map((name) => ({ name })) },
+    ratings: [{ calculatedTotal: 7 }]
+  });
+
+  it('drops a genre shared by too much of the library', () => {
+    // 100 movies: 60 "Adventure" (60%), 6 "Western" (6%).
+    const entries = [
+      ...Array.from({ length: 60 }, (_, i) => movie(i, ['Adventure'])),
+      ...Array.from({ length: 6 }, (_, i) => movie(100 + i, ['Western'])),
+      ...Array.from({ length: 34 }, (_, i) => movie(200 + i, ['Noir']))
+    ];
+
+    const labels = buildCandidateCategories(entries).map((c) => c.label);
+    expect(labels).not.toContain('Genre: Adventure');
+    expect(labels).toContain('Genre: Western');
+  });
+
+  it('still allows genres in a small library, where every genre is a big share', () => {
+    // 8 movies, 4 of one genre — 50% of the library, but capping here would
+    // mean no genre categories at all.
+    const entries = [
+      ...Array.from({ length: 4 }, (_, i) => movie(i, ['Western'])),
+      ...Array.from({ length: 4 }, (_, i) => movie(10 + i, ['Noir']))
+    ];
+
+    expect(buildCandidateCategories(entries).map((c) => c.label)).toContain('Genre: Western');
+  });
+});

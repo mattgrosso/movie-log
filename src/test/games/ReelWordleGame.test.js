@@ -155,7 +155,7 @@ describe('ReelWordleGame', () => {
 
     // Tap through several rounds in a row — nothing gates repeated use.
     for (let i = 0; i < 5; i++) {
-      await wrapper.find('.new-puzzle-btn').trigger('click');
+      await wrapper.find('.give-up-puzzle').trigger('click');
       expect(wrapper.vm.guesses.length).toBe(0);
       expect(wrapper.vm.target).not.toBeNull();
     }
@@ -167,7 +167,7 @@ describe('ReelWordleGame', () => {
   it('never repeats the immediately-previous target on consecutive "New Puzzle" taps when alternatives exist', async () => {
     const wrapper = factory(10);
     const before = wrapper.vm.target.dbKey;
-    await wrapper.find('.new-puzzle-btn').trigger('click');
+    await wrapper.find('.give-up-puzzle').trigger('click');
     expect(wrapper.vm.target.dbKey).not.toBe(before);
   });
 
@@ -252,3 +252,32 @@ describe('ReelWordleGame', () => {
     });
   });
 });
+
+// Bug reports: "The real Wordle when you win, there's a button that says new
+// game. We should add a partner button that says back to games." and "The new
+// puzzle button... is too prominent. Once you started the game I accidentally
+// pressed it a couple of times."
+describe('ReelWordleGame end-of-round actions', () => {
+  it('offers New Puzzle and Back to Games side by side after a win', async () => {
+    const wrapper = factory(30)
+    await wrapper.vm.$nextTick()
+    // Guess the target to win.
+    wrapper.vm.submitGuess(wrapper.vm.target)
+    await wrapper.vm.$nextTick()
+
+    const actions = wrapper.find('.result-banner .end-actions')
+    expect(actions.exists()).toBe(true)
+    expect(actions.text()).toContain('New Puzzle')
+    expect(actions.text()).toContain('Back to Games')
+  })
+
+  it('keeps the prominent New Puzzle button out of an in-progress round', async () => {
+    const wrapper = factory(30)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.status).toBe('playing')
+    expect(wrapper.find('.result-banner .end-actions').exists()).toBe(false)
+    // Only the understated give-up link, so it can't be hit by accident.
+    expect(wrapper.find('.give-up-puzzle').exists()).toBe(true)
+  })
+})

@@ -19,6 +19,24 @@ const KEYWORD_MAX_MOVIE_COUNT = 10;
 // Requiring a little headroom above the bare mechanical floor fixes both.
 const KEYWORD_MIN_MOVIE_COUNT = 5;
 
+// Genres had NO breadth cap at all, so "Adventure" (212 of ~1,370 films in the
+// real library) or "Drama" (718) were valid categories — and four films picked
+// at random from 212 share nothing a player can actually notice. Bug report:
+// "you should try to avoid using genres keywords that have a lot of [entries],
+// for example adventure."
+//
+// Expressed as a FRACTION of the library rather than an absolute count, so it
+// scales with the collection instead of being tuned to one person's. At 10% the
+// real library keeps Western/War/Music/Horror/Documentary/History/Animation/
+// Mystery/Family/Fantasy and drops Drama, Comedy, Thriller, Romance, Action,
+// Adventure, Crime and Sci-Fi — which is the intended line: a genre earns a
+// group when noticing it is a real observation, not a coin flip.
+//
+// Decade is deliberately NOT capped this way. It's the tier-1 "easy way in",
+// and "released in the 2020s" is at least a crisp fact a player can verify,
+// where "these four are Dramas" is not.
+const GENRE_MAX_LIBRARY_FRACTION = 0.1;
+
 // Per user feedback ("we need some way of rating difficulty, otherwise
 // they're all too hard and it's impossible") — an editorial difficulty tier
 // per category KIND, NYT-Connections-style (yellow=easiest through
@@ -218,12 +236,18 @@ export function buildCandidateCategories (eligibleEntries, awardsData) {
   const keywordCandidates = groupBy(eligibleEntries, movieKeywords, (name) => `Keyword: ${name}`, 'keyword')
     .filter((candidate) => candidate.movies.length >= KEYWORD_MIN_MOVIE_COUNT && candidate.movies.length <= KEYWORD_MAX_MOVIE_COUNT);
 
+  // Never below GROUP_SIZE, or a small library would have no genre categories
+  // at all rather than merely broad ones.
+  const genreMaxMovies = Math.max(GROUP_SIZE, Math.floor(eligibleEntries.length * GENRE_MAX_LIBRARY_FRACTION));
+  const genreCandidates = groupBy(eligibleEntries, movieGenreNames, (name) => `Genre: ${name}`, 'genre')
+    .filter((candidate) => candidate.movies.length <= genreMaxMovies);
+
   // Built ONCE per call (not per-entry) — see buildAcademyWinsByTmdbId.
   const academyWinsByTmdbId = buildAcademyWinsByTmdbId(awardsData?.allAcademyAwards);
 
   return [
     ...groupBy(eligibleEntries, movieDirectors, (name) => `Directed by ${name}`, 'director'),
-    ...groupBy(eligibleEntries, movieGenreNames, (name) => `Genre: ${name}`, 'genre'),
+    ...genreCandidates,
     ...groupBy(eligibleEntries, (entry) => { const d = movieDecade(entry); return d ? [`${d}s`] : []; }, (label) => `Released in the ${label}`, 'decade'),
     ...groupBy(eligibleEntries, (entry) => movieCastNames(entry, 8), (name) => `Starring ${name}`, 'cast'),
     ...groupBy(eligibleEntries, movieFirstLetter, (letter) => `Starts with "${letter}"`, 'title'),

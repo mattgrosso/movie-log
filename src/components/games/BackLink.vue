@@ -83,9 +83,20 @@ export default {
   cursor: pointer;
   display: flex;
   left: 6px;
-  padding: 4px 10px;
+  /* Roomy enough to be a real touch target. Bug report: "I'm clicking the
+     back to Games button in 6° and it's just sending me home" — this sits on
+     top of the header banner, which is itself tap-to-home, so anything that
+     misses the link lands on "go home" instead. A bigger target means far
+     fewer near-misses. */
+  min-height: 40px;
+  padding: 8px 14px;
   position: absolute;
   top: 6px;
+  /* Above .back-link-edge-swipe (z-index 500), which is a fixed 20px strip
+     down the left edge and was painting over the leftmost ~14px of this link
+     — including part of the caret. Taps there hit the swipe zone, which only
+     responds to an actual swipe, so they did nothing at all. */
+  z-index: 600;
 }
 
 .back-link:active {

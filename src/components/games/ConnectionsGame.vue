@@ -57,7 +57,10 @@
 
       <div v-else class="result-banner won">
         <p>Solved it in {{ mistakes }} mistake{{ mistakes === 1 ? '' : 's' }}!</p>
-        <button type="button" class="btn-game btn-game-primary btn-game-sm mt-2 full-width" @click="start">New Puzzle</button>
+        <div class="end-actions mt-2">
+          <button type="button" class="btn-game btn-game-primary cta-btn" @click="start">New Puzzle</button>
+          <button type="button" class="btn-game btn-game-secondary cta-btn" @click="$router.push('/games')">Back to Games</button>
+        </div>
       </div>
     </template>
   </div>
