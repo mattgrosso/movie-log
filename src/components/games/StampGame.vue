@@ -30,27 +30,34 @@
       </p>
       <p class="progress-line">{{ currentIndex + 1 }} of {{ round.cards.length }}</p>
 
+      <!-- A real stack: the next few posters are rendered behind the top one,
+           already loaded. That's both the look ("you can only see the top
+           one") and the fix for the pause that used to sit between swiping and
+           the next poster appearing — that pause was the next image being
+           fetched. -->
       <div class="card-area">
         <div
-          v-if="currentCard"
-          ref="cardEl"
+          v-for="item in visibleStack"
+          :key="entryKey(item.card.entry)"
           class="stamp-card"
-          :class="{ dragging }"
-          :style="cardStyle"
-          @pointerdown="onPointerDown"
-          @pointermove="onPointerMove"
-          @pointerup="onPointerUp"
-          @pointercancel="onPointerUp"
+          :class="{ top: item.isTop, dragging: item.isTop && dragging }"
+          :style="item.isTop ? topCardStyle : null"
+          @pointerdown="onPointerDown($event, item.isTop)"
+          @pointermove="onPointerMove($event, item.isTop)"
+          @pointerup="onPointerUp($event, item.isTop)"
+          @pointercancel="onPointerUp($event, item.isTop)"
         >
           <!-- Deliberately no "already has it" marker. Knowing anchors the
                judgement, and the point is to decide blind and see what falls
                out at the end: "we don't want to know. We just have to be able
                to see what comes out." `hasTag` is still tracked internally to
                work out whether a swipe is a real change. -->
-          <img v-if="gamePosterUrl(currentCard.entry)" :src="gamePosterUrl(currentCard.entry, 'w342')" :alt="currentCard.entry.movie.title" draggable="false">
+          <img v-if="gamePosterUrl(item.card.entry)" :src="gamePosterUrl(item.card.entry, 'w342')" :alt="item.card.entry.movie.title" draggable="false">
 
-          <span class="verdict yes" :style="{ opacity: dragX > 0 ? Math.min(dragX / swipeThreshold, 1) : 0 }">Yes</span>
-          <span class="verdict no" :style="{ opacity: dragX < 0 ? Math.min(-dragX / swipeThreshold, 1) : 0 }">No</span>
+          <template v-if="item.isTop">
+            <span class="verdict yes" :style="{ opacity: dragX > 0 ? Math.min(dragX / swipeThreshold, 1) : 0 }">Yes</span>
+            <span class="verdict no" :style="{ opacity: dragX < 0 ? Math.min(-dragX / swipeThreshold, 1) : 0 }">No</span>
+          </template>
         </div>
       </div>
 
@@ -104,7 +111,18 @@ export default {
       dragX: 0,
       dragStartX: 0,
       pointerId: null,
-      swipeThreshold: 90
+      swipeThreshold: 90,
+      // How many posters are mounted at once. Three is enough for the stack to
+      // read as a stack and for the next couple of images to be fetched before
+      // they're needed.
+      stackDepth: 3,
+      // 0 while resting; ±1 while the top card is flying off. Kept separate
+      // from dragX so the fly-out is one clean committed transition rather
+      // than a continuation of the drag.
+      flyDirection: 0,
+      // Must match the CSS transition on .stamp-card.top. In data so tests can
+      // set it to 0 rather than waiting out real animations.
+      flyDuration: 320
     };
   },
   computed: {
@@ -113,6 +131,15 @@ export default {
     },
     currentCard () {
       return this.round?.cards[this.currentIndex] || null;
+    },
+    // Deepest card FIRST, so the current one is painted last and therefore on
+    // top — no z-index needed on every card.
+    visibleStack () {
+      if (!this.round) return [];
+      return this.round.cards
+        .slice(this.currentIndex, this.currentIndex + this.stackDepth)
+        .map((card, offset) => ({ card, offset, isTop: offset === 0 }))
+        .reverse();
     },
     finished () {
       return Boolean(this.round) && this.currentIndex >= this.round.cards.length;
@@ -126,13 +153,21 @@ export default {
       const outcome = this.history[this.history.length - 1]?.outcome;
       return { added: 'tagging', removed: 'removal', confirmed: 'confirm', skipped: 'pass' }[outcome] || '';
     },
-    cardStyle () {
+    topCardStyle () {
+      // translate3d + a rotation throughout, and deliberately NO
+      // filter/drop-shadow. Timeline's drag-to-place was removed for leaving
+      // visual trails on a real device, traced to drop-shadow being recomputed
+      // on every pointermove. A composited transform alone doesn't do that.
+      if (this.flyDirection) {
+        // Far enough to clear any viewport, so the card genuinely leaves rather
+        // than stopping at the edge.
+        return {
+          transform: `translate3d(${this.flyDirection * 140}vw, 0, 0) rotate(${this.flyDirection * 18}deg)`,
+          opacity: 0
+        };
+      }
       if (!this.dragX) return {};
       return {
-        // translate3d + a rotation, and deliberately NO filter/drop-shadow.
-        // Timeline's drag-to-place was removed for leaving visual trails on a
-        // real device, which was traced to drop-shadow being recomputed on
-        // every pointermove. A composited transform alone doesn't do that.
         transform: `translate3d(${this.dragX}px, 0, 0) rotate(${this.dragX / 22}deg)`
       };
     }
@@ -168,19 +203,25 @@ export default {
       this.dragX = 0;
       this.pointerId = null;
     },
-    onPointerDown (event) {
-      if (!this.currentCard) return;
+    wait (ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    },
+    // `isTop` is passed rather than inferred: CSS pointer-events keeps a real
+    // finger off the cards behind, but nothing stops a synthetic event, and a
+    // drag on a buried card would be silently wrong.
+    onPointerDown (event, isTop) {
+      if (!isTop || !this.currentCard || this.flyDirection) return;
       this.pointerId = event.pointerId;
       this.dragStartX = event.clientX;
       this.dragging = true;
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
-    onPointerMove (event) {
-      if (!this.dragging || event.pointerId !== this.pointerId) return;
+    onPointerMove (event, isTop) {
+      if (!isTop || !this.dragging || event.pointerId !== this.pointerId) return;
       this.dragX = event.clientX - this.dragStartX;
     },
-    onPointerUp (event) {
-      if (!this.dragging) return;
+    onPointerUp (event, isTop) {
+      if (!isTop || !this.dragging) return;
       const travelled = this.dragX;
       event.currentTarget?.releasePointerCapture?.(this.pointerId);
       this.resetDrag();
@@ -191,7 +232,9 @@ export default {
     },
     async decide (keep) {
       const card = this.currentCard;
-      if (!card) return;
+      // Ignore anything that arrives while a card is still flying off — a
+      // second commit mid-flight would advance twice and skip a poster.
+      if (!card || this.flyDirection) return;
 
       const outcome = resolveSwipe({ hasTag: card.hasTag, keep });
       // Read fresh from the store rather than the captured card — the entry may
@@ -204,17 +247,29 @@ export default {
       };
 
       this.history = [...this.history, { card, keep, outcome, previous }];
-      this.currentIndex += 1;
-      this.resetDrag();
 
-      // 'confirmed' and 'skipped' change nothing, so they're never written.
+      // Fling the top card clear before advancing. Dragging stops, but the
+      // index deliberately does NOT move yet — the card has to stay mounted to
+      // be animated.
+      this.dragging = false;
+      this.pointerId = null;
+      this.dragX = 0;
+      this.flyDirection = keep ? 1 : -1;
+
+      // The save doesn't wait for the animation; the animation doesn't wait for
+      // the save. 'confirmed' and 'skipped' change nothing and are never
+      // written.
       if (outcome === 'added' || outcome === 'removed') {
-        await this.saveKeywords(dbKey, keywordChangeFor(liveMovie, this.round.keyword, keep));
+        this.saveKeywords(dbKey, keywordChangeFor(liveMovie, this.round.keyword, keep));
       }
+
+      await this.wait(this.flyDuration);
+      this.flyDirection = 0;
+      this.currentIndex += 1;
     },
     async undo () {
       const last = this.history[this.history.length - 1];
-      if (!last) return;
+      if (!last || this.flyDirection) return;
 
       this.history = this.history.slice(0, -1);
       this.currentIndex = Math.max(0, this.currentIndex - 1);
@@ -275,26 +330,35 @@ export default {
 .card-area {
   align-items: center;
   display: flex;
+  height: 300px;
   justify-content: center;
-  // Reserved so the layout doesn't jump between cards.
-  min-height: 300px;
+  // The cards stack on top of each other inside this box.
+  position: relative;
 }
 
 .stamp-card {
-  position: relative;
+  position: absolute;
   touch-action: pan-y;
   user-select: none;
   // Hints the compositor without forcing a layer permanently.
   will-change: transform;
 
-  &:not(.dragging) {
-    transition: transform 0.2s ease;
+  // Only the top card takes input; the ones behind are scenery.
+  &:not(.top) {
+    pointer-events: none;
+  }
+
+  // Snapping back from a short drag, and the fly-out, share this transition —
+  // flyDuration in data has to match it. Suppressed while actually dragging so
+  // the card tracks the finger exactly.
+  &.top:not(.dragging) {
+    transition: transform 0.32s ease-out, opacity 0.32s ease-out;
   }
 
   img {
     border-radius: 8px;
     display: block;
-    max-height: 300px;
+    height: 300px;
     pointer-events: none;
     width: auto;
   }

@@ -1274,6 +1274,17 @@ Every other game is read-only. This one:
 - Reads the entry **fresh from the store** at decision time rather than trusting the copy captured when the round was built.
 - Has an **undo** for the last card, which restores the previous ratings and re-writes. A swipe interface without undo would be hostile.
 
+### It's a real card stack
+*"swiping should really swipe the poster right off the page revealing the one below it. Right now it just sort of swipes over, pops back, then loads the next poster after a pause. What if we really loaded the images in a stack one behind the other so you can only see the top one?"*
+
+The diagnosis in that report was right: **the pause was the next image being fetched.** The first cut mounted one card, snapped it back to centre, then swapped the `src` — so every swipe waited on a network round trip. Rendering `stackDepth` (3) cards means the next two posters are already loaded.
+
+- Cards render **deepest-first**, so the current one is painted last and is therefore on top — no z-index needed on every card. `.card-area` is a fixed-height positioning context and every card is absolute inside it, so they genuinely overlap.
+- Committing sets `flyDirection` (±1) and the top card transitions to `140vw` with opacity 0. **The index deliberately does NOT advance until the animation finishes** — the card has to stay mounted to be animated. `flyDuration` lives in `data` so it can match the CSS and be zeroed in tests.
+- **The save doesn't wait for the animation and the animation doesn't wait for the save.**
+- `flyDirection` also guards `decide`/`undo`/`onPointerDown`: a second commit mid-flight would advance twice and skip a poster.
+- **`isTop` is passed into the pointer handlers rather than inferred.** CSS `pointer-events: none` keeps a real finger off the buried cards, but nothing stops a synthetic event, and a drag on a buried card would be silently wrong. Note this also means `wrapper.find('.stamp-card')` finds the DEEPEST card in tests — target `.stamp-card.top`.
+
 ### Swipe, built to avoid Timeline's failure
 Timeline's drag-to-place was built and then removed for leaving visual trails on a real device, traced to `filter: drop-shadow` recomputing on every `pointermove`. Stamp's card therefore uses **`translate3d` + rotation only, with no filter and no shadow**, plus `will-change: transform`. Tap Yes/No buttons are a first-class alternative, not a fallback. **This is still unverified on a real device** — if trails appear again, the buttons keep the game fully playable while it's investigated.
 

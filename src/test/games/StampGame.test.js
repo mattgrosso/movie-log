@@ -27,7 +27,7 @@ const movie = ({ aiKeywords = [], directors = ['Nobody'], genres = ['Drama'] } =
   };
 };
 
-const factory = (entries) => {
+const factory = (entries, { flyDuration = 0 } = {}) => {
   const movieLog = {};
   entries.forEach((entry) => { movieLog[entry.dbKey] = entry; });
 
@@ -46,6 +46,8 @@ const factory = (entries) => {
     }
   });
   wrapper.store = store;
+  // Real animation timing would make the loop tests take many seconds.
+  wrapper.vm.flyDuration = flyDuration;
   return wrapper;
 };
 
@@ -63,7 +65,7 @@ describe('StampGame', () => {
   it('gates when no keyword has enough examples to learn from', () => {
     const wrapper = factory([movie({ aiKeywords: ['lonely'] }), ...Array.from({ length: 9 }, () => movie())]);
     expect(wrapper.find('.not-enough-tags').exists()).toBe(true);
-    expect(wrapper.find('.stamp-card').exists()).toBe(false);
+    expect(wrapper.find('.stamp-card.top').exists()).toBe(false);
   });
 
   it('picks a keyword and starts swiping immediately — no picker to get through', () => {
@@ -73,7 +75,7 @@ describe('StampGame', () => {
 
     expect(wrapper.vm.round.keyword).toBe('cosy');
     expect(wrapper.vm.round.cards.length).toBeGreaterThan(0);
-    expect(wrapper.find('.stamp-card').exists()).toBe(true);
+    expect(wrapper.find('.stamp-card.top').exists()).toBe(true);
     expect(wrapper.text()).toContain('cosy');
   });
 
@@ -206,7 +208,7 @@ describe('StampGame', () => {
 
   describe('swiping', () => {
     const drag = async (wrapper, distance) => {
-      const card = wrapper.find('.stamp-card');
+      const card = wrapper.find('.stamp-card.top');
       await card.trigger('pointerdown', { pointerId: 1, clientX: 200 });
       await card.trigger('pointermove', { pointerId: 1, clientX: 200 + distance });
       await card.trigger('pointerup', { pointerId: 1, clientX: 200 + distance });
@@ -246,14 +248,14 @@ describe('StampGame', () => {
       // device, traced to filter: drop-shadow recomputing every pointermove.
       const wrapper = factory(library());
       await wrapper.vm.$nextTick();
-      const card = wrapper.find('.stamp-card');
+      const card = wrapper.find('.stamp-card.top');
 
       await card.trigger('pointerdown', { pointerId: 1, clientX: 200 });
       await card.trigger('pointermove', { pointerId: 1, clientX: 260 });
 
-      const style = wrapper.vm.cardStyle.transform;
+      const style = wrapper.vm.topCardStyle.transform;
       expect(style).toContain('translate3d');
-      expect(JSON.stringify(wrapper.vm.cardStyle)).not.toContain('drop-shadow');
+      expect(JSON.stringify(wrapper.vm.topCardStyle)).not.toContain('drop-shadow');
     });
   });
 
@@ -289,11 +291,11 @@ describe('StampGame blind judgement', () => {
 
     wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => c.hasTag);
     await wrapper.vm.$nextTick();
-    const withKeyword = wrapper.find('.stamp-card').html().replace(/Movie \d+|\/p\d+\.jpg/g, 'X');
+    const withKeyword = wrapper.find('.stamp-card.top').html().replace(/Movie \d+|\/p\d+\.jpg/g, 'X');
 
     wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => !c.hasTag);
     await wrapper.vm.$nextTick();
-    const without = wrapper.find('.stamp-card').html().replace(/Movie \d+|\/p\d+\.jpg/g, 'X');
+    const without = wrapper.find('.stamp-card.top').html().replace(/Movie \d+|\/p\d+\.jpg/g, 'X');
 
     expect(withKeyword).toBe(without);
   });
@@ -306,5 +308,114 @@ describe('StampGame blind judgement', () => {
 
     expect(wrapper.find('.summary').exists()).toBe(true);
     expect(wrapper.vm.tally.added).toBeGreaterThan(0);
+  });
+});
+
+// "swiping should really swipe the poster right off the page revealing the one
+// below it... What if we really loaded the images in a stack one behind the
+// other so you can only see the top one?"
+describe('StampGame card stack', () => {
+  beforeEach(() => { nextId = 1; });
+
+  it('mounts several posters at once, not just the current one', () => {
+    const wrapper = factory(library());
+    expect(wrapper.findAll('.stamp-card')).toHaveLength(wrapper.vm.stackDepth);
+  });
+
+  it('has the next posters already in the DOM, which is what removes the pause', () => {
+    // The gap between swiping and the next poster appearing was the next image
+    // being fetched. Rendering it behind the current one loads it in advance.
+    const wrapper = factory(library());
+    const rendered = wrapper.findAll('.stamp-card img').map((img) => img.attributes('src'));
+    const expected = wrapper.vm.round.cards
+      .slice(0, wrapper.vm.stackDepth)
+      .map((card) => wrapper.vm.gamePosterUrl(card.entry, 'w342'));
+
+    expect(rendered.sort()).toEqual(expected.sort());
+  });
+
+  it('paints the current card on top by rendering it last', () => {
+    // Deepest-first DOM order means no z-index is needed on every card.
+    const wrapper = factory(library());
+    const cards = wrapper.findAll('.stamp-card');
+
+    expect(cards.at(-1).classes()).toContain('top');
+    expect(cards[0].classes()).not.toContain('top');
+  });
+
+  it('only the top card responds to a drag', async () => {
+    const wrapper = factory(library());
+    const buried = wrapper.findAll('.stamp-card')[0];
+
+    await buried.trigger('pointerdown', { pointerId: 1, clientX: 200 });
+    await buried.trigger('pointermove', { pointerId: 1, clientX: 320 });
+
+    expect(wrapper.vm.dragging).toBe(false);
+    expect(wrapper.vm.dragX).toBe(0);
+  });
+
+  it('flings the card clear of the screen before advancing', async () => {
+    const wrapper = factory(library(), { flyDuration: 40 });
+    const firstKey = wrapper.vm.currentCard.entry.dbKey;
+
+    const pending = wrapper.vm.decide(true);
+    await wrapper.vm.$nextTick();
+
+    // Mid-flight: still the same card, now translating off to the right.
+    expect(wrapper.vm.currentCard.entry.dbKey).toBe(firstKey);
+    expect(wrapper.vm.topCardStyle.transform).toContain('140vw');
+    expect(wrapper.vm.topCardStyle.opacity).toBe(0);
+
+    await pending;
+
+    // Landed: advanced, and the new top card is back at rest.
+    expect(wrapper.vm.currentCard.entry.dbKey).not.toBe(firstKey);
+    expect(wrapper.vm.flyDirection).toBe(0);
+    expect(wrapper.vm.topCardStyle.transform).toBeUndefined();
+  });
+
+  it('flings left for a no', async () => {
+    const wrapper = factory(library(), { flyDuration: 40 });
+    const pending = wrapper.vm.decide(false);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.topCardStyle.transform).toContain('-140vw');
+    await pending;
+  });
+
+  it('ignores a second decision while a card is still in flight', async () => {
+    // Two commits mid-flight would advance twice and skip a poster.
+    const wrapper = factory(library(), { flyDuration: 40 });
+
+    const pending = wrapper.vm.decide(true);
+    await wrapper.vm.decide(true);
+    await pending;
+
+    expect(wrapper.vm.history).toHaveLength(1);
+    expect(wrapper.vm.currentIndex).toBe(1);
+  });
+
+  it('does not save twice when a second decision is ignored', async () => {
+    const wrapper = factory(library(), { flyDuration: 40 });
+    wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => !c.hasTag);
+    await wrapper.vm.$nextTick();
+    wrapper.store.dispatch.mockClear();
+
+    const pending = wrapper.vm.decide(true);
+    await wrapper.vm.decide(true);
+    await pending;
+
+    // One decision => one customKeywords write + one removedKeywords write.
+    expect(writesTo(wrapper.store.dispatch)).toHaveLength(2);
+  });
+
+  it('shrinks the stack as the round runs out, without erroring', async () => {
+    const wrapper = factory(library());
+    const total = wrapper.vm.round.cards.length;
+
+    for (let i = 0; i < total - 1; i++) await wrapper.vm.decide(true);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll('.stamp-card')).toHaveLength(1);
   });
 });
