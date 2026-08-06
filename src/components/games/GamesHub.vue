@@ -111,6 +111,12 @@ export default {
           name: 'Trivia',
           icon: GAME_ICONS['/games/trivia'],
           description: 'Real trivia about a random movie, hardest fact first. Guess it in as few facts as you can.'
+        },
+        {
+          path: '/games/stamp',
+          name: 'Stamp',
+          icon: GAME_ICONS['/games/stamp'],
+          description: 'Pick one of your tags and sort movies by whether it fits. Tidies up your tags as you play.'
         }
       ]
     };

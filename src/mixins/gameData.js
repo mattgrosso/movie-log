@@ -19,7 +19,8 @@ export const GAME_ICONS = {
   '/games/timeline': 'bi-clock-history',
   '/games/clue-budget': 'bi-cash-coin',
   '/games/tagline': 'bi-chat-quote-fill',
-  '/games/trivia': 'bi-question-circle-fill'
+  '/games/trivia': 'bi-question-circle-fill',
+  '/games/stamp': 'bi-bookmark-check-fill'
 };
 
 // Feature request: "I don't want to limit the number of times I can play a

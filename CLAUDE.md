@@ -1238,3 +1238,32 @@ Fixed by giving `.back-link` `z-index: 600` (above the strip) and a proper touch
 **Does Connections use user tags?** (asked, not a bug) — it uses `computeFlatKeywords`, i.e. TMDB keywords + AI keywords + the user's own `customKeywords`, minus `removedKeywords`. It does **not** use *viewing tags* (`settings.tags['viewing-tags']`, attached per-viewing), which are a separate concept in this app. Not changed — that's a feature decision, not a defect.
 
 **Not reproducible: Six Degrees' Spielberg report** — *"I use Steven Spielberg as a cast member and then it did not connect to the movie that Steven Spielberg directed."* Investigated against the REAL library rather than by inspection alone: built the actual `playGraph` and confirmed Blues Brothers resolves 66 people including Spielberg, and `moviesByPerson['Steven Spielberg']` resolves 32 films including the ones he directed. `pick()`'s auto-complete uses the uncapped graph, `usedMovieKeys` only holds chain movies, and suggestions aren't over-filtered. **No speculative fix was shipped.** Knowing which target movie she was heading for would make it findable.
+
+## Stamp — the tag-sorting game (Aug 2026, first attempt)
+
+User idea: *"a game where you choose a tag that exists and then a list of movies that may or may not have that tag... the player swipes left or right on each poster to either confirm that tag, add it, or remove it... The tricky part would be choosing what movies to include in the game that might fit the tag but don't have it yet."*
+
+`src/assets/javascript/games/stamp.js` (pure) + `src/components/games/StampGame.vue`, route `/games/stamp`.
+
+**Named "Stamp", not anything with "Tag" in it** — the tagline quiz already displays as **Tag** in the hub, and two tag-something tiles would be genuinely confusing.
+
+### Tags live on VIEWINGS, not movies
+Worth knowing before touching this: a tag is `rating.tags = [{ title }]` on an individual rating, with a vocabulary at `settings.tags['viewing-tags']` (`{ pushKey: { title } }`). So "does this movie have the tag" means "does ANY of its viewings", and `ratingsWithTag` reflects that asymmetry deliberately: **adding** goes on the most recent viewing only, **removing** sweeps every viewing — leaving it on an older one would keep the movie counting as tagged.
+
+### Candidate selection — the actual question in the request
+Rather than trying to infer what a tag *means*, the movies already carrying it **are** the definition, and everything else is scored by how much it resembles them (`affinityScore`). Weights: director 4, keyword 3, cast 2, genre 1, decade 1 — a shared director is the strongest signal available in the data, genre/decade the weakest because a huge slice of any library shares them (same problem as Connections' genre-breadth cap). Per-tagged-movie contributions are **capped** (keywords at 3, cast/genre at 2) so one keyword-heavy film can't outrank a director shared across the whole tagged set, and evidence accumulates across *distinct* tagged movies rather than raw overlap.
+
+A round is **6 already-tagged + 10 high-affinity + 4 random** (`ROUND_MIX`). The random cards are a deliberate control, not filler: without them the game could only ever surface what the scoring already believes, and a movie the scoring is blind to would never get tagged.
+
+### Writes — the first game that mutates the library
+Every other game is read-only. This one:
+- Writes the **`movieLog/<dbKey>/ratings` leaf**, never the whole entry (writing the entry risks clobbering siblings, and the store injects `dbKey` at read time which shouldn't be persisted).
+- Goes through **`writeDurably`**, so it's offline-safe like ratings are.
+- **Only writes when something actually changed.** `resolveSwipe` names all four outcomes — `added`/`removed` write, `confirmed`/`skipped` are no-ops.
+- Reads the entry **fresh from the store** at decision time rather than trusting the copy captured when the round was built.
+- Has an **undo** for the last card, which restores the previous ratings and re-writes. A swipe interface without undo would be hostile.
+
+### Swipe, built to avoid Timeline's failure
+Timeline's drag-to-place was built and then removed for leaving visual trails on a real device, traced to `filter: drop-shadow` recomputing on every `pointermove`. Stamp's card therefore uses **`translate3d` + rotation only, with no filter and no shadow**, plus `will-change: transform`. Tap Yes/No buttons are a first-class alternative, not a fallback. **This is still unverified on a real device** — if trails appear again, the buttons keep the game fully playable while it's investigated.
+
+Tests: `stamp.test.js` (24, pure — tag collection, affinity ordering and caps, round composition, the add-latest/remove-everywhere asymmetry, immutability) and `StampGame.test.js` (15 — gating, round start, leaf-path writes, no-write-on-no-change, undo reverting the write, swipe thresholds, and that the drag style stays composited).
