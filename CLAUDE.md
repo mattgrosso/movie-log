@@ -1250,7 +1250,7 @@ User idea: *"a game where you choose a tag that exists and then a list of movies
 **Named "Stamp", not anything with "Tag" in it** — the tagline quiz already displays as **Tag** in the hub, and two tag-something tiles would be genuinely confusing.
 
 ### You judge blind
-No "already has it" marker on the card. *"Part of this game is that we don't want to know. We just have to be able to see what comes out."* Knowing anchors the judgement, so the card renders identically either way (pinned by a test that diffs the two markups) and the reveal is the tally at the end.  is still tracked internally — it's how a swipe is classified as a real change versus a no-op.
+No "already has it" marker on the card. *"Part of this game is that we don't want to know. We just have to be able to see what comes out."* Knowing anchors the judgement, so the card renders identically either way (pinned by a test that diffs the two markups) and the reveal is the tally at the end. `hasTag` is still tracked internally — it's how a swipe is classified as a real change versus a no-op.
 
 ### It works on keywords, and the write is asymmetric
 "Has this keyword" means **visible via `computeFlatKeywords`** — TMDB's + the AI's + user-added, minus `removedKeywords` — i.e. exactly what the movie page shows.
