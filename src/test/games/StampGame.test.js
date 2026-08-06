@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { reactive } from 'vue';
 import StampGame from '@/components/games/StampGame.vue';
@@ -417,5 +417,110 @@ describe('StampGame card stack', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.findAll('.stamp-card')).toHaveLength(1);
+  });
+});
+
+// "if I go too quickly, it doesn't catch and it doesn't really work. It sort of
+// snaps back. So can we make it so I can swipe a little more quickly?"
+// A fast flick lifts off long before it has travelled far, so distance alone
+// misses it.
+describe('StampGame flick to commit', () => {
+  let clock;
+
+  beforeEach(() => {
+    nextId = 1;
+    clock = 0;
+    // Controlled time so velocity is deterministic rather than dependent on how
+    // fast the test runner dispatches events.
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  // Drag `distance` px over `duration` ms, in a few steps, then release.
+  const gesture = async (wrapper, distance, duration, steps = 4) => {
+    const card = wrapper.find('.stamp-card.top');
+    await card.trigger('pointerdown', { pointerId: 1, clientX: 200 });
+
+    for (let i = 1; i <= steps; i++) {
+      clock += duration / steps;
+      await card.trigger('pointermove', { pointerId: 1, clientX: 200 + (distance * i) / steps });
+    }
+
+    await card.trigger('pointerup', { pointerId: 1, clientX: 200 + distance });
+  };
+
+  it('commits a short but fast flick that distance alone would have missed', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+
+    // 50px in 60ms ≈ 0.83 px/ms — well under the 90px distance threshold.
+    await gesture(wrapper, 50, 60);
+
+    expect(wrapper.vm.history).toHaveLength(1);
+    expect(wrapper.vm.history[0].keep).toBe(true);
+  });
+
+  it('commits a fast flick to the left as a no', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    await gesture(wrapper, -50, 60);
+
+    expect(wrapper.vm.history[0].keep).toBe(false);
+  });
+
+  it('still commits a slow drag that goes the full distance', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+
+    // 120px over 900ms — barely moving, but well past the threshold.
+    await gesture(wrapper, 120, 900);
+
+    expect(wrapper.vm.history).toHaveLength(1);
+  });
+
+  it('ignores a slow, short drag — that is a nudge, not a swipe', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    await gesture(wrapper, 40, 900);
+
+    expect(wrapper.vm.history).toHaveLength(0);
+  });
+
+  it('ignores a fast but tiny movement, so a tap or a jitter cannot commit', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+
+    // 8px in 8ms is very "fast" but is obviously not a swipe.
+    await gesture(wrapper, 8, 8, 2);
+
+    expect(wrapper.vm.history).toHaveLength(0);
+  });
+
+  it('takes direction from the flick, not the total travel, when they disagree', async () => {
+    // A gesture that drifts right then snaps back left: the last thing the
+    // thumb did is the intent.
+    const wrapper = factory(library(), { flyDuration: 0 });
+    const card = wrapper.find('.stamp-card.top');
+
+    await card.trigger('pointerdown', { pointerId: 1, clientX: 200 });
+    clock += 400;
+    await card.trigger('pointermove', { pointerId: 1, clientX: 300 }); // slow drift right
+    clock += 40;
+    await card.trigger('pointermove', { pointerId: 1, clientX: 240 }); // fast flick left
+    await card.trigger('pointerup', { pointerId: 1, clientX: 240 });
+
+    expect(wrapper.vm.history[0].keep).toBe(false);
+  });
+
+  it('measures speed over the end of the gesture, not its whole length', async () => {
+    // A long slow drag that FINISHES with a flick should still count — averaging
+    // over the whole gesture would wash the flick out.
+    const wrapper = factory(library(), { flyDuration: 0 });
+    const card = wrapper.find('.stamp-card.top');
+
+    await card.trigger('pointerdown', { pointerId: 1, clientX: 200 });
+    clock += 2000;
+    await card.trigger('pointermove', { pointerId: 1, clientX: 210 }); // 2s of almost nothing
+    clock += 50;
+    await card.trigger('pointermove', { pointerId: 1, clientX: 265 }); // then a flick
+    await card.trigger('pointerup', { pointerId: 1, clientX: 265 });
+
+    expect(wrapper.vm.history).toHaveLength(1);
   });
 });

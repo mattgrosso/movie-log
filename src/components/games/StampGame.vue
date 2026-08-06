@@ -111,7 +111,21 @@ export default {
       dragX: 0,
       dragStartX: 0,
       pointerId: null,
+      // A slow, deliberate drag commits on DISTANCE...
       swipeThreshold: 90,
+      // ...and a quick flick commits on SPEED, because a fast swipe lifts off
+      // long before it has travelled far. Distance alone meant exactly the
+      // report: "if I go too quickly, it doesn't catch... it sort of snaps
+      // back." In px/ms — roughly a third of a phone width in a tenth of a
+      // second.
+      flickVelocity: 0.45,
+      // ...but still far enough that a tap or a jittery press can't count.
+      flickMinDistance: 24,
+      // Velocity is measured over the tail of the gesture, not the whole
+      // thing, so a slow drag that ENDS in a flick still reads as a flick.
+      velocityWindow: 120,
+      // Recent { x, t } pointer samples, trimmed to velocityWindow.
+      dragSamples: [],
       // How many posters are mounted at once. Three is enough for the stack to
       // read as a stack and for the next couple of images to be fetched before
       // they're needed.
@@ -202,6 +216,35 @@ export default {
       this.dragging = false;
       this.dragX = 0;
       this.pointerId = null;
+      this.dragSamples = [];
+    },
+    now () {
+      return typeof performance !== 'undefined' ? performance.now() : Date.now();
+    },
+    trackSample (x) {
+      const t = this.now();
+      this.dragSamples.push({ x, t });
+
+      // Drop anything older than the window, always keeping at least two points
+      // to measure between. Velocity is then averaged across the window rather
+      // than taken from the last two moves, which on a real device would let a
+      // single jittery sample decide the whole gesture.
+      const cutoff = t - this.velocityWindow;
+      while (this.dragSamples.length > 2 && this.dragSamples[0].t < cutoff) {
+        this.dragSamples.shift();
+      }
+    },
+    // px/ms across the tail of the gesture. Positive is rightward.
+    recentVelocity () {
+      const samples = this.dragSamples;
+      if (samples.length < 2) return 0;
+
+      const last = samples[samples.length - 1];
+      const first = samples[0];
+      const elapsed = last.t - first.t;
+      if (elapsed <= 0) return 0;
+
+      return (last.x - first.x) / elapsed;
     },
     wait (ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -214,19 +257,31 @@ export default {
       this.pointerId = event.pointerId;
       this.dragStartX = event.clientX;
       this.dragging = true;
+      this.dragSamples = [];
+      this.trackSample(event.clientX);
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
     onPointerMove (event, isTop) {
       if (!isTop || !this.dragging || event.pointerId !== this.pointerId) return;
       this.dragX = event.clientX - this.dragStartX;
+      this.trackSample(event.clientX);
     },
     onPointerUp (event, isTop) {
       if (!isTop || !this.dragging) return;
+
       const travelled = this.dragX;
+      const velocity = this.recentVelocity();
+      // Direction comes from the FLICK when it's a flick — a gesture can
+      // reverse near the end, and the last thing the thumb did is the intent.
+      const flicked = Math.abs(velocity) >= this.flickVelocity &&
+        Math.abs(travelled) >= this.flickMinDistance;
+
       event.currentTarget?.releasePointerCapture?.(this.pointerId);
       this.resetDrag();
 
-      if (Math.abs(travelled) >= this.swipeThreshold) {
+      if (flicked) {
+        this.decide(velocity > 0);
+      } else if (Math.abs(travelled) >= this.swipeThreshold) {
         this.decide(travelled > 0);
       }
     },

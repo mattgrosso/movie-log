@@ -1285,6 +1285,16 @@ The diagnosis in that report was right: **the pause was the next image being fet
 - `flyDirection` also guards `decide`/`undo`/`onPointerDown`: a second commit mid-flight would advance twice and skip a poster.
 - **`isTop` is passed into the pointer handlers rather than inferred.** CSS `pointer-events: none` keeps a real finger off the buried cards, but nothing stops a synthetic event, and a drag on a buried card would be silently wrong. Note this also means `wrapper.find('.stamp-card')` finds the DEEPEST card in tests — target `.stamp-card.top`.
 
+### A fast flick commits, not just a long drag
+*"if I go too quickly, it doesn't catch and it doesn't really work. It sort of snaps back."*
+
+A distance-only threshold misses fast swipes, because a quick flick lifts off long before it has travelled 90px. `onPointerUp` now commits on **either** distance (`swipeThreshold`, 90px) **or** speed (`flickVelocity`, 0.45 px/ms) — with `flickMinDistance` (24px) so a tap or a jittery press still can't count.
+
+- **Velocity is measured over the tail of the gesture** (`velocityWindow`, 120ms), not its whole length. A long slow drag that FINISHES with a flick should count, and averaging over the whole thing would wash that out.
+- Samples older than the window are dropped, but at least two are always kept. Averaging across the window rather than taking the last two moves matters on a real device, where one jittery sample would otherwise decide the gesture.
+- **Direction comes from the flick when it's a flick**, not from total travel — a gesture can drift one way and snap back the other, and the last thing the thumb did is the intent.
+- Tests drive `performance.now` through a stubbed clock, so velocity is deterministic instead of depending on how fast the runner dispatches events. A bug in the first cut (the trim condition was inverted, leaving an ancient first sample to dilute the velocity) was caught by exactly the two tests covering slow-then-fast gestures.
+
 ### Swipe, built to avoid Timeline's failure
 Timeline's drag-to-place was built and then removed for leaving visual trails on a real device, traced to `filter: drop-shadow` recomputing on every `pointermove`. Stamp's card therefore uses **`translate3d` + rotation only, with no filter and no shadow**, plus `will-change: transform`. Tap Yes/No buttons are a first-class alternative, not a fallback. **This is still unverified on a real device** — if trails appear again, the buttons keep the game fully playable while it's investigated.
 
