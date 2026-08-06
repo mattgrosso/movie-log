@@ -42,8 +42,12 @@
           @pointerup="onPointerUp"
           @pointercancel="onPointerUp"
         >
+          <!-- Deliberately no "already has it" marker. Knowing anchors the
+               judgement, and the point is to decide blind and see what falls
+               out at the end: "we don't want to know. We just have to be able
+               to see what comes out." `hasTag` is still tracked internally to
+               work out whether a swipe is a real change. -->
           <img v-if="gamePosterUrl(currentCard.entry)" :src="gamePosterUrl(currentCard.entry, 'w342')" :alt="currentCard.entry.movie.title" draggable="false">
-          <span v-if="currentCard.hasTag" class="already-tagged">Already has it</span>
 
           <span class="verdict yes" :style="{ opacity: dragX > 0 ? Math.min(dragX / swipeThreshold, 1) : 0 }">Yes</span>
           <span class="verdict no" :style="{ opacity: dragX < 0 ? Math.min(-dragX / swipeThreshold, 1) : 0 }">No</span>
@@ -294,17 +298,6 @@ export default {
     pointer-events: none;
     width: auto;
   }
-}
-
-.already-tagged {
-  background: rgba(0, 0, 0, 0.75);
-  border-radius: 4px;
-  color: #f0ad4e;
-  font-size: 0.68rem;
-  left: 6px;
-  padding: 2px 6px;
-  position: absolute;
-  top: 6px;
 }
 
 /* Verdict stamps fade in as you drag, so the swipe says what it will do

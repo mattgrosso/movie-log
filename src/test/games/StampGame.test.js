@@ -268,3 +268,43 @@ describe('StampGame', () => {
     expect(wrapper.store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
   });
 });
+
+describe('StampGame blind judgement', () => {
+  beforeEach(() => { nextId = 1; });
+
+  it('never reveals whether the movie already has the keyword', async () => {
+    // "we don't want to know. We just have to be able to see what comes out."
+    // Knowing would anchor the judgement.
+    const wrapper = factory(library());
+    wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => c.hasTag);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.currentCard.hasTag).toBe(true);
+    expect(wrapper.find('.already-tagged').exists()).toBe(false);
+    expect(wrapper.text().toLowerCase()).not.toContain('already');
+  });
+
+  it('renders the same card markup whether or not the keyword is already there', async () => {
+    const wrapper = factory(library());
+
+    wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => c.hasTag);
+    await wrapper.vm.$nextTick();
+    const withKeyword = wrapper.find('.stamp-card').html().replace(/Movie \d+|\/p\d+\.jpg/g, 'X');
+
+    wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => !c.hasTag);
+    await wrapper.vm.$nextTick();
+    const without = wrapper.find('.stamp-card').html().replace(/Movie \d+|\/p\d+\.jpg/g, 'X');
+
+    expect(withKeyword).toBe(without);
+  });
+
+  it('still tallies what actually changed once the round is over', async () => {
+    // The reveal is the summary at the end, not a hint during play.
+    const wrapper = factory(library());
+    const total = wrapper.vm.round.cards.length;
+    for (let i = 0; i < total; i++) await wrapper.vm.decide(true);
+
+    expect(wrapper.find('.summary').exists()).toBe(true);
+    expect(wrapper.vm.tally.added).toBeGreaterThan(0);
+  });
+});
