@@ -1285,6 +1285,19 @@ The diagnosis in that report was right: **the pause was the next image being fet
 - `flyDirection` also guards `decide`/`undo`/`onPointerDown`: a second commit mid-flight would advance twice and skip a poster.
 - **`isTop` is passed into the pointer handlers rather than inferred.** CSS `pointer-events: none` keeps a real finger off the buried cards, but nothing stops a synthetic event, and a drag on a buried card would be silently wrong. Note this also means `wrapper.find('.stamp-card')` finds the DEEPEST card in tests — target `.stamp-card.top`.
 
+### The edge-swipe strip was eating taps everywhere (fixed Aug 2026)
+*"when it's done, I try and hit new keyword or back to games... I tap them. Nothing happens. I have to tap them again."*
+
+`BackLink`'s edge-swipe gesture was implemented as a **fixed, full-height, 20px-wide invisible div at `z-index: 500`**. Game screens use `1rem` (16px) horizontal padding, so that strip sat on top of the leftmost few pixels of **every left-hand button on every game screen** — and since the strip only responds to a swipe, a tap there did nothing at all. Tap slightly further right and it worked, which is exactly the reported "have to tap them again."
+
+**This was never Stamp-specific.** It shipped with the edge-swipe feature and had been quietly eating taps on every game's buttons since.
+
+Fixed by deleting the overlay: the gesture is now bound on `window` (passive, since it never calls `preventDefault`) and filtered by **where the touch started** (`clientX <= edgeZone`). Same gesture, nothing covered. Guarded by tests that the component renders no overlay, that a swipe starting away from the edge is ignored, and that the listeners are removed on unmount.
+
+**Lesson worth keeping: an invisible full-height overlay for a gesture will cover real content.** If a gesture needs the whole edge, listen globally and filter by coordinates rather than putting a div in the way.
+
+Also scoped Stamp's `will-change: transform` to `.top.dragging` / `.top.flying` rather than every card permanently — a promoted compositor layer that outlives its element is a known cause of stale hit-testing on iOS. Secondary to the strip, and less certain, but leaving `will-change` on permanently is wrong regardless.
+
 ### A fast flick commits, not just a long drag
 *"if I go too quickly, it doesn't catch and it doesn't really work. It sort of snaps back."*
 

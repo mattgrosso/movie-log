@@ -40,7 +40,7 @@
           v-for="item in visibleStack"
           :key="entryKey(item.card.entry)"
           class="stamp-card"
-          :class="{ top: item.isTop, dragging: item.isTop && dragging }"
+          :class="{ top: item.isTop, dragging: item.isTop && dragging, flying: item.isTop && flyDirection !== 0 }"
           :style="item.isTop ? topCardStyle : null"
           @pointerdown="onPointerDown($event, item.isTop)"
           @pointermove="onPointerMove($event, item.isTop)"
@@ -395,8 +395,15 @@ export default {
   position: absolute;
   touch-action: pan-y;
   user-select: none;
-  // Hints the compositor without forcing a layer permanently.
-  will-change: transform;
+
+  // will-change ONLY while the card is actually moving. Left on permanently it
+  // promotes every card to its own compositor layer for the whole round, and a
+  // promoted layer that outlives its element is a known way to end up with
+  // stale hit-testing on iOS — taps landing on nothing.
+  &.top.dragging,
+  &.top.flying {
+    will-change: transform;
+  }
 
   // Only the top card takes input; the ones behind are scenery.
   &:not(.top) {

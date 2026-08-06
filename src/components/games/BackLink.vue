@@ -1,15 +1,13 @@
 <template>
-  <!-- Bug report: "I should be able to swipe left from the left edge of the
-       screen in order to trigger the same back behavior." A thin fixed strip
-       along the left edge, independent of BackLink's own absolute
-       positioning below - touchmove is left un-preventDefault'd (and bound
-       .passive) so it never blocks normal vertical scrolling underneath it. -->
-  <div
-    class="back-link-edge-swipe"
-    @touchstart="onTouchStart"
-    @touchmove.passive="() => {}"
-    @touchend="onTouchEnd"
-  ></div>
+  <!-- The edge-swipe gesture ("I should be able to swipe left from the left
+       edge of the screen") is bound on the WINDOW, not on an element. It used
+       to be a fixed, full-height, 20px-wide invisible strip at z-index 500 —
+       which sat on top of anything within 20px of the left edge and silently
+       ate taps on it, since the strip only responds to a swipe. With most game
+       screens using 16px padding, that covered a few pixels of every
+       left-hand button: "I tap them. Nothing happens. I have to tap them
+       again." Filtering by where the touch STARTED gives the same gesture
+       while covering nothing. -->
   <div class="back-link" @click="$emit('click')" role="button" :aria-label="`Back to ${label}`">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
       <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
@@ -37,18 +35,39 @@ export default {
   data () {
     return {
       touchStartX: null,
-      touchStartY: null
+      touchStartY: null,
+      // How close to the left edge a touch must START to count as an edge
+      // swipe. Same 20px the old strip was wide.
+      edgeZone: 20
     };
+  },
+  mounted () {
+    // Passive: this never calls preventDefault, so it must not be allowed to
+    // block scrolling while the browser waits to find out.
+    window.addEventListener('touchstart', this.onTouchStart, { passive: true });
+    window.addEventListener('touchend', this.onTouchEnd, { passive: true });
+  },
+  beforeUnmount () {
+    window.removeEventListener('touchstart', this.onTouchStart);
+    window.removeEventListener('touchend', this.onTouchEnd);
   },
   methods: {
     onTouchStart (event) {
       const touch = event.touches[0];
+      if (!touch || touch.clientX > this.edgeZone) {
+        this.touchStartX = null;
+        return;
+      }
       this.touchStartX = touch.clientX;
       this.touchStartY = touch.clientY;
     },
     onTouchEnd (event) {
       if (this.touchStartX === null) return;
       const touch = event.changedTouches[0];
+      if (!touch) {
+        this.touchStartX = null;
+        return;
+      }
       const deltaX = touch.clientX - this.touchStartX;
       const deltaY = touch.clientY - this.touchStartY;
       this.touchStartX = null;
@@ -65,15 +84,6 @@ export default {
 </script>
 
 <style scoped>
-.back-link-edge-swipe {
-  bottom: 0;
-  left: 0;
-  position: fixed;
-  top: 0;
-  width: 20px;
-  z-index: 500;
-}
-
 .back-link {
   align-items: center;
   background: rgba(0, 0, 0, 0.6);
@@ -92,10 +102,8 @@ export default {
   padding: 8px 14px;
   position: absolute;
   top: 6px;
-  /* Above .back-link-edge-swipe (z-index 500), which is a fixed 20px strip
-     down the left edge and was painting over the leftmost ~14px of this link
-     — including part of the caret. Taps there hit the swipe zone, which only
-     responds to an actual swipe, so they did nothing at all. */
+  /* Kept above the header banner underneath, which is itself tap-to-home, so
+     a near-miss on this link doesn't navigate somewhere else. */
   z-index: 600;
 }
 

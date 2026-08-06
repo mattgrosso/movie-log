@@ -21,39 +21,66 @@ describe('BackLink', () => {
   })
 
   // Bug report: "I should be able to swipe left from the left edge of the
-  // screen in order to trigger the same back behavior." A thin fixed strip
-  // along the left edge tracks touchstart/touchend and emits the same
-  // 'click' event a tap on the link itself would.
+  // screen in order to trigger the same back behavior." Bound on the WINDOW
+  // and filtered by where the touch started, rather than via an invisible
+  // strip — the strip covered anything within 20px of the left edge and ate
+  // taps on it.
   describe('left-edge swipe gesture', () => {
-    function swipe (wrapper, { startX = 5, startY = 300, endX, endY = 300 }) {
-      const zone = wrapper.find('.back-link-edge-swipe')
-      zone.trigger('touchstart', { touches: [{ clientX: startX, clientY: startY }] })
-      zone.trigger('touchend', { changedTouches: [{ clientX: endX, clientY: endY }] })
+    // Dispatched on window, since that's where the listeners live now.
+    function touch (type, x, y) {
+      const event = new Event(type)
+      const point = { clientX: x, clientY: y }
+      event.touches = [point]
+      event.changedTouches = [point]
+      window.dispatchEvent(event)
+    }
+
+    function swipe ({ startX = 5, startY = 300, endX, endY = 300 }) {
+      touch('touchstart', startX, startY)
+      touch('touchend', endX, endY)
     }
 
     it('emits click on a rightward swipe starting at the edge', () => {
       const wrapper = mount(BackLink)
-      swipe(wrapper, { startX: 5, endX: 90 })
+      swipe({ startX: 5, endX: 90 })
       expect(wrapper.emitted('click')).toBeTruthy()
+    })
+
+    it('ignores a swipe that starts away from the edge', () => {
+      // Otherwise any rightward drag anywhere on the page would navigate back.
+      const wrapper = mount(BackLink)
+      swipe({ startX: 200, endX: 320 })
+      expect(wrapper.emitted('click')).toBeFalsy()
     })
 
     it('does not emit click on a short tap-like touch (not a real swipe)', () => {
       const wrapper = mount(BackLink)
-      swipe(wrapper, { startX: 5, endX: 20 })
+      swipe({ startX: 5, endX: 20 })
       expect(wrapper.emitted('click')).toBeFalsy()
     })
 
     it('does not emit click on a mostly-vertical drag (a scroll, not a swipe)', () => {
       const wrapper = mount(BackLink)
-      const zone = wrapper.find('.back-link-edge-swipe')
-      zone.trigger('touchstart', { touches: [{ clientX: 5, clientY: 100 }] })
-      zone.trigger('touchend', { changedTouches: [{ clientX: 70, clientY: 400 }] })
+      swipe({ startX: 5, startY: 100, endX: 70, endY: 400 })
       expect(wrapper.emitted('click')).toBeFalsy()
     })
 
     it('does not emit click on a leftward swipe', () => {
       const wrapper = mount(BackLink)
-      swipe(wrapper, { startX: 20, endX: -50 })
+      swipe({ startX: 20, endX: -50 })
+      expect(wrapper.emitted('click')).toBeFalsy()
+    })
+
+    it('renders no overlay that could sit on top of the page', () => {
+      // The whole point of the rewrite: nothing covers the left edge any more.
+      const wrapper = mount(BackLink)
+      expect(wrapper.find('.back-link-edge-swipe').exists()).toBe(false)
+    })
+
+    it('stops listening once unmounted', () => {
+      const wrapper = mount(BackLink)
+      wrapper.unmount()
+      swipe({ startX: 5, endX: 90 })
       expect(wrapper.emitted('click')).toBeFalsy()
     })
   })
