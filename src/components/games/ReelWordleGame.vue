@@ -301,7 +301,6 @@ export default {
 
 .reel-wordle-game {
   color: #eee;
-  min-height: 100vh;
   // See the identical comment in ConnectionsGame.vue — top padding is a
   // safety margin against BackLink overlapping this screen's own h1 when
   // the global Header happens to have zero height.

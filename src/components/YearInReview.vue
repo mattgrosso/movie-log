@@ -460,7 +460,6 @@ export default {
 <style scoped lang="scss">
 .year-in-review {
   position: relative;
-  min-height: 100vh;
   padding-bottom: 4rem;
   color: #ffffff;
 

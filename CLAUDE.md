@@ -1326,3 +1326,17 @@ Timeline's drag-to-place was built and then removed for leaving visual trails on
 Sanity-checked against the REAL library, not just fixtures: "cult film" suggested Beetlejuice and Teen Wolf, "college" suggested Licorice Pizza. Some suggestions are noise, which is the point — judging them is the game.
 
 Tests: `stamp.test.js` (31, pure — keyword collection and its bounds, AI preference in `pickKeyword`, affinity ordering and caps, round composition, and the removedKeywords/customKeywords asymmetry incl. a remove-then-restore round trip) and `StampGame.test.js` (15 — gating, auto-started round with no picker, that viewing tags alone don't make it playable, leaf-path writes, no-write-on-no-change, undo reverting the write, swipe thresholds, and that the drag style stays composited).
+
+## Phantom scroll on every page (Aug 2026)
+
+Bug report: *"the content does not go below the bottom edge of the screen, but the page still can scroll down quite a bit. It seems like maybe we're forcing a height in here maybe that's because we wanted to get that footer bar to stay stuck to the bottom."* The diagnosis was exactly right.
+
+**13 components each declared `min-height: 100vh`** on their own root — every game, plus MovieDetail, TrophyCase and YearInReview. `.cinema-roll` is a flex column that already has `min-height: 100vh`, so the page came out as `header + a FULL viewport + footer`, i.e. roughly a header's worth of empty space to scroll through on **every one of those pages**, always.
+
+The rule meant to handle this, `.cinema-roll > router-view`, **never matched anything**: `<router-view>` renders the matched component *in its place*, so no `router-view` element exists in the DOM. It had been dead the whole time, which is why each page had grown its own `min-height` workaround.
+
+Fixed by wrapping `<router-view>` in `<main class="app-main">` (`display: flex; flex: 1 1 auto; flex-direction: column`) with `.app-main > * { flex: 1 1 auto }`, and deleting `min-height: 100vh` from all 13 components. The page now stretches to fill whatever is left below the header — same "footer at the bottom" result, no phantom scroll:
+- short content → total is exactly `100vh`, nothing to scroll
+- long content → total is the natural height, scrolls only as far as it needs
+
+Checked before shipping: the three surviving `height: 100%` rules in those components are all on images inside fixed-size parents (a timeline gap, the backdrop container, a poster box), so none relied on the page being a viewport tall; and every routed component is single-root, so `.app-main > *` can't split space between siblings.

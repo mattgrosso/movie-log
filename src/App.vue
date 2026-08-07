@@ -4,7 +4,14 @@
     <div class="scroll-to-top-trigger" @click.stop="scrollToTop"></div>
     <AppHeader/>
     <UpdateAvailableBanner/>
-    <router-view></router-view>
+    <!-- The routed page grows to fill whatever is left below the header, which
+         is what keeps the footer at the bottom. Pages used to each declare
+         `min-height: 100vh` for that, which made every page header + a FULL
+         viewport + footer tall — so there was always a screenful of empty
+         space to scroll through. -->
+    <main class="app-main">
+      <router-view></router-view>
+    </main>
     <AppFooter v-if="$store.state.dbLoaded"/>
     <BugReportButton/>
   </div>
@@ -128,9 +135,20 @@ export default {
     flex-direction: column;
   }
 
-  .cinema-roll > router-view {
+  /* This replaces a `.cinema-roll > router-view` rule that never matched
+     anything: <router-view> renders the matched component IN ITS PLACE, so no
+     `router-view` element exists in the DOM. */
+  .app-main {
+    display: flex;
     flex: 1 1 auto;
+    flex-direction: column;
     width: 100%;
+  }
+
+  /* The page itself stretches to fill, rather than demanding a viewport of its
+     own. Same visual result, no phantom scroll. */
+  .app-main > * {
+    flex: 1 1 auto;
   }
 
   .scroll-to-top-trigger {

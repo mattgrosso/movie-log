@@ -701,7 +701,6 @@ export default {
 
 .six-degrees-game {
   color: #eee;
-  min-height: 100vh;
   // Back up to 1rem (bug report: the description "doesn't have enough
   // horizontal padding from the edges of the screen") - .chain-row claws
   // back the difference with a matching negative margin below, so the

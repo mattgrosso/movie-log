@@ -1777,7 +1777,6 @@ export default {
 
 <style lang="scss" scoped>
 .movie-detail-page {
-  min-height: 100vh;
   background: #000;
   color: #fff;
 }

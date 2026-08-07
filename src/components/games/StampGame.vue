@@ -429,7 +429,6 @@ export default {
 
 .stamp-game {
   color: #eee;
-  min-height: 100vh;
   padding: 1.75rem 1rem 2rem;
   text-align: center;
 }

@@ -235,7 +235,6 @@ export default {
 
 .higher-lower-game {
   color: #eee;
-  min-height: 100vh;
   // Top padding is a safety margin against BackLink overlapping this
   // screen's own content when the global Header happens to have zero
   // height (see the identical comment in ConnectionsGame.vue) — trimmed

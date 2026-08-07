@@ -283,7 +283,6 @@ export default {
 <style lang="scss" scoped>
 .trophy-case {
   color: #eee;
-  min-height: 100vh;
   padding: 0 1rem 2rem;
 }
 

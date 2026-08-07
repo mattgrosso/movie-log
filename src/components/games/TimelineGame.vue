@@ -482,7 +482,6 @@ export default {
 
 .timeline-game {
   color: #eee;
-  min-height: 100vh;
   // Safety margin against BackLink overlapping this screen's own content
   // when the global Header happens to have zero height — same fix as the
   // other 4 game components. Trimmed from 2.5rem (bug report: "move the

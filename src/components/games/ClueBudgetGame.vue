@@ -333,7 +333,6 @@ export default {
 
 .clue-budget-game {
   color: #eee;
-  min-height: 100vh;
   // Safety margin against BackLink overlapping this screen's own content
   // when the global Header happens to have zero height — same fix as the
   // other 5 game components.

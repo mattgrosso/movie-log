@@ -220,7 +220,6 @@ export default {
 
 .tagline-quiz-game {
   color: #eee;
-  min-height: 100vh;
   // Safety margin against BackLink overlapping this screen's own content
   // when the global Header happens to have zero height — trimmed from
   // 2.5rem, same tradeoff other games made, to help everything fit on one

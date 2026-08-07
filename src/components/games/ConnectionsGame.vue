@@ -319,7 +319,6 @@ export default {
 
 .connections-game {
   color: #eee;
-  min-height: 100vh;
   // top padding is a safety margin, not decoration — BackLink is fixed at
   // (6,6) of the viewport regardless of whether the global Header currently
   // has any real height (e.g. a direct/fresh navigation before Home ever
