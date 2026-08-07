@@ -253,6 +253,21 @@ export default {
       };
     }
   },
+  watch: {
+    // Getting through a round is this game's "done". `finished` is a computed,
+    // so there's no imperative win moment to hook — same reason Wordle,
+    // Connections and Six Degrees watch their `status` instead.
+    //
+    // Guarded on history so an empty round (no cards to decide) can't stamp the
+    // day as played. A round where nothing needed changing still counts: the
+    // sweep is the accomplishment, and requiring a change would punish a
+    // library that's already tidy.
+    finished (isFinished) {
+      if (isFinished && this.history.length) {
+        this.recordGameWin();
+      }
+    }
+  },
   created () {
     this.startRound();
     this.previousBannerUrl = this.$store.state?.bannerUrl;

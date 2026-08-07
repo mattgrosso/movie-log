@@ -1310,6 +1310,11 @@ Also scoped Stamp's `will-change: transform` to `.top.dragging` / `.top.flying` 
 
 **A test-update trap worth remembering:** switching `decide()` from a boolean to a verdict string left a helper still passing `true`, which fell through `resolveSwipe` as *"no"* — silently inverting every test that used it. It surfaced as an unrelated-looking assertion about a dimmed tile. When changing a parameter's TYPE, grep for the callers rather than relying on a find-and-replace of the literal call.
 
+### Marking the day as played
+Bug report: *"The Stamp game isn't getting marked as done on the games Home Screen."* Stamp was simply the only one of the nine games that never called `recordGameWin` — an oversight when it was built, not a broken mechanism.
+
+Finishing a round is its "win". `finished` is a computed, so it hooks a `watch` rather than an imperative moment, the same way Wordle/Connections/Six Degrees watch their `status`. Guarded on `history.length` so an empty round can't stamp the day. **A round where nothing needed changing still counts** — the sweep is the accomplishment, and requiring a change would penalise a library that's already tidy.
+
 ### A fast flick commits, not just a long drag
 *"if I go too quickly, it doesn't catch and it doesn't really work. It sort of snaps back."*
 

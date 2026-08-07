@@ -709,3 +709,52 @@ describe('StampGame passing when unsure', () => {
     expect(wrapper.vm.currentIndex).toBe(0);
   });
 });
+
+// Bug report: "The Stamp game isn't getting marked as done on the games Home
+// Screen." It was the only game that never called recordGameWin.
+describe('StampGame marking the day as played', () => {
+  beforeEach(() => { nextId = 1; });
+
+  const winWrites = (dispatch) => dispatch.mock.calls
+    .filter(([action, arg]) => action === 'writeDurably' && arg?.path?.startsWith('settings/games/wins/'));
+
+  it('does not mark it done part-way through a round', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    await wrapper.vm.decide('yes');
+
+    expect(winWrites(wrapper.store.dispatch)).toHaveLength(0);
+  });
+
+  it('marks it done once the round is finished', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    const total = wrapper.vm.round.cards.length;
+    for (let i = 0; i < total; i++) await wrapper.vm.decide('yes');
+    await wrapper.vm.$nextTick();
+
+    const writes = winWrites(wrapper.store.dispatch);
+    expect(writes).toHaveLength(1);
+    expect(writes[0][1].path).toBe('settings/games/wins/stamp');
+  });
+
+  it('counts a round where nothing needed changing', async () => {
+    // The sweep is the accomplishment; a tidy library shouldn't be penalised.
+    const wrapper = factory(library(), { flyDuration: 0 });
+    const total = wrapper.vm.round.cards.length;
+    for (let i = 0; i < total; i++) {
+      await wrapper.vm.decide(wrapper.vm.currentCard.hasTag ? 'yes' : 'no');
+    }
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.tally.added + wrapper.vm.tally.removed).toBe(0);
+    expect(winWrites(wrapper.store.dispatch)).toHaveLength(1);
+  });
+
+  it('counts a round of nothing but passes', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    const total = wrapper.vm.round.cards.length;
+    for (let i = 0; i < total; i++) await wrapper.vm.decide('pass');
+    await wrapper.vm.$nextTick();
+
+    expect(winWrites(wrapper.store.dispatch)).toHaveLength(1);
+  });
+});
