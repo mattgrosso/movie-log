@@ -223,11 +223,18 @@ describe('buildStampRound', () => {
 });
 
 describe('resolveSwipe', () => {
-  it('names each of the four outcomes', () => {
-    expect(resolveSwipe({ hasTag: false, keep: true })).toBe('added');
-    expect(resolveSwipe({ hasTag: true, keep: false })).toBe('removed');
-    expect(resolveSwipe({ hasTag: true, keep: true })).toBe('confirmed');
-    expect(resolveSwipe({ hasTag: false, keep: false })).toBe('skipped');
+  it('names each outcome', () => {
+    expect(resolveSwipe({ hasTag: false, verdict: 'yes' })).toBe('added');
+    expect(resolveSwipe({ hasTag: true, verdict: 'no' })).toBe('removed');
+    expect(resolveSwipe({ hasTag: true, verdict: 'yes' })).toBe('confirmed');
+    expect(resolveSwipe({ hasTag: false, verdict: 'no' })).toBe('declined');
+  });
+
+  it('a pass is always a no-op, whatever the current state', () => {
+    // "sometimes I'm not certain, and I don't wanna accidentally remove a tag
+    // if it does make sense." Passing must never be destructive.
+    expect(resolveSwipe({ hasTag: true, verdict: 'pass' })).toBe('passed');
+    expect(resolveSwipe({ hasTag: false, verdict: 'pass' })).toBe('passed');
   });
 });
 

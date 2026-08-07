@@ -1298,6 +1298,18 @@ Fixed by deleting the overlay: the gesture is now bound on `window` (passive, si
 
 Also scoped Stamp's `will-change: transform` to `.top.dragging` / `.top.flying` rather than every card permanently — a promoted compositor layer that outlives its element is a known cause of stale hit-testing on iOS. Secondary to the strip, and less certain, but leaving `will-change` on permanently is wrong regardless.
 
+### Direction hints, a pass option, and a nicer summary (Aug 2026)
+
+**Persistent edge hints.** *"make which swipe is which more clear. Maybe some kind of indicator on the left and right edges next to the poster."* There was previously no cue at all until you were already dragging — the on-card "Yes"/"No" stamps only faded in mid-gesture. Two always-visible circular hints now flank the stack, dim at rest and brightening/growing as the card moves toward them. The on-card stamps were removed as redundant. **The hints sit at `z-index: 2`, above the cards**: the card slides *toward* the hint it's activating, so without that it covers the one you most need to see — caught by mocking the layout up and looking at it, not by testing. The poster also came down 300px → 270px to leave real room beside it.
+
+**A pass option.** *"sometimes I'm not certain, and I don't wanna accidentally remove a tag if it does make sense."* "No" is destructive when the keyword is already there, so there's now a third verdict that is always a no-op. `resolveSwipe` takes `verdict: 'yes' | 'no' | 'pass'` (it used to take a boolean `keep`) and returns one of five outcomes: `added`, `removed`, `confirmed`, `declined`, `passed`. Only `added`/`removed` write.
+- The pass button is **its own full-width row**, not a third button between No and Yes — a mis-tap between three adjacent buttons is exactly what it exists to prevent.
+- A passed card **drops away in place** (scale + fade) rather than flying to one side; throwing it left would read as a rejection.
+
+**Summary polish.** A 2×2 grid of stat tiles with big numbers, colour-accented left borders on the two that changed something (green added, red removed) and neutral for the rest, zeros dimmed to 40% so the eye lands on what actually happened. "Not sure" gets a full-width fifth tile, because that's the one worth coming back to.
+
+**A test-update trap worth remembering:** switching `decide()` from a boolean to a verdict string left a helper still passing `true`, which fell through `resolveSwipe` as *"no"* — silently inverting every test that used it. It surfaced as an unrelated-looking assertion about a dimmed tile. When changing a parameter's TYPE, grep for the callers rather than relying on a find-and-replace of the literal call.
+
 ### A fast flick commits, not just a long drag
 *"if I go too quickly, it doesn't catch and it doesn't really work. It sort of snaps back."*
 

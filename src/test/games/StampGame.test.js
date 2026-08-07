@@ -109,7 +109,7 @@ describe('StampGame', () => {
       await wrapper.vm.$nextTick();
       const dbKey = wrapper.vm.currentCard.entry.dbKey;
 
-      await wrapper.vm.decide(true);
+      await wrapper.vm.decide('yes');
 
       const writes = writesTo(wrapper.store.dispatch);
       // Leaf paths, so they can't clobber the movie object or other siblings.
@@ -125,7 +125,7 @@ describe('StampGame', () => {
       wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => c.hasTag);
       await wrapper.vm.$nextTick();
 
-      await wrapper.vm.decide(false);
+      await wrapper.vm.decide('no');
 
       const removedWrite = writesTo(wrapper.store.dispatch).find(([, arg]) => arg.path.endsWith('removedKeywords'));
       expect(removedWrite[1].value).toContain('cosy');
@@ -137,12 +137,12 @@ describe('StampGame', () => {
       // Confirming an already-tagged movie...
       wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => c.hasTag);
       await wrapper.vm.$nextTick();
-      await wrapper.vm.decide(true);
+      await wrapper.vm.decide('yes');
 
       // ...and passing over an untagged one.
       wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => !c.hasTag);
       await wrapper.vm.$nextTick();
-      await wrapper.vm.decide(false);
+      await wrapper.vm.decide('no');
 
       expect(writesTo(wrapper.store.dispatch)).toHaveLength(0);
     });
@@ -152,7 +152,7 @@ describe('StampGame', () => {
       const total = wrapper.vm.round.cards.length;
 
       for (let i = 0; i < total; i++) {
-        await wrapper.vm.decide(true);
+        await wrapper.vm.decide('yes');
       }
 
       expect(wrapper.vm.finished).toBe(true);
@@ -169,7 +169,7 @@ describe('StampGame', () => {
       await wrapper.vm.$nextTick();
 
       const startIndex = wrapper.vm.currentIndex;
-      await wrapper.vm.decide(true);
+      await wrapper.vm.decide('yes');
       wrapper.store.dispatch.mockClear();
 
       await wrapper.vm.undo();
@@ -189,7 +189,7 @@ describe('StampGame', () => {
       wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => c.hasTag);
       await wrapper.vm.$nextTick();
 
-      await wrapper.vm.decide(true); // confirmed — a no-op
+      await wrapper.vm.decide('yes'); // confirmed — a no-op
       wrapper.store.dispatch.mockClear();
       await wrapper.vm.undo();
 
@@ -201,7 +201,7 @@ describe('StampGame', () => {
       await wrapper.vm.$nextTick();
       expect(wrapper.find('.undo-btn').exists()).toBe(false);
 
-      await wrapper.vm.decide(true);
+      await wrapper.vm.decide('yes');
       expect(wrapper.find('.undo-btn').exists()).toBe(true);
     });
   });
@@ -221,7 +221,7 @@ describe('StampGame', () => {
       await drag(wrapper, 150);
 
       expect(wrapper.vm.history).toHaveLength(1);
-      expect(wrapper.vm.history[0].keep).toBe(true);
+      expect(wrapper.vm.history[0].verdict).toBe('yes');
     });
 
     it('a long swipe left decides no', async () => {
@@ -230,7 +230,7 @@ describe('StampGame', () => {
 
       await drag(wrapper, -150);
 
-      expect(wrapper.vm.history[0].keep).toBe(false);
+      expect(wrapper.vm.history[0].verdict).toBe('no');
     });
 
     it('a short drag snaps back and decides nothing', async () => {
@@ -304,7 +304,7 @@ describe('StampGame blind judgement', () => {
     // The reveal is the summary at the end, not a hint during play.
     const wrapper = factory(library());
     const total = wrapper.vm.round.cards.length;
-    for (let i = 0; i < total; i++) await wrapper.vm.decide(true);
+    for (let i = 0; i < total; i++) await wrapper.vm.decide('yes');
 
     expect(wrapper.find('.summary').exists()).toBe(true);
     expect(wrapper.vm.tally.added).toBeGreaterThan(0);
@@ -358,7 +358,7 @@ describe('StampGame card stack', () => {
     const wrapper = factory(library(), { flyDuration: 40 });
     const firstKey = wrapper.vm.currentCard.entry.dbKey;
 
-    const pending = wrapper.vm.decide(true);
+    const pending = wrapper.vm.decide('yes');
     await wrapper.vm.$nextTick();
 
     // Mid-flight: still the same card, now translating off to the right.
@@ -370,13 +370,13 @@ describe('StampGame card stack', () => {
 
     // Landed: advanced, and the new top card is back at rest.
     expect(wrapper.vm.currentCard.entry.dbKey).not.toBe(firstKey);
-    expect(wrapper.vm.flyDirection).toBe(0);
+    expect(wrapper.vm.flyVerdict).toBeNull();
     expect(wrapper.vm.topCardStyle.transform).toBeUndefined();
   });
 
   it('flings left for a no', async () => {
     const wrapper = factory(library(), { flyDuration: 40 });
-    const pending = wrapper.vm.decide(false);
+    const pending = wrapper.vm.decide('no');
     await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.topCardStyle.transform).toContain('-140vw');
@@ -387,8 +387,8 @@ describe('StampGame card stack', () => {
     // Two commits mid-flight would advance twice and skip a poster.
     const wrapper = factory(library(), { flyDuration: 40 });
 
-    const pending = wrapper.vm.decide(true);
-    await wrapper.vm.decide(true);
+    const pending = wrapper.vm.decide('yes');
+    await wrapper.vm.decide('yes');
     await pending;
 
     expect(wrapper.vm.history).toHaveLength(1);
@@ -401,8 +401,8 @@ describe('StampGame card stack', () => {
     await wrapper.vm.$nextTick();
     wrapper.store.dispatch.mockClear();
 
-    const pending = wrapper.vm.decide(true);
-    await wrapper.vm.decide(true);
+    const pending = wrapper.vm.decide('yes');
+    await wrapper.vm.decide('yes');
     await pending;
 
     // One decision => one customKeywords write + one removedKeywords write.
@@ -413,7 +413,7 @@ describe('StampGame card stack', () => {
     const wrapper = factory(library());
     const total = wrapper.vm.round.cards.length;
 
-    for (let i = 0; i < total - 1; i++) await wrapper.vm.decide(true);
+    for (let i = 0; i < total - 1; i++) await wrapper.vm.decide('yes');
     await wrapper.vm.$nextTick();
 
     expect(wrapper.findAll('.stamp-card')).toHaveLength(1);
@@ -457,14 +457,14 @@ describe('StampGame flick to commit', () => {
     await gesture(wrapper, 50, 60);
 
     expect(wrapper.vm.history).toHaveLength(1);
-    expect(wrapper.vm.history[0].keep).toBe(true);
+    expect(wrapper.vm.history[0].verdict).toBe('yes');
   });
 
   it('commits a fast flick to the left as a no', async () => {
     const wrapper = factory(library(), { flyDuration: 0 });
     await gesture(wrapper, -50, 60);
 
-    expect(wrapper.vm.history[0].keep).toBe(false);
+    expect(wrapper.vm.history[0].verdict).toBe('no');
   });
 
   it('still commits a slow drag that goes the full distance', async () => {
@@ -505,7 +505,7 @@ describe('StampGame flick to commit', () => {
     await card.trigger('pointermove', { pointerId: 1, clientX: 240 }); // fast flick left
     await card.trigger('pointerup', { pointerId: 1, clientX: 240 });
 
-    expect(wrapper.vm.history[0].keep).toBe(false);
+    expect(wrapper.vm.history[0].verdict).toBe('no');
   });
 
   it('measures speed over the end of the gesture, not its whole length', async () => {
@@ -522,5 +522,190 @@ describe('StampGame flick to commit', () => {
     await card.trigger('pointerup', { pointerId: 1, clientX: 265 });
 
     expect(wrapper.vm.history).toHaveLength(1);
+  });
+});
+
+// "make which swipe is which more clear. Maybe some kind of indicator on the
+// left and right edges next to the poster" + "the summary at the end... could
+// use a polish".
+describe('StampGame swipe hints and summary', () => {
+  beforeEach(() => { nextId = 1; });
+
+  it('shows both direction hints before any swipe has started', () => {
+    // The old on-card stamps only appeared mid-drag, so at rest there was no
+    // cue at all about which way meant what.
+    const wrapper = factory(library());
+
+    expect(wrapper.vm.dragX).toBe(0);
+    expect(wrapper.find('.swipe-hint.yes').exists()).toBe(true);
+    expect(wrapper.find('.swipe-hint.no').exists()).toBe(true);
+    expect(wrapper.find('.swipe-hint.yes').text()).toContain('Yes');
+    expect(wrapper.find('.swipe-hint.no').text()).toContain('No');
+  });
+
+  it('leaves both hints dim while resting', () => {
+    const wrapper = factory(library());
+    expect(wrapper.vm.hintStyle(1).opacity).toBeCloseTo(0.3, 5);
+    expect(wrapper.vm.hintStyle(-1).opacity).toBeCloseTo(0.3, 5);
+  });
+
+  it('lights up only the hint you are swiping toward', async () => {
+    const wrapper = factory(library());
+    const card = wrapper.find('.stamp-card.top');
+
+    await card.trigger('pointerdown', { pointerId: 1, clientX: 200 });
+    await card.trigger('pointermove', { pointerId: 1, clientX: 200 + wrapper.vm.swipeThreshold });
+
+    expect(wrapper.vm.hintStyle(1).opacity).toBeCloseTo(1, 5);
+    expect(wrapper.vm.hintStyle(-1).opacity).toBeCloseTo(0.3, 5);
+  });
+
+  it('caps the hint at full strength once past the threshold', async () => {
+    const wrapper = factory(library());
+    const card = wrapper.find('.stamp-card.top');
+
+    await card.trigger('pointerdown', { pointerId: 1, clientX: 200 });
+    await card.trigger('pointermove', { pointerId: 1, clientX: 900 });
+
+    expect(wrapper.vm.hintStyle(1).opacity).toBeCloseTo(1, 5);
+    expect(wrapper.vm.hintStyle(1).transform).toBe('scale(1.25)');
+  });
+
+  it('hints never intercept a swipe', () => {
+    // They sit beside the poster, but a drag that strays over one must still
+    // reach the card.
+    const wrapper = factory(library());
+    expect(wrapper.find('.swipe-hint').attributes('class')).toContain('swipe-hint');
+    // pointer-events: none is in scoped CSS; assert they carry no handlers.
+    expect(wrapper.find('.swipe-hint').attributes('onpointerdown')).toBeUndefined();
+  });
+
+  describe('summary', () => {
+    const finish = async (wrapper, verdict) => {
+      const total = wrapper.vm.round.cards.length;
+      for (let i = 0; i < total; i++) await wrapper.vm.decide(verdict);
+    };
+
+    it('leads with the keyword and how much actually changed', async () => {
+      const wrapper = factory(library(), { flyDuration: 0 });
+      await finish(wrapper, 'yes');
+
+      expect(wrapper.find('.summary-keyword').text()).toBe('cosy');
+      expect(wrapper.find('.summary-headline').text()).toContain('change');
+    });
+
+    it('says so plainly when nothing needed changing', async () => {
+      const wrapper = factory(library(), { flyDuration: 0 });
+      // Answer each card the way it already is: no writes, no changes.
+      const total = wrapper.vm.round.cards.length;
+      for (let i = 0; i < total; i++) await wrapper.vm.decide(wrapper.vm.currentCard.hasTag ? 'yes' : 'no');
+
+      expect(wrapper.vm.tally.added + wrapper.vm.tally.removed).toBe(0);
+      expect(wrapper.find('.summary-headline').text()).toBe('Nothing needed changing.');
+    });
+
+    it('renders one tile per outcome', async () => {
+      const wrapper = factory(library(), { flyDuration: 0 });
+      await finish(wrapper, 'yes');
+
+      expect(wrapper.findAll('.summary-stat')).toHaveLength(5);
+      expect(wrapper.find('.summary-stat.added .summary-value').text()).toBe(String(wrapper.vm.tally.added));
+    });
+
+    it('dims the outcomes that did not happen', async () => {
+      const wrapper = factory(library(), { flyDuration: 0 });
+      await finish(wrapper, 'yes');
+
+      // Saying yes to everything can never remove anything.
+      expect(wrapper.find('.summary-stat.removed').classes()).toContain('empty');
+      expect(wrapper.find('.summary-stat.added').classes()).not.toContain('empty');
+    });
+  });
+});
+
+// "we should have a pass option because sometimes I'm not certain, and I don't
+// wanna accidentally remove a tag if it does make sense."
+describe('StampGame passing when unsure', () => {
+  beforeEach(() => { nextId = 1; });
+
+  it('offers a pass without making it one of the two main buttons', () => {
+    // A mis-tap between three adjacent buttons is exactly what it exists to
+    // prevent, so it sits on its own row.
+    const wrapper = factory(library());
+
+    expect(wrapper.find('.pass-btn').exists()).toBe(true);
+    expect(wrapper.findAll('.decide-actions .btn-game')).toHaveLength(2);
+  });
+
+  it('never removes an existing keyword when you pass', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => c.hasTag);
+    await wrapper.vm.$nextTick();
+    wrapper.store.dispatch.mockClear();
+
+    await wrapper.find('.pass-btn').trigger('click');
+
+    expect(writesTo(wrapper.store.dispatch)).toHaveLength(0);
+    expect(wrapper.vm.history[0].outcome).toBe('passed');
+  });
+
+  it('never adds one either — a pass is a no-op in both directions', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => !c.hasTag);
+    await wrapper.vm.$nextTick();
+    wrapper.store.dispatch.mockClear();
+
+    await wrapper.vm.decide('pass');
+
+    expect(writesTo(wrapper.store.dispatch)).toHaveLength(0);
+    expect(wrapper.vm.history[0].outcome).toBe('passed');
+  });
+
+  it('still moves on to the next card', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    const first = wrapper.vm.currentCard.entry.dbKey;
+
+    await wrapper.vm.decide('pass');
+
+    expect(wrapper.vm.currentCard.entry.dbKey).not.toBe(first);
+  });
+
+  it('drops the card away in place rather than throwing it left', async () => {
+    // Flinging it toward "No" would read as a rejection.
+    const wrapper = factory(library(), { flyDuration: 40 });
+    const pending = wrapper.vm.decide('pass');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.topCardStyle.transform).toContain('scale');
+    expect(wrapper.vm.topCardStyle.transform).not.toContain('vw');
+    await pending;
+  });
+
+  it('counts passes separately from agreeing', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    await wrapper.vm.decide('pass');
+    await wrapper.vm.decide('no');
+
+    expect(wrapper.vm.tally.passed).toBe(1);
+    expect(wrapper.vm.tally.confirmed + wrapper.vm.tally.declined).toBe(1);
+  });
+
+  it('gives "not sure" its own full-width tile in the summary', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    const total = wrapper.vm.round.cards.length;
+    for (let i = 0; i < total; i++) await wrapper.vm.decide('pass');
+
+    const tile = wrapper.find('.summary-stat.passed');
+    expect(tile.classes()).toContain('wide');
+    expect(tile.find('.summary-value').text()).toBe(String(total));
+  });
+
+  it('can be undone like any other decision', async () => {
+    const wrapper = factory(library(), { flyDuration: 0 });
+    await wrapper.vm.decide('pass');
+    await wrapper.vm.undo();
+
+    expect(wrapper.vm.history).toHaveLength(0);
+    expect(wrapper.vm.currentIndex).toBe(0);
   });
 });

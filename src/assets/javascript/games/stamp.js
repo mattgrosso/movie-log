@@ -222,17 +222,27 @@ export function buildStampRound (entries, keyword, { size = ROUND_SIZE, rng = Ma
   return { keyword, cards };
 }
 
+export const VERDICTS = { YES: 'yes', NO: 'no', PASS: 'pass' };
+
 /**
- * What a swipe actually means for the data.
+ * What a verdict actually means for the data.
  *
- * `keep` is the player saying the tag applies. Four outcomes, only two of which
- * are writes — most swipes on a well-built round should be no-ops, and the
- * component uses this to avoid pointless saves.
+ * `pass` exists because "no" is destructive when the keyword is already there:
+ * *"sometimes I'm not certain, and I don't wanna accidentally remove a tag if
+ * it does make sense."* It always resolves to a no-op, whatever the current
+ * state — the only honest answer to "I don't know".
+ *
+ * Five outcomes, only two of which are writes. Most cards in a well-built round
+ * are no-ops, and the component uses this to avoid pointless saves.
  */
-export function resolveSwipe ({ hasTag, keep }) {
+export function resolveSwipe ({ hasTag, verdict }) {
+  if (verdict === VERDICTS.PASS) return 'passed';
+
+  const keep = verdict === VERDICTS.YES;
   if (keep && !hasTag) return 'added';
   if (!keep && hasTag) return 'removed';
-  return keep ? 'confirmed' : 'skipped';
+  // Agreeing with what's already there, either way round.
+  return keep ? 'confirmed' : 'declined';
 }
 
 /**

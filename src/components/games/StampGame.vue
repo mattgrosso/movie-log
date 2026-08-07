@@ -10,13 +10,20 @@
 
     <!-- Round finished -->
     <template v-else-if="finished">
-      <p class="game-subtitle">Done with &ldquo;{{ round.keyword }}&rdquo;.</p>
-      <ul class="summary">
-        <li><strong>{{ tally.confirmed }}</strong> confirmed</li>
-        <li><strong>{{ tally.added }}</strong> newly tagged</li>
-        <li><strong>{{ tally.removed }}</strong> removed</li>
-        <li><strong>{{ tally.skipped }}</strong> passed over</li>
-      </ul>
+      <p class="summary-keyword">{{ round.keyword }}</p>
+      <p class="summary-headline">{{ summaryHeadline }}</p>
+
+      <div class="summary">
+        <div
+          v-for="stat in summaryStats"
+          :key="stat.key"
+          class="summary-stat"
+          :class="[stat.key, { empty: stat.value === 0, wide: stat.wide }]"
+        >
+          <span class="summary-value">{{ stat.value }}</span>
+          <span class="summary-label">{{ stat.label }}</span>
+        </div>
+      </div>
       <div class="end-actions">
         <button type="button" class="btn-game btn-game-primary cta-btn" @click="startRound()">Next Keyword</button>
         <button type="button" class="btn-game btn-game-secondary cta-btn" @click="$router.push('/games')">Back to Games</button>
@@ -36,11 +43,28 @@
            the next poster appearing — that pause was the next image being
            fetched. -->
       <div class="card-area">
+        <!-- Always visible, so the meaning of each direction is legible before
+             you commit to a swipe — not just while one is under way. They also
+             brighten and grow as the card moves toward them, which is the live
+             feedback the on-card stamps used to provide. -->
+        <div class="swipe-hint no">
+          <div class="swipe-hint-inner" :style="hintStyle(-1)">
+            <i class="bi bi-x-lg"></i>
+            <span>No</span>
+          </div>
+        </div>
+        <div class="swipe-hint yes">
+          <div class="swipe-hint-inner" :style="hintStyle(1)">
+            <i class="bi bi-check-lg"></i>
+            <span>Yes</span>
+          </div>
+        </div>
+
         <div
           v-for="item in visibleStack"
           :key="entryKey(item.card.entry)"
           class="stamp-card"
-          :class="{ top: item.isTop, dragging: item.isTop && dragging, flying: item.isTop && flyDirection !== 0 }"
+          :class="{ top: item.isTop, dragging: item.isTop && dragging, flying: item.isTop && flyVerdict !== null }"
           :style="item.isTop ? topCardStyle : null"
           @pointerdown="onPointerDown($event, item.isTop)"
           @pointermove="onPointerMove($event, item.isTop)"
@@ -53,24 +77,26 @@
                to see what comes out." `hasTag` is still tracked internally to
                work out whether a swipe is a real change. -->
           <img v-if="gamePosterUrl(item.card.entry)" :src="gamePosterUrl(item.card.entry, 'w342')" :alt="item.card.entry.movie.title" draggable="false">
-
-          <template v-if="item.isTop">
-            <span class="verdict yes" :style="{ opacity: dragX > 0 ? Math.min(dragX / swipeThreshold, 1) : 0 }">Yes</span>
-            <span class="verdict no" :style="{ opacity: dragX < 0 ? Math.min(-dragX / swipeThreshold, 1) : 0 }">No</span>
-          </template>
         </div>
       </div>
 
       <p class="card-title">{{ currentCard ? currentCard.entry.movie.title : '' }}</p>
 
       <div class="decide-actions">
-        <button type="button" class="btn-game btn-game-secondary decide-btn" @click="decide(false)">
+        <button type="button" class="btn-game btn-game-secondary decide-btn" @click="decide('no')">
           <i class="bi bi-x-lg"></i> No
         </button>
-        <button type="button" class="btn-game btn-game-primary decide-btn" @click="decide(true)">
+        <button type="button" class="btn-game btn-game-primary decide-btn" @click="decide('yes')">
           <i class="bi bi-check-lg"></i> Yes
         </button>
       </div>
+
+      <!-- Deliberately its own row rather than a third button between No and
+           Yes: it's the safe answer, and a mis-tap between three adjacent
+           buttons is exactly what it exists to prevent. -->
+      <button type="button" class="btn-game pass-btn" @click="decide('pass')">
+        Not sure — skip this one
+      </button>
 
       <div class="secondary-actions">
         <button v-if="history.length" type="button" class="text-action undo-btn" @click="undo">
@@ -130,10 +156,10 @@ export default {
       // read as a stack and for the next couple of images to be fetched before
       // they're needed.
       stackDepth: 3,
-      // 0 while resting; ±1 while the top card is flying off. Kept separate
-      // from dragX so the fly-out is one clean committed transition rather
-      // than a continuation of the drag.
-      flyDirection: 0,
+      // null while resting; 'yes' | 'no' | 'pass' while the top card is on its
+      // way out. Kept separate from dragX so the exit is one clean committed
+      // transition rather than a continuation of the drag.
+      flyVerdict: null,
       // Must match the CSS transition on .stamp-card.top. In data so tests can
       // set it to 0 rather than waiting out real animations.
       flyDuration: 320
@@ -159,24 +185,65 @@ export default {
       return Boolean(this.round) && this.currentIndex >= this.round.cards.length;
     },
     tally () {
-      const counts = { confirmed: 0, added: 0, removed: 0, skipped: 0 };
+      const counts = { added: 0, removed: 0, confirmed: 0, declined: 0, passed: 0 };
       this.history.forEach((item) => { counts[item.outcome] += 1; });
       return counts;
     },
+    summaryStats () {
+      return [
+        { key: 'added', label: 'added', value: this.tally.added },
+        { key: 'removed', label: 'removed', value: this.tally.removed },
+        { key: 'confirmed', label: 'kept', value: this.tally.confirmed },
+        { key: 'declined', label: 'left off', value: this.tally.declined },
+        // Full-width, because "I wasn't sure" is the one worth coming back to.
+        { key: 'passed', label: 'not sure', value: this.tally.passed, wide: true }
+      ];
+    },
+    // The changes are the point of the round; the confirmations are just the
+    // cost of finding them.
+    summaryHeadline () {
+      const changed = this.tally.added + this.tally.removed;
+      if (!changed) return 'Nothing needed changing.';
+      return `${changed} change${changed === 1 ? '' : 's'} to your library.`;
+    },
     lastActionLabel () {
       const outcome = this.history[this.history.length - 1]?.outcome;
-      return { added: 'tagging', removed: 'removal', confirmed: 'confirm', skipped: 'pass' }[outcome] || '';
+      return {
+        added: 'tagging', removed: 'removal', confirmed: 'keep', declined: 'skip', passed: 'pass'
+      }[outcome] || '';
+    },
+    // How far the current drag has gone toward one side, 0..1.
+    swipeProgress () {
+      return (direction) => {
+        const towards = direction > 0 ? this.dragX : -this.dragX;
+        return Math.max(0, Math.min(towards / this.swipeThreshold, 1));
+      };
+    },
+    hintStyle () {
+      return (direction) => {
+        const progress = this.swipeProgress(direction);
+        return {
+          opacity: 0.3 + progress * 0.7,
+          transform: `scale(${1 + progress * 0.25})`
+        };
+      };
     },
     topCardStyle () {
       // translate3d + a rotation throughout, and deliberately NO
       // filter/drop-shadow. Timeline's drag-to-place was removed for leaving
       // visual trails on a real device, traced to drop-shadow being recomputed
       // on every pointermove. A composited transform alone doesn't do that.
-      if (this.flyDirection) {
+      // A pass drops away in place rather than flying to one side — it isn't a
+      // verdict in either direction, and throwing it left would read as "no".
+      if (this.flyVerdict === 'pass') {
+        return { transform: 'translate3d(0, 0, 0) scale(0.85)', opacity: 0 };
+      }
+      if (this.flyVerdict) {
+        const direction = this.flyVerdict === 'yes' ? 1 : -1;
         // Far enough to clear any viewport, so the card genuinely leaves rather
         // than stopping at the edge.
         return {
-          transform: `translate3d(${this.flyDirection * 140}vw, 0, 0) rotate(${this.flyDirection * 18}deg)`,
+          transform: `translate3d(${direction * 140}vw, 0, 0) rotate(${direction * 18}deg)`,
           opacity: 0
         };
       }
@@ -253,7 +320,7 @@ export default {
     // finger off the cards behind, but nothing stops a synthetic event, and a
     // drag on a buried card would be silently wrong.
     onPointerDown (event, isTop) {
-      if (!isTop || !this.currentCard || this.flyDirection) return;
+      if (!isTop || !this.currentCard || this.flyVerdict) return;
       this.pointerId = event.pointerId;
       this.dragStartX = event.clientX;
       this.dragging = true;
@@ -280,18 +347,18 @@ export default {
       this.resetDrag();
 
       if (flicked) {
-        this.decide(velocity > 0);
+        this.decide(velocity > 0 ? 'yes' : 'no');
       } else if (Math.abs(travelled) >= this.swipeThreshold) {
-        this.decide(travelled > 0);
+        this.decide(travelled > 0 ? 'yes' : 'no');
       }
     },
-    async decide (keep) {
+    async decide (verdict) {
       const card = this.currentCard;
       // Ignore anything that arrives while a card is still flying off — a
       // second commit mid-flight would advance twice and skip a poster.
-      if (!card || this.flyDirection) return;
+      if (!card || this.flyVerdict) return;
 
-      const outcome = resolveSwipe({ hasTag: card.hasTag, keep });
+      const outcome = resolveSwipe({ hasTag: card.hasTag, verdict });
       // Read fresh from the store rather than the captured card — the entry may
       // have been touched since the round was built.
       const dbKey = card.entry.dbKey;
@@ -301,30 +368,31 @@ export default {
         removedKeywords: liveMovie.removedKeywords || []
       };
 
-      this.history = [...this.history, { card, keep, outcome, previous }];
+      this.history = [...this.history, { card, verdict, outcome, previous }];
 
-      // Fling the top card clear before advancing. Dragging stops, but the
-      // index deliberately does NOT move yet — the card has to stay mounted to
-      // be animated.
+      // Send the top card out before advancing. Dragging stops, but the index
+      // deliberately does NOT move yet — the card has to stay mounted to be
+      // animated.
       this.dragging = false;
       this.pointerId = null;
       this.dragX = 0;
-      this.flyDirection = keep ? 1 : -1;
+      this.dragSamples = [];
+      this.flyVerdict = verdict;
 
       // The save doesn't wait for the animation; the animation doesn't wait for
-      // the save. 'confirmed' and 'skipped' change nothing and are never
-      // written.
+      // the save. Only 'added' and 'removed' change anything — confirming,
+      // declining and passing are all no-ops.
       if (outcome === 'added' || outcome === 'removed') {
-        this.saveKeywords(dbKey, keywordChangeFor(liveMovie, this.round.keyword, keep));
+        this.saveKeywords(dbKey, keywordChangeFor(liveMovie, this.round.keyword, verdict === 'yes'));
       }
 
       await this.wait(this.flyDuration);
-      this.flyDirection = 0;
+      this.flyVerdict = null;
       this.currentIndex += 1;
     },
     async undo () {
       const last = this.history[this.history.length - 1];
-      if (!last || this.flyDirection) return;
+      if (!last || this.flyVerdict) return;
 
       this.history = this.history.slice(0, -1);
       this.currentIndex = Math.max(0, this.currentIndex - 1);
@@ -385,7 +453,7 @@ export default {
 .card-area {
   align-items: center;
   display: flex;
-  height: 300px;
+  height: 270px;
   justify-content: center;
   // The cards stack on top of each other inside this box.
   position: relative;
@@ -420,38 +488,59 @@ export default {
   img {
     border-radius: 8px;
     display: block;
-    height: 300px;
+    height: 270px;
     pointer-events: none;
     width: auto;
   }
 }
 
-/* Verdict stamps fade in as you drag, so the swipe says what it will do
-   before you commit to it. */
-.verdict {
-  border: 3px solid;
-  border-radius: 6px;
-  font-size: 1.4rem;
-  font-weight: 800;
-  padding: 0.1rem 0.6rem;
+.swipe-hint {
+  align-items: center;
+  bottom: 0;
+  display: flex;
   pointer-events: none;
   position: absolute;
-  text-transform: uppercase;
-  top: 14px;
+  top: 0;
+  // Above the cards: the card slides TOWARD the hint it's activating, so
+  // without this it covers the one you most need to see. Safe because the
+  // hints never take pointer events.
+  z-index: 2;
 }
 
-.verdict.yes {
-  border-color: #4caf50;
-  color: #4caf50;
-  left: 12px;
-  transform: rotate(-14deg);
+.swipe-hint.no { left: 0; }
+.swipe-hint.yes { right: 0; }
+
+.swipe-hint-inner {
+  align-items: center;
+  border: 2px solid;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  height: 52px;
+  justify-content: center;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  width: 52px;
+
+  i {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  span {
+    font-size: 0.6rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
 }
 
-.verdict.no {
+.swipe-hint.no .swipe-hint-inner {
   border-color: #ff6a6a;
   color: #ff6a6a;
-  right: 12px;
-  transform: rotate(14deg);
+}
+
+.swipe-hint.yes .swipe-hint-inner {
+  border-color: #4caf50;
+  color: #4caf50;
 }
 
 .card-title {
@@ -470,6 +559,18 @@ export default {
 
 .decide-btn {
   flex: 1;
+}
+
+.pass-btn {
+  background: none;
+  border: 1px solid #444;
+  color: #adb5bd;
+  display: block;
+  font-size: 0.82rem;
+  margin: 0.5rem auto 0;
+  max-width: 340px;
+  padding: 0.55rem 1rem;
+  width: 100%;
 }
 
 .secondary-actions {
@@ -492,19 +593,88 @@ export default {
   }
 }
 
-.summary {
+.summary-keyword {
+  color: #eee;
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0.5rem 0 0.15rem;
+}
+
+.summary-headline {
   color: #adb5bd;
-  list-style: none;
-  margin: 1rem auto 1.5rem;
-  max-width: 260px;
-  padding: 0;
+  font-size: 0.85rem;
+  margin: 0 0 1.25rem;
+}
 
-  li {
-    padding: 0.2rem 0;
+.summary {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr 1fr;
+  margin: 0 auto 1.5rem;
+  max-width: 340px;
+}
+
+.summary-stat {
+  align-items: center;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-left: 3px solid #333;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem 0.4rem;
+
+  // A zero recedes rather than shouting — the interesting numbers should be
+  // the ones you can see at a glance.
+  &.empty {
+    opacity: 0.4;
   }
+}
 
-  strong {
-    color: #f0ad4e;
+.summary-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.summary-label {
+  color: #adb5bd;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The two that changed something are colour-accented; the two that didn't stay
+   neutral, so the eye lands on the outcome. */
+.summary-stat.added {
+  border-left-color: #4caf50;
+  .summary-value { color: #4caf50; }
+}
+
+.summary-stat.removed {
+  border-left-color: #ff6a6a;
+  .summary-value { color: #ff6a6a; }
+}
+
+.summary-stat.confirmed .summary-value,
+.summary-stat.declined .summary-value,
+.summary-stat.passed .summary-value {
+  color: #adb5bd;
+}
+
+.summary-stat.wide {
+  flex-direction: row;
+  gap: 0.5rem;
+  grid-column: 1 / -1;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.summary-stat.passed:not(.empty) {
+  border-left-color: #6ec1e4;
+
+  .summary-value {
+    color: #6ec1e4;
   }
 }
 </style>
