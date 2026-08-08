@@ -11,10 +11,15 @@ import { entryKey } from './gameUtils.js';
 // so a player who keeps zooming always ends up seeing the answer rather than
 // stalling on a crop they can't place.
 //
-// 6x was tried first and gave too many featureless openings — a ~50px square
-// of a poster is very often just sky or a flat backdrop, which makes a
-// zero-zoom-out win luck rather than skill.
-export const ZOOM_LEVELS = [4.5, 3.4, 2.6, 2, 1.5, 1];
+// The opening step is deliberately near-impossible — you're looking at an
+// eighth of the poster's width, a patch of texture. It's meant to be a
+// lottery ticket you glance at before taking the first zoom-out, not a fair
+// guess. The rest of the ladder is the playable part.
+//
+// An earlier version opened at 6x with a CENTRED focal point and gave too
+// many featureless crops. That was fixed by biasing the focal point upward
+// (see below), not by backing off the zoom.
+export const ZOOM_LEVELS = [8, 5.5, 4, 3, 2.2, 1.6, 1];
 
 // Where the crop is allowed to land.
 //
@@ -23,9 +28,14 @@ export const ZOOM_LEVELS = [4.5, 3.4, 2.6, 2, 1.5, 1];
 // bottom, so biasing upward lands on the image itself far more often. The
 // horizontal range stays centred to avoid the spine/border margins.
 //
-// Picking a genuinely "interesting" crop by measuring image variance is NOT
-// an option: TMDB's image CDN sends no CORS headers, so drawing a poster to
-// a canvas taints it and getImageData throws. Verified in a real browser.
+// A random point in this band is only the FALLBACK. The opening crop is an
+// eighth of the poster, which lands on a flat patch of sky or a black
+// background often enough to be useless, so candidates are scored against
+// the real pixels — see zoomOriginCandidates and the component's
+// chooseOrigin. (An earlier note here claimed TMDB sends no CORS headers and
+// that this was impossible. That was wrong: it does send
+// access-control-allow-origin, and the load that "proved" otherwise failed
+// only because the image was already cached from a non-CORS request.)
 const FOCUS_X_MIN = 0.25;
 const FOCUS_X_RANGE = 0.5;
 const FOCUS_Y_MIN = 0.18;
@@ -41,6 +51,39 @@ export function pickZoomOrigin (rng = Math.random) {
     x: Math.round((FOCUS_X_MIN + rng() * FOCUS_X_RANGE) * 100),
     y: Math.round((FOCUS_Y_MIN + rng() * FOCUS_Y_RANGE) * 100)
   };
+}
+
+/**
+ * A spread of candidate focal points for the component to score against the
+ * poster's actual pixels, picking whichever has the most going on.
+ *
+ * Generated here rather than in the component so the allowed band stays in
+ * one place, and so the scoring step can be tested with a fake sampler.
+ */
+export function zoomOriginCandidates (rng = Math.random, count = 24) {
+  return Array.from({ length: Math.max(1, count) }, () => pickZoomOrigin(rng));
+}
+
+/**
+ * The candidate with the most visual variation, given a sampler that reports
+ * how much is going on at a point. Ties and an all-flat poster both resolve
+ * to the first candidate, which is a plain random pick — never worse than
+ * the fallback.
+ */
+export function pickMostInterestingOrigin (candidates, varianceAt) {
+  if (!candidates || !candidates.length) return null;
+  if (typeof varianceAt !== 'function') return candidates[0];
+
+  let best = candidates[0];
+  let bestScore = -Infinity;
+  candidates.forEach((candidate) => {
+    const score = varianceAt(candidate);
+    if (Number.isFinite(score) && score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  });
+  return best;
 }
 
 /** Clamped so a stored or fat-fingered index can never index off the array. */

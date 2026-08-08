@@ -6,6 +6,8 @@ import {
   zoomLevelAt,
   isFullyZoomedOut,
   zoomStyleFor,
+  zoomOriginCandidates,
+  pickMostInterestingOrigin,
   pickZoomTarget,
   entriesWithPosters,
   isNewBestScore
@@ -152,5 +154,49 @@ describe('isNewBestScore', () => {
 
   it('counts a zero-zoom-out win, which is the best possible', () => {
     expect(isNewBestScore(0, 1)).toBe(true);
+  });
+});
+
+describe('zoomOriginCandidates', () => {
+  it('offers a spread of points inside the allowed band', () => {
+    const candidates = zoomOriginCandidates(Math.random, 12);
+    expect(candidates).toHaveLength(12);
+    candidates.forEach(({ x, y }) => {
+      expect(x).toBeGreaterThanOrEqual(25);
+      expect(x).toBeLessThanOrEqual(75);
+      expect(y).toBeGreaterThanOrEqual(18);
+      expect(y).toBeLessThanOrEqual(62);
+    });
+  });
+
+  it('always offers at least one', () => {
+    expect(zoomOriginCandidates(Math.random, 0)).toHaveLength(1);
+  });
+});
+
+describe('pickMostInterestingOrigin', () => {
+  it('picks the busiest spot, so the opening crop is not a blank rectangle', () => {
+    // At 8x a random point lands on flat sky or a black background often
+    // enough to open on nothing at all — hard for no interesting reason.
+    const candidates = [{ x: 30, y: 30 }, { x: 40, y: 40 }, { x: 50, y: 50 }];
+    const busy = ({ x }) => (x === 40 ? 90 : 2);
+
+    expect(pickMostInterestingOrigin(candidates, busy)).toEqual({ x: 40, y: 40 });
+  });
+
+  it('falls back to a plain random pick when nothing can be measured', () => {
+    const candidates = [{ x: 30, y: 30 }, { x: 40, y: 40 }];
+    expect(pickMostInterestingOrigin(candidates, null)).toEqual({ x: 30, y: 30 });
+    expect(pickMostInterestingOrigin(candidates, () => NaN)).toEqual({ x: 30, y: 30 });
+  });
+
+  it('still returns a point on a completely flat poster', () => {
+    const candidates = [{ x: 30, y: 30 }, { x: 40, y: 40 }];
+    expect(candidates).toContainEqual(pickMostInterestingOrigin(candidates, () => 0));
+  });
+
+  it('tolerates having nothing to choose from', () => {
+    expect(pickMostInterestingOrigin([], () => 1)).toBeNull();
+    expect(pickMostInterestingOrigin(null, () => 1)).toBeNull();
   });
 });

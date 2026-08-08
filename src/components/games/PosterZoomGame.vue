@@ -22,11 +22,17 @@
         <div class="zoom-viewport" :style="viewportStyle">
           <img
             v-if="posterUrl"
+            :key="posterUrl"
             :src="posterUrl"
             :alt="status === 'playing' ? 'A close-up of a movie poster' : target.movie.title"
             class="zoom-image"
+            :class="{ ready: posterReady }"
             :style="zoomStyle"
+            crossorigin="anonymous"
+            @load="onPosterLoad"
+            @error="onPosterLoad"
           >
+          <span v-if="!posterReady" class="zoom-loading">Focusing&hellip;</span>
           <!-- On the poster rather than in their own row: a separate score
                row cost a full line of the one thing in short supply here. -->
           <span class="zoom-stat">{{ zoomOuts }} out{{ zoomOuts === 1 ? '' : 's' }}<span v-if="bestZoomOuts != null"> · best {{ bestZoomOuts }}</span></span>
@@ -86,6 +92,8 @@ import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import {
   ZOOM_LEVELS,
   pickZoomOrigin,
+  zoomOriginCandidates,
+  pickMostInterestingOrigin,
   pickZoomTarget,
   clampZoomIndex,
   zoomLevelAt,
@@ -137,6 +145,12 @@ export default {
     return {
       availableHeight: null,
       stageHeight: null,
+      // The poster stays hidden until it has BOTH loaded and settled on its
+      // focal point. Revealing it earlier lets you watch it zoom in from the
+      // full image, or lets the crop jump once scoring resolves — either way
+      // you see more of the poster than the round is supposed to show.
+      imageLoaded: false,
+      originSettled: false,
       target: null,
       zoomIndex: 0,
       origin: { x: 50, y: 50 },
@@ -152,6 +166,9 @@ export default {
     // this can't work: the header banner is 16:9 of the SCREEN WIDTH on a
     // phone (and hidden entirely above 600px), so its height isn't
     // expressible as a fraction of the viewport.
+    posterReady () {
+      return this.imageLoaded && this.originSettled;
+    },
     rootStyle () {
       // Only while actually playing. The "not enough movies" screen has its
       // own suggestions list that should be free to be as tall as it needs.
@@ -221,6 +238,84 @@ export default {
   },
   methods: {
     entryKeyFor: entryKey,
+    onPosterLoad () {
+      // Also bound to @error: a poster that fails to load should leave the
+      // round playable rather than an invisible box forever.
+      this.imageLoaded = true;
+    },
+    /**
+     * Picks the focal point by looking at the poster itself.
+     *
+     * At 8x you're seeing an eighth of the poster, which lands on flat sky
+     * or a black background often enough that a purely random point
+     * regularly opens on a featureless rectangle — not hard, just empty.
+     * Scoring candidates by local contrast keeps the opening crop hard but
+     * actually about something.
+     *
+     * Entirely best-effort: any failure falls back to a random point, which
+     * is what this used to do unconditionally.
+     */
+    async chooseOrigin (url) {
+      const candidates = zoomOriginCandidates();
+      try {
+        const image = await Promise.race([
+          this.loadImageForSampling(url),
+          new Promise((resolve, reject) => setTimeout(() => reject(new Error('sampling timed out')), 2500))
+        ]);
+        const sample = this.buildVarianceSampler(image);
+        if (!sample) return candidates[0];
+        return pickMostInterestingOrigin(candidates, sample);
+      } catch (error) {
+        // Most likely a CORS-mode cache miss against an entry stored by an
+        // earlier no-cors request. Not worth surfacing — the fallback is fine.
+        return candidates[0];
+      }
+    },
+    loadImageForSampling (url) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        // Required to read the pixels back; TMDB does send
+        // access-control-allow-origin, and the display <img> sets this too so
+        // both share one cache entry rather than fighting over CORS mode.
+        image.crossOrigin = 'anonymous';
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = url;
+      });
+    },
+    buildVarianceSampler (image) {
+      const width = 240;
+      const height = Math.round(width * (image.naturalHeight / image.naturalWidth || 1.5));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) return null;
+      context.drawImage(image, 0, 0, width, height);
+
+      // The crop the opening zoom would show, in this downscaled space.
+      const cropW = Math.max(4, Math.round(width / ZOOM_LEVELS[0]));
+      const cropH = Math.max(4, Math.round(height / ZOOM_LEVELS[0]));
+
+      return ({ x, y }) => {
+        const left = Math.min(Math.max(Math.round((x / 100) * width - cropW / 2), 0), width - cropW);
+        const top = Math.min(Math.max(Math.round((y / 100) * height - cropH / 2), 0), height - cropH);
+        const { data } = context.getImageData(left, top, cropW, cropH);
+        let sum = 0;
+        let sumSquares = 0;
+        let count = 0;
+        // Every 4th pixel is plenty to tell flat from textured.
+        for (let i = 0; i < data.length; i += 16) {
+          const luminance = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          sum += luminance;
+          sumSquares += luminance * luminance;
+          count++;
+        }
+        if (!count) return 0;
+        const mean = sum / count;
+        return Math.sqrt(Math.max(0, sumSquares / count - mean * mean));
+      };
+    },
     measureAvailableHeight () {
       const el = this.$refs.root;
       if (!el) return;
@@ -320,18 +415,37 @@ export default {
       }
       this.persistState(); // no longer 'playing', so this clears the save
     },
-    startNewRound () {
+    async startNewRound () {
       const pool = this.zoomablePool;
       if (!pool.length) return;
 
       const excludeKey = this.target ? entryKey(this.target) : null;
-      this.target = pickZoomTarget(pool, excludeKey, Math.random);
+      const nextTarget = pickZoomTarget(pool, excludeKey, Math.random);
+
+      this.imageLoaded = false;
+      this.originSettled = false;
+      this.target = nextTarget;
       this.origin = pickZoomOrigin();
       this.zoomIndex = 0;
       this.status = 'playing';
       this.guessInput = '';
       this.suggestions = [];
       this.lastWrongTitle = null;
+      this.persistState();
+
+      const url = this.gamePosterUrl(nextTarget, POSTER_SIZE);
+      if (!url) {
+        this.originSettled = true;
+        return;
+      }
+      const origin = await this.chooseOrigin(url);
+      // Compare by identity key, not object reference: Vue wraps this.target
+      // in a reactive proxy, so `!==` against the raw captured object never
+      // matches and the guard would never fire. Same bug this codebase has
+      // hit before in ClueBudget and Trivia.
+      if (entryKey(this.target) !== entryKey(nextTarget)) return;
+      this.origin = origin;
+      this.originSettled = true;
       this.persistState();
     },
     persistState () {
@@ -361,6 +475,10 @@ export default {
           // persisted game); persistState only ever writes while playing,
           // so anything found here was genuinely in progress.
           if (target) {
+            this.imageLoaded = false;
+            // A resumed round already has its focal point stored, so there's
+            // nothing to score — only the image load is worth waiting for.
+            this.originSettled = true;
             this.target = target;
             this.zoomIndex = clampZoomIndex(saved.zoomIndex);
             this.origin = saved.origin && Number.isFinite(saved.origin.x) && Number.isFinite(saved.origin.y)
@@ -446,11 +564,28 @@ export default {
   display: block;
   height: 100%;
   object-fit: cover;
-  /* The zoom itself. transform is composited, so this stays smooth on a
-     phone — the same reason Timeline's placement animation uses transforms
-     rather than animating layout properties. */
-  transition: transform 0.45s ease;
+  opacity: 0;
+  /* No transition until it's revealed. Otherwise the jump from the previous
+     round's fully-zoomed-out reveal to the new round's tight crop ANIMATES,
+     showing the whole poster on the way in and giving the answer away. */
+  transition: none;
   width: 100%;
+}
+
+.zoom-image.ready {
+  opacity: 1;
+  /* transform is composited, so the zoom stays smooth on a phone — the same
+     reason Timeline's placement animation avoids layout properties. */
+  transition: transform 0.45s ease, opacity 0.2s ease;
+}
+
+.zoom-loading {
+  color: #6c757d;
+  font-size: 0.75rem;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .zoom-stat {

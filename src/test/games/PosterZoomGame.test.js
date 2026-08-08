@@ -283,6 +283,58 @@ describe('PosterZoomGame', () => {
     });
   });
 
+  describe('not spoiling the poster', () => {
+    it('keeps the poster hidden until it has loaded AND settled on a crop', async () => {
+      // Revealing early lets you watch it zoom in from the full poster, or
+      // lets the crop jump when scoring resolves. Either shows more than the
+      // round is meant to.
+      const { wrapper } = factory(tenMovies());
+      expect(wrapper.vm.posterReady).toBe(false);
+      expect(wrapper.find('.zoom-image').classes()).not.toContain('ready');
+      expect(wrapper.find('.zoom-loading').exists()).toBe(true);
+
+      wrapper.vm.imageLoaded = true;
+      await wrapper.vm.$nextTick();
+      // Image is in, but the focal point hasn't settled — still hidden.
+      expect(wrapper.vm.posterReady).toBe(false);
+
+      wrapper.vm.originSettled = true;
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.posterReady).toBe(true);
+      expect(wrapper.find('.zoom-image').classes()).toContain('ready');
+      expect(wrapper.find('.zoom-loading').exists()).toBe(false);
+    });
+
+    it('reveals a poster that fails to load rather than hiding it forever', async () => {
+      const { wrapper } = factory(tenMovies());
+      wrapper.vm.originSettled = true;
+      await wrapper.find('.zoom-image').trigger('error');
+      expect(wrapper.vm.imageLoaded).toBe(true);
+    });
+
+    it('hides the poster again when a new round starts', async () => {
+      const { wrapper } = factory(tenMovies());
+      wrapper.vm.imageLoaded = true;
+      wrapper.vm.originSettled = true;
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.posterReady).toBe(true);
+
+      wrapper.vm.startNewRound();
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.posterReady).toBe(false);
+    });
+
+    it('does not wait on crop scoring for a resumed round, which already has one', () => {
+      const movies = tenMovies();
+      const { wrapper } = factory(movies);
+      wrapper.vm.zoomOut();
+
+      const { wrapper: resumed } = factory(movies);
+      expect(resumed.vm.originSettled).toBe(true);
+      expect(resumed.vm.imageLoaded).toBe(false);
+    });
+  });
+
   describe('banner', () => {
     it('swaps in its own artwork and hides the logo, then restores both', () => {
       const { wrapper, commit } = factory(tenMovies());
