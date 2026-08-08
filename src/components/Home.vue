@@ -660,6 +660,30 @@
                 </div>
               </div>
 
+              <div class="mt-4">
+                <label class="form-label d-block">Slim down stored data</label>
+                <small class="form-text text-white d-block mb-2">
+                  Removes crew the app never shows (stunts, hair, makeup and so on) plus a few fields that get recalculated anyway. Cuts what has to download each time you open the app by roughly 40%. Nothing you can see in the app changes. Safe to run again anytime.
+                </small>
+                <button
+                  class="btn btn-outline-info btn-sm"
+                  @click="trimLibraryData"
+                  :disabled="libraryTrim.status === 'running'"
+                >
+                  <span v-if="libraryTrim.status === 'running'">
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Slimming {{ libraryTrim.completed }}/{{ libraryTrim.total }}...
+                  </span>
+                  <span v-else>
+                    <i class="bi bi-file-zip"></i> Slim down stored data
+                  </span>
+                </button>
+                <div v-if="libraryTrim.status === 'done'" class="text-success mt-2">
+                  <small v-if="libraryTrim.total"><i class="bi bi-check-circle"></i> {{ libraryTrim.total }} movie{{ libraryTrim.total === 1 ? '' : 's' }} slimmed{{ libraryTrim.failed ? ` (${libraryTrim.failed} failed — check your connection and try again)` : '' }}.</small>
+                  <small v-else><i class="bi bi-check-circle"></i> Already as small as it goes.</small>
+                </div>
+              </div>
+
               <!-- Account -->
               <div class="mt-4">
                 <hr>
@@ -990,6 +1014,7 @@ import { LAST_PLAYED_KEY, GAME_ICONS } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
 import { backfillProductionCountries, collectMoviesNeedingCountries } from '../assets/javascript/backfillProductionCountries.js';
+import { trimStoredEntries, collectEntriesNeedingTrim, entryForStorage } from '../assets/javascript/storedEntry.js';
 import { makePlaceholderId } from '../utils/placeholderId.js';
 import {
   countDirectors as countDirectorsUtil,
@@ -1077,6 +1102,7 @@ export default {
       offlineDownload: { status: 'idle', completed: 0, total: 0, failed: 0 },
       boxOfficeBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
       countriesBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
+      libraryTrim: { status: 'idle', completed: 0, total: 0, failed: 0 },
       quickLinksSortType: "count",
       scrapingTest: {
         loading: false,
@@ -3569,6 +3595,43 @@ export default {
       );
 
       this.boxOfficeBackfill = { status: 'done', ...result };
+    },
+    async trimLibraryData () {
+      if (this.libraryTrim.status === 'running') {
+        return;
+      }
+
+      const candidateCount = collectEntriesNeedingTrim(this.$store.state.movieLog).length;
+      this.libraryTrim = { status: 'running', completed: 0, total: candidateCount, failed: 0 };
+
+      const result = await trimStoredEntries(this.$store.state.movieLog, async (batch) => {
+        const entries = [];
+        let updates = {};
+
+        batch.forEach(({ dbKey, updates: entryUpdates }) => {
+          const existingEntry = this.$store.state.movieLog[dbKey];
+          if (!existingEntry) return;
+          // Keep local state in step with what's being written, so the grid
+          // doesn't briefly disagree with the database.
+          entries.push({ key: dbKey, value: entryForStorage(existingEntry) });
+          updates = { ...updates, ...entryUpdates };
+        });
+
+        if (entries.length) {
+          this.$store.commit('setMovieLogEntries', entries);
+        }
+        if (Object.keys(updates).length) {
+          // A multi-path update, where a null value DELETES that path. Writing
+          // whole entries instead is what put the junk there originally.
+          await this.$store.dispatch('updateDatabaseEntriesNow', updates);
+        }
+      }, {
+        onProgress: (progress) => {
+          this.libraryTrim = { ...this.libraryTrim, ...progress };
+        }
+      });
+
+      this.libraryTrim = { status: 'done', ...result };
     },
     async backfillProductionCountriesData () {
       if (this.countriesBackfill.status === 'running') {

@@ -535,6 +535,7 @@ import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
 import { awardNameWithThe } from '../assets/javascript/personalAwards.js';
 import { warmImageCache, posterUrl, backdropUrl } from '../assets/javascript/offlinePosterCache.js';
+import { entryForStorage } from '../assets/javascript/storedEntry.js';
 import { countDirectors, countCastCrew, countGenres, countKeywords, countStudios } from '../assets/javascript/entityCounts.js';
 
 export default {
@@ -1241,7 +1242,9 @@ export default {
       try {
         await this.$store.dispatch('setDBValue', {
           path: `movieLog/${this.result.dbKey}`,
-          value: updated
+          // Sanitised: `updated` is spread from live store state, which carries
+          // read-time-injected dbKey/_search and a derived flatKeywords.
+          value: entryForStorage(updated)
         });
         this.result = updated;
         if (this.previousEntry && this.previousEntry.dbKey === updated.dbKey) {
@@ -1372,7 +1375,9 @@ export default {
       try {
         await this.$store.dispatch('setDBValue', {
           path: `movieLog/${this.result.dbKey}`,
-          value: updated
+          // Sanitised: `updated` is spread from live store state, which carries
+          // read-time-injected dbKey/_search and a derived flatKeywords.
+          value: entryForStorage(updated)
         });
         this.result = updated;
         if (this.previousEntry && this.previousEntry.dbKey === updated.dbKey) {
@@ -1654,7 +1659,7 @@ export default {
           }
         };
 
-        await this.$store.dispatch('setDBValue', dbEntry);
+        await this.$store.dispatch('setDBValue', { ...dbEntry, value: entryForStorage(dbEntry.value) });
 
         // Update local data
         this.result.customPosterPath = posterPath;
@@ -1750,7 +1755,7 @@ export default {
           }
         };
 
-        await this.$store.dispatch('setDBValue', dbEntry);
+        await this.$store.dispatch('setDBValue', { ...dbEntry, value: entryForStorage(dbEntry.value) });
 
         // Update local data
         this.result.customBackdropPath = backdropPath;

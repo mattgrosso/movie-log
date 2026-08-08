@@ -1392,3 +1392,36 @@ Dropping trivia to Haiku is a one-line further saving if quality holds up. Note 
 
 ### Still outstanding: the scaling problem
 The library is re-downloaded in full on every launch, which is what makes cost scale linearly with launches (~2.3 TB/month at 1,000 users × 5 launches/day ≈ $2,300). Fixing it needs a compact index node (title/poster/rating/date — all the grid needs) with full entries loaded on demand. **Not yet done — deliberately scoped separately.**
+
+## Slimming the stored library (Aug 2026)
+
+The follow-on from the cost audit. The library was **15.2 MB re-downloaded on every cold launch**, which is what made Firebase cost scale with app opens rather than with users.
+
+### What was actually in it
+| | | |
+|---|---|---|
+| `movie.crew` | 7.39 MB | **49%** — 91 people/film |
+| `movie.cast` | 3.03 MB | 20% — 45/film |
+| `_search` | 0.98 MB | 6% |
+| everything else | 3.80 MB | 25% |
+
+**Half the database was crew nothing reads.** TMDB returns every credit — stunts, hairstylists, "Thanks" — and `AddRating` stored all of them.
+
+### The compact-index idea was wrong, and measuring caught it
+The first sketch was "store a small index (title/poster/rating) and load full entries on demand". That doesn't work: **search matches on cast names, crew names and keywords**, so an index like that can't support the app's most-used feature. Abandoned before any code was written.
+
+### What shipped: `src/assets/javascript/storedEntry.js`
+One definition of "trimmed", shared by the write paths and the migration.
+- **`KEPT_CREW_JOBS`** — substring matching, mirroring `getCrewMember`'s own loose matching ('Photo' catches "Director of Photography"). **Screenplay/Story/Novel are load-bearing, not extras**: `FavoriteWriters` and Home's crew grouping key off them, and **754 of 1,368 movies have no plain "Writer" credit at all**. Dropping them would have silently broken writer attribution for over half the library — caught by measuring, not by reading the code. Production Design / Costume Design / Casting are kept so those credits stay searchable.
+- **`RUNTIME_ENTRY_FIELDS` (`dbKey`, `_search`)** — injected when READING (the store's getter; Home's search memoisation) and written straight back by any code spreading a whole entry. ~1 MB of pure junk, uploaded and re-downloaded forever. Four `...this.result` writes in MovieDetail did this, and `addMovieRating`'s carry-over did it on every re-rate.
+- **`DERIVED_MOVIE_FIELDS` (`flatKeywords`)** — recomputed on load everywhere it's used (MovieDetail lines 824/1212), so storing it was redundant.
+
+**Cast is deliberately untouched.** Six Degrees walks the full billing list on purpose (see its uncapped `playGraph`), so trimming cast would regress a fix made specifically for that.
+
+### The migration
+"Slim down stored data" in Settings. Uses **multi-path `update()` with `null` values to DELETE paths** — the only way to remove a field without rewriting the whole entry, which is what created the problem in the first place. Batched (25/write) for the reason every migration here is batched. Idempotent: `collectEntriesNeedingTrim` returns nothing once done.
+
+**Measured against the real library: 15.20 → 9.49 MB, 38% smaller.** Free-tier headroom goes from ~674 to ~1,079 cold launches/month. A backup of the pre-migration library was taken to the session scratchpad.
+
+### Still not solved
+38% is a shave, not a fix — cost still scales linearly with launches. The real answer is **delta sync**: an `updatedAt` per entry, query only what changed since last sync against the IndexedDB snapshot that already exists. The hard part is **deletions** (a "what changed" query can't report absence, so it needs tombstones or a periodic full resync), plus setting `updatedAt` on every write path, of which there are now many. Deliberately not attempted — worth doing only if usage actually approaches the cap.

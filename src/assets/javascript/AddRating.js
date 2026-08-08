@@ -2,6 +2,7 @@ import axios from 'axios';
 import store from '../../store/index';
 import { warmImageCache, posterUrl, backdropUrl } from './offlinePosterCache.js';
 import { isPlaceholderId } from '../../utils/placeholderId.js';
+import { trimCrew, RUNTIME_ENTRY_FIELDS } from './storedEntry.js';
 import { enqueueWrite, removePendingWrite, updatePendingWrite } from '../../utils/pendingWriteQueue.js';
 
 const getTMDBData = async (rating) => {
@@ -145,7 +146,10 @@ const safeTitleKey = (title) => {
 // reconciliation flow (matching an offline placeholder rating to a real
 // TMDB movie) can reuse the exact same shaping logic.
 const shapeTmdbDataIntoMovie = (tmdbData, ratings) => {
-  const crew = tmdbData.crew.map((person) => ({ job: person.job, name: person.name }));
+  // TMDB returns every credit — ~91 people per film, including stunts and
+  // "Thanks" — and storing all of them made crew half the entire database.
+  // Only the job titles the app reads or searches on are kept.
+  const crew = trimCrew(tmdbData.crew.map((person) => ({ job: person.job, name: person.name })));
   const cast = tmdbData.cast.map((person) => ({ name: person.name, character: person.character }));
 
   return {
@@ -284,8 +288,9 @@ const addMovieRating = async (ratings) => {
   // later. `dbKey` is excluded because the store injects it when reading, so
   // it isn't real stored data.
   const entryExtras = {};
+  const notRealStoredData = new Set(['movie', 'ratings', ...RUNTIME_ENTRY_FIELDS]);
   Object.keys(existingEntry || {}).forEach((field) => {
-    if (field !== 'movie' && field !== 'ratings' && field !== 'dbKey') {
+    if (!notRealStoredData.has(field)) {
       entryExtras[field] = existingEntry[field];
     }
   });

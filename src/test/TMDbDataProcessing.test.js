@@ -515,17 +515,48 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
         name: `Actor ${i}`,
         character: `Character ${i}`
       }))
-      const largeCrew = Array(100).fill().map((_, i) => ({
-        name: `Crew Member ${i}`,
-        job: `Job ${i}`
-      }))
+      // A realistic TMDB crew: a handful of credits the app reads, buried in
+      // ninety-odd it never touches.
+      const largeCrew = [
+        { name: 'The Director', job: 'Director' },
+        { name: 'The Writer', job: 'Screenplay' },
+        { name: 'The DP', job: 'Director of Photography' },
+        ...Array(97).fill().map((_, i) => ({ name: `Crew Member ${i}`, job: 'Stunts' }))
+      ]
 
       mockCreditsData = { cast: largeCast, crew: largeCrew }
 
       const result = await addRating(mockRatings)
 
+      // Cast is kept in full — Six Degrees walks the whole billing list.
       expect(result.value.movie.cast).toHaveLength(100)
-      expect(result.value.movie.crew).toHaveLength(100)
+      // Crew is trimmed to what's actually read; storing all of it made crew
+      // half the entire database.
+      expect(result.value.movie.crew.map((p) => p.job)).toEqual([
+        'Director', 'Screenplay', 'Director of Photography'
+      ])
+    })
+
+    it('does not write fields that are injected when reading', async () => {
+      // dbKey and _search come from the store getter and Home's search
+      // memoisation; carrying them across a re-rate is how they ended up in
+      // the database in the first place.
+      store.state.movieLog = {
+        existing: {
+          movie: { id: 550, title: 'Test Movie' },
+          ratings: [],
+          dbKey: 'existing',
+          _search: { title: 'test movie' },
+          customPosterPath: '/keep-me.jpg'
+        }
+      }
+
+      const result = await addRating(mockRatings)
+
+      expect(result.value.dbKey).toBeUndefined()
+      expect(result.value._search).toBeUndefined()
+      // ...while genuinely-owned entry data still survives a re-rate.
+      expect(result.value.customPosterPath).toBe('/keep-me.jpg')
     })
 
     it('should handle multiple ratings with different ChatGPT keywords', async () => {

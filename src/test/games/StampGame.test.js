@@ -683,11 +683,19 @@ describe('StampGame passing when unsure', () => {
 
   it('counts passes separately from agreeing', async () => {
     const wrapper = factory(library(), { flyDuration: 0 });
+
     await wrapper.vm.decide('pass');
+
+    // Explicitly land on a card WITHOUT the keyword, so "no" is a `declined`
+    // rather than a `removed`. Round composition is shuffled, so relying on
+    // whatever card came next made this pass or fail by luck.
+    wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => !c.hasTag);
+    await wrapper.vm.$nextTick();
     await wrapper.vm.decide('no');
 
     expect(wrapper.vm.tally.passed).toBe(1);
-    expect(wrapper.vm.tally.confirmed + wrapper.vm.tally.declined).toBe(1);
+    expect(wrapper.vm.tally.declined).toBe(1);
+    expect(wrapper.vm.tally.removed).toBe(0);
   });
 
   it('gives "not sure" its own full-width tile in the summary', async () => {
