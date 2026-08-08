@@ -313,6 +313,66 @@ describe('PosterZoomGame', () => {
     });
   });
 
+  describe('showing what you actually saw', () => {
+    const reveal = async (wrapper) => {
+      wrapper.vm.imageLoaded = true;
+      wrapper.vm.originSettled = true;
+      await wrapper.vm.$nextTick();
+    };
+
+    it('outlines the crop you guessed from, over the revealed poster', async () => {
+      const { wrapper } = factory(tenMovies());
+      await reveal(wrapper);
+      wrapper.vm.zoomOut();
+      wrapper.vm.submitGuess(targetOf(wrapper));
+      await wrapper.vm.$nextTick();
+
+      const outline = wrapper.find('.crop-outline');
+      expect(outline.exists()).toBe(true);
+      // 1 zoom-out means level index 1, so the box is 100/ZOOM_LEVELS[1] wide.
+      expect(outline.attributes('style')).toContain(`width: ${100 / ZOOM_LEVELS[1]}%`);
+    });
+
+    it('is not drawn when the round was lost or given up', async () => {
+      const { wrapper } = factory(tenMovies());
+      await reveal(wrapper);
+      await wrapper.find('.give-up').trigger('click');
+
+      expect(wrapper.find('.crop-outline').exists()).toBe(false);
+    });
+
+    it('is not drawn when the win came from the whole poster anyway', async () => {
+      // Boxing the entire image says nothing.
+      const { wrapper } = factory(tenMovies());
+      await reveal(wrapper);
+      for (let i = 0; i < ZOOM_LEVELS.length; i++) wrapper.vm.zoomOut();
+      wrapper.vm.submitGuess(targetOf(wrapper));
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.isFullyOut).toBe(true);
+      expect(wrapper.find('.crop-outline').exists()).toBe(false);
+    });
+
+    it('waits for the poster before drawing over it', async () => {
+      const { wrapper } = factory(tenMovies());
+      wrapper.vm.submitGuess(targetOf(wrapper));
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.posterReady).toBe(false);
+      expect(wrapper.find('.crop-outline').exists()).toBe(false);
+    });
+
+    it('says so in the status line', async () => {
+      const { wrapper } = factory(tenMovies());
+      await reveal(wrapper);
+      wrapper.vm.zoomOut();
+      wrapper.vm.submitGuess(targetOf(wrapper));
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.find('.status-line').text()).toContain('all you saw');
+    });
+  });
+
   describe('not spoiling the poster', () => {
     it('keeps the poster hidden until it has loaded AND settled on a crop', async () => {
       // Revealing early lets you watch it zoom in from the full poster, or

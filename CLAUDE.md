@@ -1585,3 +1585,14 @@ The `Zoom out` button is gone; tapping the poster does it. It's the biggest targ
 - **The default status line is now the discovery hint** ("Tap the poster to zoom out."), since no button spells it out any more. It's replaced by the existing messages as soon as anything else is worth saying.
 - **`Give up` became an understated text link**, matching Reel Wordle's own give-up link: it throws the round away, so it shouldn't sit under your thumb as a button.
 - **Press feedback is border-colour only.** No `:hover` (a tapped element keeps it on iOS with no mouse to leave), and no `filter`/`transform` — either would fight the image's own zoom transform, which is what left visual trails in Timeline's drag.
+
+### Squat end-buttons, and showing the winning crop (Aug 2026)
+
+**The two end-of-round buttons looked squat because one of them wrapped.** Sharing the row halves each label's width, and `.btn-game`'s base `1.25rem` side padding pushed "Back to Games" onto a second line — so it was visibly taller than "New Poster" and both read as bulbous. Fixed in the shared partial (`.end-actions .btn-game`: tighter side padding + `white-space: nowrap`), so **every** game's end row benefits — they all use that same label at that same width and had the same latent wrap.
+
+**On a win, the poster is overlaid with the exact region you were looking at.** `cropRectFor(index, origin)` (pure) returns it as percentages: with `transform: scale(Z)` about origin `o`, a point `p` maps to `o + (p − o)·Z`, so the visible window is `1/Z` wide starting at `o·(1 − 1/Z)`. Anchored by a hand-checkable test (`o = 0.5, Z = 2` → the middle half).
+
+- The box is **2:3-shaped, not square** — `1/Z` of width and `1/Z` of height on a 2:3 poster — which is correct, because it matches the viewport the crop was seen through.
+- The dim outside it is a **single huge spread `box-shadow`**, clipped by the viewport's existing `overflow: hidden`, rather than four overlay elements.
+- It animates in on a **0.5s delay**, past the 0.45s zoom-out, so the poster resolves first and the box lands as a second beat rather than competing with the reveal.
+- Drawn only on a **win**, only once `posterReady`, and **not** when the win came from the fully-zoomed-out step — boxing the entire poster says nothing. The status line gains "— that box is all you saw" in exactly the cases the box appears.

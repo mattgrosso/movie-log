@@ -115,6 +115,28 @@ export function zoomStyleFor (index, origin, levels = ZOOM_LEVELS) {
 }
 
 /**
+ * The region of the whole poster that was actually visible at a given zoom
+ * step — as percentages, ready to position a box over the revealed poster.
+ *
+ * Derivation: with `transform: scale(Z)` about origin `o` (a fraction), a
+ * point p maps to o + (p - o) * Z. Solving for the points that land inside
+ * the container gives a window of width 1/Z starting at o * (1 - 1/Z).
+ * Sanity check: o = 0.5, Z = 2 gives 0.25 → 0.75, i.e. the middle half.
+ */
+export function cropRectFor (index, origin, levels = ZOOM_LEVELS) {
+  const scale = zoomLevelAt(index, levels);
+  const size = 100 / scale;
+  const x = origin?.x ?? 50;
+  const y = origin?.y ?? 50;
+  return {
+    left: x * (1 - 1 / scale),
+    top: y * (1 - 1 / scale),
+    width: size,
+    height: size
+  };
+}
+
+/**
  * Same "don't hand back the round we just finished, but fall back to the full
  * pool rather than dead-ending" shape as pickTriviaTarget. Built in from the
  * start because two games' "keeps repeating" bug reports both traced to this

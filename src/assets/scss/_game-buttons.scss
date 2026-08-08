@@ -73,6 +73,13 @@
   // Beats .cta-btn's own max-width, which would otherwise keep each half
   // narrow and leave a gap in the middle of the row.
   max-width: none;
+  // Sharing the row halves the width available to each label, and the base
+  // 1.25rem side padding pushed "Back to Games" onto a second line — which
+  // made that button taller than its neighbour and both look squat. Tighter
+  // padding plus nowrap keeps the pair on one line and the same height.
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  white-space: nowrap;
 }
 
 // Primary: the "do the main thing" action (Start, Submit, New Puzzle...).

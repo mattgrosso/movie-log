@@ -49,6 +49,11 @@
             @error="onPosterLoad"
           >
           <span v-if="!posterReady" class="zoom-loading">Focusing&hellip;</span>
+          <!-- After a win, marks out exactly how much of the poster you were
+               actually looking at when you called it. Appears after the
+               zoom-out settles, so it reads as a reveal rather than
+               competing with it. -->
+          <span v-if="showWinningCrop" class="crop-outline" :style="winningCropStyle"></span>
           <!-- On the poster rather than in their own row: a separate score
                row cost a full line of the one thing in short supply here. -->
           <span class="zoom-stat">{{ zoomOuts }} out{{ zoomOuts === 1 ? '' : 's' }}<span v-if="bestZoomOuts != null"> · best {{ bestZoomOuts }}</span></span>
@@ -107,6 +112,7 @@ import {
   zoomLevelAt,
   isFullyZoomedOut,
   zoomStyleFor,
+  cropRectFor,
   entriesWithPosters,
   isNewBestScore
 } from '../../assets/javascript/games/posterZoom.js';
@@ -215,6 +221,20 @@ export default {
     isFullyOut () {
       return isFullyZoomedOut(this.zoomIndex);
     },
+    // Only worth drawing if there's genuinely less than the whole poster to
+    // outline — winning from fully zoomed out would just box the entire image.
+    showWinningCrop () {
+      return this.status === 'won' && this.posterReady && !this.isFullyOut;
+    },
+    winningCropStyle () {
+      const rect = cropRectFor(this.zoomIndex, this.origin);
+      return {
+        left: `${rect.left}%`,
+        top: `${rect.top}%`,
+        width: `${rect.width}%`,
+        height: `${rect.height}%`
+      };
+    },
     canZoomOut () {
       return this.status === 'playing' && !this.isFullyOut;
     },
@@ -226,9 +246,11 @@ export default {
     // same reflow-avoidance as Higher or Lower's status line.
     statusMessage () {
       if (this.status === 'won') {
-        return this.zoomOuts === 0
-          ? 'Got it from the tightest crop. Show-off.'
-          : `Got it after ${this.zoomOuts} zoom-out${this.zoomOuts === 1 ? '' : 's'}.`;
+        if (this.zoomOuts === 0) return 'Got it from the tightest crop. Show-off.';
+        const outs = `${this.zoomOuts} zoom-out${this.zoomOuts === 1 ? '' : 's'}`;
+        return this.isFullyOut
+          ? `Got it after ${outs}.`
+          : `Got it after ${outs} — that box is all you saw.`;
       }
       if (this.status === 'revealed') return 'Gave up — here it is.';
       if (this.lastWrongTitle) return `Not ${this.lastWrongTitle}. Zoomed out a little.`;
@@ -590,6 +612,30 @@ export default {
   /* transform is composited, so the zoom stays smooth on a phone — the same
      reason Timeline's placement animation avoids layout properties. */
   transition: transform 0.45s ease, opacity 0.2s ease;
+}
+
+/* The dim outside the box is a huge spread shadow, clipped by the
+   viewport's own overflow: hidden — cheaper and simpler than four
+   separate overlay elements. Delayed past the 0.45s zoom-out so the
+   poster resolves first and this lands as a second beat. */
+.crop-outline {
+  animation: crop-reveal 0.35s ease 0.5s both;
+  border: 2px solid #ffc107;
+  border-radius: 2px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  position: absolute;
+}
+
+@keyframes crop-reveal {
+  from {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .zoom-loading {

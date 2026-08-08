@@ -6,6 +6,7 @@ import {
   zoomLevelAt,
   isFullyZoomedOut,
   zoomStyleFor,
+  cropRectFor,
   zoomOriginCandidates,
   pickMostInterestingOrigin,
   pickZoomTarget,
@@ -198,5 +199,47 @@ describe('pickMostInterestingOrigin', () => {
   it('tolerates having nothing to choose from', () => {
     expect(pickMostInterestingOrigin([], () => 1)).toBeNull();
     expect(pickMostInterestingOrigin(null, () => 1)).toBeNull();
+  });
+});
+
+describe('cropRectFor', () => {
+  const LAST = ZOOM_LEVELS.length - 1;
+
+  it('is the middle half when zoomed 2x about the centre', () => {
+    // Hand-checkable anchor for the derivation in the module.
+    const rect = cropRectFor(0, { x: 50, y: 50 }, [2, 1]);
+    expect(rect).toEqual({ left: 25, top: 25, width: 50, height: 50 });
+  });
+
+  it('hugs the corner when the origin is the corner', () => {
+    expect(cropRectFor(0, { x: 0, y: 0 }, [2, 1])).toEqual({ left: 0, top: 0, width: 50, height: 50 });
+    expect(cropRectFor(0, { x: 100, y: 100 }, [2, 1])).toEqual({ left: 50, top: 50, width: 50, height: 50 });
+  });
+
+  it('shrinks as the zoom tightens', () => {
+    const tight = cropRectFor(0, { x: 50, y: 50 });
+    const loose = cropRectFor(2, { x: 50, y: 50 });
+    expect(tight.width).toBeLessThan(loose.width);
+    expect(tight.width).toBeCloseTo(100 / ZOOM_LEVELS[0], 5);
+  });
+
+  it('covers the whole poster once fully zoomed out', () => {
+    expect(cropRectFor(LAST, { x: 40, y: 60 })).toEqual({ left: 0, top: 0, width: 100, height: 100 });
+  });
+
+  it('always stays inside the poster', () => {
+    for (let i = 0; i < ZOOM_LEVELS.length; i++) {
+      for (const origin of [{ x: 25, y: 18 }, { x: 75, y: 62 }, { x: 50, y: 50 }]) {
+        const r = cropRectFor(i, origin);
+        expect(r.left).toBeGreaterThanOrEqual(0);
+        expect(r.top).toBeGreaterThanOrEqual(0);
+        expect(r.left + r.width).toBeLessThanOrEqual(100.0001);
+        expect(r.top + r.height).toBeLessThanOrEqual(100.0001);
+      }
+    }
+  });
+
+  it('falls back to the centre with no stored origin', () => {
+    expect(cropRectFor(0, null, [2, 1])).toEqual({ left: 25, top: 25, width: 50, height: 50 });
   });
 });
