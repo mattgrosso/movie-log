@@ -120,11 +120,13 @@ import posterZoomBanner from '../../assets/images/games/poster-zoom-banner.jpg';
 
 const STORAGE_KEY = 'cinemaRoll.posterZoom.current';
 
-// Bigger than the w342 used across the library grid: this is the one screen
-// that magnifies a poster several times over, and w342 at 6x is mush. One
+// TMDB's largest poster size. This is the one screen that magnifies a poster
+// sixteen times over, so every source pixel counts — the crop is upscaled
+// from roughly a sixteenth of the image. Measured: `original` is 1000x1500
+// for a typical poster against w780's 780x1170, for about 85KB more. One
 // image per round, and the service worker's CacheFirst rule for
 // image.tmdb.org keeps it after the first view.
-const POSTER_SIZE = 'w780';
+const POSTER_SIZE = 'original';
 
 export default {
   name: 'PosterZoomGame',
@@ -319,7 +321,10 @@ export default {
       });
     },
     buildVarianceSampler (image) {
-      const width = 240;
+      // Scaled so the sampled crop stays a usable size no matter how tight
+      // the opening zoom gets — at 16x a fixed 240px canvas would leave only
+      // a 15px square to judge, which is too coarse to rank candidates.
+      const width = Math.max(320, Math.round(24 * ZOOM_LEVELS[0]));
       const height = Math.round(width * (image.naturalHeight / image.naturalWidth || 1.5));
       const canvas = document.createElement('canvas');
       canvas.width = width;

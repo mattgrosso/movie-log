@@ -11,15 +11,21 @@ import { entryKey } from './gameUtils.js';
 // so a player who keeps zooming always ends up seeing the answer rather than
 // stalling on a crop they can't place.
 //
-// The opening step is deliberately near-impossible — you're looking at an
-// eighth of the poster's width, a patch of texture. It's meant to be a
-// lottery ticket you glance at before taking the first zoom-out, not a fair
-// guess. The rest of the ladder is the playable part.
+// The opening step is meant to be a genuine mystery, not a fair guess — at
+// 16x you're looking at a sixteenth of the poster's width, which is an eye,
+// a letter, a patch of fabric. You glance at it and take the first zoom-out.
+// The rest of the ladder is the playable part, roughly 1.45x per step.
 //
-// An earlier version opened at 6x with a CENTRED focal point and gave too
-// many featureless crops. That was fixed by biasing the focal point upward
-// (see below), not by backing off the zoom.
-export const ZOOM_LEVELS = [8, 5.5, 4, 3, 2.2, 1.6, 1];
+// This has been tightened twice (4.5x, then 8x, now 16x) because each time
+// the opening was still guessable. Going tighter costs sharpness — the crop
+// is upscaled from fewer source pixels — which is why the component fetches
+// the poster at TMDB's `original` size rather than w780.
+//
+// An early version opened at 6x with a CENTRED focal point and gave too many
+// featureless crops. That was fixed by scoring candidate focal points
+// against the real pixels (see below), not by backing off the zoom — which
+// is what makes this level of tightness workable at all.
+export const ZOOM_LEVELS = [16, 11, 7.5, 5, 3.4, 2.3, 1.6, 1];
 
 // Where the crop is allowed to land.
 //

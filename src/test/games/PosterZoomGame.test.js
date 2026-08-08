@@ -72,10 +72,11 @@ describe('PosterZoomGame', () => {
       expect(wrapper.find('.zoom-image').attributes('style')).toContain(`scale(${ZOOM_LEVELS[0]})`);
     });
 
-    it('requests a poster big enough to survive being magnified', () => {
-      // w342 (the library grid size) at 6x is mush.
+    it('requests the largest poster available, since it gets magnified 16x', () => {
+      // The crop is upscaled from about a sixteenth of the image, so every
+      // source pixel counts.
       const { wrapper } = factory(tenMovies());
-      expect(wrapper.find('.zoom-image').attributes('src')).toContain('/w780/');
+      expect(wrapper.find('.zoom-image').attributes('src')).toContain('/original/');
     });
 
     it('does not name the movie in the alt text while it is still the answer', () => {
