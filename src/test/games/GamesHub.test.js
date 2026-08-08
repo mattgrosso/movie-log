@@ -99,7 +99,9 @@ describe('GamesHub', () => {
 
       expect(wrapper.findAll('.won-today')).toHaveLength(2);
       const markedTiles = wrapper.findAll('.game-tile').filter((t) => t.find('.won-today').exists());
-      expect(markedTiles.map((t) => t.find('.game-tile-name').text())).toEqual(['Reel Wordle', 'Connections']);
+      // Tiles are identified by their artwork's alt text now — the game name
+      // lives in the banner image rather than a separate label.
+      expect(markedTiles.map((t) => t.find('img').attributes('alt'))).toEqual(['Reel Wordle', 'Connections']);
     });
 
     it('ignores a stamp from a previous day (nothing to expire or clear)', () => {

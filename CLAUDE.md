@@ -1505,3 +1505,22 @@ Automated sessions can't sign in, but they *can* run the app against `testing-da
 Used this to close the one gap the unit tests couldn't: that a real whole-entry write through the live client SDK stamps `updatedAt` with a server number, advances it past the prior value, and leaves `ratings` an array / `crew` intact / no `dbKey`-`_search` junk written back.
 
 **This stops working the moment the locked-down rules deploy** — `testing-database` then requires `auth.token.email` sanitized to equal the branch name, so it needs a real session plus the in-app dev-mode toggle. Worth doing any authenticated-write verification BEFORE that deploy.
+
+## Games hub redesigned around the banner art (Aug 2026)
+
+Feedback: *"it's just a fairly basic list of them all stacked. I think we could do something nicer for each of them and maybe make it a bit more compact."*
+
+Every game already had bespoke banner artwork — its own icon, palette and slab-serif name — that it swaps into the header on entry. The hub was showing a generic amber Bootstrap icon instead and ignoring all nine. So the tiles now use that art.
+
+- **One column of icon+name+paragraph → a two-column grid of 16:9 art tiles**, going 3-up at 600px and 4-up at 900px. Two across even on a phone: nine stacked full-width tiles were most of the old page's height, and the art stays legible at half width (~173px).
+- **No name is overlaid on the art.** The artwork already carries the game's name; adding our own label would sit a second copy directly on top of the first.
+- **Captions cut to one short line each** ("Which movie scored higher?"), which is what actually keeps every tile the same height and the grid even.
+- **Won-today checkmark** moved onto the art as a corner badge, on a dark disc so it stays legible over any of the nine palettes. Still green rather than amber, still purely a marker that never gates play.
+
+Two things measured rather than assumed while building it:
+- **A 2:1 crop with `object-position` was tried and rejected** — it only saved 78px and risked cutting the composition of nine differently-laid-out banners (Trivia's "?" is top-left, Timeline's hourglass is left with the name bottom-right, etc.).
+- **Reserving two caption lines was tried and rejected** — it left visible dead space under every one-line caption, 75px across the grid. The `-webkit-line-clamp: 2` stayed as a safety net for very narrow screens, but nothing reserves the space up front.
+
+A screenshot suggesting the right column ran off-screen turned out to be a **screenshot-scaling artifact**, not a layout bug — `document.scrollWidth === clientWidth` throughout. Worth measuring before chasing.
+
+Test note: `GamesHub.test.js` identified tiles by `.game-tile-name`, which no longer exists. It now reads the artwork's `alt` (the game name), which is the accessible equivalent.

@@ -21,9 +21,12 @@
         class="game-tile"
         @click="selectGame(game.path)"
       >
-        <i :class="['bi', game.icon]"></i>
-        <span class="game-tile-name">
-          {{ game.name }}
+        <!-- Each game already has bespoke banner art carrying its own name
+             and palette, so the tile shows that rather than a generic icon.
+             No name is overlaid on purpose — the artwork already has one,
+             and a second would just be a duplicate sitting on top of it. -->
+        <span class="game-tile-art">
+          <img :src="game.banner" :alt="game.name" class="game-tile-image" loading="lazy">
           <!-- Feature request: "it would be nice to have a checkmark on the
                game if I've won a game of that today... then I'll be able to
                play each one each day and feel satisfied." Purely a marker —
@@ -39,7 +42,18 @@
 <script>
 import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
-import gameDataMixin, { LAST_PLAYED_KEY, GAME_ICONS, gameWinKey, todayStamp } from '../../mixins/gameData.js';
+import gameDataMixin, { LAST_PLAYED_KEY, gameWinKey, todayStamp } from '../../mixins/gameData.js';
+// The same artwork each game swaps into the header banner on entry, reused
+// here as tile art so the hub looks like the games it leads to.
+import higherLowerBanner from '../../assets/images/games/higher-lower-banner.jpg';
+import reelWordleBanner from '../../assets/images/games/reel-wordle-banner.jpg';
+import connectionsBanner from '../../assets/images/games/connections-banner.jpg';
+import sixDegreesBanner from '../../assets/images/games/six-degrees-banner.jpg';
+import timelineBanner from '../../assets/images/games/timeline-banner.jpg';
+import clueBudgetBanner from '../../assets/images/games/clue-budget-banner.jpg';
+import tagBanner from '../../assets/images/games/tag-banner.jpg';
+import triviaBanner from '../../assets/images/games/trivia-banner.jpg';
+import stampBanner from '../../assets/images/games/stamp-banner.jpg';
 
 export default {
   name: 'GamesHub',
@@ -67,56 +81,56 @@ export default {
         {
           path: '/games/higher-lower',
           name: 'Higher or Lower',
-          icon: GAME_ICONS['/games/higher-lower'],
-          description: "See a movie's real score, guess whether the next one scored higher or lower. Keep your streak alive."
+          banner: higherLowerBanner,
+          description: 'Which movie scored higher?'
         },
         {
           path: '/games/wordle',
           name: 'Reel Wordle',
-          icon: GAME_ICONS['/games/wordle'],
-          description: "A random movie from your library. Guess it using year/genre/director clues — as many tries and as many rounds as you want."
+          banner: reelWordleBanner,
+          description: 'Guess it from year/genre clues.'
         },
         {
           path: '/games/connections',
           name: 'Connections',
-          icon: GAME_ICONS['/games/connections'],
-          description: 'Find four groups of four — movies linked by shared director, genre, decade, cast, or studio.'
+          banner: connectionsBanner,
+          description: 'Find four groups of four.'
         },
         {
           path: '/games/six-degrees',
           name: 'Six Degrees',
-          icon: GAME_ICONS['/games/six-degrees'],
-          description: 'Two movies, one shared-cast chain between them. Build the connection yourself, hop by hop.'
+          banner: sixDegreesBanner,
+          description: 'Link two movies by shared cast.'
         },
         {
           path: '/games/timeline',
           name: 'Timeline',
-          icon: GAME_ICONS['/games/timeline'],
-          description: 'Build a chronological timeline of your own rated movies, one guess at a time. Keep your streak alive.'
+          banner: timelineBanner,
+          description: 'Put movies in release order.'
         },
         {
           path: '/games/clue-budget',
           name: 'Clue Budget',
-          icon: GAME_ICONS['/games/clue-budget'],
-          description: "Spend a $100 budget on clues — cast, director, tagline, and more — to guess the movie before you're broke."
+          banner: clueBudgetBanner,
+          description: 'Buy clues, then name the movie.'
         },
         {
           path: '/games/tagline',
           name: 'Tag',
-          icon: GAME_ICONS['/games/tagline'],
-          description: 'See a real movie tagline, pick which of 4 posters it belongs to. Keep your streak alive.'
+          banner: tagBanner,
+          description: 'Match the tagline to its poster.'
         },
         {
           path: '/games/trivia',
           name: 'Trivia',
-          icon: GAME_ICONS['/games/trivia'],
-          description: 'Real trivia about a random movie, hardest fact first. Guess it in as few facts as you can.'
+          banner: triviaBanner,
+          description: 'Name it, hardest fact first.'
         },
         {
           path: '/games/stamp',
           name: 'Stamp',
-          icon: GAME_ICONS['/games/stamp'],
-          description: 'Pick one of your tags and sort movies by whether it fits. Tidies up your tags as you play.'
+          banner: stampBanner,
+          description: 'Sort which keywords fit.'
         }
       ]
     };
@@ -168,14 +182,22 @@ export default {
 
 .game-tile-grid {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  /* Two across even on a phone. Nine stacked full-width tiles was the bulk
+     of the old page's height; the art is legible at half-width. */
+  grid-template-columns: 1fr 1fr;
   margin: 0 1rem;
 }
 
 @media (min-width: 600px) {
   .game-tile-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .game-tile-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -187,41 +209,66 @@ export default {
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 1.25rem;
+  /* The art goes edge to edge; only the caption below it is inset. */
+  overflow: hidden;
+  padding: 0;
   text-align: left;
 }
 
+/* Mobile-first: press state only, no :hover — a tapped tile would otherwise
+   stay stuck in its hover look on iOS, with no mouse to leave it. */
 .game-tile:active {
-  background: #242424;
   border-color: #666;
 }
 
-.game-tile i {
-  color: #ffc107;
-  font-size: 1.6rem;
+.game-tile:active .game-tile-image {
+  transform: scale(0.97);
 }
 
-.game-tile-name {
-  align-items: center;
-  display: flex;
-  font-size: 1.15rem;
-  font-weight: 600;
-  gap: 0.4rem;
+.game-tile-art {
+  aspect-ratio: 16 / 9;
+  display: block;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
 }
 
-/* Green (not the tiles' amber) so "done today" reads as its own distinct
-   signal rather than blending into the tile's own icon color. Scoped under
-   .game-tile deliberately: the `.game-tile i` rule above is (0,1,1) and
-   would otherwise out-specify a bare `.won-today` (0,1,0), painting this
-   amber like the tile's own icon — exactly the blending this avoids. */
+.game-tile-image {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.15s ease;
+  width: 100%;
+}
+
+/* Green (not the amber used across the banners) so "done today" reads as its
+   own signal rather than blending into the artwork it sits on. Sits on the
+   art, so it needs a dark disc behind it to stay legible over any banner. */
 .game-tile .won-today {
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 50%;
   color: #4caf50;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 2px;
+  position: absolute;
+  right: 4px;
+  top: 4px;
 }
 
 .game-tile-description {
   color: #adb5bd;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  padding: 0.45rem 0.55rem 0.55rem;
+  /* Captions are written to fit one line at phone width, which keeps every
+     tile the same height. The clamp is a safety net for very narrow screens:
+     a long caption wraps to a second line rather than an unbounded number,
+     so at worst one grid row is slightly taller. Reserving two lines up
+     front was tried and left visible dead space under every caption. */
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  overflow: hidden;
 }
 </style>
