@@ -1,17 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import TriviaGame from '@/components/games/TriviaGame.vue';
-import axios from 'axios';
+import { postToAi } from '@/utils/aiRequest.js';
 
-vi.mock('axios', () => ({
-  default: { post: vi.fn() }
-}));
+// The component posts through utils/aiRequest.js now, which attaches a Firebase
+// ID token — the endpoint is authenticated because each call costs money.
+// Mocking the helper keeps these tests about the game, not about auth.
+vi.mock('@/utils/aiRequest.js', () => ({ postToAi: vi.fn() }));
 
 function factsFor (id) {
   return [`Hard fact about movie ${id}.`, `Second fact ${id}.`, `Third fact ${id}.`, `Fourth fact ${id}.`, `Easy giveaway fact ${id}.`];
 }
 
-function defaultAxiosImpl (url, body) {
+function defaultAiImpl (url, body) {
   return Promise.resolve({ data: { facts: factsFor(body.title.replace('Movie ', '')) } });
 }
 
@@ -48,8 +49,8 @@ function factory (movies, dispatch = vi.fn()) {
 
 describe('TriviaGame', () => {
   beforeEach(() => {
-    axios.post.mockReset();
-    axios.post.mockImplementation(defaultAxiosImpl);
+    postToAi.mockReset();
+    postToAi.mockImplementation(defaultAiImpl);
     // Fixtures reuse the same dbKeys across tests, so persisted state from
     // one test can leak into and change the outcome of the next one in
     // this file — same gotcha documented for Connections/Reel Wordle/Six
@@ -208,7 +209,7 @@ describe('TriviaGame', () => {
   });
 
   it('shows a retry state when the trivia fetch fails, and "Try Again" retries the same target', async () => {
-    axios.post.mockRejectedValueOnce(new Error('network down'));
+    postToAi.mockRejectedValueOnce(new Error('network down'));
     const wrapper = factory(tenMovies());
     await flushPromises();
 
@@ -216,7 +217,7 @@ describe('TriviaGame', () => {
     expect(wrapper.vm.loading).toBe(false);
     const stuckTargetId = wrapper.vm.target.movie.id;
 
-    axios.post.mockImplementation(defaultAxiosImpl);
+    postToAi.mockImplementation(defaultAiImpl);
     await wrapper.find('.error-actions button').trigger('click');
     await flushPromises();
 
@@ -227,10 +228,10 @@ describe('TriviaGame', () => {
 
   it('ignores a stale in-flight fetch if a newer round was started in the meantime', async () => {
     let resolveFirst;
-    axios.post.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }));
+    postToAi.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }));
     const wrapper = factory(tenMovies());
 
-    axios.post.mockImplementation(defaultAxiosImpl);
+    postToAi.mockImplementation(defaultAiImpl);
     wrapper.vm.startNewRound();
     await flushPromises();
 
@@ -279,7 +280,7 @@ describe('TriviaGame', () => {
 
       const { target, facts, revealedCount } = wrapper.vm;
       wrapper.unmount();
-      axios.post.mockClear();
+      postToAi.mockClear();
 
       const wrapper2 = factory(tenMovies());
       await flushPromises();
@@ -287,7 +288,7 @@ describe('TriviaGame', () => {
       expect(wrapper2.vm.target.dbKey).toBe(target.dbKey);
       expect(wrapper2.vm.facts).toEqual(facts);
       expect(wrapper2.vm.revealedCount).toBe(revealedCount);
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(postToAi).not.toHaveBeenCalled();
     });
 
     it('does NOT resume a round that was already won', async () => {

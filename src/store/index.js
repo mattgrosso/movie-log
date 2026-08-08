@@ -688,6 +688,18 @@ export default createStore({
       }
       const academyAwardWinnersHasData = Boolean(Object.keys(context.state.academyAwardWinners).length);
       if (!academyAwardWinnersHasData) {
+        // This block enriches ~98 Best Picture winners with a TMDB call EACH,
+        // sequentially. It used to be guarded only on in-memory state, so every
+        // cold launch re-ran all 98 requests — the single largest source of API
+        // traffic in the app. The list changes once a year, so it caches like
+        // movieLog/settings do, keyed 'global' because it isn't user-specific.
+        const cached = await loadSnapshot('global', 'academyAwardWinners');
+        if (cached && Object.keys(cached).length) {
+          context.commit('setAcademyAwardWinners', cached);
+        }
+      }
+
+      if (!Object.keys(context.state.academyAwardWinners).length) {
         try {
           const response = await axios.get(`https://web-production-b8145.up.railway.app/awards?category=Best%20Picture`);
           const data = response.data.map((item) => {
@@ -712,7 +724,13 @@ export default createStore({
             }
           }
 
-          context.commit('setAcademyAwardWinners', { bestPicture: bestPictureWinners });
+          const winners = { bestPicture: bestPictureWinners };
+          context.commit('setAcademyAwardWinners', winners);
+          // Only cache a complete-looking result; a partial fetch shouldn't be
+          // baked in as the answer for the next month.
+          if (bestPictureWinners.length) {
+            saveSnapshot('global', 'academyAwardWinners', winners);
+          }
         } catch (error) {
           console.error('Failed to get awards data:', error);
           ErrorLogService.error('Failed to get awards data:', error);
@@ -733,36 +751,34 @@ export default createStore({
       // library, or can look it up live for the rare case it isn't.
       const allAcademyAwardsHasData = context.state.allAcademyAwards.length > 0;
       if (!allAcademyAwardsHasData) {
-        // Not user-specific, so a single fixed cache key rather than
-        // per-account topKey — same IndexedDB snapshot mechanism
-        // movieLog/settings already use for offline cold starts, applied
-        // here mainly to avoid re-downloading ~5.5MB from scratch on every
-        // single session once it's already been fetched once on this device.
-        loadSnapshot('global', 'allAcademyAwards').then((cached) => {
-          if (cached && !context.state.allAcademyAwards.length) {
-            context.commit('setAllAcademyAwards', cached);
-          }
-          return null;
-        }).catch(() => {});
-
-        try {
-          const response = await axios.get('https://web-production-b8145.up.railway.app/awards');
-          const data = response.data.map((item) => {
-            return {
-              ...item,
-              isWinner: ['TRUE', '1', true].includes(item.isWinner),
-              isActing: ['TRUE', '1', true].includes(item.isActing)
-            };
-          });
-          context.commit('setAllAcademyAwards', data);
-          saveSnapshot('global', 'allAcademyAwards', data);
-        } catch (error) {
-          console.error('Failed to get full awards dataset:', error);
-          ErrorLogService.error('Failed to get full awards dataset:', error);
+        // ~5.25MB. This previously kicked off the cache read and the network
+        // fetch TOGETHER, so the snapshot only ever won a race to first paint
+        // — the download happened on every launch anyway. Awaiting the cache
+        // first means a device that already has it downloads nothing.
+        const cached = await loadSnapshot('global', 'allAcademyAwards');
+        if (cached && cached.length) {
+          context.commit('setAllAcademyAwards', cached);
         }
       }
 
-      // Covers a cold start with leftover queue items from a previously
+      if (context.state.allAcademyAwards.length === 0) {
+        try {
+          const response = await axios.get('https://web-production-b8145.up.railway.app/awards');
+          const data = (response.data || []).map((record) => ({
+            ...record,
+            isWinner: ['TRUE', '1', true].includes(record.isWinner),
+            isActing: ['TRUE', '1', true].includes(record.isActing)
+          }));
+          context.commit('setAllAcademyAwards', data);
+          if (data.length) {
+            saveSnapshot('global', 'allAcademyAwards', data);
+          }
+        } catch (error) {
+          console.error('Failed to get the full Academy Awards dataset:', error);
+          ErrorLogService.error('Failed to get the full Academy Awards dataset:', error);
+        }
+      }
+
       // offline-killed session: flush if already online (no-ops otherwise),
       // and always refresh the reconciliation banner state regardless of
       // connectivity.

@@ -293,6 +293,7 @@ import axios from "axios";
 import addRating from "../assets/javascript/AddRating.js";
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
+import { postToAi } from '../utils/aiRequest.js';
 import { countViewingTagUsage, sortVocabularyByUsage } from "../utils/tags.js";
 import RatingSelect from "./RatingSelect.vue";
 import notFoundImage from "../assets/images/Image_not_available.png";
@@ -777,11 +778,7 @@ export default {
       this.movieContextLoading = true;
       this.movieContext = null;
       try {
-        const response = await axios.post(
-          `${process.env.VUE_APP_AI_API_URL}/context`,
-          { title: this.title, year: this.year },
-          { headers: { 'Content-Type': 'application/json' } }
-        );
+        const response = await postToAi('/context', { title: this.title, year: this.year });
         this.movieContext = response.data.context;
       } catch (error) {
         this.movieContext = 'Could not load context. Please try again.';
@@ -801,20 +798,7 @@ export default {
         const title = this.movieToRate.title;
         const year = this.movieToRate.release_date ? new Date(this.movieToRate.release_date).getFullYear() : "";
 
-        const apiUrl = `${process.env.VUE_APP_AI_API_URL}/keywords`;
-
-        const response = await axios.post(
-          apiUrl,
-          {
-            title,
-            year
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          }
-        );
+        const response = await postToAi('/keywords', { title, year });
 
         this.chatGPTKeywords = response.data.keywords || [];
       } catch (error) {

@@ -1345,3 +1345,42 @@ Fixed by wrapping `<router-view>` in `<main class="app-main">` (`display: flex; 
 - long content → total is the natural height, scrolls only as far as it needs
 
 Checked before shipping: the three surviving `height: 100%` rules in those components are all on images inside fixed-size parents (a timeline gap, the backdrop container, a poster box), so none relied on the page being a viewport tall; and every routed component is single-root, so `.app-main > *` can't split space between siblings.
+
+## Cost control pass (Aug 2026)
+
+Asked what was costing money and what would run away at scale. Audit findings and the first three fixes.
+
+### What every cold app launch used to cost
+| | per launch |
+|---|---|
+| Firebase `movieLog` | **15.16 MB** |
+| Firebase `settings` | 0.44 MB |
+| Railway `/awards` | **5.25 MB** |
+| TMDB `/movie/{id}` | **98 sequential calls** |
+
+≈21 MB and ~100 API calls **per cold launch** (page reload or PWA open; in-app navigation is fine). Firebase RTDB gives 10 GB/month free then $1/GB, so 15.6 MB per launch is roughly **650 launches/month across all users** before it bills. **A quota cutoff would look exactly like the 1 Aug "banner shows but the movie list is empty" report** — worth checking the usage graph for that date if it recurs.
+
+### 1. The AI endpoint was unauthenticated
+`aws-lambda/claude-ai.js` had `Access-Control-Allow-Origin: *`, no auth and no rate limit — and its URL is baked into the public client bundle, so anyone could spend the Anthropic balance in a loop. Got riskier the day email/password signup shipped.
+
+Now verifies a **Firebase ID token** using node's built-in `crypto` (no `firebase-admin` dependency, ~40 lines; needs Node 18+ for global `fetch`, and the function runs `nodejs22.x`). Checks signature against Google's cached x509 certs plus `exp`, `aud` and `iss` — **the audience and issuer checks are load-bearing**: without them a valid token from *any* Firebase project would be accepted. Plus a per-container in-memory rate limit (20/min/user), which is a speed bump not a guarantee — Lambda runs many containers and each keeps its own counter, so **set an API Gateway stage throttle as the real ceiling**. CORS was tightened too but is *not* the gate; it only constrains browsers.
+
+Client side, **`src/utils/aiRequest.js` is the only place that attaches the token**, so no caller can forget. It throws rather than firing a request that would 401 anyway.
+
+**Verified end-to-end, not just by unit test**: minted a real ID token via the Admin SDK + Identity Toolkit REST, then confirmed a valid token returns 200 with real keywords, and a forged token and a missing token both return 401. (The probe's throwaway auth user was deleted afterwards.)
+
+### 2. Two fetches that ignored their own caches
+- **`academyAwardWinners` had no persistence at all.** It enriches ~98 Best Picture winners with one TMDB call *each*, sequentially, and was guarded only on in-memory state — so all 98 ran on **every** cold launch. Now cached to IndexedDB under `'global'` (not user-specific). Only caches a non-empty result, so a failed fetch retries next launch.
+- **`allAcademyAwards` kicked off the cache read and the 5.25 MB network fetch in parallel.** The snapshot only ever won a race to first paint; the download happened regardless. Now awaits the cache and skips the fetch entirely on a hit. The old test asserted that race, so it was replaced with cache-hit / cache-miss tests — the race was the bug.
+
+Together these remove ~5.25 MB and ~98 API calls from every launch.
+
+### 3. Model choice is a cost decision
+All three routes were on **Opus** ($5/$25 per M tokens) for prompts that are just a title and a year. Now:
+- `keywords` → **Haiku 4.5** ($1/$5). Thematic labels; nothing to get factually wrong.
+- `context` / `trivia` → **Sonnet 5**. These have to be TRUE, and cheap models confabulate hardest on obscure factual recall. Trivia is *unverifiable to the player*, so a wrong "fact" quietly becomes part of the game. Still well below Opus.
+
+Dropping trivia to Haiku is a one-line further saving if quality holds up. Note the old ID `claude-opus-4-5` isn't in the current lineup.
+
+### Still outstanding: the scaling problem
+The library is re-downloaded in full on every launch, which is what makes cost scale linearly with launches (~2.3 TB/month at 1,000 users × 5 launches/day ≈ $2,300). Fixing it needs a compact index node (title/poster/rating/date — all the grid needs) with full entries loaded on demand. **Not yet done — deliberately scoped separately.**

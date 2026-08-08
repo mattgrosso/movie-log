@@ -143,6 +143,68 @@ describe('initializeDB offline snapshot fallback', () => {
   })
 })
 
+// The Best Picture list is enriched with ONE TMDB call per winner (~98 of
+// them, sequentially). It had no persistence at all, so every cold launch
+// re-ran all 98 requests — by far the largest source of API traffic in the app.
+describe('initializeDB: Best Picture enrichment is cached', () => {
+  beforeEach(() => {
+    store.commit('setAcademyAwardWinners', {})
+    axios.get.mockReset()
+    loadSnapshotMock.mockImplementation(() => Promise.resolve(null))
+    store.commit('setAllAcademyAwards', [{ id: 'skip' }])
+  })
+
+  it('makes no TMDB calls at all when the snapshot already has the winners', async () => {
+    loadSnapshotMock.mockImplementation((topKey, kind) => {
+      if (kind === 'academyAwardWinners') {
+        return Promise.resolve({ bestPicture: [{ id: 1, title: 'Cached Winner', academyAwardsYear: 1994 }] })
+      }
+      return Promise.resolve(null)
+    })
+
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    expect(store.state.academyAwardWinners.bestPicture).toHaveLength(1)
+    const tmdbCalls = axios.get.mock.calls.filter(([url]) => url.includes('api.themoviedb.org'))
+    expect(tmdbCalls).toHaveLength(0)
+  })
+
+  it('enriches and then caches when there is no snapshot', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('category=Best%20Picture')) {
+        return Promise.resolve({ data: [
+          { tmdb: '100', year: 1994, isWinner: '1' },
+          { tmdb: '200', year: 1995, isWinner: '1' }
+        ] })
+      }
+      if (url.includes('api.themoviedb.org')) {
+        return Promise.resolve({ data: { id: 100, title: 'A Winner' } })
+      }
+      return Promise.resolve({ data: [] })
+    })
+
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    expect(store.state.academyAwardWinners.bestPicture).toHaveLength(2)
+    expect(saveSnapshotMock).toHaveBeenCalledWith('global', 'academyAwardWinners', expect.any(Object))
+  })
+
+  it('does not cache an empty result, so a failed fetch is retried next launch', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('category=Best%20Picture')) return Promise.resolve({ data: [] })
+      return Promise.resolve({ data: [] })
+    })
+
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    const cachedWinners = saveSnapshotMock.mock.calls.filter(([, kind]) => kind === 'academyAwardWinners')
+    expect(cachedWinners).toHaveLength(0)
+  })
+})
+
 describe('initializeDB: full Academy Awards dataset (feature: "pull it down and store it locally so we can use it wherever we want to")', () => {
   beforeEach(() => {
     // The shared top-level beforeEach presets this to a non-empty array so
@@ -186,12 +248,27 @@ describe('initializeDB: full Academy Awards dataset (feature: "pull it down and 
     expect(saveSnapshotMock).toHaveBeenCalledWith('global', 'allAcademyAwards', store.state.allAcademyAwards)
   })
 
-  it('falls back to the IndexedDB snapshot without clobbering already-arrived live data (same race as movieLog/settings)', async () => {
-    let resolveCache
+  // Deliberately NOT a race any more. It used to kick off the cache read and
+  // the ~5.25MB network fetch together, so the snapshot only ever won a race to
+  // first paint and the download happened on every launch regardless. Awaiting
+  // the cache first is the whole cost fix.
+  it('downloads nothing when the snapshot already has it', async () => {
     loadSnapshotMock.mockImplementation((topKey, kind) => {
-      if (kind === 'allAcademyAwards') return new Promise((resolve) => { resolveCache = resolve })
+      if (kind === 'allAcademyAwards') {
+        return Promise.resolve([{ id: 1, category: 'Cached', isWinner: true, isActing: false }])
+      }
       return Promise.resolve(null)
     })
+
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    expect(store.state.allAcademyAwards).toEqual([{ id: 1, category: 'Cached', isWinner: true, isActing: false }])
+    expect(axios.get).not.toHaveBeenCalledWith('https://web-production-b8145.up.railway.app/awards')
+  })
+
+  it('fetches and caches when the snapshot is empty', async () => {
+    loadSnapshotMock.mockImplementation(() => Promise.resolve(null))
     axios.get.mockImplementation((url) => {
       if (url === 'https://web-production-b8145.up.railway.app/awards') {
         return Promise.resolve({ data: [{ id: 9, category: 'Best Picture', tmdb: '900', year: 2020, isWinner: '1', isActing: '0' }] })
@@ -201,13 +278,9 @@ describe('initializeDB: full Academy Awards dataset (feature: "pull it down and 
 
     await store.dispatch('initializeDB')
     await flushMicrotasks()
-    expect(store.state.allAcademyAwards).toEqual([{ id: 9, category: 'Best Picture', tmdb: '900', year: 2020, isWinner: true, isActing: false }])
 
-    // The cache read resolving afterward (slower than the live fetch) must
-    // NOT clobber the already-arrived live data.
-    resolveCache([{ id: 1, category: 'Stale', isWinner: true, isActing: false }])
-    await flushMicrotasks()
     expect(store.state.allAcademyAwards).toEqual([{ id: 9, category: 'Best Picture', tmdb: '900', year: 2020, isWinner: true, isActing: false }])
+    expect(saveSnapshotMock).toHaveBeenCalledWith('global', 'allAcademyAwards', expect.any(Array))
   })
 
   it('does not re-fetch once already populated (fetch-once guard, same convention as academyAwardWinners)', async () => {

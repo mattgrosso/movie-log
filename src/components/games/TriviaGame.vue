@@ -85,10 +85,10 @@
 </template>
 
 <script>
-import axios from 'axios';
 import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
+import { postToAi } from '../../utils/aiRequest.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import { pickTriviaTarget, clampRevealedCount, isNewBestScore } from '../../assets/javascript/games/trivia.js';
 import triviaBanner from '../../assets/images/games/trivia-banner.jpg';
@@ -312,11 +312,7 @@ export default {
       this.loadError = false;
       try {
         const year = roundTarget.movie.release_date ? new Date(roundTarget.movie.release_date).getFullYear() : '';
-        const response = await axios.post(
-          `${process.env.VUE_APP_AI_API_URL}/trivia`,
-          { title, year },
-          { headers: { 'Content-Type': 'application/json' } }
-        );
+        const response = await postToAi('/trivia', { title, year });
         if (entryKey(this.target) !== roundKey) return; // a newer round has since started
         const facts = Array.isArray(response?.data?.facts) ? response.data.facts.filter((fact) => typeof fact === 'string' && fact.trim()) : [];
         if (!facts.length) {
