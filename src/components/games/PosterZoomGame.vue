@@ -1,5 +1,5 @@
 <template>
-  <div class="poster-zoom-game">
+  <div ref="root" class="poster-zoom-game" :style="rootStyle">
     <BackLink label="Games" @click="$router.push('/games')"/>
 
     <div v-if="zoomablePool.length < 5" class="not-enough-movies">
@@ -8,25 +8,30 @@
     </div>
 
     <template v-else>
-      <p class="game-subtitle">Name the movie from a close-up. Every zoom-out costs you a point, so guess as early as you dare.</p>
+      <p class="game-subtitle">Name it from a close-up — every zoom-out costs a point.</p>
 
-      <div class="score-row">
-        <span>Zoom-outs: <strong>{{ zoomOuts }}</strong></span>
-        <span>Best: <strong>{{ bestZoomOuts != null ? bestZoomOuts : '—' }}</strong></span>
-      </div>
-
-      <!-- The crop is done by scaling the image inside a fixed, clipped
-           window rather than by resizing anything, so the box never moves
-           on the page as the zoom changes. -->
-      <div class="zoom-viewport">
-        <img
-          v-if="posterUrl"
-          :src="posterUrl"
-          :alt="status === 'playing' ? 'A close-up of a movie poster' : target.movie.title"
-          class="zoom-image"
-          :style="zoomStyle"
-        >
-        <span v-if="status === 'playing' && !isFullyOut" class="zoom-badge">{{ currentZoomLabel }}</span>
+      <!-- The stage takes whatever vertical space is left over, and the
+           poster fills it. That's what makes the game fit on a phone
+           without scrolling regardless of how tall the header banner is —
+           sizing the poster as a fixed fraction of the viewport can't
+           account for that. -->
+      <div ref="stage" class="zoom-stage">
+        <!-- The crop is done by scaling the image inside a clipped window
+             rather than by resizing anything, so the box never moves on the
+             page as the zoom changes. -->
+        <div class="zoom-viewport" :style="viewportStyle">
+          <img
+            v-if="posterUrl"
+            :src="posterUrl"
+            :alt="status === 'playing' ? 'A close-up of a movie poster' : target.movie.title"
+            class="zoom-image"
+            :style="zoomStyle"
+          >
+          <!-- On the poster rather than in their own row: a separate score
+               row cost a full line of the one thing in short supply here. -->
+          <span class="zoom-stat">{{ zoomOuts }} out{{ zoomOuts === 1 ? '' : 's' }}<span v-if="bestZoomOuts != null"> · best {{ bestZoomOuts }}</span></span>
+          <span v-if="status === 'playing' && !isFullyOut" class="zoom-badge">{{ currentZoomLabel }}</span>
+        </div>
       </div>
 
       <p class="status-line">{{ statusMessage }}</p>
@@ -110,12 +115,28 @@ export default {
     this.$store.commit?.('setBannerUrl', posterZoomBanner);
     this.$store.commit?.('setHideHeaderLogo', true);
   },
+  mounted () {
+    this.$nextTick(this.measureAvailableHeight);
+    window.addEventListener('resize', this.measureAvailableHeight);
+    // The header banner loads asynchronously and changes this screen's top
+    // offset when it does, so a single measurement at mount is too early.
+    // Observing the body catches that, plus orientation changes and the
+    // mobile browser chrome collapsing on scroll.
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(this.measureAvailableHeight);
+      this.resizeObserver.observe(document.body);
+    }
+  },
   beforeUnmount () {
+    window.removeEventListener('resize', this.measureAvailableHeight);
+    this.resizeObserver?.disconnect();
     this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
     this.$store.commit?.('setHideHeaderLogo', false);
   },
   data () {
     return {
+      availableHeight: null,
+      stageHeight: null,
       target: null,
       zoomIndex: 0,
       origin: { x: 50, y: 50 },
@@ -126,6 +147,25 @@ export default {
     };
   },
   computed: {
+    // Caps the game at the space actually left below the header, which is
+    // what lets the stage shrink the poster to fit. A CSS-only version of
+    // this can't work: the header banner is 16:9 of the SCREEN WIDTH on a
+    // phone (and hidden entirely above 600px), so its height isn't
+    // expressible as a fraction of the viewport.
+    rootStyle () {
+      // Only while actually playing. The "not enough movies" screen has its
+      // own suggestions list that should be free to be as tall as it needs.
+      if (!this.availableHeight || this.zoomablePool.length < 5) return {};
+      return { maxHeight: `${this.availableHeight}px` };
+    },
+    // Capping by height is what makes aspect-ratio derive the WIDTH. Every
+    // CSS-only way of expressing "as tall as the row it's in" failed here:
+    // a percentage height doesn't resolve against a flex-determined parent,
+    // and cross-axis stretch sets the height but then lets flex sizing pick
+    // the width, which produced a landscape box on a 2:3 poster.
+    viewportStyle () {
+      return this.stageHeight ? { maxHeight: `${this.stageHeight}px` } : {};
+    },
     // Only entries with a poster can be a target — the whole game is the
     // poster. Kept separate from eligibleGameEntries because the guess
     // typeahead can still legitimately offer anything in the library.
@@ -181,6 +221,36 @@ export default {
   },
   methods: {
     entryKeyFor: entryKey,
+    measureAvailableHeight () {
+      const el = this.$refs.root;
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      // Document coordinates, so scroll position doesn't skew the result.
+      const topInDocument = rect.top + window.scrollY;
+      // Whatever renders after this screen — the app's footer sits below the
+      // routed view, and ignoring it left the page a footer's height too tall.
+      const below = Math.max(0, document.documentElement.scrollHeight - (topInDocument + rect.height));
+      const next = Math.round(window.innerHeight - topInDocument - below);
+
+      // Only react to real changes: setting maxHeight resizes the body,
+      // which re-fires the observer, and without this that would loop.
+      if (next > 200 && Math.abs(next - (this.availableHeight || 0)) > 1) {
+        this.availableHeight = next;
+      }
+
+      // The stage's own height is flex-determined and therefore real, even
+      // though CSS can't reference it. Safe to read in the same pass: the
+      // stage fills leftover space, so capping the poster inside it can't
+      // change it back.
+      const stage = this.$refs.stage;
+      if (stage) {
+        const stageNext = Math.round(stage.getBoundingClientRect().height);
+        if (stageNext > 0 && Math.abs(stageNext - (this.stageHeight || 0)) > 1) {
+          this.stageHeight = stageNext;
+        }
+      }
+    },
     goToMovie (entry) {
       // == null rather than a bare falsy check: a real TMDB id is never 0,
       // but treating it as missing is a bug this codebase has shipped before.
@@ -315,10 +385,15 @@ export default {
 
 .poster-zoom-game {
   color: #eee;
+  /* A flex column so the stage below can absorb the leftover height. The
+     app shell already stretches a routed component to fill the space under
+     the header (see App.vue's .app-main), so "leftover" is real here. */
+  display: flex;
+  flex-direction: column;
   /* Safety margin: BackLink is fixed at (6,6) of the viewport whether or not
      the global header currently has any height, so without this it can
      overlap this screen's own content. Same in every game component. */
-  padding: 1.75rem 1rem 2rem;
+  padding: 1.25rem 1rem 1rem;
 }
 
 .not-enough-movies {
@@ -329,31 +404,42 @@ export default {
 
 .game-subtitle {
   color: #adb5bd;
-  font-size: 0.9rem;
-  margin: 0.75rem 0;
+  font-size: 0.8rem;
+  margin: 0.4rem 0;
   text-align: center;
 }
 
-.score-row {
-  color: #adb5bd;
+/* Absorbs whatever height is left after the fixed chrome above and below.
+   min-height: 0 is required — a flex item defaults to min-height: auto and
+   would refuse to shrink below its content, which is exactly the overflow
+   this exists to prevent. */
+.zoom-stage {
   display: flex;
-  font-size: 0.85rem;
-  gap: 1.25rem;
+  flex: 1 1 auto;
   justify-content: center;
-  margin-bottom: 0.75rem;
+  margin: 0.25rem 0;
+  min-height: 0;
+  align-items: center;
 }
 
 .zoom-viewport {
-  /* Poster aspect. Fixed so the page never reflows between zoom steps. */
+  /* Height comes from the stage's cross-axis stretch, width from the aspect
+     ratio. Sizing this as a fixed fraction of the viewport was tried and
+     can't work: it has no way to know how tall the header banner is, and
+     that banner is 16:9 of the screen width on a phone. */
   aspect-ratio: 2 / 3;
   background: #000;
+  flex: 0 0 auto;
   border: 1px solid #333;
   border-radius: 0.5rem;
-  margin: 0 auto;
-  max-width: 300px;
+  /* max-height is set inline from the measured stage height; this is just
+     the ceiling for a tall desktop window. */
+  max-height: 460px;
+  max-width: 100%;
+  min-height: 0;
   overflow: hidden;
   position: relative;
-  width: 100%;
+  width: auto;
 }
 
 .zoom-image {
@@ -365,6 +451,17 @@ export default {
      rather than animating layout properties. */
   transition: transform 0.45s ease;
   width: 100%;
+}
+
+.zoom-stat {
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 999px;
+  color: #adb5bd;
+  font-size: 0.7rem;
+  left: 6px;
+  padding: 2px 8px;
+  position: absolute;
+  top: 6px;
 }
 
 .zoom-badge {
@@ -380,38 +477,50 @@ export default {
 
 .status-line {
   color: #adb5bd;
-  font-size: 0.9rem;
-  margin: 0.75rem 0;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
   /* Reserved so the message changing length never nudges the controls. */
-  min-height: 1.4rem;
+  min-height: 1.3rem;
   text-align: center;
 }
 
 .guess-form {
   margin: 0 auto;
   max-width: 320px;
+  /* Anchors the absolutely-positioned dropdown below the input. */
+  position: relative;
 }
 
+/* One panel with rows inside it, matching the typeahead in every other
+   game. Styling each row as its own bordered card instead reads as a stack
+   of separate boxes rather than a dropdown. Absolute so opening it doesn't
+   push the buttons down the page. */
 .suggestions {
-  list-style: none;
-  margin: 0.35rem 0 0;
-  padding: 0;
-}
-
-.suggestion-item {
   background: #1a1a1a;
   border: 1px solid #333;
   border-radius: 0.35rem;
+  list-style: none;
+  margin: 0.25rem 0 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 5;
+}
+
+.suggestion-item {
+  background: transparent;
+  border: none;
   color: #eee;
   display: block;
-  margin-bottom: 0.25rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0.5rem 0.75rem;
   text-align: left;
   width: 100%;
 }
 
 .suggestion-item:active {
-  background: #242424;
+  background: #333;
 }
 
 .suggestion-year {
@@ -422,7 +531,7 @@ export default {
 .playing-actions {
   display: flex;
   gap: 0.5rem;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
 }
 
 .playing-actions .btn-game {
