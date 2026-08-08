@@ -1425,3 +1425,47 @@ One definition of "trimmed", shared by the write paths and the migration.
 
 ### Still not solved
 38% is a shave, not a fix — cost still scales linearly with launches. The real answer is **delta sync**: an `updatedAt` per entry, query only what changed since last sync against the IndexedDB snapshot that already exists. The hard part is **deletions** (a "what changed" query can't report absence, so it needs tombstones or a periodic full resync), plus setting `updatedAt` on every write path, of which there are now many. Deliberately not attempted — worth doing only if usage actually approaches the cap.
+
+## Delta Sync — phase 0 only (Aug 2026)
+
+The library is re-downloaded in full on every cold launch (9.49 MB after the trim above), which is what makes Firebase cost scale with app opens rather than with users. The fix is to fetch only what changed. **Phase 0 — recording what changed — has shipped. Nothing reads it yet.**
+
+### What phase 0 does
+**`src/assets/javascript/syncStamp.js`** (pure, store-free) decides how each write is performed:
+- Paths outside `movieLog` (settings, etc.) are untouched — settings are small enough to always fetch whole.
+- A **whole entry** (`movieLog/<key>`) gets `updatedAt` injected into the value and stays a `set()`. Ratings are the most critical write path in the app and `set()`'s replace-the-whole-entry semantics are what `addRating` and `deleteRating` both depend on, so that path's mechanics are left completely alone.
+- A **field inside an entry** becomes one atomic `update()` carrying both the field and the entry's `updatedAt`. It has to be a single round trip: stamping separately after a successful write means a failure between the two leaves the entry changed but *unstamped*, which is invisible and would hide it from every future sync.
+- A **deletion** becomes an atomic `update()` that removes the entry and writes a tombstone at `movieLogDeletions/<key>` together. A "what changed" query can report presence but never absence, so without tombstones a movie deleted on one device lingers on every other one forever.
+
+**The timestamp is `serverTimestamp()`, never `Date.now()`** — assigned by Firebase, so a device with a wrong clock can't hide a movie from itself. This also means a write queued offline for hours is stamped when it actually lands, not when it was made.
+
+### Why this needed almost no call-site work
+**All 58 movieLog writes funnel through four store actions, which collapse into two chokepoints** — `performDatabaseWrite` (behind `setDBValue`/`writeDurably`/`writeDatabaseEntryNow`) and the `update()` inside `updateDatabaseEntriesNow`. Stamping in the plumbing rather than at the call sites means no caller *can* forget, which is what made "every write path must set `updatedAt`" tractable instead of a 15-file audit.
+
+### Traps, all confirmed live against the sandbox
+Verified with a throwaway Firebase Admin SDK probe (written into `scripts/`, run, then deleted — the admin SDK can't resolve from the scratchpad, see the awards-fixtures note above), writing only under `testing-database/movieLog/__syncProbe_*` and cleaning up after itself:
+- **Overlapping paths are genuinely rejected.** `update({'movieLog/k': null, 'movieLog/k/updatedAt': TS})` fails outright — *"values argument contains a path /movieLog/k that is a parent of another"*. So the "never stamp a deletion" guard in `stampPlanForWrite` is load-bearing, not defensive. And had Firebase accepted it, the entry would have come back as a bare timestamp and nothing else.
+- The server sentinel (`{'.sv': 'timestamp'}`) **survives `removeNaNAndUndefined`**, which recurses through the whole payload — its only leaf is a string, so nothing is stripped. Pinned by a test.
+- `update()` **replaces at each named path** rather than merging into it (a field write doesn't clobber its siblings, and a whole-array write really does replace the array). Already relied on by the trim migration; now confirmed directly.
+
+### The index — the thing that makes any of this pay off
+`scripts/generate-database-rules.mjs` now emits `.indexOn: ["updatedAt"]` under `$topKey/movieLog`. **Without it the delta query does not fail — Firebase downloads the entire node, filters client-side, and logs only a console warning.** The data would be correct and the saving would be exactly zero. It rides along on the same pending `firebase deploy --only database` as the locked-down rules, so phase 1 doesn't need a second deploy.
+
+### Backfill
+Settings → **"Add change timestamps"** (`Home.backfillSyncStamps`, batches of 100 through `updateDatabaseEntriesNow`). Strictly optional — an unstamped entry is simply never returned by a delta query, which is correct as long as the local snapshot already holds it — but a uniform library removes a whole category of "why is this movie invisible to sync" reasoning. Local state is deliberately NOT committed: the real timestamps arrive via the `onValue` listener, and committing the placeholder would put a value in state that was never stored.
+
+### Phases 1-3 — deliberately NOT built
+Parked at Matt's request until he's at his desk (~2026-08-18). **The reason for staging is that the failure mode here is invisible**: a bug doesn't throw, it shows a stale rating or silently omits a movie — the same shape as the Jul 2026 data-loss scare. Phase 0 was safe to ship precisely because nothing reads it, so a mistake costs a stray field.
+- **Phase 1 — shadow mode.** After the index deploys, run the delta query AND the full download on launch, compare, report divergence, act on neither. Proof before trust.
+- **Phase 2 — enable** behind a setting, with a "force full refresh" button and an automatic full resync every N days so staleness can't accumulate unboundedly.
+- **Phase 3 — default on.**
+
+Design notes for whoever picks this up:
+- **Tombstones are advisory, compared by time, not applied blindly.** Apply a deletion only when `movieLogDeletions/<key> > movieLog/<key>/updatedAt`. That way re-rating a previously deleted movie wins naturally on its newer timestamp, so nothing ever has to clear a tombstone — which would otherwise need to be atomic with the entry write and can't be, given `set()` is what that path uses.
+- **`lastSync` must be the maximum `updatedAt` actually received**, never a local clock reading — that's what keeps clock skew out of it entirely.
+- **`lastSync` and the IndexedDB snapshot must be stored and invalidated together.** If the snapshot is ever lost while `lastSync` survives, a delta fetch returns almost nothing and the library looks empty.
+- The listener currently *replaces* `movieLog` wholesale; a delta listener must *merge*, which touches the same code as `reapplyInFlightWrites`' clobber protection.
+- Tombstones grow forever (~40 bytes each). Fine at any realistic scale, but prunable once every device has certainly synced past them.
+- **Not urgent.** After the trim, the free tier allows ~1,079 cold launches/month against a handful of real users. This is insurance against growth.
+
+Tests: `src/test/syncStamp.test.js` (24, pure — path classification, all four write shapes, the no-stamp-on-deletion guard, batch stamping incl. the overlapping-path avoidance, backfill collection). `src/test/flushPendingWrites.test.js`'s `change tracking on every library write` block (8, against the real store — the actual Firebase call shapes, including that queued offline writes are stamped at flush time and that the sentinel survives the scrubber). Note every `vi.mock('firebase/database')` factory now needs a `serverTimestamp` export or the store import fails.

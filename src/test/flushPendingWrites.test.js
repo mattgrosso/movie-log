@@ -15,6 +15,7 @@ const setMock = vi.fn(() => Promise.resolve())
 const updateMock = vi.fn(() => Promise.resolve())
 const onValueMock = vi.fn()
 vi.mock('firebase/database', () => ({
+  serverTimestamp: () => ({ '.sv': 'timestamp' }),
   getDatabase: vi.fn(() => ({})),
   ref: vi.fn((db, path) => path),
   onValue: (...args) => onValueMock(...args),
@@ -111,8 +112,9 @@ describe('flushPendingWrites', () => {
     await store.dispatch('flushPendingWrites')
 
     expect(setMock).toHaveBeenCalledTimes(2)
-    expect(setMock).toHaveBeenCalledWith('testing-database/movieLog/a', { movie: { id: 1 } })
-    expect(setMock).toHaveBeenCalledWith('testing-database/movieLog/b', { movie: { id: 2 } })
+    // updatedAt is added by the change tracking every library write carries.
+    expect(setMock).toHaveBeenCalledWith('testing-database/movieLog/a', { movie: { id: 1 }, updatedAt: { '.sv': 'timestamp' } })
+    expect(setMock).toHaveBeenCalledWith('testing-database/movieLog/b', { movie: { id: 2 }, updatedAt: { '.sv': 'timestamp' } })
     expect(removePendingWriteMock).toHaveBeenCalledWith('1')
     expect(removePendingWriteMock).toHaveBeenCalledWith('2')
   })
@@ -169,7 +171,7 @@ describe('flushPendingWrites', () => {
     await store.dispatch('flushPendingWrites')
 
     expect(setMock).toHaveBeenCalledTimes(2)
-    expect(setMock).toHaveBeenLastCalledWith('testing-database/movieLog/x', { v: 2 })
+    expect(setMock).toHaveBeenLastCalledWith('testing-database/movieLog/x', { v: 2, updatedAt: { '.sv': 'timestamp' } })
   })
 
   it('does not run two overlapping flush passes at once', async () => {
@@ -240,7 +242,7 @@ describe('writeDatabaseEntryNow', () => {
 
     await store.dispatch('writeDatabaseEntryNow', { path: 'movieLog/x', value: { v: 1 } })
 
-    expect(setMock).toHaveBeenCalledWith('testing-database/movieLog/x', { v: 1 })
+    expect(setMock).toHaveBeenCalledWith('testing-database/movieLog/x', { v: 1, updatedAt: { '.sv': 'timestamp' } })
     expect(listPendingWritesMock).not.toHaveBeenCalled()
     expect(removePendingWriteMock).not.toHaveBeenCalled()
     expect(updatePendingWriteMock).not.toHaveBeenCalled()
@@ -329,7 +331,10 @@ describe('updateDatabaseEntriesNow (batched multi-path write, bug fix Jul 2026)'
     expect(updateMock).toHaveBeenCalledWith('testing-database', {
       'movieLog/key1/movie/budget': 100,
       'movieLog/key1/movie/revenue': 200,
-      'movieLog/key2/movie/budget': 300
+      'movieLog/key2/movie/budget': 300,
+      // One per movie touched, added by the change tracking.
+      'movieLog/key1/updatedAt': { '.sv': 'timestamp' },
+      'movieLog/key2/updatedAt': { '.sv': 'timestamp' }
     })
     expect(setMock).not.toHaveBeenCalled()
   })
@@ -490,5 +495,97 @@ describe('initializeDB wiring', () => {
 
     // Both routes ultimately call listPendingWrites via the queue module.
     expect(listPendingWritesMock).toHaveBeenCalled()
+  })
+})
+
+describe('change tracking on every library write (delta sync, phase 0)', () => {
+  const TS = { '.sv': 'timestamp' }
+
+  it('stamps updatedAt on a whole entry without changing set() semantics', async () => {
+    // set()'s replace-the-whole-entry behaviour is what addRating and
+    // deleteRating both depend on, so a rating write must stay a set().
+    await store.dispatch('writeDatabaseEntryNow', { path: 'movieLog/abc', value: { movie: { id: 1 } } })
+
+    expect(updateMock).not.toHaveBeenCalled()
+    const [path, value] = setMock.mock.calls[0]
+    expect(path).toBe('testing-database/movieLog/abc')
+    expect(value).toEqual({ movie: { id: 1 }, updatedAt: TS })
+  })
+
+  it('carries the timestamp in the SAME write as a field change, not a follow-up', async () => {
+    // A separate stamping write could fail on its own, leaving the entry
+    // changed but unstamped — invisible, and it would hide the entry from
+    // every future sync.
+    await store.dispatch('writeDatabaseEntryNow', { path: 'movieLog/abc/movie/budget', value: 100 })
+
+    expect(setMock).not.toHaveBeenCalled()
+    expect(updateMock).toHaveBeenCalledTimes(1)
+    expect(updateMock.mock.calls[0][1]).toEqual({
+      'movieLog/abc/movie/budget': 100,
+      'movieLog/abc/updatedAt': TS
+    })
+  })
+
+  it('tombstones a deleted movie in the same write that removes it', async () => {
+    // A "what changed" query can report presence but never absence, so
+    // without this a movie deleted on one device lingers on every other one.
+    await store.dispatch('writeDatabaseEntryNow', { path: 'movieLog/abc', value: null })
+
+    expect(updateMock).toHaveBeenCalledTimes(1)
+    expect(updateMock.mock.calls[0][1]).toEqual({
+      'movieLog/abc': null,
+      'movieLogDeletions/abc': TS
+    })
+  })
+
+  it('never sends overlapping paths on a deletion', async () => {
+    // movieLog/abc and movieLog/abc/updatedAt overlap; Firebase rejects that
+    // outright, and if it didn't the entry would return as a bare timestamp.
+    await store.dispatch('writeDatabaseEntryNow', { path: 'movieLog/abc', value: null })
+
+    expect(updateMock.mock.calls[0][1]['movieLog/abc/updatedAt']).toBeUndefined()
+  })
+
+  it('leaves settings writes completely alone', async () => {
+    await store.dispatch('writeDatabaseEntryNow', { path: 'settings/lastTweak', value: 123 })
+
+    expect(updateMock).not.toHaveBeenCalled()
+    expect(setMock.mock.calls[0]).toEqual(['testing-database/settings/lastTweak', 123])
+  })
+
+  it('stamps queued offline writes when they eventually flush', async () => {
+    listPendingWritesMock.mockResolvedValue([
+      { id: '1', type: 'write', dbEntry: { path: 'movieLog/a', value: { movie: { id: 1 } } } }
+    ])
+
+    await store.dispatch('flushPendingWrites')
+
+    // The server assigns the time, so a write queued offline for hours is
+    // stamped when it actually lands, not when it was made.
+    expect(setMock.mock.calls[0][1]).toMatchObject({ updatedAt: TS })
+  })
+
+  it('stamps every movie a batch touches, once each', async () => {
+    await store.dispatch('updateDatabaseEntriesNow', {
+      'movieLog/a/movie/budget': 1,
+      'movieLog/a/movie/revenue': 2,
+      'movieLog/b/movie/budget': 3
+    })
+
+    expect(updateMock.mock.calls[0][1]).toEqual({
+      'movieLog/a/movie/budget': 1,
+      'movieLog/a/movie/revenue': 2,
+      'movieLog/b/movie/budget': 3,
+      'movieLog/a/updatedAt': TS,
+      'movieLog/b/updatedAt': TS
+    })
+  })
+
+  it('survives removeNaNAndUndefined, which recurses through the payload', async () => {
+    // The server timestamp is an object sentinel ({'.sv': 'timestamp'}), so
+    // the NaN/undefined scrubber walks into it. It must come out intact.
+    await store.dispatch('writeDatabaseEntryNow', { path: 'movieLog/abc/movie/budget', value: 100 })
+
+    expect(updateMock.mock.calls[0][1]['movieLog/abc/updatedAt']).toEqual({ '.sv': 'timestamp' })
   })
 })

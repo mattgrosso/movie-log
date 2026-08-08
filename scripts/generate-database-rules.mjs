@@ -81,6 +81,17 @@ const rules = {
       '.read': ownsBranch,
       '.write': ownsBranch,
 
+      // Lets the library be fetched incrementally (orderByChild('updatedAt')
+      // .startAt(lastSync)) instead of re-downloading all of it every launch.
+      //
+      // WITHOUT this index that query does not fail — Firebase downloads the
+      // entire node and filters client-side, logging only a console warning.
+      // The data would be correct and the saving would silently be zero, so
+      // this index is what makes delta sync actually do anything.
+      movieLog: {
+        '.indexOn': ['updatedAt']
+      },
+
       // /share/:userDBKey/:shareKey is deliberately a logged-out route
       // (requiresLogin: false in the router), so a share link has to be
       // readable by someone with no session at all. Grants read on ONE share

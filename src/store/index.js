@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { createStore } from "vuex"
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue, set, update } from "firebase/database";
+import { getDatabase, ref, onValue, set, update, serverTimestamp } from "firebase/database";
 import {
   getAuth,
   GoogleAuthProvider,
@@ -21,6 +21,7 @@ import ErrorLogService from "../services/ErrorLogService.js";
 import { saveSnapshot, loadSnapshot } from "../utils/offlineStore.js";
 import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite } from "../utils/pendingWriteQueue.js";
 import { setValueAtPath } from "../utils/statePath.js";
+import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
 import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
 
 const sortByVoteCount = (a, b) => {
@@ -93,11 +94,22 @@ const withTimeout = (promise, ms, errorMessage) => {
 // flushPendingWrites (queued offline/retry saves, which deliberately bypass
 // that debounce - a queued entry is already a single, deliberately-deduped
 // write, see pendingWriteQueue.js's enqueueWrite).
+//
+// Every write to a movieLog entry also records WHEN, and every deletion of one
+// leaves a tombstone, so a future sync can ask for only what changed. The
+// timestamp is assigned by Firebase's server, not this device's clock, so a
+// device with a wrong clock can't hide a movie from itself. See syncStamp.js.
 const performDatabaseWrite = async (context, dbEntry) => {
   try {
-    const cleanedValue = removeNaNAndUndefined(dbEntry.value);
+    const plan = stampPlanForWrite(dbEntry, serverTimestamp());
+    const root = context.getters.databaseTopKey;
+
+    const write = plan.kind === 'update'
+      ? update(ref(db, root), removeNaNAndUndefined({ ...plan.updates }))
+      : set(ref(db, `${root}/${plan.path}`), removeNaNAndUndefined(plan.value));
+
     await withTimeout(
-      set(ref(db, `${context.getters.databaseTopKey}/${dbEntry.path}`), cleanedValue),
+      write,
       DATABASE_WRITE_TIMEOUT_MS,
       `Database write timed out after ${DATABASE_WRITE_TIMEOUT_MS}ms: ${dbEntry.path}`
     );
@@ -960,7 +972,10 @@ export default createStore({
     // minimizing the NUMBER of separate writes matters far more than the
     // single-entry durability guarantees a user-authored rating needs.
     async updateDatabaseEntriesNow (context, updates) {
-      const cleanedUpdates = removeNaNAndUndefined({ ...updates });
+      // Same change tracking as performDatabaseWrite, but a batch can touch
+      // many movies at once so each one gets its own updatedAt. See
+      // stampUpdatesForBatch for the overlapping-path trap it avoids.
+      const cleanedUpdates = removeNaNAndUndefined(stampUpdatesForBatch(updates, serverTimestamp()));
       await withTimeout(
         update(ref(db, context.getters.databaseTopKey), cleanedUpdates),
         DATABASE_WRITE_TIMEOUT_MS,

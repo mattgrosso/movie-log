@@ -682,6 +682,24 @@
                   <small v-if="libraryTrim.total"><i class="bi bi-check-circle"></i> {{ libraryTrim.total }} movie{{ libraryTrim.total === 1 ? '' : 's' }} slimmed{{ libraryTrim.failed ? ` (${libraryTrim.failed} failed — check your connection and try again)` : '' }}.</small>
                   <small v-else><i class="bi bi-check-circle"></i> Already as small as it goes.</small>
                 </div>
+
+                <button
+                  class="btn btn-outline-light btn-sm w-100 mt-2"
+                  @click="backfillSyncStamps"
+                  :disabled="syncStampBackfill.status === 'running'"
+                >
+                  <span v-if="syncStampBackfill.status === 'running'">
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Timestamping {{ syncStampBackfill.completed }}/{{ syncStampBackfill.total }}...
+                  </span>
+                  <span v-else>
+                    <i class="bi bi-clock-history"></i> Add change timestamps
+                  </span>
+                </button>
+                <div v-if="syncStampBackfill.status === 'done'" class="text-success mt-2">
+                  <small v-if="syncStampBackfill.total"><i class="bi bi-check-circle"></i> {{ syncStampBackfill.total }} movie{{ syncStampBackfill.total === 1 ? '' : 's' }} timestamped{{ syncStampBackfill.failed ? ` (${syncStampBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
+                  <small v-else><i class="bi bi-check-circle"></i> Every movie already has one.</small>
+                </div>
               </div>
 
               <!-- Account -->
@@ -1015,6 +1033,7 @@ import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePo
 import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
 import { backfillProductionCountries, collectMoviesNeedingCountries } from '../assets/javascript/backfillProductionCountries.js';
 import { trimStoredEntries, collectEntriesNeedingTrim, entryForStorage } from '../assets/javascript/storedEntry.js';
+import { collectEntriesNeedingStamp, stampBackfillUpdates } from '../assets/javascript/syncStamp.js';
 import { makePlaceholderId } from '../utils/placeholderId.js';
 import {
   countDirectors as countDirectorsUtil,
@@ -1103,6 +1122,7 @@ export default {
       boxOfficeBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
       countriesBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
       libraryTrim: { status: 'idle', completed: 0, total: 0, failed: 0 },
+      syncStampBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
       quickLinksSortType: "count",
       scrapingTest: {
         loading: false,
@@ -3632,6 +3652,40 @@ export default {
       });
 
       this.libraryTrim = { status: 'done', ...result };
+    },
+    // One-time catch-up so entries rated before change tracking existed also
+    // carry an updatedAt. Strictly optional — an unstamped entry is simply
+    // never returned by a future delta query, which is correct as long as the
+    // local snapshot already holds it — but making the library uniform removes
+    // a whole category of "why is this movie invisible to sync" reasoning.
+    async backfillSyncStamps () {
+      if (this.syncStampBackfill.status === 'running') {
+        return;
+      }
+
+      const candidates = collectEntriesNeedingStamp(this.$store.state.movieLog);
+      this.syncStampBackfill = { status: 'running', completed: 0, total: candidates.length, failed: 0 };
+
+      const batchSize = 100;
+      let completed = 0;
+      let failed = 0;
+
+      for (let index = 0; index < candidates.length; index += batchSize) {
+        const batch = candidates.slice(index, index + batchSize);
+        try {
+          // The server assigns the actual timestamps — see stampBackfillUpdates.
+          await this.$store.dispatch('updateDatabaseEntriesNow', stampBackfillUpdates(batch));
+        } catch {
+          failed += batch.length;
+        }
+        completed += batch.length;
+        this.syncStampBackfill = { ...this.syncStampBackfill, completed, failed };
+      }
+
+      // Local state is deliberately left alone: the real timestamps arrive via
+      // the onValue listener, and committing the placeholder here would put a
+      // value in state that was never actually stored.
+      this.syncStampBackfill = { status: 'done', total: candidates.length, completed, failed };
     },
     async backfillProductionCountriesData () {
       if (this.countriesBackfill.status === 'running') {

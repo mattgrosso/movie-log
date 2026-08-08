@@ -12,6 +12,7 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
 }))
 vi.mock('firebase/app', () => ({ initializeApp: vi.fn(() => ({})) }))
 vi.mock('firebase/database', () => ({
+  serverTimestamp: () => ({ '.sv': 'timestamp' }),
   getDatabase: vi.fn(() => ({})),
   ref: vi.fn((db, path) => path),
   onValue: vi.fn(),

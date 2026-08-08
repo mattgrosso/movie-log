@@ -4,6 +4,7 @@ import { get } from 'firebase/database'
 import ShareDBResults from '@/components/ShareDBResults.vue'
 
 vi.mock('firebase/database', () => ({
+  serverTimestamp: () => ({ '.sv': 'timestamp' }),
   getDatabase: vi.fn(() => ({})),
   ref: vi.fn(() => 'ref'),
   child: vi.fn(() => 'child-ref'),
