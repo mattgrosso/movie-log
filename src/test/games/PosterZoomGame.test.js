@@ -94,23 +94,53 @@ describe('PosterZoomGame', () => {
   });
 
   describe('zooming out', () => {
-    it('steps out one level and counts it', async () => {
+    it('steps out one level when the poster is tapped', async () => {
+      // The poster is the control — it's the biggest target on screen and
+      // the only action the round needs.
       const { wrapper } = factory(tenMovies());
-      await wrapper.find('.playing-actions .btn-game').trigger('click');
+      await wrapper.find('.zoom-viewport').trigger('click');
 
       expect(wrapper.vm.zoomIndex).toBe(1);
       expect(wrapper.vm.zoomOuts).toBe(1);
       expect(wrapper.find('.zoom-image').attributes('style')).toContain(`scale(${ZOOM_LEVELS[1]})`);
     });
 
-    it('stops at the whole poster and disables the button', async () => {
+    it('is reachable by keyboard, not only by tap', async () => {
+      const { wrapper } = factory(tenMovies());
+      const poster = wrapper.find('.zoom-viewport');
+
+      expect(poster.attributes('role')).toBe('button');
+      expect(poster.attributes('tabindex')).toBe('0');
+
+      await poster.trigger('keydown.enter');
+      expect(wrapper.vm.zoomIndex).toBe(1);
+    });
+
+    it('stops at the whole poster and stops being a control', async () => {
       const { wrapper } = factory(tenMovies());
       for (let i = 0; i < ZOOM_LEVELS.length + 3; i++) wrapper.vm.zoomOut();
       await wrapper.vm.$nextTick();
 
       expect(wrapper.vm.zoomIndex).toBe(ZOOM_LEVELS.length - 1);
-      expect(wrapper.vm.isFullyOut).toBe(true);
-      expect(wrapper.find('.playing-actions .btn-game').attributes('disabled')).toBeDefined();
+      const poster = wrapper.find('.zoom-viewport');
+      expect(poster.classes()).not.toContain('tappable');
+      expect(poster.attributes('role')).toBeUndefined();
+    });
+
+    it('tells you the poster is tappable, since no button says so', () => {
+      const { wrapper } = factory(tenMovies());
+      expect(wrapper.find('.status-line').text()).toMatch(/tap the poster/i);
+    });
+
+    it('is not a control once the round is over', async () => {
+      const { wrapper } = factory(tenMovies());
+      wrapper.vm.submitGuess(targetOf(wrapper));
+      await wrapper.vm.$nextTick();
+
+      const poster = wrapper.find('.zoom-viewport');
+      expect(poster.classes()).not.toContain('tappable');
+      await poster.trigger('click');
+      expect(wrapper.vm.status).toBe('won');
     });
   });
 

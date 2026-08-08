@@ -1575,3 +1575,13 @@ Feedback: *"we should start from an even closer crop... make that first one real
 2. Even with that fixed, the poster would appear at a provisional random crop and then **jump** when scoring resolved. So the reveal is gated on `posterReady = imageLoaded && originSettled` — both the image being decoded and the focal point being final. A resumed round sets `originSettled` immediately (its focal point is already stored, nothing to score). `@error` sets `imageLoaded` too, so a poster that fails to load leaves a playable round rather than an invisible box forever.
 
 The staleness guard in `startNewRound` compares `entryKey`, not object identity — Vue wraps `this.target` in a reactive proxy, so `!==` against the raw captured object never matches. Same bug this codebase has already hit in ClueBudget and Trivia.
+
+### The poster is the zoom-out control (Aug 2026)
+Feedback: *"the zoom out button is sort of awkward to get to down there at the bottom... maybe just tapping the poster could zoom it out. That's really the only action you need."*
+
+The `Zoom out` button is gone; tapping the poster does it. It's the biggest target on screen and the round genuinely has only one action, so a small button at the bottom of the page was the wrong shape for it. Two things fell out for free: removing the button row gave its height back to the stage, which **automatically made the poster bigger** (the stage absorbs leftover space by design), and the page now fits a phone screen with room to spare rather than exactly.
+
+- **`.zoom-viewport` stays a `<div>`, not a `<button>`.** Its sizing was hard-won (see `viewportStyle` and the four failed attempts above) and buttons carry their own intrinsic-sizing quirks, so `role`/`tabindex`/`keydown` are added by hand instead. All three are bound conditionally on `canZoomOut`, so once the poster is fully out — or the round is over — it stops being a control rather than being a dead button.
+- **The default status line is now the discovery hint** ("Tap the poster to zoom out."), since no button spells it out any more. It's replaced by the existing messages as soon as anything else is worth saying.
+- **`Give up` became an understated text link**, matching Reel Wordle's own give-up link: it throws the round away, so it shouldn't sit under your thumb as a button.
+- **Press feedback is border-colour only.** No `:hover` (a tapped element keeps it on iOS with no mouse to leave), and no `filter`/`transform` — either would fight the image's own zoom transform, which is what left visual trails in Timeline's drag.

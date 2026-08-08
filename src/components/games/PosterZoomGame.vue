@@ -19,7 +19,23 @@
         <!-- The crop is done by scaling the image inside a clipped window
              rather than by resizing anything, so the box never moves on the
              page as the zoom changes. -->
-        <div class="zoom-viewport" :style="viewportStyle">
+        <!-- The poster IS the zoom-out control: it's the biggest target on
+             screen and the only action the round needs, which beats a small
+             button at the bottom of the page. Kept a div rather than a
+             <button> deliberately — this box's sizing was hard-won (see
+             viewportStyle) and buttons bring their own intrinsic-sizing
+             quirks, so the semantics are added by hand instead. -->
+        <div
+          class="zoom-viewport"
+          :class="{ tappable: canZoomOut }"
+          :style="viewportStyle"
+          :role="canZoomOut ? 'button' : null"
+          :tabindex="canZoomOut ? 0 : null"
+          :aria-label="canZoomOut ? 'Zoom out' : null"
+          @click="zoomOut"
+          @keydown.enter.prevent="zoomOut"
+          @keydown.space.prevent="zoomOut"
+        >
           <img
             v-if="posterUrl"
             :key="posterUrl"
@@ -58,17 +74,9 @@
           </li>
         </ul>
 
-        <div class="playing-actions">
-          <button
-            type="button"
-            class="btn-game btn-game-secondary btn-game-sm"
-            :disabled="isFullyOut"
-            @click="zoomOut"
-          >
-            {{ isFullyOut ? 'Fully zoomed out' : 'Zoom out' }}
-          </button>
-          <button type="button" class="btn-game btn-game-secondary btn-game-sm give-up" @click="giveUp">Give up</button>
-        </div>
+        <!-- Understated, like Reel Wordle's own give-up link: it throws the
+             round away, so it shouldn't sit under your thumb as a button. -->
+        <button type="button" class="give-up" @click="giveUp">Give up</button>
       </div>
 
       <div v-else class="result-banner" :class="status">
@@ -207,6 +215,9 @@ export default {
     isFullyOut () {
       return isFullyZoomedOut(this.zoomIndex);
     },
+    canZoomOut () {
+      return this.status === 'playing' && !this.isFullyOut;
+    },
     currentZoomLabel () {
       return `${zoomLevelAt(this.zoomIndex)}×`;
     },
@@ -222,7 +233,9 @@ export default {
       if (this.status === 'revealed') return 'Gave up — here it is.';
       if (this.lastWrongTitle) return `Not ${this.lastWrongTitle}. Zoomed out a little.`;
       if (this.isFullyOut) return "That's the whole poster — last chance.";
-      return 'Name the movie.';
+      // Doubles as the discovery hint for tapping the poster, since there's
+      // no longer a button spelling that out.
+      return 'Tap the poster to zoom out.';
     }
   },
   // Same "wait for real data, only act once it's there" pattern the other
@@ -663,18 +676,30 @@ export default {
   font-size: 0.8rem;
 }
 
-.playing-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+.zoom-viewport.tappable {
+  cursor: pointer;
 }
 
-.playing-actions .btn-game {
-  flex: 1;
+/* Press feedback only — no :hover. A tapped element keeps a hover state on
+   iOS with no mouse to leave it, a bug this codebase has shipped before.
+   Border only: a filter or transform here would fight the image's own zoom
+   transform, which is what left visual trails in Timeline's drag. */
+.zoom-viewport.tappable:active {
+  border-color: #888;
 }
 
 .give-up {
-  border-color: #a33;
+  background: none;
+  border: none;
+  color: #8a9199;
+  display: block;
+  font-size: 0.8rem;
+  margin: 0.75rem auto 0;
+  padding: 0.35rem 0.5rem;
+  text-decoration: underline;
+}
+
+.give-up:active {
   color: #e88;
 }
 
