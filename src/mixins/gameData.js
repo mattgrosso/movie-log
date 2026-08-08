@@ -53,6 +53,7 @@ export const GAME_ICONS = {
   '/games/clue-budget': 'bi-cash-coin',
   '/games/tagline': 'bi-chat-quote-fill',
   '/games/trivia': 'bi-question-circle-fill',
+  '/games/poster-zoom': 'bi-zoom-in',
   '/games/stamp': 'bi-bookmark-check-fill'
 };
 

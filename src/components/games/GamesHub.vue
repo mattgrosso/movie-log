@@ -54,6 +54,7 @@ import clueBudgetBanner from '../../assets/images/games/clue-budget-banner.jpg';
 import tagBanner from '../../assets/images/games/tag-banner.jpg';
 import triviaBanner from '../../assets/images/games/trivia-banner.jpg';
 import stampBanner from '../../assets/images/games/stamp-banner.jpg';
+import posterZoomBanner from '../../assets/images/games/poster-zoom-banner.jpg';
 
 export default {
   name: 'GamesHub',
@@ -125,6 +126,12 @@ export default {
           name: 'Trivia',
           banner: triviaBanner,
           description: 'Name it, hardest fact first.'
+        },
+        {
+          path: '/games/poster-zoom',
+          name: 'Poster Zoom',
+          banner: posterZoomBanner,
+          description: 'Name it from a close-up.'
         },
         {
           path: '/games/stamp',

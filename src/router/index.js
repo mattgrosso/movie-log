@@ -21,6 +21,7 @@ const TimelineGame = () => import(/* webpackChunkName: "games" */ "../components
 const ClueBudgetGame = () => import(/* webpackChunkName: "games" */ "../components/games/ClueBudgetGame.vue");
 const TaglineQuizGame = () => import(/* webpackChunkName: "games" */ "../components/games/TaglineQuizGame.vue");
 const TriviaGame = () => import(/* webpackChunkName: "games" */ "../components/games/TriviaGame.vue");
+const PosterZoomGame = () => import(/* webpackChunkName: "games" */ "../components/games/PosterZoomGame.vue");
 const StampGame = () => import(/* webpackChunkName: "games" */ "../components/games/StampGame.vue");
 
 // Router
@@ -318,6 +319,21 @@ const routes = [
     path: '/games/trivia',
     name: 'TriviaGame',
     component: TriviaGame,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/games/poster-zoom',
+    name: 'PosterZoomGame',
+    component: PosterZoomGame,
     meta: {
       requiresLogin: true
     },
