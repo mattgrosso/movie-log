@@ -1363,7 +1363,15 @@ Asked what was costing money and what would run away at scale. Audit findings an
 ### 1. The AI endpoint was unauthenticated
 `aws-lambda/claude-ai.js` had `Access-Control-Allow-Origin: *`, no auth and no rate limit — and its URL is baked into the public client bundle, so anyone could spend the Anthropic balance in a loop. Got riskier the day email/password signup shipped.
 
-Now verifies a **Firebase ID token** using node's built-in `crypto` (no `firebase-admin` dependency, ~40 lines; needs Node 18+ for global `fetch`, and the function runs `nodejs22.x`). Checks signature against Google's cached x509 certs plus `exp`, `aud` and `iss` — **the audience and issuer checks are load-bearing**: without them a valid token from *any* Firebase project would be accepted. Plus a per-container in-memory rate limit (20/min/user), which is a speed bump not a guarantee — Lambda runs many containers and each keeps its own counter, so **set an API Gateway stage throttle as the real ceiling**. CORS was tightened too but is *not* the gate; it only constrains browsers.
+Now verifies a **Firebase ID token** using node's built-in `crypto` (no `firebase-admin` dependency, ~40 lines; needs Node 18+ for global `fetch`, and the function runs `nodejs22.x`). Checks signature against Google's cached x509 certs plus `exp`, `aud` and `iss` — **the audience and issuer checks are load-bearing**: without them a valid token from *any* Firebase project would be accepted. Plus a per-container in-memory rate limit (20/min/user), which is a speed bump not a guarantee — Lambda runs many containers and each keeps its own counter. CORS was tightened too but is *not* the gate; it only constrains browsers.
+
+**API Gateway stage throttle (set Aug 2026):** the `$default` stage of `cinemaroll-ai-api` (HTTP API `2lyldox07e`) had **no throttle at all**, i.e. the AWS default of 10,000 req/s. Now `ThrottlingRateLimit=2`, `ThrottlingBurstLimit=10`. The sustained rate is what bounds spend; the burst only smooths legitimate spikes (several people starting a round at once), so widening burst costs nothing. Verified live: a burst of 30 produced 429s, a realistic burst of 5 passed clean.
+
+Two other bounds discovered while doing it, worth knowing:
+- **The AWS account's Lambda concurrency limit is 10** (not the usual 1,000), so at most 10 of these can run at once — a real throughput ceiling in its own right. It's also why reserved concurrency isn't usable here: AWS requires leaving ~100 unreserved.
+- Overflow beyond that surfaces as **503**, not 429. During testing, 503s looked like an application error until CloudWatch showed no lambda errors at all — worth remembering before chasing a phantom bug.
+
+**None of this is a spend cap.** Throttling limits RATE, not total: 2/s sustained is still ~172k calls/day. The only hard money ceiling is a **spend limit on the Anthropic API key** (console → Organization → Limits) plus an AWS budget alert. Both are console-only and were left for Matt.
 
 Client side, **`src/utils/aiRequest.js` is the only place that attaches the token**, so no caller can forget. It throws rather than firing a request that would 401 anyway.
 
