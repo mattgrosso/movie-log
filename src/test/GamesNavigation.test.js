@@ -52,9 +52,16 @@ function mountHome () {
   }
 
   const push = vi.fn()
+  // Mirrors the real router's getRoutes(), which is how a stored game path is
+  // checked for still existing. Deliberately omits removed games like
+  // /games/rate-off and /games/quiz — the reason the button could go dead.
+  const getRoutes = vi.fn(() => [
+    { path: '/' }, { path: '/games' },
+    { path: '/games/wordle' }, { path: '/games/six-degrees' }, { path: '/games/trivia' }
+  ])
   const wrapper = mount(Home, {
     global: {
-      mocks: { $store: mockStore, $route: { query: {} }, $router: { push } },
+      mocks: { $store: mockStore, $route: { query: {} }, $router: { push, getRoutes } },
       stubs: {
         DBGridLayoutSearchResult: true, NoResults: true, StickinessModal: true,
         TweakModal: true, InsetBrowserModal: true
@@ -62,7 +69,7 @@ function mountHome () {
     }
   })
 
-  return { wrapper, mockStore, push }
+  return { wrapper, mockStore, push, getRoutes }
 }
 
 describe('Home goToGames — resume last-played game (bug report)', () => {
@@ -88,6 +95,37 @@ describe('Home goToGames — resume last-played game (bug report)', () => {
     const { wrapper, push } = mountHome()
     wrapper.vm.goToGames()
     expect(push).toHaveBeenCalledWith('/games')
+  })
+
+  it('falls back to the hub when the stored game has since been removed', () => {
+    // Rate-Off and Taste Quiz were both deleted. Pushing a route that no
+    // longer exists rendered a blank page, so the button looked dead.
+    window.localStorage.setItem(LAST_PLAYED_KEY, '/games/rate-off')
+    const { wrapper, push } = mountHome()
+    wrapper.vm.goToGames()
+    expect(push).toHaveBeenCalledWith('/games')
+  })
+
+  it('clears the stale value so the button is not permanently dead', () => {
+    // The key is only overwritten by successfully visiting another game —
+    // which this button is how you would reach — so without clearing it, a
+    // removed game would break the button forever.
+    window.localStorage.setItem(LAST_PLAYED_KEY, '/games/rate-off')
+    const { wrapper } = mountHome()
+    wrapper.vm.goToGames()
+    expect(window.localStorage.getItem(LAST_PLAYED_KEY)).toBeNull()
+  })
+
+  it('does not show a removed game\'s icon on the button', () => {
+    window.localStorage.setItem(LAST_PLAYED_KEY, '/games/rate-off')
+    const { wrapper } = mountHome()
+    expect(wrapper.vm.gamesButtonIcon).toBe('bi-dice-5')
+  })
+
+  it('still shows the real last-played game\'s icon', () => {
+    window.localStorage.setItem(LAST_PLAYED_KEY, '/games/wordle')
+    const { wrapper } = mountHome()
+    expect(wrapper.vm.gamesButtonIcon).toBe('bi-grid-3x3-gap-fill')
   })
 })
 

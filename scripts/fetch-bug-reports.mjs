@@ -8,9 +8,8 @@
 // Once triaged, mark a report resolved with `yarn resolve-bug-report
 // <reportId>` (scripts/resolve-bug-report.mjs) so it stops showing up here.
 //
-// Requires one env var, read from .env.local via Node's native --env-file
-// flag (no dotenv dependency needed — see package.json's
-// "fetch-bug-reports" script):
+// Requires one env var, read from .env.local by scripts/loadEnvLocal.mjs
+// (Node's native --env-file flag needs 20.6+; this repo is pinned to 18):
 //   FIREBASE_ADMIN_KEY_PATH - path to a service-account JSON key
 //                              (Firebase Console -> Project Settings ->
 //                              Service Accounts -> Generate new private key).
@@ -20,8 +19,11 @@
 //       or: yarn fetch-bug-reports --all    (everything, resolved or not)
 
 import { readFileSync } from 'fs';
+import { loadEnvLocal } from './loadEnvLocal.mjs';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+
+loadEnvLocal();
 
 // Matches the databaseURL hardcoded in src/store/index.js — this app has one
 // Firebase project, so there's nothing to configure per-environment.

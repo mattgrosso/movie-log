@@ -1028,7 +1028,7 @@ import {
   awardNameSingular
 } from '../assets/javascript/personalAwards.js';
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
-import { LAST_PLAYED_KEY, GAME_ICONS } from '../mixins/gameData.js';
+import { GAME_ICONS, lastPlayedGamePath } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
 import { backfillProductionCountries, collectMoviesNeedingCountries } from '../assets/javascript/backfillProductionCountries.js';
@@ -1434,12 +1434,7 @@ export default {
     // way LAST_PLAYED_KEY changes is by visiting a game and coming back,
     // which necessarily remounts Home.vue anyway.
     gamesButtonIcon () {
-      let lastPlayed = null;
-      try {
-        lastPlayed = window.localStorage.getItem(LAST_PLAYED_KEY);
-      } catch (error) {
-        // localStorage can throw in private-browsing/quota-exceeded situations.
-      }
+      const lastPlayed = lastPlayedGamePath(this.$router);
       return (lastPlayed && GAME_ICONS[lastPlayed]) || 'bi-dice-5';
     },
     normalizationTweak () {
@@ -3497,13 +3492,10 @@ export default {
     // a game (e.g. Wordle) to check something on the search screen shouldn't
     // mean re-picking the game from the hub every time.
     goToGames () {
-      let lastPlayed = null;
-      try {
-        lastPlayed = window.localStorage.getItem(LAST_PLAYED_KEY);
-      } catch (error) {
-        // localStorage can throw in private-browsing/quota-exceeded situations.
-      }
-      this.$router.push(lastPlayed && lastPlayed.startsWith('/games/') ? lastPlayed : '/games');
+      // Falls back to the hub when nothing is stored OR when the stored game
+      // no longer exists — see lastPlayedGamePath for the dead-button bug
+      // that second case caused.
+      this.$router.push(lastPlayedGamePath(this.$router) || '/games');
     },
     saveNormalizationTweak () {
       this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });

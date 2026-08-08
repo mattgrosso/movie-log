@@ -329,6 +329,15 @@ const routes = [
       }
     }
   },
+  // Catch-all. Without this, an unmatched path renders NOTHING — no error, no
+  // redirect, just the header over a blank page (confirmed live against a
+  // route that had been removed). Games that no longer exist are the way this
+  // actually bit: /games/rate-off and /games/quiz were both deleted, and
+  // anything still pointing at them led straight here.
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
+  }
 ]
 
 const router = createRouter({

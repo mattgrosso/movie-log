@@ -7,6 +7,39 @@ import { getEligibleEntries, ratingFor } from '../assets/javascript/games/gameUt
 // the game you were actually playing instead of always landing on the hub.
 export const LAST_PLAYED_KEY = 'cinemaRoll.games.lastPlayed';
 
+/**
+ * The stored last-played game path, but ONLY if that route still exists.
+ *
+ * Games do get removed (Rate-Off and Taste Quiz both were), and a stored path
+ * pointing at a deleted one used to make Home's Games button navigate to a
+ * blank page — and because the key is only ever overwritten by successfully
+ * visiting another game, which that button is how you'd reach, it could not
+ * heal on its own. So a stale value is cleared here on the way out.
+ *
+ * Checks getRoutes() for an exact path rather than router.resolve(), which
+ * now always matches thanks to the catch-all route.
+ */
+export function lastPlayedGamePath (router) {
+  let stored = null;
+  try {
+    stored = window.localStorage.getItem(LAST_PLAYED_KEY);
+  } catch (error) {
+    // localStorage can throw in private-browsing/quota-exceeded situations.
+  }
+
+  if (!stored || !stored.startsWith('/games/')) return null;
+
+  const stillExists = (router?.getRoutes?.() || []).some((route) => route.path === stored);
+  if (stillExists) return stored;
+
+  try {
+    window.localStorage.removeItem(LAST_PLAYED_KEY);
+  } catch (error) {
+    // Nothing to do — the caller falls back to the hub either way.
+  }
+  return null;
+}
+
 // Single source of truth for each game's icon — shared by GamesHub's tile
 // grid and Home.vue's Games entry-point button, which shows whichever
 // game's icon LAST_PLAYED_KEY points back to (falling back to a generic

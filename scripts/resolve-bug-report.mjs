@@ -9,8 +9,11 @@
 // Run with: yarn resolve-bug-report <reportId> [reportId...]
 
 import { readFileSync } from 'fs';
+import { loadEnvLocal } from './loadEnvLocal.mjs';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+
+loadEnvLocal();
 
 const databaseURL = 'https://movie-log-8c4d5-default-rtdb.firebaseio.com';
 const keyPath = process.env.FIREBASE_ADMIN_KEY_PATH;

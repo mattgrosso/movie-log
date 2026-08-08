@@ -1469,3 +1469,26 @@ Design notes for whoever picks this up:
 - **Not urgent.** After the trim, the free tier allows ~1,079 cold launches/month against a handful of real users. This is insurance against growth.
 
 Tests: `src/test/syncStamp.test.js` (24, pure — path classification, all four write shapes, the no-stamp-on-deletion guard, batch stamping incl. the overlapping-path avoidance, backfill collection). `src/test/flushPendingWrites.test.js`'s `change tracking on every library write` block (8, against the real store — the actual Firebase call shapes, including that queued offline writes are stamped at flush time and that the sentinel survives the scrubber). Note every `vi.mock('firebase/database')` factory now needs a `serverTimestamp` export or the store import fails.
+
+## Two bug reports + a broken admin script (Aug 2026)
+
+### The Games button did nothing — a permanently self-perpetuating dead button
+Report: *"the games button isn't working. I can click on other things but the games button does nothing."*
+
+**Root cause: `goToGames()` validated only that the stored path STARTS WITH `/games/`, never that the route still exists — and there is no catch-all route.** Confirmed live against the deployed build: navigating to `/games/rate-off` (removed in Jul 2026) changes the URL and renders **nothing** — header over a blank page, no error, no login redirect. `/games/quiz` (Taste Quiz) was deleted the same way.
+
+**What made it nasty rather than cosmetic:** `LAST_PLAYED_KEY` is only ever overwritten by successfully visiting *another* game — which this button is the way you'd reach — and only cleared by visiting the hub, which the button also wouldn't take you to. So once it pointed at a removed game it could never heal on its own.
+
+Fixed in two layers, deliberately both:
+- **`lastPlayedGamePath(router)`** (new, in `gameData.js`, shared by `goToGames` and `gamesButtonIcon`) returns the stored path only if it still exists, and **clears a stale value on the way out** so the button self-heals. Checks `router.getRoutes()` for an exact path match rather than `router.resolve()`, which now *always* matches because of the catch-all below.
+- **A catch-all route** (`/:pathMatch(.*)*` → redirect `/`). The blank-page-on-unmatched-path behaviour was never specific to games — any stale bookmark or old link hit it.
+
+**Test-harness note:** `GamesNavigation.test.js`'s mock `$router` was `{ push }` only; it now needs a `getRoutes()` that deliberately OMITS the removed games, which is the seam the bug lived in. A mock that returns every path would pass against the broken code.
+
+### `.end-actions` sat flush against the revealed poster
+Report: *"When you win in real Wordle, we need a little bit of padding above the new game or back to games button."* The shared `.end-actions` rule (`_game-buttons.scss`) had `margin: 0 auto` — no top margin — so in Wordle it butted straight up against `.reveal-poster`. Fixed once in the shared partial (`margin: 1rem auto 0`) rather than per-game, since all 8 games use it and several others also follow it with a poster.
+
+### `yarn fetch-bug-reports` / `yarn resolve-bug-report` were unrunnable
+Both used Node's native `--env-file` flag, which needs **Node 20.6+** — but this repo is pinned to **18.18** (`.tool-versions`, and CI's `node-version: 18`, for the reasons already documented under the ESLint 9 and `firebase-admin` notes). They failed outright with `bad option: --env-file`. Replaced with **`scripts/loadEnvLocal.mjs`**, a few lines that parse `.env.local` directly (a real env var still wins, so a one-off override works). Deliberately not a `dotenv` dependency for one gitignored file read by two scripts.
+
+**If an admin script ever hangs for minutes with no output, check the `databaseURL` first** — a wrong one (this project is `movie-log-8c4d5`, and the service-account key's `project_id` confirms it) doesn't error, it just retries the connection forever.
