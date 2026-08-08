@@ -1492,3 +1492,16 @@ Report: *"When you win in real Wordle, we need a little bit of padding above the
 Both used Node's native `--env-file` flag, which needs **Node 20.6+** — but this repo is pinned to **18.18** (`.tool-versions`, and CI's `node-version: 18`, for the reasons already documented under the ESLint 9 and `firebase-admin` notes). They failed outright with `bad option: --env-file`. Replaced with **`scripts/loadEnvLocal.mjs`**, a few lines that parse `.env.local` directly (a real env var still wins, so a one-off override works). Deliberately not a `dotenv` dependency for one gitignored file read by two scripts.
 
 **If an admin script ever hangs for minutes with no output, check the `databaseURL` first** — a wrong one (this project is `movie-log-8c4d5`, and the service-account key's `project_id` confirms it) doesn't error, it just retries the connection forever.
+
+### Verifying an authenticated write without signing in (Aug 2026)
+Automated sessions can't sign in, but they *can* run the app against `testing-database` end-to-end **while the DB rules are still open**:
+
+1. Load the app once and let it mount.
+2. `localStorage.setItem('databaseTopKey', 'testing-database')`. The router's `loggedIn()` guard reads only that key — no Firebase token is involved, and with `devMode` false the `databaseTopKey` getter returns it directly, so the whole app runs against the sandbox branch.
+3. Navigate by **hash only** (`location.hash = '#/'`). Do NOT reload: `verifyRestoredSession` runs in `App.vue`'s `mounted` and correctly wipes a stored key that has no matching Firebase session, which sends you straight back to `/login`.
+4. Drive the real UI, then verify **server-side** with the Firebase Admin SDK against `testing-database/...` rather than trusting the DOM.
+5. Clean up: revert any sandbox mutation and clear the key.
+
+Used this to close the one gap the unit tests couldn't: that a real whole-entry write through the live client SDK stamps `updatedAt` with a server number, advances it past the prior value, and leaves `ratings` an array / `crew` intact / no `dbKey`-`_search` junk written back.
+
+**This stops working the moment the locked-down rules deploy** — `testing-database` then requires `auth.token.email` sanitized to equal the branch name, so it needs a real session plus the in-app dev-mode toggle. Worth doing any authenticated-write verification BEFORE that deploy.
