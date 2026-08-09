@@ -135,6 +135,23 @@ export function progress (tournament) {
 // the old one-pair-at-a-time tiebreak's flat -0.1 penalty to the loser: rank
 // 0 (the top of the final standings) is untouched, each rank below loses a
 // further 0.1.
+/**
+ * How far to nudge each contestant's `tweakValue` by finishing position.
+ *
+ * NOT the change to the visible score. `tweakValue` is added to `overall`,
+ * which is then weighted (2) and divided by 10 — so the score moves by a
+ * FIFTH of this, and `calculatedTotal` is rounded to 2dp. 0.05 is therefore
+ * the smallest step that shifts the displayed score at all: exactly 0.01,
+ * one slot on that grid.
+ *
+ * Was -0.1 (a 0.02 score step). Halved per feedback, because a tie is
+ * resolved by moving losers down into whatever score sits below them, and
+ * the further they travel the more they distort a rating that was genuinely
+ * earned. It reduces how often a fresh tie is manufactured; it can't
+ * eliminate it, since ~1,300 movies share a few hundred 0.01 slots and any
+ * fixed step can land on an occupied one. Deliberately NOT hunting for a
+ * free slot — ties arising from these nudges are acceptable, just rarer.
+ */
 export function tweakDeltaForRank (rank) {
-  return -0.1 * rank;
+  return -0.05 * rank;
 }

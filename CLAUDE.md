@@ -1264,3 +1264,10 @@ The tenth game, added so the hub grid is two full columns. A poster opens at an 
 - **The winning crop outline**: `cropRectFor(index, origin)` — with `scale(Z)` about origin `o`, the visible window is `1/Z` wide starting at `o·(1 − 1/Z)`. The box is 2:3 rather than square because that's the shape of the viewport it was seen through. Dim outside is one spread `box-shadow` clipped by `overflow: hidden`. Delayed 0.5s past the zoom-out so it lands as a second beat, and skipped when the win came from the fully-zoomed-out step.
 
 Tests: `posterZoom.test.js` (pure), `PosterZoomGame.test.js`.
+
+### Tiebreak nudge halved to -0.05 per rank (Aug 2026)
+Report: *"I feel like I just did a tiebreaker tournament and now I'm presented with a new tiebreaker tournament that has a lot of the same movies in it."* A tournament resolves a tie by nudging losers DOWN — into whatever scores sit below them, where landing on an occupied 0.01 slot manufactures a fresh tie containing some of the same movies.
+
+**The trap: `tweakDeltaForRank` is not a score delta.** `tweakValue` is added to `overall`, which is weighted (2) and divided by 10 — the visible score moves by a FIFTH of the tweak, and `calculatedTotal` rounds to 2dp. So -0.05 is the smallest step that shifts the displayed score at all (exactly 0.01); the user's literal ask of "-0.01" would have moved the score by 0.002, vanished in rounding, and made the same tournament recur forever.
+
+Halved from -0.1 (a 0.02 score step) to -0.05 (0.01). This makes collisions rarer, not impossible — ~1,300 movies share a few hundred 0.01 slots, so any fixed step can land on an occupied one. **Deliberately NOT hunting for an unoccupied slot**, per Matt: ties derived from these nudges are acceptable, they should just happen less often.

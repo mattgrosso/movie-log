@@ -190,9 +190,12 @@ describe('tweakDeltaForRank', () => {
     expect(tweakDeltaForRank(0)).toBeCloseTo(0)
   })
 
-  it('applies -0.1 per rank below the top', () => {
-    expect(tweakDeltaForRank(1)).toBeCloseTo(-0.1)
-    expect(tweakDeltaForRank(2)).toBeCloseTo(-0.2)
-    expect(tweakDeltaForRank(3)).toBeCloseTo(-0.3)
+  it('applies -0.05 per rank below the top', () => {
+    // Not the score step: tweakValue feeds `overall`, which is weighted (2)
+    // and divided by 10, so the visible score moves by a fifth of this —
+    // exactly 0.01 per rank, the smallest step that survives rounding to 2dp.
+    expect(tweakDeltaForRank(1)).toBeCloseTo(-0.05)
+    expect(tweakDeltaForRank(2)).toBeCloseTo(-0.1)
+    expect(tweakDeltaForRank(3)).toBeCloseTo(-0.15)
   })
 })

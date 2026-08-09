@@ -74,10 +74,10 @@ describe('TweakInline', () => {
 
       await wrapper.findAll('.poster-container')[0].trigger('click')
 
-      // Winner (rank 0) untouched, loser (rank 1) gets the -0.1 penalty —
+      // Winner (rank 0) untouched, loser (rank 1) gets the -0.05 penalty —
       // matching the old single-pair tiebreak's behavior exactly for N=2.
       const loserUpdate = lastDispatchTo(dispatch, 'movieLog/b')
-      expect(loserUpdate.ratings[0].tweakValue).toBeCloseTo(-0.1)
+      expect(loserUpdate.ratings[0].tweakValue).toBeCloseTo(-0.05)
       expect(lastDispatchTo(dispatch, 'movieLog/a')).toBeUndefined()
 
       // No "Tournament Complete!" standings screen/Done tap for a 2-way tie
