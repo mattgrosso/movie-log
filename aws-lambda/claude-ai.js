@@ -157,7 +157,9 @@ const getContext = async ({ title, year }) => {
 
   const message = await client.messages.create({
     model: MODELS.context,
-    max_tokens: 512,
+    // Was 512, which visibly truncated the answer mid-sentence — Sonnet is
+    // wordier than the Opus this used to run on.
+    max_tokens: 1024,
     messages: [
       {
         role: 'user',
@@ -178,7 +180,10 @@ const getTrivia = async ({ title, year }) => {
 
   const message = await client.messages.create({
     model: MODELS.trivia,
-    max_tokens: 768,
+    // Was 768. Five facts of 1-2 sentences plus JSON overhead runs past that
+    // on Sonnet, and a truncated response has no closing brace — which used
+    // to crash the extraction below and surface as "couldn't load trivia".
+    max_tokens: 2000,
     messages: [
       {
         role: 'user',
@@ -197,8 +202,26 @@ Return only a JSON object with a single key "facts" whose value is an array of e
     ]
   });
 
+  // Defensive on both counts: .match() returns null when the response was
+  // truncated before its closing brace, and `null[0]` threw a TypeError that
+  // the caller could only report as a generic failure. Say what actually
+  // happened instead, and include stop_reason so a repeat is diagnosable
+  // without CloudWatch access.
   const text = message.content[0].text;
-  const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    console.error('Trivia response had no JSON object. stop_reason:', message.stop_reason, 'text:', text.slice(0, 400));
+    return response(502, { error: 'AI returned no usable trivia', stopReason: message.stop_reason, facts: [] });
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch (error) {
+    console.error('Trivia JSON did not parse. stop_reason:', message.stop_reason, 'text:', text.slice(0, 400));
+    return response(502, { error: 'AI returned malformed trivia', stopReason: message.stop_reason, facts: [] });
+  }
+
   const facts = (Array.isArray(parsed.facts) ? parsed.facts : []).filter((fact) => typeof fact === 'string' && fact.trim()).slice(0, 5);
 
   return response(200, { facts });
