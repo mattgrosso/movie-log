@@ -156,7 +156,7 @@ export function buildClueDeck (entry, extras = {}) {
 
   const companies = (entry?.movie?.production_companies || []).map((c) => c.name).filter(Boolean);
   if (companies.length) {
-    clues.push({ key: 'company', label: 'Production Company', cost: companyMovieCount != null ? priceFromCompanyRarity(companyMovieCount) : FALLBACK_COSTS.company, value: companies[0] });
+    clues.push({ key: 'company', label: 'Studio', cost: companyMovieCount != null ? priceFromCompanyRarity(companyMovieCount) : FALLBACK_COSTS.company, value: companies[0] });
   }
 
   const editors = movieEditors(entry);

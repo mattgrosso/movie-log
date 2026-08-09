@@ -208,7 +208,7 @@ describe('ClueBudgetGame', () => {
     const wrapper = factory(tenMovies());
     await flushPromises();
 
-    await wrapper.find('.poster-chip').trigger('click');
+    await wrapper.find('.give-up-clue').trigger('click');
 
     expect(wrapper.vm.budget).toBe(0);
     expect(wrapper.vm.status).toBe('lost');

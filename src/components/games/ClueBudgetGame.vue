@@ -8,7 +8,9 @@
     </div>
 
     <template v-else>
-      <p class="game-subtitle">Spend your ${{ startingBudget }} budget on clues, then guess the movie before you're broke.</p>
+      <!-- Deliberately short: the budget row directly below already shows the
+           amount, and at phone width a longer line wrapped to three. -->
+      <p class="game-subtitle">Buy clues, then name the movie.</p>
 
       <div class="budget-row">
         <span>Budget: <strong :class="{ low: budget <= 20 }">${{ budget }}</strong></span>
@@ -60,15 +62,17 @@
           :disabled="clue.cost > budget"
           @click="buyClue(clue)"
         >
-          <span class="clue-chip-label">{{ clue.label }}</span>
+          <span class="clue-chip-label" :title="clue.label">{{ clue.label }}</span>
           <span class="clue-chip-cost">${{ clue.cost }}</span>
         </button>
 
-        <button type="button" class="clue-chip poster-chip" @click="revealPoster">
-          <span class="clue-chip-label">Reveal Poster (give up)</span>
-          <span class="clue-chip-cost">${{ budget }}</span>
-        </button>
       </div>
+
+      <!-- Out of the shop grid: it isn't a purchase, it ends the round. Same
+           understated treatment as Reel Wordle's and Poster Zoom's give-up. -->
+      <button v-if="status === 'playing'" type="button" class="give-up-clue" @click="revealPoster">
+        Reveal poster &amp; give up (costs your last ${{ budget }})
+      </button>
     </template>
   </div>
 </template>
@@ -336,13 +340,15 @@ export default {
   // Safety margin against BackLink overlapping this screen's own content
   // when the global Header happens to have zero height — same fix as the
   // other 5 game components.
-  padding: 1.75rem 1rem 2rem;
+  padding: 1.25rem 1rem 0.75rem;
 }
 
 .game-subtitle {
   color: #adb5bd;
-  margin-top: 0.75rem;
-  margin-bottom: 1rem;
+  /* Tight: this screen has ~19 clue chips to fit, and 1.75rem of combined
+     margin on a single line was the last thing keeping it off one screen. */
+  margin-top: 0.35rem;
+  margin-bottom: 0.5rem;
 }
 
 .not-enough-movies {
@@ -354,7 +360,7 @@ export default {
 .budget-row {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .budget-row strong {
@@ -465,8 +471,18 @@ export default {
 
 .clue-shop {
   display: grid;
-  gap: 0.5rem;
-  grid-template-columns: repeat(2, 1fr);
+  /* Three across, not two: there can be 15 clues, and at two-up the shop ran
+     well off a phone screen (bug report). Four once there's room for it. */
+  gap: 0.3rem;
+  /* Four across: there are ~19 clues, and even at three-up the shop ran off
+     a phone screen. Measured — this is what makes the game fit unscrolled. */
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (min-width: 600px) {
+  .clue-shop {
+    grid-template-columns: repeat(6, 1fr);
+  }
 }
 
 .clue-chip {
@@ -478,8 +494,12 @@ export default {
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.6rem 0.4rem;
+  gap: 0.05rem;
+  justify-content: center;
+  /* Fixed height so every chip matches regardless of whether its label
+     wraps, which keeps the grid even. */
+  min-height: 34px;
+  padding: 0.25rem 0.15rem;
   text-align: center;
   transition: transform 0.1s ease, border-color 0.1s ease;
 }
@@ -497,14 +517,39 @@ export default {
 }
 
 .clue-chip-label {
-  font-size: 0.75rem;
+  font-size: 0.6rem;
   font-weight: 600;
+  line-height: 1.1;
+  /* Wraps to two lines rather than ellipsing: the full word is more use
+     than a truncated one, and min-height above absorbs the extra line.
+     Longer labels still clamp instead of growing without bound. */
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  overflow: hidden;
+  width: 100%;
 }
 
 .clue-chip-cost {
   color: #4caf50;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   font-weight: 700;
+  line-height: 1.1;
+}
+
+.give-up-clue {
+  background: none;
+  border: none;
+  color: #8a9199;
+  display: block;
+  font-size: 0.75rem;
+  margin: 0.5rem auto 0;
+  padding: 0.25rem 0.5rem;
+  text-decoration: underline;
+}
+
+.give-up-clue:active {
+  color: #e88;
 }
 
 .clue-chip:disabled .clue-chip-cost {
@@ -514,12 +559,5 @@ export default {
 // The one clue that always spends everything — visually distinct (a red
 // tint) from the neutral cost-based chips above it, since it's a
 // deliberate "give up," not a normal purchase.
-.poster-chip {
-  border-color: #ff6a6a;
-  grid-column: 1 / -1;
-}
 
-.poster-chip .clue-chip-cost {
-  color: #ff6a6a;
-}
 </style>

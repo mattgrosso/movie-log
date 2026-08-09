@@ -1271,3 +1271,17 @@ Report: *"I feel like I just did a tiebreaker tournament and now I'm presented w
 **The trap: `tweakDeltaForRank` is not a score delta.** `tweakValue` is added to `overall`, which is weighted (2) and divided by 10 — the visible score moves by a FIFTH of the tweak, and `calculatedTotal` rounds to 2dp. So -0.05 is the smallest step that shifts the displayed score at all (exactly 0.01); the user's literal ask of "-0.01" would have moved the score by 0.002, vanished in rounding, and made the same tournament recur forever.
 
 Halved from -0.1 (a 0.02 score step) to -0.05 (0.01). This makes collisions rarer, not impossible — ~1,300 movies share a few hundred 0.01 slots, so any fixed step can land on an occupied one. **Deliberately NOT hunting for an unoccupied slot**, per Matt: ties derived from these nudges are acceptable, they should just happen less often.
+
+### Clue Budget fitted to one phone screen (Aug 2026)
+Report: *"so many different things you can buy that it having a scroll on my phone... maybe the buttons could be smaller. We can do three across or something."*
+
+There are **19 clue chips**, which is more than the report implies and more than three-across can absorb — measured, three-up still ran 251px past a 664px viewport. What actually got there, in order of how much each saved:
+
+- **Shop 360px → 191px**: four across (six at ≥600px), chip `min-height` 46 → 34, smaller label/cost type, tighter gap. Labels wrap to two clamped lines rather than ellipsing — the whole word is more use than a truncated one, and the fixed height absorbs the extra line so the grid stays even.
+- **"Production Company" → "Studio"** in `clueBudget.js`. The app already says "studios" everywhere else, and it was the longest label by some way.
+- **Subtitle 76px → 24px**: it wrapped to three lines, then still carried 1.75rem of combined margin on a single line. The budget row directly below already shows the amount, so the sentence doesn't repeat it.
+- **Give-up moved out of the shop grid** into an understated link (matching Reel Wordle's and Poster Zoom's) — it isn't a purchase, it ends the round, and it was occupying a chip slot.
+
+**It fits exactly at a 664px viewport** — a real phone PWA has more room. Note it only holds at the *start* of a round: `.purchased-clues` grows as you buy, which is inherent to accumulating information rather than a layout bug.
+
+**Watch out when editing this file's CSS with a regex** — `.game-subtitle` uses separate `margin-top`/`margin-bottom`, so a substitution targeting `margin:` matches nothing and silently reports success.
