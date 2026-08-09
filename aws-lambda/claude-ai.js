@@ -150,6 +150,25 @@ const withinRateLimit = (uid) => {
   return true;
 };
 
+/**
+ * The assistant's text out of a response.
+ *
+ * `message.content[0].text` was assumed everywhere, which broke /trivia with
+ * "Cannot read properties of undefined (reading 'match')" — content is a list
+ * of BLOCKS and the first one is not guaranteed to be a text block. Find the
+ * text block instead of indexing blindly, and fail with something readable
+ * when there genuinely isn't one.
+ */
+const textFrom = (message) => {
+  const blocks = Array.isArray(message?.content) ? message.content : [];
+  const textBlock = blocks.find((block) => block?.type === 'text' && typeof block.text === 'string');
+  if (!textBlock) {
+    const kinds = blocks.map((block) => block?.type).join(', ') || 'none';
+    throw new Error(`No text block in response (blocks: ${kinds}, stop_reason: ${message?.stop_reason})`);
+  }
+  return textBlock.text;
+};
+
 const getContext = async ({ title, year }) => {
   if (!title) {
     return response(400, { error: 'Title is required' });
@@ -170,7 +189,7 @@ Keep it to 3-4 sentences. Be direct and informative, not promotional.`
     ]
   });
 
-  return response(200, { context: message.content[0].text });
+  return response(200, { context: textFrom(message) });
 };
 
 const getTrivia = async ({ title, year }) => {
@@ -207,7 +226,7 @@ Return only a JSON object with a single key "facts" whose value is an array of e
   // the caller could only report as a generic failure. Say what actually
   // happened instead, and include stop_reason so a repeat is diagnosable
   // without CloudWatch access.
-  const text = message.content[0].text;
+  const text = textFrom(message);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     console.error('Trivia response had no JSON object. stop_reason:', message.stop_reason, 'text:', text.slice(0, 400));
@@ -245,7 +264,7 @@ Return only a JSON object with a single key "keywords" whose value is an array o
     ]
   });
 
-  const text = message.content[0].text;
+  const text = textFrom(message);
   const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
   const keywords = (parsed.keywords || []).map(k => k.toLowerCase());
 
@@ -309,6 +328,15 @@ exports.handler = async (event) => {
     return response(404, { error: 'Unknown route' });
   } catch (error) {
     console.error('Claude API error:', error);
-    return response(500, { error: 'AI request failed', keywords: [], facts: [] });
+    // The message and status are surfaced deliberately: this endpoint is
+    // auth-gated, CloudWatch isn't readable from the dev environment, and a
+    // bare "AI request failed" cost a full deploy cycle to diagnose.
+    return response(500, {
+      error: 'AI request failed',
+      detail: String(error?.message || error).slice(0, 300),
+      status: error?.status,
+      keywords: [],
+      facts: []
+    });
   }
 };
