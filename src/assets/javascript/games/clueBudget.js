@@ -86,6 +86,17 @@ function maxPopularity (names, peoplePopularity) {
 const FALLBACK_KEYWORD_COSTS = [10, 15];
 const FALLBACK_CAST_COSTS = [30, 25, 20];
 const CAST_LIMIT = FALLBACK_CAST_COSTS.length;
+
+// Three across on a phone is five full rows — see ClueBudgetGame.vue.
+export const TARGET_CLUE_COUNT = 15;
+
+// Costs for top-up entries, continuing each list's own direction: cast gets
+// cheaper further down the billing, keywords get dearer as they get nicher.
+const fallbackCastCost = (index) =>
+  FALLBACK_CAST_COSTS[index] ?? Math.max(8, FALLBACK_CAST_COSTS[FALLBACK_CAST_COSTS.length - 1] - 4 * (index - FALLBACK_CAST_COSTS.length + 1));
+
+const fallbackKeywordCost = (index) =>
+  FALLBACK_KEYWORD_COSTS[index] ?? Math.min(25, FALLBACK_KEYWORD_COSTS[FALLBACK_KEYWORD_COSTS.length - 1] + 4 * (index - FALLBACK_KEYWORD_COSTS.length + 1));
 const FALLBACK_COSTS = {
   producer: 8,
   company: 10,
@@ -186,6 +197,48 @@ export function buildClueDeck (entry, extras = {}) {
     const cost = popularity != null ? priceFromPersonPopularity(popularity) : FALLBACK_CAST_COSTS[index];
     clues.push({ key: `cast-${index}`, label: `Cast Member #${index + 1}`, cost, value: name });
   });
+
+  // Top up to a full shop.
+  //
+  // The clue TYPES above are patchy: tagline is fetched live and often
+  // absent, and across the library composer is on 85% of movies, writer 96%,
+  // cinematographer 94%. So a deck capped by type alone plays short — the
+  // reported round offered 10 of a possible 15. Cast and keyword lists run
+  // much deeper (94% of movies have 8+ cast, 85% have 6+ keywords), so
+  // whatever's missing is made up from those, alternating so neither
+  // dominates. Falls short only if the movie genuinely hasn't got the data.
+  const extraCast = movieCastNames(entry, TARGET_CLUE_COUNT).slice(cast.length);
+  const extraKeywords = keywords.slice(FALLBACK_KEYWORD_COSTS.length);
+
+  let castIndex = 0;
+  let keywordIndex = 0;
+  while (clues.length < TARGET_CLUE_COUNT && (castIndex < extraCast.length || keywordIndex < extraKeywords.length)) {
+    if (castIndex < extraCast.length) {
+      const name = extraCast[castIndex];
+      const index = cast.length + castIndex;
+      const popularity = peoplePopularity[name];
+      clues.push({
+        key: `cast-${index}`,
+        label: `Cast Member #${index + 1}`,
+        cost: popularity != null ? priceFromPersonPopularity(popularity) : fallbackCastCost(index),
+        value: name
+      });
+      castIndex++;
+    }
+    if (clues.length >= TARGET_CLUE_COUNT) break;
+    if (keywordIndex < extraKeywords.length) {
+      const keyword = extraKeywords[keywordIndex];
+      const index = FALLBACK_KEYWORD_COSTS.length + keywordIndex;
+      const movieCount = keywordMovieCounts[keyword];
+      clues.push({
+        key: `keyword-${index}`,
+        label: `Theme/Keyword #${index + 1}`,
+        cost: movieCount != null ? priceFromKeywordRarity(movieCount) : fallbackKeywordCost(index),
+        value: keyword
+      });
+      keywordIndex++;
+    }
+  }
 
   return clues;
 }

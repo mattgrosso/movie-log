@@ -1323,3 +1323,16 @@ The previous cut to 12 was too deep, for two reasons worth recording:
 **Restored**: Exact Year, Cinematographer (94% available, and a genuinely hard clue rather than filler), and a third cast member (97%). Max is now 15 = five rows of three, measured at 728px total — fits a real phone, does not fit the 664px test window. Chips are 115×46.
 
 **Still cut**, as the least identifying: Studio, Producer, Editor. `priceFromCompanyRarity` remains exported and tested even though nothing calls it.
+
+### Clue Budget: the shop now fills to 15 (Aug 2026)
+Follow-up: *"It shows 10 clues now. Can't we get it to always be 15?"*
+
+Capping by clue TYPE can't do it, because the types are patchy — tagline is fetched live and often absent, and across the 1,368-movie library composer sits on 85%, cinematographer 94%, writer 96%. So a "15 max" deck routinely played as 10.
+
+`buildClueDeck` now **tops up to `TARGET_CLUE_COUNT` (15)** from the two lists that run deep: 94% of the library has 8+ cast, 85% has 6+ keywords. Extras alternate cast/keyword so neither takes over, and are priced by continuing each list's own direction — cast cheaper further down the billing, keywords dearer as they get nicher — with a floor and ceiling so the top-ups don't run away.
+
+**Measured across the whole real library, worst case (no tagline, no live pricing): 94% of movies now yield a full 15.** The remaining 6% genuinely lack the data.
+
+**Cast and keywords are no longer capped at a fixed count** — the cap is the deck as a whole. The old per-type cap tests were rewritten accordingly, and cost-ordering assertions became `<=`/`>=` because top-up entries share a floor/ceiling rather than continuing to diverge.
+
+Measuring this needed a detour: the library dump runs through `firebase-admin` (CommonJS) but `clueBudget.js` is ESM, and Node treats `.js` as CJS here since `package.json` has no `type: module`. Two steps — dump to JSON with plain Node, then read it from a throwaway **vitest** file, which handles the ESM. Both removed afterwards.

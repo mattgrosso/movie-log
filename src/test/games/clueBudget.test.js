@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildClueDeck,
   STARTING_BUDGET,
+  TARGET_CLUE_COUNT,
   priceFromPersonPopularity,
   priceFromKeywordRarity,
   priceFromCompanyRarity
@@ -82,28 +83,37 @@ describe('buildClueDeck', () => {
     // EXPENSIVE — billing order tracks real-world recognizability, so the
     // top-billed actor is normally the single most identifying piece of
     // cast info on its own, unlike keywords (no such intrinsic ranking).
-    expect(castClues.map((c) => c.value)).toEqual(['Cast One', 'Cast Two', 'Cast Three']);
+    expect(castClues.slice(0, 3).map((c) => c.value)).toEqual(['Cast One', 'Cast Two', 'Cast Three']);
     for (let i = 1; i < castClues.length; i++) {
-      expect(castClues[i].cost).toBeLessThan(castClues[i - 1].cost);
+      // <= rather than <: top-up entries past the priced tiers share a floor
+      // cost, so they stop getting cheaper rather than going negative.
+      expect(castClues[i].cost).toBeLessThanOrEqual(castClues[i - 1].cost);
     }
   });
 
-  it('caps cast reveals at 3 even with a larger cast', () => {
-    const bigCast = Array.from({ length: 10 }, (_, i) => ({ name: `Actor ${i}` }));
+  it('draws deeper into a big cast only as far as the deck target needs', () => {
+    // Cast is no longer capped at a fixed 3 — it's one of the two lists the
+    // deck tops up from when other clue types are missing. What IS capped is
+    // the deck as a whole, at TARGET_CLUE_COUNT.
+    const bigCast = Array.from({ length: 30 }, (_, i) => ({ name: `Actor ${i}` }));
     const deck = buildClueDeck(entry({ movie: { cast: bigCast } }));
-    expect(deck.filter((c) => c.key.startsWith('cast-'))).toHaveLength(3);
+
+    expect(deck.length).toBeLessThanOrEqual(TARGET_CLUE_COUNT);
+    expect(deck.filter((c) => c.key.startsWith('cast-')).length).toBeGreaterThanOrEqual(3);
   });
 
-  it('reveals keywords one at a time, each costing more than the last, capped at 2', () => {
+  it('reveals keywords one at a time, each costing more than the last', () => {
     const deck = buildClueDeck(entry());
     const keywordClues = deck.filter((c) => c.key.startsWith('keyword-'));
-    expect(keywordClues.map((c) => c.value)).toEqual(['heist', 'ensemble cast']);
+    expect(keywordClues.slice(0, 2).map((c) => c.value)).toEqual(['heist', 'ensemble cast']);
     for (let i = 1; i < keywordClues.length; i++) {
-      expect(keywordClues[i].cost).toBeGreaterThan(keywordClues[i - 1].cost);
+      // <= rather than <: top-up entries past the priced tiers share a
+      // ceiling, so they stop getting dearer rather than running away.
+      expect(keywordClues[i].cost).toBeGreaterThanOrEqual(keywordClues[i - 1].cost);
     }
 
     const manyKeywords = buildClueDeck(entry({ movie: { flatKeywords: ['a', 'b', 'c', 'd', 'e'] } }));
-    expect(manyKeywords.filter((c) => c.key.startsWith('keyword-'))).toHaveLength(2);
+    expect(manyKeywords.length).toBeLessThanOrEqual(TARGET_CLUE_COUNT);
   });
 
   it('does not include a tagline clue unless one is explicitly provided (it is fetched live, not stored)', () => {
@@ -239,5 +249,64 @@ describe('priceFromCompanyRarity', () => {
   it('clamps to a sane, narrower range than the other two (a noisier signal)', () => {
     expect(priceFromCompanyRarity(0)).toBeLessThanOrEqual(25);
     expect(priceFromCompanyRarity(10000000)).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe('buildClueDeck - filling the shop to a full 15', () => {
+  // Clue TYPES are patchy (tagline is fetched live and often absent; composer
+  // is on 85% of the library, cinematographer 94%), so a deck capped by type
+  // alone plays short — a reported round offered 10 of a possible 15. Cast
+  // and keyword lists run much deeper, so they make up the difference.
+  const deepEntry = (over = {}) => entry({
+    movie: {
+      cast: Array.from({ length: 12 }, (_, i) => ({ name: `Actor ${i}` })),
+      flatKeywords: Array.from({ length: 8 }, (_, i) => `keyword-${i}`),
+      ...over
+    }
+  });
+
+  it('reaches 15 even when tagline and every optional crew credit is missing', () => {
+    const deck = buildClueDeck(deepEntry({ crew: [] }));
+    expect(deck).toHaveLength(15);
+  });
+
+  it('still reaches 15 on a movie that has everything', () => {
+    const deck = buildClueDeck(deepEntry(), { tagline: 'A tagline.' });
+    expect(deck).toHaveLength(15);
+  });
+
+  it('never exceeds 15, which is the five rows the layout allows', () => {
+    const deck = buildClueDeck(deepEntry(), { tagline: 'A tagline.' });
+    expect(deck.length).toBeLessThanOrEqual(15);
+  });
+
+  it('tops up with cast and keywords rather than repeating a clue', () => {
+    const deck = buildClueDeck(deepEntry({ crew: [] }));
+    const keys = deck.map((c) => c.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.filter((k) => k.startsWith('cast-')).length).toBeGreaterThan(3);
+  });
+
+  it('alternates so neither cast nor keywords take over the shop', () => {
+    const deck = buildClueDeck(deepEntry({ crew: [] }));
+    const extraCast = deck.filter((c) => /^cast-([3-9]|1\d)$/.test(c.key)).length;
+    const extraKeywords = deck.filter((c) => /^keyword-([2-9])$/.test(c.key)).length;
+    expect(Math.abs(extraCast - extraKeywords)).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps top-up cast cheaper further down the billing', () => {
+    const deck = buildClueDeck(deepEntry({ crew: [] }));
+    const castClues = deck.filter((c) => c.key.startsWith('cast-'))
+      .sort((a, b) => Number(a.key.split('-')[1]) - Number(b.key.split('-')[1]));
+    for (let i = 1; i < castClues.length; i++) {
+      expect(castClues[i].cost).toBeLessThanOrEqual(castClues[i - 1].cost);
+    }
+  });
+
+  it('falls short only when the movie genuinely lacks the data', () => {
+    const sparse = entry({ movie: { cast: [{ name: 'Only Actor' }], flatKeywords: ['solo'], crew: [] } });
+    const deck = buildClueDeck(sparse);
+    expect(deck.length).toBeLessThan(15);
+    expect(deck.length).toBeGreaterThan(0);
   });
 });
