@@ -1613,3 +1613,19 @@ Feedback: *"the zoom level is still too easy. You really gotta go really close i
 - Worse, the stale value had nothing to correct it: **capping the poster smaller doesn't change the body's size**, so a `ResizeObserver` watching only `document.body` goes quiet on a wrong value. The observer now also watches the **stage**, whose own size change (growing back to fill leftover space) is exactly the signal the body-level observer could never see.
 
 Tests: `PosterZoomGame.test.js` — dealing a different movie on a dead URL, never re-dealing a known-broken one, degrading to the gate as posters run out, the defensive empty-pool branch, repeated re-measurement after `orientationchange`, and timer cleanup on unmount. The old "reveals a poster that fails to load" test asserted the exact behaviour this fixes and was rewritten.
+
+### "CINEMA ROLL GAMES" removed from every banner (Aug 2026)
+Report: *"we should avoid putting any text in the bottom right hand corner because that gets covered up by the version number... go through all of these and verify."*
+
+**Audited first, and the answer was all ten** — that line is part of the house style, so the version badge clipped it on every game. (The top-right corner is empty on all ten, so moving the badge would also have fixed it; Matt preferred keeping the badge where it is and removing the text.)
+
+The generator scripts were one-off and never committed, and four banners originated outside this context, so the line was painted out of the **finished JPEGs** rather than regenerated. Done with a detector rather than hardcoded coordinates, since the position differs per banner: scan the bottom-right, measure per-row "ink" against the background, take the lowest contiguous run of inked rows, fill it with the local background.
+
+Three things that mattered, each found by previewing on copies before touching the originals:
+- **Background must be computed PER ROW.** Stamp is horizontally banded (a cream band above a dark footer), and one modal colour for the whole region picked cream, treating the entire dark footer as ink — a 79px "text" box running to the bottom edge.
+- **The search region must start far enough left.** At 55% width it clipped the line's first letters and left a visible "CI" behind on four banners. Now 42%, which is still well right of every banner's icon.
+- **The fill runs to the right edge.** The line is right-aligned and those rows hold nothing else, so this can't strand a character.
+
+Verified by re-running the detector on the output: the lowest text is now the game name itself (51-176px tall) rather than a ~16px line, on all ten.
+
+**The script is not committed** (one-off, scratchpad — same as the original banner generators). If a new banner is ever added, just don't put the tagline in it.
