@@ -53,9 +53,12 @@ describe('buildClueDeck', () => {
     expect(byKey.writer.value).toBe('Some Writer');
     expect(byKey.composer.value).toBe('Some Composer');
 
+    expect(byKey.year.value).toBe('1994');
+    expect(byKey.cinematographer.value).toBe('Some DP');
+
     // Deliberately gone, to fit three-across on a phone: these were the
     // least likely to identify a film. See clueBudget.js.
-    ['year', 'company', 'editor', 'producer', 'cinematographer'].forEach((key) => {
+    ['company', 'editor', 'producer'].forEach((key) => {
       expect(byKey[key]).toBeUndefined();
     });
 
@@ -79,16 +82,16 @@ describe('buildClueDeck', () => {
     // EXPENSIVE — billing order tracks real-world recognizability, so the
     // top-billed actor is normally the single most identifying piece of
     // cast info on its own, unlike keywords (no such intrinsic ranking).
-    expect(castClues.map((c) => c.value)).toEqual(['Cast One', 'Cast Two']);
+    expect(castClues.map((c) => c.value)).toEqual(['Cast One', 'Cast Two', 'Cast Three']);
     for (let i = 1; i < castClues.length; i++) {
       expect(castClues[i].cost).toBeLessThan(castClues[i - 1].cost);
     }
   });
 
-  it('caps cast reveals at 2 even with a larger cast', () => {
+  it('caps cast reveals at 3 even with a larger cast', () => {
     const bigCast = Array.from({ length: 10 }, (_, i) => ({ name: `Actor ${i}` }));
     const deck = buildClueDeck(entry({ movie: { cast: bigCast } }));
-    expect(deck.filter((c) => c.key.startsWith('cast-'))).toHaveLength(2);
+    expect(deck.filter((c) => c.key.startsWith('cast-'))).toHaveLength(3);
   });
 
   it('reveals keywords one at a time, each costing more than the last, capped at 2', () => {

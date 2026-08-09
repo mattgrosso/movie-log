@@ -356,7 +356,7 @@ describe('ClueBudgetGame - a deck small enough to fit a phone', () => {
     await flushPromises();
 
     const keys = wrapper.vm.clueDeck.map((c) => c.key);
-    ['year', 'company', 'editor', 'producer', 'cinematographer'].forEach((key) => {
+    ['company', 'editor', 'producer'].forEach((key) => {
       expect(keys).not.toContain(key);
     });
   });
@@ -368,10 +368,12 @@ describe('ClueBudgetGame - a deck small enough to fit a phone', () => {
     expect(axios.get.mock.calls.some(([url]) => url.includes('with_companies='))).toBe(false);
   });
 
-  it('keeps the deck to twelve clues at most, which is four rows of three', async () => {
+  it('keeps the deck to fifteen clues at most, which is five rows of three', async () => {
+    // A typical round offers fewer: tagline is often absent and crew
+    // credits run 85-96% complete across the library.
     const wrapper = factory(tenMovies());
     await flushPromises();
 
-    expect(wrapper.vm.clueDeck.length).toBeLessThanOrEqual(12);
+    expect(wrapper.vm.clueDeck.length).toBeLessThanOrEqual(15);
   });
 });

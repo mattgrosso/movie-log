@@ -1311,3 +1311,15 @@ Four-across fitted but the chips were ~86px wide, which isn't a comfortable targ
 Removing the Studio clue also removed the only consumer of `fetchCompanyRarity`, so that TMDB request per round is gone with it (`priceFromCompanyRarity` is kept and still tested — it's a pure exported helper).
 
 **A regex nearly ate the wrong clues.** Deleting the blocks with a pattern that walked backwards from each `clues.push` silently swallowed the neighbouring `yourRating` and `composer` blocks too, because they sit directly adjacent. Caught by listing the surviving pushes rather than trusting the edit. Match the exact literal blocks instead.
+
+### Clue Budget: deck back up to 15, chips at 46px (Aug 2026)
+Follow-up: *"We have plenty of room. There are only 8 clues to buy now. We could easily fit 15. And I think you need to account for the fact that tagline isn't always present."*
+
+The previous cut to 12 was too deep, for two reasons worth recording:
+
+- **The 664px test viewport was a desktop window, not a phone.** Matt's device is 812pt tall, so the installed PWA has roughly 750px — about 90px more than I was budgeting against. Measuring in that window is right for catching gross overflow, but it is NOT the real ceiling.
+- **A round rarely offers the theoretical maximum.** Tagline is fetched live and often absent, and crew completeness across the 1,368-movie library measures: director 100%, writer 96%, cinematographer 94%, cast≥3 97%, keywords≥3 94%, composer 85%. So a "12 max" deck plays as ~10.
+
+**Restored**: Exact Year, Cinematographer (94% available, and a genuinely hard clue rather than filler), and a third cast member (97%). Max is now 15 = five rows of three, measured at 728px total — fits a real phone, does not fit the 664px test window. Chips are 115×46.
+
+**Still cut**, as the least identifying: Studio, Producer, Editor. `priceFromCompanyRarity` remains exported and tested even though nothing calls it.

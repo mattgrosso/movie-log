@@ -4,7 +4,9 @@ import {
   movieCastNames,
   movieDirectors,
   movieWriters,
+  movieYear,
   movieComposers,
+  movieCinematographers,
   movieProducers
 } from './gameUtils.js';
 
@@ -82,7 +84,7 @@ function maxPopularity (names, peoplePopularity) {
 // fingerprint is expensive. See CLAUDE.md for the full history, including
 // why CAST_COSTS specifically prices #1 (top-billed) highest, not lowest.
 const FALLBACK_KEYWORD_COSTS = [10, 15];
-const FALLBACK_CAST_COSTS = [30, 25];
+const FALLBACK_CAST_COSTS = [30, 25, 20];
 const CAST_LIMIT = FALLBACK_CAST_COSTS.length;
 const FALLBACK_COSTS = {
   producer: 8,
@@ -125,6 +127,9 @@ export function buildClueDeck (entry, extras = {}) {
   if (decade != null) clues.push({ key: 'decade', label: 'Decade', cost: 5, value: `${decade}s` });
 
   const runtime = entry?.movie?.runtime;
+  const year = movieYear(entry);
+  if (year != null) clues.push({ key: 'year', label: 'Exact Year', cost: 10, value: String(year) });
+
   if (runtime) clues.push({ key: 'runtime', label: 'Runtime', cost: 5, value: `~${runtime} min` });
 
   const genres = movieGenreNames(entry);
@@ -153,6 +158,12 @@ export function buildClueDeck (entry, extras = {}) {
   if (composers.length) {
     const popularity = maxPopularity(composers, peoplePopularity);
     clues.push({ key: 'composer', label: 'Composer', cost: popularity != null ? priceFromPersonPopularity(popularity) : FALLBACK_COSTS.composer, value: composers[0] });
+  }
+
+  const cinematographers = movieCinematographers(entry);
+  if (cinematographers.length) {
+    const popularity = maxPopularity(cinematographers, peoplePopularity);
+    clues.push({ key: 'cinematographer', label: 'Cinematographer', cost: popularity != null ? priceFromPersonPopularity(popularity) : FALLBACK_COSTS.cinematographer, value: cinematographers[0] });
   }
 
   if (tagline) clues.push({ key: 'tagline', label: 'Tagline', cost: FALLBACK_COSTS.tagline, value: tagline });

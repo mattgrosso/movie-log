@@ -461,10 +461,10 @@ export default {
   /* Three across, not two: there can be 15 clues, and at two-up the shop ran
      well off a phone screen (bug report). Four once there's room for it. */
   gap: 0.4rem;
-  /* Three across. Four fitted but the chips were too small to tap
-     comfortably (bug report), so the deck was cut from 20 possible clues to
-     12 instead — see clueBudget.js. Twelve at three-up is four rows, which
-     still fits a phone unscrolled. */
+  /* Three across. Four fitted but the chips were too small to tap (bug
+     report). The deck is capped at 15 rather than the original 20, which is
+     five rows here — and note the typical round offers fewer, since tagline
+     is often absent and crew credits are 85-96% complete. */
   grid-template-columns: repeat(3, 1fr);
 }
 
@@ -487,10 +487,11 @@ export default {
   justify-content: center;
   /* Fixed height so every chip matches regardless of whether its label
      wraps, which keeps the grid even. */
-  /* 40px keeps it at the usual minimum touch target while fitting four
-     rows (the worst case, 12 clues) on a phone without scrolling. */
-  min-height: 40px;
-  padding: 0.3rem 0.3rem;
+  /* Comfortably above the 40px minimum touch target. Five rows of these
+     (the worst case, 15 clues) fits a real phone — the earlier 664px test
+     viewport was a desktop window and about 90px pessimistic. */
+  min-height: 46px;
+  padding: 0.4rem 0.3rem;
   text-align: center;
   transition: transform 0.1s ease, border-color 0.1s ease;
 }
