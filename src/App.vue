@@ -52,6 +52,58 @@ export default {
         // Best-effort - a failed check just means we try again on the next
         // trigger rather than blocking anything the user is doing.
       }
+
+      await this.checkDeployedBundle();
+    },
+    /**
+     * Notices a new deploy by comparing bundle filenames, independent of any
+     * service worker state.
+     *
+     * Bug report: "I didn't get my refresh for new version banner." The
+     * banner is driven by registerServiceWorker's `updated()` hook, which
+     * only fires while a new worker sits in the `installed` state — but this
+     * app builds with `skipWaiting: true` (vue.config.js), so a new worker
+     * activates itself immediately instead of waiting. That makes the hook a
+     * race the banner often loses: you get the new version, you just don't
+     * get told. Comparing what the server serves against what this page
+     * actually loaded doesn't depend on that timing at all.
+     *
+     * The cache-busting param matters: Workbox precaches index.html, and
+     * only strips params matching `ignoreURLParametersMatching` (utm_,
+     * fbclid). An arbitrary param therefore misses the precache entry and
+     * goes to the network, which is the point.
+     */
+    async checkDeployedBundle () {
+      if (this.$store.state.updateAvailable) {
+        return;
+      }
+
+      const runningBundle = this.currentBundleName();
+      if (!runningBundle) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${process.env.BASE_URL || '/'}index.html?updateCheck=${Date.now()}`, { cache: 'no-store' });
+        if (!response.ok) {
+          return;
+        }
+        const deployedBundle = (await response.text()).match(/js\/app\.[a-z0-9]+\.js/);
+        if (deployedBundle && deployedBundle[0] !== runningBundle) {
+          this.$store.commit('setUpdateAvailable', true);
+        }
+      } catch {
+        // Offline, blocked, or the check simply failed - try again next time.
+      }
+    },
+    /** The app bundle THIS page is running, read off its own script tags. */
+    currentBundleName () {
+      const scripts = Array.from(document.querySelectorAll('script[src]'));
+      for (const script of scripts) {
+        const match = (script.getAttribute('src') || '').match(/js\/app\.[a-z0-9]+\.js/);
+        if (match) return match[0];
+      }
+      return null;
     },
     // Offline rating support: attempt a queue flush whenever we might have
     // just regained connectivity. Cheap/no-op if actually still offline

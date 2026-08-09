@@ -184,3 +184,107 @@ describe('App - renders UpdateAvailableBanner globally', () => {
     vi.restoreAllMocks()
   })
 })
+
+describe('App - noticing a new deploy without the service worker', () => {
+  // The banner is driven by registerServiceWorker's updated() hook, which
+  // only fires while a new worker is in the `installed` state — but this app
+  // builds with skipWaiting: true, so a worker activates itself immediately.
+  // The hook is therefore a race the banner often loses (bug report: "I
+  // didn't get my refresh for new version banner"). Comparing bundle names
+  // doesn't depend on worker timing.
+  const mountWithBundle = (bundleSrc, commit) => {
+    document.body.innerHTML = '';
+    if (bundleSrc) {
+      const script = document.createElement('script');
+      script.setAttribute('src', bundleSrc);
+      document.body.appendChild(script);
+    }
+    vi.spyOn(document, 'addEventListener').mockImplementation(() => {});
+    vi.spyOn(window, 'addEventListener').mockImplementation(() => {});
+    return shallowMount(App, {
+      global: {
+        mocks: {
+          $store: { state: { updateAvailable: false }, commit, dispatch: vi.fn(), getters: {} },
+          $route: { path: '/' },
+          $router: { push: vi.fn() }
+        }
+      }
+    });
+  };
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    delete global.fetch;
+    vi.restoreAllMocks();
+  });
+
+  it('flags an update when the server serves a different bundle', async () => {
+    const commit = vi.fn();
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      text: () => Promise.resolve('<script src="/js/app.9f2c1a7b.js"></script>')
+    }));
+
+    const wrapper = mountWithBundle('/js/app.oldhash.js', commit);
+    await wrapper.vm.checkDeployedBundle();
+
+    expect(commit).toHaveBeenCalledWith('setUpdateAvailable', true);
+  });
+
+  it('stays quiet when the bundle is unchanged', async () => {
+    const commit = vi.fn();
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      text: () => Promise.resolve('<script src="/js/app.samehash.js"></script>')
+    }));
+
+    const wrapper = mountWithBundle('/js/app.samehash.js', commit);
+    await wrapper.vm.checkDeployedBundle();
+
+    expect(commit).not.toHaveBeenCalledWith('setUpdateAvailable', true);
+  });
+
+  it('busts the cache so the service worker cannot serve its precached copy', async () => {
+    const commit = vi.fn();
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true, text: () => Promise.resolve('') }));
+
+    const wrapper = mountWithBundle('/js/app.oldhash.js', commit);
+    await wrapper.vm.checkDeployedBundle();
+
+    expect(global.fetch.mock.calls[0][0]).toMatch(/updateCheck=\d+/);
+    expect(global.fetch.mock.calls[0][1]).toMatchObject({ cache: 'no-store' });
+  });
+
+  it('does not re-check once an update is already flagged', async () => {
+    const commit = vi.fn();
+    global.fetch = vi.fn();
+    document.body.innerHTML = '';
+    const script = document.createElement('script');
+    script.setAttribute('src', '/js/app.oldhash.js');
+    document.body.appendChild(script);
+
+    vi.spyOn(document, 'addEventListener').mockImplementation(() => {});
+    vi.spyOn(window, 'addEventListener').mockImplementation(() => {});
+    const wrapper = shallowMount(App, {
+      global: {
+        mocks: {
+          $store: { state: { updateAvailable: true }, commit, dispatch: vi.fn(), getters: {} },
+          $route: { path: '/' },
+          $router: { push: vi.fn() }
+        }
+      }
+    });
+    await wrapper.vm.checkDeployedBundle();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('survives the check failing, e.g. offline', async () => {
+    const commit = vi.fn();
+    global.fetch = vi.fn(() => Promise.reject(new Error('offline')));
+
+    const wrapper = mountWithBundle('/js/app.oldhash.js', commit);
+    await expect(wrapper.vm.checkDeployedBundle()).resolves.toBeUndefined();
+    expect(commit).not.toHaveBeenCalledWith('setUpdateAvailable', true);
+  });
+});

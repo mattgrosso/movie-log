@@ -1285,3 +1285,16 @@ There are **19 clue chips**, which is more than the report implies and more than
 **It fits exactly at a 664px viewport** — a real phone PWA has more room. Note it only holds at the *start* of a round: `.purchased-clues` grows as you buy, which is inherent to accumulating information rather than a layout bug.
 
 **Watch out when editing this file's CSS with a regex** — `.game-subtitle` uses separate `margin-top`/`margin-bottom`, so a substitution targeting `margin:` matches nothing and silently reports success.
+
+### The update banner was racing the service worker (Aug 2026)
+Report: *"I didn't get my refresh for new version banner. Did we lose that?"* Nothing was lost — it was losing a race it can't reliably win.
+
+**`vue.config.js` sets `skipWaiting: true` (and `clientsClaim: true`), which is fundamentally at odds with a "click Refresh to update" prompt.** The banner is driven by `registerServiceWorker`'s `updated()` hook, which only fires while a new worker sits in the `installed` state — but `skipWaiting` means the worker activates itself immediately instead of waiting for the user. So the hook fires or doesn't depending on timing: you get the new version either way, you just aren't reliably told.
+
+**Fix (deliberately the conservative one):** `App.checkDeployedBundle()` compares the `app.<hash>.js` filename the server is serving against the one THIS page actually loaded, and flags an update on a mismatch. It doesn't depend on worker state at all. It piggybacks on `checkForServiceWorkerUpdate`'s existing four triggers (`visibilitychange`/`pageshow`/`focus`/30-min interval) rather than adding its own cadence, and no-ops once the flag is already set.
+
+**The cache-busting param is load-bearing.** Workbox precaches `index.html` and only strips params matching `ignoreURLParametersMatching` (`utm_`, `fbclid`), so an arbitrary `?updateCheck=<ts>` misses the precache entry and reaches the network — which is the entire point of the check.
+
+**NOT done, and the better fix if this is ever revisited:** set `skipWaiting: false` so the worker genuinely waits, making the banner reliable by construction. That requires rewriting the Refresh button too — with a waiting worker, a plain `location.reload()` updates nothing, since it only activates once every tab closes; it would need to post `SKIP_WAITING` and reload on `controllerchange`. Left alone deliberately: getting it wrong strands users on a stale build, and it wants testing on a real device.
+
+Test note: `App.test.js` uses `shallowMount` and stubs `addEventListener`, because App is the root component and never removes its listeners — real mounts leak handlers across tests in that file. Also, bundle-hash fixtures must be **lowercase hex**; the matcher is `[a-z0-9]+` and an uppercase fixture silently fails to match.
