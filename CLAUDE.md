@@ -1282,6 +1282,8 @@ There are **19 clue chips**, which is more than the report implies and more than
 - **Subtitle 76px → 24px**: it wrapped to three lines, then still carried 1.75rem of combined margin on a single line. The budget row directly below already shows the amount, so the sentence doesn't repeat it.
 - **Give-up moved out of the shop grid** into an understated link (matching Reel Wordle's and Poster Zoom's) — it isn't a purchase, it ends the round, and it was occupying a chip slot.
 
+**Superseded the same day** — see below; four-across made the chips too small to tap, so the deck was cut instead.
+
 **It fits exactly at a 664px viewport** — a real phone PWA has more room. Note it only holds at the *start* of a round: `.purchased-clues` grows as you buy, which is inherent to accumulating information rather than a layout bug.
 
 **Watch out when editing this file's CSS with a regex** — `.game-subtitle` uses separate `margin-top`/`margin-bottom`, so a substitution targeting `margin:` matches nothing and silently reports success.
@@ -1298,3 +1300,14 @@ Report: *"I didn't get my refresh for new version banner. Did we lose that?"* No
 **NOT done, and the better fix if this is ever revisited:** set `skipWaiting: false` so the worker genuinely waits, making the banner reliable by construction. That requires rewriting the Refresh button too — with a waiting worker, a plain `location.reload()` updates nothing, since it only activates once every tab closes; it would need to post `SKIP_WAITING` and reload on `controllerchange`. Left alone deliberately: getting it wrong strands users on a stale build, and it wants testing on a real device.
 
 Test note: `App.test.js` uses `shallowMount` and stubs `addEventListener`, because App is the root component and never removes its listeners — real mounts leak handlers across tests in that file. Also, bundle-hash fixtures must be **lowercase hex**; the matcher is `[a-z0-9]+` and an uppercase fixture silently fails to match.
+
+### Clue Budget: back to three across, with a shorter deck (Aug 2026)
+Follow-up report: *"the buttons are too small now. Let's go with three buttons per row. If that's going to make the layout too tall we could lose some of the lesser categories."*
+
+Four-across fitted but the chips were ~86px wide, which isn't a comfortable target. Three across only fits if the deck is shorter, so **the deck was cut from 20 possible clues to 12** rather than shrinking the buttons further.
+
+**Cut** (the least likely to identify a film): Exact Year (Decade already covers the era, cheaper), Studio, Producer, Editor, Cinematographer, plus cast 4 → 2 and keywords 3 → 2. **Kept**: Decade, Runtime, Genres, Your Rating, Keyword ×2, Composer, Tagline, Writer, Director, Cast ×2. Twelve is four rows of three, the worst case, which still fits unscrolled. Chips are now 115×42 — 40px `min-height` is the usual minimum touch target.
+
+Removing the Studio clue also removed the only consumer of `fetchCompanyRarity`, so that TMDB request per round is gone with it (`priceFromCompanyRarity` is kept and still tested — it's a pure exported helper).
+
+**A regex nearly ate the wrong clues.** Deleting the blocks with a pattern that walked backwards from each `clues.push` silently swallowed the neighbouring `yourRating` and `composer` blocks too, because they sit directly adjacent. Caught by listing the surviving pushes rather than trusting the edit. Match the exact literal blocks instead.

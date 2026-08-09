@@ -1,13 +1,10 @@
 import {
-  movieYear,
   movieDecade,
   movieGenreNames,
   movieCastNames,
   movieDirectors,
   movieWriters,
   movieComposers,
-  movieCinematographers,
-  movieEditors,
   movieProducers
 } from './gameUtils.js';
 
@@ -84,8 +81,8 @@ function maxPopularity (names, peoplePopularity) {
 // weak/broad category info is cheap, anything close to a direct
 // fingerprint is expensive. See CLAUDE.md for the full history, including
 // why CAST_COSTS specifically prices #1 (top-billed) highest, not lowest.
-const FALLBACK_KEYWORD_COSTS = [10, 15, 20];
-const FALLBACK_CAST_COSTS = [30, 25, 20, 15];
+const FALLBACK_KEYWORD_COSTS = [10, 15];
+const FALLBACK_CAST_COSTS = [30, 25];
 const CAST_LIMIT = FALLBACK_CAST_COSTS.length;
 const FALLBACK_COSTS = {
   producer: 8,
@@ -121,7 +118,7 @@ const FALLBACK_COSTS = {
 // place — the component re-merges rather than replacing already-purchased
 // clues, so a price update never retroactively changes what was paid.
 export function buildClueDeck (entry, extras = {}) {
-  const { tagline, peoplePopularity = {}, keywordMovieCounts = {}, companyMovieCount, yourRating } = extras;
+  const { tagline, peoplePopularity = {}, keywordMovieCounts = {}, yourRating } = extras;
   const clues = [];
 
   const decade = movieDecade(entry);
@@ -145,26 +142,6 @@ export function buildClueDeck (entry, extras = {}) {
     clues.push({ key: 'yourRating', label: 'Your Rating', cost: FALLBACK_COSTS.yourRating, value: yourRating.toFixed(2) });
   }
 
-  const producers = movieProducers(entry);
-  if (producers.length) {
-    const popularity = maxPopularity(producers, peoplePopularity);
-    clues.push({ key: 'producer', label: 'Producer', cost: popularity != null ? priceFromPersonPopularity(popularity) : FALLBACK_COSTS.producer, value: producers[0] });
-  }
-
-  const year = movieYear(entry);
-  if (year != null) clues.push({ key: 'year', label: 'Exact Year', cost: 10, value: String(year) });
-
-  const companies = (entry?.movie?.production_companies || []).map((c) => c.name).filter(Boolean);
-  if (companies.length) {
-    clues.push({ key: 'company', label: 'Studio', cost: companyMovieCount != null ? priceFromCompanyRarity(companyMovieCount) : FALLBACK_COSTS.company, value: companies[0] });
-  }
-
-  const editors = movieEditors(entry);
-  if (editors.length) {
-    const popularity = maxPopularity(editors, peoplePopularity);
-    clues.push({ key: 'editor', label: 'Editor', cost: popularity != null ? priceFromPersonPopularity(popularity) : FALLBACK_COSTS.editor, value: editors[0] });
-  }
-
   const keywords = (entry?.movie?.flatKeywords || []).filter(Boolean);
   keywords.slice(0, FALLBACK_KEYWORD_COSTS.length).forEach((keyword, index) => {
     const movieCount = keywordMovieCounts[keyword];
@@ -176,12 +153,6 @@ export function buildClueDeck (entry, extras = {}) {
   if (composers.length) {
     const popularity = maxPopularity(composers, peoplePopularity);
     clues.push({ key: 'composer', label: 'Composer', cost: popularity != null ? priceFromPersonPopularity(popularity) : FALLBACK_COSTS.composer, value: composers[0] });
-  }
-
-  const cinematographers = movieCinematographers(entry);
-  if (cinematographers.length) {
-    const popularity = maxPopularity(cinematographers, peoplePopularity);
-    clues.push({ key: 'cinematographer', label: 'Cinematographer', cost: popularity != null ? priceFromPersonPopularity(popularity) : FALLBACK_COSTS.cinematographer, value: cinematographers[0] });
   }
 
   if (tagline) clues.push({ key: 'tagline', label: 'Tagline', cost: FALLBACK_COSTS.tagline, value: tagline });

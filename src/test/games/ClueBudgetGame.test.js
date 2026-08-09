@@ -135,19 +135,6 @@ describe('ClueBudgetGame', () => {
     expect(wrapper.vm.clueDeck.find((c) => c.key === 'keyword-0').cost).toBe(10); // fallback
   });
 
-  it('fetches production-company rarity and prices that clue from it', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('with_companies=999')) return Promise.resolve({ data: { total_results: 6000 } }); // prolific
-      return defaultAxiosImpl(url);
-    });
-    const wrapper = factory(tenMovies());
-    await flushPromises();
-
-    expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('with_companies=999'));
-    const companyClue = wrapper.vm.clueDeck.find((c) => c.key === 'company');
-    expect(companyClue.cost).not.toBe(10); // not the fallback — a prolific studio prices low
-    expect(companyClue.cost).toBeLessThan(10);
-  });
 
   it('a clue bought BEFORE live data resolves keeps its fallback price even after the deck later updates', async () => {
     // Never resolves during this test — buyClue happens while everything
@@ -338,7 +325,6 @@ describe('ClueBudgetGame', () => {
     expect(wrapper.vm.liveExtras.tagline).toBe('A test tagline.');
     expect(wrapper.vm.liveExtras.peoplePopularity).toEqual({ 'Cast One': 40, 'Cast Two': 5, 'Some Director': 20 });
     expect(wrapper.vm.liveExtras.keywordMovieCounts).toEqual({ heist: 500 });
-    expect(wrapper.vm.liveExtras.companyMovieCount).toBe(500);
   });
 
   describe('custom header banner (a graphic made for this game, same pattern as the other 5)', () => {
@@ -358,5 +344,34 @@ describe('ClueBudgetGame', () => {
       expect(calls[calls.length - 1][1]).toBe('https://example.com/some-movie-backdrop.jpg');
       expect(store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
     });
+  });
+});
+
+describe('ClueBudgetGame - a deck small enough to fit a phone', () => {
+  // Bug report: at four across the chips were too small to tap, but three
+  // across only fits if the deck is short enough. Rather than shrink the
+  // buttons, the least-identifying clues were cut.
+  it('no longer offers the clues that were dropped', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    const keys = wrapper.vm.clueDeck.map((c) => c.key);
+    ['year', 'company', 'editor', 'producer', 'cinematographer'].forEach((key) => {
+      expect(keys).not.toContain(key);
+    });
+  });
+
+  it('stops requesting company rarity, since nothing prices off it now', async () => {
+    factory(tenMovies());
+    await flushPromises();
+
+    expect(axios.get.mock.calls.some(([url]) => url.includes('with_companies='))).toBe(false);
+  });
+
+  it('keeps the deck to twelve clues at most, which is four rows of three', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    expect(wrapper.vm.clueDeck.length).toBeLessThanOrEqual(12);
   });
 });

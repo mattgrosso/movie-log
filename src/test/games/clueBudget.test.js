@@ -49,14 +49,15 @@ describe('buildClueDeck', () => {
     expect(byKey.decade).toEqual({ key: 'decade', label: 'Decade', cost: 5, value: '1990s' });
     expect(byKey.runtime).toEqual({ key: 'runtime', label: 'Runtime', cost: 5, value: '~142 min' });
     expect(byKey.genres.value).toBe('Drama, Thriller');
-    expect(byKey.year.value).toBe('1994');
-    expect(byKey.company.value).toBe('A24');
     expect(byKey.director.value).toBe('Some Director');
     expect(byKey.writer.value).toBe('Some Writer');
     expect(byKey.composer.value).toBe('Some Composer');
-    expect(byKey.cinematographer.value).toBe('Some DP');
-    expect(byKey.editor.value).toBe('Some Editor');
-    expect(byKey.producer.value).toBe('Some Producer');
+
+    // Deliberately gone, to fit three-across on a phone: these were the
+    // least likely to identify a film. See clueBudget.js.
+    ['year', 'company', 'editor', 'producer', 'cinematographer'].forEach((key) => {
+      expect(byKey[key]).toBeUndefined();
+    });
 
     // Broad/weak clues cost less than direct-fingerprint ones.
     expect(byKey.decade.cost).toBeLessThan(byKey.director.cost);
@@ -66,7 +67,6 @@ describe('buildClueDeck', () => {
   it('omits a clue entirely when the movie has no data for it, rather than showing an empty one', () => {
     const deck = buildClueDeck(entry({ movie: { production_companies: [], flatKeywords: [], crew: [] } }));
     const keys = deck.map((c) => c.key);
-    expect(keys).not.toContain('company');
     expect(keys).not.toContain('director');
     expect(keys).not.toContain('writer');
     expect(keys.some((k) => k.startsWith('keyword-'))).toBe(false);
@@ -79,28 +79,28 @@ describe('buildClueDeck', () => {
     // EXPENSIVE — billing order tracks real-world recognizability, so the
     // top-billed actor is normally the single most identifying piece of
     // cast info on its own, unlike keywords (no such intrinsic ranking).
-    expect(castClues.map((c) => c.value)).toEqual(['Cast One', 'Cast Two', 'Cast Three', 'Cast Four']);
+    expect(castClues.map((c) => c.value)).toEqual(['Cast One', 'Cast Two']);
     for (let i = 1; i < castClues.length; i++) {
       expect(castClues[i].cost).toBeLessThan(castClues[i - 1].cost);
     }
   });
 
-  it('caps cast reveals at 4 even with a larger cast', () => {
+  it('caps cast reveals at 2 even with a larger cast', () => {
     const bigCast = Array.from({ length: 10 }, (_, i) => ({ name: `Actor ${i}` }));
     const deck = buildClueDeck(entry({ movie: { cast: bigCast } }));
-    expect(deck.filter((c) => c.key.startsWith('cast-'))).toHaveLength(4);
+    expect(deck.filter((c) => c.key.startsWith('cast-'))).toHaveLength(2);
   });
 
-  it('reveals keywords one at a time, each costing more than the last, capped at 3', () => {
+  it('reveals keywords one at a time, each costing more than the last, capped at 2', () => {
     const deck = buildClueDeck(entry());
     const keywordClues = deck.filter((c) => c.key.startsWith('keyword-'));
-    expect(keywordClues.map((c) => c.value)).toEqual(['heist', 'ensemble cast', 'nonlinear timeline']);
+    expect(keywordClues.map((c) => c.value)).toEqual(['heist', 'ensemble cast']);
     for (let i = 1; i < keywordClues.length; i++) {
       expect(keywordClues[i].cost).toBeGreaterThan(keywordClues[i - 1].cost);
     }
 
     const manyKeywords = buildClueDeck(entry({ movie: { flatKeywords: ['a', 'b', 'c', 'd', 'e'] } }));
-    expect(manyKeywords.filter((c) => c.key.startsWith('keyword-'))).toHaveLength(3);
+    expect(manyKeywords.filter((c) => c.key.startsWith('keyword-'))).toHaveLength(2);
   });
 
   it('does not include a tagline clue unless one is explicitly provided (it is fetched live, not stored)', () => {
@@ -183,11 +183,6 @@ describe('buildClueDeck', () => {
       expect(otherKeywordClue.cost).toBe(15); // fallback for slot index 1
     });
 
-    it('prices production company inversely to how many movies it has made', () => {
-      const boutique = buildClueDeck(entry(), { companyMovieCount: 5 });
-      const major = buildClueDeck(entry(), { companyMovieCount: 6000 });
-      expect(boutique.find((c) => c.key === 'company').cost).toBeGreaterThan(major.find((c) => c.key === 'company').cost);
-    });
 
     it('prices a multi-name group clue (writers) by the MOST popular name in the group', () => {
       const deck = buildClueDeck(

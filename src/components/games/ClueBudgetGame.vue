@@ -250,7 +250,6 @@ export default {
     fetchLiveData (roundTarget) {
       this.fetchTaglineAndPopularity(roundTarget);
       this.fetchKeywordRarity(roundTarget);
-      this.fetchCompanyRarity(roundTarget);
     },
     // Tagline + every cast/crew member's real TMDB popularity, in one
     // request (append_to_response=credits) — the same movie-details call
@@ -315,18 +314,6 @@ export default {
       });
       if (Object.keys(keywordMovieCounts).length) this.mergeLiveExtras({ keywordMovieCounts });
     },
-    // How many movies the primary production company has made.
-    async fetchCompanyRarity (roundTarget) {
-      const companyId = roundTarget?.movie?.production_companies?.[0]?.id;
-      if (companyId == null) return;
-      try {
-        const response = await axios.get(`https://api.themoviedb.org/3/discover/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&with_companies=${companyId}`);
-        if (entryKey(roundTarget) !== entryKey(this.target)) return;
-        if (typeof response?.data?.total_results === 'number') this.mergeLiveExtras({ companyMovieCount: response.data.total_results });
-      } catch {
-        // Best-effort — Production Company just keeps its fallback price.
-      }
-    }
   }
 };
 </script>
@@ -473,15 +460,17 @@ export default {
   display: grid;
   /* Three across, not two: there can be 15 clues, and at two-up the shop ran
      well off a phone screen (bug report). Four once there's room for it. */
-  gap: 0.3rem;
-  /* Four across: there are ~19 clues, and even at three-up the shop ran off
-     a phone screen. Measured — this is what makes the game fit unscrolled. */
-  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+  /* Three across. Four fitted but the chips were too small to tap
+     comfortably (bug report), so the deck was cut from 20 possible clues to
+     12 instead — see clueBudget.js. Twelve at three-up is four rows, which
+     still fits a phone unscrolled. */
+  grid-template-columns: repeat(3, 1fr);
 }
 
 @media (min-width: 600px) {
   .clue-shop {
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -494,12 +483,14 @@ export default {
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 0.05rem;
+  gap: 0.1rem;
   justify-content: center;
   /* Fixed height so every chip matches regardless of whether its label
      wraps, which keeps the grid even. */
-  min-height: 34px;
-  padding: 0.25rem 0.15rem;
+  /* 40px keeps it at the usual minimum touch target while fitting four
+     rows (the worst case, 12 clues) on a phone without scrolling. */
+  min-height: 40px;
+  padding: 0.3rem 0.3rem;
   text-align: center;
   transition: transform 0.1s ease, border-color 0.1s ease;
 }
@@ -517,9 +508,9 @@ export default {
 }
 
 .clue-chip-label {
-  font-size: 0.6rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.15;
   /* Wraps to two lines rather than ellipsing: the full word is more use
      than a truncated one, and min-height above absorbs the extra line.
      Longer labels still clamp instead of growing without bound. */
@@ -532,9 +523,9 @@ export default {
 
 .clue-chip-cost {
   color: #4caf50;
-  font-size: 0.7rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
 .give-up-clue {
