@@ -396,10 +396,55 @@ describe('PosterZoomGame', () => {
       expect(wrapper.find('.zoom-loading').exists()).toBe(false);
     });
 
-    it('reveals a poster that fails to load rather than hiding it forever', async () => {
+    it('deals a different movie when the poster URL is dead', async () => {
+      // Bug report: a broken URL rendered as a black square you were then
+      // asked to identify.
       const { wrapper } = factory(tenMovies());
-      wrapper.vm.originSettled = true;
+      const broken = targetOf(wrapper).dbKey;
+
       await wrapper.find('.zoom-image').trigger('error');
+
+      expect(wrapper.vm.failedPosterKeys).toContain(broken);
+      expect(targetOf(wrapper).dbKey).not.toBe(broken);
+      expect(wrapper.vm.zoomIndex).toBe(0);
+    });
+
+    it('never deals a known-broken poster again this session', async () => {
+      const { wrapper } = factory(tenMovies());
+      const broken = targetOf(wrapper).dbKey;
+      await wrapper.find('.zoom-image').trigger('error');
+
+      expect(wrapper.vm.zoomablePool.map((e) => e.dbKey)).not.toContain(broken);
+      for (let i = 0; i < 20; i++) {
+        wrapper.vm.startNewRound();
+        expect(targetOf(wrapper).dbKey).not.toBe(broken);
+      }
+    });
+
+    it('falls back to the gate rather than looping as posters run out', async () => {
+      // Each failure removes exactly one entry from a finite pool, so this
+      // terminates. Six movies, two broken, leaves four — below the gate.
+      const { wrapper } = factory([entry(1), entry(2), entry(3), entry(4), entry(5), entry(6)]);
+
+      for (let i = 0; i < 6; i++) {
+        const img = wrapper.find('.zoom-image');
+        if (!img.exists()) break;
+        await img.trigger('error');
+      }
+
+      expect(wrapper.vm.zoomablePool.length).toBeLessThan(5);
+      expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
+      expect(wrapper.find('.zoom-image').exists()).toBe(false);
+    });
+
+    it('does not hang on "Focusing…" if there is genuinely nothing left to deal', () => {
+      // Defensive branch: the gate normally takes over first, but if the pool
+      // is ever empty at the moment of failure the round must still resolve.
+      const { wrapper } = factory(tenMovies());
+      wrapper.vm.failedPosterKeys = wrapper.vm.zoomablePool.map((e) => e.dbKey);
+
+      wrapper.vm.onPosterError();
+
       expect(wrapper.vm.imageLoaded).toBe(true);
     });
 
@@ -423,6 +468,45 @@ describe('PosterZoomGame', () => {
       const { wrapper: resumed } = factory(movies);
       expect(resumed.vm.originSettled).toBe(true);
       expect(resumed.vm.imageLoaded).toBe(false);
+    });
+  });
+
+  describe('surviving a rotation', () => {
+    it('re-measures repeatedly after an orientation change, not just once', () => {
+      // A rotation settles over a few hundred ms — the viewport, the header
+      // banner's height and the browser chrome all move. One measurement at
+      // the event fires mid-flight and sticks (bug report: rotating and back
+      // left the poster shrunk).
+      vi.useFakeTimers();
+      try {
+        const { wrapper } = factory(tenMovies());
+        const spy = vi.spyOn(wrapper.vm, 'measureAvailableHeight');
+
+        wrapper.vm.remeasureAfterSettling();
+        expect(spy).toHaveBeenCalledTimes(1);
+
+        vi.advanceTimersByTime(1000);
+        expect(spy.mock.calls.length).toBeGreaterThan(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('clears its pending re-measures on unmount', () => {
+      vi.useFakeTimers();
+      try {
+        const { wrapper } = factory(tenMovies());
+        wrapper.vm.remeasureAfterSettling();
+        expect(wrapper.vm.settleTimers.length).toBeGreaterThan(0);
+
+        const spy = vi.spyOn(wrapper.vm, 'measureAvailableHeight');
+        wrapper.unmount();
+        vi.advanceTimersByTime(1000);
+
+        expect(spy).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

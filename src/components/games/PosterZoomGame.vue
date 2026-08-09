@@ -46,7 +46,7 @@
             :style="zoomStyle"
             crossorigin="anonymous"
             @load="onPosterLoad"
-            @error="onPosterLoad"
+            @error="onPosterError"
           >
           <span v-if="!posterReady" class="zoom-loading">Focusing&hellip;</span>
           <!-- After a win, marks out exactly how much of the poster you were
@@ -142,17 +142,28 @@ export default {
   mounted () {
     this.$nextTick(this.measureAvailableHeight);
     window.addEventListener('resize', this.measureAvailableHeight);
-    // The header banner loads asynchronously and changes this screen's top
-    // offset when it does, so a single measurement at mount is too early.
-    // Observing the body catches that, plus orientation changes and the
-    // mobile browser chrome collapsing on scroll.
+    // Rotating and rotating back left the poster shrunk (bug report). The
+    // viewport is mid-flight during a rotation, so whatever is measured then
+    // is wrong — and once it settles, nothing necessarily fires again:
+    // capping the poster smaller doesn't change the body's size, so a
+    // body-only observer goes quiet on a stale value. Re-measuring after the
+    // rotation settles is what actually corrects it.
+    window.addEventListener('orientationchange', this.remeasureAfterSettling);
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(this.measureAvailableHeight);
+      // The header banner loads asynchronously and shifts this screen's top
+      // offset when it does, so a single measurement at mount is too early.
       this.resizeObserver.observe(document.body);
+      // And the stage itself, so a stale stageHeight self-corrects: the
+      // stage grows back to fill leftover space, and that is a size change
+      // the body-level observer would never see.
+      if (this.$refs.stage) this.resizeObserver.observe(this.$refs.stage);
     }
   },
   beforeUnmount () {
     window.removeEventListener('resize', this.measureAvailableHeight);
+    window.removeEventListener('orientationchange', this.remeasureAfterSettling);
+    this.settleTimers.forEach(clearTimeout);
     this.resizeObserver?.disconnect();
     this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
     this.$store.commit?.('setHideHeaderLogo', false);
@@ -167,6 +178,10 @@ export default {
       // you see more of the poster than the round is supposed to show.
       imageLoaded: false,
       originSettled: false,
+      // Movies whose poster URL is dead. TMDB paths do rot, and a broken one
+      // rendered as a black square you were asked to identify (bug report).
+      failedPosterKeys: [],
+      settleTimers: [],
       target: null,
       zoomIndex: 0,
       origin: { x: 50, y: 50 },
@@ -203,7 +218,9 @@ export default {
     // poster. Kept separate from eligibleGameEntries because the guess
     // typeahead can still legitimately offer anything in the library.
     zoomablePool () {
-      return entriesWithPosters(this.eligibleGameEntries);
+      const usable = entriesWithPosters(this.eligibleGameEntries);
+      if (!this.failedPosterKeys.length) return usable;
+      return usable.filter((entry) => !this.failedPosterKeys.includes(entryKey(entry)));
     },
     bestZoomOuts () {
       return this.$store.state.settings?.games?.posterZoomBestZoomOuts ?? null;
@@ -276,8 +293,24 @@ export default {
   methods: {
     entryKeyFor: entryKey,
     onPosterLoad () {
-      // Also bound to @error: a poster that fails to load should leave the
-      // round playable rather than an invisible box forever.
+      this.imageLoaded = true;
+    },
+    // A dead poster URL used to render as a black square that you were then
+    // asked to identify. Drop that movie from the pool for this session and
+    // deal a different one. The pool is finite and each failure removes
+    // exactly one entry, so this can't loop — if everything fails, the
+    // not-enough-movies gate takes over, which is the honest outcome.
+    onPosterError () {
+      const key = this.target ? entryKey(this.target) : null;
+      if (key && !this.failedPosterKeys.includes(key)) {
+        this.failedPosterKeys = [...this.failedPosterKeys, key];
+      }
+      if (this.zoomablePool.length) {
+        this.startNewRound();
+        return;
+      }
+      // Nothing left to deal — reveal what we have rather than hanging on
+      // "Focusing…" forever.
       this.imageLoaded = true;
     },
     /**
@@ -355,6 +388,15 @@ export default {
         const mean = sum / count;
         return Math.sqrt(Math.max(0, sumSquares / count - mean * mean));
       };
+    },
+    // A rotation doesn't land in one frame: the viewport, the header banner's
+    // height and the browser chrome all settle over a few hundred ms. One
+    // measurement at the event is measured mid-flight, so take several.
+    remeasureAfterSettling () {
+      this.measureAvailableHeight();
+      [50, 150, 400, 800].forEach((delay) => {
+        this.settleTimers.push(setTimeout(this.measureAvailableHeight, delay));
+      });
     },
     measureAvailableHeight () {
       const el = this.$refs.root;
