@@ -2,7 +2,8 @@
   <div class="rating-curve-settings">
     <h6 class="curve-title">Rating Curve</h6>
     <p class="curve-explainer">
-      Anchor the scale with your own movies. Everything else stretches to fit.
+      Anchor the scale with your own movies: your last true 10, and your
+      dead-average 5. Everything else stretches to fit.
     </p>
 
     <div class="anchor-slots">
@@ -39,8 +40,12 @@
         v-model="pickerQuery"
         type="search"
         class="form-control picker-search"
-        :placeholder="picking === 'ten' ? 'Search for your last true 10…' : 'Search for your lowest 5…'"
+        :placeholder="picking === 'ten' ? 'Search for your last true 10…' : 'Search, or pick from your middle…'"
       >
+      <p v-if="picking === 'five' && !pickerQuery.trim()" class="picker-hint">
+        The middle of your library — pick the one that feels dead average.
+        Half of everything you've rated will land above it, half below.
+      </p>
       <div class="picker-results">
         <div
           v-for="candidate in pickerCandidates"
@@ -83,6 +88,7 @@
 // so re-rating an anchor movie updates the curve automatically. The legacy
 // numeric offset remains as the fallback control when no anchor is chosen.
 import { getRating } from '../assets/javascript/GetRating.js';
+import { medianBand } from '../assets/javascript/normalizationPicker.js';
 
 export default {
   name: 'RatingCurveSettings',
@@ -93,7 +99,7 @@ export default {
       manualTweak: this.$store.state.settings?.normalizationTweak ?? 0.25,
       slots: [
         { key: 'ten', label: 'This is a 10' },
-        { key: 'five', label: 'My lowest 5' }
+        { key: 'five', label: 'This is a 5' }
       ]
     };
   },
@@ -121,6 +127,15 @@ export default {
       if (this.picking === 'five' && Number.isFinite(this.tenAnchorTotal)) {
         pool = pool.filter((entry) => entry.curveTotal < this.tenAnchorTotal);
       }
+
+      // No query on the five-picker: open on the library's middle band —
+      // the rank-median and its neighbors — because nobody can NAME their
+      // exact middle movie, but anyone can recognize dead-average in a
+      // lineup of candidates (feedback).
+      if (!query && this.picking === 'five') {
+        return medianBand(pool.map((entry) => ({ ...entry, total: entry.curveTotal })));
+      }
+
       if (query) {
         pool = pool.filter((entry) => (entry.movie.title || '').toLowerCase().includes(query));
       }
@@ -323,6 +338,12 @@ export default {
   line-height: 1.25;
   margin-top: 0.3rem;
   text-align: center;
+}
+
+.picker-hint {
+  color: #ccc;
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .picker-empty {

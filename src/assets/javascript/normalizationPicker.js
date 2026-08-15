@@ -87,3 +87,20 @@ export function applyNormalization (base, { tweak = 0.25, tenBase = null, fiveBa
 
   return Math.max(0, Math.min(10, Math.round(value)));
 }
+
+// The middle band of a library: the rank-median entry and its neighbors.
+// Feedback: "it's gonna be kinda hard for someone to determine what the
+// exact middle movie is" — so the five-anchor picker opens on this band and
+// the user fine-tunes by feel inside it instead of hunting. Entries come in
+// with a numeric `total`; returned best-first, centered on the median rank.
+export function medianBand (entriesWithTotals, bandSize = 21) {
+  const sorted = [...(entriesWithTotals || [])]
+    .filter((item) => Number.isFinite(item.total))
+    .sort((a, b) => b.total - a.total);
+  if (!sorted.length) return [];
+
+  const middle = Math.floor((sorted.length - 1) / 2);
+  const half = Math.floor(bandSize / 2);
+  const start = Math.max(0, Math.min(middle - half, sorted.length - bandSize));
+  return sorted.slice(start, start + bandSize);
+}

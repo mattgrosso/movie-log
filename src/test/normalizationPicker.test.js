@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { baseNormalized, offsetForLastMovieAt, normalizationCandidates, applyNormalization } from '@/assets/javascript/normalizationPicker.js';
+import { baseNormalized, offsetForLastMovieAt, normalizationCandidates, applyNormalization, medianBand } from '@/assets/javascript/normalizationPicker.js';
 
 // Mirrors GetRating.js's display step: round(base + offset), clamped 0-10.
 function displayedGrade (calculatedTotal, minRating, maxRating, offset) {
@@ -115,3 +115,27 @@ describe('applyNormalization', () => {
   });
 });
 
+// The five-anchor picker opens on this: the rank-median and its neighbors,
+// because recognizing dead-average in a lineup beats naming it cold.
+describe('medianBand', () => {
+  const items = (n) => Array.from({ length: n }, (_, i) => ({ id: i, total: n - i }));
+
+  it('centers the band on the rank-median, best first', () => {
+    const band = medianBand(items(100), 21);
+    expect(band).toHaveLength(21);
+    const totals = band.map((item) => item.total);
+    // 100 items, totals 100..1; median rank ~50th => total ~51 at center.
+    expect(totals[10]).toBeGreaterThanOrEqual(49);
+    expect(totals[10]).toBeLessThanOrEqual(52);
+    expect(totals).toEqual([...totals].sort((a, b) => b - a));
+  });
+
+  it('returns the whole library when smaller than the band', () => {
+    expect(medianBand(items(5), 21)).toHaveLength(5);
+  });
+
+  it('drops unrated entries and handles empty input', () => {
+    expect(medianBand([{ total: NaN }, { total: undefined }])).toEqual([]);
+    expect(medianBand(null)).toEqual([]);
+  });
+});
