@@ -27,14 +27,16 @@
       <span v-if="activeQuickLinkList === 'bestPicture'">
         {{topStructure(result).academyAwardsYear}}
       </span>
+      <!-- Overall rank rides along in every variant (Brian-survey C1),
+           kept to this same minimal gray bar per Matt. -->
       <span v-else-if="sortValue === 'watched'">
-        {{smallFormattedDate(mostRecentRating(result).date)}}
+        {{smallFormattedDate(mostRecentRating(result).date)}} · {{getOrdinal(overAllRank)}}
       </span>
       <span v-else-if="sortValue === 'release'">
-        {{smallFormattedDate(topStructure(result).release_date)}}
+        {{smallFormattedDate(topStructure(result).release_date)}} · {{getOrdinal(overAllRank)}}
       </span>
       <span v-else-if="sortValue === 'views'">
-        {{result.ratings.length}} view<span v-if="result.ratings.length > 1" >s</span>
+        {{result.ratings.length}} view<span v-if="result.ratings.length > 1" >s</span> · {{getOrdinal(overAllRank)}}
       </span>
       <span v-else class="rank">
         <span v-if="resultsAreFiltered">{{getOrdinal(index + 1)}} ({{getOrdinal(overAllRank)}})</span>

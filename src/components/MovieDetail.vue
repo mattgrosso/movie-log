@@ -34,6 +34,8 @@
             <h3>
               <a class="link" @click.stop="searchFor(`${getYear(result)}`)">{{getYear(result)}}</a>
             </h3>
+            <!-- Overall rank (Brian-survey C1) — quiet, next to the rating. -->
+            <span v-if="overallRank" class="overall-rank">{{ordinalRank}} overall</span>
             <ToggleableRating :rating="ratingForMedia(result)" :normalizedRating="normalizedRatingForMedia(result)"/>
           </div>
           <div class="line-two">
@@ -595,6 +597,18 @@ export default {
     }
   },
   computed: {
+    overallRank () {
+      // Optional-chained: test mounts (and early lifecycle) may lack the
+      // getter; the badge simply doesn't render then.
+      const ranked = this.$store?.getters?.allMediaSortedByRating || [];
+      const rank = ranked.findIndex((media) => media.dbKey === this.result?.dbKey) + 1;
+      return rank > 0 ? rank : null;
+    },
+    ordinalRank () {
+      const n = this.overallRank;
+      const suffix = (n % 10 === 1 && n % 100 !== 11) ? 'st' : (n % 10 === 2 && n % 100 !== 12) ? 'nd' : (n % 10 === 3 && n % 100 !== 13) ? 'rd' : 'th';
+      return `${n}${suffix}`;
+    },
     // Reads the locally-cached, already-normalized FULL Academy Awards
     // dataset (state.allAcademyAwards, fetched once at initializeDB — see
     // CLAUDE.md's "Full Academy Awards Dataset, Cached Locally") instead of
@@ -1880,6 +1894,11 @@ export default {
 
   .rating-runtime-and-date {
     margin-bottom: 1rem;
+
+    .overall-rank {
+      color: #ccc;
+      font-size: 0.8rem;
+    }
 
     .line-one {
       display: flex;
