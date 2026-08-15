@@ -57,49 +57,48 @@
            order) are untouched. -->
       <div v-if="guesses.length" class="clue-grid">
         <div v-for="clue in displayGuesses" :key="clue.entryKey" class="clue-row" :class="{ correct: clue.isCorrect }">
-          <!-- Title, plus the guess's OWN year and rating. Both are plain
-               labels for "what did I just guess", not hints about the
-               target - the Year and Rating cells below still show only a
-               direction arrow until you match (bug report: "in addition to
-               the year, it would also show me the rating on the movies
-               after I guessed the wrong ones"). -->
-          <p class="clue-title">
-            {{ clue.title }}
-            <span v-if="clue.year.value != null" class="clue-title-year">({{ clue.year.value }})</span>
-            <span v-if="clue.yourRating.value != null" class="clue-title-rating">{{ clue.yourRating.value.toFixed(2) }}</span>
-          </p>
+          <!-- Every cell shows the GUESS's own value beside its verdict —
+               bug report: "actually give all the values of each of the
+               guesses in line with the arrows or indicators... I should be
+               able to see clearly what the values were, and then also the
+               comparison to the correct values." The arrow IS the
+               comparison (it points toward the target), and the winning
+               row's matched cells reveal the correct values themselves.
+               This replaces the old bare-arrow cells plus the year/rating
+               tacked onto the title line. -->
+          <p class="clue-title">{{ clue.title }}</p>
           <div class="clue-cells">
             <div class="clue-cell" :class="directionClass(clue.year)">
               <span class="clue-label">Year</span>
-              <span class="clue-value">{{ clue.year.direction === 'match' ? clue.year.value : arrowFor(clue.year) }}</span>
+              <span class="clue-value">{{ valueWithArrow(clue.year) }}</span>
             </div>
             <div class="clue-cell" :class="clue.decade.match ? 'match' : 'no-match'">
               <span class="clue-label">Decade</span>
-              <span class="clue-value">{{ clue.decade.match ? `${clue.decade.value}s` : '✗' }}</span>
+              <span class="clue-value">{{ clue.decade.value != null ? `${clue.decade.value}s ${clue.decade.match ? '✓' : '✗'}` : '—' }}</span>
             </div>
-            <div class="clue-cell" :class="clue.director.match ? 'match' : 'no-match'" :title="clue.director.match ? clue.director.matchedNames.join(', ') : ''">
+            <div class="clue-cell" :class="clue.director.match ? 'match' : 'no-match'" :title="(clue.director.match ? clue.director.matchedNames : clue.director.value).join(', ')">
               <span class="clue-label">Director</span>
-              <span class="clue-value">{{ clue.director.match ? clue.director.matchedNames.join(', ') : '✗' }}</span>
+              <span class="clue-value">{{ directorDisplay(clue.director) }}</span>
             </div>
             <div
               class="clue-cell"
               :class="clue.genres.allMatch ? 'match' : (clue.genres.shared.length ? 'partial' : 'no-match')"
-              :title="clue.genres.shared.length ? clue.genres.shared.join(', ') : ''"
+              :title="(clue.genres.shared.length ? clue.genres.shared : clue.genres.value).join(', ')"
             >
               <span class="clue-label">Genre</span>
               <!-- The (n/total) fraction is what actually distinguishes an
                    exact match (green, n === total) from a partial overlap
                    (yellow, n < total) — the color alone wasn't legible
                    (bug report: "what's the difference between these two"). -->
-              <span class="clue-value wrap">{{ clue.genres.shared.length ? `${clue.genres.shared.join(', ')} (${clue.genres.shared.length}/${clue.genres.total})` : '✗' }}</span>
+              <span class="clue-value wrap">{{ genresDisplay(clue.genres) }}</span>
             </div>
             <div class="clue-cell" :class="directionClass(clue.runtime)">
               <span class="clue-label">Runtime</span>
-              <span class="clue-value">{{ arrowFor(clue.runtime) }}</span>
+              <span class="clue-value">{{ valueWithArrow(clue.runtime, 'm') }}</span>
             </div>
             <div class="clue-cell" :class="directionClass(clue.yourRating)">
               <span class="clue-label">Rating</span>
-              <span class="clue-value">{{ arrowFor(clue.yourRating) }}</span>
+              <span class="clue-value">{{ valueWithArrow(clue.yourRating, '', 2) }}</span>
             </div>
           </div>
         </div>
@@ -290,6 +289,23 @@ export default {
       if (comparison.direction === 'up') return '↑';
       if (comparison.direction === 'down') return '↓';
       return '—';
+    },
+    // "1994 ↑", "128m ↓", "7.42 ✓" — the guess's own value plus which way
+    // the target lies from it.
+    valueWithArrow (comparison, suffix = '', decimals = null) {
+      if (comparison.value == null) return '—';
+      const value = decimals != null ? comparison.value.toFixed(decimals) : comparison.value;
+      return `${value}${suffix} ${this.arrowFor(comparison)}`;
+    },
+    directorDisplay (director) {
+      const names = director.match ? director.matchedNames : director.value;
+      if (!names.length) return '—';
+      return `${names.join(', ')} ${director.match ? '✓' : '✗'}`;
+    },
+    genresDisplay (genres) {
+      if (genres.shared.length) return `${genres.shared.join(', ')} (${genres.shared.length}/${genres.total})`;
+      if (!genres.value.length) return '—';
+      return `${genres.value.join(', ')} ✗`;
     }
   }
 };
@@ -438,22 +454,10 @@ export default {
   outline: 2px solid #4caf50;
 }
 
-.clue-title-rating {
-  color: #ffc107;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-left: 0.35rem;
-}
-
 .clue-title {
   font-weight: 600;
   margin: 0 0 0.35rem;
   padding: 0 0.2rem;
-}
-
-.clue-title-year {
-  color: #adb5bd;
-  font-weight: 400;
 }
 
 .clue-cells {

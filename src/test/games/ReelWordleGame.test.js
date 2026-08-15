@@ -102,19 +102,31 @@ describe('ReelWordleGame', () => {
     expect(wrapper.find('.result-banner.won').text()).toContain('score: 4');
   });
 
-  it('shows the guessed movie\'s own release year next to its title (bug report: "next to the title on the card that shows up after I guess")', async () => {
+  // Two bug reports, in sequence: first "show the year next to the title on
+  // the card that shows up after I guess", then "actually give all the
+  // values of each of the guesses in line with the arrows" — so the year
+  // (and every other value) now lives IN its cell beside the verdict,
+  // replacing both the bare arrows and the title-line year/rating.
+  it('shows every guess value in its cell, next to the comparison verdict', async () => {
     const wrapper = factory(10)
     const target = wrapper.vm.target
-    await wrapper.vm.submitGuess(target)
+    const wrong = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== target.dbKey)
+    await wrapper.vm.submitGuess(wrong)
     await wrapper.vm.$nextTick()
 
     // Derived the same way the app computes it (new Date(...).getFullYear())
     // rather than hardcoded, to sidestep this repo's documented Jan-1/UTC
     // fixture pitfall rather than assume a specific offset.
-    const expectedYear = new Date(target.movie.release_date).getFullYear()
-    const title = wrapper.find('.clue-row.correct .clue-title')
-    expect(title.text()).toContain(target.movie.title)
-    expect(title.text()).toContain(`(${expectedYear})`)
+    const expectedYear = new Date(wrong.movie.release_date).getFullYear()
+    const cells = wrapper.findAll('.clue-row .clue-cell').map((c) => c.text())
+    const yearCell = cells.find((text) => text.includes('Year'))
+    const runtimeCell = cells.find((text) => text.includes('Runtime'))
+    const ratingCell = cells.find((text) => text.includes('Rating'))
+
+    expect(yearCell).toContain(String(expectedYear))
+    expect(yearCell).toMatch(/[↑↓✓]/)
+    expect(runtimeCell).toContain(`${wrong.movie.runtime}m`)
+    expect(ratingCell).toMatch(/\d\.\d\d/)
   })
 
   it('fills in the actual value on a decade/director/genre match instead of just a checkmark', async () => {
