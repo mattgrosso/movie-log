@@ -669,5 +669,4 @@ export default {
   object-fit: cover;
   width: 52px;
 }
-}
 </style>
