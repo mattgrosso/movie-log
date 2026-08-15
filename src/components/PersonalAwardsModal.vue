@@ -579,6 +579,17 @@ export default {
     firstEligibleYear: {
       immediate: true,
       handler (newYear) {
+        // Cold-boot recovery: on a direct load of /awards the modal opens
+        // before the library/settings arrive, so openModal() snapshotted
+        // currentYear as null and rendered an empty, year-less page that
+        // never healed (live-reproduced after tapping the update banner's
+        // Refresh on /awards). Once enough data exists to compute an
+        // eligible year, adopt it and (re)read the saved awards.
+        if (this.showModal && this.currentYear == null && newYear != null) {
+          this.currentYear = newYear;
+          this.initializeAwardsData();
+        }
+
         // Persist the daily selection so the banner and openModal() agree on the same year.
         // Skip when an explicit selectedYear prop is in play (Resume/Edit actions own that state).
         if (this.selectedYear != null) return;
@@ -603,6 +614,15 @@ export default {
       // The sentinel lives in the detail pane; (re)bind whenever it
       // appears or goes away.
       this.$nextTick(() => this.setupStickyObserver());
+    },
+    // Cold-boot recovery, part two: with a year already known (e.g.
+    // /awards?year=1997), the mount-time initializeAwardsData() ran against
+    // not-yet-loaded settings and produced an empty slate. Re-read once
+    // settings actually arrive — but never over user edits already made.
+    '$store.state.settingsLoaded' (loaded) {
+      if (!loaded || !this.showModal || this.currentYear == null) return;
+      if (Object.keys(this.awardsData).length > 0) return;
+      this.initializeAwardsData();
     }
   },
   mounted () {

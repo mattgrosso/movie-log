@@ -26,6 +26,7 @@ import BugReportButton from "./components/BugReportButton.vue";
 import UpdateAvailableBanner from "./components/UpdateAvailableBanner.vue";
 import OfflineBanner from "./components/OfflineBanner.vue";
 import LibraryAccessBanner from "./components/LibraryAccessBanner.vue";
+import { pickFallbackBanner } from "./assets/javascript/bannerFallback.js";
 
 export default {
   name: "Cinema-Roll",
@@ -36,6 +37,24 @@ export default {
     LibraryAccessBanner,
     OfflineBanner,
     UpdateAvailableBanner
+  },
+  computed: {
+    libraryCount () {
+      return Object.keys(this.$store.state.movieLog || {}).length;
+    }
+  },
+  watch: {
+    // Cold boot on a non-home route: Home (the usual banner resolver) never
+    // mounts, so once the library arrives, pick the fallback banner here.
+    // Home still owns banner choice whenever it runs — this only fills a
+    // banner nothing else has set.
+    libraryCount (count) {
+      if (!count || this.$store.state.bannerUrl) return;
+      const url = pickFallbackBanner(this.$store.getters.allMoviesAsArray);
+      if (url && !this.$store.state.bannerUrl) {
+        this.$store.commit('setBannerUrl', url);
+      }
+    }
   },
   methods: {
     scrollToTop () {
