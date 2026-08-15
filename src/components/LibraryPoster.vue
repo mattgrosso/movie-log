@@ -261,13 +261,10 @@ export default {
         };
         await Promise.all(Array.from({ length: Math.min(LOAD_CONCURRENCY, entries.length) }, drawOne));
 
-        context.fillStyle = '#ffc107';
-        context.font = `${Math.max(24, Math.round(layout.width / 40))}px Georgia, serif`;
-        context.textAlign = 'center';
         const caption = this.highlight.trim()
           ? `${this.highlight.trim()} · ${posterCaption(this.mode, entries.length)}`
           : posterCaption(this.mode, entries.length);
-        context.fillText(caption, layout.width / 2, layout.height - layout.footer / 2);
+        await this.drawCaption(context, caption, layout.width, layout.height - layout.footer / 2, Math.max(24, Math.round(layout.width / 40)));
 
         const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
         if (!blob) throw new Error('could not export the poster');
@@ -280,20 +277,20 @@ export default {
         this.generating = false;
       }
     },
-    // ---- Mosaic (photomosaic: classic average-color matching, no deps) ----
-    averageColorOf (image) {
+    // ---- Mosaic (photomosaic, quadrant-signature matching, no deps) ----
+    // A tile/cell signature is its 2x2 quadrant colors: 12 numbers. That
+    // captures structure (dark-top/light-bottom), not just average tint —
+    // round-two feedback: "finer tuned imagery... more pixels working."
+    signatureOf (image) {
       const probe = document.createElement('canvas');
-      probe.width = 1;
-      probe.height = 1;
+      probe.width = 2;
+      probe.height = 2;
       const ctx = probe.getContext('2d');
-      ctx.drawImage(image, 0, 0, 1, 1);
-      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-      return { r, g, b };
+      ctx.drawImage(image, 0, 0, 2, 2);
+      return Array.from(ctx.getImageData(0, 0, 2, 2).data).filter((_, i) => i % 4 !== 3);
     },
-    // Average colors are stable per poster, so they're cached in
-    // localStorage — the SECOND mosaic build skips ~all of the network.
-    readColorCache () {
-      try { return JSON.parse(localStorage.getItem('poster-avg-colors') || '{}'); } catch { return {}; }
+    readSignatureCache () {
+      try { return JSON.parse(localStorage.getItem('poster-signatures-v2') || '{}'); } catch { return {}; }
     },
     async generateMosaic () {
       if (!this.mosaicTarget || this.generating) return;
@@ -306,59 +303,67 @@ export default {
       }
 
       try {
-        // 1. The target poster, downsampled into cells (2:3, like a poster).
-        const COLS = 28;
-        const ROWS = 42;
+        // 1. The target poster, downsampled into a FINE cell grid (2:3).
+        const COLS = 48;
+        const ROWS = 72;
         const target = await this.loadTile(this.mosaicTarget.movie.poster_path);
         if (!target) throw new Error('target poster failed to load');
+        // Sample at 2x the grid so each cell gets its own 2x2 signature.
         const grid = document.createElement('canvas');
-        grid.width = COLS;
-        grid.height = ROWS;
+        grid.width = COLS * 2;
+        grid.height = ROWS * 2;
         const gridCtx = grid.getContext('2d');
-        gridCtx.drawImage(target, 0, 0, COLS, ROWS);
-        const pixels = gridCtx.getImageData(0, 0, COLS, ROWS).data;
-        const cellColors = [];
-        for (let i = 0; i < COLS * ROWS; i++) {
-          cellColors.push({ r: pixels[i * 4], g: pixels[i * 4 + 1], b: pixels[i * 4 + 2] });
+        gridCtx.drawImage(target, 0, 0, COLS * 2, ROWS * 2);
+        const pixels = gridCtx.getImageData(0, 0, COLS * 2, ROWS * 2).data;
+        const pixelAt = (x, y) => {
+          const i = (y * COLS * 2 + x) * 4;
+          return [pixels[i], pixels[i + 1], pixels[i + 2]];
+        };
+        const cellSignatures = [];
+        for (let cy = 0; cy < ROWS; cy++) {
+          for (let cx = 0; cx < COLS; cx++) {
+            cellSignatures.push([
+              ...pixelAt(cx * 2, cy * 2), ...pixelAt(cx * 2 + 1, cy * 2),
+              ...pixelAt(cx * 2, cy * 2 + 1), ...pixelAt(cx * 2 + 1, cy * 2 + 1)
+            ]);
+          }
         }
 
-        // 2. Every library poster's average color (cached across builds).
-        const cache = this.readColorCache();
+        // 2. Every library poster's signature (cached across builds).
+        const cache = this.readSignatureCache();
         const tiles = this.posterLibrary;
-        const tileColors = new Array(tiles.length);
+        const tileSignatures = new Array(tiles.length);
         const tileImages = new Array(tiles.length);
         let nextIndex = 0;
-        const colorWorker = async () => {
+        const worker = async () => {
           while (nextIndex < tiles.length) {
             const index = nextIndex++;
             const path = tiles[index].movie.poster_path;
             if (cache[path]) {
-              tileColors[index] = cache[path];
+              tileSignatures[index] = cache[path];
               this.progress += 1;
               continue;
             }
             const image = await this.loadTile(path, 'w92');
             if (image) {
-              tileColors[index] = this.averageColorOf(image);
+              tileSignatures[index] = this.signatureOf(image);
               tileImages[index] = image;
-              cache[path] = tileColors[index];
+              cache[path] = tileSignatures[index];
             } else {
-              tileColors[index] = { r: 20, g: 20, b: 20 };
+              tileSignatures[index] = new Array(12).fill(15);
             }
             this.progress += 1;
           }
         };
-        await Promise.all(Array.from({ length: 12 }, colorWorker));
-        try { localStorage.setItem('poster-avg-colors', JSON.stringify(cache)); } catch { /* full is fine */ }
+        await Promise.all(Array.from({ length: 12 }, worker));
+        try { localStorage.setItem('poster-signatures-v2', JSON.stringify(cache)); } catch { /* full is fine */ }
 
-        // 3. Assignment (pure), then render: each cell is that poster drawn
-        // small, tinted ~35% toward the target color — the standard
-        // photomosaic trick that sharpens the large-image impression.
-        const assignment = assignMosaicCells(cellColors, tileColors);
-        const CELL = 40;
+        // 3. Assign (pure, loose reuse cap) and render.
+        const assignment = assignMosaicCells(cellSignatures, tileSignatures);
+        const CELL = 28;
         const canvas = document.createElement('canvas');
         canvas.width = COLS * CELL;
-        canvas.height = ROWS * CELL + 60;
+        canvas.height = ROWS * CELL + 64;
         const context = canvas.getContext('2d');
         context.fillStyle = '#141414';
         context.fillRect(0, 0, canvas.width, canvas.height);
@@ -373,15 +378,16 @@ export default {
             tileImages[tileIdx] = image;
           }
           if (image) context.drawImage(image, x, y, CELL, CELL);
-          const c = cellColors[i];
-          context.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.38)`;
+          // Tint toward the cell's average color — sharpens the likeness.
+          const sig = cellSignatures[i];
+          const r = Math.round((sig[0] + sig[3] + sig[6] + sig[9]) / 4);
+          const g = Math.round((sig[1] + sig[4] + sig[7] + sig[10]) / 4);
+          const b = Math.round((sig[2] + sig[5] + sig[8] + sig[11]) / 4);
+          context.fillStyle = `rgba(${r}, ${g}, ${b}, 0.34)`;
           context.fillRect(x, y, CELL, CELL);
         }
 
-        context.fillStyle = '#ffc107';
-        context.font = '24px Georgia, serif';
-        context.textAlign = 'center';
-        context.fillText(`${this.mosaicTarget.movie.title} · made of ${tiles.length} movies · Cinema Roll`, canvas.width / 2, canvas.height - 22);
+        await this.drawCaption(context, `${this.mosaicTarget.movie.title} · made of ${tiles.length} movies · Cinema Roll`, canvas.width, canvas.height - 24, 26);
 
         const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
         if (!blob) throw new Error('could not export the mosaic');
@@ -393,6 +399,16 @@ export default {
       } finally {
         this.generating = false;
       }
+    },
+    // Marquee-style caption (feedback: "old movie poster font... like a
+    // marquee") — Limelight, the art-deco cinema-marquee face, loaded
+    // before drawing so the canvas doesn't fall back mid-render.
+    async drawCaption (context, text, canvasWidth, baselineY, size) {
+      try { await document.fonts.load(`${size}px Limelight`); } catch { /* fallback below */ }
+      context.fillStyle = '#ffc107';
+      context.font = `${size}px Limelight, Georgia, serif`;
+      context.textAlign = 'center';
+      context.fillText(text, canvasWidth / 2, baselineY);
     },
     async share () {
       if (!this.resultBlob) return;

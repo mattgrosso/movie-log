@@ -98,32 +98,41 @@ export function entryMatchesHighlight (entry, query) {
 }
 
 // Photomosaic assignment (feedback: "use a bunch of small images to
-// generate the impression of a larger image"). Classic average-color
-// matching, no libraries: each target cell takes the unused-enough tile
-// whose average color is nearest (squared RGB distance). maxUse caps how
-// often one poster repeats so the mosaic uses the breadth of the library.
-export function assignMosaicCells (cellColors, tileColors, { maxUse = null } = {}) {
-  if (!tileColors.length) return [];
-  const cap = maxUse || Math.max(1, Math.ceil(cellColors.length / tileColors.length) + 1);
-  const used = new Array(tileColors.length).fill(0);
+// generate the impression of a larger image" + round two: "finer tuned
+// imagery... more pixels working"). Each cell and tile is a 2x2 QUADRANT
+// color signature (12 numbers) rather than a single average — so matching
+// captures gradients and structure, not just overall tint. maxUse caps
+// repetition loosely (reuse WAS the fidelity lever Matt asked about);
+// pass Infinity for pure fidelity.
+export function signatureDistance (a, b) {
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) {
+    const d = a[i] - b[i];
+    sum += d * d;
+  }
+  return sum;
+}
 
-  return cellColors.map((cell) => {
+export function assignMosaicCells (cellSignatures, tileSignatures, { maxUse = null } = {}) {
+  if (!tileSignatures.length) return [];
+  // Loose default: enough reuse for fidelity, some cap for variety.
+  const cap = maxUse || Math.max(2, Math.ceil(cellSignatures.length / tileSignatures.length) * 3);
+  const used = new Array(tileSignatures.length).fill(0);
+
+  return cellSignatures.map((cell) => {
     let best = -1;
     let bestDist = Infinity;
-    for (let i = 0; i < tileColors.length; i++) {
+    for (let i = 0; i < tileSignatures.length; i++) {
       if (used[i] >= cap) continue;
-      const t = tileColors[i];
-      const dist = (cell.r - t.r) ** 2 + (cell.g - t.g) ** 2 + (cell.b - t.b) ** 2;
+      const dist = signatureDistance(cell, tileSignatures[i]);
       if (dist < bestDist) {
         bestDist = dist;
         best = i;
       }
     }
     if (best === -1) {
-      // Every tile is at cap (tiny libraries): fall back to pure nearest.
-      for (let i = 0; i < tileColors.length; i++) {
-        const t = tileColors[i];
-        const dist = (cell.r - t.r) ** 2 + (cell.g - t.g) ** 2 + (cell.b - t.b) ** 2;
+      for (let i = 0; i < tileSignatures.length; i++) {
+        const dist = signatureDistance(cell, tileSignatures[i]);
         if (dist < bestDist) {
           bestDist = dist;
           best = i;

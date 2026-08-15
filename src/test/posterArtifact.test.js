@@ -105,28 +105,30 @@ describe('entryMatchesHighlight', () => {
   })
 })
 
-describe('assignMosaicCells', () => {
-  const red = { r: 255, g: 0, b: 0 }
-  const blue = { r: 0, g: 0, b: 255 }
-  const darkRed = { r: 200, g: 10, b: 10 }
+describe('assignMosaicCells (quadrant signatures)', () => {
+  // Signatures are 2x2 quadrant colors: 12 numbers [r,g,b, r,g,b, ...].
+  const flat = (r, g, b) => [r, g, b, r, g, b, r, g, b, r, g, b]
+  const red = flat(255, 0, 0)
+  const blue = flat(0, 0, 255)
+  const darkRed = flat(200, 10, 10)
+  // dark on top, light on bottom — structure a flat average can't see
+  const topDark = [10, 10, 10, 10, 10, 10, 240, 240, 240, 240, 240, 240]
+  const bottomDark = [240, 240, 240, 240, 240, 240, 10, 10, 10, 10, 10, 10]
 
-  it('assigns each cell its nearest-colored tile', () => {
-    const cells = [red, blue, darkRed]
-    const tiles = [blue, red]
-    expect(assignMosaicCells(cells, tiles, { maxUse: 5 })).toEqual([1, 0, 1])
+  it('assigns each cell its nearest-signature tile', () => {
+    expect(assignMosaicCells([red, blue, darkRed], [blue, red], { maxUse: 5 })).toEqual([1, 0, 1])
   })
 
-  it('spreads usage: a capped tile yields to the next-nearest', () => {
-    const cells = [red, red, red]
-    const tiles = [red, darkRed]
-    const assigned = assignMosaicCells(cells, tiles, { maxUse: 1 })
-    expect(new Set(assigned).size).toBeGreaterThan(1)
+  it('quadrants let structure win where averages tie', () => {
+    // Both tiles average to the same gray; only quadrants tell them apart.
+    const assigned = assignMosaicCells([topDark, bottomDark], [bottomDark, topDark], { maxUse: 5 })
+    expect(assigned).toEqual([1, 0])
   })
 
-  it('falls back to reuse when every tile hits the cap (tiny libraries)', () => {
-    const cells = [red, red, red, red]
-    const tiles = [red]
-    expect(assignMosaicCells(cells, tiles, { maxUse: 1 })).toEqual([0, 0, 0, 0])
+  it('spreads usage under a tight cap, and falls back to reuse when exhausted', () => {
+    const spread = assignMosaicCells([red, red, red], [red, darkRed], { maxUse: 1 })
+    expect(new Set(spread).size).toBeGreaterThan(1)
+    expect(assignMosaicCells([red, red, red, red], [red], { maxUse: 1 })).toEqual([0, 0, 0, 0])
   })
 })
 
