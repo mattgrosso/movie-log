@@ -17,6 +17,7 @@
     "account-maintenance": "node scripts/account-maintenance.mjs",
     "backup-db": "node scripts/backup-database.mjs",
     "restore-db": "node scripts/restore-database.mjs",
+    "mint-test-token": "node scripts/mint-test-token.mjs",
     "fetch-bug-reports": "node scripts/fetch-bug-reports.mjs",
     "resolve-bug-report": "node scripts/resolve-bug-report.mjs",
     "generate-db-rules": "node scripts/generate-database-rules.mjs"

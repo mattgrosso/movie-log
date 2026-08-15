@@ -7,6 +7,7 @@ import {
   GoogleAuthProvider,
   OAuthProvider,
   signInWithPopup,
+  signInWithCustomToken,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -583,6 +584,16 @@ export default createStore({
       provider.addScope('name');
 
       const result = await signInWithPopup(getAuth(), provider);
+      context.dispatch('completeLogin', result.user);
+    },
+    // Automated-testing sign-in: scripts/mint-test-token.mjs mints a
+    // short-lived Admin-SDK custom token for the dedicated tester account,
+    // and /#/login?testToken=... hands it here. Safe by construction: a
+    // custom token only signs in the account it was minted for, minting
+    // requires the admin key, and the database rules scope any account to
+    // its own email-derived branch — so this can never reach real data.
+    async loginWithTestToken (context, token) {
+      const result = await signInWithCustomToken(getAuth(), token);
       context.dispatch('completeLogin', result.user);
     },
     async loginWithEmail (context, { email, password }) {

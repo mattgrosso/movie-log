@@ -127,6 +127,21 @@ export default {
       return this.email.trim().toLowerCase();
     }
   },
+  mounted () {
+    // Automated-testing sign-in: /#/login?testToken=<custom token> (minted
+    // by scripts/mint-test-token.mjs for the dedicated tester account —
+    // see the store action for why this can't reach real accounts).
+    const testToken = this.$route?.query?.testToken;
+    if (testToken) {
+      this.busy = true;
+      this.$store.dispatch('loginWithTestToken', testToken)
+        .then(() => this.$router.push('/'))
+        .catch((error) => {
+          this.errorMessage = friendlyAuthError(error);
+          this.busy = false;
+        });
+    }
+  },
   methods: {
     setMode (mode) {
       this.mode = mode;
