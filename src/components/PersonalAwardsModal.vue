@@ -11,20 +11,31 @@
           <h2 class="mb-1">{{ awardNameWithThe }} {{ currentYear }}</h2>
           <p class="mb-0">Your own annual awards</p>
 
-          <!-- New Movies Notification -->
-          <div v-if="hasNewMovies" class="alert alert-info mt-2 mb-0 text-start">
-            <h6 class="mb-2">
-              <i class="fas fa-star"></i>
-              New movies to consider ({{ newMoviesForCurrentYear.length }})
+          <!-- New Movies Notification: dark card + poster row (house style:
+               posters over text, no Bootstrap alert-info blue on dark) -->
+          <div v-if="hasNewMovies" class="new-movies-card text-start">
+            <h6 class="new-movies-title">
+              <i class="bi bi-stars"></i>
+              New movies to consider
+              <span class="new-movies-count">{{ newMoviesForCurrentYear.length }}</span>
             </h6>
-            <div class="new-movies-list">
-              <div v-for="entry in newMoviesForCurrentYear" :key="entry.movie.id" class="new-movie-item">
-                <strong>{{ entry.movie.title }}</strong>
-                <span class="text-muted"> • {{ mostRecentRating(entry).calculatedTotal }}/10</span>
+            <div class="new-movies-row">
+              <div v-for="entry in newMoviesForCurrentYear" :key="entry.movie.id" class="new-movie-card">
+                <img
+                  v-if="entry.movie.poster_path"
+                  :src="`https://image.tmdb.org/t/p/w185${entry.movie.poster_path}`"
+                  :alt="entry.movie.title"
+                  class="new-movie-poster"
+                >
+                <div v-else class="new-movie-poster new-movie-poster-blank">{{ entry.movie.title }}</div>
+                <div class="new-movie-caption">
+                  <span class="new-movie-name">{{ entry.movie.title }}</span>
+                  <span class="new-movie-rating">{{ mostRecentRating(entry).calculatedTotal }}/10</span>
+                </div>
               </div>
             </div>
-            <small class="text-muted">
-              These movies weren't available when you last completed {{ currentYear }} awards.
+            <small class="new-movies-footnote">
+              Rated after you completed your {{ currentYear }} awards.
             </small>
           </div>
         </div>
@@ -2139,20 +2150,97 @@ export default {
       font-weight: 700;
     }
 
-    .new-movies-list {
-      max-height: 150px;
-      overflow-y: auto;
+    .new-movies-card {
+      background: #161616;
+      border: 1px solid #2e2e2e;
+      border-radius: 10px;
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem 0.5rem;
+    }
 
-      .new-movie-item {
-        border-bottom: 1px solid rgba(0,0,0,0.1);
-        font-size: 0.9em;
-        line-height: 1.4;
-        padding: 2px 0;
+    .new-movies-title {
+      align-items: center;
+      color: #eee;
+      display: flex;
+      font-size: 0.95rem;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
 
-        &:last-child {
-          border-bottom: none;
-        }
+      i {
+        color: #ffd700;
       }
+    }
+
+    .new-movies-count {
+      background: rgba(255, 215, 0, 0.15);
+      border-radius: 999px;
+      color: #ffd700;
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 0.25rem 0.5rem;
+    }
+
+    .new-movies-row {
+      /* House poster-row shape: fixed image heights, tops and bottoms
+         aligned, captions flow freely below, horizontal scroll as needed. */
+      align-items: flex-start;
+      display: flex;
+      gap: 0.75rem;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+
+    .new-movie-card {
+      flex: 0 0 92px;
+      width: 92px;
+    }
+
+    .new-movie-poster {
+      border: 1px solid #2e2e2e;
+      border-radius: 6px;
+      display: block;
+      height: 138px;
+      object-fit: cover;
+      width: 92px;
+    }
+
+    .new-movie-poster-blank {
+      align-items: center;
+      background: #222;
+      color: #ccc;
+      display: flex;
+      font-size: 0.7rem;
+      justify-content: center;
+      padding: 0.25rem;
+      text-align: center;
+    }
+
+    .new-movie-caption {
+      display: flex;
+      flex-direction: column;
+      margin-top: 0.35rem;
+      row-gap: 0.1rem;
+      text-align: center;
+    }
+
+    .new-movie-name {
+      color: #eee;
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .new-movie-rating {
+      color: #ffd700;
+      font-size: 0.7rem;
+    }
+
+    .new-movies-footnote {
+      color: #ccc;
+      display: block;
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
     }
   }
 
