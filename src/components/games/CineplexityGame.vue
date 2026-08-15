@@ -236,15 +236,18 @@ export default {
 .miss-count { color: #999; }
 
 .slot-grid {
+  /* One sideways-scrolling row (QA): keeps the whole game on one screen
+     regardless of how many movies the trait pair matches. */
   display: flex;
-  flex-wrap: wrap;
   gap: 0.5rem;
-  justify-content: center;
   margin-bottom: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
 }
 
 .slot {
   border-radius: 6px;
+  flex: 0 0 92px;
   height: 138px;
   overflow: hidden;
   width: 92px;
@@ -276,12 +279,14 @@ export default {
   background: #161616;
   border: 1px solid #2e2e2e;
   border-radius: 8px;
+  /* Above the input (QA): on a phone the keyboard owns everything below. */
+  bottom: 100%;
   left: 0;
+  margin-bottom: 4px;
   max-height: 220px;
   overflow-y: auto;
   position: absolute;
   right: 0;
-  top: 100%;
   z-index: 10;
 }
 
