@@ -800,8 +800,9 @@ export default {
         // Temporarily allow save during completion by clearing the flag
         this.completingYear = false;
 
-        // Save state first, then close modal
-        await this.saveCurrentState();
+        // Save state first, then close modal — the ONE place a year is
+        // ever marked completed.
+        await this.saveCurrentState(true);
 
         // Restore the completing flag and close modal
         this.completingYear = true;
@@ -855,7 +856,7 @@ export default {
         ErrorLogService.error('Error closing Personal Awards modal:', error);
       }
     },
-    async saveCurrentState () {
+    async saveCurrentState (explicitComplete = false) {
       // Prevent multiple clicks or saves after completion
       if (this.savingState || this.completingYear) {
         return;
@@ -863,18 +864,24 @@ export default {
       this.savingState = true;
 
       try {
-        const isNowComplete = this.completedCategories === this.totalCategories;
-
-        // Get current movie IDs - always refresh when completing, use cached for intermediate saves
-        let movieIds = [];
+        // Bug (Matt): "nothing should complete the year except for me
+        // clicking complete the year." This used to compute completed from
+        // all-categories-decided on EVERY save — and saves fire on every
+        // back-slide/reset/close — so merely visiting a fully-decided year
+        // silently re-completed it and refreshed availableMovieIds, eating
+        // the new-movies prompt. Both now move ONLY on the explicit button.
         const existingData = this.$store.state.settings.personalAwards?.[this.currentYear];
-        if (existingData?.availableMovieIds && !isNowComplete) {
-          // Optimization: Reuse existing IDs for intermediate saves (not completion)
-          movieIds = existingData.availableMovieIds;
-        } else {
-          // Always get fresh list when completing or if no previous list exists
+        const isNowComplete = explicitComplete || Boolean(existingData?.completed);
+
+        let movieIds = null;
+        if (explicitComplete) {
+          // The completion snapshot: what was available when the user
+          // declared the year done.
           const moviesForYear = this.getMoviesForYear();
           movieIds = moviesForYear.map(entry => entry?.movie?.id).filter(id => id);
+        } else if (existingData?.availableMovieIds) {
+          // Intermediate save on a completed year: preserve the snapshot.
+          movieIds = existingData.availableMovieIds;
         }
 
         // Create minimal data structure by removing huge movie objects
@@ -893,9 +900,11 @@ export default {
         const awardsEntry = {
           completed: isNowComplete,
           lastUpdated: Date.now(),
-          availableMovieIds: movieIds,
           categories: cleanedCategories
         };
+        if (movieIds) {
+          awardsEntry.availableMovieIds = movieIds;
+        }
 
         // writeDurably (not setDBValue, everywhere in this component) - bug
         // report: personal awards changes should work offline and sync once
