@@ -146,6 +146,19 @@ describe('PersonalAwardsModal — cold-boot recovery', () => {
     expect(wrapper.vm.awardsData.bestPicture.nominees).toHaveLength(1)
   })
 
+  it('honours a custom awards year threshold (1 movie is enough when set so)', async () => {
+    const { wrapper } = factory({
+      entries: [movieEntry(101, 'Sicario', 2015)],
+      settings: { awardsYearThreshold: 1 },
+      settingsLoaded: true
+    })
+    await nextTick()
+
+    // Default 10 would leave no eligible year at all; threshold 1 admits it.
+    expect(wrapper.vm.yearsEligibleForAwards).toContain(2015)
+    expect(wrapper.vm.currentYear).toBe(2015)
+  })
+
   it("moves on from a completed daily pick: yesterday-morning's sticky year must not banner after completion", async () => {
     // Bug: Home passed the persisted dailyAwardsYear through :selectedYear,
     // the picker's unconditional explicit-intent branch. After Matt completed

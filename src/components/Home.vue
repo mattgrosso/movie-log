@@ -523,6 +523,20 @@
                 <small class="form-text text-white">Use plural form like "The Oscars"</small>
               </div>
               <div class="mb-3">
+                <label for="awardsYearThreshold" class="form-label">Movies needed before a year gets awards:</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  id="awardsYearThreshold"
+                  v-model.number="awardsYearThresholdInput"
+                  min="1"
+                  max="100"
+                  step="1"
+                  @change="saveAwardsYearThreshold"
+                >
+                <small class="form-text text-white">Years with fewer rated movies stay out of the awards flow.</small>
+              </div>
+              <div class="mb-3">
                 <label for="letterboxdUsername" class="form-label">Letterboxd Username:</label>
                 <div class="input-group">
                   <span class="input-group-text">letterboxd.com/</span>
@@ -1031,6 +1045,7 @@ import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
+import { awardsYearThreshold } from "../assets/javascript/personalAwards.js";
 import ErrorLogService from '../services/ErrorLogService.js';
 import { computeFlatKeywords } from '../utils/keywords.js';
 import {
@@ -1465,6 +1480,9 @@ export default {
     personalAwardName () {
       const value = this.$store.state.settings?.personalAwardName;
       return (typeof value === 'string' && value.length > 0) ? value : 'Oscar';
+    },
+    awardsYearThresholdInput () {
+      return awardsYearThreshold(this.$store.state.settings);
     },
     showShorts () {
       const value = this.$store.state.settings?.includeShorts;
@@ -3532,6 +3550,11 @@ export default {
     },
     savePersonalAwardName () {
       this.$store.dispatch('writeDurably', { path: 'settings/personalAwardName', value: this.personalAwardName });
+    },
+    saveAwardsYearThreshold (event) {
+      const raw = Number(event?.target?.value);
+      const value = Number.isFinite(raw) ? Math.min(100, Math.max(1, Math.floor(raw))) : 10;
+      this.$store.dispatch('writeDurably', { path: 'settings/awardsYearThreshold', value });
     },
     // Grammar helper methods for award names — delegate to the shared
     // pure functions (assets/javascript/personalAwards.js) so MovieDetail.vue

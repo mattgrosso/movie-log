@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { expandNomineeFromMinimal, awardNameWithThe, awardNameWithoutThe, awardNameSingular } from '@/assets/javascript/personalAwards.js';
+import { expandNomineeFromMinimal, awardNameWithThe, awardNameWithoutThe, awardNameSingular, awardsYearThreshold } from '@/assets/javascript/personalAwards.js';
 
 function libraryEntry (id, title) {
   return { dbKey: `key-${id}`, movie: { id, title } };
@@ -115,3 +115,21 @@ describe('actingSiblingConflict (feedback: no lead + supporting nomination for t
     expect(actingSiblingConflict('bestSupportingActor', { id: 101, movieId: 7 }, data)).toBe('bestActor');
   });
 });
+
+// Bug report 2026-08-15: the 10-movie year gate was "an arbitrary number
+// that I came up with for me" — now a per-user setting.
+describe('awardsYearThreshold', () => {
+  it('defaults to 10 with no setting, junk, or out-of-range values', () => {
+    expect(awardsYearThreshold(undefined)).toBe(10)
+    expect(awardsYearThreshold({})).toBe(10)
+    expect(awardsYearThreshold({ awardsYearThreshold: 'many' })).toBe(10)
+    expect(awardsYearThreshold({ awardsYearThreshold: 0 })).toBe(10)
+    expect(awardsYearThreshold({ awardsYearThreshold: -3 })).toBe(10)
+  })
+
+  it('honours a user-chosen threshold, floored to a whole number', () => {
+    expect(awardsYearThreshold({ awardsYearThreshold: 1 })).toBe(1)
+    expect(awardsYearThreshold({ awardsYearThreshold: 50 })).toBe(50)
+    expect(awardsYearThreshold({ awardsYearThreshold: 3.7 })).toBe(3)
+  })
+})

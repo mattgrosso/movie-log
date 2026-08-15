@@ -361,6 +361,7 @@ import Modal from './Modal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { pickEligibleAwardsYear } from '../utils/awards.js';
+import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
 import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
 import { expandNomineeFromMinimal as expandNomineeFromMinimalShared, actingSiblingConflict } from '../assets/javascript/personalAwards.js';
@@ -466,8 +467,9 @@ export default {
           }
         });
 
+        const threshold = awardsYearThreshold(this.$store.state.settings);
         const eligibleYears = Object.keys(yearCounts)
-          .filter(year => yearCounts[year] >= 10)
+          .filter(year => yearCounts[year] >= threshold)
           .map(year => parseInt(year))
           .filter(year => !isNaN(year))
           .sort((a, b) => b - a); // Most recent first

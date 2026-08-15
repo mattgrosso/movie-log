@@ -115,3 +115,11 @@ export function actingSiblingConflict (categoryKey, person, awardsData) {
 
   return nominees.some(samePerson) ? sibling : null;
 }
+
+// The minimum rated movies a year needs before the awards flow offers it.
+// Was a hardcoded 10 — "an arbitrary number that I came up with for me"
+// (bug report 2026-08-15); now a per-user setting with 10 as the default.
+export function awardsYearThreshold (settings) {
+  const value = Number(settings?.awardsYearThreshold);
+  return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 10;
+}
