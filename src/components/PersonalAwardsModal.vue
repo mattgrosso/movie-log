@@ -89,6 +89,17 @@
             </div>
             <!-- Sticky Top Section (the promoted category tile above is the
                  header — tapping it reveals Matt's trash, the × collapses) -->
+            <!-- 1px sentinel: when it scrolls off-screen the bar below is
+                 pinned, and the safe-area shade turns on. -->
+            <div ref="stickySentinel" class="sticky-sentinel" aria-hidden="true"></div>
+            <!-- iPhone only in practice: while the bar is stuck, black out the
+                 transparent status-bar / Dynamic Island strip above it so
+                 nominees don't peek out around the island while scrolling.
+                 env(safe-area-inset-top) is 0 elsewhere, so it renders as
+                 nothing on desktop. -->
+            <Teleport to="body">
+              <div v-if="nomineesBarStuck" class="awards-safe-area-shade"></div>
+            </Teleport>
             <div class="sticky-top-section">
               <!-- Current Nominees - Always visible -->
               <div class="current-nominees-section">
@@ -403,6 +414,7 @@ export default {
       eligibleOptions: [], // For movie categories: simple array. For acting: movie-grouped array
       loadingOptions: false,
       showTrashIcon: false, // For Matt's category reset functionality
+      nomineesBarStuck: false, // Sentinel scrolled off => bar is pinned
       // Cache expensive operations per year/category
       optionsCache: {}, // Format: { "1994-bestActor": [{ movieId, movie, loadedCast, hasMore }] }
       // Cache TMDb person details across all categories
@@ -586,6 +598,11 @@ export default {
           ErrorLogService.error('Error persisting daily awards selection:', error);
         }
       }
+    },
+    selectedCategory () {
+      // The sentinel lives in the detail pane; (re)bind whenever it
+      // appears or goes away.
+      this.$nextTick(() => this.setupStickyObserver());
     }
   },
   mounted () {
@@ -595,7 +612,26 @@ export default {
       this.$store.dispatch('writeDurably', { path: 'settings/awardsPromptState', value: null });
     }
   },
+  beforeUnmount () {
+    this.teardownStickyObserver();
+  },
   methods: {
+    setupStickyObserver () {
+      this.teardownStickyObserver();
+      const sentinel = this.$refs.stickySentinel;
+      if (!sentinel || typeof IntersectionObserver === 'undefined') return; // jsdom
+      this.stickyObserver = new IntersectionObserver(([entry]) => {
+        this.nomineesBarStuck = !entry.isIntersecting;
+      });
+      this.stickyObserver.observe(sentinel);
+    },
+    teardownStickyObserver () {
+      if (this.stickyObserver) {
+        this.stickyObserver.disconnect();
+        this.stickyObserver = null;
+      }
+      this.nomineesBarStuck = false;
+    },
     markCategoryAsNoNominees () {
       // Mark category as having no worthy nominees for now
       if (!this.awardsData[this.selectedCategory]) {
@@ -2845,6 +2881,25 @@ export default {
   gap: 0.5rem;
   justify-content: space-between;
   margin-bottom: 0.5rem;
+}
+
+.sticky-sentinel {
+  height: 1px;
+  margin-top: -1px;
+  visibility: hidden;
+}
+
+/* Teleported to <body>; covers the transparent iOS status-bar strip
+   (Dynamic Island area) only while the nominees bar is pinned. Height is
+   0 on non-notched devices, so it's a no-op everywhere else. */
+.awards-safe-area-shade {
+  background: #000000;
+  height: env(safe-area-inset-top, 0px);
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 1100;
 }
 
 .panel-back {
