@@ -9,6 +9,10 @@
       </span>
     </div>
 
+    <!-- Board item 8: funFacts.js finally gets a shelf (bug report: "more
+         fun data about my ratings and watching habits"). -->
+    <FunFactsRow/>
+
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Totals</p>
@@ -371,6 +375,7 @@ import { expandNomineeFromMinimal as expandNomineeFromMinimalShared } from "../a
 import { Chart, registerables } from "chart.js";
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
 import InsightsPane from "./InsightsPane.vue";
+import FunFactsRow from './FunFactsRow.vue';
 import uniq from 'lodash/uniq';
 
 Chart.register(...registerables);
@@ -378,6 +383,7 @@ Chart.register(...registerables);
 export default {
   name: "Insights",
   components: {
+    FunFactsRow,
     LineChart,
     ScatterChart,
     InsightsPane,
