@@ -492,38 +492,10 @@
                   <i class="bi bi-check-circle"></i> Copied to clipboard!
                 </div>
               </div>
-              <div class="mb-3">
-                <label for="normalizationTweak" class="form-label">Normalization offset:</label>
-                <input
-                  type="number"
-                  class="form-control"
-                  id="normalizationTweak"
-                  v-model.number="normalizationTweak"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  @change="saveNormalizationTweak"
-                >
-                <!-- Bug report (Natalie): "the normalization offset number is
-                     a bit intimidating... it would be better if you could
-                     choose the movie, for example the last movie that
-                     deserves a 10 out of 10." Picking one derives and saves
-                     the offset; the raw number above stays as the manual
-                     override. -->
-                <label for="lastTenPick" class="form-label mt-2">…or pick the last movie that deserves a 10:</label>
-                <select
-                  id="lastTenPick"
-                  class="form-select"
-                  v-model="lastTenPickKey"
-                  @change="applyLastTenPick"
-                >
-                  <option value="" disabled>Choose a movie…</option>
-                  <option v-for="candidate in lastTenCandidates" :key="candidate.entry.dbKey" :value="candidate.entry.dbKey">
-                    {{ candidate.entry.movie.title }}
-                  </option>
-                </select>
-                <small class="form-text text-white">Everything scoring below your pick will show 9 or less.</small>
-              </div>
+              <!-- Rating Curve: first-order section, poster anchors (see
+                   RatingCurveSettings.vue). Supersedes the intimidating raw
+                   offset + the plain <select> movie list. -->
+              <RatingCurveSettings/>
               <div class="mb-3">
                 <label for="tieBreakTweak" class="form-label">Max daily tiebreak prompts:</label>
                 <input
@@ -1054,6 +1026,7 @@ import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import TweakInline from "./TweakInline.vue";
 import StickinessInline from "./StickinessInline.vue";
 import PersonalAwardsModal from "./PersonalAwardsModal.vue";
+import RatingCurveSettings from "./RatingCurveSettings.vue";
 import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
@@ -1075,7 +1048,6 @@ import {
   awardNameSingular
 } from '../assets/javascript/personalAwards.js';
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
-import { normalizationCandidates } from '../assets/javascript/normalizationPicker.js';
 import { GAME_ICONS, lastPlayedGamePath } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
@@ -1133,6 +1105,7 @@ export default {
     TweakInline,
     StickinessInline,
     PersonalAwardsModal,
+    RatingCurveSettings,
     NoResults,
     ThreeStateToggle,
   },
@@ -1187,7 +1160,6 @@ export default {
       showMovieInfoModal: false, // Show/hide movie info modal
       showOverridePanel: false,
       showSettingsPanel: false, // controls settings panel visibility
-      lastTenPickKey: '', // dbKey chosen in the "last movie that deserves a 10" picker
       errorLogs: [], // error log entries
       copySuccess: false, // copy to clipboard success indicator
       errorLogRefreshInterval: null, // interval for refreshing error logs
@@ -1485,18 +1457,6 @@ export default {
     gamesButtonIcon () {
       const lastPlayed = lastPlayedGamePath(this.$router);
       return (lastPlayed && GAME_ICONS[lastPlayed]) || 'bi-dice-5';
-    },
-    normalizationTweak () {
-      const value = this.$store.state.settings?.normalizationTweak;
-      return typeof value === 'number' ? value : 0.25;
-    },
-    // Movies that could be "the last 10/10" within the offset input's own
-    // 0-1 band, best first (normalizationPicker.js). Gated on the panel
-    // being open: this walks the whole library through getRating, which is
-    // fine once per panel-open but not as an always-live computed.
-    lastTenCandidates () {
-      if (!this.showSettingsPanel) return [];
-      return normalizationCandidates(this.$store.getters.allMoviesAsArray, getRating);
     },
     tieBreakTweak () {
       const value = this.$store.state.settings?.tieBreakTweak;
@@ -3556,16 +3516,6 @@ export default {
       // no longer exists — see lastPlayedGamePath for the dead-button bug
       // that second case caused.
       this.$router.push(lastPlayedGamePath(this.$router) || '/games');
-    },
-    saveNormalizationTweak () {
-      this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });
-    },
-    // Saves the offset derived from the picked movie directly — deliberately
-    // not routed through the numeric input's v-model.
-    applyLastTenPick () {
-      const candidate = this.lastTenCandidates.find((c) => c.entry.dbKey === this.lastTenPickKey);
-      if (!candidate) return;
-      this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: candidate.offset });
     },
     saveTieBreakTweak () {
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });

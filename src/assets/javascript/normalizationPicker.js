@@ -49,3 +49,41 @@ export function normalizationCandidates (entries, getRatingFn, { grade = 10, min
     .filter(({ offset }) => offset >= minOffset && offset <= maxOffset)
     .sort((a, b) => b.total - a.total);
 }
+
+// ---------------------------------------------------------------------------
+// Two-anchor rating curve (2026-08-15). Feedback: "you could say, I want
+// this to be a ten, and I want this to be the lowest valued five." Exactly
+// two anchors on purpose — displayed ratings have 11 whole-number buckets,
+// so a ceiling anchor (slope) and a mid anchor (pivot) are the only knobs
+// with visible effect; more anchors would be fiddle without payoff. Movies
+// are the anchors (not numbers), so the curve keeps its meaning as the
+// library grows.
+//
+// applyNormalization is THE display step: GetRating.js hands it the movie's
+// 0-10 min-max position and whatever anchors/tweak the settings hold.
+//   - ten + five anchors: piecewise linear. [fiveBase..tenBase] -> [5..10],
+//     [0..fiveBase] -> [0..5]. Each anchor movie lands exactly on its grade.
+//   - ten anchor only: stretch so the anchor is exactly 10: base * 10/tenBase.
+//   - no anchors: the legacy constant offset (tweak), unchanged behavior.
+// Always rounded to a whole number and clamped to [0, 10]; anything scoring
+// above the ten-anchor clamps to 10.
+export function applyNormalization (base, { tweak = 0.25, tenBase = null, fiveBase = null } = {}) {
+  let value;
+
+  const hasTen = Number.isFinite(tenBase) && tenBase > 0;
+  const hasFive = Number.isFinite(fiveBase) && fiveBase >= 0;
+
+  if (hasTen && hasFive && tenBase > fiveBase) {
+    if (base >= fiveBase) {
+      value = 5 + (5 * (base - fiveBase)) / (tenBase - fiveBase);
+    } else {
+      value = fiveBase === 0 ? 0 : (5 * base) / fiveBase;
+    }
+  } else if (hasTen) {
+    value = (base * 10) / tenBase;
+  } else {
+    value = base + tweak;
+  }
+
+  return Math.max(0, Math.min(10, Math.round(value)));
+}

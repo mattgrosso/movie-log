@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { baseNormalized, offsetForLastMovieAt, normalizationCandidates } from '@/assets/javascript/normalizationPicker.js';
+import { baseNormalized, offsetForLastMovieAt, normalizationCandidates, applyNormalization } from '@/assets/javascript/normalizationPicker.js';
 
 // Mirrors GetRating.js's display step: round(base + offset), clamped 0-10.
 function displayedGrade (calculatedTotal, minRating, maxRating, offset) {
@@ -73,3 +73,45 @@ describe('normalizationPicker (bug report: choose the last 10/10 movie instead o
     expect(candidates.map((c) => c.entry.dbKey)).toEqual(['ok']);
   });
 });
+
+// Two-anchor curve (feedback: "I want this to be a ten, and I want this to
+// be the lowest valued five"). Exactly two anchors: ceiling + pivot.
+describe('applyNormalization', () => {
+  it('legacy mode: constant offset, rounded and clamped', () => {
+    expect(applyNormalization(7.2, { tweak: 0.25 })).toBe(7);
+    expect(applyNormalization(9.9, { tweak: 0.25 })).toBe(10);
+    expect(applyNormalization(0, { tweak: 0.25 })).toBe(0);
+  });
+
+  it('ten-anchor only: the anchor lands exactly on 10 and the scale stretches', () => {
+    expect(applyNormalization(8, { tenBase: 8 })).toBe(10);
+    expect(applyNormalization(4, { tenBase: 8 })).toBe(5);
+    expect(applyNormalization(9.5, { tenBase: 8 })).toBe(10); // above the anchor clamps
+  });
+
+  it('both anchors: piecewise through (five -> 5) and (ten -> 10)', () => {
+    const anchors = { tenBase: 9, fiveBase: 6 };
+    expect(applyNormalization(9, anchors)).toBe(10);
+    expect(applyNormalization(6, anchors)).toBe(5);
+    expect(applyNormalization(7.5, anchors)).toBe(8); // midway in the top segment: 7.5
+    expect(applyNormalization(3, anchors)).toBe(3); // bottom segment: 5 * 3/6 = 2.5 -> 3
+    expect(applyNormalization(0, anchors)).toBe(0);
+  });
+
+  it('is monotonic across the pivot', () => {
+    const anchors = { tenBase: 9, fiveBase: 6 };
+    let previous = -1;
+    for (let base = 0; base <= 10; base += 0.25) {
+      const value = applyNormalization(base, anchors);
+      expect(value).toBeGreaterThanOrEqual(previous);
+      previous = value;
+    }
+  });
+
+  it('ignores a degenerate five-anchor at or above the ten-anchor', () => {
+    // Inverted anchors would flip the curve; fall back to ten-only stretch.
+    expect(applyNormalization(8, { tenBase: 8, fiveBase: 9 })).toBe(10);
+    expect(applyNormalization(4, { tenBase: 8, fiveBase: 8 })).toBe(5);
+  });
+});
+

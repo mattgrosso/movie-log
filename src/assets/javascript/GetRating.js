@@ -1,14 +1,11 @@
 import store from '../../store/index';
+import { baseNormalized, applyNormalization } from './normalizationPicker.js';
 
 let allRatings = store.getters.allMediaRatingsArray;
 
-const calculatePostStickyRatingFor = (rating) => {
-  if (!rating) {
-    return {
-      calculatedTotal: 0
-    };
-  }
-
+// The raw weighted score alone — shared by the display path below and by
+// anchor resolution (which must NOT recurse into normalization).
+const rawCalculatedTotal = (rating) => {
   const tweakValue = parseFloat(rating.tweakValue || 0);
 
   const direction = store.getters.weight("direction") * parseFloat(rating.direction);
@@ -28,7 +25,48 @@ const calculatePostStickyRatingFor = (rating) => {
   const stickiness = store.getters.weight("stickiness") * parseFloat(cleanStickiness);
 
   const total = direction + imagery + story + performance + soundtrack + love + overall + stickiness;
-  const calculatedTotal = parseFloat((total / 10).toFixed(2));
+  return parseFloat((total / 10).toFixed(2));
+};
+
+// Rating-curve anchors (settings.normalizationAnchors = { ten, five } as
+// dbKeys) resolved to 0-10 base positions. Memoized on the identity of the
+// anchors object + movieLog + the score range — getRating runs per-movie in
+// grids, so this must not re-resolve every call.
+let anchorMemo = { anchors: undefined, movieLog: undefined, min: undefined, max: undefined, result: null };
+
+const resolveAnchorBases = (minRating, maxRating) => {
+  const anchors = store.state.settings.normalizationAnchors;
+  const movieLog = store.state.movieLog;
+  if (
+    anchorMemo.anchors === anchors && anchorMemo.movieLog === movieLog &&
+    anchorMemo.min === minRating && anchorMemo.max === maxRating
+  ) {
+    return anchorMemo.result;
+  }
+
+  const baseFor = (dbKey) => {
+    if (!dbKey) return null;
+    const entry = movieLog?.[dbKey];
+    const recent = mostRecentRating(entry);
+    if (!recent) return null;
+    return baseNormalized(rawCalculatedTotal(recent), minRating, maxRating);
+  };
+
+  const result = anchors?.ten
+    ? { tenBase: baseFor(anchors.ten), fiveBase: baseFor(anchors.five) }
+    : null;
+  anchorMemo = { anchors, movieLog, min: minRating, max: maxRating, result };
+  return result;
+};
+
+const calculatePostStickyRatingFor = (rating) => {
+  if (!rating) {
+    return {
+      calculatedTotal: 0
+    };
+  }
+
+  const calculatedTotal = rawCalculatedTotal(rating);
 
   if (!allRatings.length) {
     allRatings = store.getters.allMediaRatingsArray;
@@ -40,17 +78,14 @@ const calculatePostStickyRatingFor = (rating) => {
     const minRating = Math.min(...allRatings);
     const maxRating = Math.max(...allRatings);
 
-    // Fetch the normalization tweak value from the store
-    const adjustmentFactor = store.state.settings.normalizationTweak || 0.25;
-
     if (maxRating !== minRating) {
-      normalizedRating = ((calculatedTotal - minRating) / (maxRating - minRating)) * 10;
-
-      // Apply the adjustment factor
-      normalizedRating += adjustmentFactor;
-
-      // Ensure the normalized rating is an integer
-      normalizedRating = Math.round(normalizedRating);
+      const base = baseNormalized(calculatedTotal, minRating, maxRating);
+      const anchorBases = resolveAnchorBases(minRating, maxRating);
+      normalizedRating = applyNormalization(base, {
+        tweak: store.state.settings.normalizationTweak || 0.25,
+        tenBase: anchorBases?.tenBase ?? null,
+        fiveBase: anchorBases?.fiveBase ?? null
+      });
     } else {
       // If maxRating and minRating are equal, set normalizedRating to a default value
       normalizedRating = 10; // or any other default value you prefer
