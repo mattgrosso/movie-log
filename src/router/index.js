@@ -24,6 +24,7 @@ const TaglineQuizGame = () => import(/* webpackChunkName: "games" */ "../compone
 const TriviaGame = () => import(/* webpackChunkName: "games" */ "../components/games/TriviaGame.vue");
 const PosterZoomGame = () => import(/* webpackChunkName: "games" */ "../components/games/PosterZoomGame.vue");
 const StampGame = () => import(/* webpackChunkName: "games" */ "../components/games/StampGame.vue");
+const CineplexityGame = () => import(/* webpackChunkName: "games" */ "../components/games/CineplexityGame.vue");
 const GameStatsScreen = () => import(/* webpackChunkName: "games" */ "../components/games/GameStatsScreen.vue");
 const WatchlistScreen = () => import(/* webpackChunkName: "watchlist" */ "../components/WatchlistScreen.vue");
 const LibraryPoster = () => import(/* webpackChunkName: "library-poster" */ "../components/LibraryPoster.vue");
@@ -385,6 +386,21 @@ const routes = [
     path: '/games/stamp',
     name: 'StampGame',
     component: StampGame,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+{
+    path: '/games/cineplexity',
+    name: 'CineplexityGame',
+    component: CineplexityGame,
     meta: {
       requiresLogin: true
     },

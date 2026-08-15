@@ -60,6 +60,7 @@ import tagBanner from '../../assets/images/games/tag-banner.jpg';
 import triviaBanner from '../../assets/images/games/trivia-banner.jpg';
 import stampBanner from '../../assets/images/games/stamp-banner.jpg';
 import posterZoomBanner from '../../assets/images/games/poster-zoom-banner.jpg';
+import cineplexityBanner from '../../assets/images/games/cineplexity-banner.svg';
 
 export default {
   name: 'GamesHub',
@@ -143,6 +144,12 @@ export default {
           name: 'Stamp',
           banner: stampBanner,
           description: 'Sort which keywords fit.'
+        },
+        {
+          path: '/games/cineplexity',
+          name: 'Cineplexity',
+          banner: cineplexityBanner,
+          description: 'Name every movie fitting both traits.'
         }
       ]
     };

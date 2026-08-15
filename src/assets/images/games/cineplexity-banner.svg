@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#2a2410"/>
+      <stop offset="100%" stop-color="#121212"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#glow)"/>
+  <!-- The trait venn: two reels overlapping — the game IS the intersection -->
+  <circle cx="330" cy="200" r="130" fill="none" stroke="#ffc107" stroke-width="6" opacity="0.85"/>
+  <circle cx="470" cy="200" r="130" fill="none" stroke="#e0a800" stroke-width="6" opacity="0.85"/>
+  <path d="M 400 96 A 130 130 0 0 1 400 304 A 130 130 0 0 1 400 96 Z" fill="#ffc107" opacity="0.18"/>
+  <!-- Sprocket dots hint at film reels -->
+  <g fill="#ffc107" opacity="0.6">
+    <circle cx="330" cy="86" r="7"/><circle cx="216" cy="200" r="7"/><circle cx="330" cy="314" r="7"/>
+    <circle cx="470" cy="86" r="7"/><circle cx="584" cy="200" r="7"/><circle cx="470" cy="314" r="7"/>
+  </g>
+  <text x="400" y="395" text-anchor="middle" font-family="Georgia, serif" font-size="64" font-weight="bold" fill="#ffc107">Cineplexity</text>
+</svg>
