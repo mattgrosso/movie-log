@@ -2,6 +2,9 @@
   <div class="media-result-grid mx-auto">
     <ul class="p-0 d-flex justify-content-around flex-wrap">
       <li class="card shadow border" v-for="media in mediaList" :key="media.id" @click="$emit('select', media)">
+        <!-- Taste-match badge (Brian-survey D1): rendered only when the
+             caller computed matchPct — search results never carry it. -->
+        <span v-if="media.matchPct" class="match-badge">{{ media.matchPct }}% match</span>
         <img
           v-if="media.poster_path"
           class="card-img-top"
@@ -89,4 +92,22 @@ export default {
       }
     }
   }
+
+.card {
+  position: relative;
+}
+
+.match-badge {
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
+  color: #ffc107;
+  font-size: 0.65rem;
+  font-weight: 700;
+  left: 6px;
+  padding: 0.15rem 0.5rem;
+  position: absolute;
+  top: 6px;
+  z-index: 2;
+}
 </style>

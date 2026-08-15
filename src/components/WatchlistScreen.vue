@@ -114,6 +114,8 @@ export default {
   data () {
     return {
       yearSections: [], // { year, count, missing, movies }
+      gemMovies: [],
+      gemsLoading: true,
       yearsLoading: true,
       directorMovies: [],
       actorMovies: [],
@@ -142,6 +144,18 @@ export default {
     anotherShotList () {
       return anotherShotCandidates(this.library, getRating)
         .filter((candidate) => !isPunted(candidate.entry, this.punts));
+    },
+    // Your two strongest genre affinities, named (for Hidden Gems).
+    topTasteGenres () {
+      const nameById = new Map();
+      this.library.forEach((entry) => (entry.movie?.genres || []).forEach((g) => {
+        if (g?.id != null && g?.name) nameById.set(g.id, g.name);
+      }));
+      return Object.entries(this.taste)
+        .filter(([id]) => nameById.has(Number(id)))
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([id]) => ({ id: Number(id), name: nameById.get(Number(id)) }));
     },
     nearYears () {
       return nearThresholdYears(this.library, awardsYearThreshold(this.$store.state.settings));
@@ -181,6 +195,13 @@ export default {
           names: this.recommendationSeeds.map((entry) => entry.movie.title),
           movies: this.similarMovies,
           loading: this.similarLoading
+        },
+{
+          key: 'gems',
+          title: 'Hidden gems',
+          names: this.topTasteGenres.map((g) => g.name),
+          movies: this.gemMovies,
+          loading: this.gemsLoading
         }
       ].filter((section) => section.names.length);
     }
@@ -236,6 +257,7 @@ export default {
     },
     async buildWatchlists () {
       if (!this.$store.state.isOnline) {
+        this.gemsLoading = false;
         this.yearsLoading = false;
         this.directorsLoading = false;
         this.actorsLoading = false;
@@ -243,12 +265,15 @@ export default {
         return;
       }
       const rated = ratedTmdbIds(this.library);
-      const [directorMovies, actorMovies, similarMovies, yearSections] = await Promise.all([
+      const [directorMovies, actorMovies, similarMovies, yearSections, gemMovies] = await Promise.all([
         this.moviesFromPeople(this.favoriteDirectors, 'crew', rated),
         this.moviesFromPeople(this.favoriteActors, 'cast', rated),
         this.moviesLikeFavorites(this.recommendationSeeds, rated),
-        this.moviesForNearYears(this.nearYears, rated)
+        this.moviesForNearYears(this.nearYears, rated),
+        this.hiddenGems(this.topTasteGenres, rated)
       ]);
+      this.gemMovies = gemMovies;
+      this.gemsLoading = false;
       this.yearSections = yearSections;
       this.yearsLoading = false;
       this.directorMovies = directorMovies;
@@ -257,6 +282,31 @@ export default {
       this.actorsLoading = false;
       this.similarMovies = similarMovies;
       this.similarLoading = false;
+    },
+    // Hidden Gems (Brian-survey D2): well-loved but little-seen — high
+    // TMDB score, LOW vote count (the inverse of every popularity filter),
+    // pulled from your two strongest taste genres.
+    async hiddenGems (genres, rated) {
+      const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+      const pools = await Promise.all((genres.length ? genres : [{ id: null }]).map(async ({ id }) => {
+        try {
+          const genreParam = id != null ? `&with_genres=${id}` : '';
+          const response = await axios.get(`https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}${genreParam}&vote_average.gte=7.2&vote_count.gte=60&vote_count.lte=1200&sort_by=vote_average.desc&page=1`);
+          return response.data?.results || [];
+        } catch {
+          return [];
+        }
+      }));
+      const candidates = pools.flat().map((movie) => ({
+        id: movie.id,
+        title: movie.title,
+        poster_path: movie.poster_path,
+        release_date: movie.release_date,
+        vote_average: movie.vote_average,
+        vote_count: movie.vote_count,
+        genre_ids: movie.genre_ids
+      }));
+      return rankWatchlistCandidates(candidates, rated, Date.now(), { cap: 12, profile: this.taste });
     },
     // Per near-threshold year: TMDB discover, well-voted first, then the
     // shared unseen-only quality ranking.

@@ -188,7 +188,7 @@ export function rankWatchlistCandidates (credits, ratedTmdbIds, now = Date.now()
     if (!byId.has(movie.id)) byId.set(movie.id, movie);
   });
 
-  return [...byId.values()]
+  const scored = [...byId.values()]
     // Base quality plus (when a profile is given) a taste term: each point
     // of genre affinity is worth about a point of community rating.
     .map((movie) => ({
@@ -197,8 +197,18 @@ export function rankWatchlistCandidates (credits, ratedTmdbIds, now = Date.now()
         (profile ? tasteBonus(movie, profile) * Math.log10((movie.vote_count || 0) + 1) : 0)
     }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, cap)
-    .map(({ movie }) => movie);
+    .slice(0, cap);
+
+  // Match % (Brian-survey D1): the section's scores min-max scaled into
+  // 62-97 — shown items already passed quality/unseen filters, so nothing
+  // reads as a bad match, and nothing claims perfection.
+  const max = scored[0]?.score ?? 1;
+  const min = scored[scored.length - 1]?.score ?? 0;
+  const span = max - min || 1;
+  return scored.map(({ movie, score }) => ({
+    ...movie,
+    matchPct: Math.round(62 + ((score - min) / span) * 35)
+  }));
 }
 
 // The movies to seed "more like this" recommendations from: your highest
