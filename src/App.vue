@@ -186,9 +186,14 @@ export default {
     // screen's 100vh-based vertical layout stop a few % short of the bottom
     // (cutting off the submit / poster buttons) until the app is force-quit.
     // Clipping here prevents the latch — fixes the sideways scroll AND the
-    // cumulative bottom cut-off together. Vertical page scroll is unaffected
-    // (the document, not this element, is the vertical scroll container).
+    // cumulative bottom cut-off together. Must be clip, not hidden: hidden
+    // forces overflow-y to compute to auto, which makes this wrapper the
+    // sticky containing scrollport and silently breaks every position:sticky
+    // descendant (the page scrolls, this element never does). clip clips
+    // harder (no programmatic scroll either — better for the latch) without
+    // creating a scroll container. hidden stays as an old-engine fallback.
     overflow-x: hidden;
+    overflow-x: clip;
     display: flex;
     flex-direction: column;
   }
