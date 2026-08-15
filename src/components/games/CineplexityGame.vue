@@ -89,6 +89,8 @@ import gameData from '../../mixins/gameData.js';
 import { buildCineplexityRound, matchGuess } from '../../assets/javascript/games/cineplexity.js';
 import cineplexityBanner from '../../assets/images/games/cineplexity-banner.svg';
 
+const STORAGE_KEY = 'cinemaRoll.cineplexity.current';
+
 export default {
   name: 'CineplexityGame',
   components: { BackLink },
@@ -146,7 +148,12 @@ export default {
     eligibleGameEntries: {
       immediate: true,
       handler () {
-        if (!this.round && this.eligibleGameEntries.length) this.startRound();
+        if (!this.round && this.eligibleGameEntries.length) {
+          // House persistence rule: restore the in-flight round by entry
+          // KEYS (re-resolved against the live library); a finished round
+          // is never resumed; anything unresolvable means a fresh round.
+          if (!this.restoreRound()) this.startRound();
+        }
       }
     }
   },
@@ -158,7 +165,39 @@ export default {
       this.guess = '';
       this.feedback = '';
       this.gaveUp = false;
+      this.persistRound();
       this.$nextTick(() => this.$refs.guessInput?.focus?.());
+    },
+    persistRound () {
+      try {
+        if (!this.round || this.finished) {
+          localStorage.removeItem(STORAGE_KEY);
+          return;
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          traitA: this.round.traitA,
+          traitB: this.round.traitB,
+          matchKeys: this.round.matches.map((entry) => entry.dbKey),
+          found: this.found,
+          misses: this.misses
+        }));
+      } catch { /* storage unavailable: the round just won't survive a reload */ }
+    },
+    restoreRound () {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        if (!saved?.matchKeys?.length || !saved.traitA || !saved.traitB) return false;
+        const byKey = new Map(this.eligibleGameEntries.map((entry) => [entry.dbKey, entry]));
+        const matches = saved.matchKeys.map((key) => byKey.get(key));
+        if (matches.some((entry) => !entry)) return false; // library changed: fresh round
+        this.round = { traitA: saved.traitA, traitB: saved.traitB, matches };
+        this.found = (saved.found || []).filter((key) => byKey.has(key));
+        this.misses = Number.isFinite(saved.misses) ? saved.misses : 0;
+        this.gaveUp = false;
+        return true;
+      } catch {
+        return false;
+      }
     },
     isFound (entry) {
       return this.found.includes(entry.dbKey);
@@ -177,10 +216,12 @@ export default {
         this.feedbackKind = 'hit';
         this.guess = '';
         if (this.found.length === this.round.matches.length) this.completeRound(true);
+        else this.persistRound();
       } else {
         this.misses += 1;
         this.feedback = 'Not a match (or already found).';
         this.feedbackKind = 'miss';
+        this.persistRound();
       }
     },
     giveUp () {
@@ -188,6 +229,7 @@ export default {
       this.completeRound(false);
     },
     completeRound (swept) {
+      try { localStorage.removeItem(STORAGE_KEY); } catch { /* fine */ }
       this.recordGameRound({
         found: this.found.length,
         total: this.round.matches.length,
