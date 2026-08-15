@@ -115,20 +115,37 @@ describe('assignMosaicCells (quadrant signatures)', () => {
   const topDark = [10, 10, 10, 10, 10, 10, 240, 240, 240, 240, 240, 240]
   const bottomDark = [240, 240, 240, 240, 240, 240, 10, 10, 10, 10, 10, 10]
 
+  const rng0 = () => 0 // deterministic: always the single best candidate
+
   it('assigns each cell its nearest-signature tile', () => {
-    expect(assignMosaicCells([red, blue, darkRed], [blue, red], { maxUse: 5 })).toEqual([1, 0, 1])
+    expect(assignMosaicCells([red, blue, darkRed], [blue, red], { maxUse: 5, rng: rng0 })).toEqual([1, 0, 1])
+  })
+
+  it('never places a poster directly beside itself (the slab-of-repeats bug)', () => {
+    // A 4x3 flat region: every cell identical. With plenty of equal tiles,
+    // no horizontally or vertically adjacent cells may share a poster.
+    const cells = Array.from({ length: 12 }, () => flat(100, 100, 100))
+    const tiles = Array.from({ length: 8 }, () => flat(100, 100, 100))
+    const cols = 4
+    const assigned = assignMosaicCells(cells, tiles, { maxUse: 12, cols, rng: rng0 })
+
+    assigned.forEach((tile, i) => {
+      const col = i % cols
+      if (col > 0) expect(tile).not.toBe(assigned[i - 1])
+      if (i >= cols) expect(tile).not.toBe(assigned[i - cols])
+    })
   })
 
   it('quadrants let structure win where averages tie', () => {
     // Both tiles average to the same gray; only quadrants tell them apart.
-    const assigned = assignMosaicCells([topDark, bottomDark], [bottomDark, topDark], { maxUse: 5 })
+    const assigned = assignMosaicCells([topDark, bottomDark], [bottomDark, topDark], { maxUse: 5, rng: () => 0 })
     expect(assigned).toEqual([1, 0])
   })
 
   it('spreads usage under a tight cap, and falls back to reuse when exhausted', () => {
-    const spread = assignMosaicCells([red, red, red], [red, darkRed], { maxUse: 1 })
+    const spread = assignMosaicCells([red, red, red], [red, darkRed], { maxUse: 1, rng: () => 0 })
     expect(new Set(spread).size).toBeGreaterThan(1)
-    expect(assignMosaicCells([red, red, red, red], [red], { maxUse: 1 })).toEqual([0, 0, 0, 0])
+    expect(assignMosaicCells([red, red, red, red], [red], { maxUse: 1, rng: () => 0 })).toEqual([0, 0, 0, 0])
   })
 })
 

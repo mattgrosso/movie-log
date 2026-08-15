@@ -113,35 +113,61 @@ export function signatureDistance (a, b) {
   return sum;
 }
 
-export function assignMosaicCells (cellSignatures, tileSignatures, { maxUse = null } = {}) {
+export function assignMosaicCells (cellSignatures, tileSignatures, { maxUse = null, cols = 0, rng = Math.random } = {}) {
   if (!tileSignatures.length) return [];
-  // Loose default: enough reuse for fidelity, some cap for variety.
   const cap = maxUse || Math.max(2, Math.ceil(cellSignatures.length / tileSignatures.length) * 3);
   const used = new Array(tileSignatures.length).fill(0);
+  const assigned = new Array(cellSignatures.length).fill(-1);
 
-  return cellSignatures.map((cell) => {
-    let best = -1;
-    let bestDist = Infinity;
-    for (let i = 0; i < tileSignatures.length; i++) {
-      if (used[i] >= cap) continue;
-      const dist = signatureDistance(cell, tileSignatures[i]);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = i;
+  for (let cellIndex = 0; cellIndex < cellSignatures.length; cellIndex++) {
+    const cell = cellSignatures[cellIndex];
+
+    // No poster directly beside itself (feedback: "ten or twelve all
+    // grouped together... breaks the sort of magic") — flat regions used
+    // to fill with contiguous slabs of one tile. Neighbors already
+    // assigned in reading order: left, up-left, up, up-right.
+    const forbidden = new Set();
+    if (cols > 0) {
+      const col = cellIndex % cols;
+      if (col > 0) forbidden.add(assigned[cellIndex - 1]);
+      if (cellIndex >= cols) {
+        forbidden.add(assigned[cellIndex - cols]);
+        if (col > 0) forbidden.add(assigned[cellIndex - cols - 1]);
+        if (col < cols - 1) forbidden.add(assigned[cellIndex - cols + 1]);
       }
     }
-    if (best === -1) {
+
+    // Collect the few best candidates, then pick randomly among those
+    // within ~15% of the best distance — in flat regions many tiles are
+    // near-equal matches, and scattering them is what keeps the texture
+    // varied instead of banded.
+    let candidates = [];
+    const consider = (respectRules) => {
+      candidates = [];
       for (let i = 0; i < tileSignatures.length; i++) {
+        if (respectRules && (used[i] >= cap || forbidden.has(i))) continue;
         const dist = signatureDistance(cell, tileSignatures[i]);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = i;
+        if (candidates.length < 4) {
+          candidates.push({ i, dist });
+          candidates.sort((a, b) => a.dist - b.dist);
+        } else if (dist < candidates[3].dist) {
+          candidates[3] = { i, dist };
+          candidates.sort((a, b) => a.dist - b.dist);
         }
       }
-    }
-    used[best] += 1;
-    return best;
-  });
+    };
+    consider(true);
+    if (!candidates.length) consider(false); // tiny libraries: rules yield
+
+    const bestDist = candidates[0].dist;
+    const nearBest = candidates.filter((c) => c.dist <= bestDist * 1.15 + 300);
+    const pick = nearBest[Math.floor(rng() * nearBest.length)] || candidates[0];
+
+    used[pick.i] += 1;
+    assigned[cellIndex] = pick.i;
+  }
+
+  return assigned;
 }
 
 // Typeahead options for the highlight input (feedback: "start to type

@@ -377,7 +377,7 @@ export default {
         try { localStorage.setItem('poster-signatures-v2', JSON.stringify(cache)); } catch { /* full is fine */ }
 
         // 3. Assign (pure, loose reuse cap) and render.
-        const assignment = assignMosaicCells(cellSignatures, tileSignatures);
+        const assignment = assignMosaicCells(cellSignatures, tileSignatures, { cols: COLS });
         const CELL = this.mosaicDetail === 'fine' ? 20 : 28;
         const canvas = document.createElement('canvas');
         canvas.width = COLS * CELL;
