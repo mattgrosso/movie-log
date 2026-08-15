@@ -88,19 +88,17 @@ export function applyNormalization (base, { tweak = 0.25, tenBase = null, fiveBa
   return Math.max(0, Math.min(10, Math.round(value)));
 }
 
-// The middle band of a library: the rank-median entry and its neighbors.
-// Feedback: "it's gonna be kinda hard for someone to determine what the
-// exact middle movie is" — so the five-anchor picker opens on this band and
-// the user fine-tunes by feel inside it instead of hunting. Entries come in
-// with a numeric `total`; returned best-first, centered on the median rank.
-export function medianBand (entriesWithTotals, bandSize = 21) {
-  const sorted = [...(entriesWithTotals || [])]
-    .filter((item) => Number.isFinite(item.total))
-    .sort((a, b) => b.total - a.total);
-  if (!sorted.length) return [];
+// Initial window into the (rank-sorted) picker pool. The ten-picker opens
+// at the top and lazy-extends rightward; the five-picker opens CENTERED on
+// the rank-median — "show the middle, and then let me scroll either
+// direction... until I find the one I want" (feedback) — and lazy-extends
+// both ways.
+export function initialPickerWindow (poolLength, { centered = false, size = 24 } = {}) {
+  if (!poolLength) return { start: 0, end: 0 };
+  if (!centered) return { start: 0, end: Math.min(poolLength, size) };
 
-  const middle = Math.floor((sorted.length - 1) / 2);
-  const half = Math.floor(bandSize / 2);
-  const start = Math.max(0, Math.min(middle - half, sorted.length - bandSize));
-  return sorted.slice(start, start + bandSize);
+  const middle = Math.floor((poolLength - 1) / 2);
+  const half = Math.floor(size / 2);
+  const start = Math.max(0, Math.min(middle - half, poolLength - size));
+  return { start, end: Math.min(poolLength, start + size) };
 }

@@ -43,10 +43,10 @@
         :placeholder="picking === 'ten' ? 'Search for your last true 10…' : 'Search, or pick from your middle…'"
       >
       <p v-if="picking === 'five' && !pickerQuery.trim()" class="picker-hint">
-        The middle of your library — pick the one that feels dead average.
-        Half of everything you've rated will land above it, half below.
+        The middle of your library — scroll either way until one feels dead
+        average. Half of everything you've rated will land above it, half below.
       </p>
-      <div class="picker-results">
+      <div ref="pickerResults" class="picker-results" @scroll.passive="onPickerScroll">
         <div
           v-for="candidate in pickerCandidates"
           :key="candidate.dbKey"
@@ -88,7 +88,7 @@
 // so re-rating an anchor movie updates the curve automatically. The legacy
 // numeric offset remains as the fallback control when no anchor is chosen.
 import { getRating } from '../assets/javascript/GetRating.js';
-import { medianBand } from '../assets/javascript/normalizationPicker.js';
+import { initialPickerWindow } from '../assets/javascript/normalizationPicker.js';
 
 export default {
   name: 'RatingCurveSettings',
@@ -96,6 +96,8 @@ export default {
     return {
       picking: null, // 'ten' | 'five' | null
       pickerQuery: '',
+      windowStart: 0, // lazy-loading window into pickerPool
+      windowEnd: 0,
       manualTweak: this.$store.state.settings?.normalizationTweak ?? 0.25,
       slots: [
         { key: 'ten', label: 'This is a 10' },
@@ -119,7 +121,9 @@ export default {
       const entry = this.anchorEntry('ten');
       return entry ? getRating(entry)?.calculatedTotal : null;
     },
-    pickerCandidates () {
+    // The full rank-sorted pool; pickerCandidates is a lazy window into it
+    // ("I just need to be able to go down as far as I need to" — feedback).
+    pickerPool () {
       const query = this.pickerQuery.trim().toLowerCase();
       let pool = this.ratedLibrary;
 
@@ -127,22 +131,52 @@ export default {
       if (this.picking === 'five' && Number.isFinite(this.tenAnchorTotal)) {
         pool = pool.filter((entry) => entry.curveTotal < this.tenAnchorTotal);
       }
-
-      // No query on the five-picker: open on the library's middle band —
-      // the rank-median and its neighbors — because nobody can NAME their
-      // exact middle movie, but anyone can recognize dead-average in a
-      // lineup of candidates (feedback).
-      if (!query && this.picking === 'five') {
-        return medianBand(pool.map((entry) => ({ ...entry, total: entry.curveTotal })));
-      }
-
       if (query) {
         pool = pool.filter((entry) => (entry.movie.title || '').toLowerCase().includes(query));
       }
-      return [...pool].sort((a, b) => b.curveTotal - a.curveTotal).slice(0, 24);
+      return [...pool].sort((a, b) => b.curveTotal - a.curveTotal);
+    },
+    pickerCandidates () {
+      return this.pickerPool.slice(this.windowStart, this.windowEnd);
+    }
+  },
+  watch: {
+    pickerQuery () {
+      this.resetPickerWindow();
     }
   },
   methods: {
+    resetPickerWindow () {
+      // Five-picker with no query opens CENTERED on the rank-median; the
+      // ten-picker (and any search) opens at the top.
+      const centered = this.picking === 'five' && !this.pickerQuery.trim();
+      const { start, end } = initialPickerWindow(this.pickerPool.length, { centered, size: centered ? 21 : 24 });
+      this.windowStart = start;
+      this.windowEnd = end;
+      this.$nextTick(() => {
+        const el = this.$refs.pickerResults;
+        if (el) el.scrollLeft = 0;
+      });
+    },
+    onPickerScroll () {
+      const el = this.$refs.pickerResults;
+      if (!el) return;
+
+      // Nearing the right edge: extend deeper into the ranks.
+      if (el.scrollWidth - el.scrollLeft - el.clientWidth < 300 && this.windowEnd < this.pickerPool.length) {
+        this.windowEnd = Math.min(this.pickerPool.length, this.windowEnd + 20);
+      }
+
+      // Nearing the left edge (five-picker upward): prepend, then compensate
+      // scrollLeft so the content doesn't jump under the finger.
+      if (el.scrollLeft < 300 && this.windowStart > 0) {
+        const widthBefore = el.scrollWidth;
+        this.windowStart = Math.max(0, this.windowStart - 20);
+        this.$nextTick(() => {
+          el.scrollLeft += el.scrollWidth - widthBefore;
+        });
+      }
+    },
     anchorEntry (key) {
       const dbKey = this.anchors[key];
       if (!dbKey) return null;
@@ -156,6 +190,7 @@ export default {
     openPicker (key) {
       this.picking = key;
       this.pickerQuery = '';
+      this.resetPickerWindow();
       this.$nextTick(() => this.$refs.pickerSearch?.focus?.());
     },
     chooseAnchor (candidate) {
