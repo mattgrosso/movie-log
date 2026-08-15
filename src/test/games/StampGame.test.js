@@ -766,3 +766,55 @@ describe('StampGame marking the day as played', () => {
     expect(winWrites(wrapper.store.dispatch)).toHaveLength(1);
   });
 });
+
+describe('StampGame finished-screen category lists (bug report: "see what movies fell into each category at the end")', () => {
+  beforeEach(() => { nextId = 1; });
+
+  const finishRound = async (wrapper) => {
+    while (!wrapper.vm.finished) {
+      await wrapper.vm.decide('yes');
+    }
+    await wrapper.vm.$nextTick();
+  };
+
+  it('tapping a non-empty category reveals exactly the movies that fell into it, tapping again collapses', async () => {
+    const wrapper = factory(library());
+    await wrapper.vm.$nextTick();
+    await finishRound(wrapper);
+
+    const addedTitles = wrapper.vm.history
+      .filter((h) => h.outcome === 'added')
+      .map((h) => h.card.entry.movie.title);
+    expect(addedTitles.length).toBeGreaterThan(0);
+
+    const addedStat = wrapper.find('.summary-stat.added');
+    expect(addedStat.attributes('disabled')).toBeUndefined();
+    await addedStat.trigger('click');
+
+    expect(wrapper.findAll('.summary-movie-title').map((n) => n.text())).toEqual(addedTitles);
+
+    await addedStat.trigger('click');
+    expect(wrapper.find('.summary-movies').exists()).toBe(false);
+  });
+
+  it('an empty category is disabled — nothing to expand', async () => {
+    const wrapper = factory(library());
+    await wrapper.vm.$nextTick();
+    await finishRound(wrapper); // every answer yes, so nothing was removed
+
+    expect(wrapper.vm.tally.removed).toBe(0);
+    expect(wrapper.find('.summary-stat.removed').attributes('disabled')).toBeDefined();
+  });
+
+  it('the open list resets when a new round starts', async () => {
+    const wrapper = factory(library());
+    await wrapper.vm.$nextTick();
+    await finishRound(wrapper);
+
+    await wrapper.find('.summary-stat.added').trigger('click');
+    expect(wrapper.vm.expandedStat).toBe('added');
+
+    wrapper.vm.startRound();
+    expect(wrapper.vm.expandedStat).toBeNull();
+  });
+});
