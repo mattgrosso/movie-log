@@ -413,6 +413,12 @@
               <h5 class="mb-0">Settings</h5>
             </div>
             <hr class="mt-0 mb-3">
+            <!-- Feature request: a printable poster-of-posters artifact. -->
+            <div class="mb-3">
+              <button type="button" class="btn btn-warning w-100" @click="$router.push('/library-poster')">
+                <i class="bi bi-image"></i> Make a poster of your library
+              </button>
+            </div>
             <div class="settings-panel-body">
               <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" id="shortsToggle" :checked="showShorts" @change="updateShowShorts">
