@@ -44,6 +44,12 @@ first attempt at the games scroll-to-top do nothing at all.
   image may grow to any number of lines — never clamp, ellipse, or
   fixed-height it; the cards just get taller (2026-08-15).
 
+- **No emojis in the UI.** Blanket rule (2026-08-15, after the category-row
+  crown): never use emoji glyphs in designs — status marks, winner badges,
+  decorations, anything. Use Bootstrap Icons (`bi-*`) with explicit colors
+  (gold `#ffd700` for winner marks) or plain styled text instead. Existing
+  emojis elsewhere in the app are sweep candidates when touching that code.
+
 - **No left-edge accent bars** (the Bootstrap-ish colored strip on a panel's left
   edge as the only stroke of color) — he's said he's "not that into it" (2026-08-15,
   Trophy Case films panel). Prefer neutral surfaces (#161616/#2e2e2e border) and show

@@ -60,10 +60,10 @@
                 <span class="category-row-main">
                   <span class="category-name">{{ category.name }}</span>
                   <span class="category-winner" v-if="getCategoryWinner(category.key)">
-                    👑 {{ getCategoryWinner(category.key) }}
+                    {{ getCategoryWinner(category.key) }}
                   </span>
                   <span class="category-no-nominees" v-else-if="isCategoryMarkedAsNoNominees(category.key)">
-                    🚫 No nominees
+                    No nominees
                   </span>
                   <span class="category-meta" v-else-if="!category.disabled">
                     {{ getCategoryNomineeCount(category.key) }} nominees
@@ -159,7 +159,7 @@
 
                       <!-- Winner crown overlay -->
                       <div v-if="isWinner(nominee)" class="winner-overlay">
-                        <span class="winner-crown">👑</span>
+                        <span class="winner-crown"><i class="bi bi-trophy-fill"></i></span>
                       </div>
 
                       <!-- Remove button -->
@@ -240,7 +240,7 @@
 
                         <!-- Status overlay -->
                         <div class="nominee-status-overlay">
-                          <span v-if="isWinner(option)" class="status-icon winner">👑</span>
+                          <span v-if="isWinner(option)" class="status-icon winner"><i class="bi bi-trophy-fill"></i></span>
                           <span v-else-if="isNominee(option)" class="status-icon nominee"><i class="bi bi-check"></i></span>
                         </div>
                       </div>
@@ -304,7 +304,7 @@
 
                       <!-- Status overlay -->
                       <div class="nominee-status-overlay">
-                        <span v-if="isWinner(option)" class="status-icon winner">👑</span>
+                        <span v-if="isWinner(option)" class="status-icon winner"><i class="bi bi-trophy-fill"></i></span>
                         <span v-else-if="isNominee(option)" class="status-icon nominee"><i class="bi bi-check"></i></span>
                       </div>
                     </div>
@@ -2431,7 +2431,8 @@ export default {
               padding: 2px 4px;
 
               &.winner {
-                background: rgba(40,167,69,0.9);
+                background: rgba(0, 0, 0, 0.75);
+                color: #ffd700;
               }
 
               &.nominee {
@@ -2655,6 +2656,7 @@ export default {
                 width: 18px;
 
                 .winner-crown {
+                  color: #ffd700;
                   font-size: 0.7em;
                 }
               }
