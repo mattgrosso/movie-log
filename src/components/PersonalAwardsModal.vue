@@ -36,7 +36,7 @@
                whole surface left to expose the detail pane, and the slim
                rail on the detail pane's left edge slides back. All motion
                is a single transform, so it cannot read as janky. -->
-          <div class="awards-slider" :class="{ 'showing-detail': Boolean(selectedCategory) }">
+          <div ref="awardsSlider" class="awards-slider" :class="{ 'showing-detail': Boolean(selectedCategory) }">
           <div class="awards-pane list-pane" :aria-hidden="Boolean(selectedCategory)">
           <div class="category-grid">
             <div class="category-buttons">
@@ -642,10 +642,15 @@ export default {
     onCategoryTileClick (category) {
       if (category.disabled) return;
       this.selectCategory(category.key);
-      // The panes share one scroll position — land the detail at its top.
-      this.$nextTick(() => {
-        this.$refs.categoryPanel?.scrollIntoView?.({ behavior: 'instant', block: 'start' });
-      });
+      // Belt-and-braces: the track must never be natively scrolled — the
+      // transform owns all horizontal motion.
+      if (this.$refs.awardsSlider) this.$refs.awardsSlider.scrollLeft = 0;
+      // Vertical reset only. NEVER scrollIntoView here: the detail starts
+      // one pane to the right, and scrollIntoView horizontally scrolls the
+      // slider's overflow-hidden track to reach it — which then stacks
+      // with the transform's own slide and overshoots by a full screen
+      // (the reported "content is off the left" bug).
+      window.scrollTo({ top: 0, behavior: 'instant' });
     },
     // Destructive with no undo, so it takes two taps: the first arms the
     // trash (label appears), the second actually clears.
@@ -658,6 +663,7 @@ export default {
       this.resetCategory();
     },
     async backToCategories () {
+      if (this.$refs.awardsSlider) this.$refs.awardsSlider.scrollLeft = 0;
       this.selectedCategory = null;
       this.showTrashIcon = false; // Reset trash icon when going back
 
