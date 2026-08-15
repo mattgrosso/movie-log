@@ -75,20 +75,16 @@
           </div><!-- /list-pane -->
 
           <div class="awards-pane detail-pane">
-            <button
-              v-if="selectedCategory"
-              type="button"
-              class="back-rail"
-              aria-label="Back to categories"
-              @click="backToCategories"
-            >
-              <i class="bi bi-chevron-left"></i>
-            </button>
           <div v-if="selectedCategory" ref="categoryPanel" class="category-detail">
             <div class="panel-bar">
-              <button v-if="isMatt" type="button" class="panel-trash" :class="{ armed: showTrashIcon }" @click="onTrashTap">
+              <button type="button" class="panel-back" @click="backToCategories">
+                <i class="bi bi-chevron-left"></i> Categories
+              </button>
+              <!-- Deliberately unadvertised: revealed by tapping the
+                   "Current Nominees:" heading below (the old secret was
+                   tapping the category title). -->
+              <button v-if="isMatt" v-show="showTrashIcon" type="button" class="panel-trash" title="Clear all nominees" @click="onTrashTap">
                 <i class="bi bi-trash3"></i>
-                <span v-if="showTrashIcon" class="panel-trash-confirm">Tap again to clear all</span>
               </button>
             </div>
             <!-- Sticky Top Section (the promoted category tile above is the
@@ -96,7 +92,7 @@
             <div class="sticky-top-section">
               <!-- Current Nominees - Always visible -->
               <div class="current-nominees-section">
-                <h6 class="section-title">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
+                <h6 class="section-title" @click="toggleTrashReveal">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
                 <div class="current-nominees-gallery">
                   <!-- No nominees button when category is empty -->
                   <div v-if="getCurrentNominees().length === 0" class="no-nominees-placeholder">
@@ -641,6 +637,7 @@ export default {
     },
     onCategoryTileClick (category) {
       if (category.disabled) return;
+      this.showTrashIcon = false;
       this.selectCategory(category.key);
       // Belt-and-braces: the track must never be natively scrolled — the
       // transform owns all horizontal motion.
@@ -652,13 +649,14 @@ export default {
       // (the reported "content is off the left" bug).
       window.scrollTo({ top: 0, behavior: 'instant' });
     },
-    // Destructive with no undo, so it takes two taps: the first arms the
-    // trash (label appears), the second actually clears.
+    // The hidden-ness is the safety: the trash only exists after the
+    // unadvertised heading tap, so its own tap clears directly (matching
+    // the original secret's behavior).
+    toggleTrashReveal () {
+      if (!this.isMatt) return;
+      this.showTrashIcon = !this.showTrashIcon;
+    },
     onTrashTap () {
-      if (!this.showTrashIcon) {
-        this.showTrashIcon = true;
-        return;
-      }
       this.showTrashIcon = false;
       this.resetCategory();
     },
@@ -2824,58 +2822,40 @@ export default {
   overflow: hidden;
 }
 
-.detail-pane {
-  display: flex;
-}
-
-/* The slim left rail: the "little place on the left" that slides back. */
-.back-rail {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.04);
-  border: none;
-  border-radius: 6px;
-  color: #adb5bd;
-  display: flex;
-  flex: 0 0 34px;
-  justify-content: center;
-  margin-right: 0.5rem;
-  align-self: stretch;
-}
-
-.back-rail:active {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.category-detail {
-  flex: 1;
-  min-width: 0;
-}
-
 .panel-bar {
   align-items: center;
   display: flex;
   gap: 0.5rem;
-  justify-content: flex-end;
-  margin-bottom: 0.25rem;
-  min-height: 0.5rem;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
 }
 
-.panel-trash {
+.panel-back {
   align-items: center;
   background: none;
   border: none;
-  color: #8a9199;
+  color: #adb5bd;
   display: flex;
   font-size: 0.9rem;
-  gap: 0.35rem;
-  padding: 0.25rem 0.5rem;
+  gap: 0.25rem;
+  min-height: 40px;
+  padding: 0.25rem 0.5rem 0.25rem 0;
 }
 
-.panel-trash.armed {
+.panel-back:active {
+  opacity: 0.6;
+}
+
+.panel-trash {
+  background: none;
+  border: none;
   color: #ff6a6a;
+  font-size: 1rem;
+  min-height: 40px;
+  min-width: 40px;
 }
 
-.panel-trash-confirm {
-  font-size: 0.75rem;
+.panel-trash:active {
+  opacity: 0.6;
 }
 </style>
