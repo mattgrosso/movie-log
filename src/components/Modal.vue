@@ -54,21 +54,6 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-/* Page mode: the identical content, but part of the document instead of
-   floating above it. */
-.cinemaroll-modal.page-mode {
-  background: none;
-  height: auto;
-  overflow: visible;
-  position: static;
-
-  :deep(.cinemaroll-modal-content),
-  .cinemaroll-modal-content {
-    max-height: none;
-    width: 100%;
-  }
-}
-
 .cinemaroll-modal {
   position: fixed;
   z-index: 5;
@@ -145,6 +130,47 @@ export default {
 
     .cinemaroll-modal-footer {
       padding: 0 1rem 1rem;
+    }
+  }
+}
+
+/* Page mode: identical slots, but a real page — no floating card, no inner
+   scroll cage, no ×. Declared AFTER the base styles so these override the
+   boxed-modal look (feedback: "it just sort of looks like we stuck a modal
+   on a page"). */
+.cinemaroll-modal.page-mode {
+  background: none;
+  display: block;
+  height: auto;
+  overflow: visible;
+  position: static;
+
+  .cinemaroll-modal-content {
+    background: none;
+    height: auto;
+    margin: 0;
+    max-height: none;
+    max-width: none;
+    overflow: visible;
+    width: 100%;
+
+    @media screen and (min-width: 832px) {
+      height: auto;
+      margin: 0 auto;
+      max-height: none;
+      /* Wide enough to breathe as a page, still readable line lengths. */
+      max-width: 640px;
+    }
+
+    .cinemaroll-modal-header .close {
+      /* The page has a BackLink; the modal × would be a second, redundant
+         escape hatch. */
+      display: none;
+    }
+
+    .cinemaroll-modal-body {
+      overflow: visible;
+      padding: 1rem 0;
     }
   }
 }

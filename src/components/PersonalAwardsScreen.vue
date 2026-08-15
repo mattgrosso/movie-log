@@ -1,5 +1,6 @@
 <template>
   <div class="personal-awards-screen">
+    <BackLink label="Back" @click="leave"/>
     <PersonalAwardsModal
       :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
       :personalAwardName="personalAwardName"
@@ -23,11 +24,12 @@
 // looked. Now the year rides in the URL (/awards?year=1997) and there is
 // no handoff to race.
 import PersonalAwardsModal from './PersonalAwardsModal.vue';
+import BackLink from './games/BackLink.vue';
 import { awardNameWithThe, awardNameSingular } from '../assets/javascript/personalAwards.js';
 
 export default {
   name: 'PersonalAwardsScreen',
-  components: { PersonalAwardsModal },
+  components: { PersonalAwardsModal, BackLink },
   computed: {
     yearFromRoute () {
       const year = Number(this.$route.query.year);
@@ -69,6 +71,8 @@ export default {
 <style scoped>
 .personal-awards-screen {
   color: #eee;
-  padding: 0.5rem 0 2rem;
+  /* House page shape: side padding plus the BackLink safety margin every
+     routed screen carries. */
+  padding: 2.5rem 1rem 2rem;
 }
 </style>
