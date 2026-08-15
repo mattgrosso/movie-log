@@ -1,6 +1,11 @@
 <template>
   <section v-if="facts.length" class="fun-facts">
-    <h2 class="fun-facts-title">Fun Facts</h2>
+    <div class="fun-facts-header">
+      <h2 class="fun-facts-title">Fun Facts</h2>
+      <button type="button" class="fun-facts-more" @click="$router.push('/stats')">
+        Deep Stats <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
     <div class="fun-facts-row">
       <div v-for="fact in facts" :key="fact.key" class="fun-fact-card">
         <span class="fun-fact-label">{{ fact.label }}</span>
@@ -32,6 +37,24 @@ export default {
 <style lang="scss" scoped>
 .fun-facts {
   margin: 0 0 1rem;
+}
+
+.fun-facts-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.fun-facts-more {
+  background: none;
+  border: none;
+  color: #ffc107;
+  font-size: 0.8rem;
+  min-height: 36px;
+}
+
+.fun-facts-more:active {
+  opacity: 0.6;
 }
 
 .fun-facts-title {

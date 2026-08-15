@@ -28,6 +28,7 @@ const GameStatsScreen = () => import(/* webpackChunkName: "games" */ "../compone
 const WatchlistScreen = () => import(/* webpackChunkName: "watchlist" */ "../components/WatchlistScreen.vue");
 const LibraryPoster = () => import(/* webpackChunkName: "library-poster" */ "../components/LibraryPoster.vue");
 const PersonalAwardsScreen = () => import(/* webpackChunkName: "awards" */ "../components/PersonalAwardsScreen.vue");
+const DeepStats = () => import(/* webpackChunkName: "deep-stats" */ "../components/DeepStats.vue");
 
 // Router
 const loggedIn = () => {
@@ -339,6 +340,21 @@ const routes = [
     path: '/watchlist',
     name: 'WatchlistScreen',
     component: WatchlistScreen,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+{
+    path: '/stats',
+    name: 'DeepStats',
+    component: DeepStats,
     meta: {
       requiresLogin: true
     },
