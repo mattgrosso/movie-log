@@ -50,7 +50,11 @@ export function buildCineplexityRound (entries, rng = Math.random, { minMatches 
     const [poolA, poolB] = pickTwo(pools, rng);
     const traitA = poolA.options[Math.floor(rng() * poolA.options.length)];
     const traitB = poolB.options[Math.floor(rng() * poolB.options.length)];
-    const matches = rated.filter((entry) => entryMatchesTrait(entry, traitA) && entryMatchesTrait(entry, traitB));
+    const matches = rated
+      .filter((entry) => entryMatchesTrait(entry, traitA) && entryMatchesTrait(entry, traitB))
+      // Chronological by release (QA): the slot row reads as a timeline,
+      // and "what is the early one I am missing?" becomes a real deduction.
+      .sort((a, b) => new Date(a.movie.release_date ?? 0) - new Date(b.movie.release_date ?? 0));
     if (matches.length >= minMatches && matches.length <= maxMatches) {
       return { traitA, traitB, matches };
     }

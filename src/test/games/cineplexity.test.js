@@ -22,9 +22,9 @@ function entry (id, title, { year = 1995, genres = [], cast = [], director = nul
 // A library where Horror + the 1980s intersect on exactly 3 movies.
 function library () {
   return [
+    entry(3, 'Gamma', { year: 1988, genres: ['Horror'] }),
     entry(1, 'Alpha', { year: 1984, genres: ['Horror'] }),
     entry(2, 'Beta', { year: 1986, genres: ['Horror'] }),
-    entry(3, 'Gamma', { year: 1988, genres: ['Horror'] }),
     entry(4, 'Delta', { year: 1984, genres: ['Comedy'] }),
     entry(5, 'Epsilon', { year: 1985, genres: ['Comedy'] }),
     entry(6, 'Zeta', { year: 1983, genres: ['Comedy'] }),
