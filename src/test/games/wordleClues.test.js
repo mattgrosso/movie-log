@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compareGuessToTarget, buildTargetClues, unlockedClueCount, CLUE_INTERVAL } from '@/assets/javascript/games/wordleClues.js';
+import { compareGuessToTarget, buildTargetClues, unlockedClueCount, activeTargetClues, clueAlreadyKnown, CLUE_INTERVAL } from '@/assets/javascript/games/wordleClues.js';
 
 function entry (overrides = {}) {
   return {
@@ -100,17 +100,18 @@ describe('buildTargetClues', () => {
       }
     });
 
-    expect(buildTargetClues(target)).toEqual([
+    expect(buildTargetClues(target).map((clue) => clue.text)).toEqual([
       'Released in the 1990s.',
       'Directed by Dir A / Dir B.',
       'One genre: Comedy.',
       'Runtime: 105 minutes.'
     ]);
+    expect(buildTargetClues(target).map((clue) => clue.key)).toEqual(['decade', 'director', 'genre', 'runtime']);
   });
 
   it('skips a clue type the target has no data for', () => {
     const target = entry({ movie: { release_date: '1995-03-01', crew: [], genres: [], runtime: null } });
-    expect(buildTargetClues(target)).toEqual(['Released in the 1990s.']);
+    expect(buildTargetClues(target).map((clue) => clue.text)).toEqual(['Released in the 1990s.']);
   });
 });
 
@@ -127,5 +128,41 @@ describe('unlockedClueCount', () => {
 
   it('never unlocks more clues than the target actually has', () => {
     expect(unlockedClueCount(CLUE_INTERVAL * 10, 4)).toBe(4);
+  });
+});
+
+
+describe('adaptive clue unlocking (feedback: "I always get the decade... whenever I actually find the decade, so it\'s never actually helpful")', () => {
+  const clues = [
+    { key: 'decade', text: 'Released in the 1990s.' },
+    { key: 'director', text: 'Directed by Dir A.' },
+    { key: 'genre', text: 'One genre: Comedy.', genre: 'Comedy' },
+    { key: 'runtime', text: 'Runtime: 105 minutes.' }
+  ];
+
+  it('a clue the guess grid already gave away is skipped, unlocking the next unknown one instead', () => {
+    const guesses = [{ isCorrect: false, decade: { match: true } }];
+    const active = activeTargetClues(clues, guesses, CLUE_INTERVAL); // one slot earned
+    expect(active.map((clue) => clue.key)).toEqual(['director']);
+  });
+
+  it('genre knownness is about the SPECIFIC genre named in the clue', () => {
+    const wrongGenre = [{ isCorrect: false, genres: { shared: ['Drama'] } }];
+    expect(clueAlreadyKnown(clues[2], wrongGenre)).toBe(false);
+    const rightGenre = [{ isCorrect: false, genres: { shared: ['Comedy'] } }];
+    expect(clueAlreadyKnown(clues[2], rightGenre)).toBe(true);
+  });
+
+  it('the WINNING guess never marks clues known — the score cannot shrink at the moment of victory', () => {
+    const guesses = [
+      { isCorrect: false, decade: { match: false } },
+      { isCorrect: true, decade: { match: true }, director: { match: true } }
+    ];
+    const active = activeTargetClues(clues, guesses, CLUE_INTERVAL);
+    expect(active.map((clue) => clue.key)).toEqual(['decade']);
+  });
+
+  it('with nothing known, unlocking is the plain first-N behaviour', () => {
+    expect(activeTargetClues(clues, [], CLUE_INTERVAL * 2).map((clue) => clue.key)).toEqual(['decade', 'director']);
   });
 });

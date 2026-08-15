@@ -12,7 +12,7 @@
 
     <template v-else>
       <ul v-if="activeClues.length" class="target-clues">
-        <li v-for="(clue, index) in activeClues" :key="index">{{ clue }}</li>
+        <li v-for="clue in activeClues" :key="clue.key">{{ clue.text }}</li>
       </ul>
 
       <div v-if="status === 'playing'" class="guess-form">
@@ -111,7 +111,7 @@
 import BackLink from './BackLink.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { entryKey, matchesAllTokens } from '../../assets/javascript/games/gameUtils.js';
-import { compareGuessToTarget, buildTargetClues, unlockedClueCount } from '../../assets/javascript/games/wordleClues.js';
+import { compareGuessToTarget, buildTargetClues, activeTargetClues } from '../../assets/javascript/games/wordleClues.js';
 import reelWordleBanner from '../../assets/images/games/reel-wordle-banner.jpg';
 
 const STORAGE_KEY = 'cinemaRoll.reelWordle.current';
@@ -156,11 +156,11 @@ export default {
       return this.target ? buildTargetClues(this.target) : [];
     },
     // Clues about the target itself, unlocked progressively as wrong
-    // guesses accumulate — replaces the old hard "lost after 6" cap, since
-    // guesses are unlimited.
+    // guesses accumulate — but only clues the guess grid hasn't already
+    // given away (a matched decade cell makes the decade clue worthless,
+    // so the unlock skips to something genuinely unknown).
     activeClues () {
-      const count = unlockedClueCount(this.wrongGuessCount, this.targetClues.length);
-      return this.targetClues.slice(0, count);
+      return activeTargetClues(this.targetClues, this.guesses, this.wrongGuessCount);
     },
     // Golf-style: fewer guesses is better, but leaning on clues costs too.
     score () {

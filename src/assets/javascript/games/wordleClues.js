@@ -63,11 +63,47 @@ export function buildTargetClues (targetEntry) {
   const runtime = targetEntry?.movie?.runtime;
 
   const clues = [];
-  if (decade != null) clues.push(`Released in the ${decade}s.`);
-  if (directors.length) clues.push(`Directed by ${directors.join(' / ')}.`);
-  if (genres.length) clues.push(`One genre: ${genres[0]}.`);
-  if (Number.isFinite(runtime)) clues.push(`Runtime: ${runtime} minutes.`);
+  if (decade != null) clues.push({ key: 'decade', text: `Released in the ${decade}s.` });
+  if (directors.length) clues.push({ key: 'director', text: `Directed by ${directors.join(' / ')}.` });
+  if (genres.length) clues.push({ key: 'genre', text: `One genre: ${genres[0]}.`, genre: genres[0] });
+  if (Number.isFinite(runtime)) clues.push({ key: 'runtime', text: `Runtime: ${runtime} minutes.` });
   return clues;
+}
+
+// Whether the player has ALREADY effectively learned a clue's information
+// from the guess grid (user feedback: "I always get the decade first, but I
+// also seem to always get it whenever I actually find the decade, so it's
+// never actually helpful"). A known clue is skipped at unlock time so the
+// reward is always genuinely new information.
+export function clueAlreadyKnown (clue, guesses) {
+  const list = guesses || [];
+  switch (clue.key) {
+    case 'decade':
+      return list.some((guess) => guess?.decade?.match);
+    case 'director':
+      return list.some((guess) => guess?.director?.match);
+    case 'genre':
+      return list.some((guess) => (guess?.genres?.shared || []).includes(clue.genre));
+    case 'runtime':
+      return list.some((guess) => guess?.runtime?.direction === 'match');
+    default:
+      return false;
+  }
+}
+
+// The clues actually shown: one earned per CLUE_INTERVAL wrong guesses, but
+// drawn only from the clues the grid hasn't already given away — skipping,
+// not wasting, the redundant ones.
+export function activeTargetClues (targetClues, guesses, wrongGuessCount) {
+  const unlocked = unlockedClueCount(wrongGuessCount, (targetClues || []).length);
+  // Only WRONG guesses teach: the winning guess matches everything by
+  // definition, and letting it mark clues "known" would retroactively
+  // shrink the clue count (and therefore inflate the score) at the moment
+  // of victory.
+  const informative = (guesses || []).filter((guess) => !guess?.isCorrect);
+  return (targetClues || [])
+    .filter((clue) => !clueAlreadyKnown(clue, informative))
+    .slice(0, unlocked);
 }
 
 // How many of the target's clues are unlocked for a given number of wrong
