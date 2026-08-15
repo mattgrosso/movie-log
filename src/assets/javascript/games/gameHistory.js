@@ -39,8 +39,7 @@ const SUMMARIES = {
   wordle: (records) => [
     stat('Puzzles solved', records.length),
     stat('Best (fewest guesses)', min(numbers(records, 'guesses'))),
-    stat('Average guesses', round1(avg(numbers(records, 'guesses')))),
-    stat('Best score', min(numbers(records, 'score')))
+    stat('Average guesses', round1(avg(numbers(records, 'guesses'))))
   ],
   connections: (records) => [
     stat('Puzzles solved', records.length),

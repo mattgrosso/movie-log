@@ -67,11 +67,10 @@ describe('ReelWordleGame', () => {
     expect(wrapper.vm.guesses[0].isCorrect).toBe(false);
   });
 
-  it('never loses — guesses are unlimited, and clues about the target unlock progressively instead', async () => {
+  it('never loses — guesses are unlimited', async () => {
     const wrapper = factory(20)
     const target = wrapper.vm.target;
     const wrongOnes = wrapper.vm.eligibleGameEntries.filter((e) => e.dbKey !== target.dbKey).slice(0, 12);
-    expect(wrongOnes.length).toBe(12);
 
     for (const wrongEntry of wrongOnes) {
       await wrapper.vm.submitGuess(wrongEntry);
@@ -80,31 +79,25 @@ describe('ReelWordleGame', () => {
 
     expect(wrapper.vm.status).toBe('playing');
     expect(wrapper.vm.guesses.length).toBe(12);
-    // 12 wrong / CLUE_INTERVAL(4) = 3 unlock slots — but clues the guess
-    // grid already gave away are SKIPPED (adaptive unlocking), and these
-    // fixtures share most metadata, so fewer may actually show. What's
-    // shown always mirrors activeClues exactly.
-    expect(wrapper.vm.activeClues.length).toBeLessThanOrEqual(3);
-    expect(wrapper.findAll('.target-clues li').length).toBe(wrapper.vm.activeClues.length);
-  });
+    // The reveal-clues concept is gone entirely (feedback: "I've gotten
+    // better at this... let's get rid of that whole concept").
+    expect(wrapper.find('.target-clues').exists()).toBe(false);
+  })
+;
 
-  it('score is guesses used minus clues used, shown on a win', async () => {
+  it('a win reports the guess count, with no score arithmetic', async () => {
     const wrapper = factory(20);
     const target = wrapper.vm.target;
     const wrongOnes = wrapper.vm.eligibleGameEntries.filter((e) => e.dbKey !== target.dbKey).slice(0, 4);
     for (const wrongEntry of wrongOnes) {
       await wrapper.vm.submitGuess(wrongEntry);
     }
-    const cluesUsed = wrapper.vm.activeClues.length; // adaptive: may be < 1 slot
 
     await wrapper.vm.submitGuess(target);
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.vm.guesses.length).toBe(5);
-    // Winning must not change the clue count (wrong guesses only teach).
-    expect(wrapper.vm.activeClues.length).toBe(cluesUsed);
-    expect(wrapper.vm.score).toBe(5 - cluesUsed);
-    expect(wrapper.find('.result-banner.won').text()).toContain(`score: ${5 - cluesUsed}`);
+    expect(wrapper.find('.result-banner.won').text()).toContain('You got it in 5 guesses!');
+    expect(wrapper.find('.result-banner.won').text()).not.toContain('score');
   });
 
   // Two bug reports, in sequence: first "show the year next to the title on

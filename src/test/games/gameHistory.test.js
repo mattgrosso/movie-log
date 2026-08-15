@@ -43,10 +43,10 @@ describe('summarizeGame', () => {
     expect(lines).toContainEqual({ label: 'Average savings (wins)', value: '$30' });
   });
 
-  it('wordle reports fewest guesses as best', () => {
-    const lines = summarizeGame('wordle', [{ guesses: 7, score: 6 }, { guesses: 2, score: 2 }]);
+  it('wordle reports fewest guesses as best (the clue/score concept is gone)', () => {
+    const lines = summarizeGame('wordle', [{ guesses: 7 }, { guesses: 2 }]);
     expect(lines).toContainEqual({ label: 'Best (fewest guesses)', value: 2 });
-    expect(lines).toContainEqual({ label: 'Best score', value: 2 });
+    expect(lines.map((line) => line.label)).not.toContain('Best score');
   });
 
   it('six degrees counts optimal-length chains', () => {

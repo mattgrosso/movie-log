@@ -3,7 +3,7 @@
     <BackLink label="Games" @click="$router.push('/games')"/>
     <p class="game-subtitle">
       Guess the movie from your own library.
-      {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }}<span v-if="activeClues.length"> · {{ activeClues.length }} clue{{ activeClues.length === 1 ? '' : 's' }} used</span>.
+      {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }}.
     </p>
 
     <div v-if="!target" class="not-enough-movies">
@@ -11,10 +11,6 @@
     </div>
 
     <template v-else>
-      <ul v-if="activeClues.length" class="target-clues">
-        <li v-for="clue in activeClues" :key="clue.key">{{ clue.text }}</li>
-      </ul>
-
       <div v-if="status === 'playing'" class="guess-form">
         <input
           v-model="guessInput"
@@ -33,7 +29,7 @@
       </div>
 
       <div v-else class="result-banner won">
-        <p>You got it in {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }} (score: {{ score }})!</p>
+        <p>You got it in {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }}!</p>
         <img v-if="gamePosterUrl(target)" :src="gamePosterUrl(target, 'w342')" :alt="target.movie.title" class="reveal-poster">
         <div class="end-actions">
           <button type="button" class="btn-game btn-game-primary cta-btn" @click="startNewPuzzle">New Puzzle</button>
@@ -53,7 +49,7 @@
            older ones down — the "stack grows up" request. displayGuesses
            (a reversed copy) keeps the underlying guesses array itself
            append-only/chronological — only the DISPLAY order flips — so
-           persistence and the score/status logic (which don't care about
+           persistence and the status logic (which doesn't care about
            order) are untouched. -->
       <div v-if="guesses.length" class="clue-grid">
         <div v-for="clue in displayGuesses" :key="clue.entryKey" class="clue-row" :class="{ correct: clue.isCorrect }">
@@ -111,7 +107,7 @@
 import BackLink from './BackLink.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { entryKey, matchesAllTokens } from '../../assets/javascript/games/gameUtils.js';
-import { compareGuessToTarget, buildTargetClues, activeTargetClues } from '../../assets/javascript/games/wordleClues.js';
+import { compareGuessToTarget } from '../../assets/javascript/games/wordleClues.js';
 import reelWordleBanner from '../../assets/images/games/reel-wordle-banner.jpg';
 
 const STORAGE_KEY = 'cinemaRoll.reelWordle.current';
@@ -149,23 +145,6 @@ export default {
     status () {
       return this.guesses.some((clue) => clue.isCorrect) ? 'won' : 'playing';
     },
-    wrongGuessCount () {
-      return this.guesses.filter((clue) => !clue.isCorrect).length;
-    },
-    targetClues () {
-      return this.target ? buildTargetClues(this.target) : [];
-    },
-    // Clues about the target itself, unlocked progressively as wrong
-    // guesses accumulate — but only clues the guess grid hasn't already
-    // given away (a matched decade cell makes the decade clue worthless,
-    // so the unlock skips to something genuinely unknown).
-    activeClues () {
-      return activeTargetClues(this.targetClues, this.guesses, this.wrongGuessCount);
-    },
-    // Golf-style: fewer guesses is better, but leaning on clues costs too.
-    score () {
-      return this.guesses.length - this.activeClues.length;
-    },
     // Newest-first for display only (see the template comment above the
     // clue-grid) — `guesses` itself stays append-only/chronological.
     displayGuesses () {
@@ -180,7 +159,7 @@ export default {
     status (newStatus) {
       if (newStatus === 'won') {
         this.recordGameWin();
-        this.recordGameRound({ guesses: this.guesses.length, clues: this.activeClues.length, score: this.score });
+        this.recordGameRound({ guesses: this.guesses.length });
       }
     },
     // Fires once eligibleGameEntries has real data (it may be empty for a
@@ -398,16 +377,6 @@ export default {
   width: 100%;
 }
 
-.target-clues {
-  background: #1a1a1a;
-  border-left: 4px solid #ffc107;
-  border-radius: 0.4rem;
-  color: #ffc107;
-  font-size: 0.85rem;
-  list-style: none;
-  margin: 0 0 1rem;
-  padding: 0.6rem 0.9rem;
-}
 
 /* Deliberately understated and at the BOTTOM of the page. Bug report: "The
    new puzzle button in the Wordle game is too prominent. Once you started the
