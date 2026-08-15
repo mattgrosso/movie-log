@@ -43,33 +43,36 @@
           <div class="awards-pane list-pane" :aria-hidden="Boolean(selectedCategory)">
           <div class="category-grid">
             <div class="category-buttons">
+              <!-- Drill rows: name + status on the left, chevron on the
+                   right — the row shape that says "slides through to a
+                   detail pane" (feedback: the UI should indicate the slide). -->
               <button
                 v-for="category in categories"
                 :key="category.key"
                 type="button"
                 class="category-btn"
-                :class="[
-                  {'completed': category.completed, 'disabled': category.disabled},
-                  'text-bg-dark'
-                ]"
+                :class="{'completed': category.completed, 'disabled': category.disabled}"
                 :disabled="category.disabled"
                 :title="category.disabledReason || ''"
                 @click="onCategoryTileClick(category)"
               >
-                <span class="category-status" v-if="category.completed">
-                  <span class="green-checkmark">
-                    <i class="bi bi-check"></i>
+                <span class="category-row-main">
+                  <span class="category-name">{{ category.name }}</span>
+                  <span class="category-winner" v-if="getCategoryWinner(category.key)">
+                    👑 {{ getCategoryWinner(category.key) }}
+                  </span>
+                  <span class="category-no-nominees" v-else-if="isCategoryMarkedAsNoNominees(category.key)">
+                    🚫 No nominees
+                  </span>
+                  <span class="category-meta" v-else-if="!category.disabled">
+                    {{ getCategoryNomineeCount(category.key) }} nominees
                   </span>
                 </span>
-                <span class="category-name">{{ category.name }}</span>
-                <span class="category-meta" v-if="!category.disabled">
-                  {{ getCategoryNomineeCount(category.key) }} nominees
-                </span>
-                <span class="category-winner" v-if="getCategoryWinner(category.key)">
-                  👑 {{ getCategoryWinner(category.key) }}
-                </span>
-                <span class="category-no-nominees" v-if="isCategoryMarkedAsNoNominees(category.key)">
-                  🚫 No nominees
+                <span class="category-row-side">
+                  <span class="green-checkmark" v-if="category.completed">
+                    <i class="bi bi-check"></i>
+                  </span>
+                  <i v-if="!category.disabled" class="bi bi-chevron-right category-chevron"></i>
                 </span>
               </button>
             </div>
@@ -2224,89 +2227,82 @@ export default {
 
 
         .category-btn {
-          border-radius: 6px;
-          border: 1px solid #6c757d;
-          cursor: pointer;
+          align-items: center;
+          background: #161616;
+          border: 1px solid #2e2e2e;
+          border-radius: 10px;
+          color: #eee;
           display: flex;
-          flex-direction: column;
-          gap: 2px;
+          gap: 0.75rem;
+          justify-content: space-between;
           min-height: 60px;
-          padding: 12px 8px;
-          text-align: center;
+          padding: 0.7rem 0.9rem;
+          text-align: left;
+          transition: transform 0.1s, background-color 0.1s;
 
-          &.text-bg-dark {
-            background: #343a40;
-            border-color: #6c757d;
-            color: #f8f9fa;
-
-            &.completed {
-              background-color: #1e4620;
-              border-color: #28a745;
-            }
-
-            &.disabled {
-              background: #2c3034;
-              border-color: #495057;
-              color: #6c757d;
-              cursor: not-allowed;
-              opacity: 0.4;
-            }
+          &:active {
+            background: #1f1f1f;
+            transform: scale(0.985);
           }
 
-          .category-status {
-            font-size: 1em;
+          &.disabled {
+            cursor: not-allowed;
+            opacity: 0.4;
+          }
+
+          .category-row-main {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            row-gap: 2px;
           }
 
           .category-name {
-            font-size: 0.75em;
+            font-size: 0.9rem;
             font-weight: 600;
-            line-height: 1.1;
+            line-height: 1.2;
           }
 
           .category-meta {
-            font-size: 0.6em;
-            margin-top: 1px;
-            opacity: 0.7;
+            color: #999;
+            font-size: 0.75rem;
           }
 
           .category-winner {
-            font-size: 0.55em;
-            font-weight: 500;
-            line-height: 1.1;
-            margin-top: 2px;
-            opacity: 0.9;
+            color: #ffd700;
+            font-size: 0.75rem;
+            line-height: 1.2;
           }
 
           .category-no-nominees {
-            color: #6c757d;
-            font-size: 0.55em;
+            color: #999;
+            font-size: 0.75rem;
             font-style: italic;
-            font-weight: 500;
-            line-height: 1.1;
-            margin-top: 2px;
-            opacity: 0.7;
           }
 
-          // Checkmark positioning
-          position: relative;
+          .category-row-side {
+            align-items: center;
+            column-gap: 0.5rem;
+            display: flex;
+            flex: 0 0 auto;
+          }
 
-          .category-status {
-            font-size: 0.8em;
-            position: absolute;
-            right: 6px;
-            top: 6px;
+          /* The slide-over affordance: every enabled row points right. */
+          .category-chevron {
+            color: #777;
+            font-size: 0.9rem;
+          }
 
-            .green-checkmark {
-              align-items: center;
-              background-color: #28a745;
-              border-radius: 50%;
-              color: white;
-              display: flex;
-              font-size: 0.7em;
-              height: 14px;
-              justify-content: center;
-              width: 14px;
-            }
+          .green-checkmark {
+            align-items: center;
+            background-color: #28a745;
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            font-size: 0.75rem;
+            height: 16px;
+            justify-content: center;
+            width: 16px;
           }
         }
       }
