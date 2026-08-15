@@ -2370,8 +2370,11 @@ export default {
       .sticky-top-section {
         background: #000000;
         border-bottom: 1px solid #333;
-        margin: -12px -16px 0;
-        padding: 12px 16px 8px;
+        /* Full-bleed within the drill pane (its 1rem inset is cancelled
+           here and restored as inner padding), sticky against the page
+           scroll so the nominees stay in view while browsing the grids. */
+        margin: 0 -1rem;
+        padding: 12px 1rem 8px;
         position: sticky;
         top: 0;
         z-index: 10;
@@ -2801,13 +2804,22 @@ export default {
    transform is the entire animation — nothing resizes, nothing reflows. */
 .awards-slider {
   display: flex;
+  /* clip, not hidden: an overflow-hidden ancestor becomes the sticky
+     containing block and silently kills the nominees bar's position:
+     sticky. clip paints identically but leaves stickiness against the
+     page scroll intact. (hidden first as a fallback for old engines.) */
   overflow: hidden;
-  width: 100%;
+  overflow: clip;
+  /* Bleed through the page's side padding so full-width children (the
+     sticky nominees bar) can genuinely reach the screen edges… */
+  margin: 0 -1rem;
 }
 
 .awards-pane {
   flex: 0 0 100%;
   min-width: 0;
+  /* …while normal pane content keeps its 1rem inset. */
+  padding: 0 1rem;
   transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.35, 1);
 }
 
