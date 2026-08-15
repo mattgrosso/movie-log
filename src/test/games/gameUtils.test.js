@@ -3,7 +3,7 @@ import {
   getEligibleEntries, ratingFor, hashString, makeSeededRng, shuffle, pickRandomDistinct,
   movieYear, movieDecade, movieDirectors, movieCastNames, movieGenreNames,
   movieWriters, movieComposers, movieCinematographers, movieEditors, movieProducers,
-  entryKey, compareNumber
+  entryKey, compareNumber, matchesAllTokens
 } from '@/assets/javascript/games/gameUtils.js';
 
 function entry (overrides = {}) {
@@ -199,5 +199,32 @@ describe('compareNumber', () => {
   it('returns a null direction when either value is missing', () => {
     expect(compareNumber(null, 5).direction).toBeNull();
     expect(compareNumber(5, null).direction).toBeNull();
+  });
+});
+
+describe('matchesAllTokens (bug report: "if I type man space gun it\'s not finding it")', () => {
+  it('matches every token in any order, anywhere in the title', () => {
+    expect(matchesAllTokens('The Old Man and the Gun', 'man gun')).toBe(true);
+    expect(matchesAllTokens('The Old Man and the Gun', 'gun man')).toBe(true);
+    expect(matchesAllTokens('The Old Man and the Gun', 'gun')).toBe(true);
+    expect(matchesAllTokens('The Old Man and the Gun', 'old man')).toBe(true);
+  });
+
+  it('still requires every token to be present', () => {
+    expect(matchesAllTokens('The Old Man and the Gun', 'man sword')).toBe(false);
+  });
+
+  it('is case-insensitive and tolerant of extra whitespace', () => {
+    expect(matchesAllTokens('The Old Man and the Gun', '  MAN   Gun ')).toBe(true);
+  });
+
+  it('tokens match inside words, same as the old substring behavior', () => {
+    expect(matchesAllTokens('Manchester by the Sea', 'man sea')).toBe(true);
+  });
+
+  it('rejects empty or missing input rather than matching everything', () => {
+    expect(matchesAllTokens('Anything', '')).toBe(false);
+    expect(matchesAllTokens('Anything', '   ')).toBe(false);
+    expect(matchesAllTokens(null, 'man')).toBe(false);
   });
 });

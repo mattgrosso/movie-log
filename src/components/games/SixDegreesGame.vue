@@ -168,7 +168,7 @@ import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
 import { buildPeopleGraph, pickConnectedPair, shortestPath, scorePathDifficulty, difficultyForScore, DIFFICULTY_LEVELS, nextHintStep } from '../../assets/javascript/games/sixDegrees.js';
-import { entryKey } from '../../assets/javascript/games/gameUtils.js';
+import { entryKey, matchesAllTokens } from '../../assets/javascript/games/gameUtils.js';
 import sixDegreesBanner from '../../assets/images/games/six-degrees-banner.jpg';
 
 const STORAGE_KEY = 'cinemaRoll.sixDegrees.current';
@@ -499,7 +499,7 @@ export default {
         const lastMovie = this.chain[this.chain.length - 1].entry;
         const cast = (this.playGraph.peopleByMovie.get(entryKey(lastMovie)) || new Set());
         this.suggestions = [...cast]
-          .filter((name) => !this.usedPersonNames.has(name) && name.toLowerCase().includes(term))
+          .filter((name) => !this.usedPersonNames.has(name) && matchesAllTokens(name, term))
           .slice(0, 8)
           .map((name) => ({ name, label: name }));
       } else {
@@ -509,7 +509,7 @@ export default {
           .filter((key) => !this.usedMovieKeys.has(key))
           .map((key) => this.eligibleGameEntries.find((entry) => entryKey(entry) === key))
           .filter(Boolean)
-          .filter((entry) => entry.movie.title.toLowerCase().includes(term))
+          .filter((entry) => matchesAllTokens(entry.movie.title, term))
           .slice(0, 8)
           .map((entry) => ({ key: entryKey(entry), entry, label: entry.movie.title }));
       }

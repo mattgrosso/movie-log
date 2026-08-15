@@ -89,7 +89,7 @@ import axios from 'axios';
 import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
-import { entryKey } from '../../assets/javascript/games/gameUtils.js';
+import { entryKey, matchesAllTokens } from '../../assets/javascript/games/gameUtils.js';
 import { buildClueDeck, STARTING_BUDGET } from '../../assets/javascript/games/clueBudget.js';
 import clueBudgetBanner from '../../assets/images/games/clue-budget-banner.jpg';
 
@@ -172,7 +172,7 @@ export default {
         return;
       }
       this.suggestions = this.eligibleGameEntries
-        .filter((entry) => entry.movie.title.toLowerCase().includes(term))
+        .filter((entry) => matchesAllTokens(entry.movie.title, term))
         .slice(0, 8);
     },
     // A guess is always picked from the player's own library (via the

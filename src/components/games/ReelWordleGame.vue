@@ -111,7 +111,7 @@
 <script>
 import BackLink from './BackLink.vue';
 import gameDataMixin from '../../mixins/gameData.js';
-import { entryKey } from '../../assets/javascript/games/gameUtils.js';
+import { entryKey, matchesAllTokens } from '../../assets/javascript/games/gameUtils.js';
 import { compareGuessToTarget, buildTargetClues, unlockedClueCount } from '../../assets/javascript/games/wordleClues.js';
 import reelWordleBanner from '../../assets/images/games/reel-wordle-banner.jpg';
 
@@ -209,7 +209,7 @@ export default {
       }
       const guessedKeys = new Set(this.guesses.map((clue) => clue.entryKey));
       this.suggestions = this.eligibleGameEntries
-        .filter((entry) => !guessedKeys.has(entryKey(entry)) && entry.movie.title.toLowerCase().includes(term))
+        .filter((entry) => !guessedKeys.has(entryKey(entry)) && matchesAllTokens(entry.movie.title, term))
         .slice(0, 8);
     },
     submitGuess (entry) {

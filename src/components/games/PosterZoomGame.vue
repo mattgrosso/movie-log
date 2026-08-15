@@ -101,7 +101,7 @@
 import BackLink from './BackLink.vue';
 import NewRatingSearch from '../NewRatingSearch.vue';
 import gameDataMixin from '../../mixins/gameData.js';
-import { entryKey } from '../../assets/javascript/games/gameUtils.js';
+import { entryKey, matchesAllTokens } from '../../assets/javascript/games/gameUtils.js';
 import {
   ZOOM_LEVELS,
   pickZoomOrigin,
@@ -445,7 +445,7 @@ export default {
         return;
       }
       this.suggestions = this.eligibleGameEntries
-        .filter((entry) => entry.movie.title.toLowerCase().includes(term))
+        .filter((entry) => matchesAllTokens(entry.movie.title, term))
         .slice(0, 8);
     },
     // Guesses always come from the player's own library via the dropdown,

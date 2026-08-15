@@ -124,6 +124,21 @@ export function movieGenreNames (entry) {
   return (entry?.movie?.genres || []).map((genre) => genre.name);
 }
 
+// Bug report: "if the title is The Old Man and the Gun, if I type gun it
+// shows it, if I type man it shows it, but if I type 'man gun' it's not
+// finding it." Every whitespace-separated token must appear somewhere in
+// the candidate text, in any order — looser than one contiguous substring,
+// stricter than a distance-based fuzzy match (typos still don't match,
+// which is fine: game suggestions come from the player's own library, so
+// what needs correcting is word order and partial recall, not spelling).
+// Used by every game typeahead.
+export function matchesAllTokens (text, term) {
+  const haystack = String(text || '').toLowerCase();
+  const tokens = String(term || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return false;
+  return tokens.every((token) => haystack.includes(token));
+}
+
 // Stable identity for a db entry across the games modules — prefers the
 // Firebase dbKey (unique per rating entry), falling back to the TMDB movie
 // id for entries that don't carry one (e.g. synthetic test fixtures).
