@@ -43,6 +43,14 @@ vi.mock('firebase/auth', () => ({
   onAuthStateChanged: vi.fn((auth, callback) => { callback(null); return vi.fn() })
 }))
 
+const listPendingWritesMock = vi.fn(() => Promise.resolve([]))
+vi.mock('@/utils/pendingWriteQueue.js', () => ({
+  listPendingWrites: (...args) => listPendingWritesMock(...args),
+  removePendingWrite: vi.fn(),
+  updatePendingWrite: vi.fn(),
+  enqueueWrite: vi.fn((entry) => Promise.resolve({ id: 'queued-id', ...entry }))
+}))
+
 const loadSnapshotMock = vi.fn()
 const saveSnapshotMock = vi.fn()
 vi.mock('@/utils/offlineStore.js', () => ({
@@ -63,6 +71,7 @@ beforeEach(async () => {
   onValueMock.mockReset()
   loadSnapshotMock.mockReset()
   getMock.mockReset().mockImplementation(() => Promise.resolve({ val: () => null }))
+  listPendingWritesMock.mockReset().mockResolvedValue([])
   queryMock.mockClear()
   saveSnapshotMock.mockReset()
 
@@ -289,6 +298,49 @@ describe('initializeDB offline snapshot fallback', () => {
       await flushMicrotasks()
 
       expect(getMock.mock.calls.length).toBe(callsAfterFirst)
+    })
+  })
+
+  describe('listener attach guard (bug: a pre-listener play-counter write hid the Insights awards pane)', () => {
+    it('a local settings scrap committed BEFORE initializeDB no longer blocks the settings listener', async () => {
+      loadSnapshotMock.mockResolvedValue(null)
+      // The exact poisoning: a game screen mounts first and records a play.
+      store.commit('applyDbPathLocally', { path: 'settings/games/plays/clue-budget', value: 1 })
+
+      await store.dispatch('initializeDB')
+
+      const settingsCall = onValueMock.mock.calls.find(([path]) => path === 'testing-database/settings')
+      expect(settingsCall).toBeTruthy()
+
+      // Live settings arrive with the real data — awards must land in state.
+      settingsCall[1]({ val: () => ({ personalAwards: { 2024: { completed: true } }, personalAwardName: 'Grosker' }) })
+      expect(store.state.settings.personalAwards).toBeTruthy()
+      expect(store.state.settingsLoaded).toBe(true)
+    })
+
+    it('the settings SNAPSHOT also applies over a local scrap, with the queue replay restoring the scrap on top', async () => {
+      loadSnapshotMock.mockImplementation((topKey, kind) => Promise.resolve(
+        kind === 'settings' ? { personalAwards: { 2024: { completed: true } } } : null
+      ))
+      listPendingWritesMock.mockResolvedValue([
+        { id: 'q1', type: 'write', createdAt: 1, dbEntry: { path: 'settings/games/plays/clue-budget', value: 1 } }
+      ])
+      store.commit('applyDbPathLocally', { path: 'settings/games/plays/clue-budget', value: 1 })
+
+      await store.dispatch('initializeDB')
+      await flushMicrotasks()
+
+      expect(store.state.settings.personalAwards).toBeTruthy()
+      expect(store.state.settings.games.plays['clue-budget']).toBe(1)
+    })
+
+    it('re-dispatching initializeDB does not attach duplicate listeners', async () => {
+      loadSnapshotMock.mockResolvedValue(null)
+      await store.dispatch('initializeDB')
+      await store.dispatch('initializeDB')
+
+      const settingsCalls = onValueMock.mock.calls.filter(([path]) => path === 'testing-database/settings')
+      expect(settingsCalls).toHaveLength(1)
     })
   })
 

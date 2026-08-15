@@ -134,8 +134,32 @@ export default {
     recordGamePlay () {
       const key = gameWinKey(this.$route?.path);
       if (!key) return;
-      const current = this.$store.state?.settings?.games?.plays?.[key] || 0;
-      this.$store.dispatch?.('writeDurably', { path: `settings/games/plays/${key}`, value: current + 1 });
+      this.whenSettingsReady(() => {
+        const current = this.$store.state?.settings?.games?.plays?.[key] || 0;
+        this.$store.dispatch?.('writeDurably', { path: `settings/games/plays/${key}`, value: current + 1 });
+      });
+    },
+    // Defers a settings read-modify-write until REAL settings have loaded.
+    // A recorder firing at mount races initializeDB: its early commit used
+    // to make the has-data guard believe settings were loaded (the
+    // vanished-Insights-awards bug), and its read of a still-empty settings
+    // object would compute counters from nothing. settingsLoaded === false
+    // is the real store's explicit not-yet signal; mock stores without the
+    // field record synchronously, as every existing test expects.
+    whenSettingsReady (record) {
+      if (this.$store.state?.settingsLoaded === false) {
+        const unwatch = this.$watch(
+          () => this.$store.state?.settingsLoaded,
+          (loaded) => {
+            if (loaded) {
+              unwatch();
+              record();
+            }
+          }
+        );
+        return;
+      }
+      record();
     },
     // Feature request: "add a history for each game with some good
     // statistics on how they've gone." Called by each game at ITS OWN
@@ -149,9 +173,11 @@ export default {
     recordGameRound (metrics) {
       const key = gameWinKey(this.$route?.path);
       if (!key) return;
-      const existing = this.$store.state?.settings?.games?.history?.[key];
-      const history = appendRound(existing, { at: Date.now(), ...metrics });
-      this.$store.dispatch?.('writeDurably', { path: `settings/games/history/${key}`, value: history });
+      this.whenSettingsReady(() => {
+        const existing = this.$store.state?.settings?.games?.history?.[key];
+        const history = appendRound(existing, { at: Date.now(), ...metrics });
+        this.$store.dispatch?.('writeDurably', { path: `settings/games/history/${key}`, value: history });
+      });
     },
     // Called by each game at ITS OWN definition of a win. For the games with
     // a discrete win state (Wordle/Connections/Six Degrees/Clue Budget/

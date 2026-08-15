@@ -241,6 +241,16 @@ export default createStore({
     // read). Drives LibraryAccessBanner's "your movies aren't gone"
     // guidance; cleared the moment a listener successfully delivers data.
     dbReadDenied: false,
+    // Which account key the live movieLog/settings listeners are attached
+    // for — the explicit "attach exactly once" guard. This replaced a
+    // does-state-have-data check that a game screen's play-counter write
+    // could fool by landing in settings before initializeDB ran (bug: the
+    // Insights awards pane vanished because the settings listener never
+    // attached and personalAwards never loaded).
+    dbListenersAttachedFor: null,
+    // True once REAL settings have arrived (snapshot or live) — not just
+    // local write scraps. Gates the game recorders' read-modify-writes.
+    settingsLoaded: false,
     // Latest delta-sync shadow-mode comparison (phase 1) — see
     // runDeltaShadowCheck. Null until a launch has a baseline to compare.
     deltaShadowReport: null,
@@ -469,6 +479,12 @@ export default createStore({
     setDbReadDenied (state, value) {
       state.dbReadDenied = value;
     },
+    setDbListenersAttachedFor (state, value) {
+      state.dbListenersAttachedFor = value;
+    },
+    setSettingsLoaded (state, value) {
+      state.settingsLoaded = value;
+    },
     setDeltaShadowReport (state, value) {
       state.deltaShadowReport = value;
     },
@@ -660,12 +676,17 @@ export default createStore({
 
       const topKey = context.getters.databaseTopKey;
 
-      // dbReadDenied bypasses the has-data guards below: a cancelled
-      // listener never refires on its own, so after the user signs back in
-      // (the login flow re-dispatches initializeDB) a fresh listener must be
-      // attached even though the snapshot may have populated state already.
-      const movieLogHasData = Boolean(Object.keys(context.state.movieLog).length) && !context.state.dbReadDenied;
-      if (!movieLogHasData) {
+      // Attach the live listeners exactly once per account key. The old
+      // guard asked "does state already have data?" — which broke the day
+      // game screens started committing a play-counter into settings at
+      // mount: that scrap of local data read as "already loaded," the
+      // settings listener never attached, and the whole session ran
+      // without personalAwards (the vanished Insights pane). An explicit
+      // flag can't be fooled by local writes. dbReadDenied still forces a
+      // re-attach after sign-in, since a cancelled listener never refires.
+      const listenersLive = context.state.dbListenersAttachedFor === topKey && !context.state.dbReadDenied;
+      if (!listenersLive) {
+        context.commit('setDbListenersAttachedFor', topKey);
         // Offline fallback: Firebase RTDB's web SDK has no disk persistence
         // (unlike Firestore), so the onValue socket below never fires without
         // a live connection and dbLoaded would hang forever. Race it against
@@ -742,17 +763,16 @@ export default createStore({
           // stop any loading state so the banner + cached view take over.
           context.commit('setDbLoaded', true);
         });
-      }
-      const settingsHasData = Boolean(Object.keys(context.state.settings).length) && !context.state.dbReadDenied;
-      if (!settingsHasData) {
+
         loadSnapshot(topKey, 'settings').then(async (cached) => {
-          if (cached && !Object.keys(context.state.settings).length) {
+          // settingsLoaded (not key-counting) decides whether the snapshot
+          // may apply: local write scraps can predate it. The snapshot
+          // replaces them wholesale, and the queue replay below restores
+          // them on top — they were durably enqueued by the same writes
+          // that created them.
+          if (cached && !context.state.settingsLoaded) {
             context.commit('setSettings', cached);
-            // Same durable-queue re-top as movieLog above — offline
-            // stickiness/tiebreak/awards edits are settings writes. Only
-            // after a cached commit: replaying onto empty settings would
-            // create a partial object that blocks this guard on a later
-            // resolution.
+            context.commit('setSettingsLoaded', true);
             await context.dispatch('replayPendingWrites', 'settings');
           }
           return null;
@@ -766,6 +786,7 @@ export default createStore({
             // re-topped with still-unconfirmed local writes (see
             // reapplyInFlightWrites) so a just-made change can't flicker back.
             context.commit('setSettings', reapplyInFlightWrites(context.state, 'settings', data));
+            context.commit('setSettingsLoaded', true);
             saveSnapshot(topKey, 'settings', data);
             context.dispatch('replayPendingWrites', 'settings');
           }

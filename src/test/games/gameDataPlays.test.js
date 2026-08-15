@@ -105,3 +105,29 @@ describe('gameData.recordGameRound (feature: per-game history with statistics)',
     expect(dispatch).not.toHaveBeenCalled();
   });
 });
+
+describe('recorders defer until real settings load (bug: an at-mount write hid the Insights awards pane and read empty counters)', () => {
+  it('holds the play write while settingsLoaded is false, then records against the REAL counter once loaded', async () => {
+    const { reactive } = await import('vue');
+    const dispatch = vi.fn();
+    const state = reactive({ settings: {}, settingsLoaded: false });
+    const wrapper = mount(DummyGame, {
+      global: { mocks: { $store: { state, getters: { allMediaAsArray: [] }, dispatch }, $route: { path: '/games/timeline' } } }
+    });
+
+    expect(dispatch).not.toHaveBeenCalled(); // deferred, not dropped
+
+    // Real settings arrive with an existing counter, THEN the write fires.
+    state.settings = { games: { plays: { timeline: 7 } } };
+    state.settingsLoaded = true;
+    await wrapper.vm.$nextTick();
+
+    expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/games/plays/timeline', value: 8 });
+  });
+
+  it('records immediately when the store has no settingsLoaded field at all (mock stores, older tests)', () => {
+    const dispatch = vi.fn();
+    mountAt('/games/timeline', {}, dispatch);
+    expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/games/plays/timeline', value: 1 });
+  });
+});
