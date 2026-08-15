@@ -234,6 +234,12 @@ export default createStore({
     // `devMode` getter below for why it can't just re-read localStorage.
     devMode: localStorage.getItem('devMode') === 'true',
     dbLoaded: false,
+    // True when the live movieLog/settings listener was CANCELLED by the
+    // server (permission denied under the locked-down rules — wrong account,
+    // dead session, or dev-mode pointing at a database this account can't
+    // read). Drives LibraryAccessBanner's "your movies aren't gone"
+    // guidance; cleared the moment a listener successfully delivers data.
+    dbReadDenied: false,
     filteredResults: [],
     // Header banner: Home resolves bannerUrl on arrival based on bannerRequest
     // (set by MovieDetail/RateMovie/search links). See Header.vue + Home.resolveBanner.
@@ -456,6 +462,9 @@ export default createStore({
     setDbLoaded (state, value) {
       state.dbLoaded = value;
     },
+    setDbReadDenied (state, value) {
+      state.dbReadDenied = value;
+    },
     // Persists to localStorage here too, so this is the one place that needs
     // to know devMode is backed by localStorage at all — callers just commit.
     setDevMode (state, value) {
@@ -644,7 +653,11 @@ export default createStore({
 
       const topKey = context.getters.databaseTopKey;
 
-      const movieLogHasData = Boolean(Object.keys(context.state.movieLog).length);
+      // dbReadDenied bypasses the has-data guards below: a cancelled
+      // listener never refires on its own, so after the user signs back in
+      // (the login flow re-dispatches initializeDB) a fresh listener must be
+      // attached even though the snapshot may have populated state already.
+      const movieLogHasData = Boolean(Object.keys(context.state.movieLog).length) && !context.state.dbReadDenied;
       if (!movieLogHasData) {
         // Offline fallback: Firebase RTDB's web SDK has no disk persistence
         // (unlike Firestore), so the onValue socket below never fires without
@@ -689,10 +702,23 @@ export default createStore({
             // library until the flush's own refire brought it back.
             context.dispatch('replayPendingWrites', 'movieLog');
           }
+          context.commit('setDbReadDenied', false);
+          context.commit('setDbLoaded', true);
+        }, (error) => {
+          // The listener was CANCELLED — under the locked-down rules that
+          // means permission denied: a dead/wrong session, or dev mode
+          // pointing at a database this account can't read. The library
+          // isn't empty, this device just can't see it — surface that
+          // (LibraryAccessBanner) instead of leaving a silent empty grid.
+          console.error('movieLog listener cancelled:', error);
+          ErrorLogService.error('movieLog listener cancelled:', error);
+          context.commit('setDbReadDenied', true);
+          // Whatever the snapshot fallback managed to show is all there is;
+          // stop any loading state so the banner + cached view take over.
           context.commit('setDbLoaded', true);
         });
       }
-      const settingsHasData = Boolean(Object.keys(context.state.settings).length);
+      const settingsHasData = Boolean(Object.keys(context.state.settings).length) && !context.state.dbReadDenied;
       if (!settingsHasData) {
         loadSnapshot(topKey, 'settings').then(async (cached) => {
           if (cached && !Object.keys(context.state.settings).length) {
@@ -718,6 +744,11 @@ export default createStore({
             saveSnapshot(topKey, 'settings', data);
             context.dispatch('replayPendingWrites', 'settings');
           }
+        }, (error) => {
+          // Same denial signal as the movieLog listener above (the rules
+          // gate both identically); committing the flag twice is harmless.
+          console.error('settings listener cancelled:', error);
+          context.commit('setDbReadDenied', true);
         });
       }
       const academyAwardWinnersHasData = Boolean(Object.keys(context.state.academyAwardWinners).length);

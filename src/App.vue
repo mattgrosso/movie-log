@@ -5,6 +5,7 @@
     <AppHeader/>
     <UpdateAvailableBanner/>
     <OfflineBanner/>
+    <LibraryAccessBanner/>
     <!-- The routed page grows to fill whatever is left below the header, which
          is what keeps the footer at the bottom. Pages used to each declare
          `min-height: 100vh` for that, which made every page header + a FULL
@@ -24,6 +25,7 @@ import AppHeader from "./components/Header.vue";
 import BugReportButton from "./components/BugReportButton.vue";
 import UpdateAvailableBanner from "./components/UpdateAvailableBanner.vue";
 import OfflineBanner from "./components/OfflineBanner.vue";
+import LibraryAccessBanner from "./components/LibraryAccessBanner.vue";
 
 export default {
   name: "Cinema-Roll",
@@ -31,6 +33,7 @@ export default {
     AppFooter,
     AppHeader,
     BugReportButton,
+    LibraryAccessBanner,
     OfflineBanner,
     UpdateAvailableBanner
   },

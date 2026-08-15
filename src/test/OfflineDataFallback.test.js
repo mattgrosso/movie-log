@@ -134,6 +134,56 @@ describe('initializeDB offline snapshot fallback', () => {
     expect(store.state.settings).toEqual({ includeShorts: true })
   })
 
+  describe('permission-denied reads are surfaced, not silent (locked-down rules)', () => {
+    function movieLogListener () {
+      const call = onValueMock.mock.calls.find(([path]) => path === 'testing-database/movieLog')
+      return { deliver: call[1], cancel: call[2] }
+    }
+
+    it('a cancelled listener sets dbReadDenied and settles dbLoaded instead of hanging', async () => {
+      loadSnapshotMock.mockResolvedValue(null)
+      await store.dispatch('initializeDB')
+
+      movieLogListener().cancel(new Error('permission_denied'))
+
+      expect(store.state.dbReadDenied).toBe(true)
+      expect(store.state.dbLoaded).toBe(true)
+    })
+
+    it('a denial does not clobber whatever the snapshot fallback already showed', async () => {
+      loadSnapshotMock.mockImplementation((topKey, kind) => Promise.resolve(
+        kind === 'movieLog' ? { cached: { movie: { id: 1, title: 'Cached Movie' } } } : null
+      ))
+      await store.dispatch('initializeDB')
+      await flushMicrotasks()
+
+      movieLogListener().cancel(new Error('permission_denied'))
+
+      expect(store.state.movieLog.cached.movie.title).toBe('Cached Movie')
+      expect(store.state.dbReadDenied).toBe(true)
+    })
+
+    it('signing back in re-attaches a fresh listener (bypassing the has-data guard) and the first good read clears the flag', async () => {
+      loadSnapshotMock.mockImplementation((topKey, kind) => Promise.resolve(
+        kind === 'movieLog' ? { cached: { movie: { id: 1, title: 'Cached Movie' } } } : null
+      ))
+      await store.dispatch('initializeDB')
+      await flushMicrotasks()
+      movieLogListener().cancel(new Error('permission_denied'))
+      const listenersBefore = onValueMock.mock.calls.filter(([path]) => path === 'testing-database/movieLog').length
+
+      // The login flow re-dispatches initializeDB once a session exists.
+      await store.dispatch('initializeDB')
+      const movieLogCalls = onValueMock.mock.calls.filter(([path]) => path === 'testing-database/movieLog')
+      expect(movieLogCalls.length).toBe(listenersBefore + 1)
+
+      movieLogCalls[movieLogCalls.length - 1][1]({ val: () => ({ live: { movie: { id: 2, title: 'Live Movie' } } }) })
+
+      expect(store.state.dbReadDenied).toBe(false)
+      expect(store.state.movieLog.live.movie.title).toBe('Live Movie')
+    })
+  })
+
   it('does not attempt a live listener or cache read when no databaseTopKey is available', async () => {
     store.commit('setDevMode', false)
 

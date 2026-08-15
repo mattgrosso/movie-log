@@ -120,6 +120,15 @@
          required here specifically. -->
     <div v-if="$store.state.dbLoaded && isBrandNewUser && !dismissedWelcomeSuggestions && !value && !resultsAreFiltered" class="welcome-new-user text-center mt-3 mb-1">
       <p class="welcome-new-user-text">Welcome to Cinema Roll! This app is built entirely around movies you rate yourself.</p>
+      <!-- The wrong-account case: the read SUCCEEDED but this account's
+           library is genuinely empty — which is exactly what an established
+           user sees if they signed in with a different Google account or a
+           typo'd email. Naming the signed-in account is the diagnostic. -->
+      <p v-if="$store.state.userEmail" class="welcome-account-note">
+        You're signed in as <strong>{{ $store.state.userEmail }}</strong>.
+        Already have rated movies? They live under the account you first
+        used — sign in with that one to see them.
+      </p>
     </div>
 
     <!-- Suggestions button below search bar if user has rated 1-9 movies -->
@@ -2790,7 +2799,10 @@ export default {
       // genuinely new account. Without this an established user sees a flash
       // of the "want help getting started?" onboarding on every fresh load.
       // (The window widened when initializeDB started awaiting authReady.)
-      return this.$store.state.dbLoaded && this.userRatedMovieCount === 0;
+      // A denied read is NOT a new user — LibraryAccessBanner owns that
+      // case, and welcoming someone whose library exists but can't be read
+      // would send exactly the wrong message.
+      return this.$store.state.dbLoaded && !this.$store.state.dbReadDenied && this.userRatedMovieCount === 0;
     },
     // A genuinely 0-rated user has nothing else to look at, so the "rate
     // something to get started" suggestions show immediately - no reason to
@@ -5344,6 +5356,13 @@ export default {
   color: #ccc;
   font-size: 0.9rem;
   margin: 0 auto;
+  max-width: 26rem;
+  padding: 0 1rem;
+}
+.welcome-account-note {
+  color: #ccc;
+  font-size: 0.78rem;
+  margin: 0.5rem auto 0;
   max-width: 26rem;
   padding: 0 1rem;
 }
