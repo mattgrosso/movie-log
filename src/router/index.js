@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import store from "../store";
 import { gameAwareScrollBehavior } from "./scrollBehavior.js";
+import { handleRouterChunkError } from "../utils/staleChunkReload.js";
 
 const Home = () => import(/* webpackChunkName: "home" */ "../components/Home.vue");
 const Login = () => import(/* webpackChunkName: "login" */ "../components/Login.vue");
@@ -438,6 +439,14 @@ const router = createRouter({
 router.afterEach(() => {
   document.body.classList.remove('no-scroll');
   document.body.style.overflow = '';
+})
+
+// Mixed-version self-heal: after a deploy, the old app's lazy route chunks
+// can vanish (new worker purges the old precache) and navigation dead-ends
+// in a blank router-view. One guarded reload recovers onto the new build.
+// See staleChunkReload.js for the full story.
+router.onError((error, to) => {
+  handleRouterChunkError(error, to);
 })
 
 export default router;

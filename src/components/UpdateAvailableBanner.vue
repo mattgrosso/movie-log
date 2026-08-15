@@ -1,28 +1,60 @@
 <template>
   <div v-if="$store.state.updateAvailable" class="update-available-banner">
-    <span>A new version of Cinema Roll is available.</span>
-    <button class="btn btn-sm btn-dark" @click="reload">Refresh</button>
+    <span v-if="updating">Updating&hellip;</span>
+    <span v-else>A new version of Cinema Roll is available.</span>
+    <button class="btn btn-sm btn-dark" :disabled="updating" @click="reload">
+      {{ updating ? 'One moment' : 'Refresh' }}
+    </button>
   </div>
 </template>
 
 <script>
-// Shows once registerServiceWorker.js flags that a new version has finished
-// installing in the background - deliberately a manual prompt, not an
-// automatic reload (see that file's own comment on the bug report this
-// fixes: an unconditional window.location.reload() there used to yank the
-// page out from under whatever the user was doing, most visibly breaking
-// the long-running box office backfill button mid-run). Rendered globally
-// from App.vue (same "always visible regardless of route/login state"
-// treatment as BugReportButton.vue), in normal document flow right below
-// the header so it pushes content down rather than overlaying/covering
-// anything - this only appears rarely and briefly, so a small layout shift
-// is preferable to fixed-position z-index/overlap juggling with the
-// per-page back-link affordances.
+// Shows once App.vue's deploy check (or registerServiceWorker's updated()
+// hook) flags a new version - deliberately a manual prompt, not an
+// automatic reload (see registerServiceWorker.js's comment on the bug an
+// unconditional reload caused: it yanked the page out from under
+// long-running work like the box office backfill). Rendered globally from
+// App.vue (same "always visible regardless of route/login state" treatment
+// as BugReportButton.vue), in normal document flow right below the header
+// so it pushes content down rather than overlaying anything.
 export default {
   name: 'UpdateAvailableBanner',
+  data () {
+    return {
+      updating: false
+    };
+  },
   methods: {
-    reload () {
+    async reload () {
+      if (this.updating) return;
+      this.updating = true;
+      await this.waitForNewWorker();
       window.location.reload();
+    },
+    // Bug report: tapping Refresh on a non-home page reloaded into a broken
+    // site. The banner appears the instant the deploy-check notices new
+    // bundle names on the server - usually while the new service worker is
+    // still mid-install. A plain reload at that moment is served the OLD
+    // cached app by the OLD worker; seconds later the new worker activates
+    // (skipWaiting + clientsClaim), purges the old precache, and the old
+    // app's lazy route chunks 404 - blank screen. Waiting here until no
+    // install is in flight means the reload lands on the NEW app instead.
+    // Capped at 15s so a stalled install can't strand the button; the
+    // router's stale-chunk guard (staleChunkReload.js) is the backstop.
+    async waitForNewWorker () {
+      try {
+        const registration = await navigator.serviceWorker?.getRegistration?.();
+        if (!registration) return;
+        // Kick a check in case none is in flight yet, but don't let a
+        // failed fetch block the reload.
+        await registration.update().catch(() => {});
+        const deadline = Date.now() + 15000;
+        while ((registration.installing || registration.waiting) && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+      } catch {
+        // Any surprise here must never eat the reload itself.
+      }
     }
   }
 }
