@@ -80,7 +80,8 @@
       "Bash(perl -0pi -e \"s/const detected = this\\\\.detectFilterType\\\\\\(searchTerm\\\\\\);\\\\n      if \\\\\\(detected\\\\.type === 'general' && this\\\\.didYouMeanSuggestions\\\\.length > 0\\\\\\) \\\\{/if \\(this.didYouMeanSuggestions.length > 0\\) {/\" src/components/Home.vue)",
       "Bash(perl -0pi -e \"s/if \\\\\\(this\\\\.didYouMeanSuggestions\\\\.length > 0\\\\\\) \\\\{/const detected = this.detectFilterType\\(searchTerm\\);\\\\n      if \\(detected.type === 'general' \\\\&\\\\& this.didYouMeanSuggestions.length > 0\\) {/\" src/components/Home.vue)",
       "Bash(lsof -nP -iTCP -sTCP:LISTEN)",
-      "Bash(yarn fetch-bug-reports *)"
+      "Bash(yarn fetch-bug-reports *)",
+      "Bash(env)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
