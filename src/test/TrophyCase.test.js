@@ -202,11 +202,20 @@ describe('TrophyCase', () => {
     expect(pushSpy.mock.calls.every(([path]) => !String(path).startsWith('/movie/'))).toBe(true)
   })
 
-  it('returnHome shows the header again and navigates home', () => {
-    const { wrapper, commitSpy, pushSpy } = mountTrophyCase({})
+  it('returnHome navigates home', () => {
+    const { wrapper, pushSpy } = mountTrophyCase({})
     wrapper.vm.returnHome()
-    expect(commitSpy).toHaveBeenCalledWith('setShowHeader', true)
     expect(pushSpy).toHaveBeenCalledWith('/')
+  })
+
+  // User feedback: this page going headerless made it the odd one out —
+  // every other screen keeps the header space (custom art or whatever
+  // banner was up on arrival).
+  it('never hides the app header', () => {
+    const { wrapper, commitSpy } = mountTrophyCase({})
+    expect(commitSpy).not.toHaveBeenCalledWith('setShowHeader', false)
+    wrapper.unmount()
+    expect(commitSpy).not.toHaveBeenCalledWith('setShowHeader', expect.anything())
   })
 
   // User request: "movies with the most wins, movies with the most

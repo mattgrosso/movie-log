@@ -114,9 +114,11 @@ import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins } fr
 
 export default {
   name: 'TrophyCase',
-  created () {
-    this.$store.commit('setShowHeader', false);
-  },
+  // Deliberately does NOT hide the app header (it used to): every other
+  // screen keeps the header space — games swap in their own art, the rest
+  // carry whatever banner was up when you arrived — and this page going
+  // headerless made it the odd one out (user feedback). No bespoke Trophy
+  // Case artwork exists yet, so the standard header/banner rides along.
   data () {
     return {
       // { [personName]: profilePath | null } - see ensurePersonPhoto.
@@ -133,9 +135,6 @@ export default {
         names.forEach((name) => this.ensurePersonPhoto(name));
       }
     }
-  },
-  beforeUnmount () {
-    this.$store.commit('setShowHeader', true);
   },
   computed: {
     // Every personal-award WIN, expanded to a displayable object and grouped
@@ -292,7 +291,6 @@ export default {
     // film is the specific movie the award was won for, not a random one.
     searchForPerson (name) {
       if (!name) return;
-      this.$store.commit('setShowHeader', true);
       this.$store.commit('setHomePageNavigationIntent', 'search');
       this.$store.commit('setHomePagePromoteGroup', 'cast');
       this.$store.commit('setHomePageSearchValue', name);
@@ -308,7 +306,6 @@ export default {
       }
     },
     returnHome () {
-      this.$store.commit('setShowHeader', true);
       this.$router.push('/');
     }
   }
