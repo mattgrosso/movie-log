@@ -423,356 +423,361 @@
               <h5 class="mb-0">Settings</h5>
             </div>
             <hr class="mt-0 mb-3">
-            <!-- Feature request: a printable poster-of-posters artifact. -->
-            <div class="mb-3">
-              <button type="button" class="btn btn-warning w-100" @click="$router.push('/library-poster')">
-                <i class="bi bi-image"></i> Make a poster of your library
-              </button>
-            </div>
             <div class="settings-panel-body">
-              <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="shortsToggle" :checked="showShorts" @change="updateShowShorts">
-                <label class="form-check-label" for="shortsToggle">Include short films</label>
-              </div>
-
-              <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="errorLogsToggle" :checked="showErrorLogs" @change="updateShowErrorLogs">
-                <label class="form-check-label" for="errorLogsToggle">Show error logs</label>
-              </div>
-              <div v-if="showErrorLogs" class="mb-3">
-                <button @click="testErrorLogging" class="btn btn-sm btn-outline-secondary">
-                  <i class="bi bi-bug"></i> Test Error Logging
-                </button>
-              </div>
-
-              <!-- Inline Error Log Viewer -->
-              <div v-if="showErrorLogs" class="error-logs-section mt-3 p-3 border rounded">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <h6 class="mb-0">
-                    <i class="bi bi-bug me-2"></i>Error Logs ({{ errorLogs.length }})
-                  </h6>
-                  <div>
-                    <button @click="copyErrorLogs" class="btn btn-sm btn-outline-primary me-2" :disabled="errorLogs.length === 0">
-                      <i class="bi bi-clipboard"></i> Copy
-                    </button>
-                    <button @click="clearErrorLogs" class="btn btn-sm btn-outline-danger" :disabled="errorLogs.length === 0">
-                      <i class="bi bi-trash"></i> Clear
-                    </button>
-                  </div>
-                </div>
-
-                <div v-if="errorLogs.length === 0" class="text-center text-muted py-3">
-                  <i class="bi bi-check-circle"></i> No logs to display
-                </div>
-
-                <div v-else class="error-logs-list" style="max-height: 300px; overflow-y: auto;">
-                  <div
-                    v-for="log in errorLogs.slice(0, 20)"
-                    :key="log.id"
-                    :class="['log-entry', 'p-2', 'mb-2', 'rounded', `log-${log.level}`]"
-                    style="font-size: 0.8rem; border-left: 3px solid;"
-                  >
-                    <div class="d-flex justify-content-between align-items-start mb-1">
-                      <span :class="['badge', `bg-${log.level === 'error' ? 'danger' : log.level === 'warn' ? 'warning' : log.level === 'info' ? 'info' : 'secondary'}`]">
-                        {{ log.level.toUpperCase() }}
-                      </span>
-                      <small class="text-muted">{{ formatLogTime(log.timestamp) }}</small>
-                    </div>
-                    <div class="log-message">{{ log.message }}</div>
-                    <div v-if="log.context && Object.keys(log.context).length > 0" class="mt-1">
-                      <small class="text-muted">Context: {{ JSON.stringify(log.context) }}</small>
-                    </div>
-                  </div>
-                  <div v-if="errorLogs.length > 20" class="text-center text-muted mt-2">
-                    <small>Showing first 20 of {{ errorLogs.length }} logs</small>
-                  </div>
-                </div>
-
-                <div v-if="copySuccess" class="alert alert-success mt-2 py-2">
-                  <i class="bi bi-check-circle"></i> Copied to clipboard!
-                </div>
-              </div>
-              <!-- Rating Curve: first-order section, poster anchors (see
-                   RatingCurveSettings.vue). Supersedes the intimidating raw
-                   offset + the plain <select> movie list. -->
-              <RatingCurveSettings/>
-              <div class="mb-3">
-                <label for="tieBreakTweak" class="form-label">Max daily tiebreak prompts:</label>
-                <input
-                  type="number"
-                  class="form-control"
-                  id="tieBreakTweak"
-                  v-model.number="tieBreakTweak"
-                  min="0"
-                  max="1"
-                  step="1"
-                  @change="saveTieBreakTweak"
-                >
-              </div>
-              <div class="mb-3">
-                <label for="personalAwardName" class="form-label">Personal Award Name:</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="personalAwardName"
-                  v-model="personalAwardName"
-                  placeholder="e.g., The Oscars, The Groskers, The Smithies"
-                  maxlength="50"
-                  @change="savePersonalAwardName"
-                >
-                <small class="form-text text-white">Use plural form like "The Oscars"</small>
-              </div>
-              <div class="mb-3">
-                <label for="awardsYearThreshold" class="form-label">Movies needed before a year gets awards:</label>
-                <input
-                  type="number"
-                  class="form-control"
-                  id="awardsYearThreshold"
-                  v-model.number="awardsYearThresholdInput"
-                  min="1"
-                  max="100"
-                  step="1"
-                  @change="saveAwardsYearThreshold"
-                >
-                <small class="form-text text-white">Years with fewer rated movies stay out of the awards flow.</small>
-              </div>
-              <div class="mb-3">
-                <label for="letterboxdUsername" class="form-label">Letterboxd Username:</label>
-                <div class="input-group">
-                  <span class="input-group-text">letterboxd.com/</span>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="letterboxdUsername"
-                    v-model="letterboxdUsername"
-                    placeholder="username"
-                    @blur="saveLetterboxdUsername"
-                  >
-                  <button v-if="letterboxdUsername" class="btn btn-outline-info" @click="scrapeLetterboxd" :disabled="scrapingTest.loading" title="Refresh Letterboxd Data">
-                    <span v-if="scrapingTest.loading">
-                      <span class="spinner-border spinner-border-sm" role="status"></span>
-                    </span>
-                    <span v-else>
-                      <i class="bi bi-arrow-clockwise"></i>
-                    </span>
+              <!-- Grouped into consistent SettingsSection cards (feedback:
+                   the pane had grown patchwork). Ordered by everyday
+                   relevance; rarely-used groups collapse by default. -->
+              <SettingsSection title="Library">
+                <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="shortsToggle" :checked="showShorts" @change="updateShowShorts">
+                                <label class="form-check-label" for="shortsToggle">Include short films</label>
+                              </div>
+                <div class="mb-3">
+                  <button type="button" class="btn btn-warning w-100" @click="$router.push('/library-poster')">
+                    <i class="bi bi-image"></i> Make a poster of your library
                   </button>
                 </div>
-                <div v-if="letterboxdUsername">
-                  <div v-if="scrapingTest.result" class="mt-2">
-                    <div v-if="scrapingTest.success" class="alert alert-success alert-sm">
-                      ✅ Found {{ scrapingTest.result.films?.length || 0 }} films in your Letterboxd profile!
-                    </div>
-                    <div v-else class="alert alert-warning alert-sm">
-                      ⚠️ {{ scrapingTest.error || 'Testing failed, using mock data instead' }}
-                    </div>
-                  </div>
+                <div class="mb-3">
+                                <label class="form-label d-block">Offline access</label>
+                                <small class="form-text text-white d-block mb-2">
+                                  Downloads every poster/backdrop in your library so they're viewable without a connection. Only needs to be run again after rating a batch of new movies.
+                                </small>
+                                <button
+                                  class="btn btn-outline-info btn-sm"
+                                  @click="downloadForOffline"
+                                  :disabled="offlineDownload.status === 'running'"
+                                >
+                                  <span v-if="offlineDownload.status === 'running'">
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    Downloading {{ offlineDownload.completed }}/{{ offlineDownload.total }}...
+                                  </span>
+                                  <span v-else>
+                                    <i class="bi bi-cloud-download"></i> Download all posters for offline
+                                  </span>
+                                </button>
+                                <div v-if="offlineDownload.status === 'done'" class="text-success mt-2">
+                                  <small><i class="bi bi-check-circle"></i> {{ offlineDownload.total }} images cached{{ offlineDownload.failed ? ` (${offlineDownload.failed} failed — check your connection and try again)` : '' }}.</small>
+                                </div>
+                              </div>
+              </SettingsSection>
 
-                  <div class="text-end">
-                    <a href="#" @click.prevent="showOverridePanel = !showOverridePanel" class="text-light text-decoration-none opacity-75" title="Manual overrides" style="font-size: 0.75rem;">
-                      overrides <i class="bi bi-plus"></i>
-                    </a>
-                  </div>
+              <RatingCurveSettings/>
 
-                  <div v-if="showOverridePanel" class="mt-2 border rounded p-2" style="background-color: rgba(255,255,255,0.1);">
-                    <small class="text-light opacity-75 d-block mb-2">Mark movies as logged on Letterboxd when auto-detection fails</small>
-                    <div class="row g-2 mb-2">
-                      <div class="col-7">
-                        <input
-                          type="text"
-                          class="form-control form-control-sm"
-                          v-model="newOverrideTitle"
-                          placeholder="Movie title (exact match)"
-                        />
-                      </div>
-                      <div class="col-3">
-                        <input
-                          type="number"
-                          class="form-control form-control-sm"
-                          v-model="newOverrideYear"
-                          placeholder="Year"
-                        />
-                      </div>
-                      <div class="col-2">
-                        <button
-                          class="btn btn-success btn-sm w-100"
-                          @click="addLetterboxdOverride"
-                          :disabled="!newOverrideTitle || !newOverrideYear"
-                          title="Mark as logged on Letterboxd"
-                        >
-                          <i class="bi bi-plus"></i>
-                        </button>
-                      </div>
-                    </div>
+              <SettingsSection title="Awards">
+                <div class="mb-3">
+                                <label for="personalAwardName" class="form-label">Personal Award Name:</label>
+                                <input
+                                  type="text"
+                                  class="form-control"
+                                  id="personalAwardName"
+                                  v-model="personalAwardName"
+                                  placeholder="e.g., The Oscars, The Groskers, The Smithies"
+                                  maxlength="50"
+                                  @change="savePersonalAwardName"
+                                >
+                                <small class="form-text text-white">Use plural form like "The Oscars"</small>
+                              </div>
+                <div class="mb-3">
+                                <label for="awardsYearThreshold" class="form-label">Movies needed before a year gets awards:</label>
+                                <input
+                                  type="number"
+                                  class="form-control"
+                                  id="awardsYearThreshold"
+                                  v-model.number="awardsYearThresholdInput"
+                                  min="1"
+                                  max="100"
+                                  step="1"
+                                  @change="saveAwardsYearThreshold"
+                                >
+                                <small class="form-text text-white">Years with fewer rated movies stay out of the awards flow.</small>
+                              </div>
+              </SettingsSection>
 
-                    <div v-if="letterboxdOverrides && Object.keys(letterboxdOverrides).length" class="mt-2">
-                      <div class="override-list">
-                        <div v-for="(override, key) in letterboxdOverrides" :key="key" class="d-flex justify-content-between align-items-center py-1 px-2 mb-1 rounded border" style="background-color: rgba(255,255,255,0.1);">
-                          <small class="text-light">{{ override.title }} ({{ override.year }})</small>
-                          <a href="#" @click.prevent="removeLetterboxdOverride(key)" class="text-danger text-decoration-none opacity-75" title="Remove override">
-                            <i class="bi bi-x" style="font-size: 1rem;"></i>
-                          </a>
-                        </div>
-                      </div>
-                    </div>
+              <SettingsSection title="Prompts">
+                <div class="mb-3">
+                                <label for="tieBreakTweak" class="form-label">Max daily tiebreak prompts:</label>
+                                <input
+                                  type="number"
+                                  class="form-control"
+                                  id="tieBreakTweak"
+                                  v-model.number="tieBreakTweak"
+                                  min="0"
+                                  max="1"
+                                  step="1"
+                                  @change="saveTieBreakTweak"
+                                >
+                              </div>
+                <template v-if="isMatt">
+                  <ThreeStateToggle
+                                    id="stickinessPromptState"
+                                    label="Stickiness Prompts"
+                                    :value="stickinessPromptState"
+                                    @input="saveStickinessPromptState"
+                                  />
+                                  <ThreeStateToggle
+                                    id="tieBreakPromptState"
+                                    label="Tie-break Prompts"
+                                    :value="tieBreakPromptState"
+                                    @input="saveTieBreakPromptState"
+                                  />
+                                  <ThreeStateToggle
+                                    id="awardsPromptState"
+                                    label="Personal Awards Prompts"
+                                    :value="awardsPromptState"
+                                    @input="saveAwardsPromptState"
+                                  />
+                </template>
+              </SettingsSection>
 
-                    <div v-else class="text-light text-center py-2 opacity-75">
-                      <small><em>No manual overrides set</em></small>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <SettingsSection title="Letterboxd">
+                <div class="mb-3">
+                                <label for="letterboxdUsername" class="form-label">Letterboxd Username:</label>
+                                <div class="input-group">
+                                  <span class="input-group-text">letterboxd.com/</span>
+                                  <input
+                                    type="text"
+                                    class="form-control"
+                                    id="letterboxdUsername"
+                                    v-model="letterboxdUsername"
+                                    placeholder="username"
+                                    @blur="saveLetterboxdUsername"
+                                  >
+                                  <button v-if="letterboxdUsername" class="btn btn-outline-info" @click="scrapeLetterboxd" :disabled="scrapingTest.loading" title="Refresh Letterboxd Data">
+                                    <span v-if="scrapingTest.loading">
+                                      <span class="spinner-border spinner-border-sm" role="status"></span>
+                                    </span>
+                                    <span v-else>
+                                      <i class="bi bi-arrow-clockwise"></i>
+                                    </span>
+                                  </button>
+                                </div>
+                                <div v-if="letterboxdUsername">
+                                  <div v-if="scrapingTest.result" class="mt-2">
+                                    <div v-if="scrapingTest.success" class="alert alert-success alert-sm">
+                                      ✅ Found {{ scrapingTest.result.films?.length || 0 }} films in your Letterboxd profile!
+                                    </div>
+                                    <div v-else class="alert alert-warning alert-sm">
+                                      ⚠️ {{ scrapingTest.error || 'Testing failed, using mock data instead' }}
+                                    </div>
+                                  </div>
 
-              <div class="mb-3">
-                <label class="form-label d-block">Offline access</label>
-                <small class="form-text text-white d-block mb-2">
-                  Downloads every poster/backdrop in your library so they're viewable without a connection. Only needs to be run again after rating a batch of new movies.
-                </small>
-                <button
-                  class="btn btn-outline-info btn-sm"
-                  @click="downloadForOffline"
-                  :disabled="offlineDownload.status === 'running'"
-                >
-                  <span v-if="offlineDownload.status === 'running'">
-                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                    Downloading {{ offlineDownload.completed }}/{{ offlineDownload.total }}...
-                  </span>
-                  <span v-else>
-                    <i class="bi bi-cloud-download"></i> Download all posters for offline
-                  </span>
-                </button>
-                <div v-if="offlineDownload.status === 'done'" class="text-success mt-2">
-                  <small><i class="bi bi-check-circle"></i> {{ offlineDownload.total }} images cached{{ offlineDownload.failed ? ` (${offlineDownload.failed} failed — check your connection and try again)` : '' }}.</small>
-                </div>
-              </div>
+                                  <div class="text-end">
+                                    <a href="#" @click.prevent="showOverridePanel = !showOverridePanel" class="text-light text-decoration-none opacity-75" title="Manual overrides" style="font-size: 0.75rem;">
+                                      overrides <i class="bi bi-plus"></i>
+                                    </a>
+                                  </div>
 
-              <div class="mb-3">
-                <label class="form-label d-block">Box office data</label>
-                <small class="form-text text-white d-block mb-2">
-                  Fetches budget/box office numbers for movies rated before that data started being saved automatically. Safe to run again anytime — it only fetches whatever's still missing.
-                </small>
-                <button
-                  class="btn btn-outline-info btn-sm"
-                  @click="backfillBoxOfficeData"
-                  :disabled="boxOfficeBackfill.status === 'running'"
-                >
-                  <span v-if="boxOfficeBackfill.status === 'running'">
-                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                    Fetching {{ boxOfficeBackfill.completed }}/{{ boxOfficeBackfill.total }}...
-                  </span>
-                  <span v-else>
-                    <i class="bi bi-cash-coin"></i> Fill in box office data for all movies
-                  </span>
-                </button>
-                <div v-if="boxOfficeBackfill.status === 'done'" class="text-success mt-2">
-                  <small v-if="boxOfficeBackfill.total"><i class="bi bi-check-circle"></i> {{ boxOfficeBackfill.total }} movie{{ boxOfficeBackfill.total === 1 ? '' : 's' }} updated{{ boxOfficeBackfill.failed ? ` (${boxOfficeBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
-                  <small v-else><i class="bi bi-check-circle"></i> Everything's already filled in.</small>
-                </div>
-              </div>
+                                  <div v-if="showOverridePanel" class="mt-2 border rounded p-2" style="background-color: rgba(255,255,255,0.1);">
+                                    <small class="text-light opacity-75 d-block mb-2">Mark movies as logged on Letterboxd when auto-detection fails</small>
+                                    <div class="row g-2 mb-2">
+                                      <div class="col-7">
+                                        <input
+                                          type="text"
+                                          class="form-control form-control-sm"
+                                          v-model="newOverrideTitle"
+                                          placeholder="Movie title (exact match)"
+                                        />
+                                      </div>
+                                      <div class="col-3">
+                                        <input
+                                          type="number"
+                                          class="form-control form-control-sm"
+                                          v-model="newOverrideYear"
+                                          placeholder="Year"
+                                        />
+                                      </div>
+                                      <div class="col-2">
+                                        <button
+                                          class="btn btn-success btn-sm w-100"
+                                          @click="addLetterboxdOverride"
+                                          :disabled="!newOverrideTitle || !newOverrideYear"
+                                          title="Mark as logged on Letterboxd"
+                                        >
+                                          <i class="bi bi-plus"></i>
+                                        </button>
+                                      </div>
+                                    </div>
 
-              <div class="mt-4">
-                <label class="form-label d-block">Production countries</label>
-                <small class="form-text text-white d-block mb-2">
-                  Fetches which countries produced each movie, and the languages spoken in it. Safe to run again anytime.
-                </small>
-                <button
-                  class="btn btn-outline-info btn-sm"
-                  @click="backfillProductionCountriesData"
-                  :disabled="countriesBackfill.status === 'running'"
-                >
-                  <span v-if="countriesBackfill.status === 'running'">
-                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                    Fetching {{ countriesBackfill.completed }}/{{ countriesBackfill.total }}...
-                  </span>
-                  <span v-else>
-                    <i class="bi bi-globe-americas"></i> Fill in production countries
-                  </span>
-                </button>
-                <div v-if="countriesBackfill.status === 'done'" class="text-success mt-2">
-                  <small v-if="countriesBackfill.total"><i class="bi bi-check-circle"></i> {{ countriesBackfill.total }} movie{{ countriesBackfill.total === 1 ? '' : 's' }} updated{{ countriesBackfill.failed ? ` (${countriesBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
-                  <small v-else><i class="bi bi-check-circle"></i> Everything's already filled in.</small>
-                </div>
-              </div>
+                                    <div v-if="letterboxdOverrides && Object.keys(letterboxdOverrides).length" class="mt-2">
+                                      <div class="override-list">
+                                        <div v-for="(override, key) in letterboxdOverrides" :key="key" class="d-flex justify-content-between align-items-center py-1 px-2 mb-1 rounded border" style="background-color: rgba(255,255,255,0.1);">
+                                          <small class="text-light">{{ override.title }} ({{ override.year }})</small>
+                                          <a href="#" @click.prevent="removeLetterboxdOverride(key)" class="text-danger text-decoration-none opacity-75" title="Remove override">
+                                            <i class="bi bi-x" style="font-size: 1rem;"></i>
+                                          </a>
+                                        </div>
+                                      </div>
+                                    </div>
 
-              <div class="mt-4">
-                <label class="form-label d-block">Slim down stored data</label>
-                <small class="form-text text-white d-block mb-2">
-                  Removes crew the app never shows (stunts, hair, makeup and so on) plus a few fields that get recalculated anyway. Cuts what has to download each time you open the app by roughly 40%. Nothing you can see in the app changes. Safe to run again anytime.
-                </small>
-                <button
-                  class="btn btn-outline-info btn-sm"
-                  @click="trimLibraryData"
-                  :disabled="libraryTrim.status === 'running'"
-                >
-                  <span v-if="libraryTrim.status === 'running'">
-                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                    Slimming {{ libraryTrim.completed }}/{{ libraryTrim.total }}...
-                  </span>
-                  <span v-else>
-                    <i class="bi bi-file-zip"></i> Slim down stored data
-                  </span>
-                </button>
-                <div v-if="libraryTrim.status === 'done'" class="text-success mt-2">
-                  <small v-if="libraryTrim.total"><i class="bi bi-check-circle"></i> {{ libraryTrim.total }} movie{{ libraryTrim.total === 1 ? '' : 's' }} slimmed{{ libraryTrim.failed ? ` (${libraryTrim.failed} failed — check your connection and try again)` : '' }}.</small>
-                  <small v-else><i class="bi bi-check-circle"></i> Already as small as it goes.</small>
-                </div>
+                                    <div v-else class="text-light text-center py-2 opacity-75">
+                                      <small><em>No manual overrides set</em></small>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+              </SettingsSection>
 
-                <button
-                  class="btn btn-outline-light btn-sm w-100 mt-2"
-                  @click="backfillSyncStamps"
-                  :disabled="syncStampBackfill.status === 'running'"
-                >
-                  <span v-if="syncStampBackfill.status === 'running'">
-                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                    Timestamping {{ syncStampBackfill.completed }}/{{ syncStampBackfill.total }}...
-                  </span>
-                  <span v-else>
-                    <i class="bi bi-clock-history"></i> Add change timestamps
-                  </span>
-                </button>
-                <div v-if="syncStampBackfill.status === 'done'" class="text-success mt-2">
-                  <small v-if="syncStampBackfill.total"><i class="bi bi-check-circle"></i> {{ syncStampBackfill.total }} movie{{ syncStampBackfill.total === 1 ? '' : 's' }} timestamped{{ syncStampBackfill.failed ? ` (${syncStampBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
-                  <small v-else><i class="bi bi-check-circle"></i> Every movie already has one.</small>
-                </div>
-              </div>
+              <SettingsSection title="Data maintenance" collapsible :startOpen="false">
+                <div class="mb-3">
+                                <label class="form-label d-block">Box office data</label>
+                                <small class="form-text text-white d-block mb-2">
+                                  Fetches budget/box office numbers for movies rated before that data started being saved automatically. Safe to run again anytime — it only fetches whatever's still missing.
+                                </small>
+                                <button
+                                  class="btn btn-outline-info btn-sm"
+                                  @click="backfillBoxOfficeData"
+                                  :disabled="boxOfficeBackfill.status === 'running'"
+                                >
+                                  <span v-if="boxOfficeBackfill.status === 'running'">
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    Fetching {{ boxOfficeBackfill.completed }}/{{ boxOfficeBackfill.total }}...
+                                  </span>
+                                  <span v-else>
+                                    <i class="bi bi-cash-coin"></i> Fill in box office data for all movies
+                                  </span>
+                                </button>
+                                <div v-if="boxOfficeBackfill.status === 'done'" class="text-success mt-2">
+                                  <small v-if="boxOfficeBackfill.total"><i class="bi bi-check-circle"></i> {{ boxOfficeBackfill.total }} movie{{ boxOfficeBackfill.total === 1 ? '' : 's' }} updated{{ boxOfficeBackfill.failed ? ` (${boxOfficeBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
+                                  <small v-else><i class="bi bi-check-circle"></i> Everything's already filled in.</small>
+                                </div>
+                              </div>
+                <div class="mt-4">
+                                <label class="form-label d-block">Production countries</label>
+                                <small class="form-text text-white d-block mb-2">
+                                  Fetches which countries produced each movie, and the languages spoken in it. Safe to run again anytime.
+                                </small>
+                                <button
+                                  class="btn btn-outline-info btn-sm"
+                                  @click="backfillProductionCountriesData"
+                                  :disabled="countriesBackfill.status === 'running'"
+                                >
+                                  <span v-if="countriesBackfill.status === 'running'">
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    Fetching {{ countriesBackfill.completed }}/{{ countriesBackfill.total }}...
+                                  </span>
+                                  <span v-else>
+                                    <i class="bi bi-globe-americas"></i> Fill in production countries
+                                  </span>
+                                </button>
+                                <div v-if="countriesBackfill.status === 'done'" class="text-success mt-2">
+                                  <small v-if="countriesBackfill.total"><i class="bi bi-check-circle"></i> {{ countriesBackfill.total }} movie{{ countriesBackfill.total === 1 ? '' : 's' }} updated{{ countriesBackfill.failed ? ` (${countriesBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
+                                  <small v-else><i class="bi bi-check-circle"></i> Everything's already filled in.</small>
+                                </div>
+                              </div>
+                <div class="mt-4">
+                                <label class="form-label d-block">Slim down stored data</label>
+                                <small class="form-text text-white d-block mb-2">
+                                  Removes crew the app never shows (stunts, hair, makeup and so on) plus a few fields that get recalculated anyway. Cuts what has to download each time you open the app by roughly 40%. Nothing you can see in the app changes. Safe to run again anytime.
+                                </small>
+                                <button
+                                  class="btn btn-outline-info btn-sm"
+                                  @click="trimLibraryData"
+                                  :disabled="libraryTrim.status === 'running'"
+                                >
+                                  <span v-if="libraryTrim.status === 'running'">
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    Slimming {{ libraryTrim.completed }}/{{ libraryTrim.total }}...
+                                  </span>
+                                  <span v-else>
+                                    <i class="bi bi-file-zip"></i> Slim down stored data
+                                  </span>
+                                </button>
+                                <div v-if="libraryTrim.status === 'done'" class="text-success mt-2">
+                                  <small v-if="libraryTrim.total"><i class="bi bi-check-circle"></i> {{ libraryTrim.total }} movie{{ libraryTrim.total === 1 ? '' : 's' }} slimmed{{ libraryTrim.failed ? ` (${libraryTrim.failed} failed — check your connection and try again)` : '' }}.</small>
+                                  <small v-else><i class="bi bi-check-circle"></i> Already as small as it goes.</small>
+                                </div>
 
-              <!-- Account -->
-              <div class="mt-4">
-                <hr>
-                <h6 class="mb-2 text-white">Account</h6>
+                                <button
+                                  class="btn btn-outline-light btn-sm w-100 mt-2"
+                                  @click="backfillSyncStamps"
+                                  :disabled="syncStampBackfill.status === 'running'"
+                                >
+                                  <span v-if="syncStampBackfill.status === 'running'">
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    Timestamping {{ syncStampBackfill.completed }}/{{ syncStampBackfill.total }}...
+                                  </span>
+                                  <span v-else>
+                                    <i class="bi bi-clock-history"></i> Add change timestamps
+                                  </span>
+                                </button>
+                                <div v-if="syncStampBackfill.status === 'done'" class="text-success mt-2">
+                                  <small v-if="syncStampBackfill.total"><i class="bi bi-check-circle"></i> {{ syncStampBackfill.total }} movie{{ syncStampBackfill.total === 1 ? '' : 's' }} timestamped{{ syncStampBackfill.failed ? ` (${syncStampBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
+                                  <small v-else><i class="bi bi-check-circle"></i> Every movie already has one.</small>
+                                </div>
+                              </div>
+              </SettingsSection>
+
+              <SettingsSection title="Account">
                 <p v-if="$store.state.userEmail" class="text-muted small mb-2">
-                  Signed in as {{ $store.state.userEmail }}
-                </p>
-                <button
-                  class="btn btn-outline-light btn-sm w-100"
-                  @click="signOut"
-                >
-                  <i class="bi bi-box-arrow-right"></i> Sign out
-                </button>
-              </div>
+                                  Signed in as {{ $store.state.userEmail }}
+                                </p>
+                                <button
+                                  class="btn btn-outline-light btn-sm w-100"
+                                  @click="signOut"
+                                >
+                                  <i class="bi bi-box-arrow-right"></i> Sign out
+                                </button>
+              </SettingsSection>
 
-              <!-- Matt Only Settings Section -->
-              <div v-if="isMatt" class="mt-4">
-                <hr>
-                <h6 class="mb-3 text-white">Matt Only</h6>
-                <ThreeStateToggle
-                  id="stickinessPromptState"
-                  label="Stickiness Prompts"
-                  :value="stickinessPromptState"
-                  @input="saveStickinessPromptState"
-                />
-                <ThreeStateToggle
-                  id="tieBreakPromptState"
-                  label="Tie-break Prompts"
-                  :value="tieBreakPromptState"
-                  @input="saveTieBreakPromptState"
-                />
-                <ThreeStateToggle
-                  id="awardsPromptState"
-                  label="Personal Awards Prompts"
-                  :value="awardsPromptState"
-                  @input="saveAwardsPromptState"
-                />
-              </div>
+              <SettingsSection title="Developer" collapsible :startOpen="false">
+                <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="errorLogsToggle" :checked="showErrorLogs" @change="updateShowErrorLogs">
+                                <label class="form-check-label" for="errorLogsToggle">Show error logs</label>
+                              </div>
+                              <div v-if="showErrorLogs" class="mb-3">
+                                <button @click="testErrorLogging" class="btn btn-sm btn-outline-secondary">
+                                  <i class="bi bi-bug"></i> Test Error Logging
+                                </button>
+                              </div>
+
+                              <!-- Inline Error Log Viewer -->
+                              <div v-if="showErrorLogs" class="error-logs-section mt-3 p-3 border rounded">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                  <h6 class="mb-0">
+                                    <i class="bi bi-bug me-2"></i>Error Logs ({{ errorLogs.length }})
+                                  </h6>
+                                  <div>
+                                    <button @click="copyErrorLogs" class="btn btn-sm btn-outline-primary me-2" :disabled="errorLogs.length === 0">
+                                      <i class="bi bi-clipboard"></i> Copy
+                                    </button>
+                                    <button @click="clearErrorLogs" class="btn btn-sm btn-outline-danger" :disabled="errorLogs.length === 0">
+                                      <i class="bi bi-trash"></i> Clear
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div v-if="errorLogs.length === 0" class="text-center text-muted py-3">
+                                  <i class="bi bi-check-circle"></i> No logs to display
+                                </div>
+
+                                <div v-else class="error-logs-list" style="max-height: 300px; overflow-y: auto;">
+                                  <div
+                                    v-for="log in errorLogs.slice(0, 20)"
+                                    :key="log.id"
+                                    :class="['log-entry', 'p-2', 'mb-2', 'rounded', `log-${log.level}`]"
+                                    style="font-size: 0.8rem; border-left: 3px solid;"
+                                  >
+                                    <div class="d-flex justify-content-between align-items-start mb-1">
+                                      <span :class="['badge', `bg-${log.level === 'error' ? 'danger' : log.level === 'warn' ? 'warning' : log.level === 'info' ? 'info' : 'secondary'}`]">
+                                        {{ log.level.toUpperCase() }}
+                                      </span>
+                                      <small class="text-muted">{{ formatLogTime(log.timestamp) }}</small>
+                                    </div>
+                                    <div class="log-message">{{ log.message }}</div>
+                                    <div v-if="log.context && Object.keys(log.context).length > 0" class="mt-1">
+                                      <small class="text-muted">Context: {{ JSON.stringify(log.context) }}</small>
+                                    </div>
+                                  </div>
+                                  <div v-if="errorLogs.length > 20" class="text-center text-muted mt-2">
+                                    <small>Showing first 20 of {{ errorLogs.length }} logs</small>
+                                  </div>
+                                </div>
+
+                                <div v-if="copySuccess" class="alert alert-success mt-2 py-2">
+                                  <i class="bi bi-check-circle"></i> Copied to clipboard!
+                                </div>
+                              </div>
+              </SettingsSection>
             </div>
           </div>
           <!-- Results list follows the settings panel -->
@@ -1041,6 +1046,7 @@ import TweakInline from "./TweakInline.vue";
 import StickinessInline from "./StickinessInline.vue";
 import PersonalAwardsModal from "./PersonalAwardsModal.vue";
 import RatingCurveSettings from "./RatingCurveSettings.vue";
+import SettingsSection from "./SettingsSection.vue";
 import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
@@ -1121,6 +1127,7 @@ export default {
     StickinessInline,
     PersonalAwardsModal,
     RatingCurveSettings,
+    SettingsSection,
     NoResults,
     ThreeStateToggle,
   },
