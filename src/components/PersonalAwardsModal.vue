@@ -31,20 +31,21 @@
       </template>
       <template v-slot:body>
         <div class="awards-form">
-          <!-- Category grid. Selecting a category doesn't swap screens
-               anymore (feedback): the other tiles animate away and the
-               clicked tile — the same DOM node, moved by the transition
-               group's FLIP — becomes the header of the expanded panel
-               below, carrying an × to collapse back. -->
+          <!-- Category grid. Selecting doesn't swap screens and doesn't
+               morph tiles (a FLIP attempt read as janky): the tapped tile
+               stays put while its siblings dim — the same treatment the
+               Trophy Case shelves use — and the panel unfolds below,
+               scrolled into view. Tapping the tile again, or the panel's ×,
+               collapses. -->
           <div class="category-grid">
-            <transition-group tag="div" name="category" class="category-buttons" :class="{ single: Boolean(selectedCategory) }">
+            <div class="category-buttons" :class="{ 'has-selection': Boolean(selectedCategory) }">
               <button
-                v-for="category in visibleCategories"
+                v-for="category in categories"
                 :key="category.key"
                 type="button"
                 class="category-btn"
                 :class="[
-                  {'completed': category.completed, 'disabled': category.disabled, 'as-panel-header': category.key === selectedCategory},
+                  {'completed': category.completed, 'disabled': category.disabled, 'expanded': category.key === selectedCategory},
                   'text-bg-dark'
                 ]"
                 :disabled="category.disabled"
@@ -57,28 +58,29 @@
                   </span>
                 </span>
                 <span class="category-name">{{ category.name }}</span>
-                <span class="category-meta" v-if="!category.disabled && category.key !== selectedCategory">
+                <span class="category-meta" v-if="!category.disabled">
                   {{ getCategoryNomineeCount(category.key) }} nominees
                 </span>
-                <span class="category-winner" v-if="getCategoryWinner(category.key) && category.key !== selectedCategory">
+                <span class="category-winner" v-if="getCategoryWinner(category.key)">
                   👑 {{ getCategoryWinner(category.key) }}
                 </span>
-                <span class="category-no-nominees" v-if="isCategoryMarkedAsNoNominees(category.key) && category.key !== selectedCategory">
+                <span class="category-no-nominees" v-if="isCategoryMarkedAsNoNominees(category.key)">
                   🚫 No nominees
                 </span>
-                <span v-if="isMatt && category.key === selectedCategory" v-show="showTrashIcon" class="panel-trash" @click.stop="resetCategory" title="Clear all nominees">
-                  <i class="bi bi-trash3"></i>
-                </span>
-                <span v-if="category.key === selectedCategory" class="panel-close" aria-label="Close category" @click.stop="backToCategories">
-                  &times;
-                </span>
               </button>
-            </transition-group>
+            </div>
           </div>
 
           <!-- Category Detail View -->
           <transition name="panel">
-          <div v-if="selectedCategory" class="category-detail">
+          <div v-if="selectedCategory" ref="categoryPanel" class="category-detail">
+            <div class="panel-bar">
+              <button v-if="isMatt" type="button" class="panel-trash" :class="{ armed: showTrashIcon }" @click="onTrashTap">
+                <i class="bi bi-trash3"></i>
+                <span v-if="showTrashIcon" class="panel-trash-confirm">Tap again to clear all</span>
+              </button>
+              <button type="button" class="panel-close" aria-label="Close category" @click="backToCategories">&times;</button>
+            </div>
             <!-- Sticky Top Section (the promoted category tile above is the
                  header — tapping it reveals Matt's trash, the × collapses) -->
             <div class="sticky-top-section">
@@ -468,13 +470,6 @@ export default {
         disabledReason: this.getCategoryDisabledReason(category.key)
       }));
     },
-    // The grid while browsing; only the selected tile once a category is
-    // open — the transition group FLIP-moves that survivor into place as
-    // the panel header while the rest animate out.
-    visibleCategories () {
-      if (!this.selectedCategory) return this.categories;
-      return this.categories.filter((category) => category.key === this.selectedCategory);
-    },
     totalCategories () {
       return this.categories.filter(cat => !cat.disabled).length;
     },
@@ -636,12 +631,27 @@ export default {
     onCategoryTileClick (category) {
       if (category.disabled) return;
       if (category.key === this.selectedCategory) {
-        // The promoted header tile: tapping it reveals Matt's trash (the
-        // same reveal the old title had); the × handles collapsing.
-        if (this.isMatt) this.showTrashIcon = !this.showTrashIcon;
+        // Same-tile tap collapses, matching the Trophy Case shelves.
+        this.backToCategories();
         return;
       }
       this.selectCategory(category.key);
+      // Bring the unfolding panel into view — it can sit several tile rows
+      // below the tapped tile. Smooth is intended here (and required to be
+      // explicit; see the scroll rules).
+      this.$nextTick(() => {
+        this.$refs.categoryPanel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      });
+    },
+    // Destructive with no undo, so it takes two taps: the first arms the
+    // trash (label appears), the second actually clears.
+    onTrashTap () {
+      if (!this.showTrashIcon) {
+        this.showTrashIcon = true;
+        return;
+      }
+      this.showTrashIcon = false;
+      this.resetCategory();
     },
     async backToCategories () {
       this.selectedCategory = null;
@@ -2098,61 +2108,32 @@ export default {
           grid-template-columns: repeat(3, 1fr);
         }
 
-        /* One survivor: the selected tile spans the full row as the
-           expanded panel's header. */
-        &.single .category-btn.as-panel-header {
-          align-items: center;
-          display: flex;
-          flex-direction: row;
-          gap: 0.5rem;
-          grid-column: 1 / -1;
-          justify-content: flex-start;
+        /* Selection by focus, not chrome (same treatment as the Trophy
+           Case shelves): the open tile stays full-strength with a small
+           neutral caret pointing toward the panel; siblings recede. */
+        .category-btn {
+          transition: opacity 0.25s ease;
+        }
+
+        &.has-selection .category-btn:not(.expanded) {
+          opacity: 0.35;
+        }
+
+        .category-btn.expanded {
           position: relative;
         }
 
-        /* FLIP: the surviving tile glides to its header slot; the rest
-           fade/scale away without holding their grid tracks open. */
-        .category-move {
-          transition: transform 0.25s ease;
-        }
-
-        .category-enter-active {
-          transition: opacity 0.2s ease, transform 0.2s ease;
-        }
-
-        .category-leave-active {
+        .category-btn.expanded::after {
+          border-left: 7px solid transparent;
+          border-right: 7px solid transparent;
+          border-top: 7px solid #3a3a3a;
+          bottom: -12px;
+          content: '';
+          left: 50%;
           position: absolute;
-          transition: opacity 0.18s ease, transform 0.18s ease;
-          width: calc(50% - 8px);
+          transform: translateX(-50%);
         }
 
-        .category-enter-from,
-        .category-leave-to {
-          opacity: 0;
-          transform: scale(0.9);
-        }
-
-        .panel-close {
-          align-items: center;
-          border-radius: 4px;
-          color: #ccc;
-          display: flex;
-          font-size: 1.4rem;
-          height: 40px;
-          justify-content: center;
-          line-height: 1;
-          margin-left: auto;
-          width: 40px;
-        }
-
-        .panel-close:active {
-          background: rgba(255, 255, 255, 0.15);
-        }
-
-        .panel-trash {
-          color: #ff6a6a;
-          padding: 0.25rem 0.5rem;
-        }
 
         .category-btn {
           border-radius: 6px;
@@ -2837,21 +2818,67 @@ export default {
     }
   }
 }
-/* The category panel unfolds beneath its promoted header tile. */
+/* The category panel unfolds beneath the grid — unhurried enough to read
+   as expansion rather than a swap. */
 .panel-enter-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transition: opacity 0.35s ease-out, transform 0.35s ease-out;
 }
 
 .panel-leave-active {
-  transition: opacity 0.12s ease;
+  transition: opacity 0.15s ease;
 }
 
 .panel-enter-from {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-16px);
 }
 
 .panel-leave-to {
   opacity: 0;
+}
+
+.panel-bar {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-bottom: 0.25rem;
+}
+
+.panel-close {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: #ccc;
+  display: flex;
+  font-size: 1.5rem;
+  height: 40px;
+  justify-content: center;
+  line-height: 1;
+  width: 40px;
+}
+
+.panel-close:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.panel-trash {
+  align-items: center;
+  background: none;
+  border: none;
+  color: #8a9199;
+  display: flex;
+  font-size: 0.9rem;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.panel-trash.armed {
+  color: #ff6a6a;
+}
+
+.panel-trash-confirm {
+  font-size: 0.75rem;
 }
 </style>
