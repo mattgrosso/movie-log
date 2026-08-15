@@ -13,6 +13,7 @@
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
     "deploy": "yarn build && aws s3 sync dist/ s3://cinemaroll --delete --profile personal-deploy && aws cloudfront create-invalidation --distribution-id ETF4I2E64GQSC --paths '/*' --profile personal-deploy > invalidation_output.txt",
+    "account-maintenance": "node scripts/account-maintenance.mjs",
     "fetch-bug-reports": "node scripts/fetch-bug-reports.mjs",
     "resolve-bug-report": "node scripts/resolve-bug-report.mjs",
     "generate-db-rules": "node scripts/generate-database-rules.mjs"
