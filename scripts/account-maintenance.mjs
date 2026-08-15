@@ -273,6 +273,19 @@ const accountKeys = Object.keys(root)
   .filter((key) => key === onlyAccount || !skipAccounts.has(key));
 
 const modes = [applyTimestamps && 'timestamps', applyTmdb && 'tmdb backfill', applyTrim && 'TRIM (destructive)', backupOnly && 'backup'].filter(Boolean);
+
+// Safety net (Matt, 2026-08-15): every mutating mode takes a full-database
+// snapshot FIRST via backup-database.mjs — nervousness about "messing with
+// this" should never depend on remembering to back up by hand.
+if (applyTimestamps || applyTmdb || applyTrim) {
+  const { execFileSync } = await import('child_process');
+  try {
+    execFileSync('node', [new URL('./backup-database.mjs', import.meta.url).pathname, '--quiet'], { stdio: 'inherit' });
+  } catch {
+    console.error('! pre-mutation backup failed — aborting the apply. Run yarn backup-db to see why.');
+    process.exit(1);
+  }
+}
 console.log(`${accountKeys.length} account(s)${modes.length ? ` — APPLYING ${modes.join(' + ')}` : ' — audit only'}\n`);
 
 for (const accountKey of accountKeys) {
