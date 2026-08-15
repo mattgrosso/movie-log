@@ -172,9 +172,9 @@ new section, offline support); MAJOR only for a breaking change. When in doubt, 
 
 ## Open work
 
-- **⚠️ Tightened Firebase database rules are written but NOT deployed.** The deploy order
-  matters and getting it wrong shows live users an empty library. See
-  `.claude/rules/auth-and-db-rules.md`. **Never deploy these unsupervised.**
+- **Tightened Firebase database rules deployed 2026-08-14** (supervised). Unauthenticated
+  reads are denied everywhere; the `updatedAt` index is live. The unauthenticated
+  `testing-database` sandbox trick no longer works — see `.claude/rules/auth-and-db-rules.md`.
 - **Delta sync phases 1–3 are parked.** Phase 0 (recording `updatedAt` + tombstones)
   shipped; nothing reads it yet. Design notes in `docs/history/data-and-offline.md`.
 - **Locations/maps was built and removed.** Read `docs/history/geography-removed.md`

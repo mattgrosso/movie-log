@@ -13,20 +13,23 @@ paths:
 
 Full narrative: `docs/history/tooling-and-auth.md`.
 
-## ⚠️ The tightened database rules are written but NOT deployed
+## The tightened database rules are DEPLOYED (2026-08-14, supervised)
 
-`yarn deploy` does **not** touch them — `firebase deploy --only database` is separate,
-deliberately. **Deploy order matters, and getting it wrong shows live users an empty
-library** (the PWA can serve a cached build for a while):
+Live since 2026-08-14: default-deny, per-account access only, `bugReports` write-only,
+share links readable, `testing-database` restricted to the owner account, and the
+`updatedAt` index (delta-sync prerequisite). Verified at deploy time: unauthenticated
+REST reads denied on settings/movieLog/bugReports; Admin SDK scripts unaffected.
 
-1. Ship the app first — it is safe under the current open rules.
-2. Enable Email/Password in the Firebase Console. Leave `VUE_APP_ENABLE_APPLE_SIGNIN`
-   unset until a paid Apple Developer account + Service ID exist, so nobody taps a dead
-   control.
-3. Verify sign-in works and the library still loads (requests now carry a token).
-4. **Only then** `npx firebase deploy --only database`.
+`yarn deploy` does **not** touch rules — `firebase deploy --only database` is separate,
+deliberately, and any future rules change should still be deployed **supervised**: a bad
+deploy shows live users an empty library. `LibraryAccessBanner.vue` (driven by
+`state.dbReadDenied`, set by the listeners' error callbacks) is the user-facing guidance
+if a device loses read access.
 
-**Never deploy these unsupervised.**
+**The global `firebase-tools` install is broken** (upstream ESM-only `uuid` under
+`universal-analytics`). Deploy with a fresh `firebase-tools@13` install carrying an npm
+override `{"uuid": "8.3.2"}` — Node is pinned to 18, so firebase-tools 14 (Node 20+) is
+not an option yet.
 
 ## The constraint everything follows from
 
@@ -71,18 +74,12 @@ this is a spend cap — only a limit on the Anthropic API key is.
 
 ## Verifying an authenticated write without signing in
 
-Automated sessions can't sign in, but **while the rules are still open** they can run the
-app against `testing-database`:
-
-1. Load the app once and let it mount.
-2. `localStorage.setItem('databaseTopKey', 'testing-database')`.
-3. Navigate by **hash only** (`location.hash = '#/'`). Do **not** reload —
-   `verifyRestoredSession` wipes a stored key with no Firebase session.
-4. Drive the real UI, then verify server-side with the Admin SDK.
-5. Clean up: revert any sandbox mutation and clear the key.
-
-**This stops working the moment the locked-down rules deploy.** Do any authenticated-write
-verification before then.
+**Dead since the 2026-08-14 rules deploy.** The old trick (set
+`localStorage.databaseTopKey = 'testing-database'` in an unauthenticated session and
+navigate by hash) relied on the open rules; `testing-database` now requires the owner
+account's token. Live verification that mutates data now needs a real signed-in session —
+i.e. Matt driving his own device with the dev-mode toggle — or the Admin SDK for
+server-side checks (which bypasses rules entirely and still works for scripts).
 
 ## Admin scripts
 
