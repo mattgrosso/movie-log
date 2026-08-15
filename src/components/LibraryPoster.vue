@@ -378,10 +378,14 @@ export default {
 
         // 3. Assign (pure, loose reuse cap) and render.
         const assignment = assignMosaicCells(cellSignatures, tileSignatures, { cols: COLS });
-        const CELL = this.mosaicDetail === 'fine' ? 20 : 28;
+        // Print-scale render (feedback: "doesn't seem big enough to really
+        // print"): Classic 2688x4032 (~18x27in at 150 DPI), Fine 2400x3600
+        // (~16x24in) — both under iOS's ~16M-pixel canvas ceiling, and the
+        // w92 tiles are still DOWNscaling at these cell sizes.
+        const CELL = this.mosaicDetail === 'fine' ? 30 : 56;
         const canvas = document.createElement('canvas');
         canvas.width = COLS * CELL;
-        canvas.height = ROWS * CELL + 64;
+        canvas.height = ROWS * CELL + Math.round(CELL * 2.2);
         const context = canvas.getContext('2d');
         context.fillStyle = '#141414';
         context.fillRect(0, 0, canvas.width, canvas.height);
@@ -405,9 +409,12 @@ export default {
           context.fillRect(x, y, CELL, CELL);
         }
 
-        await this.drawCaption(context, `${this.mosaicTarget.movie.title} · made of ${tiles.length} movies · Cinema Roll`, canvas.width, canvas.height - 24, 26);
+        await this.drawCaption(context, `${this.mosaicTarget.movie.title} · made of ${tiles.length} movies · Cinema Roll`, canvas.width, canvas.height - Math.round(canvas.width / 56), Math.round(canvas.width / 38));
 
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        // JPEG, not PNG: a print-scale photographic mosaic as PNG is a
+        // 30MB+ share-sheet chore; at 0.92 quality the JPEG is a fraction
+        // of that with no visible cost on photographic content.
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
         if (!blob) throw new Error('could not export the mosaic');
         this.resultBlob = blob;
         this.resultUrl = URL.createObjectURL(blob);
@@ -431,7 +438,8 @@ export default {
     async share () {
       if (!this.resultBlob) return;
       try {
-        const file = new File([this.resultBlob], 'cinema-roll-poster.png', { type: 'image/png' });
+        const extension = this.resultBlob.type === 'image/jpeg' ? 'jpg' : 'png';
+        const file = new File([this.resultBlob], `cinema-roll-poster.${extension}`, { type: this.resultBlob.type });
         if (navigator.canShare && !navigator.canShare({ files: [file] })) {
           await navigator.share({ title: 'Cinema Roll poster' });
           return;
