@@ -130,7 +130,52 @@ export function favoritePeople (entries, getRatingFn, { role = 'director', minMo
 // votes to trust the score). Dedupes across people, keeping whichever copy
 // arrived first. Ranked by vote_average weighted by vote volume so a 7.9
 // with 12k votes beats an 8.6 with 60.
-export function rankWatchlistCandidates (credits, ratedTmdbIds, now = Date.now(), { cap = 12, minVotes = 50 } = {}) {
+// Your taste, learned from your own ratings (feedback 2026-08-15: "tailor
+// those recommendations not just based on TMDB user ratings, but... some
+// amount of information from what I tend to like"). Per-genre affinity =
+// how far your average rating for that genre sits above/below your overall
+// average, damped by sample size (log2(count+1)/4, capped 1) so two lucky
+// horror movies don't brand you a horror fan. Returned as {genreId: delta}
+// in roughly [-2, +2].
+export function tasteProfile (entries, getRatingFn) {
+  const perGenre = new Map(); // id -> { sum, count }
+  let total = 0;
+  let count = 0;
+
+  (entries || []).forEach((entry) => {
+    const rating = getRatingFn(entry)?.calculatedTotal;
+    if (!Number.isFinite(rating)) return;
+    total += rating;
+    count += 1;
+    (entry?.movie?.genres || []).forEach((genre) => {
+      if (genre?.id == null) return;
+      const g = perGenre.get(genre.id) || { sum: 0, count: 0 };
+      g.sum += rating;
+      g.count += 1;
+      perGenre.set(genre.id, g);
+    });
+  });
+
+  if (!count) return {};
+  const overall = total / count;
+  const profile = {};
+  perGenre.forEach((g, id) => {
+    const confidence = Math.min(1, Math.log2(g.count + 1) / 4);
+    profile[id] = ((g.sum / g.count) - overall) * confidence;
+  });
+  return profile;
+}
+
+// A candidate's taste bonus: mean of its genres' affinities (TMDB discover
+// rows carry genre_ids). Zero when nothing is known.
+export function tasteBonus (movie, profile) {
+  const ids = movie?.genre_ids || (movie?.genres || []).map((g) => g?.id);
+  const known = (ids || []).filter((id) => Number.isFinite(profile?.[id]));
+  if (!known.length) return 0;
+  return known.reduce((sum, id) => sum + profile[id], 0) / known.length;
+}
+
+export function rankWatchlistCandidates (credits, ratedTmdbIds, now = Date.now(), { cap = 12, minVotes = 50, profile = null } = {}) {
   const rated = ratedTmdbIds instanceof Set ? ratedTmdbIds : new Set(ratedTmdbIds || []);
   const byId = new Map();
 
@@ -144,7 +189,13 @@ export function rankWatchlistCandidates (credits, ratedTmdbIds, now = Date.now()
   });
 
   return [...byId.values()]
-    .map((movie) => ({ movie, score: (movie.vote_average || 0) * Math.log10((movie.vote_count || 0) + 1) }))
+    // Base quality plus (when a profile is given) a taste term: each point
+    // of genre affinity is worth about a point of community rating.
+    .map((movie) => ({
+      movie,
+      score: (movie.vote_average || 0) * Math.log10((movie.vote_count || 0) + 1) +
+        (profile ? tasteBonus(movie, profile) * Math.log10((movie.vote_count || 0) + 1) : 0)
+    }))
     .sort((a, b) => b.score - a.score)
     .slice(0, cap)
     .map(({ movie }) => movie);
@@ -192,4 +243,31 @@ export function nearThresholdYears (entries, threshold = 10, { reach = 4, cap = 
     .filter(({ missing }) => missing >= 1 && missing <= reach)
     .sort((a, b) => (a.missing - b.missing) || (b.year - a.year))
     .slice(0, cap);
+}
+
+// "Not yet" punts (feedback 2026-08-15: dismiss a suggestion and have it
+// return later — "we can kinda learn from that what my actual thresholds
+// are"). Stored at settings/watchlistPunts/<key> as { until, count, at };
+// each successive punt of the same item doubles the snooze (60d, 120d,
+// 240d, capped at 2 years). The punt history itself is the learning
+// signal for future threshold tuning.
+const PUNT_BASE_MS = 60 * 24 * 60 * 60 * 1000;
+const PUNT_MAX_MS = 2 * YEAR_MS;
+
+export function puntKeyFor (item) {
+  if (item?.dbKey) return `entry-${item.dbKey}`;
+  const id = item?.movie?.id ?? item?.id;
+  return id != null ? `tmdb-${id}` : null;
+}
+
+export function nextPunt (existing, now = Date.now()) {
+  const count = (existing?.count || 0) + 1;
+  const duration = Math.min(PUNT_BASE_MS * Math.pow(2, count - 1), PUNT_MAX_MS);
+  return { count, at: now, until: now + duration };
+}
+
+export function isPunted (item, punts, now = Date.now()) {
+  const key = puntKeyFor(item);
+  if (!key || !punts?.[key]) return false;
+  return Number.isFinite(punts[key].until) && punts[key].until > now;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rewatchCandidates, rewatchCycleYears, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds } from '@/assets/javascript/discover.js';
+import { rewatchCandidates, rewatchCycleYears, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, tasteProfile, tasteBonus, nextPunt, isPunted, puntKeyFor } from '@/assets/javascript/discover.js';
 
 const NOW = new Date('2026-08-15T00:00:00Z').getTime();
 const yearsAgo = (years) => NOW - years * 365.25 * 24 * 3600 * 1000;
@@ -218,5 +218,84 @@ describe('nearThresholdYears', () => {
     ]
     const years = nearThresholdYears(entries, 3)
     expect(years).toEqual([{ year: 2010, count: 2, missing: 1 }])
+  })
+})
+
+describe('tasteProfile / tasteBonus', () => {
+  const genreEntry = (id, rating, genres) => ({
+    dbKey: `g${id}`,
+    movie: { id, title: `M${id}`, genres: genres.map((gid) => ({ id: gid, name: `g${gid}` })) },
+    ratings: [{ calculatedTotal: rating }]
+  })
+
+  it('learns genre affinities relative to your overall average, damped by sample size', () => {
+    // Horror (id 27) consistently loved; comedy (35) consistently disliked.
+    const entries = [
+      ...Array.from({ length: 8 }, (_, i) => genreEntry(i, 9, [27])),
+      ...Array.from({ length: 8 }, (_, i) => genreEntry(20 + i, 5, [35]))
+    ]
+    const profile = tasteProfile(entries, ratingOf)
+
+    expect(profile[27]).toBeGreaterThan(1)
+    expect(profile[35]).toBeLessThan(-1)
+  })
+
+  it('a small sample earns only a damped affinity', () => {
+    const entries = [
+      genreEntry(1, 10, [878]),
+      ...Array.from({ length: 12 }, (_, i) => genreEntry(10 + i, 7, [18]))
+    ]
+    const profile = tasteProfile(entries, ratingOf)
+    // One lucky sci-fi 10: raw delta ~+2.8 but confidence log2(2)/4 = 0.25.
+    expect(profile[878]).toBeLessThan(1)
+  })
+
+  it('tasteBonus averages the affinities of a candidate movie genres', () => {
+    const profile = { 27: 2, 35: -2 }
+    expect(tasteBonus({ genre_ids: [27] }, profile)).toBe(2)
+    expect(tasteBonus({ genre_ids: [27, 35] }, profile)).toBe(0)
+    expect(tasteBonus({ genre_ids: [99] }, profile)).toBe(0)
+  })
+
+  it('rankWatchlistCandidates lets taste reorder near-equal candidates', () => {
+    const NOW2 = Date.UTC(2026, 5, 15)
+    const candidates = [
+      { id: 1, title: 'Loved genre', vote_average: 7.5, vote_count: 1000, release_date: '2000-06-15', genre_ids: [27] },
+      { id: 2, title: 'Disliked genre', vote_average: 7.8, vote_count: 1000, release_date: '2000-06-15', genre_ids: [35] }
+    ]
+    const withTaste = rankWatchlistCandidates(candidates, new Set(), NOW2, { profile: { 27: 2, 35: -2 } })
+    expect(withTaste[0].title).toBe('Loved genre')
+    const without = rankWatchlistCandidates(candidates, new Set(), NOW2)
+    expect(without[0].title).toBe('Disliked genre')
+  })
+})
+
+describe('watchlist punts', () => {
+  const NOW3 = Date.UTC(2026, 7, 15)
+
+  it('keys library entries and TMDB suggestions distinctly', () => {
+    expect(puntKeyFor({ dbKey: 'abc' })).toBe('entry-abc')
+    expect(puntKeyFor({ id: 42, title: 'X' })).toBe('tmdb-42')
+    expect(puntKeyFor({})).toBeNull()
+  })
+
+  it('doubles the snooze on each repeat punt, capped at two years', () => {
+    const first = nextPunt(undefined, NOW3)
+    expect(first.count).toBe(1)
+    expect(first.until - NOW3).toBe(60 * 24 * 60 * 60 * 1000)
+
+    const second = nextPunt(first, NOW3)
+    expect(second.count).toBe(2)
+    expect(second.until - NOW3).toBe(120 * 24 * 60 * 60 * 1000)
+
+    const sixth = nextPunt({ count: 8 }, NOW3)
+    expect(sixth.until - NOW3).toBe(2 * 365.25 * 24 * 60 * 60 * 1000)
+  })
+
+  it('isPunted hides items until their snooze expires, then frees them', () => {
+    const punts = { 'entry-abc': { until: NOW3 + 1000, count: 1 } }
+    expect(isPunted({ dbKey: 'abc' }, punts, NOW3)).toBe(true)
+    expect(isPunted({ dbKey: 'abc' }, punts, NOW3 + 2000)).toBe(false)
+    expect(isPunted({ dbKey: 'other' }, punts, NOW3)).toBe(false)
   })
 })

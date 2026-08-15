@@ -9,13 +9,16 @@
     <section v-if="rewatchList.length" class="watchlist-section">
       <h2 class="section-title">Worth a rewatch</h2>
       <div class="rewatch-row">
-        <button
+        <div
           v-for="candidate in rewatchList"
           :key="candidate.entry.dbKey"
-          type="button"
           class="rewatch-card"
+          role="button"
           @click="goToMovie(candidate.entry)"
         >
+          <button type="button" class="punt-btn" title="Not yet" @click.stop="punt(candidate.entry)">
+            <i class="bi bi-x"></i>
+          </button>
           <img
             v-if="posterUrl(candidate.entry)"
             :src="posterUrl(candidate.entry)"
@@ -27,7 +30,7 @@
           <span class="rewatch-name">{{ candidate.entry.movie.title }}</span>
           <span class="rewatch-meta">{{ candidate.rating.toFixed(1) }} · {{ yearsAgoLabel(candidate.yearsSince) }}</span>
           <span class="rewatch-due">{{ dueLabel(candidate) }}</span>
-        </button>
+        </div>
       </div>
     </section>
 
@@ -38,13 +41,16 @@
       <h2 class="section-title">Give these another shot</h2>
       <p class="section-caption">You were cool on them; the wider world wasn't.</p>
       <div class="rewatch-row">
-        <button
+        <div
           v-for="candidate in anotherShotList"
           :key="candidate.entry.dbKey"
-          type="button"
           class="rewatch-card"
+          role="button"
           @click="goToMovie(candidate.entry)"
         >
+          <button type="button" class="punt-btn" title="Not yet" @click.stop="punt(candidate.entry)">
+            <i class="bi bi-x"></i>
+          </button>
           <img
             v-if="posterUrl(candidate.entry)"
             :src="posterUrl(candidate.entry)"
@@ -55,7 +61,7 @@
           <div v-else class="rewatch-poster rewatch-poster-placeholder">{{ candidate.entry.movie.title.charAt(0) }}</div>
           <span class="rewatch-name">{{ candidate.entry.movie.title }}</span>
           <span class="rewatch-meta">You {{ candidate.yours.toFixed(1) }} · World {{ candidate.community.toFixed(1) }}</span>
-        </button>
+        </div>
       </div>
     </section>
 
@@ -66,7 +72,7 @@
       <h2 class="section-title">Get {{ section.year }} to {{ awardsThreshold }}</h2>
       <p class="section-caption">{{ section.count }} rated — {{ section.missing }} to go for awards.</p>
       <p v-if="yearsLoading" class="section-loading">Looking up {{ section.year }}&hellip;</p>
-      <MediaResultGrid v-else-if="section.movies.length" :mediaList="section.movies" @select="rateMedia"/>
+      <MediaResultGrid v-else-if="section.movies.length" :mediaList="notPunted(section.movies)" @select="rateMedia"/>
       <p v-else class="section-loading">Nothing well-regarded found that you haven't already rated.</p>
     </section>
 
@@ -77,7 +83,7 @@
       <h2 class="section-title">{{ section.title }}</h2>
       <p class="section-caption">Based on {{ section.names.join(', ') }}.</p>
       <p v-if="section.loading" class="section-loading">Looking up filmographies&hellip;</p>
-      <MediaResultGrid v-else-if="section.movies.length" :mediaList="section.movies" @select="rateMedia"/>
+      <MediaResultGrid v-else-if="section.movies.length" :mediaList="notPunted(section.movies)" @select="rateMedia"/>
       <p v-else class="section-loading">Nothing new found — you've seen the good ones.</p>
     </section>
 
@@ -99,7 +105,7 @@ import axios from 'axios';
 import BackLink from './games/BackLink.vue';
 import MediaResultGrid from './MediaResultGrid.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds } from '../assets/javascript/discover.js';
+import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds, tasteProfile, puntKeyFor, nextPunt, isPunted } from '../assets/javascript/discover.js';
 import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 
 export default {
@@ -123,11 +129,19 @@ export default {
     library () {
       return this.$store.getters.allMoviesAsArray || [];
     },
+    punts () {
+      return this.$store.state.settings?.watchlistPunts || {};
+    },
+    taste () {
+      return tasteProfile(this.library, getRating);
+    },
     rewatchList () {
-      return rewatchCandidates(this.library, getRating);
+      return rewatchCandidates(this.library, getRating)
+        .filter((candidate) => !isPunted(candidate.entry, this.punts));
     },
     anotherShotList () {
-      return anotherShotCandidates(this.library, getRating);
+      return anotherShotCandidates(this.library, getRating)
+        .filter((candidate) => !isPunted(candidate.entry, this.punts));
     },
     nearYears () {
       return nearThresholdYears(this.library, awardsYearThreshold(this.$store.state.settings));
@@ -188,6 +202,19 @@ export default {
       const path = entry?.movie?.poster_path;
       return path ? `https://image.tmdb.org/t/p/w342${path}` : null;
     },
+    // Not-yet punt: snoozes the item (60d, doubling per repeat punt) and
+    // records it — the punt history is future threshold-tuning signal.
+    punt (item) {
+      const key = puntKeyFor(item);
+      if (!key) return;
+      this.$store.dispatch('writeDurably', {
+        path: `settings/watchlistPunts/${key}`,
+        value: nextPunt(this.punts[key])
+      });
+    },
+    notPunted (movies) {
+      return (movies || []).filter((movie) => !isPunted(movie, this.punts));
+    },
     dueLabel (candidate) {
       // Cycle-based (discover.js): 1.0 = exactly due.
       if (candidate.overdue >= 1.5) return 'long overdue';
@@ -247,7 +274,7 @@ export default {
             vote_count: movie.vote_count,
             popularity: movie.popularity
           }));
-          const movies = rankWatchlistCandidates(candidates, rated, Date.now(), { cap: 12 });
+          const movies = rankWatchlistCandidates(candidates, rated, Date.now(), { cap: 12, profile: this.taste });
           return { year, count, missing, movies };
         } catch {
           return { year, count, missing, movies: [] };
@@ -277,7 +304,7 @@ export default {
         }
       }));
 
-      return rankWatchlistCandidates(allCredits, rated);
+      return rankWatchlistCandidates(allCredits, rated, Date.now(), { profile: this.taste });
     },
     // Recommendations v1 (bug report: 'some kind of a recommendation
     // system you and I will work out together') — TMDB's own
@@ -298,7 +325,7 @@ export default {
         }
       }));
 
-      return rankWatchlistCandidates(pooled, rated);
+      return rankWatchlistCandidates(pooled, rated, Date.now(), { profile: this.taste });
     }
   }
 };
@@ -354,6 +381,8 @@ export default {
 }
 
 .rewatch-card {
+  cursor: pointer;
+  position: relative;
   background: none;
   border: none;
   color: #eee;
@@ -391,6 +420,26 @@ export default {
   font-weight: 600;
   line-height: 1.2;
   margin-top: 0.3rem;
+}
+
+.punt-btn {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid #3a3a3a;
+  border-radius: 50%;
+  color: #ccc;
+  display: flex;
+  height: 28px;
+  justify-content: center;
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 28px;
+  z-index: 2;
+}
+
+.punt-btn:active {
+  background: rgba(0, 0, 0, 0.95);
 }
 
 .rewatch-due {
