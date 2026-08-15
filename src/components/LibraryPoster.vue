@@ -47,6 +47,19 @@
 
     <!-- Mosaic target picker: which poster to recreate from all the others -->
     <div v-if="mode === 'mosaic'" class="mosaic-picker">
+      <div class="mosaic-detail-row">
+        <button
+          v-for="option in [{ key: 'classic', label: 'Classic' }, { key: 'fine', label: 'Fine detail' }]"
+          :key="option.key"
+          type="button"
+          class="poster-mode mosaic-detail"
+          :class="{ selected: mosaicDetail === option.key }"
+          :disabled="generating"
+          @click="mosaicDetail = option.key"
+        >
+          {{ option.label }}
+        </button>
+      </div>
       <div v-if="mosaicTarget" class="mosaic-target">
         <img :src="`https://image.tmdb.org/t/p/w185${mosaicTarget.movie.poster_path}`" :alt="mosaicTarget.movie.title" class="mosaic-target-poster">
         <span class="mosaic-target-name">{{ mosaicTarget.movie.title }}</span>
@@ -127,7 +140,10 @@ export default {
       highlightFocused: false,
       highlightOptions: null, // built lazily on first focus (large)
       mosaicQuery: '',
-      mosaicTarget: null // library entry whose poster the mosaic recreates
+      mosaicTarget: null, // library entry whose poster the mosaic recreates
+      // classic: bigger tiles you can still recognize up close.
+      // fine: ~3x the cells — sharper image, posters become texture.
+      mosaicDetail: 'classic' 
     };
   },
   computed: {
@@ -303,9 +319,11 @@ export default {
       }
 
       try {
-        // 1. The target poster, downsampled into a FINE cell grid (2:3).
-        const COLS = 48;
-        const ROWS = 72;
+        // 1. The target poster, downsampled into cells (2:3). Fine detail
+        // trades recognizable-up-close tiles for a sharper far reading —
+        // the only real cost of the bigger grid (compute is ~2s more).
+        const COLS = this.mosaicDetail === 'fine' ? 80 : 48;
+        const ROWS = this.mosaicDetail === 'fine' ? 120 : 72;
         const target = await this.loadTile(this.mosaicTarget.movie.poster_path);
         if (!target) throw new Error('target poster failed to load');
         // Sample at 2x the grid so each cell gets its own 2x2 signature.
@@ -360,7 +378,7 @@ export default {
 
         // 3. Assign (pure, loose reuse cap) and render.
         const assignment = assignMosaicCells(cellSignatures, tileSignatures);
-        const CELL = 28;
+        const CELL = this.mosaicDetail === 'fine' ? 20 : 28;
         const canvas = document.createElement('canvas');
         canvas.width = COLS * CELL;
         canvas.height = ROWS * CELL + 64;
@@ -483,6 +501,17 @@ export default {
 
   &::placeholder { color: #888; }
   &:focus { background: #101010; border-color: #666; box-shadow: none; color: #eee; }
+}
+
+.mosaic-detail-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.mosaic-detail {
+  font-size: 0.8rem;
 }
 
 .mosaic-matches {
