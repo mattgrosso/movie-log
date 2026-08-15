@@ -2,9 +2,9 @@
   <div class="home p-3 pt-4 mx-auto">
 
     <div v-if="$store.state.dbLoaded" class="search-bar mx-auto">
-      <div class="input-group mb-1 col-12 md-col-6">
+      <div class="input-group search-input-group mb-1 col-12 md-col-6">
         <input
-          class="form-control"
+          class="form-control search-input-with-quick-links"
           ref="searchInput"
           type="text"
           autocapitalize="none"
@@ -19,6 +19,22 @@
           @input="onInput"
           :value="inputValue"
         >
+        <!-- The quick-links lightning bolt, relocated from the rainbow bar
+             (its slot went to the Circle). Same Bootstrap collapse trigger,
+             miniaturized into the input's right edge. -->
+        <button
+          class="search-quick-links-toggle"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#quick-links-accordion"
+          aria-expanded="false"
+          aria-controls="quick-links-accordion"
+          @click="toggleQuickLinksAccordion"
+          title="Quick filters"
+          aria-label="Toggle quick filters"
+        >
+          <i class="bi bi-lightning-charge"/>
+        </button>
       </div>
       <!-- Typo-tolerant "Did you mean...?" fallback from the user's own rated
            data. As many ranked suggestions as fit on one line (see
@@ -173,8 +189,12 @@
               <button class="results-actions-button btn btn-info" type="button" @click="goToInsights" title="Insights" aria-label="Go to insights">
                 <i class="bi bi-lightbulb"/>
               </button>
-              <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion" title="Quick filters" aria-label="Toggle quick filters">
-                <i class="bi bi-lightning-charge"/>
+              <!-- The Circle takes the lightning bolt's rainbow slot and
+                   color; the quick-links trigger now lives inside the
+                   search input's right edge (Matt: "the circle really
+                   needs to be a first order page"). -->
+              <button class="results-actions-button btn btn-warning btn-sm" type="button" @click="$router.push('/circle')" title="Your Circle" aria-label="Go to your circle">
+                <i class="bi bi-people-fill"/>
               </button>
               <!-- Shuffle lives inside the quick-links panel now (feedback:
                    the extra watchlist button broke the rainbow); watchlist
@@ -5810,6 +5830,39 @@ export default {
 
 .unrated-movie-poster:hover {
   opacity: 0.8;
+}
+
+/* The quick-links bolt inside the search input. Same btn-warning identity
+   it had in the rainbow, shrunk to a corner chip; the input reserves
+   right padding so typed text never runs underneath it. */
+.search-input-group {
+  position: relative;
+
+  .search-input-with-quick-links {
+    padding-right: 2.6rem;
+  }
+
+  .search-quick-links-toggle {
+    align-items: center;
+    background: #ffc107;
+    border: none;
+    border-radius: 6px;
+    bottom: 0;
+    color: #212529;
+    display: flex;
+    justify-content: center;
+    margin: auto 0;
+    position: absolute;
+    right: 4px;
+    top: 0;
+    height: calc(100% - 8px);
+    width: 32px;
+    z-index: 5;
+
+    &:active {
+      background: #d9a406;
+    }
+  }
 }
 
 /* Friend-request notice — same visual language as the stickiness/tiebreak
