@@ -1446,10 +1446,16 @@ export default {
       this.$store.commit('setHomePageSortValue', this.sortValue);
       this.$store.commit('setHomePageSortOrder', this.sortOrder);
     } else {
-      // Reset sorting when leaving to other pages (original functionality)
-      this.sortOrder = "bestOrNewestOnTop";
-      this.setSortValue(null);
-      this.$store.commit("setDBSortValue", this.sortValue);
+      // Reset sorting for the NEXT Home visit — store commits only, never
+      // the live component state. Bug report ("the whole bar seems to
+      // shift a little bit to the right... the icon for the sort order is
+      // disappearing"): this used to call setSortValue(null) on the
+      // still-visible screen, which unmounted the sort icon's v-if for one
+      // frame before navigation and visibly reflowed the rainbow bar. The
+      // component is about to unmount; only the store needs resetting.
+      this.$store.commit('setHomePageSortValue', null);
+      this.$store.commit('setHomePageSortOrder', null);
+      this.$store.commit('setDBSortValue', null);
     }
     next();
   },
