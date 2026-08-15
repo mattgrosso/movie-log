@@ -76,22 +76,6 @@
               <span class="clue-label">Decade</span>
               <span class="clue-value">{{ clue.decade.value != null ? `${clue.decade.value}s ${clue.decade.match ? '✓' : '✗'}` : '—' }}</span>
             </div>
-            <div class="clue-cell" :class="clue.director.match ? 'match' : 'no-match'" :title="(clue.director.match ? clue.director.matchedNames : clue.director.value).join(', ')">
-              <span class="clue-label">Director</span>
-              <span class="clue-value">{{ directorDisplay(clue.director) }}</span>
-            </div>
-            <div
-              class="clue-cell"
-              :class="clue.genres.allMatch ? 'match' : (clue.genres.shared.length ? 'partial' : 'no-match')"
-              :title="(clue.genres.shared.length ? clue.genres.shared : clue.genres.value).join(', ')"
-            >
-              <span class="clue-label">Genre</span>
-              <!-- The (n/total) fraction is what actually distinguishes an
-                   exact match (green, n === total) from a partial overlap
-                   (yellow, n < total) — the color alone wasn't legible
-                   (bug report: "what's the difference between these two"). -->
-              <span class="clue-value wrap">{{ genresDisplay(clue.genres) }}</span>
-            </div>
             <div class="clue-cell" :class="directionClass(clue.runtime)">
               <span class="clue-label">Runtime</span>
               <span class="clue-value">{{ valueWithArrow(clue.runtime, 'm') }}</span>
@@ -99,6 +83,22 @@
             <div class="clue-cell" :class="directionClass(clue.yourRating)">
               <span class="clue-label">Rating</span>
               <span class="clue-value">{{ valueWithArrow(clue.yourRating, '', 2) }}</span>
+            </div>
+            <!-- The two TEXT cells get their own row at double width each, so
+                 names and genre lists wrap instead of ellipsing — and the
+                 numeric row above stays perfectly even (feedback). -->
+            <div class="clue-cell text-cell" :class="clue.director.match ? 'match' : 'no-match'">
+              <span class="clue-label">Director</span>
+              <span class="clue-value wrap">{{ directorDisplay(clue.director) }}</span>
+            </div>
+            <div
+              class="clue-cell text-cell"
+              :class="clue.genres.allMatch ? 'match' : (clue.genres.shared.length ? 'partial' : 'no-match')"
+            >
+              <span class="clue-label">Genre</span>
+              <!-- The (n/total) fraction is what distinguishes an exact match
+                   (green) from a partial overlap (yellow). -->
+              <span class="clue-value wrap">{{ genresDisplay(clue.genres) }}</span>
             </div>
           </div>
         </div>
@@ -430,15 +430,12 @@ export default {
   }
 }
 
-/* Fixed 6-column grid, one row per guess — NOT a flex-wrap chip row (that
-   was tried first, but 6 variable-length chips still wrapped to a 2nd line
-   on a phone, which looked worse than the scroll it replaced). `repeat(6,
-   1fr)` with no min-width divides whatever width is available, so it can
-   never force a scrollbar; each cell truncates with an ellipsis instead of
-   wrapping, so it can never force a 2nd line either — a long director name
-   or genre list just gets cut off (full value is in the `title` attribute,
-   the movie title above the grid, and the "?" Did-you-mean-style detail
-   isn't needed since correctness is what matters, not the exact string). */
+/* Two-tier grid per guess (feedback: director names ellipsed constantly
+   and multi-genre lists broke the even layout). The four NUMERIC cells
+   share a uniform 4-up row — their values are short and fixed-format, so
+   the row is always even. The two TEXT cells (Director, Genre) sit below
+   at double width each with wrapping allowed: likes sit with likes, so
+   nothing truncates and nothing looks ragged. */
 .clue-grid {
   display: flex;
   flex-direction: column;
@@ -465,8 +462,12 @@ export default {
 
 .clue-cells {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 0.2rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem 0.2rem;
+}
+
+.clue-cell.text-cell {
+  grid-column: span 2;
 }
 
 .clue-cell {
