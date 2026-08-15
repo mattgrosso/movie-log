@@ -476,6 +476,25 @@
                   step="0.01"
                   @change="saveNormalizationTweak"
                 >
+                <!-- Bug report (Natalie): "the normalization offset number is
+                     a bit intimidating... it would be better if you could
+                     choose the movie, for example the last movie that
+                     deserves a 10 out of 10." Picking one derives and saves
+                     the offset; the raw number above stays as the manual
+                     override. -->
+                <label for="lastTenPick" class="form-label mt-2">…or pick the last movie that deserves a 10:</label>
+                <select
+                  id="lastTenPick"
+                  class="form-select"
+                  v-model="lastTenPickKey"
+                  @change="applyLastTenPick"
+                >
+                  <option value="" disabled>Choose a movie…</option>
+                  <option v-for="candidate in lastTenCandidates" :key="candidate.entry.dbKey" :value="candidate.entry.dbKey">
+                    {{ candidate.entry.movie.title }}
+                  </option>
+                </select>
+                <small class="form-text text-white">Everything scoring below your pick will show 9 or less.</small>
               </div>
               <div class="mb-3">
                 <label for="tieBreakTweak" class="form-label">Max daily tiebreak prompts:</label>
@@ -1028,6 +1047,7 @@ import {
   awardNameSingular
 } from '../assets/javascript/personalAwards.js';
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
+import { normalizationCandidates } from '../assets/javascript/normalizationPicker.js';
 import { GAME_ICONS, lastPlayedGamePath } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
@@ -1139,6 +1159,7 @@ export default {
       showMovieInfoModal: false, // Show/hide movie info modal
       showOverridePanel: false,
       showSettingsPanel: false, // controls settings panel visibility
+      lastTenPickKey: '', // dbKey chosen in the "last movie that deserves a 10" picker
       errorLogs: [], // error log entries
       copySuccess: false, // copy to clipboard success indicator
       errorLogRefreshInterval: null, // interval for refreshing error logs
@@ -1440,6 +1461,14 @@ export default {
     normalizationTweak () {
       const value = this.$store.state.settings?.normalizationTweak;
       return typeof value === 'number' ? value : 0.25;
+    },
+    // Movies that could be "the last 10/10" within the offset input's own
+    // 0-1 band, best first (normalizationPicker.js). Gated on the panel
+    // being open: this walks the whole library through getRating, which is
+    // fine once per panel-open but not as an always-live computed.
+    lastTenCandidates () {
+      if (!this.showSettingsPanel) return [];
+      return normalizationCandidates(this.$store.getters.allMoviesAsArray, getRating);
     },
     tieBreakTweak () {
       const value = this.$store.state.settings?.tieBreakTweak;
@@ -3499,6 +3528,13 @@ export default {
     },
     saveNormalizationTweak () {
       this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: this.normalizationTweak });
+    },
+    // Saves the offset derived from the picked movie directly — deliberately
+    // not routed through the numeric input's v-model.
+    applyLastTenPick () {
+      const candidate = this.lastTenCandidates.find((c) => c.entry.dbKey === this.lastTenPickKey);
+      if (!candidate) return;
+      this.$store.dispatch('setDBValue', { path: 'settings/normalizationTweak', value: candidate.offset });
     },
     saveTieBreakTweak () {
       this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
