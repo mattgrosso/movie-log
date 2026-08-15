@@ -70,6 +70,51 @@ const rules = {
       '.write': true
     },
 
+    // Social layer (2026-08-15): publish-don't-peek. Each user's app
+    // PUBLISHES a curated public copy under social/; nobody ever reads
+    // another user's private branch. Friendship = BOTH edges exist
+    // (sender pre-commits theirs on request; acceptance creates the
+    // other), and profiles are readable only to mutual friends —
+    // enforced here, not by app etiquette.
+    social: {
+      // Name-only directory so friend requests can find people. Row
+      // appears only when its owner opts into social at all.
+      directory: {
+        '.read': "auth != null",
+        $userKey: {
+          '.write': `auth != null && $userKey === ${sanitizedAuthEmail}`
+        }
+      },
+      // Inbox: sender writes their own row into YOUR inbox; only you can
+      // read your inbox; either party can remove the row (decline/cancel).
+      requests: {
+        $toKey: {
+          '.read': `auth != null && $toKey === ${sanitizedAuthEmail}`,
+          $fromKey: {
+            '.write': `auth != null && ($fromKey === ${sanitizedAuthEmail} || $toKey === ${sanitizedAuthEmail})`
+          }
+        }
+      },
+      // Friend edges: each user writes only their own outgoing edges.
+      // Readable when signed in (the handshake needs to see both sides).
+      friends: {
+        '.read': "auth != null",
+        $userKey: {
+          $friendKey: {
+            '.write': `auth != null && $userKey === ${sanitizedAuthEmail}`
+          }
+        }
+      },
+      // Published profiles: owner-write; readable by the owner and by
+      // MUTUAL friends only (both edges must exist).
+      profiles: {
+        $userKey: {
+          '.write': `auth != null && $userKey === ${sanitizedAuthEmail}`,
+          '.read': `auth != null && ($userKey === ${sanitizedAuthEmail} || (root.child('social/friends/' + $userKey).child(${sanitizedAuthEmail}).exists() && root.child('social/friends/' + ${sanitizedAuthEmail}).child($userKey).exists()))`
+        }
+      }
+    },
+
     // Dev-mode sandbox. Owner only.
     'testing-database': {
       '.read': isOwner,

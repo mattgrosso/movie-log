@@ -1,0 +1,233 @@
+// Social layer — pure logic (design session 2026-08-15). Cinema Roll users
+// only; the Brian-app translation layer will publish INTO this same shape
+// later. Everything privacy-relevant is opt-in by construction: nothing
+// exists under social/ until a user's own app publishes it, and profiles
+// are readable only when BOTH friend edges exist (enforced in the database
+// rules, not app etiquette).
+//
+// Published profile shape (social/profiles/<userKey>):
+//   { name, updatedAt, counts: {titles, viewings},
+//     topShelf: [{id,t,p,r} x10], crown: {t,p,r,year}|null,
+//     recent: [{id,t,p,r,at} x20],
+//     ratings: { [tmdbId]: {r, at, t, p, c?} } }
+// `c` is the eight-criterion breakdown as a fixed-order array (see CRITERIA)
+// and is published ONLY behind its own opt-in (shareCriteria) — the default
+// profile carries composite scores only.
+
+import { logScore } from './logScore.js';
+
+// Fixed publishing order for the compact criteria array. Index-coupled with
+// anything reading `c` — append, never reorder.
+export const CRITERIA = ['love', 'overall', 'stickiness', 'story', 'direction', 'imagery', 'performance', 'soundtrack'];
+
+// Missing criteria become -1, never null — Firebase silently drops null
+// array slots and returns a SPARSE array, which would shift every index in
+// a fixed-order array. Readers must treat negatives as absent.
+function criteriaArrayFrom (rating) {
+  if (!rating) return null;
+  const values = CRITERIA.map((key) => {
+    let raw = rating[key];
+    // Same legacy fallback GetRating.js applies: old entries stored
+    // stickiness as `impression`, sometimes on a >5 scale.
+    if (key === 'stickiness' && (!raw || raw > 5) && raw !== 0) raw = rating.impression;
+    const n = parseFloat(raw);
+    return Number.isFinite(n) ? n : -1;
+  });
+  return values.some((v) => v >= 0) ? values : null;
+}
+
+// ---------------------------------------------------------------------------
+// Publishing: shape a profile from the user's own library, respecting the
+// share toggles. Compact keys (t/p/r/at) keep ~1,400 ratings around 100KB.
+export function buildSocialProfile (entries, getRatingFn, { name, shareRatings = false, shareCriteria = false, now = Date.now() } = {}) {
+  const rated = [];
+  let viewings = 0;
+
+  (entries || []).forEach((entry) => {
+    const rating = getRatingFn(entry)?.calculatedTotal;
+    const id = entry?.movie?.id;
+    if (!Number.isFinite(rating) || id == null) return;
+    const times = (entry.ratings || [])
+      .map((r) => new Date(r?.date ?? NaN).getTime())
+      .filter(Number.isFinite);
+    viewings += Math.max(1, entry.ratings?.length || 0);
+    const mostRecent = [...(entry.ratings || [])].sort((a, b) =>
+      (new Date(b?.date ?? 0).getTime() || 0) - (new Date(a?.date ?? 0).getTime() || 0)
+    )[0];
+    rated.push({
+      id,
+      t: entry.movie.title || '',
+      p: entry.movie.poster_path || null,
+      r: Math.round(rating * 100) / 100,
+      at: times.length ? Math.max(...times) : null,
+      c: shareCriteria ? criteriaArrayFrom(mostRecent) : null,
+      releaseYear: new Date(entry.movie.release_date ?? NaN).getFullYear() || null
+    });
+  });
+
+  const byRating = [...rated].sort((a, b) => b.r - a.r);
+  const byRecency = [...rated].filter((m) => m.at).sort((a, b) => b.at - a.at);
+
+  // The Crown's current holder: walking release years oldest-first, the
+  // final all-time high (same rule as Deep Stats).
+  let crown = null;
+  let high = -Infinity;
+  [...rated].filter((m) => m.releaseYear).sort((a, b) => a.releaseYear - b.releaseYear).forEach((m) => {
+    if (m.r > high) {
+      high = m.r;
+      crown = { t: m.t, p: m.p, r: m.r, year: m.releaseYear };
+    }
+  });
+
+  const profile = {
+    name: name || 'A Cinema Roll user',
+    updatedAt: now,
+    counts: { titles: rated.length, viewings },
+    topShelf: byRating.slice(0, 10).map(({ id, t, p, r }) => ({ id, t, p, r })),
+    recent: byRecency.slice(0, 20).map(({ id, t, p, r, at }) => ({ id, t, p, r, at })),
+    crown
+  };
+
+  if (shareRatings) {
+    const ratings = {};
+    rated.forEach(({ id, t, p, r, at, c }) => {
+      ratings[id] = { r, at, t, p };
+      if (shareCriteria && c) ratings[id].c = c;
+    });
+    profile.ratings = ratings;
+  }
+
+  return profile;
+}
+
+// ---------------------------------------------------------------------------
+// Per-friend comparison: my entries vs their PUBLISHED ratings map.
+export function compareWithFriend (myEntries, getRatingFn, friendProfile, { globalAvg = null, weights = {} } = {}) {
+  const theirs = friendProfile?.ratings || {};
+  const mine = new Map();
+  (myEntries || []).forEach((entry) => {
+    const rating = getRatingFn(entry)?.calculatedTotal;
+    const id = entry?.movie?.id;
+    if (Number.isFinite(rating) && id != null) mine.set(id, { entry, rating });
+  });
+
+  const shared = [];
+  Object.entries(theirs).forEach(([id, their]) => {
+    const my = mine.get(Number(id));
+    if (my && Number.isFinite(their?.r)) {
+      const mostRecent = [...(my.entry.ratings || [])].sort((a, b) =>
+        (new Date(b?.date ?? 0).getTime() || 0) - (new Date(a?.date ?? 0).getTime() || 0)
+      )[0];
+      shared.push({
+        entry: my.entry,
+        mine: my.rating,
+        theirs: their.r,
+        gap: my.rating - their.r,
+        myCriteria: criteriaArrayFrom(mostRecent),
+        theirCriteria: Array.isArray(their.c) ? their.c : null
+      });
+    }
+  });
+
+  if (!shared.length) {
+    return { sharedCount: 0, theyLoveUnseen: pickUnseenLoves(theirs, mine), criterionGaps: null };
+  }
+
+  const myScores = shared.map((s) => s.mine);
+  const theirScores = shared.map((s) => s.theirs);
+  const avgGap = shared.reduce((sum, s) => sum + Math.abs(s.gap), 0) / shared.length;
+
+  return {
+    sharedCount: shared.length,
+    myAverage: round2(myScores.reduce((a, b) => a + b, 0) / shared.length),
+    theirAverage: round2(theirScores.reduce((a, b) => a + b, 0) / shared.length),
+    myLogScore: Number.isFinite(globalAvg) ? logScore(myScores, globalAvg, weights) : null,
+    theirLogScore: Number.isFinite(globalAvg) ? logScore(theirScores, globalAvg, weights) : null,
+    averageGap: round2(avgGap),
+    // Honest, explainable alignment: 10 - average absolute disagreement.
+    alignment: round2(Math.max(0, 10 - avgGap)),
+    biggestDisagreements: [...shared].sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap)).slice(0, 12),
+    sharedLoves: [...shared].filter((s) => s.mine >= 8 && s.theirs >= 8).sort((a, b) => (b.mine + b.theirs) - (a.mine + a.theirs)).slice(0, 12),
+    theyLoveUnseen: pickUnseenLoves(theirs, mine),
+    // Per-criterion tendencies across the overlap — only meaningful when the
+    // friend opted into sharing their breakdown (theirCriteria present).
+    criterionGaps: criterionGapsAcross(shared)
+  };
+}
+
+// For each of the eight criteria: mean(mine - theirs) over every shared movie
+// where BOTH sides have that criterion. null when no movie qualifies at all.
+function criterionGapsAcross (shared) {
+  const withBoth = shared.filter((s) => s.myCriteria && s.theirCriteria);
+  if (!withBoth.length) return null;
+  const gaps = CRITERIA.map((key, i) => {
+    const pairs = withBoth
+      .map((s) => [s.myCriteria[i], s.theirCriteria[i]])
+      .filter(([a, b]) => Number.isFinite(a) && a >= 0 && Number.isFinite(b) && b >= 0);
+    if (!pairs.length) return null;
+    return {
+      criterion: key,
+      gap: round2(pairs.reduce((sum, [a, b]) => sum + (a - b), 0) / pairs.length),
+      count: pairs.length
+    };
+  }).filter(Boolean);
+  return gaps.length ? gaps.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap)) : null;
+}
+
+function pickUnseenLoves (theirRatings, mineMap, { minRating = 8, cap = 12 } = {}) {
+  return Object.entries(theirRatings || {})
+    .filter(([id, their]) => !mineMap.has(Number(id)) && Number.isFinite(their?.r) && their.r >= minRating)
+    .map(([id, their]) => ({ id: Number(id), t: their.t, p: their.p, r: their.r }))
+    .sort((a, b) => b.r - a.r)
+    .slice(0, cap);
+}
+
+function round2 (n) {
+  return Math.round(n * 100) / 100;
+}
+
+// ---------------------------------------------------------------------------
+// The circle summary: every friend's profile combined.
+export function circleSummary (myEntries, getRatingFn, friendProfiles) {
+  const profiles = Object.entries(friendProfiles || {}).filter(([, p]) => p);
+  if (!profiles.length) return null;
+
+  // Merged recent-activity feed, newest first.
+  const feed = profiles.flatMap(([key, profile]) =>
+    (profile.recent || []).map((item) => ({ ...item, friendKey: key, friendName: profile.name }))
+  ).filter((item) => item.at).sort((a, b) => b.at - a.at).slice(0, 30);
+
+  // Circle favorites: movies rated by 2+ people (me included), by average.
+  const mine = new Map();
+  (myEntries || []).forEach((entry) => {
+    const rating = getRatingFn(entry)?.calculatedTotal;
+    const id = entry?.movie?.id;
+    if (Number.isFinite(rating) && id != null) {
+      mine.set(id, { id, t: entry.movie.title, p: entry.movie.poster_path, scores: [{ who: 'You', r: rating }] });
+    }
+  });
+  const pool = new Map(mine);
+  profiles.forEach(([, profile]) => {
+    Object.entries(profile.ratings || {}).forEach(([id, their]) => {
+      if (!Number.isFinite(their?.r)) return;
+      const key = Number(id);
+      const existing = pool.get(key) || { id: key, t: their.t, p: their.p, scores: [] };
+      existing.scores.push({ who: profile.name, r: their.r });
+      pool.set(key, existing);
+    });
+  });
+
+  const multi = [...pool.values()].filter((movie) => movie.scores.length >= 2)
+    .map((movie) => ({
+      ...movie,
+      average: round2(movie.scores.reduce((sum, s) => sum + s.r, 0) / movie.scores.length),
+      spread: round2(Math.max(...movie.scores.map((s) => s.r)) - Math.min(...movie.scores.map((s) => s.r)))
+    }));
+
+  return {
+    friendCount: profiles.length,
+    feed,
+    circleFavorites: [...multi].sort((a, b) => (b.average - a.average) || (b.scores.length - a.scores.length)).slice(0, 12),
+    biggestDivides: [...multi].filter((m) => m.spread >= 2).sort((a, b) => b.spread - a.spread).slice(0, 12)
+  };
+}

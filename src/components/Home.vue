@@ -471,6 +471,40 @@
                               </div>
               </SettingsSection>
 
+              <SettingsSection title="Friends &amp; Sharing">
+                <small class="form-text text-white d-block mb-2">
+                  Everything here is off until you turn it on. Friends see each other only after both sides agree.
+                </small>
+                <div class="form-check form-switch mb-3">
+                  <input class="form-check-input" type="checkbox" id="socialEnabledToggle" :checked="socialSettings.enabled" @change="updateSocialEnabled">
+                  <label class="form-check-label" for="socialEnabledToggle">Share on Cinema Roll</label>
+                </div>
+                <template v-if="socialSettings.enabled">
+                  <div class="mb-3">
+                    <label for="socialDisplayName" class="form-label">Display name</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="socialDisplayName"
+                      :value="socialSettings.displayName || ''"
+                      placeholder="How friends see you"
+                      @change="updateSocialDisplayName"
+                    >
+                  </div>
+                  <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="socialRatingsToggle" :checked="socialSettings.shareRatings" @change="updateSocialShareRatings">
+                    <label class="form-check-label" for="socialRatingsToggle">Share my movie-by-movie scores</label>
+                  </div>
+                  <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="socialCriteriaToggle" :checked="socialSettings.shareCriteria" :disabled="!socialSettings.shareRatings" @change="updateSocialShareCriteria">
+                    <label class="form-check-label" for="socialCriteriaToggle">Also share my criterion breakdown</label>
+                  </div>
+                  <button type="button" class="btn btn-warning w-100" @click="$router.push('/circle')">
+                    <i class="bi bi-people"></i> Open your Circle
+                  </button>
+                </template>
+              </SettingsSection>
+
               <RatingCurveSettings/>
 
               <SettingsSection title="Awards">
@@ -1218,6 +1252,20 @@ export default {
     }
   },
   watch: {
+    // Refresh the published social profile once the library and settings
+    // have both arrived, at most every 6 hours. A component watcher (not
+    // $store.watch) so mounted mock stores in tests don't need the API.
+    socialPublishReady: {
+      immediate: true,
+      handler (ready) {
+        if (!ready) return;
+        const lastPublish = Number(localStorage.getItem('cinemaRoll.social.lastPublish') || 0);
+        if (Date.now() - lastPublish < 6 * 60 * 60 * 1000) return;
+        if (!this.$store.getters?.socialSettings?.enabled) return;
+        this.$store.dispatch('publishSocialProfile');
+        localStorage.setItem('cinemaRoll.social.lastPublish', String(Date.now()));
+      }
+    },
     // Publishes a small summary of what's actually on screen to the store,
     // purely so in-app bug reports can include it (see bugReports.js). Added
     // after an "the entire list of movies is empty" report that couldn't be
@@ -1267,6 +1315,10 @@ export default {
     },
   },
   mounted () {
+    // Social: keep the inbox live. Publishing happens via the
+    // socialPublishReady watcher below once the library and settings are in.
+    this.$store.dispatch('attachSocialListeners');
+
     // Capture navigation intent at the start - needed for various logic below
     const navigationIntent = this.$store.state.homePageNavigationIntent;
 
@@ -1530,6 +1582,12 @@ export default {
     showShorts () {
       const value = this.$store.state.settings?.includeShorts;
       return typeof value === 'boolean' ? value : false;
+    },
+    socialSettings () {
+      return this.$store.getters.socialSettings || {};
+    },
+    socialPublishReady () {
+      return Boolean(this.$store.state.dbLoaded && this.$store.state.settingsLoaded);
     },
     showErrorLogs () {
       const value = this.$store.state.settings?.showErrorLogs;
@@ -2873,6 +2931,37 @@ export default {
       const newVal = event.target.checked;
       ErrorLogService.debug('updateShowShorts handler fired', { newVal, component: 'Home' });
       this.$store.dispatch('writeDurably', { path: 'settings/includeShorts', value: newVal });
+    },
+    updateSocialEnabled (event) {
+      const enabled = event.target.checked;
+      this.$store.dispatch('writeDurably', { path: 'settings/social/enabled', value: enabled });
+      if (enabled) {
+        // Seed a friendly default name from the email so the directory row
+        // is never blank; the profile publishes with whatever's saved.
+        if (!this.socialSettings.displayName) {
+          const emailName = (this.$store.state.userEmail || '').split('@')[0];
+          if (emailName) {
+            this.$store.dispatch('writeDurably', { path: 'settings/social/displayName', value: emailName });
+          }
+        }
+        this.$nextTick(() => this.$store.dispatch('publishSocialProfile'));
+      } else {
+        this.$store.dispatch('unpublishSocialProfile');
+      }
+    },
+    updateSocialDisplayName (event) {
+      const value = event.target.value.trim();
+      if (!value) return;
+      this.$store.dispatch('writeDurably', { path: 'settings/social/displayName', value });
+      this.$nextTick(() => this.$store.dispatch('publishSocialProfile'));
+    },
+    updateSocialShareRatings (event) {
+      this.$store.dispatch('writeDurably', { path: 'settings/social/shareRatings', value: event.target.checked });
+      this.$nextTick(() => this.$store.dispatch('publishSocialProfile'));
+    },
+    updateSocialShareCriteria (event) {
+      this.$store.dispatch('writeDurably', { path: 'settings/social/shareCriteria', value: event.target.checked });
+      this.$nextTick(() => this.$store.dispatch('publishSocialProfile'));
     },
     updateShowErrorLogs (event) {
       const newVal = event.target.checked;

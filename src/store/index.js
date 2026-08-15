@@ -25,6 +25,7 @@ import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
 import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
+import { buildSocialProfile } from "../assets/javascript/social.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -255,6 +256,14 @@ export default createStore({
     // Latest delta-sync shadow-mode comparison (phase 1) — see
     // runDeltaShadowCheck. Null until a launch has a baseline to compare.
     deltaShadowReport: null,
+    // Social layer (2026-08-15). Live inbox + friend edges via listeners;
+    // directory and friend profiles fetched on demand. Shapes and the
+    // publish-don't-peek design live in src/assets/javascript/social.js.
+    socialRequests: {},
+    socialEdges: {},
+    socialDirectory: {},
+    socialFriendProfiles: {},
+    socialAttachedFor: null,
     filteredResults: [],
     // Header banner: Home resolves bannerUrl on arrival based on bannerRequest
     // (set by MovieDetail/RateMovie/search links). See Header.vue + Home.resolveBanner.
@@ -321,6 +330,31 @@ export default createStore({
     databaseTopKey (state, getters) {
       return getters.devMode ? state.devModeTopKey : state.databaseTopKey;
     },
+    // Social is keyed by the REAL signed-in account, never the dev-mode
+    // sandbox — the database rules only allow writes under the key that
+    // matches the auth token's email.
+    socialUserKey (state) {
+      return state.databaseTopKey;
+    },
+    socialSettings (state) {
+      return state.settings?.social || {};
+    },
+    // Friendship = BOTH edges exist. My friends are my outgoing edges that
+    // the other side has reciprocated.
+    socialFriendKeys (state, getters) {
+      const me = getters.socialUserKey;
+      if (!me) return [];
+      const myEdges = state.socialEdges?.[me] || {};
+      return Object.keys(myEdges).filter((key) => state.socialEdges?.[key]?.[me]);
+    },
+    // Requests I've sent that the other side hasn't accepted yet: my
+    // outgoing edges with no reciprocal edge.
+    socialPendingSentKeys (state, getters) {
+      const me = getters.socialUserKey;
+      if (!me) return [];
+      const myEdges = state.socialEdges?.[me] || {};
+      return Object.keys(myEdges).filter((key) => !state.socialEdges?.[key]?.[me]);
+    },
     // Backed by state.devMode (set via the setDevMode mutation), not a direct
     // localStorage read. A Vuex getter is a Vue computed under the hood: with
     // no reactive dependency (a bare `localStorage.getItem(...)` read touches
@@ -346,6 +380,21 @@ export default createStore({
     },
     setAcademyAwardWinners (state, value) {
       state.academyAwardWinners = value
+    },
+    setSocialRequests (state, value) {
+      state.socialRequests = value || {};
+    },
+    setSocialEdges (state, value) {
+      state.socialEdges = value || {};
+    },
+    setSocialDirectory (state, value) {
+      state.socialDirectory = value || {};
+    },
+    setSocialFriendProfile (state, { key, profile }) {
+      state.socialFriendProfiles = { ...state.socialFriendProfiles, [key]: profile };
+    },
+    setSocialAttachedFor (state, value) {
+      state.socialAttachedFor = value;
     },
     setAllAcademyAwards (state, value) {
       state.allAcademyAwards = value;
@@ -1169,7 +1218,99 @@ export default createStore({
         `Database batch update timed out after ${DATABASE_WRITE_TIMEOUT_MS}ms`
       );
     },
-    // This action adds a TV show to the list of recently rated TV shows in the user's settings.
+    // ------------------------------------------------------------------
+    // Social layer. All writes land OUTSIDE the user's private branch, under
+    // social/ — see src/assets/javascript/social.js and the database rules.
+    attachSocialListeners (context) {
+      const me = context.getters.socialUserKey;
+      if (!me || context.state.socialAttachedFor === me) return;
+      context.commit('setSocialAttachedFor', me);
+      onValue(ref(db, `social/requests/${me}`), (snapshot) => {
+        context.commit('setSocialRequests', snapshot.val());
+      }, (error) => console.error('social requests listener cancelled:', error));
+      onValue(ref(db, 'social/friends'), (snapshot) => {
+        context.commit('setSocialEdges', snapshot.val());
+      }, (error) => console.error('social friends listener cancelled:', error));
+    },
+    // Publish (or refresh) my public profile + directory row. Safe to call
+    // liberally — it no-ops unless social is enabled and the library is in.
+    async publishSocialProfile (context) {
+      const me = context.getters.socialUserKey;
+      const social = context.getters.socialSettings;
+      if (!me || !social.enabled || !context.state.settingsLoaded) return;
+      const entries = context.getters.allMediaAsArray;
+      if (!entries.length) return;
+      const profile = buildSocialProfile(entries, getRating, {
+        name: social.displayName || 'A Cinema Roll user',
+        shareRatings: Boolean(social.shareRatings),
+        shareCriteria: Boolean(social.shareRatings && social.shareCriteria)
+      });
+      await Promise.all([
+        set(ref(db, `social/profiles/${me}`), profile),
+        set(ref(db, `social/directory/${me}`), { name: profile.name })
+      ]);
+    },
+    async unpublishSocialProfile (context) {
+      const me = context.getters.socialUserKey;
+      if (!me) return;
+      await Promise.all([
+        set(ref(db, `social/profiles/${me}`), null),
+        set(ref(db, `social/directory/${me}`), null)
+      ]);
+    },
+    async fetchSocialDirectory (context) {
+      const snapshot = await get(ref(db, 'social/directory'));
+      context.commit('setSocialDirectory', snapshot.val());
+    },
+    async sendFriendRequest (context, toKey) {
+      const me = context.getters.socialUserKey;
+      if (!me || !toKey || toKey === me) return;
+      // Pre-commit my half of the friendship; theirs is created when they
+      // accept. One dangling edge grants nothing.
+      await set(ref(db, `social/friends/${me}/${toKey}`), true);
+      await set(ref(db, `social/requests/${toKey}/${me}`), {
+        name: context.getters.socialSettings.displayName || 'A Cinema Roll user',
+        at: Date.now()
+      });
+    },
+    async cancelFriendRequest (context, toKey) {
+      const me = context.getters.socialUserKey;
+      if (!me || !toKey) return;
+      await Promise.all([
+        set(ref(db, `social/friends/${me}/${toKey}`), null),
+        set(ref(db, `social/requests/${toKey}/${me}`), null)
+      ]);
+    },
+    async acceptFriendRequest (context, fromKey) {
+      const me = context.getters.socialUserKey;
+      if (!me || !fromKey) return;
+      await set(ref(db, `social/friends/${me}/${fromKey}`), true);
+      await set(ref(db, `social/requests/${me}/${fromKey}`), null);
+      context.dispatch('fetchFriendProfiles');
+    },
+    async declineFriendRequest (context, fromKey) {
+      const me = context.getters.socialUserKey;
+      if (!me || !fromKey) return;
+      await set(ref(db, `social/requests/${me}/${fromKey}`), null);
+    },
+    async removeFriend (context, friendKey) {
+      const me = context.getters.socialUserKey;
+      if (!me || !friendKey) return;
+      await set(ref(db, `social/friends/${me}/${friendKey}`), null);
+    },
+    async fetchFriendProfiles (context) {
+      const keys = context.getters.socialFriendKeys;
+      await Promise.all(keys.map(async (key) => {
+        try {
+          const snapshot = await get(ref(db, `social/profiles/${key}`));
+          context.commit('setSocialFriendProfile', { key, profile: snapshot.val() });
+        } catch (error) {
+          // A friend who hasn't published yet (or a permission race right
+          // after acceptance) is expected — leave their profile absent.
+          console.warn('could not fetch friend profile', key, error?.code || error);
+        }
+      }));
+    },
   },
   modules: {
   }

@@ -30,6 +30,8 @@ const WatchlistScreen = () => import(/* webpackChunkName: "watchlist" */ "../com
 const LibraryPoster = () => import(/* webpackChunkName: "library-poster" */ "../components/LibraryPoster.vue");
 const PersonalAwardsScreen = () => import(/* webpackChunkName: "awards" */ "../components/PersonalAwardsScreen.vue");
 const DeepStats = () => import(/* webpackChunkName: "deep-stats" */ "../components/DeepStats.vue");
+const CircleScreen = () => import(/* webpackChunkName: "circle" */ "../components/CircleScreen.vue");
+const FriendComparison = () => import(/* webpackChunkName: "circle" */ "../components/FriendComparison.vue");
 
 // Router
 const loggedIn = () => {
@@ -341,6 +343,36 @@ const routes = [
     path: '/watchlist',
     name: 'WatchlistScreen',
     component: WatchlistScreen,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+{
+    path: '/circle',
+    name: 'CircleScreen',
+    component: CircleScreen,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+{
+    path: '/circle/:friendKey',
+    name: 'FriendComparison',
+    component: FriendComparison,
     meta: {
       requiresLogin: true
     },

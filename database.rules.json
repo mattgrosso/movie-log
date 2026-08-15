@@ -7,6 +7,36 @@
       ".read": false,
       ".write": true
     },
+    "social": {
+      "directory": {
+        ".read": "auth != null",
+        "$userKey": {
+          ".write": "auth != null && $userKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-')"
+        }
+      },
+      "requests": {
+        "$toKey": {
+          ".read": "auth != null && $toKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-')",
+          "$fromKey": {
+            ".write": "auth != null && ($fromKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-') || $toKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-'))"
+          }
+        }
+      },
+      "friends": {
+        ".read": "auth != null",
+        "$userKey": {
+          "$friendKey": {
+            ".write": "auth != null && $userKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-')"
+          }
+        }
+      },
+      "profiles": {
+        "$userKey": {
+          ".write": "auth != null && $userKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-')",
+          ".read": "auth != null && ($userKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-') || (root.child('social/friends/' + $userKey).child(auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-')).exists() && root.child('social/friends/' + auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-')).child($userKey).exists()))"
+        }
+      }
+    },
     "testing-database": {
       ".read": "auth != null && auth.token.email != null && auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-') === 'mattgrosso-gmail-com'",
       ".write": "auth != null && auth.token.email != null && auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-') === 'mattgrosso-gmail-com'"

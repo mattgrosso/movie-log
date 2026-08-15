@@ -1,0 +1,144 @@
+import { describe, it, expect } from 'vitest'
+import { buildSocialProfile, compareWithFriend, circleSummary } from '@/assets/javascript/social.js'
+
+const NOW = Date.UTC(2026, 7, 15)
+
+function entry (id, title, rating, { at = NOW - id * 1000, year = 2000, criteria = {} } = {}) {
+  return {
+    dbKey: `k${id}`,
+    movie: { id, title, poster_path: `/${id}.jpg`, release_date: `${year}-06-15` },
+    ratings: [{ date: at, calculatedTotal: rating, direction: 9, ...criteria }]
+  }
+}
+const ratingOf = (e) => ({ calculatedTotal: e.ratings[0].calculatedTotal })
+
+describe('buildSocialProfile', () => {
+  const library = [
+    entry(1, 'Best', 9.5, { year: 1980 }),
+    entry(2, 'Mid', 7, { year: 1995 }),
+    entry(3, 'Newest High', 9.9, { year: 2020 })
+  ]
+
+  it('publishes shelf, recent, counts, and the crown — composite scores only', () => {
+    const profile = buildSocialProfile(library, ratingOf, { name: 'Matt', shareRatings: true, now: NOW })
+
+    expect(profile.name).toBe('Matt')
+    expect(profile.counts.titles).toBe(3)
+    expect(profile.topShelf[0].t).toBe('Newest High')
+    expect(profile.crown.t).toBe('Newest High') // 1980's 9.5 dethroned by 2020's 9.9
+    expect(profile.ratings[1].r).toBe(9.5)
+    // Privacy: NO criterion breakdown ever leaves the account.
+    expect(JSON.stringify(profile)).not.toContain('direction')
+  })
+
+  it('omits the ratings map entirely unless sharing is on', () => {
+    const profile = buildSocialProfile(library, ratingOf, { name: 'Matt', shareRatings: false })
+    expect(profile.ratings).toBeUndefined()
+    expect(profile.topShelf.length).toBeGreaterThan(0) // shelf still published
+  })
+
+  it('publishes the criteria array only behind its own opt-in', () => {
+    const lib = [entry(1, 'Best', 9.5, { criteria: { love: 10, overall: 9, stickiness: 4, story: 9, imagery: 8, performance: 7, soundtrack: 6 } })]
+    const withOptIn = buildSocialProfile(lib, ratingOf, { name: 'Matt', shareRatings: true, shareCriteria: true })
+    // CRITERIA order: love, overall, stickiness, story, direction, imagery, performance, soundtrack
+    expect(withOptIn.ratings[1].c).toEqual([10, 9, 4, 9, 9, 8, 7, 6])
+    // shareRatings alone still means composite only
+    const withoutOptIn = buildSocialProfile(lib, ratingOf, { name: 'Matt', shareRatings: true })
+    expect(withoutOptIn.ratings[1].c).toBeUndefined()
+  })
+})
+
+describe('compareWithFriend', () => {
+  const myLibrary = [
+    entry(1, 'Agreed Love', 9),
+    entry(2, 'Fight Movie', 9),
+    entry(3, 'Mine Only', 8)
+  ]
+  const friend = {
+    name: 'Natalie',
+    ratings: {
+      1: { r: 8.8, t: 'Agreed Love', p: '/1.jpg' },
+      2: { r: 4, t: 'Fight Movie', p: '/2.jpg' },
+      9: { r: 9.2, t: 'Theirs Only Gem', p: '/9.jpg' }
+    }
+  }
+
+  it('finds the overlap, gaps, shared loves, and their unseen gems', () => {
+    const cmp = compareWithFriend(myLibrary, ratingOf, friend, { globalAvg: 6 })
+
+    expect(cmp.sharedCount).toBe(2)
+    expect(cmp.biggestDisagreements[0].entry.movie.title).toBe('Fight Movie')
+    expect(cmp.biggestDisagreements[0].gap).toBe(5)
+    expect(cmp.sharedLoves[0].entry.movie.title).toBe('Agreed Love')
+    expect(cmp.theyLoveUnseen[0].t).toBe('Theirs Only Gem')
+    expect(cmp.myLogScore).not.toBeNull()
+    expect(cmp.alignment).toBeLessThan(10)
+  })
+
+  it('degrades gracefully with no overlap', () => {
+    const cmp = compareWithFriend([entry(50, 'Lonely', 7)], ratingOf, friend, { globalAvg: 6 })
+    expect(cmp.sharedCount).toBe(0)
+    expect(cmp.theyLoveUnseen.length).toBeGreaterThan(0)
+  })
+
+  it('surfaces per-criterion tendencies when the friend shares their breakdown', () => {
+    const lib = [
+      entry(1, 'A', 9, { criteria: { love: 9, overall: 8, stickiness: 4, story: 8, imagery: 6, performance: 7, soundtrack: 5 } }),
+      entry(2, 'B', 8, { criteria: { love: 8, overall: 8, stickiness: 3, story: 7, imagery: 5, performance: 7, soundtrack: 5 } })
+    ]
+    const sharing = {
+      name: 'Natalie',
+      ratings: {
+        // c order: love, overall, stickiness, story, direction, imagery, performance, soundtrack
+        1: { r: 8, t: 'A', p: '/1.jpg', c: [7, 8, 4, 8, 9, 7, 7, 5] },
+        2: { r: 8, t: 'B', p: '/2.jpg', c: [6, 8, 3, 7, 9, 6, 7, 5] }
+      }
+    }
+    const cmp = compareWithFriend(lib, ratingOf, sharing, { globalAvg: 6 })
+    expect(cmp.criterionGaps).not.toBeNull()
+    // I rate Love higher by 2 on both movies; that should lead the list.
+    expect(cmp.criterionGaps[0].criterion).toBe('love')
+    expect(cmp.criterionGaps[0].gap).toBe(2)
+    expect(cmp.criterionGaps[0].count).toBe(2)
+    // Imagery: I'm lower by 1 on both — negative gap.
+    const imagery = cmp.criterionGaps.find((g) => g.criterion === 'imagery')
+    expect(imagery.gap).toBe(-1)
+  })
+
+  it('criterionGaps is null when the friend shares composites only', () => {
+    const cmp = compareWithFriend(myLibrary, ratingOf, friend, { globalAvg: 6 })
+    expect(cmp.criterionGaps).toBeNull()
+  })
+})
+
+describe('circleSummary', () => {
+  const myLibrary = [entry(1, 'Consensus', 9), entry(2, 'Divisive', 9)]
+  const friends = {
+    'natalie-key': {
+      name: 'Natalie',
+      recent: [{ id: 7, t: 'Nat Recent', p: '/7.jpg', r: 8, at: NOW - 100 }],
+      ratings: { 1: { r: 8.5, t: 'Consensus', p: '/1.jpg' }, 2: { r: 3, t: 'Divisive', p: '/2.jpg' } }
+    },
+    'seth-key': {
+      name: 'Seth',
+      recent: [{ id: 8, t: 'Seth Recent', p: '/8.jpg', r: 6, at: NOW - 50 }],
+      ratings: { 1: { r: 9.2, t: 'Consensus', p: '/1.jpg' } }
+    }
+  }
+
+  it('merges the feed newest-first and surfaces consensus and divides', () => {
+    const summary = circleSummary(myLibrary, ratingOf, friends)
+
+    expect(summary.friendCount).toBe(2)
+    expect(summary.feed[0].t).toBe('Seth Recent')
+    expect(summary.feed[0].friendName).toBe('Seth')
+    expect(summary.circleFavorites[0].t).toBe('Consensus')
+    expect(summary.circleFavorites[0].scores.length).toBe(3)
+    expect(summary.biggestDivides[0].t).toBe('Divisive')
+    expect(summary.biggestDivides[0].spread).toBe(6)
+  })
+
+  it('null with no friends', () => {
+    expect(circleSummary(myLibrary, ratingOf, {})).toBeNull()
+  })
+})
