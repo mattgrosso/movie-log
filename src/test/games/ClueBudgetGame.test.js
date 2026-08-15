@@ -219,7 +219,7 @@ describe('ClueBudgetGame', () => {
     expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/clueBudgetBestSavings', value: 70 });
   });
 
-  it('guessing the WRONG movie does not end the round, but DOES say so (bug report: "there\'s no real feedback right now")', async () => {
+  it('guessing the WRONG movie does not end the round, but DOES say so and costs $10 (bug reports: "no real feedback" + "each wrong guess costs $10")', async () => {
     const wrapper = factory(tenMovies());
     await flushPromises();
     const wrong = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== wrapper.vm.target.dbKey);
@@ -229,12 +229,36 @@ describe('ClueBudgetGame', () => {
 
     expect(wrapper.vm.status).toBe('playing');
     expect(wrapper.vm.lastGuessFeedback).toContain(wrong.movie.title);
+    expect(wrapper.vm.lastGuessFeedback).toContain('$10');
     const feedback = wrapper.find('.guess-feedback');
     expect(feedback.classes()).toContain('visible');
     expect(feedback.text()).toContain(wrong.movie.title);
 
-    // Guesses are free - a wrong one must not cost budget.
-    expect(wrapper.vm.budget).toBe(100);
+    expect(wrapper.vm.budget).toBe(90);
+  });
+
+  it('a wrong guess that spends the last of the budget ends the round in a loss', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+    const wrong = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== wrapper.vm.target.dbKey);
+    wrapper.vm.budget = 10;
+
+    wrapper.vm.submitGuess(wrong);
+
+    expect(wrapper.vm.budget).toBe(0);
+    expect(wrapper.vm.status).toBe('lost');
+    expect(window.localStorage.getItem('cinemaRoll.clueBudget.current')).toBeNull();
+  });
+
+  it('a wrong guess persists the reduced budget, so a resumed round cannot refund it', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+    const wrong = wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== wrapper.vm.target.dbKey);
+
+    wrapper.vm.submitGuess(wrong);
+
+    const saved = JSON.parse(window.localStorage.getItem('cinemaRoll.clueBudget.current'));
+    expect(saved.budget).toBe(90);
   });
 
   it('clears the wrong-guess message as soon as the player starts typing again', async () => {

@@ -22,7 +22,7 @@
           v-model="guessInput"
           type="text"
           class="game-input"
-          placeholder="Guess the movie…"
+          placeholder="Guess the movie (wrong = −$10)…"
           @input="onInput"
         >
         <ul v-if="suggestions.length" class="suggestions">
@@ -94,6 +94,12 @@ import { buildClueDeck, STARTING_BUDGET } from '../../assets/javascript/games/cl
 import clueBudgetBanner from '../../assets/images/games/clue-budget-banner.jpg';
 
 const STORAGE_KEY = 'cinemaRoll.clueBudget.current';
+
+// Bug report: "let's allow unlimited guesses but each wrong guess costs
+// $10." Guesses were unlimited-and-free before; now they're unlimited but
+// spend down the same budget the clues do, so brute-forcing the
+// suggestions list has a price.
+const WRONG_GUESS_COST = 10;
 
 export default {
   name: 'ClueBudgetGame',
@@ -187,13 +193,19 @@ export default {
         this.win();
         return;
       }
-      // Bug report: "if I guess wrong it should say so. There's no real
-      // feedback right now" - a wrong guess used to silently do nothing at
-      // all, indistinguishable from a tap that didn't register. Guesses are
-      // still free (this game charges for CLUES, not guesses), so this is
-      // purely feedback. Same always-rendered/reserved-height treatment as
-      // Connections' own guess feedback so it can't reflow the layout.
-      this.lastGuessFeedback = `Not ${entry.movie.title}. Try again.`;
+      // Two bug reports shaped this. First: "if I guess wrong it should say
+      // so" — a wrong guess used to do nothing visible at all. Then:
+      // "unlimited guesses but each wrong guess costs $10" — so guesses now
+      // spend the same budget as clues (they were free between those two
+      // reports). Same always-rendered/reserved-height treatment as
+      // Connections' guess feedback so the message can't reflow the layout.
+      this.lastGuessFeedback = `Not ${entry.movie.title}. That cost you $${WRONG_GUESS_COST}.`;
+      this.budget = Math.max(0, this.budget - WRONG_GUESS_COST);
+      if (this.budget <= 0) {
+        this.lose(); // clears the save itself
+        return;
+      }
+      this.persistState();
     },
     buyClue (clue) {
       if (this.status !== 'playing' || this.purchasedClues.some((p) => p.key === clue.key) || clue.cost > this.budget) return;
