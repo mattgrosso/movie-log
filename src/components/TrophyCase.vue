@@ -133,46 +133,6 @@
         </div>
       </div>
 
-      <!-- User request: "find some categories where I differ from the
-           Academy Awards." Your winners vs the real ceremony, joined on
-           film year (the dataset's year IS the film year) + tmdb/person. -->
-      <div v-if="academyOverall.contests" class="most-decorated">
-        <h2 class="section-title">You vs. the Academy</h2>
-        <p class="academy-headline">
-          You and the Academy agree {{ Math.round(academyOverall.rate * 100) }}% of the time
-          ({{ academyOverall.agreements }} of {{ academyOverall.contests }} shared categories).
-        </p>
-        <div class="academy-scorecard">
-          <div v-for="row in academyScorecard" :key="row.categoryKey" class="academy-score-line">
-            <span class="academy-score-label">{{ categoryName(row.categoryKey) }}</span>
-            <span class="academy-score-value" :class="{ contrarian: row.rate < 0.34 }">
-              {{ Math.round(row.rate * 100) }}% ({{ row.agreements }}/{{ row.contests }})
-            </span>
-          </div>
-        </div>
-        <div v-if="academyDisagreements.length" class="versus-row">
-          <div v-for="clash in academyDisagreements" :key="`${clash.year}-${clash.categoryKey}`" class="versus-card">
-            <span class="versus-context">{{ clash.year }} · {{ categoryName(clash.categoryKey) }}</span>
-            <div class="versus-posters">
-              <div class="versus-side">
-                <img v-if="clash.yoursPosterPath" :src="`https://image.tmdb.org/t/p/w185${clash.yoursPosterPath}`" :alt="clash.yoursLabel" class="versus-poster">
-                <div v-else class="versus-poster versus-poster-placeholder">?</div>
-                <span class="versus-tag you">You</span>
-                <span class="versus-title">{{ clash.yoursLabel }}</span>
-              </div>
-              <span class="versus-vs">vs</span>
-              <div class="versus-side">
-                <img v-if="clash.academyPosterPath" :src="`https://image.tmdb.org/t/p/w185${clash.academyPosterPath}`" :alt="clash.academyLabel" class="versus-poster">
-                <div v-else class="versus-poster versus-poster-placeholder">?</div>
-                <span class="versus-tag them">Academy</span>
-                <span class="versus-title">{{ clash.academyLabel }}</span>
-              </div>
-            </div>
-            <span v-if="clash.outcome === 'snubbed'" class="versus-note">yours wasn't even nominated</span>
-          </div>
-        </div>
-      </div>
-
       <!-- Your own ratings vs your own ceremony picks. -->
       <div v-if="upsets.length" class="most-decorated">
         <h2 class="section-title">Robbed, By Your Own Ratings</h2>
@@ -206,7 +166,6 @@ import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCa
 import { expandNomineeFromMinimal } from '../assets/javascript/personalAwards.js';
 import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins, rankSweeps, winStreaks, categoryOwners, longestWaits, rankUpsets } from '../assets/javascript/awardStats.js';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { compareWithAcademy, categoryScorecard, overallAgreement, biggestDisagreements } from '../assets/javascript/academyComparison.js';
 
 export default {
   name: 'TrophyCase',
@@ -403,18 +362,6 @@ export default {
         if (Number.isFinite(rating)) map.set(entry.movie.id, rating);
       });
       return map;
-    },
-    academyContests () {
-      return compareWithAcademy(this.awardEntries.wins, this.$store.state.allAcademyAwards || []);
-    },
-    academyOverall () {
-      return overallAgreement(this.academyContests);
-    },
-    academyScorecard () {
-      return categoryScorecard(this.academyContests);
-    },
-    academyDisagreements () {
-      return biggestDisagreements(this.academyContests);
     },
     upsets () {
       const ratings = this.ratingByMovieId;
@@ -757,39 +704,6 @@ export default {
   margin-bottom: 2rem;
 }
 
-.academy-headline {
-  color: #ccc;
-  font-size: 0.9rem;
-  margin: 0 0 0.75rem;
-}
-
-.academy-scorecard {
-  display: grid;
-  gap: 0.25rem 1rem;
-  grid-template-columns: 1fr 1fr;
-  margin-bottom: 0.75rem;
-}
-
-.academy-score-line {
-  display: flex;
-  font-size: 0.8rem;
-  justify-content: space-between;
-}
-
-.academy-score-label {
-  color: #adb5bd;
-}
-
-.academy-score-value {
-  color: #eee;
-  font-weight: 600;
-}
-
-/* The categories where you actively go your own way. */
-.academy-score-value.contrarian {
-  color: #ffc107;
-}
-
 
 /* Side-by-side poster matchups (Robbed + You vs. the Academy) — a
    horizontal-scroll row of cards, same rhythm as the people shelves. */
@@ -870,10 +784,6 @@ export default {
   color: #6ec1e4;
 }
 
-.versus-tag.them {
-  color: #ffc107;
-}
-
 .versus-tag.robbed {
   color: #ff6a6a;
 }
@@ -885,10 +795,4 @@ export default {
   margin-top: 0.1rem;
 }
 
-.versus-note {
-  color: #adb5bd;
-  display: block;
-  font-size: 0.65rem;
-  margin-top: 0.3rem;
-}
 </style>
