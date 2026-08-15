@@ -722,6 +722,13 @@
                                   Signed in as {{ $store.state.userEmail }}
                                 </p>
                                 <button
+                                  class="btn btn-outline-light btn-sm w-100 mb-2"
+                                  @click="exportMyData"
+                                >
+                                  <i class="bi bi-download"></i> Download my data
+                                </button>
+                                <small class="form-text text-white d-block mb-2">Your whole library and settings as a JSON file.</small>
+                                <button
                                   class="btn btn-outline-light btn-sm w-100"
                                   @click="signOut"
                                 >
@@ -3585,6 +3592,33 @@ export default {
       // no longer exists — see lastPlayedGamePath for the dead-button bug
       // that second case caused.
       this.$router.push(lastPlayedGamePath(this.$router) || '/games');
+    },
+    // Brian-survey G1: self-service export, no admin tooling needed.
+    async exportMyData () {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        account: this.$store.state.userEmail || null,
+        movieLog: this.$store.state.movieLog || {},
+        settings: this.$store.state.settings || {}
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const file = new File([blob], 'cinema-roll-export.json', { type: 'application/json' });
+      // Share sheet first (the reliable path on the iOS PWA), anchor as
+      // the desktop fallback.
+      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+        try {
+          await navigator.share({ files: [file], title: 'Cinema Roll export' });
+          return;
+        } catch (error) {
+          if (error?.name === 'AbortError') return;
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'cinema-roll-export.json';
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     },
     saveTieBreakTweak () {
       this.$store.dispatch('writeDurably', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
