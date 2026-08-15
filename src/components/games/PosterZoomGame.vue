@@ -647,6 +647,14 @@ export default {
   height: 100%;
   object-fit: cover;
   opacity: 0;
+  /* iOS long-press opens the image preview/save callout — which shows the
+     ENTIRE poster, letting you peek past the crop (bug report). The image
+     needs no pointer interaction of its own (taps land on the viewport
+     div), so turn it all off. */
+  pointer-events: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   /* No transition until it's revealed. Otherwise the jump from the previous
      round's fully-zoomed-out reveal to the new round's tight crop ANIMATES,
      showing the whole poster on the way in and giving the answer away. */
@@ -735,13 +743,20 @@ export default {
 /* One panel with rows inside it, matching the typeahead in every other
    game. Styling each row as its own bordered card instead reads as a stack
    of separate boxes rather than a dropdown. Absolute so opening it doesn't
-   push the buttons down the page. */
+   push the buttons down the page.
+
+   Opens UPWARD (bottom: 100%), unlike the other games' typeaheads: this
+   input sits at the very bottom of the screen because the poster stage
+   absorbs all the leftover height, so a downward list lands squarely under
+   the iOS keyboard (bug report). Above the input it covers the poster
+   instead, which is fine while typing. */
 .suggestions {
   background: #1a1a1a;
   border: 1px solid #333;
   border-radius: 0.35rem;
+  bottom: calc(100% + 0.25rem);
   list-style: none;
-  margin: 0.25rem 0 0;
+  margin: 0;
   max-height: 220px;
   overflow-y: auto;
   padding: 0;
