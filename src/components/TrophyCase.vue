@@ -33,6 +33,10 @@
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
             <div class="decorated-name">{{ person.name }}</div>
             <div class="decorated-count">{{ person.count }}&times; winner</div>
+            <div class="mini-posters">
+              <img v-for="mini in miniPosterStrip(person.wins).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
+              <span v-if="miniPosterStrip(person.wins).extra" class="mini-more">+{{ miniPosterStrip(person.wins).extra }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -49,6 +53,10 @@
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
             <div class="decorated-name">{{ person.name }}</div>
             <div class="decorated-count">{{ person.count }} nomination{{ person.count === 1 ? '' : 's' }}</div>
+            <div class="mini-posters">
+              <img v-for="mini in miniPosterStrip(person.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
+              <span v-if="miniPosterStrip(person.entries).extra" class="mini-more">+{{ miniPosterStrip(person.entries).extra }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -63,6 +71,10 @@
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
             <div class="decorated-name">{{ person.name }}</div>
             <div class="decorated-count">{{ person.count }} nomination{{ person.count === 1 ? '' : 's' }}, no wins</div>
+            <div class="mini-posters">
+              <img v-for="mini in miniPosterStrip(person.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
+              <span v-if="miniPosterStrip(person.entries).extra" class="mini-more">+{{ miniPosterStrip(person.entries).extra }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -114,6 +126,10 @@
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ streak.name.charAt(0) }}</div>
             <div class="decorated-name">{{ streak.name }}</div>
             <div class="decorated-count">{{ streak.length }} years running · {{ streak.startYear }}–{{ String(streak.endYear).slice(2) }}</div>
+            <div class="mini-posters">
+              <img v-for="mini in miniPosterStrip(streak.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
+              <span v-if="miniPosterStrip(streak.entries).extra" class="mini-more">+{{ miniPosterStrip(streak.entries).extra }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -126,6 +142,10 @@
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ owner.name.charAt(0) }}</div>
             <div class="decorated-name">{{ owner.name }}</div>
             <div class="decorated-count">{{ owner.count }}× {{ categoryName(owner.categoryKey) }}</div>
+            <div class="mini-posters">
+              <img v-for="mini in miniPosterStrip(owner.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
+              <span v-if="miniPosterStrip(owner.entries).extra" class="mini-more">+{{ miniPosterStrip(owner.entries).extra }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -138,6 +158,10 @@
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ wait.name.charAt(0) }}</div>
             <div class="decorated-name">{{ wait.name }}</div>
             <div class="decorated-count">won after {{ wait.wait }} years · first nod {{ wait.firstNomination }}</div>
+            <div class="mini-posters">
+              <img v-for="mini in miniPosterStrip(wait.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
+              <span v-if="miniPosterStrip(wait.entries).extra" class="mini-more">+{{ miniPosterStrip(wait.entries).extra }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -159,29 +183,52 @@
             </span>
           </div>
         </div>
-        <ul v-if="academyDisagreements.length" class="upset-list academy-clashes">
-          <li v-for="clash in academyDisagreements" :key="`${clash.year}-${clash.categoryKey}`" class="upset-row academy-row">
-            <span class="upset-context">{{ clash.year }} · {{ categoryName(clash.categoryKey) }}</span>
-            <span class="upset-text">
-              You: <strong>{{ clash.yoursLabel }}</strong> — Academy: {{ clash.academyLabel }}
-              <em v-if="clash.outcome === 'snubbed'">(yours wasn't even nominated)</em>
-            </span>
-          </li>
-        </ul>
+        <div v-if="academyDisagreements.length" class="versus-row">
+          <div v-for="clash in academyDisagreements" :key="`${clash.year}-${clash.categoryKey}`" class="versus-card">
+            <span class="versus-context">{{ clash.year }} · {{ categoryName(clash.categoryKey) }}</span>
+            <div class="versus-posters">
+              <div class="versus-side">
+                <img v-if="clash.yoursPosterPath" :src="`https://image.tmdb.org/t/p/w185${clash.yoursPosterPath}`" :alt="clash.yoursLabel" class="versus-poster">
+                <div v-else class="versus-poster versus-poster-placeholder">?</div>
+                <span class="versus-tag you">You</span>
+                <span class="versus-title">{{ clash.yoursLabel }}</span>
+              </div>
+              <span class="versus-vs">vs</span>
+              <div class="versus-side">
+                <img v-if="clash.academyPosterPath" :src="`https://image.tmdb.org/t/p/w185${clash.academyPosterPath}`" :alt="clash.academyLabel" class="versus-poster">
+                <div v-else class="versus-poster versus-poster-placeholder">?</div>
+                <span class="versus-tag them">Academy</span>
+                <span class="versus-title">{{ clash.academyLabel }}</span>
+              </div>
+            </div>
+            <span v-if="clash.outcome === 'snubbed'" class="versus-note">yours wasn't even nominated</span>
+          </div>
+        </div>
       </div>
 
       <!-- Your own ratings vs your own ceremony picks. -->
       <div v-if="upsets.length" class="most-decorated">
         <h2 class="section-title">Robbed, By Your Own Ratings</h2>
-        <ul class="upset-list">
-          <li v-for="upset in upsets" :key="`${upset.year}-${upset.categoryKey}`" class="upset-row" @click="goToMovieId(upset.robbed.movie.id)">
-            <span class="upset-context">{{ upset.year }} · {{ categoryName(upset.categoryKey) }}</span>
-            <span class="upset-text">
-              <strong>{{ upset.robbed.name || upset.robbed.movie.title }}</strong> ({{ upset.robbedRating.toFixed(1) }})
-              lost to {{ upset.winner.name || upset.winner.movie.title }} ({{ upset.winnerRating.toFixed(1) }})
-            </span>
-          </li>
-        </ul>
+        <div class="versus-row">
+          <div v-for="upset in upsets" :key="`${upset.year}-${upset.categoryKey}`" class="versus-card" @click="goToMovieId(upset.robbed.movie.id)">
+            <span class="versus-context">{{ upset.year }} · {{ categoryName(upset.categoryKey) }}</span>
+            <div class="versus-posters">
+              <div class="versus-side">
+                <img v-if="upset.robbed.movie.poster_path" :src="`https://image.tmdb.org/t/p/w185${upset.robbed.movie.poster_path}`" :alt="upset.robbed.movie.title" class="versus-poster">
+                <div v-else class="versus-poster versus-poster-placeholder">?</div>
+                <span class="versus-tag robbed">robbed · {{ upset.robbedRating.toFixed(1) }}</span>
+                <span class="versus-title">{{ upset.robbed.name || upset.robbed.movie.title }}</span>
+              </div>
+              <span class="versus-vs">vs</span>
+              <div class="versus-side">
+                <img v-if="upset.winner.movie.poster_path" :src="`https://image.tmdb.org/t/p/w185${upset.winner.movie.poster_path}`" :alt="upset.winner.movie.title" class="versus-poster">
+                <div v-else class="versus-poster versus-poster-placeholder">?</div>
+                <span class="versus-tag you">your pick · {{ upset.winnerRating.toFixed(1) }}</span>
+                <span class="versus-title">{{ upset.winner.name || upset.winner.movie.title }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </template>
   </div>
@@ -349,6 +396,24 @@ export default {
     }
   },
   methods: {
+    // Up to four little posters of the films behind a person's stat, plus
+    // an overflow count ("wherever possible, I prefer posters over text").
+    miniPosterStrip (entries, cap = 4) {
+      const seen = new Set();
+      const posters = [];
+      (entries || []).forEach((entry) => {
+        const movie = entry?.expanded?.movie;
+        if (!movie || movie.id == null || seen.has(movie.id)) return;
+        seen.add(movie.id);
+        posters.push({
+          key: `${movie.id}-${entry.year}`,
+          src: movie.poster_path ? `https://image.tmdb.org/t/p/w92${movie.poster_path}` : null,
+          title: `${movie.title} (${entry.year})`
+        });
+      });
+      const shown = posters.filter((mini) => mini.src).slice(0, cap);
+      return { posters: shown, extra: Math.max(0, seen.size - shown.length) };
+    },
     categoryName (categoryKey) {
       return PERSONAL_AWARD_CATEGORIES.find((category) => category.key === categoryKey)?.name || categoryKey;
     },
@@ -479,7 +544,8 @@ export default {
   cursor: pointer;
   flex: 0 0 auto;
   text-align: center;
-  width: 100px;
+  /* Wide enough for the four-poster mini strip below the stat line. */
+  width: 116px;
 }
 
 .decorated-photo {
@@ -521,6 +587,28 @@ export default {
   font-size: 0.7rem;
 }
 
+/* The films behind the stat — tiny, but they're posters, and posters carry
+   more than another line of text would. */
+.mini-posters {
+  align-items: center;
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  margin-top: 0.3rem;
+}
+
+.mini-poster {
+  border-radius: 2px;
+  height: 39px;
+  object-fit: cover;
+  width: 26px;
+}
+
+.mini-more {
+  color: #adb5bd;
+  font-size: 0.65rem;
+}
+
 .most-decorated {
   margin-bottom: 2rem;
 }
@@ -558,53 +646,105 @@ export default {
   color: #ffc107;
 }
 
-.academy-row {
-  border-left-color: #6ec1e4;
+
+/* Side-by-side poster matchups (Robbed + You vs. the Academy) — a
+   horizontal-scroll row of cards, same rhythm as the people shelves. */
+.versus-row {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
 }
 
-.academy-row .upset-text strong {
-  color: #6ec1e4;
-}
-
-.academy-row .upset-text em {
-  color: #adb5bd;
-  font-style: normal;
-  font-size: 0.75rem;
-}
-
-.upset-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.upset-row {
+.versus-card {
   background: #1a1a1a;
-  border-left: 3px solid #ff6a6a;
-  border-radius: 0.35rem;
+  border: 1px solid #333;
+  border-radius: 0.5rem;
   cursor: pointer;
-  margin-bottom: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  flex: 0 0 auto;
+  padding: 0.5rem 0.6rem;
+  text-align: center;
+  width: 190px;
 }
 
 /* Mobile-first: press feedback only. */
-.upset-row:active {
+.versus-card:active {
   background: #242424;
 }
 
-.upset-context {
+.versus-context {
   color: #adb5bd;
   display: block;
-  font-size: 0.7rem;
-  margin-bottom: 0.15rem;
+  font-size: 0.68rem;
+  margin-bottom: 0.35rem;
 }
 
-.upset-text {
-  color: #ccc;
-  font-size: 0.85rem;
+.versus-posters {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+}
 
-  strong {
-    color: #ff6a6a;
-  }
+.versus-side {
+  display: flex;
+  flex-direction: column;
+  width: 72px;
+}
+
+.versus-poster {
+  border-radius: 0.25rem;
+  height: 108px;
+  object-fit: cover;
+  width: 72px;
+}
+
+.versus-poster-placeholder {
+  align-items: center;
+  background: #2a2a2a;
+  color: #666;
+  display: flex;
+  font-size: 1.5rem;
+  justify-content: center;
+}
+
+.versus-vs {
+  align-self: center;
+  color: #666;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+
+.versus-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+}
+
+.versus-tag.you {
+  color: #6ec1e4;
+}
+
+.versus-tag.them {
+  color: #ffc107;
+}
+
+.versus-tag.robbed {
+  color: #ff6a6a;
+}
+
+.versus-title {
+  color: #ccc;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  margin-top: 0.1rem;
+}
+
+.versus-note {
+  color: #adb5bd;
+  display: block;
+  font-size: 0.65rem;
+  margin-top: 0.3rem;
 }
 </style>

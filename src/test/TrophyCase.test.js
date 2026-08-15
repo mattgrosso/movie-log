@@ -119,10 +119,13 @@ describe('TrophyCase', () => {
     const { wrapper } = mountTrophyCase(personalAwards, library)
 
     // No stored photo and (with fetch stubbed to find nothing) no looked-up
-    // one either - so an initial, NOT the film's poster.
+    // one either - so the PHOTO slot shows an initial, never a poster. The
+    // films' posters may appear in the mini strip below the stat — that's
+    // clearly "their films", a different thing from "their picture".
     expect(wrapper.find('.decorated-photo-placeholder').exists()).toBe(true)
-    expect(wrapper.html()).not.toContain('/film-a.jpg')
-    expect(wrapper.html()).not.toContain('/film-b.jpg')
+    expect(wrapper.find('.decorated-photo').element.tagName).not.toBe('IMG')
+    const strayPosters = wrapper.findAll('img').filter((img) => !img.classes().includes('mini-poster'))
+    expect(strayPosters).toHaveLength(0)
   })
 
   it('looks a person up on TMDB by name when no photo was stored, and uses the result', async () => {
@@ -249,10 +252,12 @@ describe('TrophyCase', () => {
     const { wrapper } = mountTrophyCase(personalAwards, library)
 
     expect(wrapper.text()).toContain('Robbed, By Your Own Ratings')
-    const row = wrapper.find('.upset-row')
-    expect(row.text()).toContain('The Robbed')
-    expect(row.text()).toContain('9.2')
-    expect(row.text()).toContain('lost to The Winner (7.0)')
+    const card = wrapper.find('.versus-card')
+    expect(card.text()).toContain('The Robbed')
+    expect(card.text()).toContain('robbed · 9.2')
+    expect(card.text()).toContain('your pick · 7.0')
+    // Posters over text: both sides render as poster images.
+    expect(card.findAll('.versus-poster').filter((el) => el.element.tagName === 'IMG')).toHaveLength(2)
   })
 
   it('"You vs. the Academy" scores your winners against the real ceremony and lists the clashes', () => {
@@ -274,9 +279,10 @@ describe('TrophyCase', () => {
     expect(wrapper.text()).toContain('You vs. the Academy')
     expect(wrapper.text()).toContain('0% of the time')
     expect(wrapper.text()).toContain('(0 of 1 shared categories)')
-    const clash = wrapper.find('.academy-row')
-    expect(clash.text()).toContain('You: As Good as It Gets')
-    expect(clash.text()).toContain('Academy: Titanic')
+    const clash = wrapper.findAll('.versus-card').find((card) => card.text().includes('Academy'))
+    expect(clash.text()).toContain('As Good as It Gets')
+    expect(clash.text()).toContain('Titanic')
+    expect(clash.text()).toContain('You')
   })
 
   it('the Academy section hides itself entirely when the dataset is absent', () => {

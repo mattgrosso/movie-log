@@ -92,7 +92,12 @@ export function compareWithAcademy (personalWins, academyRecords) {
       categoryKey: win.categoryKey,
       outcome,
       yoursLabel: pick.name ? `${pick.name} (${pick.movie?.title || '?'})` : (pick.movie?.title || '?'),
-      academyLabel: academyWinnerLabel(winners, personCategory) || null
+      academyLabel: academyWinnerLabel(winners, personCategory) || null,
+      // Poster paths for the versus-card rendering ("wherever possible, I
+      // prefer posters over text") — yours from the library, the Academy's
+      // from the dataset's own img field.
+      yoursPosterPath: pick.movie?.poster_path || null,
+      academyPosterPath: winners.find((record) => record.img)?.img || null
     });
   });
 

@@ -5,8 +5,8 @@ const personalWin = (year, categoryKey, expanded) => ({ year, categoryKey, expan
 const movieExp = (id, title) => ({ movie: { id, title } });
 const personExp = (name, movieId, movieTitle) => ({ name, movieId, movie: { id: movieId, title: movieTitle } });
 
-const academy = (year, category, tmdb, { winner = false, title = `AA ${tmdb}`, names = [] } = {}) =>
-  ({ year, category, tmdb: String(tmdb), isWinner: winner, title, names: names.map((name) => ({ name })) });
+const academy = (year, category, tmdb, { winner = false, title = `AA ${tmdb}`, names = [], img = null } = {}) =>
+  ({ year, category, tmdb: String(tmdb), isWinner: winner, title, img, names: names.map((name) => ({ name })) });
 
 describe('compareWithAcademy', () => {
   it('agrees when your winner also won the Academy category (matched by tmdb id)', () => {
@@ -21,11 +21,13 @@ describe('compareWithAcademy', () => {
   it("'lost': your pick was Academy-nominated but beaten — the real winner is named", () => {
     const contests = compareWithAcademy(
       [personalWin(1997, 'bestPicture', movieExp(2567, 'As Good as It Gets'))],
-      [academy(1997, 'Best Picture', 597, { winner: true, title: 'Titanic' }),
+      [academy(1997, 'Best Picture', 597, { winner: true, title: 'Titanic', img: '/titanic.jpg' }),
         academy(1997, 'Best Picture', 2567, { title: 'As Good as It Gets' })]
     );
     expect(contests[0].outcome).toBe('lost');
     expect(contests[0].academyLabel).toBe('Titanic');
+    // Poster plumbing for the versus cards.
+    expect(contests[0].academyPosterPath).toBe('/titanic.jpg');
   });
 
   it("'snubbed': the Academy never nominated your pick at all", () => {

@@ -111,12 +111,13 @@ export function winStreaks (wins, { limit = DEFAULT_LIMIT, minLength = 2 } = {})
   (wins || []).forEach((entry) => {
     if (!isPerson(entry.expanded)) return;
     const name = entry.expanded.name;
-    if (!yearsByName.has(name)) yearsByName.set(name, { years: new Set(), sample: entry });
+    if (!yearsByName.has(name)) yearsByName.set(name, { years: new Set(), sample: entry, all: [] });
     yearsByName.get(name).years.add(entry.year);
+    yearsByName.get(name).all.push(entry);
   });
 
   const streaks = [];
-  yearsByName.forEach(({ years, sample }, name) => {
+  yearsByName.forEach(({ years, sample, all }, name) => {
     const sorted = [...years].sort((a, b) => a - b);
     let best = { length: 1, start: sorted[0], end: sorted[0] };
     let runStart = sorted[0];
@@ -126,7 +127,12 @@ export function winStreaks (wins, { limit = DEFAULT_LIMIT, minLength = 2 } = {})
       if (length > best.length) best = { length, start: runStart, end: sorted[i] };
     }
     if (best.length >= minLength) {
-      streaks.push({ name, length: best.length, startYear: best.start, endYear: best.end, sample });
+      // The wins inside the streak window, oldest first — these are the
+      // posters the card shows.
+      const entries = all
+        .filter((entry) => entry.year >= best.start && entry.year <= best.end)
+        .sort((a, b) => a.year - b.year);
+      streaks.push({ name, length: best.length, startYear: best.start, endYear: best.end, sample, entries });
     }
   });
 
@@ -144,9 +150,10 @@ export function categoryOwners (wins, { limit = DEFAULT_LIMIT, minCount = 2 } = 
     if (!isPerson(entry.expanded)) return;
     const key = `${entry.expanded.name}|${entry.categoryKey}`;
     if (!byPersonCategory.has(key)) {
-      byPersonCategory.set(key, { name: entry.expanded.name, categoryKey: entry.categoryKey, count: 0, sample: entry });
+      byPersonCategory.set(key, { name: entry.expanded.name, categoryKey: entry.categoryKey, count: 0, sample: entry, entries: [] });
     }
     byPersonCategory.get(key).count += 1;
+    byPersonCategory.get(key).entries.push(entry);
   });
 
   return [...byPersonCategory.values()]
@@ -162,7 +169,7 @@ export function longestWaits (nominations, wins, { limit = DEFAULT_LIMIT, minYea
   (nominations || []).forEach((entry) => {
     if (!isPerson(entry.expanded)) return;
     const name = entry.expanded.name;
-    if (!firstNomination.has(name) || entry.year < firstNomination.get(name)) firstNomination.set(name, entry.year);
+    if (!firstNomination.has(name) || entry.year < firstNomination.get(name).year) firstNomination.set(name, { year: entry.year, entry });
   });
 
   const firstWin = new Map();
@@ -174,10 +181,21 @@ export function longestWaits (nominations, wins, { limit = DEFAULT_LIMIT, minYea
 
   const waits = [];
   firstWin.forEach(({ year, sample }, name) => {
-    const nominatedSince = firstNomination.get(name);
-    if (nominatedSince == null) return;
-    const wait = year - nominatedSince;
-    if (wait >= minYears) waits.push({ name, wait, firstNomination: nominatedSince, firstWin: year, sample });
+    const first = firstNomination.get(name);
+    if (!first) return;
+    const wait = year - first.year;
+    if (wait >= minYears) {
+      waits.push({
+        name,
+        wait,
+        firstNomination: first.year,
+        firstWin: year,
+        sample,
+        // The story in two posters: the film they were first nominated
+        // for, and the film that finally won.
+        entries: first.entry === sample ? [sample] : [first.entry, sample]
+      });
+    }
   });
 
   return waits
