@@ -10,6 +10,8 @@
 //   yarn account-maintenance                      # audit only, read-only
 //   yarn account-maintenance --apply-timestamps   # write missing updatedAt stamps
 //   yarn account-maintenance --apply-tmdb         # backfill box office + countries (1 TMDB call/movie)
+//   yarn account-maintenance --backup             # export every account to ~/cinemaroll-backups/<date>/
+//   yarn account-maintenance --apply-trim         # DESTRUCTIVE: slim stored data (auto-backs-up first)
 //   yarn account-maintenance --account <key>      # limit any mode to one account
 //
 // Both apply modes are ADDITIVE (leaf writes only, nothing deleted or
@@ -35,20 +37,24 @@ import { getDatabase, ServerValue } from 'firebase-admin/database';
 //   - collectMoviesNeedingCountries-> src/assets/javascript/backfillProductionCountries.js
 const hasRealTmdbId = (entry) => typeof entry?.movie?.id === 'number';
 
+// storedEntry.js is pure and import-free, so the REAL trim logic can be
+// loaded by copying it to a temp .mjs (Node treats the repo's .js as
+// CommonJS; the bundler is what makes its ESM syntax work in-app). This is
+// what keeps the audit and any --apply-trim from drifting from the one
+// definition of "trimmed" the app itself writes with.
+import { writeFileSync, mkdirSync } from 'fs';
+import { tmpdir, homedir } from 'os';
+import { join } from 'path';
+import { pathToFileURL } from 'url';
+
+const storedEntrySource = readFileSync(new URL('../src/assets/javascript/storedEntry.js', import.meta.url), 'utf8');
+const storedEntryTempPath = join(tmpdir(), `cinemaroll-storedEntry-${Date.now()}.mjs`);
+writeFileSync(storedEntryTempPath, storedEntrySource);
+const { trimUpdatesFor, collectEntriesNeedingTrim } = await import(pathToFileURL(storedEntryTempPath).href);
+
 const collectEntriesNeedingStamp = (movieLog) =>
   Object.entries(movieLog || {})
     .filter(([, entry]) => !Number.isFinite(entry?.updatedAt))
-    .map(([dbKey]) => ({ dbKey }));
-
-// storedEntry.js's real trimUpdatesFor computes exact deletion paths; for
-// the AUDIT we only need "does this entry still carry junk" — the runtime
-// fields and the untrimmed-crew signal it keys off.
-const RUNTIME_ENTRY_FIELDS = ['dbKey', '_search'];
-const collectEntriesNeedingTrim = (movieLog) =>
-  Object.entries(movieLog || {})
-    .filter(([, entry]) =>
-      RUNTIME_ENTRY_FIELDS.some((field) => entry?.[field] !== undefined) ||
-      entry?.movie?.flatKeywords !== undefined)
     .map(([dbKey]) => ({ dbKey }));
 
 const collectMoviesNeedingBoxOffice = (movieLog) =>
@@ -88,6 +94,51 @@ const NON_ACCOUNT_KEYS = new Set(['bugReports', 'testing-database']);
 
 const applyTimestamps = process.argv.includes('--apply-timestamps');
 const applyTmdb = process.argv.includes('--apply-tmdb');
+const backupOnly = process.argv.includes('--backup');
+const applyTrim = process.argv.includes('--apply-trim');
+
+// Backups land outside the repo so they can't be committed by accident.
+const BACKUP_DIR = join(homedir(), 'cinemaroll-backups', new Date().toISOString().slice(0, 10));
+
+function backupAccount (accountKey, accountData) {
+  mkdirSync(BACKUP_DIR, { recursive: true });
+  const file = join(BACKUP_DIR, `${accountKey}.json`);
+  const serialized = JSON.stringify(accountData);
+  writeFileSync(file, serialized);
+  // Verify the backup actually round-trips before anything destructive
+  // trusts it.
+  const reread = JSON.parse(readFileSync(file, 'utf8'));
+  const expected = Object.keys(accountData?.movieLog || {}).length;
+  const actual = Object.keys(reread?.movieLog || {}).length;
+  if (expected !== actual) throw new Error(`backup verification failed for ${accountKey}: ${actual}/${expected} entries`);
+  return { file, entries: actual };
+}
+
+// The one destructive mode: deletes junk fields and trims crew, exactly as
+// the in-app "Slim down stored data" button does, but for any account.
+// Always backs the account up (and verifies the backup) first, and stamps
+// updatedAt on every touched entry so delta sync sees the change.
+async function trimAccount (accountKey, accountData, candidates) {
+  const { file, entries } = backupAccount(accountKey, accountData);
+  console.log(`  backup: ${entries} entries -> ${file}`);
+
+  const TRIM_BATCH = 50;
+  for (let i = 0; i < candidates.length; i += TRIM_BATCH) {
+    const batch = candidates.slice(i, i + TRIM_BATCH);
+    const updates = {};
+    batch.forEach(({ dbKey, entry }) => {
+      const entryUpdates = trimUpdatesFor(dbKey, entry);
+      if (!entryUpdates) return;
+      Object.entries(entryUpdates).forEach(([path, value]) => {
+        updates[`${accountKey}/${path}`] = value;
+      });
+      updates[`${accountKey}/movieLog/${dbKey}/updatedAt`] = ServerValue.TIMESTAMP;
+    });
+    if (Object.keys(updates).length) await db.ref('/').update(updates);
+    process.stdout.write(`  trimmed ${Math.min(i + TRIM_BATCH, candidates.length)}/${candidates.length}\r`);
+  }
+  if (candidates.length) process.stdout.write('\n');
+}
 const accountFlagIndex = process.argv.indexOf('--account');
 const onlyAccount = accountFlagIndex !== -1 ? process.argv[accountFlagIndex + 1] : null;
 // Accounts excluded from ALL migrations by standing policy — per Matt
@@ -204,7 +255,7 @@ const accountKeys = Object.keys(root)
   // --account is an explicit override; the skip list only applies to sweeps.
   .filter((key) => key === onlyAccount || !skipAccounts.has(key));
 
-const modes = [applyTimestamps && 'timestamps', applyTmdb && 'tmdb backfill'].filter(Boolean);
+const modes = [applyTimestamps && 'timestamps', applyTmdb && 'tmdb backfill', applyTrim && 'TRIM (destructive)', backupOnly && 'backup'].filter(Boolean);
 console.log(`${accountKeys.length} account(s)${modes.length ? ` — APPLYING ${modes.join(' + ')}` : ' — audit only'}\n`);
 
 for (const accountKey of accountKeys) {
@@ -229,6 +280,14 @@ for (const accountKey of accountKeys) {
   if (applyTmdb && (needBoxOffice.length || needCountries.length)) {
     const { attempted, failed } = await tmdbBackfillAccount(accountKey, needBoxOffice, needCountries);
     console.log(`  ✔ tmdb backfill: ${attempted - failed}/${attempted} movies updated${failed ? ` (${failed} failed)` : ''}`);
+  }
+  if (backupOnly && total) {
+    const { file, entries: backed } = backupAccount(accountKey, root[accountKey]);
+    console.log(`  ✔ backed up ${backed} entries -> ${file}`);
+  }
+  if (applyTrim && needTrim.length) {
+    await trimAccount(accountKey, root[accountKey], needTrim);
+    console.log(`  ✔ trimmed ${needTrim.length} entries`);
   }
   console.log('');
 }
