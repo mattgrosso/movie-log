@@ -75,6 +75,12 @@ function tenMovies () {
   return Array.from({ length: 10 }, (_, i) => entry(i));
 }
 
+// Fixtures reuse dbKeys, so persisted state leaks between tests without
+// this — the documented games-testing trap.
+beforeEach(() => {
+  window.localStorage.clear();
+});
+
 describe('ClueBudgetGame', () => {
   beforeEach(() => {
     axios.get.mockReset();
@@ -344,6 +350,74 @@ describe('ClueBudgetGame', () => {
       expect(calls[calls.length - 1][1]).toBe('https://example.com/some-movie-backdrop.jpg');
       expect(store.commit).toHaveBeenCalledWith('setHideHeaderLogo', false);
     });
+  });
+});
+
+describe('ClueBudgetGame - persistence across navigation (bug report: "when I jumped over to my database and came back it reset the game")', () => {
+  beforeEach(() => {
+    axios.get.mockReset();
+    axios.get.mockImplementation(defaultAxiosImpl);
+  });
+
+  it('restores the in-progress round: same movie, remaining budget, and purchased clues at their paid price', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+    const target = wrapper.vm.target;
+    const clue = wrapper.vm.availableClues.find((c) => c.key === 'decade');
+    wrapper.vm.buyClue(clue);
+    const budgetAfter = wrapper.vm.budget;
+    wrapper.unmount();
+
+    const revisit = factory(tenMovies());
+    await flushPromises();
+
+    expect(revisit.vm.target.dbKey).toBe(target.dbKey);
+    expect(revisit.vm.budget).toBe(budgetAfter);
+    expect(revisit.vm.purchasedClues.map((c) => c.key)).toEqual(['decade']);
+    expect(revisit.vm.purchasedClues[0].cost).toBe(clue.cost);
+    expect(revisit.find('.purchased-clues').text()).toContain('Decade');
+  });
+
+  it('a finished round clears the save and is never resumed', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+    wrapper.vm.buyClue(wrapper.vm.availableClues[0]);
+    expect(window.localStorage.getItem('cinemaRoll.clueBudget.current')).toBeTruthy();
+
+    wrapper.vm.submitGuess(wrapper.vm.target);
+
+    expect(window.localStorage.getItem('cinemaRoll.clueBudget.current')).toBeNull();
+  });
+
+  it('losing (revealing the poster) also clears the save', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+    wrapper.vm.buyClue(wrapper.vm.availableClues[0]);
+
+    wrapper.vm.revealPoster();
+
+    expect(window.localStorage.getItem('cinemaRoll.clueBudget.current')).toBeNull();
+  });
+
+  it('falls back to a fresh round when the saved movie is no longer in the library', async () => {
+    window.localStorage.setItem('cinemaRoll.clueBudget.current', JSON.stringify({
+      targetKey: 'key-gone', budget: 60, purchasedClues: [{ key: 'decade', label: 'Decade', cost: 5, value: '1990s' }]
+    }));
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    expect(wrapper.vm.budget).toBe(100);
+    expect(wrapper.vm.purchasedClues).toEqual([]);
+    expect(wrapper.vm.target).toBeTruthy();
+  });
+
+  it('ignores a corrupt save rather than crashing', async () => {
+    window.localStorage.setItem('cinemaRoll.clueBudget.current', '{not json');
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    expect(wrapper.vm.status).toBe('playing');
+    expect(wrapper.vm.budget).toBe(100);
   });
 });
 

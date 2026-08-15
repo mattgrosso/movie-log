@@ -49,8 +49,15 @@
         </div>
       </div>
 
+      <!-- Bug report: "as the clues are revealed we should have a nicer
+           place to put them." Cards echoing the shop chips below (label on
+           top, value beneath), rather than the old bulleted list — a bought
+           clue reads as the chip it was, flipped over. -->
       <ul v-if="purchasedClues.length" class="purchased-clues">
-        <li v-for="clue in purchasedClues" :key="clue.key"><strong>{{ clue.label }}:</strong> {{ clue.value }} <span class="purchased-clue-cost">(${{ clue.cost }})</span></li>
+        <li v-for="clue in purchasedClues" :key="clue.key" class="purchased-clue">
+          <span class="purchased-clue-label">{{ clue.label }} <span class="purchased-clue-cost">${{ clue.cost }}</span></span>
+          <span class="purchased-clue-value">{{ clue.value }}</span>
+        </li>
       </ul>
 
       <div v-if="status === 'playing'" class="clue-shop">
@@ -85,6 +92,8 @@ import gameDataMixin from '../../mixins/gameData.js';
 import { entryKey } from '../../assets/javascript/games/gameUtils.js';
 import { buildClueDeck, STARTING_BUDGET } from '../../assets/javascript/games/clueBudget.js';
 import clueBudgetBanner from '../../assets/images/games/clue-budget-banner.jpg';
+
+const STORAGE_KEY = 'cinemaRoll.clueBudget.current';
 
 export default {
   name: 'ClueBudgetGame',
@@ -142,7 +151,7 @@ export default {
       immediate: true,
       handler (entries) {
         if (this.target || !entries.length) return;
-        this.startNewRound();
+        this.loadOrStart();
       }
     }
   },
@@ -191,6 +200,7 @@ export default {
       this.budget -= clue.cost;
       this.purchasedClues.push(clue);
       if (this.budget <= 0) this.lose();
+      this.persistState();
     },
     // The one rule handed down whole: revealing the poster always costs
     // whatever's left, in full — effectively "give up," available any time
@@ -202,6 +212,7 @@ export default {
     },
     lose () {
       this.status = 'lost';
+      this.persistState(); // no longer 'playing', so this clears the save
     },
     win () {
       this.status = 'won';
@@ -209,6 +220,7 @@ export default {
       if (this.bestSavings == null || this.budget > this.bestSavings) {
         this.$store.dispatch('setDBValue', { path: 'settings/games/clueBudgetBestSavings', value: this.budget });
       }
+      this.persistState(); // no longer 'playing', so this clears the save
     },
     startNewRound () {
       const pool = this.eligibleGameEntries;
@@ -231,7 +243,58 @@ export default {
       // before any network request resolves. Each of the three live
       // fetches below independently refines whichever clues it covers.
       this.clueDeck = buildClueDeck(this.target, this.liveExtras);
+      this.persistState();
       this.fetchLiveData(this.target);
+    },
+    // Bug report: "I was playing clue budget and when I jumped over to my
+    // database and came back it reset the game." Same localStorage pattern
+    // as Poster Zoom. The purchased clues are persisted as full snapshots,
+    // not keys — their PAID price isn't re-derivable (dynamic pricing means
+    // the same clue can cost differently next fetch), the same reason the
+    // in-memory list snapshots them. That's the Trivia precedent: persist
+    // derived data when re-deriving it wouldn't reproduce it.
+    persistState () {
+      try {
+        if (this.status !== 'playing' || !this.target) {
+          window.localStorage.removeItem(STORAGE_KEY);
+          return;
+        }
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          targetKey: entryKey(this.target),
+          budget: this.budget,
+          purchasedClues: this.purchasedClues
+        }));
+      } catch (error) {
+        console.error('Failed to persist Clue Budget progress:', error);
+      }
+    },
+    loadOrStart () {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          const target = this.eligibleGameEntries.find((entry) => entryKey(entry) === saved?.targetKey);
+          const budget = Number(saved?.budget);
+          // A finished round is never resumed — persistState only writes
+          // while playing (and a loss zeroes the budget), so anything valid
+          // found here was genuinely in progress.
+          if (target && Number.isFinite(budget) && budget > 0 && budget <= STARTING_BUDGET) {
+            this.target = target;
+            this.budget = budget;
+            this.purchasedClues = Array.isArray(saved.purchasedClues)
+              ? saved.purchasedClues.filter((clue) => clue && clue.key)
+              : [];
+            this.status = 'playing';
+            this.liveExtras = { yourRating: this.gameRatingFor(target) };
+            this.clueDeck = buildClueDeck(target, this.liveExtras);
+            this.fetchLiveData(target);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load persisted Clue Budget progress:', error);
+      }
+      this.startNewRound();
     },
     // Merges a partial extras update and rebuilds the deck from it. Never
     // touches purchasedClues (see its own comment) — a clue's LIVE price
@@ -360,7 +423,10 @@ export default {
 
 .guess-form {
   position: relative;
-  margin-bottom: 1rem;
+  /* Tight: the reserved feedback line inside already spaces this block, and
+     the extra rem here was the reported "too much of a gap between the
+     input and the clues." */
+  margin-bottom: 0.25rem;
 }
 
 .suggestions {
@@ -399,7 +465,7 @@ export default {
 .guess-feedback {
   color: #ff6a6a;
   font-size: 0.85rem;
-  margin: 0.5rem 0 0;
+  margin: 0.25rem 0 0;
   min-height: 1.2rem;
   text-align: center;
   visibility: hidden;
@@ -432,28 +498,47 @@ export default {
   width: 100%;
 }
 
+/* Same grid rhythm as the clue shop below, so a bought clue reads as its
+   chip flipped over; amber-tinted where the shop chips are neutral. */
 .purchased-clues {
-  background: #1a1a1a;
-  border-left: 4px solid #ffc107;
-  border-radius: 0.4rem;
-  color: #eee;
-  font-size: 0.9rem;
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(2, 1fr);
   list-style: none;
-  margin: 0 0 1rem;
-  padding: 0.75rem 1rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
 }
 
-.purchased-clues li + li {
-  margin-top: 0.4rem;
+.purchased-clue {
+  background: rgba(255, 193, 7, 0.07);
+  border: 1.5px solid rgba(255, 193, 7, 0.45);
+  border-radius: 0.5rem;
+  min-height: 46px;
+  padding: 0.35rem 0.5rem;
+  text-align: center;
 }
 
-.purchased-clues strong {
+.purchased-clue-label {
   color: #ffc107;
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.purchased-clue-value {
+  color: #eee;
+  display: block;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  /* Long values (taglines, genre lists) wrap; the card grows to hold them. */
+  overflow-wrap: break-word;
 }
 
 .purchased-clue-cost {
-  color: #777;
-  font-size: 0.8em;
+  color: #adb5bd;
+  font-size: 0.9em;
+  font-weight: 400;
 }
 
 .clue-shop {
