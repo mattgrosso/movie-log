@@ -25,7 +25,7 @@ import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
 import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
-import { buildSocialProfile } from "../assets/javascript/social.js";
+import { buildSocialProfile, socialSettingsWithDefaults } from "../assets/javascript/social.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -337,7 +337,10 @@ export default createStore({
       return state.databaseTopKey;
     },
     socialSettings (state) {
-      return state.settings?.social || {};
+      // Sharing is ON by default — the friend handshake is the real consent
+      // gate (rules make unfriended profiles unreadable). Explicit false in
+      // settings.social is the opt-out. See socialSettingsWithDefaults.
+      return socialSettingsWithDefaults(state.settings?.social, state.userEmail);
     },
     // Friendship = BOTH edges exist. My friends are my outgoing edges that
     // the other side has reciprocated.

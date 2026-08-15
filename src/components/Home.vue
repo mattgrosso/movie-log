@@ -397,6 +397,22 @@
               </div>
             </div>
           </div>
+          <!-- Friend requests: same prompt slot as stickiness/tiebreaks so
+               an incoming request is impossible to miss without adding a
+               new surface. Tapping goes to the Circle's inbox. -->
+          <div
+            v-if="incomingFriendRequests.length"
+            class="friend-request-banner rounded p-3 mb-3"
+            @click="$router.push('/circle')"
+          >
+            <div class="friend-request-content">
+              <i class="bi bi-people-fill me-2"></i>
+              <span>
+                {{ friendRequestBannerText }}
+                <a class="alert-link" @click.stop="$router.push('/circle')">Review in your Circle.</a>
+              </span>
+            </div>
+          </div>
           <!-- Stickiness Inline Content -->
           <StickinessInline
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
@@ -473,7 +489,7 @@
 
               <SettingsSection title="Friends &amp; Sharing">
                 <small class="form-text text-white d-block mb-2">
-                  Everything here is off until you turn it on. Friends see each other only after both sides agree.
+                  Sharing is on by default, but nobody sees your data until you both accept a friend request. Turn any of it off here.
                 </small>
                 <div class="form-check form-switch mb-3">
                   <input class="form-check-input" type="checkbox" id="socialEnabledToggle" :checked="socialSettings.enabled" @change="updateSocialEnabled">
@@ -1588,6 +1604,21 @@ export default {
     },
     socialPublishReady () {
       return Boolean(this.$store.state.dbLoaded && this.$store.state.settingsLoaded);
+    },
+    incomingFriendRequests () {
+      const requests = this.$store.state.socialRequests || {};
+      const me = this.$store.getters?.socialUserKey;
+      const edges = this.$store.state.socialEdges || {};
+      // A request from someone already befriended is stale noise, same
+      // filter the Circle inbox applies.
+      return Object.entries(requests)
+        .filter(([key]) => !(edges[me]?.[key] && edges[key]?.[me]))
+        .map(([key, request]) => ({ key, name: request?.name || key }));
+    },
+    friendRequestBannerText () {
+      const requests = this.incomingFriendRequests;
+      if (requests.length === 1) return `${requests[0].name} sent you a friend request.`;
+      return `You have ${requests.length} friend requests.`;
     },
     showErrorLogs () {
       const value = this.$store.state.settings?.showErrorLogs;
@@ -2936,16 +2967,9 @@ export default {
       const enabled = event.target.checked;
       this.$store.dispatch('writeDurably', { path: 'settings/social/enabled', value: enabled });
       if (enabled) {
-        // Seed a friendly default name from the email so the directory row
-        // is never blank; the profile publishes with whatever's saved.
-        if (!this.socialSettings.displayName) {
-          const emailName = (this.$store.state.userEmail || '').split('@')[0];
-          if (emailName) {
-            this.$store.dispatch('writeDurably', { path: 'settings/social/displayName', value: emailName });
-          }
-        }
         this.$nextTick(() => this.$store.dispatch('publishSocialProfile'));
       } else {
+        // Opting out takes the published copies down, not just future ones.
         this.$store.dispatch('unpublishSocialProfile');
       }
     },
@@ -5807,6 +5831,36 @@ export default {
 
 .unrated-movie-poster:hover {
   opacity: 0.8;
+}
+
+/* Friend-request notice — same visual language as the stickiness/tiebreak
+   prompt banners it shares the slot with. */
+.friend-request-banner {
+  background: #4a4a4a;
+  border: 1px solid #666;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  color: #fff;
+  cursor: pointer;
+
+  &:active {
+    background: #565656;
+  }
+
+  .friend-request-content {
+    align-items: center;
+    display: flex;
+    font-size: 1.1rem;
+
+    .bi-people-fill {
+      color: #ffc107;
+    }
+
+    .alert-link {
+      color: #9ec5fe;
+      cursor: pointer;
+      font-weight: 700;
+    }
+  }
 }
 
 </style>

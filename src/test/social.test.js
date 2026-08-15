@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSocialProfile, compareWithFriend, circleSummary } from '@/assets/javascript/social.js'
+import { buildSocialProfile, compareWithFriend, circleSummary, socialSettingsWithDefaults } from '@/assets/javascript/social.js'
 
 const NOW = Date.UTC(2026, 7, 15)
 
@@ -11,6 +11,28 @@ function entry (id, title, rating, { at = NOW - id * 1000, year = 2000, criteria
   }
 }
 const ratingOf = (e) => ({ calculatedTotal: e.ratings[0].calculatedTotal })
+
+describe('socialSettingsWithDefaults', () => {
+  it('defaults everything ON with a name derived from the email', () => {
+    const settings = socialSettingsWithDefaults(undefined, 'mattgrosso@gmail.com')
+    expect(settings.enabled).toBe(true)
+    expect(settings.shareRatings).toBe(true)
+    expect(settings.shareCriteria).toBe(true)
+    expect(settings.displayName).toBe('mattgrosso')
+  })
+
+  it('only an explicit false opts a tier out', () => {
+    const settings = socialSettingsWithDefaults({ shareCriteria: false, displayName: 'Matt' }, 'mattgrosso@gmail.com')
+    expect(settings.enabled).toBe(true)
+    expect(settings.shareRatings).toBe(true)
+    expect(settings.shareCriteria).toBe(false)
+    expect(settings.displayName).toBe('Matt')
+  })
+
+  it('master opt-out sticks', () => {
+    expect(socialSettingsWithDefaults({ enabled: false }, 'x@y.com').enabled).toBe(false)
+  })
+})
 
 describe('buildSocialProfile', () => {
   const library = [

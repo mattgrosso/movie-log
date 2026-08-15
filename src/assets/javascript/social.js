@@ -37,6 +37,22 @@ function criteriaArrayFrom (rating) {
 }
 
 // ---------------------------------------------------------------------------
+// Sharing defaults (Matt, 2026-08-15): ON by default, no settings trip
+// required — the friendship handshake is the real consent gate, and the
+// database rules make an unfriended profile unreadable regardless. The
+// settings card is the opt-OUT. Only an explicit `false` turns a tier off.
+export function socialSettingsWithDefaults (raw, userEmail) {
+  const social = raw || {};
+  const emailName = (userEmail || '').split('@')[0];
+  return {
+    enabled: social.enabled !== false,
+    shareRatings: social.shareRatings !== false,
+    shareCriteria: social.shareCriteria !== false,
+    displayName: social.displayName || emailName || 'A Cinema Roll user'
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Publishing: shape a profile from the user's own library, respecting the
 // share toggles. Compact keys (t/p/r/at) keep ~1,400 ratings around 100KB.
 export function buildSocialProfile (entries, getRatingFn, { name, shareRatings = false, shareCriteria = false, now = Date.now() } = {}) {
