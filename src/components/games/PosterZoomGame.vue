@@ -149,6 +149,10 @@ export default {
     // body-only observer goes quiet on a stale value. Re-measuring after the
     // rotation settles is what actually corrects it.
     window.addEventListener('orientationchange', this.remeasureAfterSettling);
+    // Keyboard dismissal doesn't reliably fire resize on iOS; the input
+    // losing focus is the signal that typing (and the keyboard) is done.
+    // Settling delays because the keyboard animates out.
+    window.addEventListener('focusout', this.remeasureAfterSettling);
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(this.measureAvailableHeight);
       // The header banner loads asynchronously and shifts this screen's top
@@ -163,6 +167,7 @@ export default {
   beforeUnmount () {
     window.removeEventListener('resize', this.measureAvailableHeight);
     window.removeEventListener('orientationchange', this.remeasureAfterSettling);
+    window.removeEventListener('focusout', this.remeasureAfterSettling);
     this.settleTimers.forEach(clearTimeout);
     this.resizeObserver?.disconnect();
     this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
@@ -411,6 +416,16 @@ export default {
       const el = this.$refs.root;
       if (!el) return;
 
+      // Keyboard guard (Natalie's bug: "the poster is really really small,
+      // smaller than my thumb"): on iOS, focusing the guess input raises
+      // the keyboard, which SHRINKS the viewport and fires a resize — but
+      // dismissing it doesn't reliably fire one, so the shrunken
+      // measurement stuck. While a text input is focused, refuse to commit
+      // any SMALLER measurement (the keyboard overlays the poster; its
+      // size needn't change at all); growth always commits, and the
+      // focusout remeasure below restores truth when typing ends.
+      const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
+
       const rect = el.getBoundingClientRect();
       // Document coordinates, so scroll position doesn't skew the result.
       const topInDocument = rect.top + window.scrollY;
@@ -422,7 +437,9 @@ export default {
       // Only react to real changes: setting maxHeight resizes the body,
       // which re-fires the observer, and without this that would loop.
       if (next > 200 && Math.abs(next - (this.availableHeight || 0)) > 1) {
-        this.availableHeight = next;
+        if (!(typing && next < (this.availableHeight || 0))) {
+          this.availableHeight = next;
+        }
       }
 
       // The stage's own height is flex-determined and therefore real, even
@@ -433,7 +450,9 @@ export default {
       if (stage) {
         const stageNext = Math.round(stage.getBoundingClientRect().height);
         if (stageNext > 0 && Math.abs(stageNext - (this.stageHeight || 0)) > 1) {
-          this.stageHeight = stageNext;
+          if (!(typing && stageNext < (this.stageHeight || 0))) {
+            this.stageHeight = stageNext;
+          }
         }
       }
     },

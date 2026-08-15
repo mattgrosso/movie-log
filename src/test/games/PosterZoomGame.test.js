@@ -47,6 +47,46 @@ beforeEach(() => {
 });
 
 describe('PosterZoomGame', () => {
+  describe('keyboard-shrink guard (Natalie: poster "smaller than my thumb")', () => {
+    // iOS fires resize when the keyboard opens (shrinking the stage) but
+    // not reliably when it closes — so a shrink measured mid-typing stuck.
+    function stubStage (wrapper, height) {
+      wrapper.vm.$refs.stage.getBoundingClientRect = () => ({ height, top: 0, width: 300 })
+    }
+
+    it('refuses to commit a SMALLER stage height while a text input is focused', async () => {
+      const { wrapper } = factory(tenMovies())
+      wrapper.vm.stageHeight = 400
+
+      const input = document.createElement('input')
+      document.body.appendChild(input)
+      input.focus()
+
+      stubStage(wrapper, 180) // keyboard-shrunken measurement
+      wrapper.vm.measureAvailableHeight()
+      expect(wrapper.vm.stageHeight).toBe(400) // held
+
+      input.blur()
+      wrapper.vm.measureAvailableHeight()
+      expect(wrapper.vm.stageHeight).toBe(180) // real change commits once typing ends
+      input.remove()
+    })
+
+    it('always commits growth, even while typing', () => {
+      const { wrapper } = factory(tenMovies())
+      wrapper.vm.stageHeight = 200
+
+      const input = document.createElement('input')
+      document.body.appendChild(input)
+      input.focus()
+
+      stubStage(wrapper, 420)
+      wrapper.vm.measureAvailableHeight()
+      expect(wrapper.vm.stageHeight).toBe(420)
+      input.remove()
+    })
+  })
+
   describe('gating', () => {
     it('asks for more movies when the library is too small', () => {
       const { wrapper } = factory([entry(1), entry(2)]);
