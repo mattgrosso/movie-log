@@ -575,6 +575,32 @@ export default {
         return null;
       }
     },
+    // The page header banner follows the year (feedback): the Best Picture
+    // winner's backdrop, or the year's highest-rated movie until one is
+    // crowned. Reactive, so crowning Best Picture swaps the banner live.
+    yearBannerUrl () {
+      if (!this.pageMode || this.currentYear == null) return null;
+
+      const winner = this.awardsData?.bestPicture?.winner;
+      let entry = (winner && winner.movie) ? winner : null;
+
+      if (!entry) {
+        const candidates = (this.allEntriesWithFlatKeywordsAdded || []).filter((candidate) => {
+          if (!candidate?.movie?.release_date) return false;
+          if (candidate.movie.runtime && candidate.movie.runtime <= 40) return false;
+          return new Date(candidate.movie.release_date).getFullYear() === this.currentYear;
+        });
+        entry = candidates.reduce((best, candidate) => {
+          if (!best) return candidate;
+          return this.mostRecentRating(candidate).calculatedTotal > this.mostRecentRating(best).calculatedTotal
+            ? candidate
+            : best;
+        }, null);
+      }
+
+      const backdrop = entry && (entry.customBackdropPath || entry.movie?.backdrop_path);
+      return backdrop ? `https://image.tmdb.org/t/p/w500${backdrop}` : null;
+    },
     eligibleOptionsByMovie () {
       // Only return movie-grouped data for acting categories
       if (this.isActingCategory(this.selectedCategory)) {
@@ -631,6 +657,12 @@ export default {
       if (!loaded || !this.showModal || this.currentYear == null) return;
       if (this.awardsDataDirty) return;
       this.initializeAwardsData();
+    },
+    yearBannerUrl: {
+      immediate: true,
+      handler (url) {
+        if (url) this.$store.commit('setBannerUrl', url);
+      }
     },
     // Cold-boot recovery, part three (live repro #2): when SETTINGS beat the
     // LIBRARY in, initializeAwardsData ran fine but every saved nominee
