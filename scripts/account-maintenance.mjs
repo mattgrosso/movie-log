@@ -90,12 +90,17 @@ const applyTimestamps = process.argv.includes('--apply-timestamps');
 const applyTmdb = process.argv.includes('--apply-tmdb');
 const accountFlagIndex = process.argv.indexOf('--account');
 const onlyAccount = accountFlagIndex !== -1 ? process.argv[accountFlagIndex + 1] : null;
-// Repeatable: --skip-account <key> --skip-account <key2>. Per Matt
-// (2026-08-14): brian-goegan's large, dormant account is excluded from
-// migrations rather than paying its ~2,300-call share of any backfill.
-const skipAccounts = new Set(
-  process.argv.flatMap((arg, index) => (arg === '--skip-account' ? [process.argv[index + 1]] : []))
-);
+// Accounts excluded from ALL migrations by standing policy — per Matt
+// (2026-08-14): brian-goegan's account is large (2,305 entries), dormant,
+// and deliberately left as-is (not deleted, not migrated). Additional
+// per-run exclusions: --skip-account <key> (repeatable). A run explicitly
+// targeting a skipped account (--account <key>) still works, so the policy
+// can be overridden on purpose but never by accident.
+const SKIPPED_BY_DEFAULT = ['brian-goegan-gmail-com'];
+const skipAccounts = new Set([
+  ...SKIPPED_BY_DEFAULT,
+  ...process.argv.flatMap((arg, index) => (arg === '--skip-account' ? [process.argv[index + 1]] : []))
+]);
 
 const BATCH_SIZE = 100;
 const TMDB_CONCURRENCY = 5;
@@ -196,7 +201,8 @@ const root = rootSnap.val() || {};
 const accountKeys = Object.keys(root)
   .filter((key) => !NON_ACCOUNT_KEYS.has(key))
   .filter((key) => !onlyAccount || key === onlyAccount)
-  .filter((key) => !skipAccounts.has(key));
+  // --account is an explicit override; the skip list only applies to sweeps.
+  .filter((key) => key === onlyAccount || !skipAccounts.has(key));
 
 console.log(`${accountKeys.length} account(s)${applyTimestamps ? ' — APPLYING timestamps' : ' — audit only'}\n`);
 
