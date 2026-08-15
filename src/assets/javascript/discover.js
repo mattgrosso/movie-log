@@ -169,3 +169,27 @@ export function ratedTmdbIds (entries) {
       .filter((id) => typeof id === 'number')
   );
 }
+
+// "Fill out your award years" (feedback 2026-08-15: "I'm often trying to
+// get my years up to 10 so I can fill in my awards"). Years sitting just
+// below the awards eligibility threshold, closest first — the screen then
+// suggests well-regarded unseen movies from each. Threshold comes from the
+// same settings value the awards flow uses, so this always chases whatever
+// "10" currently means.
+export function nearThresholdYears (entries, threshold = 10, { reach = 4, cap = 3 } = {}) {
+  const counts = {};
+  (entries || []).forEach((entry) => {
+    const date = entry?.movie?.release_date;
+    if (!date) return;
+    if (entry.movie.runtime && entry.movie.runtime <= 40) return; // shorts don't count for awards
+    const year = new Date(date).getFullYear();
+    if (!Number.isFinite(year)) return;
+    counts[year] = (counts[year] || 0) + 1;
+  });
+
+  return Object.entries(counts)
+    .map(([year, count]) => ({ year: Number(year), count, missing: threshold - count }))
+    .filter(({ missing }) => missing >= 1 && missing <= reach)
+    .sort((a, b) => (a.missing - b.missing) || (b.year - a.year))
+    .slice(0, cap);
+}

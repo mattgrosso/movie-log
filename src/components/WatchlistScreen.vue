@@ -59,6 +59,17 @@
       </div>
     </section>
 
+    <!-- TMDB-fed: well-regarded movies from years sitting just under the
+         awards threshold (feedback: "I'm often trying to get my years up
+         to 10 so I can fill in my awards"). -->
+    <section v-for="section in yearSections" :key="`year-${section.year}`" class="watchlist-section">
+      <h2 class="section-title">Get {{ section.year }} to {{ awardsThreshold }}</h2>
+      <p class="section-caption">{{ section.count }} rated — {{ section.missing }} to go for awards.</p>
+      <p v-if="yearsLoading" class="section-loading">Looking up {{ section.year }}&hellip;</p>
+      <MediaResultGrid v-else-if="section.movies.length" :mediaList="section.movies" @select="rateMedia"/>
+      <p v-else class="section-loading">Nothing well-regarded found that you haven't already rated.</p>
+    </section>
+
     <!-- TMDB-fed: unseen movies from the people your ratings favor. Tapping
          one drops into the normal rating flow (you've just watched it) —
          the same setMovieToRate + /rate-movie handoff PickMedia uses. -->
@@ -88,13 +99,16 @@ import axios from 'axios';
 import BackLink from './games/BackLink.vue';
 import MediaResultGrid from './MediaResultGrid.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { rewatchCandidates, anotherShotCandidates, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds } from '../assets/javascript/discover.js';
+import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds } from '../assets/javascript/discover.js';
+import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 
 export default {
   name: 'WatchlistScreen',
   components: { BackLink, MediaResultGrid },
   data () {
     return {
+      yearSections: [], // { year, count, missing, movies }
+      yearsLoading: true,
       directorMovies: [],
       actorMovies: [],
       similarMovies: [],
@@ -114,6 +128,12 @@ export default {
     },
     anotherShotList () {
       return anotherShotCandidates(this.library, getRating);
+    },
+    nearYears () {
+      return nearThresholdYears(this.library, awardsYearThreshold(this.$store.state.settings));
+    },
+    awardsThreshold () {
+      return awardsYearThreshold(this.$store.state.settings);
     },
     favoriteDirectors () {
       return favoritePeople(this.library, getRating, { role: 'director' });
@@ -189,23 +209,51 @@ export default {
     },
     async buildWatchlists () {
       if (!this.$store.state.isOnline) {
+        this.yearsLoading = false;
         this.directorsLoading = false;
         this.actorsLoading = false;
         this.similarLoading = false;
         return;
       }
       const rated = ratedTmdbIds(this.library);
-      const [directorMovies, actorMovies, similarMovies] = await Promise.all([
+      const [directorMovies, actorMovies, similarMovies, yearSections] = await Promise.all([
         this.moviesFromPeople(this.favoriteDirectors, 'crew', rated),
         this.moviesFromPeople(this.favoriteActors, 'cast', rated),
-        this.moviesLikeFavorites(this.recommendationSeeds, rated)
+        this.moviesLikeFavorites(this.recommendationSeeds, rated),
+        this.moviesForNearYears(this.nearYears, rated)
       ]);
+      this.yearSections = yearSections;
+      this.yearsLoading = false;
       this.directorMovies = directorMovies;
       this.directorsLoading = false;
       this.actorMovies = actorMovies;
       this.actorsLoading = false;
       this.similarMovies = similarMovies;
       this.similarLoading = false;
+    },
+    // Per near-threshold year: TMDB discover, well-voted first, then the
+    // shared unseen-only quality ranking.
+    async moviesForNearYears (years, rated) {
+      const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+      const sections = await Promise.all(years.map(async ({ year, count, missing }) => {
+        try {
+          const response = await axios.get(`https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&primary_release_year=${year}&sort_by=vote_count.desc&vote_count.gte=200&page=1`);
+          const candidates = (response.data?.results || []).map((movie) => ({
+            id: movie.id,
+            title: movie.title,
+            poster_path: movie.poster_path,
+            release_date: movie.release_date,
+            vote_average: movie.vote_average,
+            vote_count: movie.vote_count,
+            popularity: movie.popularity
+          }));
+          const movies = rankWatchlistCandidates(candidates, rated, Date.now(), { cap: 12 });
+          return { year, count, missing, movies };
+        } catch {
+          return { year, count, missing, movies: [] };
+        }
+      }));
+      return sections;
     },
     // credits kind: 'crew' keeps only their Director credits; 'cast' keeps
     // reasonably-billed roles (order < 10) so cameos don't flood the list.

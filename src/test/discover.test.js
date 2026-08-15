@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rewatchCandidates, rewatchCycleYears, anotherShotCandidates, favoritePeople, rankWatchlistCandidates, ratedTmdbIds } from '@/assets/javascript/discover.js';
+import { rewatchCandidates, rewatchCycleYears, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds } from '@/assets/javascript/discover.js';
 
 const NOW = new Date('2026-08-15T00:00:00Z').getTime();
 const yearsAgo = (years) => NOW - years * 365.25 * 24 * 3600 * 1000;
@@ -189,3 +189,34 @@ describe('ratedTmdbIds', () => {
     expect(ids.size).toBe(1);
   });
 });
+
+describe('nearThresholdYears', () => {
+  const yearEntry = (id, year, runtime = 100) => ({
+    dbKey: `y${id}`,
+    movie: { id, title: `M${id}`, release_date: `${year}-06-15`, runtime },
+    ratings: [{ calculatedTotal: 7 }]
+  })
+
+  it('finds years just under the threshold, closest to done first', () => {
+    const entries = [
+      ...Array.from({ length: 9 }, (_, i) => yearEntry(i, 1997)), // 1 to go
+      ...Array.from({ length: 7 }, (_, i) => yearEntry(20 + i, 2003)), // 3 to go
+      ...Array.from({ length: 10 }, (_, i) => yearEntry(40 + i, 1999)), // complete: excluded
+      ...Array.from({ length: 2 }, (_, i) => yearEntry(60 + i, 1988)) // too far: excluded
+    ]
+
+    const years = nearThresholdYears(entries, 10)
+
+    expect(years.map((y) => y.year)).toEqual([1997, 2003])
+    expect(years[0].missing).toBe(1)
+  })
+
+  it('honours a custom threshold and ignores shorts', () => {
+    const entries = [
+      yearEntry(1, 2010), yearEntry(2, 2010),
+      yearEntry(3, 2010, 30) // a short — must not count toward the year
+    ]
+    const years = nearThresholdYears(entries, 3)
+    expect(years).toEqual([{ year: 2010, count: 2, missing: 1 }])
+  })
+})
