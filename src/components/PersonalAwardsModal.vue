@@ -31,21 +31,22 @@
       </template>
       <template v-slot:body>
         <div class="awards-form">
-          <!-- Category grid. Selecting doesn't swap screens and doesn't
-               morph tiles (a FLIP attempt read as janky): the tapped tile
-               stays put while its siblings dim — the same treatment the
-               Trophy Case shelves use — and the panel unfolds below,
-               scrolled into view. Tapping the tile again, or the panel's ×,
-               collapses. -->
+          <!-- Drill-down slider (feedback iteration three, the keeper):
+               ONE full-width column of categories; choosing one slides the
+               whole surface left to expose the detail pane, and the slim
+               rail on the detail pane's left edge slides back. All motion
+               is a single transform, so it cannot read as janky. -->
+          <div class="awards-slider" :class="{ 'showing-detail': Boolean(selectedCategory) }">
+          <div class="awards-pane list-pane" :aria-hidden="Boolean(selectedCategory)">
           <div class="category-grid">
-            <div class="category-buttons" :class="{ 'has-selection': Boolean(selectedCategory) }">
+            <div class="category-buttons">
               <button
                 v-for="category in categories"
                 :key="category.key"
                 type="button"
                 class="category-btn"
                 :class="[
-                  {'completed': category.completed, 'disabled': category.disabled, 'expanded': category.key === selectedCategory},
+                  {'completed': category.completed, 'disabled': category.disabled},
                   'text-bg-dark'
                 ]"
                 :disabled="category.disabled"
@@ -71,15 +72,24 @@
             </div>
           </div>
 
-          <!-- Category Detail View -->
-          <transition name="panel">
+          </div><!-- /list-pane -->
+
+          <div class="awards-pane detail-pane">
+            <button
+              v-if="selectedCategory"
+              type="button"
+              class="back-rail"
+              aria-label="Back to categories"
+              @click="backToCategories"
+            >
+              <i class="bi bi-chevron-left"></i>
+            </button>
           <div v-if="selectedCategory" ref="categoryPanel" class="category-detail">
             <div class="panel-bar">
               <button v-if="isMatt" type="button" class="panel-trash" :class="{ armed: showTrashIcon }" @click="onTrashTap">
                 <i class="bi bi-trash3"></i>
                 <span v-if="showTrashIcon" class="panel-trash-confirm">Tap again to clear all</span>
               </button>
-              <button type="button" class="panel-close" aria-label="Close category" @click="backToCategories">&times;</button>
             </div>
             <!-- Sticky Top Section (the promoted category tile above is the
                  header — tapping it reveals Matt's trash, the × collapses) -->
@@ -302,7 +312,8 @@
               </div>
             </div>
           </div>
-          </transition>
+          </div><!-- /detail-pane -->
+          </div><!-- /awards-slider -->
         </div>
       </template>
       <template v-slot:footer>
@@ -630,17 +641,10 @@ export default {
     },
     onCategoryTileClick (category) {
       if (category.disabled) return;
-      if (category.key === this.selectedCategory) {
-        // Same-tile tap collapses, matching the Trophy Case shelves.
-        this.backToCategories();
-        return;
-      }
       this.selectCategory(category.key);
-      // Bring the unfolding panel into view — it can sit several tile rows
-      // below the tapped tile. Smooth is intended here (and required to be
-      // explicit; see the scroll rules).
+      // The panes share one scroll position — land the detail at its top.
       this.$nextTick(() => {
-        this.$refs.categoryPanel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        this.$refs.categoryPanel?.scrollIntoView?.({ behavior: 'instant', block: 'start' });
       });
     },
     // Destructive with no undo, so it takes two taps: the first arms the
@@ -2099,40 +2103,10 @@ export default {
       .category-buttons {
         display: grid;
         gap: 8px;
-        grid-template-columns: repeat(2, 1fr);
+        /* One full-width row per category — the list pane of the drill. */
+        grid-template-columns: 1fr;
         padding: 0 4px;
-        position: relative; /* anchors the absolute leave-active tiles */
 
-        @media (min-width: 576px) {
-          gap: 10px;
-          grid-template-columns: repeat(3, 1fr);
-        }
-
-        /* Selection by focus, not chrome (same treatment as the Trophy
-           Case shelves): the open tile stays full-strength with a small
-           neutral caret pointing toward the panel; siblings recede. */
-        .category-btn {
-          transition: opacity 0.25s ease;
-        }
-
-        &.has-selection .category-btn:not(.expanded) {
-          opacity: 0.35;
-        }
-
-        .category-btn.expanded {
-          position: relative;
-        }
-
-        .category-btn.expanded::after {
-          border-left: 7px solid transparent;
-          border-right: 7px solid transparent;
-          border-top: 7px solid #3a3a3a;
-          bottom: -12px;
-          content: '';
-          left: 50%;
-          position: absolute;
-          transform: translateX(-50%);
-        }
 
 
         .category-btn {
@@ -2818,23 +2792,57 @@ export default {
     }
   }
 }
-/* The category panel unfolds beneath the grid — unhurried enough to read
-   as expansion rather than a swap. */
-.panel-enter-active {
-  transition: opacity 0.35s ease-out, transform 0.35s ease-out;
+/* The drill slider: both panes live side by side on a double-wide track;
+   selection slides the track one screen left. A single composited
+   transform is the entire animation — nothing resizes, nothing reflows. */
+.awards-slider {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
 }
 
-.panel-leave-active {
-  transition: opacity 0.15s ease;
+.awards-pane {
+  flex: 0 0 100%;
+  min-width: 0;
+  transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.35, 1);
 }
 
-.panel-enter-from {
-  opacity: 0;
-  transform: translateY(-16px);
+.awards-slider.showing-detail .awards-pane {
+  transform: translateX(-100%);
 }
 
-.panel-leave-to {
-  opacity: 0;
+/* The hidden list can be taller than the detail — don't let it stretch the
+   page while offscreen. */
+.awards-slider.showing-detail .list-pane {
+  max-height: 70vh;
+  overflow: hidden;
+}
+
+.detail-pane {
+  display: flex;
+}
+
+/* The slim left rail: the "little place on the left" that slides back. */
+.back-rail {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  border-radius: 6px;
+  color: #adb5bd;
+  display: flex;
+  flex: 0 0 34px;
+  justify-content: center;
+  margin-right: 0.5rem;
+  align-self: stretch;
+}
+
+.back-rail:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.category-detail {
+  flex: 1;
+  min-width: 0;
 }
 
 .panel-bar {
@@ -2843,24 +2851,7 @@ export default {
   gap: 0.5rem;
   justify-content: flex-end;
   margin-bottom: 0.25rem;
-}
-
-.panel-close {
-  align-items: center;
-  background: none;
-  border: none;
-  border-radius: 4px;
-  color: #ccc;
-  display: flex;
-  font-size: 1.5rem;
-  height: 40px;
-  justify-content: center;
-  line-height: 1;
-  width: 40px;
-}
-
-.panel-close:active {
-  background: rgba(255, 255, 255, 0.15);
+  min-height: 0.5rem;
 }
 
 .panel-trash {
