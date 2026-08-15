@@ -708,7 +708,7 @@
               </SettingsSection>
 
               <SettingsSection title="Account">
-                <p v-if="$store.state.userEmail" class="text-muted small mb-2">
+                <p v-if="$store.state.userEmail" class="signed-in-as small mb-2">
                                   Signed in as {{ $store.state.userEmail }}
                                 </p>
                                 <button
@@ -5420,6 +5420,10 @@ export default {
 .pending-reconciliation-banner a:active {
   opacity: 0.7;
 }
+.signed-in-as {
+  color: #ccc; /* .text-muted is illegible on the dark panel (house rule) */
+}
+
 .settings-panel-inline {
   background: var(--bs-light, #fff);
   border: 1px solid var(--bs-border-color, #dee2e6);
