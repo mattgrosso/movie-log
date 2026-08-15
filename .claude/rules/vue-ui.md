@@ -36,6 +36,15 @@ Use `src/utils/scrollWindowTo.js`, or pass `behavior: 'instant'` explicitly. Thi
 Home's scroll restoration for a 1,300-movie library without anyone noticing, and made a
 first attempt at the games scroll-to-top do nothing at all.
 
+## Style calls Matt has made
+
+- **No left-edge accent bars** (the Bootstrap-ish colored strip on a panel's left
+  edge as the only stroke of color) — he's said he's "not that into it" (2026-08-15,
+  Trophy Case films panel). Prefer neutral surfaces (#161616/#2e2e2e border) and show
+  selection/focus by dimming siblings + subtle scale, not colored outlines. Several
+  older screens still carry left-accent banners (Reel Wordle/Connections/Clue Budget
+  result banners, target-clues) — sweep candidates, don't add new ones.
+
 ## Layout traps that have bitten here
 
 - **Don't put `min-height: 100vh` on a routed component's root.** `.cinema-roll` and

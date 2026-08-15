@@ -600,11 +600,36 @@ export default {
   width: 100px;
 }
 
-/* The card whose films panel is open below the row. */
+/* Selection without chrome: the open card stays full-strength and lifts
+   slightly while its shelf-mates recede; a small neutral caret points into
+   the panel. (No colored outlines / edge bars — a standing style call.) */
+.decorated-person {
+  transition: opacity 0.15s ease;
+}
+
+.decorated-list:has(.expanded) .decorated-person:not(.expanded) {
+  opacity: 0.4;
+}
+
+.decorated-person.expanded {
+  position: relative;
+}
+
 .decorated-person.expanded .decorated-photo,
 .decorated-person.expanded .decorated-photo-placeholder {
-  outline: 2px solid #ffc107;
-  outline-offset: 1px;
+  transform: scale(1.06);
+  transition: transform 0.15s ease;
+}
+
+.decorated-person.expanded::after {
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid #3a3a3a;
+  bottom: -0.5rem;
+  content: '';
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
 }
 
 .decorated-photo {
@@ -650,9 +675,8 @@ export default {
 /* Tap-to-reveal films panel — full-size posters in their own scroll row,
    because the in-card mini strips were too small to enjoy (feedback). */
 .person-films {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  border-left: 3px solid #ffc107;
+  background: #161616;
+  border: 1px solid #2e2e2e;
   border-radius: 0.5rem;
   margin-top: 0.5rem;
   padding: 0.6rem 0.75rem;
@@ -666,7 +690,7 @@ export default {
 }
 
 .person-films-name {
-  color: #ffc107;
+  color: #eee;
   font-size: 0.9rem;
   font-weight: 600;
 }
