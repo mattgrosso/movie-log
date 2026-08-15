@@ -131,7 +131,7 @@
                     <div class="nominee-poster-image">
                       <img
                         v-if="isActingCategory(selectedCategory) && nominee.details && nominee.details.profile_path"
-                        :src="`https://image.tmdb.org/t/p/w92${nominee.details.profile_path}`"
+                        :src="`https://image.tmdb.org/t/p/w185${nominee.details.profile_path}`"
                         :alt="nominee.name"
                       >
                       <img
@@ -141,7 +141,7 @@
                       >
                       <img
                         v-else-if="nominee.movie && nominee.movie.poster_path"
-                        :src="`https://image.tmdb.org/t/p/w92${nominee.movie.poster_path}`"
+                        :src="`https://image.tmdb.org/t/p/w185${nominee.movie.poster_path}`"
                         :alt="getOptionTitle(nominee)"
                       >
                       <img
@@ -2487,7 +2487,7 @@ export default {
             font-size: 0.8em;
             font-style: italic;
             gap: 8px; // Space between button and text
-            height: 98.5px; // Match poster height to prevent jumping
+            height: 142px; // Match poster height (138 + borders) to prevent jumping
             justify-content: center;
             width: 100%;
 
@@ -2508,7 +2508,8 @@ export default {
             flex-grow: 0;
             flex-shrink: 0;
             transition: opacity 0.1s;
-            width: 62px;
+            // House poster size (92x138), same as the Trophy Case shelves.
+            width: 92px;
 
             &.winner {
               .nominee-poster-image {
@@ -2518,7 +2519,7 @@ export default {
             }
 
             .nominee-poster-image {
-              aspect-ratio: 3/4; // Maintain poster ratio
+              aspect-ratio: 2/3; // True poster ratio, matching everywhere else
               border-radius: 4px;
               border: 2px solid #333;
               min-width: 40px;
