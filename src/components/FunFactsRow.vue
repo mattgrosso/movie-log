@@ -37,6 +37,9 @@ export default {
 <style lang="scss" scoped>
 .fun-facts {
   margin: 0 0 1rem;
+  /* Never let the rigid card row dictate an ancestor's min-content width. */
+  max-width: 100%;
+  min-width: 0;
 }
 
 .fun-facts-header {
@@ -67,6 +70,7 @@ export default {
 .fun-facts-row {
   display: flex;
   gap: 0.6rem;
+  max-width: 100%;
   overflow-x: auto;
   padding-bottom: 0.4rem;
 }

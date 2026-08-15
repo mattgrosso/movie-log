@@ -2970,6 +2970,13 @@ export default {
     padding: 18px;
     max-width: 600px;
     margin: 0 auto;
+    /* .app-main is a flex container, so this is a flex ITEM: min-width:auto
+       means content min-size can force it WIDER than the viewport (the
+       fun-facts row's rigid cards blew it to its 600px cap on a phone,
+       half off-screen with the shell's overflow-clip hiding the evidence).
+       min-width:0 lets it shrink to the screen like a normal block. */
+    min-width: 0;
+    width: 100%;
 
     .home-link {
       align-items: center;

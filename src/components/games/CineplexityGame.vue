@@ -36,15 +36,30 @@
       </div>
 
       <template v-if="!finished">
-        <input
-          ref="guessInput"
-          v-model="guess"
-          type="search"
-          class="form-control guess-input"
-          placeholder="Name a movie that fits both…"
-          autocomplete="off"
-          @keydown.enter.prevent="submitGuess"
-        >
+        <div class="guess-wrap">
+          <input
+            ref="guessInput"
+            v-model="guess"
+            type="search"
+            class="form-control guess-input"
+            placeholder="Name a movie that fits both…"
+            autocomplete="off"
+            @keydown.enter.prevent="submitGuess"
+          >
+          <!-- Typeahead over the WHOLE library (not just the answers —
+               the dropdown must not be an answer key). -->
+          <div v-if="suggestions.length" class="suggestions">
+            <button
+              v-for="title in suggestions"
+              :key="title"
+              type="button"
+              class="suggestion-row"
+              @click="chooseSuggestion(title)"
+            >
+              {{ title }}
+            </button>
+          </div>
+        </div>
         <div class="guess-actions">
           <button type="button" class="btn-game btn-game-primary" @click="submitGuess">Guess</button>
           <button type="button" class="btn-game btn-game-secondary" @click="giveUp">Reveal the rest</button>
@@ -95,6 +110,24 @@ export default {
     },
     remaining () {
       return (this.round?.matches || []).filter((entry) => !this.isFound(entry));
+    },
+    suggestions () {
+      const needle = this.guess.trim().toLowerCase();
+      if (needle.length < 2) return [];
+      const seen = new Set();
+      const titles = [];
+      for (const entry of this.eligibleGameEntries) {
+        const title = entry?.movie?.title;
+        if (!title) continue;
+        const lower = title.toLowerCase();
+        if (lower === needle) continue;
+        if (lower.includes(needle) && !seen.has(lower)) {
+          seen.add(lower);
+          titles.push(title);
+          if (titles.length >= 7) break;
+        }
+      }
+      return titles;
     }
   },
   created () {
@@ -129,6 +162,11 @@ export default {
     },
     isFound (entry) {
       return this.found.includes(entry.dbKey);
+    },
+    chooseSuggestion (title) {
+      this.guess = title;
+      this.submitGuess();
+      this.$refs.guessInput?.focus?.();
     },
     submitGuess () {
       if (!this.guess.trim() || this.finished) return;
@@ -228,12 +266,46 @@ export default {
 .slot-poster { display: block; height: 100%; object-fit: cover; width: 100%; }
 .slot-poster.missed { filter: grayscale(1); opacity: 0.55; }
 
+.guess-wrap {
+  margin: 0 auto;
+  max-width: 420px;
+  position: relative;
+}
+
+.suggestions {
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  left: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 10;
+}
+
+.suggestion-row {
+  background: none;
+  border: none;
+  color: #eee;
+  display: block;
+  font-size: 0.85rem;
+  min-height: 40px;
+  padding: 0.4rem 0.8rem;
+  text-align: left;
+  width: 100%;
+
+  &:active {
+    background: #1f1f1f;
+  }
+}
+
 .guess-input {
   background: #101010;
   border-color: #3a3a3a;
   color: #eee;
-  margin: 0 auto 0.6rem;
-  max-width: 420px;
+  margin-bottom: 0.6rem;
   min-width: 0;
 
   &::placeholder { color: #888; }
