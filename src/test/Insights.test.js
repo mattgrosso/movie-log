@@ -507,13 +507,14 @@ describe('Insights', () => {
       expect(pushSpy).toHaveBeenCalledWith({ name: 'Home', query: { search: encodeURIComponent('Denis Villeneuve') } })
     })
 
-    it('resumeAwards writes the daily-awards-year settings in order, then navigates home', async () => {
+    it('resumeAwards navigates straight to the awards page with the year in the URL', async () => {
       const { wrapper, dispatchSpy, pushSpy } = mountInsights()
       await wrapper.vm.resumeAwards(1999)
 
-      expect(dispatchSpy).toHaveBeenNthCalledWith(1, 'setDBValue', { path: 'settings/dailyAwardsYear', value: 1999 })
-      expect(dispatchSpy).toHaveBeenNthCalledWith(3, 'setDBValue', { path: 'settings/awardsPromptState', value: 'forced' })
-      expect(pushSpy).toHaveBeenCalledWith({ name: 'Home' })
+      // The old settings-flag handoff raced the navigation and sometimes
+      // opened nothing (reported bug) — direct routing replaced it.
+      expect(pushSpy).toHaveBeenCalledWith({ path: '/awards', query: { year: 1999 } })
+      expect(dispatchSpy).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/awardsPromptState' }))
     })
 
     it('startNewAwards clears the last completion date and navigates home', async () => {

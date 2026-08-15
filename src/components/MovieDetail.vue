@@ -1068,11 +1068,10 @@ export default {
     // Same pattern as Insights.resumeAwards — jump straight into that year's
     // PersonalAwardsModal (bypassing the once-a-day gate) so tapping a personal
     // award on a movie's page doubles as a shortcut back into editing it.
-    async openPersonalAwardsYear (year) {
-      await this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYear', value: Number(year) });
-      await this.$store.dispatch('setDBValue', { path: 'settings/dailyAwardsYearDate', value: new Date().toDateString() });
-      await this.$store.dispatch('setDBValue', { path: 'settings/awardsPromptState', value: 'forced' });
-      this.$router.push({ name: 'Home' });
+    openPersonalAwardsYear (year) {
+      // Direct to the awards page — the old settings-flag handoff could
+      // race the navigation and open nothing (see Insights.resumeAwards).
+      this.$router.push({ path: '/awards', query: { year: Number(year) } });
     },
 
     parseNamesToList (names) {

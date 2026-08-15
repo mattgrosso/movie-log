@@ -110,12 +110,13 @@ describe('MovieDetail - awards sections', () => {
       expect(allIds).not.toContain('2023-bestDirector')
     })
 
-    it('openPersonalAwardsYear sets the daily-awards-year settings and navigates home', async () => {
+    it('openPersonalAwardsYear navigates straight to the awards page with the year in the URL', async () => {
       await wrapper.vm.openPersonalAwardsYear('2023')
 
-      expect(dispatchSpy).toHaveBeenCalledWith('setDBValue', { path: 'settings/dailyAwardsYear', value: 2023 })
-      expect(dispatchSpy).toHaveBeenCalledWith('setDBValue', { path: 'settings/awardsPromptState', value: 'forced' })
-      expect(pushSpy).toHaveBeenCalledWith({ name: 'Home' })
+      // The old settings-flag handoff (setDBValue x3 + push Home) could race
+      // the navigation and open nothing — direct routing replaced it.
+      expect(pushSpy).toHaveBeenCalledWith({ path: '/awards', query: { year: 2023 } })
+      expect(dispatchSpy).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/awardsPromptState' }))
     })
   })
 

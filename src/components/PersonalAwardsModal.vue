@@ -1,11 +1,11 @@
 <template>
   <div class="personal-awards">
-    <div v-if="firstEligibleYear != null" class="awards-notice alert alert-warning my-2" role="alert">
+    <div v-if="!pageMode && firstEligibleYear != null" class="awards-notice alert alert-warning my-2" role="alert">
       <a class="alert-link" @click.stop="openModal">
         {{ firstEligibleYear }} is ready for your {{ awardNameSingular }} choices
       </a>
     </div>
-    <Modal :show="showModal" @close="closeModal">
+    <Modal :show="showModal" :page="pageMode" @close="closeModal">
       <template v-slot:header>
         <div v-if="!selectedCategory" class="text-center awards-header">
           <h2 class="mb-1">{{ awardNameWithThe }} {{ currentYear }}</h2>
@@ -381,6 +381,20 @@ export default {
     autoOpen: {
       type: Boolean,
       default: false
+    },
+    // Full-page rendering at /awards (PersonalAwardsScreen.vue): no notice
+    // banner, the Modal shell in page mode, and closing emits 'closed' so
+    // the route wrapper can navigate away.
+    pageMode: {
+      type: Boolean,
+      default: false
+    },
+    // Home's embedded instance keeps only the "year is ready" notice —
+    // opening from there NAVIGATES to the /awards page instead of popping
+    // the overlay in place.
+    navigateOnOpen: {
+      type: Boolean,
+      default: false
     }
   },
   components: {
@@ -675,6 +689,11 @@ export default {
       }
     },
     openModal () {
+      if (this.navigateOnOpen) {
+        const year = this.selectedYear || this.firstEligibleYear;
+        this.$router.push({ path: '/awards', query: year != null ? { year } : {} });
+        return;
+      }
       try {
         this.showModal = true;
         // firstEligibleYear already accounts for dailyAwardsYear and selectedYear prop,
@@ -694,6 +713,7 @@ export default {
       }
     },
     closeModal () {
+      if (this.pageMode) this.$emit('closed');
       try {
         this.showModal = false;
         this.selectedCategory = null;

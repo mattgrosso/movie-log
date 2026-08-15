@@ -1,5 +1,5 @@
 <template>
-  <div v-if="show" class="cinemaroll-modal">
+  <div v-if="show" class="cinemaroll-modal" :class="{ 'page-mode': page }">
     <div class="cinemaroll-modal-content">
       <div class="cinemaroll-modal-header">
         <span class="close" @click="close">&times;</span>
@@ -21,10 +21,19 @@ export default {
     show: {
       type: Boolean,
       required: true,
+    },
+    // Renders the same header/body/footer slots as a normal in-flow page
+    // surface instead of a fixed overlay — no backdrop, no body scroll
+    // lock. The awards flow uses this to live at /awards as a real screen
+    // (feedback: the modal "always feels a little bit janky").
+    page: {
+      type: Boolean,
+      default: false
     }
   },
   watch: {
     show (value) {
+      if (this.page) return; // a page scrolls like a page
       if (value) {
         document.body.classList.add('no-scroll');
       } else {
@@ -45,6 +54,21 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+/* Page mode: the identical content, but part of the document instead of
+   floating above it. */
+.cinemaroll-modal.page-mode {
+  background: none;
+  height: auto;
+  overflow: visible;
+  position: static;
+
+  :deep(.cinemaroll-modal-content),
+  .cinemaroll-modal-content {
+    max-height: none;
+    width: 100%;
+  }
+}
+
 .cinemaroll-modal {
   position: fixed;
   z-index: 5;

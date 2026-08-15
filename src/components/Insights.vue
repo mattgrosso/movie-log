@@ -1396,23 +1396,12 @@ export default {
       // Navigate to Home and set the search value as a query parameter
       this.$router.push({ name: 'Home', query: { search: encodeURIComponent(value) } });
     },
-    async resumeAwards (year) {
-      // Set the daily awards year and force the modal open immediately on Home
-      await this.$store.dispatch('setDBValue', {
-        path: 'settings/dailyAwardsYear',
-        value: year
-      });
-      await this.$store.dispatch('setDBValue', {
-        path: 'settings/dailyAwardsYearDate',
-        value: new Date().toDateString()
-      });
-      await this.$store.dispatch('setDBValue', {
-        path: 'settings/awardsPromptState',
-        value: 'forced'
-      });
-
-      // Navigate to home — awardsPromptState 'forced' will open the modal automatically
-      this.$router.push({ name: 'Home' });
+    resumeAwards (year) {
+      // Straight to the awards page with the year in the URL. This used to
+      // write three settings flags (setDBValue — no local commit) and
+      // navigate Home hoping the Firebase echo beat the modal gate; when it
+      // didn't, the tap landed on Home and nothing opened (reported bug).
+      this.$router.push({ path: '/awards', query: { year } });
     },
     getYear (media) {
       let date;

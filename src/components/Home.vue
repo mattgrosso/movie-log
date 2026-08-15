@@ -398,6 +398,9 @@
             :showTweakModal="showTweakModal"
             @tweak-updated="onTweakUpdated"
           />
+          <!-- Banner-only on Home now: tapping the "year is ready" notice
+               navigates to the /awards page (the overlay modal is retired —
+               feedback: it "always feels a little bit janky"). -->
           <PersonalAwardsModal
             v-if="showAwardsModal"
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
@@ -406,6 +409,7 @@
             :awardNameSingular="getAwardNameSingular()"
             :selectedYear="dailyAwardsYear"
             :autoOpen="awardsPromptState === 'forced'"
+            :navigateOnOpen="true"
           />
           <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
           <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">
