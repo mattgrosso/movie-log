@@ -408,27 +408,50 @@ export default {
     // "winner untouched, loser penalized" behavior. Returns a Promise that
     // resolves once every write has landed (see chooseWinner).
     applyTournamentResults (tournament) {
+      // Each contestant's write is isolated in its own try/catch — bug
+      // report: "tie break tournaments are only adjusting the score of one
+      // movie... a tournament with 5 contestants... then it gives me a
+      // tournament with 4 of those same 5. And then 3." That's the
+      // signature of ONE contestant's entry throwing mid-batch (this used
+      // to be a single .map with no guards, so the first throw silently
+      // abandoned every write after it). The known way a real entry
+      // throws here: `ratings` arriving as {0:…,1:…} instead of an array
+      // (the documented {...someArray} local-commit mangling), which made
+      // .slice() blow up. Both are handled: object-shaped ratings are
+      // normalized, and any other per-entry failure skips that one
+      // contestant loudly instead of aborting the rest.
       const writes = tournament.finalRanking.map((entry) => {
-        const delta = tweakDeltaForRank(entry.rank);
-        if (delta === 0) return null;
+        try {
+          const delta = tweakDeltaForRank(entry.rank);
+          if (delta === 0) return null;
 
-        const movie = this.allMoviesRanked.find((m) => m.dbKey === entry.dbKey);
-        if (!movie) return null;
+          const movie = this.allMoviesRanked.find((m) => m.dbKey === entry.dbKey);
+          if (!movie) {
+            console.error('applyTournamentResults: contestant missing from library, skipping:', entry.dbKey);
+            return null;
+          }
 
-        const ratingIndex = this.mostRecentRatingIndex(movie);
-        const currentTweakValue = movie.ratings[ratingIndex].tweakValue || 0;
+          const ratings = Array.isArray(movie.ratings) ? movie.ratings : Object.values(movie.ratings || {});
+          if (!ratings.length) return null;
 
-        const movieWithRating = {
-          ...movie,
-          ratings: movie.ratings.slice().map((rating, index) => {
-            if (index === ratingIndex) {
-              return { ...rating, tweakValue: currentTweakValue + delta, userTweaked: true };
-            }
-            return rating;
-          })
-        };
+          const ratingIndex = this.mostRecentRatingIndex({ ratings });
+          const currentTweakValue = ratings[ratingIndex].tweakValue || 0;
 
-        return this.$store.dispatch('writeDurably', { path: `movieLog/${movie.dbKey}`, value: movieWithRating });
+          const movieWithRating = {
+            ...movie,
+            ratings: ratings.map((rating, index) => {
+              if (index === ratingIndex) {
+                return { ...rating, tweakValue: currentTweakValue + delta, userTweaked: true };
+              }
+              return rating;
+            })
+          };
+
+          return this.$store.dispatch('writeDurably', { path: `movieLog/${movie.dbKey}`, value: movieWithRating });
+        } catch (error) {
+          console.error('applyTournamentResults: failed for one contestant, applying the rest anyway:', entry.dbKey, error);
+          return null;
+        }
       }).filter(Boolean);
 
       return Promise.all(writes);

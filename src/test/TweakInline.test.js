@@ -303,6 +303,68 @@ describe('TweakInline', () => {
     })
   })
 
+  // Bug report: "tie break tournaments are only adjusting the score of one
+  // movie. I will do a tournament with 5 contestants and get a whole ranking
+  // and then it gives me a tournament with 4 of those same 5. And then 3."
+  // One contestant's entry throwing mid-batch used to abandon every write
+  // after it — exactly one movie escaped the tie per tournament.
+  describe('score application resilience', () => {
+    it("applies EVERY contestant's delta even when one entry's ratings came back object-shaped (the documented {...someArray} mangling)", () => {
+      const movies = [
+        movie('a', 'A', 7),
+        movie('b', 'B', 7),
+        // ratings as {0: …} instead of an array — .slice() throws on this,
+        // which used to kill the writes for every rank after this one.
+        { dbKey: 'c', movie: { id: 'c', title: 'C', poster_path: '/c.jpg' }, ratings: { 0: { calculatedTotal: 7, date: '2024-01-01', tweakValue: 0 } } },
+        movie('d', 'D', 7),
+        movie('e', 'E', 7)
+      ]
+      const { wrapper, dispatch } = mountTweak(movies)
+      dispatch.mockClear()
+
+      wrapper.vm.applyTournamentResults({
+        finalRanking: [
+          { dbKey: 'a', wins: 4, rank: 0 },
+          { dbKey: 'b', wins: 3, rank: 1 },
+          { dbKey: 'c', wins: 2, rank: 2 },
+          { dbKey: 'd', wins: 1, rank: 3 },
+          { dbKey: 'e', wins: 0, rank: 4 }
+        ]
+      })
+
+      const byPath = Object.fromEntries(
+        dispatch.mock.calls
+          .filter(([, entry]) => entry.path.startsWith('movieLog/'))
+          .map(([, entry]) => [entry.path, entry.value])
+      )
+      expect(Object.keys(byPath).sort()).toEqual(['movieLog/b', 'movieLog/c', 'movieLog/d', 'movieLog/e'])
+      // The mangled entry is written back as a REAL array, normalized.
+      expect(Array.isArray(byPath['movieLog/c'].ratings)).toBe(true)
+      expect(byPath['movieLog/c'].ratings[0].tweakValue).toBeCloseTo(-0.1)
+      // And the ranks below it still received their own distinct deltas.
+      expect(byPath['movieLog/d'].ratings[0].tweakValue).toBeCloseTo(-0.15)
+      expect(byPath['movieLog/e'].ratings[0].tweakValue).toBeCloseTo(-0.2)
+    })
+
+    it('a contestant deleted from the library mid-tournament is skipped without aborting the others', () => {
+      const movies = [movie('a', 'A', 7), movie('b', 'B', 7), movie('c', 'C', 7)]
+      const { wrapper, dispatch } = mountTweak(movies)
+      dispatch.mockClear()
+
+      wrapper.vm.applyTournamentResults({
+        finalRanking: [
+          { dbKey: 'a', wins: 2, rank: 0 },
+          { dbKey: 'gone', wins: 1, rank: 1 },
+          { dbKey: 'c', wins: 0, rank: 2 }
+        ]
+      })
+
+      const paths = dispatch.mock.calls.map(([, entry]) => entry.path)
+      expect(paths).toContain('movieLog/c')
+      expect(paths).not.toContain('movieLog/gone')
+    })
+  })
+
   describe('an already-running tournament (freeze-out)', () => {
     it('does not start a new tournament, and ignores a movie that newly ties with the frozen group', () => {
       const existingTournament = {
