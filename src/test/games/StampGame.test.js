@@ -156,7 +156,7 @@ describe('StampGame', () => {
       }
 
       expect(wrapper.vm.finished).toBe(true);
-      expect(wrapper.find('.summary').exists()).toBe(true);
+      expect(wrapper.find('.stamp-clump').exists()).toBe(true);
       expect(wrapper.vm.tally.confirmed + wrapper.vm.tally.added).toBe(total);
     });
   });
@@ -306,7 +306,7 @@ describe('StampGame blind judgement', () => {
     const total = wrapper.vm.round.cards.length;
     for (let i = 0; i < total; i++) await wrapper.vm.decide('yes');
 
-    expect(wrapper.find('.summary').exists()).toBe(true);
+    expect(wrapper.find('.stamp-clump').exists()).toBe(true);
     expect(wrapper.vm.tally.added).toBeGreaterThan(0);
   });
 });
@@ -604,21 +604,14 @@ describe('StampGame swipe hints and summary', () => {
       expect(wrapper.find('.summary-headline').text()).toBe('Nothing needed changing.');
     });
 
-    it('renders one tile per outcome', async () => {
+    it('renders a labeled poster clump per outcome that actually happened, and none for the ones that did not', async () => {
       const wrapper = factory(library(), { flyDuration: 0 });
       await finish(wrapper, 'yes');
 
-      expect(wrapper.findAll('.summary-stat')).toHaveLength(5);
-      expect(wrapper.find('.summary-stat.added .summary-value').text()).toBe(String(wrapper.vm.tally.added));
-    });
-
-    it('dims the outcomes that did not happen', async () => {
-      const wrapper = factory(library(), { flyDuration: 0 });
-      await finish(wrapper, 'yes');
-
-      // Saying yes to everything can never remove anything.
-      expect(wrapper.find('.summary-stat.removed').classes()).toContain('empty');
-      expect(wrapper.find('.summary-stat.added').classes()).not.toContain('empty');
+      const labels = wrapper.findAll('.clump-label').map((el) => el.text());
+      expect(labels.join(' ')).toContain(`Added · ${wrapper.vm.tally.added}`);
+      // Saying yes to everything can never remove anything — no clump at all.
+      expect(labels.join(' ')).not.toContain('Removed');
     });
   });
 });
@@ -698,14 +691,13 @@ describe('StampGame passing when unsure', () => {
     expect(wrapper.vm.tally.removed).toBe(0);
   });
 
-  it('gives "not sure" its own full-width tile in the summary', async () => {
+  it('collects every pass into the "Not sure" clump', async () => {
     const wrapper = factory(library(), { flyDuration: 0 });
     const total = wrapper.vm.round.cards.length;
     for (let i = 0; i < total; i++) await wrapper.vm.decide('pass');
 
-    const tile = wrapper.find('.summary-stat.passed');
-    expect(tile.classes()).toContain('wide');
-    expect(tile.find('.summary-value').text()).toBe(String(total));
+    const label = wrapper.findAll('.clump-label').find((el) => el.text().includes('Not sure'));
+    expect(label.text()).toBe(`Not sure · ${total}`);
   });
 
   it('can be undone like any other decision', async () => {
@@ -767,7 +759,7 @@ describe('StampGame marking the day as played', () => {
   });
 });
 
-describe('StampGame finished-screen category lists (bug report: "see what movies fell into each category at the end")', () => {
+describe('StampGame finished-screen poster clumps (feedback: show the movies directly, no tapping, no titles)', () => {
   beforeEach(() => { nextId = 1; });
 
   const finishRound = async (wrapper) => {
@@ -777,7 +769,7 @@ describe('StampGame finished-screen category lists (bug report: "see what movies
     await wrapper.vm.$nextTick();
   };
 
-  it('tapping a non-empty category reveals exactly the movies that fell into it, tapping again collapses', async () => {
+  it('shows each category as a clump of bare posters — no interaction, no title text', async () => {
     const wrapper = factory(library());
     await wrapper.vm.$nextTick();
     await finishRound(wrapper);
@@ -787,34 +779,14 @@ describe('StampGame finished-screen category lists (bug report: "see what movies
       .map((h) => h.card.entry.movie.title);
     expect(addedTitles.length).toBeGreaterThan(0);
 
-    const addedStat = wrapper.find('.summary-stat.added');
-    expect(addedStat.attributes('disabled')).toBeUndefined();
-    await addedStat.trigger('click');
-
-    expect(wrapper.findAll('.summary-movie-title').map((n) => n.text())).toEqual(addedTitles);
-
-    await addedStat.trigger('click');
-    expect(wrapper.find('.summary-movies').exists()).toBe(false);
-  });
-
-  it('an empty category is disabled — nothing to expand', async () => {
-    const wrapper = factory(library());
-    await wrapper.vm.$nextTick();
-    await finishRound(wrapper); // every answer yes, so nothing was removed
-
-    expect(wrapper.vm.tally.removed).toBe(0);
-    expect(wrapper.find('.summary-stat.removed').attributes('disabled')).toBeDefined();
-  });
-
-  it('the open list resets when a new round starts', async () => {
-    const wrapper = factory(library());
-    await wrapper.vm.$nextTick();
-    await finishRound(wrapper);
-
-    await wrapper.find('.summary-stat.added').trigger('click');
-    expect(wrapper.vm.expandedStat).toBe('added');
-
-    wrapper.vm.startRound();
-    expect(wrapper.vm.expandedStat).toBeNull();
+    const clumps = wrapper.findAll('.stamp-clump');
+    expect(clumps.length).toBeGreaterThan(0);
+    const addedClump = clumps.find((c) => c.text().includes('Added'));
+    expect(addedClump.findAll('.clump-poster')).toHaveLength(addedTitles.length);
+    // Posters only: the movie titles appear as tooltips, never as text.
+    addedTitles.forEach((title) => {
+      expect(addedClump.text()).not.toContain(title);
+    });
+    expect(addedClump.find('.clump-poster').attributes('title')).toBe(addedTitles[0]);
   });
 });

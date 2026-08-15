@@ -13,30 +13,22 @@
       <p class="summary-keyword">{{ round.keyword }}</p>
       <p class="summary-headline">{{ summaryHeadline }}</p>
 
-      <!-- Bug report: "I would like to see what movies fell into each
-           category at the end." Each non-empty count is tappable and
-           expands its movie list below the grid. -->
-      <p class="summary-hint">Tap a category to see its movies.</p>
-      <div class="summary">
-        <button
-          v-for="stat in summaryStats"
-          :key="stat.key"
-          type="button"
-          class="summary-stat"
-          :class="[stat.key, { empty: stat.value === 0, wide: stat.wide, selected: expandedStat === stat.key }]"
-          :disabled="stat.value === 0"
-          @click="toggleStat(stat.key)"
-        >
-          <span class="summary-value">{{ stat.value }}</span>
-          <span class="summary-label">{{ stat.label }}</span>
-        </button>
+      <!-- Bug report + feedback iteration: the movies that fell into each
+           category, shown DIRECTLY as poster clumps — no tapping, no
+           titles, posters just big enough to discern. -->
+      <div v-for="clump in outcomeClumps" :key="clump.key" class="stamp-clump">
+        <p class="clump-label" :class="clump.key">{{ clump.label }} · {{ clump.items.length }}</p>
+        <div class="clump-posters">
+          <img
+            v-for="item in clump.items"
+            :key="entryKey(item.card.entry)"
+            :src="gamePosterUrl(item.card.entry, 'w154')"
+            :alt="item.card.entry.movie.title"
+            :title="item.card.entry.movie.title"
+            class="clump-poster"
+          >
+        </div>
       </div>
-      <ul v-if="expandedMovies.length" class="summary-movies">
-        <li v-for="item in expandedMovies" :key="entryKey(item.card.entry)" class="summary-movie">
-          <img v-if="gamePosterUrl(item.card.entry)" :src="gamePosterUrl(item.card.entry, 'w92')" :alt="item.card.entry.movie.title" class="summary-movie-poster">
-          <span class="summary-movie-title">{{ item.card.entry.movie.title }}</span>
-        </li>
-      </ul>
       <div class="end-actions">
         <button type="button" class="btn-game btn-game-primary cta-btn" @click="startRound()">Next Keyword</button>
         <button type="button" class="btn-game btn-game-secondary cta-btn" @click="$router.push('/games')">Back to Games</button>
@@ -175,9 +167,7 @@ export default {
       flyVerdict: null,
       // Must match the CSS transition on .stamp-card.top. In data so tests can
       // set it to 0 rather than waiting out real animations.
-      flyDuration: 320,
-      // Which summary category's movie list is open on the finished screen.
-      expandedStat: null
+      flyDuration: 320
     };
   },
   computed: {
@@ -204,15 +194,20 @@ export default {
       this.history.forEach((item) => { counts[item.outcome] += 1; });
       return counts;
     },
-    summaryStats () {
-      return [
-        { key: 'added', label: 'added', value: this.tally.added },
-        { key: 'removed', label: 'removed', value: this.tally.removed },
-        { key: 'confirmed', label: 'kept', value: this.tally.confirmed },
-        { key: 'declined', label: 'left off', value: this.tally.declined },
-        // Full-width, because "I wasn't sure" is the one worth coming back to.
-        { key: 'passed', label: 'not sure', value: this.tally.passed, wide: true }
+    // Non-empty outcome groups with their cards, in the order that tells
+    // the round's story: what changed first, then the confirmations, with
+    // "not sure" last since it's the pile worth coming back to.
+    outcomeClumps () {
+      const labels = [
+        { key: 'added', label: 'Added' },
+        { key: 'removed', label: 'Removed' },
+        { key: 'confirmed', label: 'Kept' },
+        { key: 'declined', label: 'Left off' },
+        { key: 'passed', label: 'Not sure' }
       ];
+      return labels
+        .map(({ key, label }) => ({ key, label, items: this.history.filter((item) => item.outcome === key) }))
+        .filter((clump) => clump.items.length);
     },
     // The changes are the point of the round; the confirmations are just the
     // cost of finding them.
@@ -220,10 +215,6 @@ export default {
       const changed = this.tally.added + this.tally.removed;
       if (!changed) return 'Nothing needed changing.';
       return `${changed} change${changed === 1 ? '' : 's'} to your library.`;
-    },
-    expandedMovies () {
-      if (!this.expandedStat) return [];
-      return this.history.filter((item) => item.outcome === this.expandedStat);
     },
     lastActionLabel () {
       const outcome = this.history[this.history.length - 1]?.outcome;
@@ -315,11 +306,7 @@ export default {
       this.round = buildStampRound(this.eligibleGameEntries, chosen.keyword);
       this.currentIndex = 0;
       this.history = [];
-      this.expandedStat = null;
       this.resetDrag();
-    },
-    toggleStat (key) {
-      this.expandedStat = this.expandedStat === key ? null : key;
     },
     resetDrag () {
       this.dragging = false;
@@ -647,129 +634,40 @@ export default {
   margin: 0 0 1.25rem;
 }
 
-.summary {
-  display: grid;
-  gap: 0.5rem;
-  grid-template-columns: 1fr 1fr;
-  margin: 0 auto 1.5rem;
-  max-width: 340px;
-}
-
-.summary-stat {
-  align-items: center;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  border-left: 3px solid #333;
-  border-radius: 8px;
-  // Now a <button> (each count expands its movie list) — keep the stat-tile
-  // look rather than inheriting UA button styles.
-  color: inherit;
-  display: flex;
-  flex-direction: column;
-  font: inherit;
-  padding: 0.7rem 0.4rem;
-
-  // Mobile-first: :active, not :hover.
-  &:active:not(:disabled) {
-    background: #222;
-  }
-
-  &.selected {
-    border-color: #ffc107;
-  }
-
-  // A zero recedes rather than shouting — the interesting numbers should be
-  // the ones you can see at a glance. Zeroes are disabled buttons: there is
-  // nothing to expand.
-  &.empty {
-    opacity: 0.4;
-  }
-}
-
-.summary-hint {
-  color: #777;
-  font-size: 0.72rem;
-  margin: -0.75rem 0 0.6rem;
-}
-
-.summary-movies {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  border-radius: 8px;
-  list-style: none;
-  margin: -0.75rem auto 1.5rem;
-  max-width: 340px;
-  padding: 0.4rem 0.6rem;
-}
-
-.summary-movie {
-  align-items: center;
-  display: flex;
-  gap: 0.6rem;
-  padding: 0.3rem 0;
+.stamp-clump {
+  margin: 0 auto 1rem;
+  max-width: 380px;
   text-align: left;
-
-  & + & {
-    border-top: 1px solid #2a2a2a;
-  }
 }
 
-.summary-movie-poster {
-  border-radius: 4px;
-  height: 48px;
-  width: 32px;
-  object-fit: cover;
-}
-
-.summary-movie-title {
-  color: #eee;
-  font-size: 0.85rem;
-}
-
-.summary-value {
-  font-size: 1.6rem;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.summary-label {
+.clump-label {
   color: #adb5bd;
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.35rem;
   text-transform: uppercase;
 }
 
-/* The two that changed something are colour-accented; the two that didn't stay
-   neutral, so the eye lands on the outcome. */
-.summary-stat.added {
-  border-left-color: #4caf50;
-  .summary-value { color: #4caf50; }
+/* The two outcomes that changed the library get their color in the label
+   text itself (no bars, no boxes). */
+.clump-label.added { color: #4caf50; }
+.clump-label.removed { color: #ff6a6a; }
+.clump-label.passed { color: #6ec1e4; }
+
+/* A wrapping clump of small posters — fixed heights, top-aligned rows,
+   just big enough to discern (the standing poster-row rule). */
+.clump-posters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
-.summary-stat.removed {
-  border-left-color: #ff6a6a;
-  .summary-value { color: #ff6a6a; }
+.clump-poster {
+  border-radius: 4px;
+  height: 78px;
+  object-fit: cover;
+  width: 52px;
 }
-
-.summary-stat.confirmed .summary-value,
-.summary-stat.declined .summary-value,
-.summary-stat.passed .summary-value {
-  color: #adb5bd;
-}
-
-.summary-stat.wide {
-  flex-direction: row;
-  gap: 0.5rem;
-  grid-column: 1 / -1;
-  justify-content: center;
-  padding: 0.5rem;
-}
-
-.summary-stat.passed:not(.empty) {
-  border-left-color: #6ec1e4;
-
-  .summary-value {
-    color: #6ec1e4;
-  }
 }
 </style>
