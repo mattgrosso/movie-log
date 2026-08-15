@@ -124,4 +124,32 @@ describe('PersonalAwardsModal — cold-boot recovery', () => {
     expect(wrapper.vm.awardsData.bestDirector).toEqual(userPick)
     expect(wrapper.vm.awardsData.bestPicture).toBeUndefined()
   })
+
+  it("moves on from a completed daily pick: yesterday-morning's sticky year must not banner after completion", async () => {
+    // Bug: Home passed the persisted dailyAwardsYear through :selectedYear,
+    // the picker's unconditional explicit-intent branch. After Matt completed
+    // 1981 mid-morning, the banner kept offering 1981 (finished, no new
+    // movies to list) instead of the genuinely incomplete year.
+    const lib1981 = Array.from({ length: 10 }, (_, i) => movieEntry(200 + i, `Old ${i}`, 1981))
+    const lib2023 = Array.from({ length: 10 }, (_, i) => movieEntry(300 + i, `New ${i}`, 2023))
+    const { wrapper } = factory({
+      entries: [...lib1981, ...lib2023],
+      settings: {
+        dailyAwardsYear: 1981,
+        dailyAwardsYearDate: new Date().toDateString(),
+        personalAwards: {
+          1981: {
+            completed: true,
+            lastUpdated: Date.now(),
+            availableMovieIds: lib1981.map((e) => e.movie.id),
+            categories: { bestPicture: { nominees: [{ movieId: 201 }], winner: { movieId: 201 } } }
+          }
+        }
+      },
+      settingsLoaded: true
+    })
+    await nextTick()
+
+    expect(wrapper.vm.firstEligibleYear).toBe(2023)
+  })
 })

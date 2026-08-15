@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import Home from '@/components/Home.vue'
+import PersonalAwardsModal from '@/components/PersonalAwardsModal.vue'
 
 vi.mock('axios', () => ({ default: { get: vi.fn() } }))
 vi.mock('lodash/debounce', () => ({ default: vi.fn((fn) => fn) }))
@@ -93,5 +94,61 @@ describe('Home.resolveBanner — custom backdrop', () => {
 
     const urls = bannerUrlCommits()
     expect(urls[urls.length - 1]).toContain('/default-1.jpg')
+  })
+})
+
+describe('Home — awards banner wiring', () => {
+  it('never passes the persisted daily year as a selectedYear override', () => {
+    // selectedYear is the picker's unconditional explicit-intent branch
+    // (Resume/Edit). Home used to route settings.dailyAwardsYear through it,
+    // which kept the banner naming a year all day AFTER it was completed.
+    // The daily year must reach the picker only via settings, where the
+    // completion check applies.
+    const movies = [
+      { movie: { id: 1, title: 'M', flatKeywords: [], poster_path: '/p.jpg' }, ratings: [{ calculatedTotal: 9, date: Date.now() }], dbKey: 'k1' }
+    ]
+    const mockStore = {
+      state: {
+        dbLoaded: true,
+        databaseTopKey: 'test-user',
+        currentLog: 'movieLog',
+        DBSearchValue: '',
+        DBSortValue: 'rating',
+        academyAwardWinners: {},
+        settings: {
+          normalizationTweak: 0.25, tieBreakTweak: 1, includeShorts: false,
+          tags: { 'viewing-tags': {} },
+          dailyAwardsYear: 1981,
+          dailyAwardsYearDate: new Date().toDateString(),
+          personalAwards: { 1981: { completed: true, lastUpdated: Date.now(), availableMovieIds: [], categories: {} } }
+        },
+        bannerUrl: null, bannerRequest: null, filteredResults: [],
+        homePageScrollPosition: 0, homePageSearchChips: [], homePageSearchValue: '',
+        homePageNumberOfResults: 25, homePageNavigationIntent: null,
+        homePageSortValue: null, homePageSortOrder: null, homePagePromoteGroup: null
+      },
+      getters: { allMediaAsArray: movies, allMoviesAsArray: movies, allMediaSortedByRating: movies },
+      commit: vi.fn(),
+      dispatch: vi.fn()
+    }
+
+    const wrapper = mount(Home, {
+      global: {
+        mocks: { $store: mockStore, $route: { query: {} }, $router: { push: vi.fn() } },
+        stubs: {
+          DBGridLayoutSearchResult: true, NoResults: true, StickinessModal: true,
+          TweakModal: true, InsetBrowserModal: true, PersonalAwardsModal: true
+        }
+      }
+    })
+
+    const awards = wrapper.findComponent(PersonalAwardsModal)
+    if (awards.exists()) {
+      expect(awards.props('selectedYear')).toBeNull()
+    } else {
+      // The banner instance is gated (showAwardsModal); the wiring is still
+      // checkable straight off the vnode template.
+      expect(Home.render?.toString() || '').not.toContain('selectedYear')
+    }
   })
 })

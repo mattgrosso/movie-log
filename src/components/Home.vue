@@ -401,13 +401,19 @@
           <!-- Banner-only on Home now: tapping the "year is ready" notice
                navigates to the /awards page (the overlay modal is retired —
                feedback: it "always feels a little bit janky"). -->
+          <!-- No :selectedYear here, deliberately. selectedYear is the
+               explicit-intent override (Resume/Edit buttons) and the picker
+               returns it unconditionally — passing the persisted daily year
+               through it kept the banner naming a year all day AFTER it was
+               completed, sending Matt to a finished year with no new-movies
+               list. The picker reads dailyAwardsYear from settings itself and
+               applies stickiness WITH the completion check. -->
           <PersonalAwardsModal
             v-if="showAwardsModal"
             :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
             :personalAwardName="personalAwardName"
             :awardNameWithThe="getAwardNameWithThe()"
             :awardNameSingular="getAwardNameSingular()"
-            :selectedYear="dailyAwardsYear"
             :autoOpen="awardsPromptState === 'forced'"
             :navigateOnOpen="true"
           />
