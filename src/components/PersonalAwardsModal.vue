@@ -426,6 +426,7 @@ export default {
       loadingOptions: false,
       showTrashIcon: false, // For Matt's category reset functionality
       nomineesBarStuck: false, // Sentinel scrolled off => bar is pinned
+      awardsDataDirty: false, // User has edited this session; late data must not clobber
       // Cache expensive operations per year/category
       optionsCache: {}, // Format: { "1994-bestActor": [{ movieId, movie, loadedCast, hasMore }] }
       // Cache TMDb person details across all categories
@@ -632,7 +633,18 @@ export default {
     // settings actually arrive — but never over user edits already made.
     '$store.state.settingsLoaded' (loaded) {
       if (!loaded || !this.showModal || this.currentYear == null) return;
-      if (Object.keys(this.awardsData).length > 0) return;
+      if (this.awardsDataDirty) return;
+      this.initializeAwardsData();
+    },
+    // Cold-boot recovery, part three (live repro #2): when SETTINGS beat the
+    // LIBRARY in, initializeAwardsData ran fine but every saved nominee
+    // failed expandNomineeFromMinimal (movieIds can't resolve against an
+    // empty library) and was silently filtered out — 0 nominees everywhere.
+    // Re-expand when the library lands, unless the user has edited.
+    'allEntriesWithFlatKeywordsAdded.length' (count, previous) {
+      if (!count || previous) return;
+      if (!this.showModal || this.currentYear == null) return;
+      if (this.awardsDataDirty) return;
       this.initializeAwardsData();
     }
   },
@@ -664,6 +676,7 @@ export default {
       this.nomineesBarStuck = false;
     },
     markCategoryAsNoNominees () {
+      this.awardsDataDirty = true;
       // Mark category as having no worthy nominees for now
       if (!this.awardsData[this.selectedCategory]) {
         this.awardsData[this.selectedCategory] = {};
@@ -680,6 +693,7 @@ export default {
     },
 
     resetCategory () {
+      this.awardsDataDirty = true;
       if (this.awardsData[this.selectedCategory]) {
         this.awardsData[this.selectedCategory].nominees = [];
         this.awardsData[this.selectedCategory].winner = null;
@@ -897,6 +911,7 @@ export default {
         ErrorLogService.error('Error initializing awards data:', error);
         this.awardsData = {};
       }
+      this.awardsDataDirty = false;
     },
     async selectCategory (categoryKey) {
       this.selectedCategory = categoryKey;
@@ -1646,6 +1661,7 @@ export default {
       return name ? name.replace(/^Best /, '') : '';
     },
     toggleNominee (option) {
+      this.awardsDataDirty = true;
       const categoryData = this.awardsData[this.selectedCategory] || { nominees: [], winner: null };
 
       // Adding while the sibling category holds the same person+movie is
@@ -1788,6 +1804,7 @@ export default {
       }
     },
     selectWinner (option) {
+      this.awardsDataDirty = true;
       const categoryData = this.awardsData[this.selectedCategory] || { nominees: [], winner: null };
       categoryData.winner = option;
       this.awardsData[this.selectedCategory] = categoryData;

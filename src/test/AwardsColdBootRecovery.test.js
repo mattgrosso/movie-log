@@ -36,8 +36,8 @@ const SAVED_2015 = {
   2015: {
     categories: {
       bestPicture: {
-        nominees: [{ movieId: 101 }],
-        winner: { movieId: 101 },
+        nominees: [{ type: 'movie', movieId: 101 }],
+        winner: { type: 'movie', movieId: 101 },
         noNominees: false
       }
     },
@@ -115,6 +115,8 @@ describe('PersonalAwardsModal — cold-boot recovery', () => {
 
     const userPick = { nominees: [{ movieId: 999 }], winner: null, noNominees: false }
     wrapper.vm.awardsData = { bestDirector: userPick }
+    // Real edits pass through toggleNominee/selectWinner, which set this.
+    wrapper.vm.awardsDataDirty = true
 
     store.state.settings = { personalAwards: SAVED_2015 }
     store.state.settingsLoaded = true
@@ -123,6 +125,25 @@ describe('PersonalAwardsModal — cold-boot recovery', () => {
     // The in-session edit survives; the late snapshot does not overwrite it.
     expect(wrapper.vm.awardsData.bestDirector).toEqual(userPick)
     expect(wrapper.vm.awardsData.bestPicture).toBeUndefined()
+  })
+
+  it('re-expands saved nominees once the LIBRARY arrives after settings (live repro #2)', async () => {
+    // Settings loaded first, library later: initializeAwardsData ran, but
+    // every saved movieId failed expansion against an empty library and was
+    // filtered out — the page showed 0 nominees in all categories forever.
+    const { wrapper } = factory({
+      entries: [],
+      settings: { personalAwards: SAVED_2015 },
+      settingsLoaded: true,
+      selectedYear: 2015
+    })
+
+    expect(wrapper.vm.awardsData.bestPicture?.nominees ?? []).toHaveLength(0)
+
+    await wrapper.setProps({ allEntriesWithFlatKeywordsAdded: [movieEntry(101, 'Sicario', 2015)] })
+    await nextTick()
+
+    expect(wrapper.vm.awardsData.bestPicture.nominees).toHaveLength(1)
   })
 
   it("moves on from a completed daily pick: yesterday-morning's sticky year must not banner after completion", async () => {
