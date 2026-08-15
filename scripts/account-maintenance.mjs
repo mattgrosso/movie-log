@@ -90,6 +90,12 @@ const applyTimestamps = process.argv.includes('--apply-timestamps');
 const applyTmdb = process.argv.includes('--apply-tmdb');
 const accountFlagIndex = process.argv.indexOf('--account');
 const onlyAccount = accountFlagIndex !== -1 ? process.argv[accountFlagIndex + 1] : null;
+// Repeatable: --skip-account <key> --skip-account <key2>. Per Matt
+// (2026-08-14): brian-goegan's large, dormant account is excluded from
+// migrations rather than paying its ~2,300-call share of any backfill.
+const skipAccounts = new Set(
+  process.argv.flatMap((arg, index) => (arg === '--skip-account' ? [process.argv[index + 1]] : []))
+);
 
 const BATCH_SIZE = 100;
 const TMDB_CONCURRENCY = 5;
@@ -189,7 +195,8 @@ const rootSnap = await db.ref('/').once('value');
 const root = rootSnap.val() || {};
 const accountKeys = Object.keys(root)
   .filter((key) => !NON_ACCOUNT_KEYS.has(key))
-  .filter((key) => !onlyAccount || key === onlyAccount);
+  .filter((key) => !onlyAccount || key === onlyAccount)
+  .filter((key) => !skipAccounts.has(key));
 
 console.log(`${accountKeys.length} account(s)${applyTimestamps ? ' — APPLYING timestamps' : ' — audit only'}\n`);
 
