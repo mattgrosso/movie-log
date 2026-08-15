@@ -15,6 +15,11 @@
 // every entry path at once, and is the only mechanism (that manual call is
 // gone).
 //
+// The Trophy Case gets the same treatment (bug report: "When I enter the
+// trophy case the page needs to scroll back to the top") — it's reached
+// from a scrolled Home/MovieDetail and, like the games, has no scroll
+// state of its own worth keeping.
+//
 // Returning `false` for everything else means "leave the scroll position
 // alone", i.e. exactly the pre-existing behaviour for non-game routes —
 // including Home's own restoration, which stays in charge of itself.
@@ -28,7 +33,7 @@
 // here.) The GamesHub workaround this replaced happened to pass 'instant'
 // too, which is why it worked and a first cut of this function did not.
 export function gameAwareScrollBehavior (to) {
-  if (to?.path?.startsWith('/games')) {
+  if (to?.path?.startsWith('/games') || to?.path?.startsWith('/trophy-case')) {
     return { top: 0, behavior: 'instant' };
   }
   return false;

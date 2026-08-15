@@ -22,11 +22,17 @@ describe('gameAwareScrollBehavior', () => {
     expect(gameAwareScrollBehavior({ path: '/games/timeline' }).behavior).toBe('instant');
   });
 
+  // Bug report: "When I enter the trophy case the page needs to scroll back
+  // to the top."
+  it('scrolls to the top when entering the Trophy Case', () => {
+    expect(gameAwareScrollBehavior({ path: '/trophy-case' })).toEqual({ top: 0, behavior: 'instant' });
+  });
+
   // Everything else keeps the app's pre-existing behaviour of not touching
   // the scroll position - most importantly Home, which restores its own
   // (returning from a movie detail page puts you back in the grid).
   it('leaves every other route alone, including Home and movie detail', () => {
-    ['/', '/insights', '/movie/123', '/rate-movie', '/trophy-case'].forEach((path) => {
+    ['/', '/insights', '/movie/123', '/rate-movie'].forEach((path) => {
       expect(gameAwareScrollBehavior({ path })).toBe(false);
     });
   });

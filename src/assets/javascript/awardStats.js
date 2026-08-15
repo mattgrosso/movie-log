@@ -80,6 +80,21 @@ export function rankPeople (entries, { limit = DEFAULT_LIMIT, minCount = DEFAULT
     .slice(0, limit);
 }
 
+// The "always the bridesmaid" shelf (user request: "the ability to see who
+// has the most nominations without a win"): people ranked by nomination
+// count, EXCLUDING anyone who has ever won — in any category, any year. A
+// single win anywhere disqualifies; this is a list of the perpetually
+// passed-over, not of win-to-nomination ratios.
+export function rankPeopleWithoutWins (nominations, wins, options) {
+  const winnerNames = new Set(
+    (wins || []).filter((entry) => isPerson(entry.expanded)).map((entry) => entry.expanded.name)
+  );
+  const neverWon = (nominations || []).filter(
+    (entry) => isPerson(entry.expanded) && !winnerNames.has(entry.expanded.name)
+  );
+  return rankPeople(neverWon, options);
+}
+
 // Ranks MOVIES by how many of the given entries point at them - including
 // entries for people, which count for the film they were nominated for (see
 // the note at the top). Keyed by TMDB movie id so two films sharing a title

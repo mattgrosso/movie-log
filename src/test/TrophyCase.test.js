@@ -181,6 +181,27 @@ describe('TrophyCase', () => {
     expect(pushSpy).toHaveBeenCalledWith('/movie/7')
   })
 
+  // Bug report: "When I click on an actor in the trophy case, it seems to
+  // take me to one random film of theirs." Person cards now open a Home
+  // search for the person; only category trophy cards (whose film is the
+  // specific winning movie, not a random one) still navigate to a movie.
+  it('clicking a Most Decorated person opens a Home search for their name, never a movie page', async () => {
+    const library = [libraryEntry(1, 'Film A'), libraryEntry(2, 'Film B')]
+    const personalAwards = {
+      2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 1 } } } },
+      2020: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 2 } } } }
+    }
+    const { wrapper, pushSpy, commitSpy } = mountTrophyCase(personalAwards, library)
+
+    await wrapper.find('.decorated-person').trigger('click')
+
+    expect(commitSpy).toHaveBeenCalledWith('setHomePageSearchValue', 'Prolific Director')
+    expect(commitSpy).toHaveBeenCalledWith('setHomePagePromoteGroup', 'cast')
+    expect(commitSpy).toHaveBeenCalledWith('setHomePageNavigationIntent', 'search')
+    expect(pushSpy).toHaveBeenCalledWith('/')
+    expect(pushSpy.mock.calls.every(([path]) => !String(path).startsWith('/movie/'))).toBe(true)
+  })
+
   it('returnHome shows the header again and navigates home', () => {
     const { wrapper, commitSpy, pushSpy } = mountTrophyCase({})
     wrapper.vm.returnHome()
@@ -250,6 +271,37 @@ describe('TrophyCase', () => {
 
       expect(wrapper.vm.mostNominatedPeople[0]).toMatchObject({ name: 'Nominated Only', count: 2 })
       expect(wrapper.text()).toContain('Most Nominated People')
+    })
+
+    // User request: "the ability to see who has the most nominations
+    // without a win."
+    it('shows Always the Bridesmaid: repeat nominees who have never won anything', () => {
+      const { wrapper } = mountTrophyCase(personalAwards, library)
+
+      expect(wrapper.vm.mostNominatedNeverWon.map((p) => p.name)).toEqual(['Nominated Only'])
+      expect(wrapper.text()).toContain('Always the Bridesmaid')
+      expect(wrapper.text()).toContain('2 nominations, no wins')
+    })
+
+    it('hides Always the Bridesmaid when every repeat nominee has won something', () => {
+      const winnersOnly = {
+        2020: { categories: { bestActor: { nominees: [{ type: 'person', id: 'a1', name: 'Sweep Star', movieId: 1 }], winner: { type: 'person', id: 'a1', name: 'Sweep Star', movieId: 1 } } } },
+        2021: { categories: { bestActor: { nominees: [{ type: 'person', id: 'a1', name: 'Sweep Star', movieId: 2 }], winner: { type: 'person', id: 'a1', name: 'Sweep Star', movieId: 2 } } } }
+      }
+      const { wrapper } = mountTrophyCase(winnersOnly, library)
+
+      expect(wrapper.vm.mostNominatedNeverWon).toHaveLength(0)
+      expect(wrapper.text()).not.toContain('Always the Bridesmaid')
+    })
+
+    it('clicking a Bridesmaid card opens a Home search for that person', async () => {
+      const { wrapper, pushSpy, commitSpy } = mountTrophyCase(personalAwards, library)
+      const bridesmaidSection = wrapper.findAll('.most-decorated').find((section) => section.text().includes('Always the Bridesmaid'))
+
+      await bridesmaidSection.find('.decorated-person').trigger('click')
+
+      expect(commitSpy).toHaveBeenCalledWith('setHomePageSearchValue', 'Nominated Only')
+      expect(pushSpy).toHaveBeenCalledWith('/')
     })
 
     it('renders posters for the movie leaderboards and links to the movie', async () => {

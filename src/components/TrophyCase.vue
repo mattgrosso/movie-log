@@ -19,7 +19,7 @@
       <div v-if="mostDecoratedPeople.length" class="most-decorated">
         <h2 class="section-title">Most Decorated</h2>
         <div class="decorated-list">
-          <div v-for="person in mostDecoratedPeople" :key="person.name" class="decorated-person" @click="goToMovie(person.wins[0])">
+          <div v-for="person in mostDecoratedPeople" :key="person.name" class="decorated-person" @click="searchForPerson(person.name)">
             <!-- .expanded, not the win wrapper. mostDecoratedPeople pushes
                  whole WIN objects ({year, expanded, …}) into person.wins,
                  and winnerImage reads .details/.movie off an EXPANDED
@@ -28,9 +28,7 @@
                  to the initial-letter placeholder (bug report: "missing a
                  bunch of images on that top row... they just have letters
                  for all their names"). The category rows below always got
-                 this right, which is why only this row was affected.
-                 goToMovie on the parent DOES want the wrapper - it reads
-                 win.expanded itself - so that stays as-is. -->
+                 this right, which is why only this row was affected. -->
             <img v-if="winnerImage(person.wins[0].expanded)" :src="winnerImage(person.wins[0].expanded)" :alt="person.name" class="decorated-photo">
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
             <div class="decorated-name">{{ person.name }}</div>
@@ -46,11 +44,25 @@
       <div v-if="mostNominatedPeople.length" class="most-decorated">
         <h2 class="section-title">Most Nominated People</h2>
         <div class="decorated-list">
-          <div v-for="person in mostNominatedPeople" :key="person.name" class="decorated-person" @click="goToMovie(person.entries[0])">
+          <div v-for="person in mostNominatedPeople" :key="person.name" class="decorated-person" @click="searchForPerson(person.name)">
             <img v-if="winnerImage(person.entries[0].expanded)" :src="winnerImage(person.entries[0].expanded)" :alt="person.name" class="decorated-photo">
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
             <div class="decorated-name">{{ person.name }}</div>
             <div class="decorated-count">{{ person.count }} nomination{{ person.count === 1 ? '' : 's' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- User request: "the ability to see who has the most nominations
+           without a win" — the perpetually passed-over. -->
+      <div v-if="mostNominatedNeverWon.length" class="most-decorated">
+        <h2 class="section-title">Always the Bridesmaid</h2>
+        <div class="decorated-list">
+          <div v-for="person in mostNominatedNeverWon" :key="person.name" class="decorated-person" @click="searchForPerson(person.name)">
+            <img v-if="winnerImage(person.entries[0].expanded)" :src="winnerImage(person.entries[0].expanded)" :alt="person.name" class="decorated-photo">
+            <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
+            <div class="decorated-name">{{ person.name }}</div>
+            <div class="decorated-count">{{ person.count }} nomination{{ person.count === 1 ? '' : 's' }}, no wins</div>
           </div>
         </div>
       </div>
@@ -98,7 +110,7 @@
 <script>
 import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
 import { expandNomineeFromMinimal } from '../assets/javascript/personalAwards.js';
-import { collectAwardEntries, rankPeople, rankMovies } from '../assets/javascript/awardStats.js';
+import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins } from '../assets/javascript/awardStats.js';
 
 export default {
   name: 'TrophyCase',
@@ -175,6 +187,9 @@ export default {
     },
     mostNominatedPeople () {
       return rankPeople(this.awardEntries.nominations);
+    },
+    mostNominatedNeverWon () {
+      return rankPeopleWithoutWins(this.awardEntries.nominations, this.awardEntries.wins);
     },
     mostAwardedMovies () {
       return rankMovies(this.awardEntries.wins);
@@ -265,6 +280,26 @@ export default {
     },
     goToMovieId (movieId) {
       if (movieId) this.$router.push(`/movie/${movieId}`);
+    },
+    // Bug report: "When I click on an actor in the trophy case, it seems to
+    // take me to one random film of theirs" — the old handler pushed to
+    // whichever win/nomination happened to be first in the person's list. A
+    // person card now opens that person's whole filmography in the Home
+    // grid instead: same store-commit sequence as MovieDetail's
+    // searchFor(name, 'cast') and SixDegreesGame.searchForPerson,
+    // replicated for the same reason (small, component-local navigation
+    // with no shared base). Category trophy cards are unchanged — their
+    // film is the specific movie the award was won for, not a random one.
+    searchForPerson (name) {
+      if (!name) return;
+      this.$store.commit('setShowHeader', true);
+      this.$store.commit('setHomePageNavigationIntent', 'search');
+      this.$store.commit('setHomePagePromoteGroup', 'cast');
+      this.$store.commit('setHomePageSearchValue', name);
+      this.$store.commit('setHomePageSearchChips', []);
+      this.$store.commit('setHomePageScrollPosition', 0);
+      this.$store.commit('setBannerRequest', { type: 'fromResults' });
+      this.$router.push('/');
     },
     goToMovie (win) {
       const movieId = win.expanded.movie?.id || win.expanded.movieId;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { collectAwardEntries, rankPeople, rankMovies } from '@/assets/javascript/awardStats.js';
+import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins } from '@/assets/javascript/awardStats.js';
 
 function libraryEntry (id, title) {
   return { dbKey: `key-${id}`, movie: { id, title, poster_path: `/${id}.jpg` } };
@@ -95,6 +95,54 @@ describe('rankPeople', () => {
     const { nominations } = collectAwardEntries(personalAwards, library);
     expect(rankPeople(nominations)).toHaveLength(0); // one nod, below default minCount
     expect(rankPeople(nominations, { minCount: 1 })).toHaveLength(1);
+  });
+});
+
+describe('rankPeopleWithoutWins (user request: "who has the most nominations without a win")', () => {
+  it('ranks repeat nominees who have never won, excluding anyone with a win anywhere', () => {
+    const personalAwards = {
+      2019: { categories: { bestActor: { nominees: [person('Always Nominated', 1), person('Eventual Winner', 2)], winner: person('Eventual Winner', 2) } } },
+      2020: { categories: { bestActor: { nominees: [person('Always Nominated', 2), person('Eventual Winner', 3)] } } },
+      2021: { categories: { bestActor: { nominees: [person('Always Nominated', 3)] } } }
+    };
+    const { wins, nominations } = collectAwardEntries(personalAwards, library);
+
+    const ranked = rankPeopleWithoutWins(nominations, wins);
+
+    // Eventual Winner has three nominations too, but one win anywhere
+    // disqualifies — this is the perpetually-passed-over list.
+    expect(ranked.map((p) => p.name)).toEqual(['Always Nominated']);
+    expect(ranked[0].count).toBe(3);
+  });
+
+  it('a win in a DIFFERENT category still disqualifies', () => {
+    const personalAwards = {
+      2020: {
+        categories: {
+          bestActor: { nominees: [person('Cross Winner', 1), person('Pure Nominee', 2)] },
+          bestDirector: { nominees: [person('Cross Winner', 1)], winner: person('Cross Winner', 1) }
+        }
+      },
+      2021: { categories: { bestActor: { nominees: [person('Cross Winner', 2), person('Pure Nominee', 3)] } } }
+    };
+    const { wins, nominations } = collectAwardEntries(personalAwards, library);
+
+    expect(rankPeopleWithoutWins(nominations, wins).map((p) => p.name)).toEqual(['Pure Nominee']);
+  });
+
+  it('applies the same repeat threshold as the other leaderboards', () => {
+    const personalAwards = {
+      2020: { categories: { bestActor: { nominees: [person('Single Nod', 1)] } } }
+    };
+    const { wins, nominations } = collectAwardEntries(personalAwards, library);
+
+    expect(rankPeopleWithoutWins(nominations, wins)).toHaveLength(0);
+    expect(rankPeopleWithoutWins(nominations, wins, { minCount: 1 })).toHaveLength(1);
+  });
+
+  it('tolerates empty inputs', () => {
+    expect(rankPeopleWithoutWins([], [])).toEqual([]);
+    expect(rankPeopleWithoutWins(undefined, undefined)).toEqual([]);
   });
 });
 
