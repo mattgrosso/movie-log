@@ -16,65 +16,40 @@
     <template v-else>
       <p class="trophy-case-subtitle">{{ totalWins }} award{{ totalWins === 1 ? '' : 's' }} across {{ yearsRepresented }} year{{ yearsRepresented === 1 ? '' : 's' }}</p>
 
-      <div v-if="mostDecoratedPeople.length" class="most-decorated">
-        <h2 class="section-title">Most Decorated</h2>
+      <div v-for="shelf in personShelvesTop" :key="shelf.key" class="most-decorated">
+        <h2 class="section-title">{{ shelf.title }}</h2>
         <div class="decorated-list">
-          <div v-for="person in mostDecoratedPeople" :key="person.name" class="decorated-person" @click="searchForPerson(person.name)">
-            <!-- .expanded, not the win wrapper. mostDecoratedPeople pushes
-                 whole WIN objects ({year, expanded, …}) into person.wins,
-                 and winnerImage reads .details/.movie off an EXPANDED
-                 nominee - so passing the wrapper meant both lookups were
-                 undefined and every single person in this row fell through
-                 to the initial-letter placeholder (bug report: "missing a
-                 bunch of images on that top row... they just have letters
-                 for all their names"). The category rows below always got
-                 this right, which is why only this row was affected. -->
-            <img v-if="winnerImage(person.wins[0].expanded)" :src="winnerImage(person.wins[0].expanded)" :alt="person.name" class="decorated-photo">
+          <!-- Tap reveals the films panel below the row (feedback: "if you
+               tap on a nominee that has a bunch of them, you see a
+               horizontal scrolling list of posters") — person search moved
+               to the panel's "See in library" button. -->
+          <div
+            v-for="person in shelf.people"
+            :key="person.cardKey"
+            class="decorated-person"
+            :class="{ expanded: isExpanded(shelf.key, person.cardKey) }"
+            @click="toggleFilms(shelf.key, person)"
+          >
+            <img v-if="winnerImage(person.photo)" :src="winnerImage(person.photo)" :alt="person.name" class="decorated-photo">
             <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
             <div class="decorated-name">{{ person.name }}</div>
-            <div class="decorated-count">{{ person.count }}&times; winner</div>
-            <div class="mini-posters">
-              <img v-for="mini in miniPosterStrip(person.wins).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
-              <span v-if="miniPosterStrip(person.wins).extra" class="mini-more">+{{ miniPosterStrip(person.wins).extra }}</span>
-            </div>
+            <div class="decorated-count">{{ person.label }}</div>
           </div>
         </div>
-      </div>
-
-      <!-- Leaderboards (user request: "movies with the most wins, movies
-           with the most nominations... people with the most nominations").
-           Each hides itself when nothing clears the repeat threshold, so a
-           small or brand-new awards history doesn't render empty shelves. -->
-      <div v-if="mostNominatedPeople.length" class="most-decorated">
-        <h2 class="section-title">Most Nominated People</h2>
-        <div class="decorated-list">
-          <div v-for="person in mostNominatedPeople" :key="person.name" class="decorated-person" @click="searchForPerson(person.name)">
-            <img v-if="winnerImage(person.entries[0].expanded)" :src="winnerImage(person.entries[0].expanded)" :alt="person.name" class="decorated-photo">
-            <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
-            <div class="decorated-name">{{ person.name }}</div>
-            <div class="decorated-count">{{ person.count }} nomination{{ person.count === 1 ? '' : 's' }}</div>
-            <div class="mini-posters">
-              <img v-for="mini in miniPosterStrip(person.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
-              <span v-if="miniPosterStrip(person.entries).extra" class="mini-more">+{{ miniPosterStrip(person.entries).extra }}</span>
-            </div>
+        <div v-if="expandedCard && expandedCard.shelfKey === shelf.key" class="person-films">
+          <div class="person-films-header">
+            <span class="person-films-name">{{ expandedCard.name }}</span>
+            <button type="button" class="person-films-search" @click="searchForPerson(expandedCard.name)">
+              See in library <i class="bi bi-arrow-right"></i>
+            </button>
           </div>
-        </div>
-      </div>
-
-      <!-- User request: "the ability to see who has the most nominations
-           without a win" — the perpetually passed-over. -->
-      <div v-if="mostNominatedNeverWon.length" class="most-decorated">
-        <h2 class="section-title">Always the Bridesmaid</h2>
-        <div class="decorated-list">
-          <div v-for="person in mostNominatedNeverWon" :key="person.name" class="decorated-person" @click="searchForPerson(person.name)">
-            <img v-if="winnerImage(person.entries[0].expanded)" :src="winnerImage(person.entries[0].expanded)" :alt="person.name" class="decorated-photo">
-            <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
-            <div class="decorated-name">{{ person.name }}</div>
-            <div class="decorated-count">{{ person.count }} nomination{{ person.count === 1 ? '' : 's' }}, no wins</div>
-            <div class="mini-posters">
-              <img v-for="mini in miniPosterStrip(person.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
-              <span v-if="miniPosterStrip(person.entries).extra" class="mini-more">+{{ miniPosterStrip(person.entries).extra }}</span>
-            </div>
+          <div class="person-films-row">
+            <button v-for="film in expandedFilms" :key="film.key" type="button" class="person-film" @click="goToMovieId(film.movieId)">
+              <img v-if="film.src" :src="film.src" :alt="film.title" class="person-film-poster">
+              <div v-else class="person-film-poster decorated-photo-placeholder">{{ film.title.charAt(0) }}</div>
+              <span class="person-film-caption">{{ film.caption }}</span>
+              <span class="person-film-title">{{ film.title }}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -118,50 +93,40 @@
         </div>
       </div>
 
-      <div v-if="backToBackWinners.length" class="most-decorated">
-        <h2 class="section-title">Back-to-Back</h2>
+      <div v-for="shelf in personShelvesBottom" :key="shelf.key" class="most-decorated">
+        <h2 class="section-title">{{ shelf.title }}</h2>
         <div class="decorated-list">
-          <div v-for="streak in backToBackWinners" :key="streak.name" class="decorated-person" @click="searchForPerson(streak.name)">
-            <img v-if="winnerImage(streak.sample.expanded)" :src="winnerImage(streak.sample.expanded)" :alt="streak.name" class="decorated-photo">
-            <div v-else class="decorated-photo decorated-photo-placeholder">{{ streak.name.charAt(0) }}</div>
-            <div class="decorated-name">{{ streak.name }}</div>
-            <div class="decorated-count">{{ streak.length }} years running · {{ streak.startYear }}–{{ String(streak.endYear).slice(2) }}</div>
-            <div class="mini-posters">
-              <img v-for="mini in miniPosterStrip(streak.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
-              <span v-if="miniPosterStrip(streak.entries).extra" class="mini-more">+{{ miniPosterStrip(streak.entries).extra }}</span>
-            </div>
+          <!-- Tap reveals the films panel below the row (feedback: "if you
+               tap on a nominee that has a bunch of them, you see a
+               horizontal scrolling list of posters") — person search moved
+               to the panel's "See in library" button. -->
+          <div
+            v-for="person in shelf.people"
+            :key="person.cardKey"
+            class="decorated-person"
+            :class="{ expanded: isExpanded(shelf.key, person.cardKey) }"
+            @click="toggleFilms(shelf.key, person)"
+          >
+            <img v-if="winnerImage(person.photo)" :src="winnerImage(person.photo)" :alt="person.name" class="decorated-photo">
+            <div v-else class="decorated-photo decorated-photo-placeholder">{{ person.name.charAt(0) }}</div>
+            <div class="decorated-name">{{ person.name }}</div>
+            <div class="decorated-count">{{ person.label }}</div>
           </div>
         </div>
-      </div>
-
-      <div v-if="categoryOwnersList.length" class="most-decorated">
-        <h2 class="section-title">Owns the Category</h2>
-        <div class="decorated-list">
-          <div v-for="owner in categoryOwnersList" :key="`${owner.name}-${owner.categoryKey}`" class="decorated-person" @click="searchForPerson(owner.name)">
-            <img v-if="winnerImage(owner.sample.expanded)" :src="winnerImage(owner.sample.expanded)" :alt="owner.name" class="decorated-photo">
-            <div v-else class="decorated-photo decorated-photo-placeholder">{{ owner.name.charAt(0) }}</div>
-            <div class="decorated-name">{{ owner.name }}</div>
-            <div class="decorated-count">{{ owner.count }}× {{ categoryName(owner.categoryKey) }}</div>
-            <div class="mini-posters">
-              <img v-for="mini in miniPosterStrip(owner.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
-              <span v-if="miniPosterStrip(owner.entries).extra" class="mini-more">+{{ miniPosterStrip(owner.entries).extra }}</span>
-            </div>
+        <div v-if="expandedCard && expandedCard.shelfKey === shelf.key" class="person-films">
+          <div class="person-films-header">
+            <span class="person-films-name">{{ expandedCard.name }}</span>
+            <button type="button" class="person-films-search" @click="searchForPerson(expandedCard.name)">
+              See in library <i class="bi bi-arrow-right"></i>
+            </button>
           </div>
-        </div>
-      </div>
-
-      <div v-if="overdueWinners.length" class="most-decorated">
-        <h2 class="section-title">Worth the Wait</h2>
-        <div class="decorated-list">
-          <div v-for="wait in overdueWinners" :key="wait.name" class="decorated-person" @click="searchForPerson(wait.name)">
-            <img v-if="winnerImage(wait.sample.expanded)" :src="winnerImage(wait.sample.expanded)" :alt="wait.name" class="decorated-photo">
-            <div v-else class="decorated-photo decorated-photo-placeholder">{{ wait.name.charAt(0) }}</div>
-            <div class="decorated-name">{{ wait.name }}</div>
-            <div class="decorated-count">won after {{ wait.wait }} years · first nod {{ wait.firstNomination }}</div>
-            <div class="mini-posters">
-              <img v-for="mini in miniPosterStrip(wait.entries).posters" :key="mini.key" :src="mini.src" :alt="mini.title" :title="mini.title" class="mini-poster">
-              <span v-if="miniPosterStrip(wait.entries).extra" class="mini-more">+{{ miniPosterStrip(wait.entries).extra }}</span>
-            </div>
+          <div class="person-films-row">
+            <button v-for="film in expandedFilms" :key="film.key" type="button" class="person-film" @click="goToMovieId(film.movieId)">
+              <img v-if="film.src" :src="film.src" :alt="film.title" class="person-film-poster">
+              <div v-else class="person-film-poster decorated-photo-placeholder">{{ film.title.charAt(0) }}</div>
+              <span class="person-film-caption">{{ film.caption }}</span>
+              <span class="person-film-title">{{ film.title }}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -250,6 +215,9 @@ export default {
   // Case artwork exists yet, so the standard header/banner rides along.
   data () {
     return {
+      // The tapped person card whose films panel is open:
+      // { shelfKey, cardKey, name, entries } | null. One panel at a time.
+      expandedCard: null,
       // { [personName]: profilePath | null } - see ensurePersonPhoto.
       personPhotoCache: {}
     };
@@ -283,7 +251,7 @@ export default {
           if (!expanded) return;
 
           if (!byCategory[categoryKey]) byCategory[categoryKey] = [];
-          byCategory[categoryKey].push({ year: Number(year), expanded });
+          byCategory[categoryKey].push({ year: Number(year), categoryKey, expanded });
         });
       });
 
@@ -315,6 +283,100 @@ export default {
     },
     mostNominatedNeverWon () {
       return rankPeopleWithoutWins(this.awardEntries.nominations, this.awardEntries.wins);
+    },
+    // The six person shelves, data-driven so one template block renders all
+    // of them (and the tap-to-reveal films panel works identically on each).
+    personShelvesTop () {
+      const plural = (count) => `${count} nomination${count === 1 ? '' : 's'}`;
+      return [
+        {
+          key: 'mostDecorated',
+          title: 'Most Decorated',
+          people: this.mostDecoratedPeople.map((person) => ({
+            name: person.name,
+            cardKey: person.name,
+            label: `${person.count}× winner`,
+            photo: person.wins[0].expanded,
+            entries: person.wins
+          }))
+        },
+        {
+          key: 'mostNominated',
+          title: 'Most Nominated People',
+          people: this.mostNominatedPeople.map((person) => ({
+            name: person.name,
+            cardKey: person.name,
+            label: plural(person.count),
+            photo: person.entries[0].expanded,
+            entries: person.entries
+          }))
+        },
+        {
+          key: 'bridesmaid',
+          title: 'Always the Bridesmaid',
+          people: this.mostNominatedNeverWon.map((person) => ({
+            name: person.name,
+            cardKey: person.name,
+            label: `${plural(person.count)}, no wins`,
+            photo: person.entries[0].expanded,
+            entries: person.entries
+          }))
+        }
+      ].filter((shelf) => shelf.people.length);
+    },
+    personShelvesBottom () {
+      return [
+        {
+          key: 'backToBack',
+          title: 'Back-to-Back',
+          people: this.backToBackWinners.map((streak) => ({
+            name: streak.name,
+            cardKey: streak.name,
+            label: `${streak.length} years running · ${streak.startYear}–${String(streak.endYear).slice(2)}`,
+            photo: streak.sample.expanded,
+            entries: streak.entries
+          }))
+        },
+        {
+          key: 'owners',
+          title: 'Owns the Category',
+          people: this.categoryOwnersList.map((owner) => ({
+            name: owner.name,
+            // The same person can own two categories - the card key keeps
+            // the two cards' expansion states distinct.
+            cardKey: `${owner.name}|${owner.categoryKey}`,
+            label: `${owner.count}× ${this.categoryName(owner.categoryKey)}`,
+            photo: owner.sample.expanded,
+            entries: owner.entries
+          }))
+        },
+        {
+          key: 'waits',
+          title: 'Worth the Wait',
+          people: this.overdueWinners.map((wait) => ({
+            name: wait.name,
+            cardKey: wait.name,
+            label: `won after ${wait.wait} years · first nod ${wait.firstNomination}`,
+            photo: wait.sample.expanded,
+            entries: wait.entries
+          }))
+        }
+      ].filter((shelf) => shelf.people.length);
+    },
+    // The open panel's films: full-size posters, oldest first, each
+    // captioned with the year and category it represents.
+    expandedFilms () {
+      if (!this.expandedCard) return [];
+      return [...this.expandedCard.entries]
+        .filter((entry) => entry?.expanded?.movie)
+        .sort((a, b) => a.year - b.year)
+        .map((entry, index) => ({
+          key: `${entry.expanded.movie.id}-${entry.year}-${entry.categoryKey || index}`,
+          movieId: entry.expanded.movie.id,
+          src: entry.expanded.movie.poster_path ? `https://image.tmdb.org/t/p/w185${entry.expanded.movie.poster_path}` : null,
+          title: entry.expanded.movie.title,
+          caption: `${entry.year}${entry.categoryKey ? ` · ${this.categoryName(entry.categoryKey)}` : ''}`
+        }));
     },
     biggestSweeps () {
       return rankSweeps(this.awardEntries.wins);
@@ -396,23 +458,14 @@ export default {
     }
   },
   methods: {
-    // Up to four little posters of the films behind a person's stat, plus
-    // an overflow count ("wherever possible, I prefer posters over text").
-    miniPosterStrip (entries, cap = 4) {
-      const seen = new Set();
-      const posters = [];
-      (entries || []).forEach((entry) => {
-        const movie = entry?.expanded?.movie;
-        if (!movie || movie.id == null || seen.has(movie.id)) return;
-        seen.add(movie.id);
-        posters.push({
-          key: `${movie.id}-${entry.year}`,
-          src: movie.poster_path ? `https://image.tmdb.org/t/p/w92${movie.poster_path}` : null,
-          title: `${movie.title} (${entry.year})`
-        });
-      });
-      const shown = posters.filter((mini) => mini.src).slice(0, cap);
-      return { posters: shown, extra: Math.max(0, seen.size - shown.length) };
+    toggleFilms (shelfKey, person) {
+      const already = this.isExpanded(shelfKey, person.cardKey);
+      this.expandedCard = already
+        ? null
+        : { shelfKey, cardKey: person.cardKey, name: person.name, entries: person.entries };
+    },
+    isExpanded (shelfKey, cardKey) {
+      return Boolean(this.expandedCard && this.expandedCard.shelfKey === shelfKey && this.expandedCard.cardKey === cardKey);
     },
     categoryName (categoryKey) {
       return PERSONAL_AWARD_CATEGORIES.find((category) => category.key === categoryKey)?.name || categoryKey;
@@ -544,8 +597,14 @@ export default {
   cursor: pointer;
   flex: 0 0 auto;
   text-align: center;
-  /* Wide enough for the four-poster mini strip below the stat line. */
-  width: 116px;
+  width: 100px;
+}
+
+/* The card whose films panel is open below the row. */
+.decorated-person.expanded .decorated-photo,
+.decorated-person.expanded .decorated-photo-placeholder {
+  outline: 2px solid #ffc107;
+  outline-offset: 1px;
 }
 
 .decorated-photo {
@@ -587,26 +646,84 @@ export default {
   font-size: 0.7rem;
 }
 
-/* The films behind the stat — tiny, but they're posters, and posters carry
-   more than another line of text would. */
-.mini-posters {
+
+/* Tap-to-reveal films panel — full-size posters in their own scroll row,
+   because the in-card mini strips were too small to enjoy (feedback). */
+.person-films {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-left: 3px solid #ffc107;
+  border-radius: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.person-films-header {
   align-items: center;
   display: flex;
-  gap: 2px;
-  justify-content: center;
-  margin-top: 0.3rem;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
 }
 
-.mini-poster {
-  border-radius: 2px;
-  height: 39px;
+.person-films-name {
+  color: #ffc107;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.person-films-search {
+  background: none;
+  border: none;
+  color: #6ec1e4;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.3rem;
+  text-decoration: underline;
+}
+
+.person-films-search:active {
+  opacity: 0.6;
+}
+
+.person-films-row {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+
+.person-film {
+  background: none;
+  border: none;
+  color: #eee;
+  flex: 0 0 auto;
+  padding: 0;
+  text-align: center;
+  width: 92px;
+}
+
+.person-film:active {
+  opacity: 0.7;
+}
+
+.person-film-poster {
+  border-radius: 0.35rem;
+  height: 138px;
   object-fit: cover;
-  width: 26px;
+  width: 92px;
 }
 
-.mini-more {
-  color: #adb5bd;
+.person-film-caption {
+  color: #ffc107;
+  display: block;
   font-size: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.person-film-title {
+  color: #ccc;
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.2;
 }
 
 .most-decorated {

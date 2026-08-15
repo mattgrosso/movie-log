@@ -217,8 +217,11 @@ describe('TrophyCase', () => {
   // take me to one random film of theirs." Person cards now open a Home
   // search for the person; only category trophy cards (whose film is the
   // specific winning movie, not a random one) still navigate to a movie.
-  it('clicking a Most Decorated person opens a Home search for their name, never a movie page', async () => {
-    const library = [libraryEntry(1, 'Film A'), libraryEntry(2, 'Film B')]
+  // Feedback evolution: a person tap used to jump straight to a Home
+  // search; now it reveals a films panel with full-size posters, and the
+  // search moved to the panel's "See in library" button.
+  it('tapping a Most Decorated person reveals their films panel; "See in library" runs the search; tapping again collapses', async () => {
+    const library = [libraryEntry(1, 'Film A', '/a.jpg'), libraryEntry(2, 'Film B', '/b.jpg')]
     const personalAwards = {
       2018: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 1 } } } },
       2020: { categories: { bestDirector: { winner: { type: 'person', id: 'd1', name: 'Prolific Director', movieId: 2 } } } }
@@ -227,12 +230,29 @@ describe('TrophyCase', () => {
 
     await wrapper.find('.decorated-person').trigger('click')
 
+    // No navigation on the card tap itself.
+    expect(pushSpy).not.toHaveBeenCalled()
+    const panel = wrapper.find('.person-films')
+    expect(panel.exists()).toBe(true)
+    const posters = panel.findAll('.person-film-poster').filter((el) => el.element.tagName === 'IMG')
+    expect(posters).toHaveLength(2)
+    expect(panel.text()).toContain('2018 · Best Director')
+    expect(panel.text()).toContain('Film A')
+
+    // Tapping a film in the panel goes to that movie.
+    await panel.find('.person-film').trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith('/movie/1')
+
+    // The search lives on the panel's button now.
+    await panel.find('.person-films-search').trigger('click')
     expect(commitSpy).toHaveBeenCalledWith('setHomePageSearchValue', 'Prolific Director')
-    expect(commitSpy).toHaveBeenCalledWith('setHomePagePromoteGroup', 'cast')
-    expect(commitSpy).toHaveBeenCalledWith('setHomePageNavigationIntent', 'search')
     expect(pushSpy).toHaveBeenCalledWith('/')
-    expect(pushSpy.mock.calls.every(([path]) => !String(path).startsWith('/movie/'))).toBe(true)
+
+    // Same card again collapses.
+    await wrapper.find('.decorated-person').trigger('click')
+    expect(wrapper.find('.person-films').exists()).toBe(false)
   })
+
 
   it('"Robbed, By Your Own Ratings" flags a category where your top-rated nominee lost', () => {
     const library = [
@@ -396,15 +416,18 @@ describe('TrophyCase', () => {
       expect(wrapper.text()).not.toContain('Always the Bridesmaid')
     })
 
-    it('clicking a Bridesmaid card opens a Home search for that person', async () => {
-      const { wrapper, pushSpy, commitSpy } = mountTrophyCase(personalAwards, library)
+    it('tapping a Bridesmaid card reveals the films panel with its nomination posters', async () => {
+      const { wrapper, pushSpy } = mountTrophyCase(personalAwards, library)
       const bridesmaidSection = wrapper.findAll('.most-decorated').find((section) => section.text().includes('Always the Bridesmaid'))
 
       await bridesmaidSection.find('.decorated-person').trigger('click')
 
-      expect(commitSpy).toHaveBeenCalledWith('setHomePageSearchValue', 'Nominated Only')
-      expect(pushSpy).toHaveBeenCalledWith('/')
+      expect(pushSpy).not.toHaveBeenCalled()
+      const panel = bridesmaidSection.find('.person-films')
+      expect(panel.exists()).toBe(true)
+      expect(panel.findAll('.person-film').length).toBeGreaterThan(0)
     })
+
 
     it('renders posters for the movie leaderboards and links to the movie', async () => {
       const { wrapper, pushSpy } = mountTrophyCase(personalAwards, library)
