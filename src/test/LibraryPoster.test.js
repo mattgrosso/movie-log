@@ -31,11 +31,11 @@ function factory (movieCount = 12) {
 // The selection/layout logic these controls drive is covered directly in
 // posterArtifact.test.js.
 describe('LibraryPoster', () => {
-  it('offers the three selections and defaults to the top-100 mode', () => {
+  it('offers the four selections and defaults to the top-100 mode', () => {
     const wrapper = factory();
 
     const labels = wrapper.findAll('.poster-mode').map((b) => b.text());
-    expect(labels).toEqual(['My top 100', 'This year', 'Everything']);
+    expect(labels).toEqual(['My top 100', 'This year', 'Everything', 'Mosaic']);
     expect(wrapper.find('.poster-mode.selected').text()).toBe('My top 100');
     expect(wrapper.text()).toContain('12 movies');
   });

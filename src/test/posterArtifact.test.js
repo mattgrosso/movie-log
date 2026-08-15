@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickPosterEntries, gridLayout, tilePosition, posterCaption } from '@/assets/javascript/posterArtifact.js';
+import { pickPosterEntries, gridLayout, tilePosition, posterCaption, entryMatchesHighlight, assignMosaicCells } from '@/assets/javascript/posterArtifact.js';
 
 const NOW = new Date('2026-08-15T12:00:00');
 
@@ -79,3 +79,53 @@ describe('posterCaption', () => {
     expect(posterCaption('all', 1372)).toBe('1372 movies and counting · Cinema Roll');
   });
 });
+
+describe('entryMatchesHighlight', () => {
+  const entry = {
+    movie: {
+      title: 'Alien',
+      genres: [{ name: 'Horror' }, { name: 'Science Fiction' }],
+      cast: [{ name: 'Sigourney Weaver' }],
+      crew: [{ name: 'Ridley Scott', job: 'Director' }],
+      flatKeywords: ['space', 'xenomorph']
+    }
+  }
+
+  it('matches genres, people, and keywords case-insensitively', () => {
+    expect(entryMatchesHighlight(entry, 'horror')).toBe(true)
+    expect(entryMatchesHighlight(entry, 'weaver')).toBe(true)
+    expect(entryMatchesHighlight(entry, 'ridley')).toBe(true)
+    expect(entryMatchesHighlight(entry, 'xeno')).toBe(true)
+    expect(entryMatchesHighlight(entry, 'romance')).toBe(false)
+  })
+
+  it('does NOT match by title (that would just be search) and passes everything when empty', () => {
+    expect(entryMatchesHighlight(entry, 'alien')).toBe(false)
+    expect(entryMatchesHighlight(entry, '')).toBe(true)
+  })
+})
+
+describe('assignMosaicCells', () => {
+  const red = { r: 255, g: 0, b: 0 }
+  const blue = { r: 0, g: 0, b: 255 }
+  const darkRed = { r: 200, g: 10, b: 10 }
+
+  it('assigns each cell its nearest-colored tile', () => {
+    const cells = [red, blue, darkRed]
+    const tiles = [blue, red]
+    expect(assignMosaicCells(cells, tiles, { maxUse: 5 })).toEqual([1, 0, 1])
+  })
+
+  it('spreads usage: a capped tile yields to the next-nearest', () => {
+    const cells = [red, red, red]
+    const tiles = [red, darkRed]
+    const assigned = assignMosaicCells(cells, tiles, { maxUse: 1 })
+    expect(new Set(assigned).size).toBeGreaterThan(1)
+  })
+
+  it('falls back to reuse when every tile hits the cap (tiny libraries)', () => {
+    const cells = [red, red, red, red]
+    const tiles = [red]
+    expect(assignMosaicCells(cells, tiles, { maxUse: 1 })).toEqual([0, 0, 0, 0])
+  })
+})

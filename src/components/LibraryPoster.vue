@@ -17,15 +17,58 @@
         {{ option.label }}
       </button>
     </div>
-    <p class="poster-count-line">{{ selectedEntries.length }} movie{{ selectedEntries.length === 1 ? '' : 's' }} · {{ layoutLabel }}</p>
+    <p class="poster-count-line">
+      <template v-if="mode !== 'mosaic'">{{ selectedEntries.length }} movie{{ selectedEntries.length === 1 ? '' : 's' }} · </template>{{ layoutLabel }}
+    </p>
+
+    <!-- Fade-the-rest highlight (feedback): only meaningful on the grids. -->
+    <div v-if="mode !== 'mosaic'" class="highlight-row">
+      <input
+        v-model="highlight"
+        type="search"
+        class="form-control highlight-input"
+        placeholder="Highlight a genre, actor, keyword… (optional)"
+        :disabled="generating"
+      >
+    </div>
+
+    <!-- Mosaic target picker: which poster to recreate from all the others -->
+    <div v-if="mode === 'mosaic'" class="mosaic-picker">
+      <div v-if="mosaicTarget" class="mosaic-target">
+        <img :src="`https://image.tmdb.org/t/p/w185${mosaicTarget.movie.poster_path}`" :alt="mosaicTarget.movie.title" class="mosaic-target-poster">
+        <span class="mosaic-target-name">{{ mosaicTarget.movie.title }}</span>
+        <button type="button" class="mosaic-clear" @click="mosaicTarget = null">Change</button>
+      </div>
+      <template v-else>
+        <input
+          v-model="mosaicQuery"
+          type="search"
+          class="form-control highlight-input"
+          placeholder="Search your library for the poster to recreate…"
+          :disabled="generating"
+        >
+        <div v-if="mosaicMatches.length" class="mosaic-matches">
+          <button
+            v-for="match in mosaicMatches"
+            :key="match.dbKey"
+            type="button"
+            class="mosaic-match"
+            @click="mosaicTarget = match; mosaicQuery = ''"
+          >
+            <img :src="`https://image.tmdb.org/t/p/w92${match.movie.poster_path}`" :alt="match.movie.title" class="mosaic-match-poster">
+            <span class="mosaic-match-name">{{ match.movie.title }}</span>
+          </button>
+        </div>
+      </template>
+    </div>
 
     <button
       type="button"
       class="btn-game btn-game-primary generate-btn"
-      :disabled="generating || !selectedEntries.length"
-      @click="generate"
+      :disabled="generating || (mode === 'mosaic' ? !mosaicTarget : !selectedEntries.length)"
+      @click="mode === 'mosaic' ? generateMosaic() : generate()"
     >
-      {{ generating ? `Building… ${progress}/${selectedEntries.length}` : 'Make my poster' }}
+      {{ generating ? `Building… ${progress}/${progressTotal}` : (mode === 'mosaic' ? 'Make my mosaic' : 'Make my poster') }}
     </button>
 
     <p v-if="error" class="poster-error">{{ error }}</p>
@@ -52,7 +95,7 @@
 // pixel sampling already has).
 import BackLink from './games/BackLink.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { pickPosterEntries, gridLayout, tilePosition, posterCaption } from '../assets/javascript/posterArtifact.js';
+import { pickPosterEntries, gridLayout, tilePosition, posterCaption, entryMatchesHighlight, assignMosaicCells } from '../assets/javascript/posterArtifact.js';
 
 const TILE_SOURCE_SIZE = 'w185';
 const LOAD_CONCURRENCY = 12;
@@ -66,7 +109,10 @@ export default {
       generating: false,
       progress: 0,
       resultUrl: null,
-      error: null
+      error: null,
+      highlight: '', // fade non-matching tiles (genre/actor/keyword/director)
+      mosaicQuery: '',
+      mosaicTarget: null // library entry whose poster the mosaic recreates
     };
   },
   computed: {
@@ -77,8 +123,16 @@ export default {
       return [
         { mode: 'top', label: 'My top 100' },
         { mode: 'year', label: 'This year' },
-        { mode: 'all', label: 'Everything' }
+        { mode: 'all', label: 'Everything' },
+        { mode: 'mosaic', label: 'Mosaic' }
       ];
+    },
+    mosaicMatches () {
+      const needle = this.mosaicQuery.trim().toLowerCase();
+      if (!needle) return [];
+      return this.library
+        .filter((entry) => entry?.movie?.poster_path && (entry.movie.title || '').toLowerCase().includes(needle))
+        .slice(0, 8);
     },
     selectedEntries () {
       return pickPosterEntries(this.library, this.mode, getRating);
@@ -87,24 +141,38 @@ export default {
       return gridLayout(this.selectedEntries.length);
     },
     layoutLabel () {
+      if (this.mode === 'mosaic') {
+        return this.mosaicTarget ? `rebuilt from ${this.posterLibrary.length} posters` : 'pick a movie below';
+      }
       return this.layout ? `${this.layout.cols} × ${this.layout.rows} grid` : 'nothing to show yet';
+    },
+    posterLibrary () {
+      return this.library.filter((entry) => entry?.movie?.poster_path);
     },
     canShare () {
       return typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+    },
+    progressTotal () {
+      return this.mode === 'mosaic' ? this.posterLibrary.length : this.selectedEntries.length;
     }
   },
   beforeUnmount () {
     if (this.resultUrl) URL.revokeObjectURL(this.resultUrl);
   },
   methods: {
-    loadTile (path) {
+    loadTile (path, size) {
       return new Promise((resolve) => {
         const image = new Image();
         image.crossOrigin = 'anonymous';
         image.onload = () => resolve(image);
         // A dead poster URL becomes a dark tile rather than a failed poster.
         image.onerror = () => resolve(null);
-        image.src = `https://image.tmdb.org/t/p/${TILE_SOURCE_SIZE}${path}`;
+        // ?canvas=1 misses the service worker's poster cache on purpose: that
+        // cache is full of OPAQUE responses (cached from plain <img> loads),
+        // and serving an opaque response to this crossOrigin request fails —
+        // which is what blanked most tiles (bug report, with screenshot).
+        // The param goes to TMDB directly, which sends real CORS headers.
+        image.src = `https://image.tmdb.org/t/p/${size || TILE_SOURCE_SIZE}${path}?canvas=1`;
       });
     },
     async generate () {
@@ -140,7 +208,16 @@ export default {
             const tile = await this.loadTile(entry.movie.poster_path);
             const { x, y } = tilePosition(index, layout);
             if (tile) {
+              // Highlight mode: non-matching tiles fade back so the matches
+              // pop (feedback: "everything else is... faded out").
+              const matches = entryMatchesHighlight(entry, this.highlight);
+              if (!matches && this.highlight.trim()) {
+                if ('filter' in context) context.filter = 'grayscale(1) brightness(0.3)';
+                else context.globalAlpha = 0.18;
+              }
               context.drawImage(tile, x, y, layout.tileW, layout.tileH);
+              context.filter = 'none';
+              context.globalAlpha = 1;
             } else {
               context.fillStyle = '#2a2a2a';
               context.fillRect(x, y, layout.tileW, layout.tileH);
@@ -153,7 +230,10 @@ export default {
         context.fillStyle = '#ffc107';
         context.font = `${Math.max(24, Math.round(layout.width / 40))}px Georgia, serif`;
         context.textAlign = 'center';
-        context.fillText(posterCaption(this.mode, entries.length), layout.width / 2, layout.height - layout.footer / 2);
+        const caption = this.highlight.trim()
+          ? `${this.highlight.trim()} · ${posterCaption(this.mode, entries.length)}`
+          : posterCaption(this.mode, entries.length);
+        context.fillText(caption, layout.width / 2, layout.height - layout.footer / 2);
 
         const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
         if (!blob) throw new Error('could not export the poster');
@@ -162,6 +242,120 @@ export default {
       } catch (error) {
         console.error('Poster generation failed:', error);
         this.error = "Couldn't build the poster — try again, or try a smaller selection.";
+      } finally {
+        this.generating = false;
+      }
+    },
+    // ---- Mosaic (photomosaic: classic average-color matching, no deps) ----
+    averageColorOf (image) {
+      const probe = document.createElement('canvas');
+      probe.width = 1;
+      probe.height = 1;
+      const ctx = probe.getContext('2d');
+      ctx.drawImage(image, 0, 0, 1, 1);
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+      return { r, g, b };
+    },
+    // Average colors are stable per poster, so they're cached in
+    // localStorage — the SECOND mosaic build skips ~all of the network.
+    readColorCache () {
+      try { return JSON.parse(localStorage.getItem('poster-avg-colors') || '{}'); } catch { return {}; }
+    },
+    async generateMosaic () {
+      if (!this.mosaicTarget || this.generating) return;
+      this.generating = true;
+      this.progress = 0;
+      this.error = null;
+      if (this.resultUrl) {
+        URL.revokeObjectURL(this.resultUrl);
+        this.resultUrl = null;
+      }
+
+      try {
+        // 1. The target poster, downsampled into cells (2:3, like a poster).
+        const COLS = 28;
+        const ROWS = 42;
+        const target = await this.loadTile(this.mosaicTarget.movie.poster_path);
+        if (!target) throw new Error('target poster failed to load');
+        const grid = document.createElement('canvas');
+        grid.width = COLS;
+        grid.height = ROWS;
+        const gridCtx = grid.getContext('2d');
+        gridCtx.drawImage(target, 0, 0, COLS, ROWS);
+        const pixels = gridCtx.getImageData(0, 0, COLS, ROWS).data;
+        const cellColors = [];
+        for (let i = 0; i < COLS * ROWS; i++) {
+          cellColors.push({ r: pixels[i * 4], g: pixels[i * 4 + 1], b: pixels[i * 4 + 2] });
+        }
+
+        // 2. Every library poster's average color (cached across builds).
+        const cache = this.readColorCache();
+        const tiles = this.posterLibrary;
+        const tileColors = new Array(tiles.length);
+        const tileImages = new Array(tiles.length);
+        let nextIndex = 0;
+        const colorWorker = async () => {
+          while (nextIndex < tiles.length) {
+            const index = nextIndex++;
+            const path = tiles[index].movie.poster_path;
+            if (cache[path]) {
+              tileColors[index] = cache[path];
+              this.progress += 1;
+              continue;
+            }
+            const image = await this.loadTile(path, 'w92');
+            if (image) {
+              tileColors[index] = this.averageColorOf(image);
+              tileImages[index] = image;
+              cache[path] = tileColors[index];
+            } else {
+              tileColors[index] = { r: 20, g: 20, b: 20 };
+            }
+            this.progress += 1;
+          }
+        };
+        await Promise.all(Array.from({ length: 12 }, colorWorker));
+        try { localStorage.setItem('poster-avg-colors', JSON.stringify(cache)); } catch { /* full is fine */ }
+
+        // 3. Assignment (pure), then render: each cell is that poster drawn
+        // small, tinted ~35% toward the target color — the standard
+        // photomosaic trick that sharpens the large-image impression.
+        const assignment = assignMosaicCells(cellColors, tileColors);
+        const CELL = 40;
+        const canvas = document.createElement('canvas');
+        canvas.width = COLS * CELL;
+        canvas.height = ROWS * CELL + 60;
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#141414';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < assignment.length; i++) {
+          const tileIdx = assignment[i];
+          const x = (i % COLS) * CELL;
+          const y = Math.floor(i / COLS) * CELL;
+          let image = tileImages[tileIdx];
+          if (!image) {
+            image = await this.loadTile(tiles[tileIdx].movie.poster_path, 'w92');
+            tileImages[tileIdx] = image;
+          }
+          if (image) context.drawImage(image, x, y, CELL, CELL);
+          const c = cellColors[i];
+          context.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.38)`;
+          context.fillRect(x, y, CELL, CELL);
+        }
+
+        context.fillStyle = '#ffc107';
+        context.font = '24px Georgia, serif';
+        context.textAlign = 'center';
+        context.fillText(`${this.mosaicTarget.movie.title} · made of ${tiles.length} movies · Cinema Roll`, canvas.width / 2, canvas.height - 22);
+
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (!blob) throw new Error('could not export the mosaic');
+        this.resultBlob = blob;
+        this.resultUrl = URL.createObjectURL(blob);
+      } catch (error) {
+        console.error('Mosaic generation failed:', error);
+        this.error = "Couldn't build the mosaic — try again.";
       } finally {
         this.generating = false;
       }
@@ -191,6 +385,83 @@ export default {
   color: #eee;
   padding: 2.5rem 1rem 2rem;
   text-align: center;
+}
+
+.highlight-row,
+.mosaic-picker {
+  margin: 0 auto 0.75rem;
+  max-width: 420px;
+}
+
+.highlight-input {
+  background: #101010;
+  border-color: #3a3a3a;
+  color: #eee;
+  min-width: 0;
+
+  &::placeholder { color: #888; }
+  &:focus { background: #101010; border-color: #666; box-shadow: none; color: #eee; }
+}
+
+.mosaic-matches {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+
+.mosaic-match {
+  background: none;
+  border: none;
+  color: #ccc;
+  flex: 0 0 72px;
+  padding: 0;
+  width: 72px;
+}
+
+.mosaic-match-poster {
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
+  height: 108px;
+  object-fit: cover;
+  width: 72px;
+}
+
+.mosaic-match-name {
+  display: block;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  margin-top: 0.25rem;
+}
+
+.mosaic-target {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.3rem;
+}
+
+.mosaic-target-poster {
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
+  height: 138px;
+  width: 92px;
+}
+
+.mosaic-target-name {
+  color: #eee;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.mosaic-clear {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 0.75rem;
+  min-height: 32px;
+  text-decoration: underline;
 }
 
 .poster-title {
