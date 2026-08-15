@@ -48,6 +48,23 @@ describe('GamesHub', () => {
     expect(window.localStorage.getItem(LAST_PLAYED_KEY)).toBeNull();
   });
 
+  describe('play-count ordering (bug report: "the ones you played the most go to the top")', () => {
+    it('orders tiles by recorded play sessions, most-played first', () => {
+      const { wrapper } = factory(10, { games: { plays: { stamp: 5, wordle: 2 } } });
+      const alts = wrapper.findAll('.game-tile-image').map((img) => img.attributes('alt'));
+      expect(alts[0]).toBe('Stamp');
+      expect(alts[1]).toBe('Reel Wordle');
+      expect(alts).toHaveLength(10);
+    });
+
+    it('keeps the hand-curated order for ties, including the no-plays default', () => {
+      const { wrapper } = factory(10);
+      const alts = wrapper.findAll('.game-tile-image').map((img) => img.attributes('alt'));
+      expect(alts[0]).toBe('Higher or Lower');
+      expect(alts[alts.length - 1]).toBe('Stamp');
+    });
+  });
+
   it('shows a gate message when the library is too small', () => {
     const { wrapper } = factory(2);
     expect(wrapper.find('.not-enough-movies').exists()).toBe(true);

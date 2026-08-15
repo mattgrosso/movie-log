@@ -15,7 +15,7 @@
 
     <div v-else class="game-tile-grid">
       <button
-        v-for="game in games"
+        v-for="game in orderedGames"
         :key="game.path"
         type="button"
         class="game-tile"
@@ -141,6 +141,19 @@ export default {
         }
       ]
     };
+  },
+  computed: {
+    // Feature request: "the order of the games in the games menu should
+    // change based on which games you've played the most... the ones you
+    // played the most go to the top." Sorted by recorded play sessions
+    // (gameData.recordGamePlay); ties keep the hand-curated order above.
+    orderedGames () {
+      const plays = this.$store.state?.settings?.games?.plays || {};
+      return this.games
+        .map((game, index) => ({ game, plays: plays[gameWinKey(game.path)] || 0, index }))
+        .sort((a, b) => b.plays - a.plays || a.index - b.index)
+        .map(({ game }) => game);
+    }
   },
   methods: {
     // A stamp that isn't today's simply reads as "not won today" — nothing

@@ -93,6 +93,7 @@ export default {
         // localStorage can throw in private-browsing/quota-exceeded situations;
         // harmless to skip, it just means goToGames falls back to the hub.
       }
+      this.recordGamePlay();
     }
   },
   computed: {
@@ -105,6 +106,19 @@ export default {
     }
   },
   methods: {
+    // Feature request: "the order of the games in the games menu should
+    // change based on which games you've played the most... it has to be
+    // individual sessions." A session is one visit to a game screen (this
+    // mixin's created() fires it), not each round within a visit —
+    // settings/games/plays/<key> is a plain lifetime counter. Recorded here
+    // in the shared mixin so no individual game can forget to. dispatch is
+    // optional-chained because several test mocks stub $store without it.
+    recordGamePlay () {
+      const key = gameWinKey(this.$route?.path);
+      if (!key) return;
+      const current = this.$store.state?.settings?.games?.plays?.[key] || 0;
+      this.$store.dispatch?.('writeDurably', { path: `settings/games/plays/${key}`, value: current + 1 });
+    },
     // Called by each game at ITS OWN definition of a win. For the games with
     // a discrete win state (Wordle/Connections/Six Degrees/Clue Budget/
     // Trivia) that's unambiguous; for the endless streak games (Higher or
