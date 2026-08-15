@@ -38,6 +38,12 @@ first attempt at the games scroll-to-top do nothing at all.
 
 ## Style calls Matt has made
 
+- **Poster/photo rows: images edge-aligned, text flows.** In any horizontal
+  row of posters or photos, every image's top AND bottom edge must line up:
+  fixed image height + `align-items: flex-start` on the row. Text below an
+  image may grow to any number of lines — never clamp, ellipse, or
+  fixed-height it; the cards just get taller (2026-08-15).
+
 - **No left-edge accent bars** (the Bootstrap-ish colored strip on a panel's left
   edge as the only stroke of color) — he's said he's "not that into it" (2026-08-15,
   Trophy Case films panel). Prefer neutral surfaces (#161616/#2e2e2e border) and show

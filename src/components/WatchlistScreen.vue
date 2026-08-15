@@ -258,6 +258,9 @@ export default {
 }
 
 .rewatch-row {
+  /* Poster-row rule: fixed image heights + top alignment; titles below
+     flow to any length without disturbing the posters. */
+  align-items: flex-start;
   display: flex;
   gap: 0.75rem;
   overflow-x: auto;

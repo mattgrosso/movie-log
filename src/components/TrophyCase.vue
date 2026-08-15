@@ -664,14 +664,10 @@ export default {
   font-weight: 600;
   line-height: 1.2;
   margin-top: 0.1rem;
-  /* A long name must never push the row around: clamp to exactly two
-     lines' worth of space so every card is the same height and the
-     photos stay perfectly aligned. */
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  display: -webkit-box;
-  height: 1.95em;
-  overflow: hidden;
+  /* Never clamp or truncate names. Alignment comes from the row's
+     align-items: flex-start + fixed image heights: every photo's top and
+     bottom edge lines up, and text below flows as long as it needs. */
+  overflow-wrap: break-word;
 }
 
 .decorated-count {
@@ -710,6 +706,9 @@ export default {
 }
 
 .person-films-row {
+  /* Same poster-row rule as .decorated-list: images stay edge-aligned,
+     captions below grow freely. */
+  align-items: flex-start;
   display: flex;
   gap: 0.75rem;
   overflow-x: auto;
