@@ -66,7 +66,11 @@ const TUNING_DEFAULTS = Object.freeze({
   confidenceNumber: 1,
   countWeight: 0.5,
   knownForWeight: 0.2,
-  directionWeight: 0.5
+  directionWeight: 0.5,
+  // Log Score rank weight (Brian-survey A8/A9): favorites rewarded via
+  // declining weights R/(R+i) over a director's films sorted best-first.
+  // High = every film counts near-equally; low = their best work dominates.
+  rankWeight: 7
 });
 
 export default {
@@ -88,6 +92,7 @@ export default {
       //   Increase: Only directors you've seen more movies from will appear (list is more exclusive).
       //   Decrease: Directors with fewer movies seen can appear (list is more inclusive).
       confidenceNumber: TUNING_DEFAULTS.confidenceNumber,
+      rankWeight: TUNING_DEFAULTS.rankWeight,
       // confidenceNumber: Controls how much the global average rating influences the Bayesian average.
       countWeight: TUNING_DEFAULTS.countWeight,
       // countWeight: Controls how much the number of movies seen from a director boosts their score.
@@ -115,6 +120,15 @@ export default {
           max: 15,
           step: 1,
           help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
+        },
+        {
+          key: 'rankWeight',
+          label: 'Best-work emphasis',
+          value: this.rankWeight,
+          min: 1,
+          max: 15,
+          step: 1,
+          help: 'Their films count best-first with declining weight (the Log Score). Lower = masterpieces dominate; higher = the whole filmography matters.'
         },
         {
           key: 'confidenceNumber',
@@ -178,21 +192,21 @@ export default {
         return !isNaN(r) && (!weights || weights[idx] > 0);
       });
       if (ratedMovies.length === 0) return 0;
-      if (weights) {
-        let weightedSum = 0;
-        let totalWeight = 0;
-        ratedMovies.forEach((result, idx) => {
-          const rating = getBlendedRating(result);
-          const weight = weights[idx];
-          weightedSum += rating * weight;
-          totalWeight += weight;
-        });
-        return (weightedSum / totalWeight).toFixed(2);
-      } else {
-        const ratings = ratedMovies.map(getBlendedRating);
-        const total = ratings.reduce((a, b) => a + b, 0);
-        return (total / ratings.length).toFixed(2);
-      }
+      // Log Score rank weighting (A8): every film's contribution declines
+      // by its RANK among this director's films — R/(R+i), best first —
+      // multiplied into any per-credit weights already in play.
+      const R = Number.isFinite(this.rankWeight) && this.rankWeight > 0 ? this.rankWeight : 7;
+      const scored = ratedMovies
+        .map((result, idx) => ({ rating: getBlendedRating(result), weight: weights ? weights[idx] : 1 }))
+        .sort((a, b) => b.rating - a.rating);
+      let weightedSum = 0;
+      let totalWeight = 0;
+      scored.forEach(({ rating, weight }, rank) => {
+        const w = weight * (R / (R + rank));
+        weightedSum += rating * w;
+        totalWeight += w;
+      });
+      return (weightedSum / totalWeight).toFixed(2);
     },
     async buildTopTwelveList () {
       // Phase 1 (runs once per data load): gather every director and their rated
