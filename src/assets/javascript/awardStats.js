@@ -80,6 +80,158 @@ export function rankPeople (entries, { limit = DEFAULT_LIMIT, minCount = DEFAULT
     .slice(0, limit);
 }
 
+// --- Derived shapes (user feedback: "the sections where you list every
+// winner from each of the years... is not interesting... identify some more
+// interesting data shapes") -----------------------------------------------
+
+// Biggest single-year hauls: (movie, year) pairs ranked by how many
+// categories that film won at that ceremony. A person's win counts for
+// their film (the note at the top), which is exactly what makes a sweep.
+export function rankSweeps (wins, { limit = DEFAULT_LIMIT, minCount = 3 } = {}) {
+  const byMovieYear = new Map();
+
+  (wins || []).forEach((entry) => {
+    const movie = entry.expanded?.movie;
+    if (!movie || movie.id == null) return;
+    const key = `${movie.id}|${entry.year}`;
+    if (!byMovieYear.has(key)) byMovieYear.set(key, { movieId: movie.id, movie, year: entry.year, count: 0 });
+    byMovieYear.get(key).count += 1;
+  });
+
+  return [...byMovieYear.values()]
+    .filter((sweep) => sweep.count >= minCount)
+    .sort((a, b) => b.count - a.count || b.year - a.year)
+    .slice(0, limit);
+}
+
+// People who won in consecutive ceremonies: the longest run of back-to-back
+// years with at least one win. Ties by earlier start year, then name.
+export function winStreaks (wins, { limit = DEFAULT_LIMIT, minLength = 2 } = {}) {
+  const yearsByName = new Map();
+  (wins || []).forEach((entry) => {
+    if (!isPerson(entry.expanded)) return;
+    const name = entry.expanded.name;
+    if (!yearsByName.has(name)) yearsByName.set(name, { years: new Set(), sample: entry });
+    yearsByName.get(name).years.add(entry.year);
+  });
+
+  const streaks = [];
+  yearsByName.forEach(({ years, sample }, name) => {
+    const sorted = [...years].sort((a, b) => a - b);
+    let best = { length: 1, start: sorted[0], end: sorted[0] };
+    let runStart = sorted[0];
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] !== sorted[i - 1] + 1) runStart = sorted[i];
+      const length = sorted[i] - runStart + 1;
+      if (length > best.length) best = { length, start: runStart, end: sorted[i] };
+    }
+    if (best.length >= minLength) {
+      streaks.push({ name, length: best.length, startYear: best.start, endYear: best.end, sample });
+    }
+  });
+
+  return streaks
+    .sort((a, b) => b.length - a.length || a.startYear - b.startYear || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+// Category ownership: (person, category) pairs ranked by wins in that ONE
+// category — "4× Best Director" is a different brag than four scattered wins.
+export function categoryOwners (wins, { limit = DEFAULT_LIMIT, minCount = 2 } = {}) {
+  const byPersonCategory = new Map();
+
+  (wins || []).forEach((entry) => {
+    if (!isPerson(entry.expanded)) return;
+    const key = `${entry.expanded.name}|${entry.categoryKey}`;
+    if (!byPersonCategory.has(key)) {
+      byPersonCategory.set(key, { name: entry.expanded.name, categoryKey: entry.categoryKey, count: 0, sample: entry });
+    }
+    byPersonCategory.get(key).count += 1;
+  });
+
+  return [...byPersonCategory.values()]
+    .filter((owner) => owner.count >= minCount)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+// The overdue: people whose first WIN came years after their first
+// nomination — nominated, passed over, nominated again, finally paid off.
+export function longestWaits (nominations, wins, { limit = DEFAULT_LIMIT, minYears = 3 } = {}) {
+  const firstNomination = new Map();
+  (nominations || []).forEach((entry) => {
+    if (!isPerson(entry.expanded)) return;
+    const name = entry.expanded.name;
+    if (!firstNomination.has(name) || entry.year < firstNomination.get(name)) firstNomination.set(name, entry.year);
+  });
+
+  const firstWin = new Map();
+  (wins || []).forEach((entry) => {
+    if (!isPerson(entry.expanded)) return;
+    const name = entry.expanded.name;
+    if (!firstWin.has(name) || entry.year < firstWin.get(name).year) firstWin.set(name, { year: entry.year, sample: entry });
+  });
+
+  const waits = [];
+  firstWin.forEach(({ year, sample }, name) => {
+    const nominatedSince = firstNomination.get(name);
+    if (nominatedSince == null) return;
+    const wait = year - nominatedSince;
+    if (wait >= minYears) waits.push({ name, wait, firstNomination: nominatedSince, firstWin: year, sample });
+  });
+
+  return waits
+    .sort((a, b) => b.wait - a.wait || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+// "Robbed, by your own ratings": categories where the movie you rated
+// highest LOST to a lower-rated winner, ranked by the size of the gap.
+// `ratingForMovieId(movieId) -> number|null` comes from the caller (ratings
+// need GetRating + the store's weights, which this module can't reach).
+export function rankUpsets (wins, nominations, ratingForMovieId, { limit = DEFAULT_LIMIT, minGap = 0.5 } = {}) {
+  const winnersByContest = new Map();
+  (wins || []).forEach((entry) => {
+    const movie = entry.expanded?.movie;
+    if (!movie || movie.id == null) return;
+    winnersByContest.set(`${entry.year}|${entry.categoryKey}`, entry);
+  });
+
+  const upsets = [];
+  winnersByContest.forEach((winnerEntry, contestKey) => {
+    const [year, categoryKey] = contestKey.split('|');
+    const winnerMovie = winnerEntry.expanded.movie;
+    const winnerRating = ratingForMovieId(winnerMovie.id);
+    if (!Number.isFinite(winnerRating)) return;
+
+    let robbed = null;
+    (nominations || []).forEach((entry) => {
+      if (entry.year !== Number(year) || entry.categoryKey !== categoryKey) return;
+      const movie = entry.expanded?.movie;
+      if (!movie || movie.id == null || movie.id === winnerMovie.id) return;
+      const rating = ratingForMovieId(movie.id);
+      if (!Number.isFinite(rating)) return;
+      if (!robbed || rating > robbed.rating) robbed = { entry, rating };
+    });
+
+    if (robbed && robbed.rating - winnerRating >= minGap) {
+      upsets.push({
+        year: Number(year),
+        categoryKey,
+        winner: winnerEntry.expanded,
+        winnerRating,
+        robbed: robbed.entry.expanded,
+        robbedRating: robbed.rating,
+        gap: robbed.rating - winnerRating
+      });
+    }
+  });
+
+  return upsets
+    .sort((a, b) => b.gap - a.gap || b.year - a.year)
+    .slice(0, limit);
+}
+
 // The "always the bridesmaid" shelf (user request: "the ability to see who
 // has the most nominations without a win"): people ranked by nomination
 // count, EXCLUDING anyone who has ever won — in any category, any year. A

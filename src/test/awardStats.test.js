@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins } from '@/assets/javascript/awardStats.js';
+import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins, rankSweeps, winStreaks, categoryOwners, longestWaits, rankUpsets } from '@/assets/javascript/awardStats.js';
 
 function libraryEntry (id, title) {
   return { dbKey: `key-${id}`, movie: { id, title, poster_path: `/${id}.jpg` } };
@@ -95,6 +95,112 @@ describe('rankPeople', () => {
     const { nominations } = collectAwardEntries(personalAwards, library);
     expect(rankPeople(nominations)).toHaveLength(0); // one nod, below default minCount
     expect(rankPeople(nominations, { minCount: 1 })).toHaveLength(1);
+  });
+});
+
+describe('derived shapes (feedback: "identify some more interesting data shapes")', () => {
+  const win = (year, categoryKey, expanded) => ({ year, categoryKey, expanded });
+  const personExp = (name, movieId = 1) => ({ name, movieId, movie: { id: movieId, title: `Film ${movieId}` } });
+  const movieExp = (movieId, title = `Film ${movieId}`) => ({ movie: { id: movieId, title } });
+
+  describe('rankSweeps', () => {
+    it('counts a single film\'s wins within ONE year, people included', () => {
+      const wins = [
+        win(1997, 'bestPicture', movieExp(11, 'Titanic')),
+        win(1997, 'bestDirector', personExp('James Cameron', 11)),
+        win(1997, 'bestCinematography', movieExp(11, 'Titanic')),
+        win(1998, 'bestPicture', movieExp(11, 'Titanic')), // different year: separate
+        win(1997, 'bestActor', personExp('Someone', 22))
+      ];
+      const sweeps = rankSweeps(wins);
+      expect(sweeps).toHaveLength(1);
+      expect(sweeps[0]).toMatchObject({ movieId: 11, year: 1997, count: 3 });
+    });
+  });
+
+  describe('winStreaks', () => {
+    it('finds the longest consecutive-year run per person', () => {
+      const wins = [
+        win(1994, 'bestDirector', personExp('Streaky', 1)),
+        win(1995, 'bestDirector', personExp('Streaky', 2)),
+        win(1996, 'bestActor', personExp('Streaky', 3)),
+        win(1999, 'bestDirector', personExp('Streaky', 4)), // gap breaks the run
+        win(2001, 'bestActor', personExp('One Off', 5))
+      ];
+      const streaks = winStreaks(wins);
+      expect(streaks).toHaveLength(1);
+      expect(streaks[0]).toMatchObject({ name: 'Streaky', length: 3, startYear: 1994, endYear: 1996 });
+    });
+
+    it('two wins in the SAME year is not a streak', () => {
+      const wins = [
+        win(1994, 'bestDirector', personExp('Doubled', 1)),
+        win(1994, 'bestScreenplayOrWriting', personExp('Doubled', 1))
+      ];
+      expect(winStreaks(wins)).toEqual([]);
+    });
+  });
+
+  describe('categoryOwners', () => {
+    it('ranks (person, category) pairs — scattered wins across categories do not count together', () => {
+      const wins = [
+        win(1990, 'bestDirector', personExp('Auteur', 1)),
+        win(1993, 'bestDirector', personExp('Auteur', 2)),
+        win(1998, 'bestDirector', personExp('Auteur', 3)),
+        win(1991, 'bestActor', personExp('Auteur', 4)),
+        win(1992, 'bestActor', personExp('Spread', 5)),
+        win(1994, 'bestDirector', personExp('Spread', 6))
+      ];
+      const owners = categoryOwners(wins, { minCount: 3 });
+      expect(owners).toHaveLength(1);
+      expect(owners[0]).toMatchObject({ name: 'Auteur', categoryKey: 'bestDirector', count: 3 });
+    });
+  });
+
+  describe('longestWaits', () => {
+    it('measures first nomination to first win', () => {
+      const nominations = [
+        win(1985, 'bestActor', personExp('Overdue', 1)),
+        win(1990, 'bestActor', personExp('Overdue', 2)),
+        win(1994, 'bestActor', personExp('Overdue', 3)),
+        win(1994, 'bestActor', personExp('Instant', 4))
+      ];
+      const wins = [
+        win(1994, 'bestActor', personExp('Overdue', 3)),
+        win(1994, 'bestActor', personExp('Instant', 4))
+      ];
+      const waits = longestWaits(nominations, wins);
+      expect(waits).toHaveLength(1);
+      expect(waits[0]).toMatchObject({ name: 'Overdue', wait: 9, firstNomination: 1985, firstWin: 1994 });
+    });
+  });
+
+  describe('rankUpsets', () => {
+    it('flags a category where your highest-rated nominee lost, ranked by rating gap', () => {
+      const wins = [win(1997, 'bestPicture', movieExp(11, 'The Winner'))];
+      const nominations = [
+        win(1997, 'bestPicture', movieExp(11, 'The Winner')),
+        win(1997, 'bestPicture', movieExp(22, 'The Robbed')),
+        win(1997, 'bestPicture', movieExp(33, 'Also Ran'))
+      ];
+      const ratings = new Map([[11, 7.2], [22, 9.1], [33, 8.0]]);
+
+      const upsets = rankUpsets(wins, nominations, (id) => ratings.get(id) ?? null);
+
+      expect(upsets).toHaveLength(1);
+      expect(upsets[0].robbed.movie.title).toBe('The Robbed');
+      expect(upsets[0].gap).toBeCloseTo(1.9);
+    });
+
+    it('no upset when the winner was also your best-rated, or the gap is trivial', () => {
+      const wins = [win(1997, 'bestPicture', movieExp(11))];
+      const nominations = [
+        win(1997, 'bestPicture', movieExp(11)),
+        win(1997, 'bestPicture', movieExp(22))
+      ];
+      expect(rankUpsets(wins, nominations, (id) => (id === 11 ? 9 : 8))).toEqual([]);
+      expect(rankUpsets(wins, nominations, (id) => (id === 11 ? 8 : 8.2))).toEqual([]); // gap under 0.5
+    });
   });
 });
 

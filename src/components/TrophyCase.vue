@@ -91,17 +91,69 @@
         </div>
       </div>
 
-      <div v-for="category in categoriesInOrder" :key="category.key" class="trophy-category">
-        <h2 class="section-title">{{ category.name }}</h2>
-        <div class="trophy-row">
-          <div v-for="win in categorizedWins[category.key]" :key="`${win.year}-${winnerKey(win.expanded)}`" class="trophy-card" @click="goToMovie(win)">
-            <img v-if="winnerImage(win.expanded)" :src="winnerImage(win.expanded)" :alt="winnerTitle(win.expanded)" class="trophy-image">
-            <div v-else class="trophy-image trophy-image-placeholder">{{ winnerTitle(win.expanded).charAt(0) }}</div>
-            <div class="trophy-year">{{ win.year }}</div>
-            <div class="trophy-title">{{ winnerTitle(win.expanded) }}</div>
-            <div v-if="win.expanded.movie && win.expanded.name" class="trophy-subtitle">{{ win.expanded.movie.title }}</div>
+      <!-- User feedback: the per-category winner lists ("just every winner
+           from each of the years going back") carried no insight and are
+           gone. Everything below is a DERIVED shape — see awardStats.js. -->
+      <div v-if="biggestSweeps.length" class="most-decorated">
+        <h2 class="section-title">Biggest Sweeps</h2>
+        <div class="decorated-list">
+          <div v-for="sweep in biggestSweeps" :key="`${sweep.movieId}-${sweep.year}`" class="decorated-person" @click="goToMovieId(sweep.movieId)">
+            <img v-if="sweep.movie.poster_path" :src="`https://image.tmdb.org/t/p/w185${sweep.movie.poster_path}`" :alt="sweep.movie.title" class="decorated-poster">
+            <div v-else class="decorated-poster decorated-photo-placeholder">{{ sweep.movie.title.charAt(0) }}</div>
+            <div class="decorated-name">{{ sweep.movie.title }}</div>
+            <div class="decorated-count">{{ sweep.count }} wins · {{ sweep.year }}</div>
           </div>
         </div>
+      </div>
+
+      <div v-if="backToBackWinners.length" class="most-decorated">
+        <h2 class="section-title">Back-to-Back</h2>
+        <div class="decorated-list">
+          <div v-for="streak in backToBackWinners" :key="streak.name" class="decorated-person" @click="searchForPerson(streak.name)">
+            <img v-if="winnerImage(streak.sample.expanded)" :src="winnerImage(streak.sample.expanded)" :alt="streak.name" class="decorated-photo">
+            <div v-else class="decorated-photo decorated-photo-placeholder">{{ streak.name.charAt(0) }}</div>
+            <div class="decorated-name">{{ streak.name }}</div>
+            <div class="decorated-count">{{ streak.length }} years running · {{ streak.startYear }}–{{ String(streak.endYear).slice(2) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="categoryOwnersList.length" class="most-decorated">
+        <h2 class="section-title">Owns the Category</h2>
+        <div class="decorated-list">
+          <div v-for="owner in categoryOwnersList" :key="`${owner.name}-${owner.categoryKey}`" class="decorated-person" @click="searchForPerson(owner.name)">
+            <img v-if="winnerImage(owner.sample.expanded)" :src="winnerImage(owner.sample.expanded)" :alt="owner.name" class="decorated-photo">
+            <div v-else class="decorated-photo decorated-photo-placeholder">{{ owner.name.charAt(0) }}</div>
+            <div class="decorated-name">{{ owner.name }}</div>
+            <div class="decorated-count">{{ owner.count }}× {{ categoryName(owner.categoryKey) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="overdueWinners.length" class="most-decorated">
+        <h2 class="section-title">Worth the Wait</h2>
+        <div class="decorated-list">
+          <div v-for="wait in overdueWinners" :key="wait.name" class="decorated-person" @click="searchForPerson(wait.name)">
+            <img v-if="winnerImage(wait.sample.expanded)" :src="winnerImage(wait.sample.expanded)" :alt="wait.name" class="decorated-photo">
+            <div v-else class="decorated-photo decorated-photo-placeholder">{{ wait.name.charAt(0) }}</div>
+            <div class="decorated-name">{{ wait.name }}</div>
+            <div class="decorated-count">won after {{ wait.wait }} years · first nod {{ wait.firstNomination }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Your own ratings vs your own ceremony picks. -->
+      <div v-if="upsets.length" class="most-decorated">
+        <h2 class="section-title">Robbed, By Your Own Ratings</h2>
+        <ul class="upset-list">
+          <li v-for="upset in upsets" :key="`${upset.year}-${upset.categoryKey}`" class="upset-row" @click="goToMovieId(upset.robbed.movie.id)">
+            <span class="upset-context">{{ upset.year }} · {{ categoryName(upset.categoryKey) }}</span>
+            <span class="upset-text">
+              <strong>{{ upset.robbed.name || upset.robbed.movie.title }}</strong> ({{ upset.robbedRating.toFixed(1) }})
+              lost to {{ upset.winner.name || upset.winner.movie.title }} ({{ upset.winnerRating.toFixed(1) }})
+            </span>
+          </li>
+        </ul>
       </div>
     </template>
   </div>
@@ -110,7 +162,8 @@
 <script>
 import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
 import { expandNomineeFromMinimal } from '../assets/javascript/personalAwards.js';
-import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins } from '../assets/javascript/awardStats.js';
+import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins, rankSweeps, winStreaks, categoryOwners, longestWaits, rankUpsets } from '../assets/javascript/awardStats.js';
+import { getRating } from '../assets/javascript/GetRating.js';
 
 export default {
   name: 'TrophyCase',
@@ -162,9 +215,6 @@ export default {
 
       return byCategory;
     },
-    categoriesInOrder () {
-      return PERSONAL_AWARD_CATEGORIES.filter((category) => this.categorizedWins[category.key]?.length);
-    },
     totalWins () {
       return Object.values(this.categorizedWins).reduce((sum, wins) => sum + wins.length, 0);
     },
@@ -189,6 +239,33 @@ export default {
     },
     mostNominatedNeverWon () {
       return rankPeopleWithoutWins(this.awardEntries.nominations, this.awardEntries.wins);
+    },
+    biggestSweeps () {
+      return rankSweeps(this.awardEntries.wins);
+    },
+    backToBackWinners () {
+      return winStreaks(this.awardEntries.wins);
+    },
+    categoryOwnersList () {
+      return categoryOwners(this.awardEntries.wins, { minCount: 3 });
+    },
+    overdueWinners () {
+      return longestWaits(this.awardEntries.nominations, this.awardEntries.wins);
+    },
+    // One getRating pass over the library, shared by every upset lookup —
+    // never inside the ranking itself (GetRating is uncached).
+    ratingByMovieId () {
+      const map = new Map();
+      (this.$store.getters.allMediaAsArray || []).forEach((entry) => {
+        if (entry?.movie?.id == null) return;
+        const rating = getRating(entry)?.calculatedTotal;
+        if (Number.isFinite(rating)) map.set(entry.movie.id, rating);
+      });
+      return map;
+    },
+    upsets () {
+      const ratings = this.ratingByMovieId;
+      return rankUpsets(this.awardEntries.wins, this.awardEntries.nominations, (movieId) => ratings.get(movieId) ?? null, { limit: 8 });
     },
     mostAwardedMovies () {
       return rankMovies(this.awardEntries.wins);
@@ -231,11 +308,8 @@ export default {
     }
   },
   methods: {
-    winnerKey (expanded) {
-      return expanded.id || expanded.movie?.id || expanded.name;
-    },
-    winnerTitle (expanded) {
-      return expanded.name || expanded.movie?.title || 'Unknown';
+    categoryName (categoryKey) {
+      return PERSONAL_AWARD_CATEGORIES.find((category) => category.key === categoryKey)?.name || categoryKey;
     },
     // A PERSON gets a picture of the person - never a poster of one of
     // their films (bug report: "I don't wanna show Steven Spielberg but
@@ -353,11 +427,6 @@ export default {
   padding-bottom: 0.35rem;
 }
 
-.trophy-category {
-  margin-bottom: 1.75rem;
-}
-
-.trophy-row,
 .decorated-list {
   display: flex;
   gap: 0.9rem;
@@ -365,7 +434,6 @@ export default {
   padding-bottom: 0.4rem;
 }
 
-.trophy-card,
 .decorated-person {
   cursor: pointer;
   flex: 0 0 auto;
@@ -373,7 +441,6 @@ export default {
   width: 100px;
 }
 
-.trophy-image,
 .decorated-photo {
   border-radius: 0.35rem;
   height: 140px;
@@ -381,7 +448,6 @@ export default {
   width: 100px;
 }
 
-.trophy-image-placeholder,
 /* Same footprint as .decorated-photo so the movie leaderboards line up with
    the people ones - posters just aren't cropped, since a cropped poster
    loses the title. */
@@ -402,25 +468,11 @@ export default {
   justify-content: center;
 }
 
-.trophy-year {
-  color: #ffc107;
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-top: 0.35rem;
-}
-
-.trophy-title,
 .decorated-name {
   font-size: 0.8rem;
   font-weight: 600;
   line-height: 1.2;
   margin-top: 0.1rem;
-}
-
-.trophy-subtitle {
-  color: #adb5bd;
-  font-size: 0.7rem;
-  line-height: 1.2;
 }
 
 .decorated-count {
@@ -430,5 +482,41 @@ export default {
 
 .most-decorated {
   margin-bottom: 2rem;
+}
+
+.upset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.upset-row {
+  background: #1a1a1a;
+  border-left: 3px solid #ff6a6a;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Mobile-first: press feedback only. */
+.upset-row:active {
+  background: #242424;
+}
+
+.upset-context {
+  color: #adb5bd;
+  display: block;
+  font-size: 0.7rem;
+  margin-bottom: 0.15rem;
+}
+
+.upset-text {
+  color: #ccc;
+  font-size: 0.85rem;
+
+  strong {
+    color: #ff6a6a;
+  }
 }
 </style>

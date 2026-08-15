@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import TrophyCase from '@/components/TrophyCase.vue';
 
+// TrophyCase computes an upsets shelf from ratings now — mock GetRating so
+// fixtures can carry simple calculatedTotals (the real one needs the store's
+// weight getters and full criteria).
+vi.mock('@/assets/javascript/GetRating.js', () => ({
+  getRating: vi.fn((entry) => ({ calculatedTotal: entry.ratings?.[0]?.calculatedTotal }))
+}));
+
 function libraryEntry (id, title, posterPath = '/p.jpg') {
   return { dbKey: `key-${id}`, movie: { id, title, poster_path: posterPath } };
 }
@@ -46,11 +53,11 @@ describe('TrophyCase', () => {
     };
     const { wrapper } = mountTrophyCase(personalAwards, library)
 
-    expect(wrapper.vm.categorizedWins.bestPicture.map((w) => w.year)).toEqual([2020, 2010])
     expect(wrapper.vm.totalWins).toBe(2)
     expect(wrapper.vm.yearsRepresented).toBe(2)
-    expect(wrapper.text()).toContain('New Winner')
-    expect(wrapper.text()).toContain('Old Winner')
+    // Feedback: "just every winner from each of the years going back is not
+    // interesting" — the flat per-category rows must NOT render anymore.
+    expect(wrapper.find('.trophy-category').exists()).toBe(false)
   })
 
   it('expands person-category wins with their name and movie', () => {
@@ -63,7 +70,6 @@ describe('TrophyCase', () => {
     const win = wrapper.vm.categorizedWins.bestDirector[0]
     expect(win.expanded.name).toBe('A Director')
     expect(win.expanded.movie.title).toBe('A Great Film')
-    expect(wrapper.text()).toContain('A Director')
   })
 
   it('surfaces people who have won more than once as "Most Decorated", sorted by count', () => {
@@ -151,14 +157,24 @@ describe('TrophyCase', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('movie-category winners still show their poster', () => {
-    const library = [libraryEntry(1, 'Best Film', '/best.jpg')]
+  it('a sweep card shows the movie poster and its single-year win count', () => {
+    const library = [libraryEntry(7, 'Sweeper', '/sweep.jpg')]
     const personalAwards = {
-      2020: { categories: { bestPicture: { winner: { type: 'movie', movieId: 1 } } } }
+      2021: {
+        categories: {
+          bestPicture: { winner: { type: 'movie', movieId: 7 } },
+          bestDirector: { winner: { type: 'person', id: 'd', name: 'Solo Director', movieId: 7 } },
+          bestEditing: { winner: { type: 'movie', movieId: 7 } }
+        }
+      }
     }
     const { wrapper } = mountTrophyCase(personalAwards, library)
 
-    expect(wrapper.find('.trophy-image').attributes('src')).toContain('/best.jpg')
+    expect(wrapper.text()).toContain('Biggest Sweeps')
+    expect(wrapper.text()).toContain('3 wins · 2021')
+    const poster = wrapper.find('.decorated-poster')
+    expect(poster.element.tagName).toBe('IMG')
+    expect(poster.attributes('src')).toContain('/sweep.jpg')
   })
 
   it('does not throw when the winning movie is no longer in the library', () => {
@@ -170,14 +186,27 @@ describe('TrophyCase', () => {
     expect(wrapper.find('.empty-state').exists()).toBe(true)
   })
 
-  it('clicking a trophy card navigates to that movie', async () => {
+  it('tapping a sweep card opens that movie, and the derived shelves render together', async () => {
     const library = [libraryEntry(7, 'Clickable Film')]
     const personalAwards = {
-      2021: { categories: { bestPicture: { winner: { type: 'movie', movieId: 7 } } } }
+      2019: { categories: { bestDirector: { nominees: [{ type: 'person', id: 'd', name: 'Waited', movieId: 7 }], winner: null } } },
+      2021: {
+        categories: {
+          bestPicture: { winner: { type: 'movie', movieId: 7 } },
+          bestDirector: { winner: { type: 'person', id: 'd', name: 'Waited', movieId: 7 } },
+          bestEditing: { winner: { type: 'movie', movieId: 7 } }
+        }
+      },
+      2022: { categories: { bestDirector: { winner: { type: 'person', id: 'd', name: 'Waited', movieId: 7 } } } }
     }
     const { wrapper, pushSpy } = mountTrophyCase(personalAwards, library)
 
-    await wrapper.find('.trophy-card').trigger('click')
+    // Back-to-Back: Waited won 2021 and 2022.
+    expect(wrapper.text()).toContain('Back-to-Back')
+    expect(wrapper.text()).toContain('2 years running')
+
+    const sweepSection = wrapper.findAll('.most-decorated').find((section) => section.text().includes('Biggest Sweeps'))
+    await sweepSection.find('.decorated-person').trigger('click')
     expect(pushSpy).toHaveBeenCalledWith('/movie/7')
   })
 
@@ -200,6 +229,30 @@ describe('TrophyCase', () => {
     expect(commitSpy).toHaveBeenCalledWith('setHomePageNavigationIntent', 'search')
     expect(pushSpy).toHaveBeenCalledWith('/')
     expect(pushSpy.mock.calls.every(([path]) => !String(path).startsWith('/movie/'))).toBe(true)
+  })
+
+  it('"Robbed, By Your Own Ratings" flags a category where your top-rated nominee lost', () => {
+    const library = [
+      { ...libraryEntry(1, 'The Winner'), ratings: [{ calculatedTotal: 7.0 }] },
+      { ...libraryEntry(2, 'The Robbed'), ratings: [{ calculatedTotal: 9.2 }] }
+    ]
+    const personalAwards = {
+      2020: {
+        categories: {
+          bestPicture: {
+            nominees: [{ type: 'movie', movieId: 1 }, { type: 'movie', movieId: 2 }],
+            winner: { type: 'movie', movieId: 1 }
+          }
+        }
+      }
+    }
+    const { wrapper } = mountTrophyCase(personalAwards, library)
+
+    expect(wrapper.text()).toContain('Robbed, By Your Own Ratings')
+    const row = wrapper.find('.upset-row')
+    expect(row.text()).toContain('The Robbed')
+    expect(row.text()).toContain('9.2')
+    expect(row.text()).toContain('lost to The Winner (7.0)')
   })
 
   it('returnHome navigates home', () => {
