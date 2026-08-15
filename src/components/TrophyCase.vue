@@ -36,19 +36,19 @@
             <div class="decorated-count">{{ person.label }}</div>
           </div>
         </div>
-        <div v-if="expandedCard && expandedCard.shelfKey === shelf.key" class="person-films">
+        <!-- Keyed by the open card so switching people re-mounts the row —
+             otherwise the previous person's scroll position carries over. -->
+        <div v-if="expandedCard && expandedCard.shelfKey === shelf.key" :key="expandedCard.cardKey" class="person-films">
           <div class="person-films-header">
-            <span class="person-films-name">{{ expandedCard.name }}</span>
             <button type="button" class="person-films-search" @click="searchForPerson(expandedCard.name)">
               See in library <i class="bi bi-arrow-right"></i>
             </button>
           </div>
           <div class="person-films-row">
-            <button v-for="film in expandedFilms" :key="film.key" type="button" class="person-film" @click="goToMovieId(film.movieId)">
+            <button v-for="film in expandedFilms" :key="film.key" type="button" class="person-film" :title="film.title" @click="goToMovieId(film.movieId)">
               <img v-if="film.src" :src="film.src" :alt="film.title" class="person-film-poster">
               <div v-else class="person-film-poster decorated-photo-placeholder">{{ film.title.charAt(0) }}</div>
               <span class="person-film-caption">{{ film.caption }}</span>
-              <span class="person-film-title">{{ film.title }}</span>
             </button>
           </div>
         </div>
@@ -113,19 +113,19 @@
             <div class="decorated-count">{{ person.label }}</div>
           </div>
         </div>
-        <div v-if="expandedCard && expandedCard.shelfKey === shelf.key" class="person-films">
+        <!-- Keyed by the open card so switching people re-mounts the row —
+             otherwise the previous person's scroll position carries over. -->
+        <div v-if="expandedCard && expandedCard.shelfKey === shelf.key" :key="expandedCard.cardKey" class="person-films">
           <div class="person-films-header">
-            <span class="person-films-name">{{ expandedCard.name }}</span>
             <button type="button" class="person-films-search" @click="searchForPerson(expandedCard.name)">
               See in library <i class="bi bi-arrow-right"></i>
             </button>
           </div>
           <div class="person-films-row">
-            <button v-for="film in expandedFilms" :key="film.key" type="button" class="person-film" @click="goToMovieId(film.movieId)">
+            <button v-for="film in expandedFilms" :key="film.key" type="button" class="person-film" :title="film.title" @click="goToMovieId(film.movieId)">
               <img v-if="film.src" :src="film.src" :alt="film.title" class="person-film-poster">
               <div v-else class="person-film-poster decorated-photo-placeholder">{{ film.title.charAt(0) }}</div>
               <span class="person-film-caption">{{ film.caption }}</span>
-              <span class="person-film-title">{{ film.title }}</span>
             </button>
           </div>
         </div>
@@ -142,7 +142,7 @@
         </p>
         <div class="academy-scorecard">
           <div v-for="row in academyScorecard" :key="row.categoryKey" class="academy-score-line">
-            <span class="academy-score-label">{{ categoryName(row.categoryKey) }}</span>
+            <span class="academy-score-label">{{ shortCategoryName(row.categoryKey) }}</span>
             <span class="academy-score-value" :class="{ contrarian: row.rate < 0.34 }">
               {{ Math.round(row.rate * 100) }}% ({{ row.agreements }}/{{ row.contests }})
             </span>
@@ -150,7 +150,7 @@
         </div>
         <div v-if="academyDisagreements.length" class="versus-row">
           <div v-for="clash in academyDisagreements" :key="`${clash.year}-${clash.categoryKey}`" class="versus-card">
-            <span class="versus-context">{{ clash.year }} · {{ categoryName(clash.categoryKey) }}</span>
+            <span class="versus-context">{{ clash.year }} · {{ shortCategoryName(clash.categoryKey) }}</span>
             <div class="versus-posters">
               <div class="versus-side">
                 <img v-if="clash.yoursPosterPath" :src="`https://image.tmdb.org/t/p/w185${clash.yoursPosterPath}`" :alt="clash.yoursLabel" class="versus-poster">
@@ -176,7 +176,7 @@
         <h2 class="section-title">Robbed, By Your Own Ratings</h2>
         <div class="versus-row">
           <div v-for="upset in upsets" :key="`${upset.year}-${upset.categoryKey}`" class="versus-card" @click="goToMovieId(upset.robbed.movie.id)">
-            <span class="versus-context">{{ upset.year }} · {{ categoryName(upset.categoryKey) }}</span>
+            <span class="versus-context">{{ upset.year }} · {{ shortCategoryName(upset.categoryKey) }}</span>
             <div class="versus-posters">
               <div class="versus-side">
                 <img v-if="upset.robbed.movie.poster_path" :src="`https://image.tmdb.org/t/p/w185${upset.robbed.movie.poster_path}`" :alt="upset.robbed.movie.title" class="versus-poster">
@@ -345,7 +345,7 @@ export default {
             // The same person can own two categories - the card key keeps
             // the two cards' expansion states distinct.
             cardKey: `${owner.name}|${owner.categoryKey}`,
-            label: `${owner.count}× ${this.categoryName(owner.categoryKey)}`,
+            label: `${owner.count}× ${this.shortCategoryName(owner.categoryKey)}`,
             photo: owner.sample.expanded,
             entries: owner.entries
           }))
@@ -375,7 +375,7 @@ export default {
           movieId: entry.expanded.movie.id,
           src: entry.expanded.movie.poster_path ? `https://image.tmdb.org/t/p/w185${entry.expanded.movie.poster_path}` : null,
           title: entry.expanded.movie.title,
-          caption: `${entry.year}${entry.categoryKey ? ` · ${this.categoryName(entry.categoryKey)}` : ''}`
+          caption: `${entry.year}${entry.categoryKey ? ` · ${this.shortCategoryName(entry.categoryKey)}` : ''}`
         }));
     },
     biggestSweeps () {
@@ -469,6 +469,11 @@ export default {
     },
     categoryName (categoryKey) {
       return PERSONAL_AWARD_CATEGORIES.find((category) => category.key === categoryKey)?.name || categoryKey;
+    },
+    // Feedback: every category is "Best something" — on this screen the
+    // "Best" is noise, so captions read "Director", "Supporting Actor".
+    shortCategoryName (categoryKey) {
+      return this.categoryName(categoryKey).replace(/^Best /, '');
     },
     // A PERSON gets a picture of the person - never a poster of one of
     // their films (bug report: "I don't wanna show Steven Spielberg but
@@ -587,6 +592,7 @@ export default {
 }
 
 .decorated-list {
+  align-items: flex-start;
   display: flex;
   gap: 0.9rem;
   overflow-x: auto;
@@ -613,12 +619,6 @@ export default {
 
 .decorated-person.expanded {
   position: relative;
-}
-
-.decorated-person.expanded .decorated-photo,
-.decorated-person.expanded .decorated-photo-placeholder {
-  transform: scale(1.06);
-  transition: transform 0.15s ease;
 }
 
 .decorated-person.expanded::after {
@@ -664,6 +664,14 @@ export default {
   font-weight: 600;
   line-height: 1.2;
   margin-top: 0.1rem;
+  /* A long name must never push the row around: clamp to exactly two
+     lines' worth of space so every card is the same height and the
+     photos stay perfectly aligned. */
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  height: 1.95em;
+  overflow: hidden;
 }
 
 .decorated-count {
@@ -683,16 +691,9 @@ export default {
 }
 
 .person-films-header {
-  align-items: center;
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.person-films-name {
-  color: #eee;
-  font-size: 0.9rem;
-  font-weight: 600;
+  justify-content: flex-end;
+  margin-bottom: 0.25rem;
 }
 
 .person-films-search {
@@ -743,12 +744,6 @@ export default {
   margin-top: 0.25rem;
 }
 
-.person-film-title {
-  color: #ccc;
-  display: block;
-  font-size: 0.72rem;
-  line-height: 1.2;
-}
 
 .most-decorated {
   margin-bottom: 2rem;

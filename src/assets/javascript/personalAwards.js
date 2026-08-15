@@ -82,3 +82,36 @@ export function awardNameSingular (personalAwardName) {
   }
   return name; // Already singular
 }
+
+// Lead <-> supporting sibling categories. The same person for the same
+// movie/role must not be nominated in both (user feedback: "I've in a few
+// places nominated somebody for both best actor and best supporting actor
+// for the same role in the same movie. And I really shouldn't do that.").
+// Cross-MOVIE double nominations stay legal — a busy year is a real thing.
+export const ACTING_SIBLING_CATEGORIES = {
+  bestActor: 'bestSupportingActor',
+  bestSupportingActor: 'bestActor',
+  bestActress: 'bestSupportingActress',
+  bestSupportingActress: 'bestActress'
+};
+
+/**
+ * The sibling category key that already holds this person for this movie,
+ * or null. `person` needs { name?, id?, movieId }; nominees are the modal's
+ * minimal shapes. Matched on movieId plus name (primary — ids can be
+ * name-fallbacks on cast entries) or id.
+ */
+export function actingSiblingConflict (categoryKey, person, awardsData) {
+  const sibling = ACTING_SIBLING_CATEGORIES[categoryKey];
+  if (!sibling || !person || person.movieId == null) return null;
+
+  const nominees = awardsData?.[sibling]?.nominees || [];
+  const samePerson = (nominee) => {
+    if (!nominee || nominee.movieId !== person.movieId) return false;
+    if (nominee.name && person.name) return nominee.name === person.name;
+    if (nominee.id != null && person.id != null) return String(nominee.id) === String(person.id);
+    return false;
+  };
+
+  return nominees.some(samePerson) ? sibling : null;
+}

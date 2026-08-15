@@ -79,3 +79,39 @@ describe('award name grammar helpers', () => {
     expect(awardNameSingular('Cinema')).toBe('Cinema');
   });
 });
+
+describe('actingSiblingConflict (feedback: no lead + supporting nomination for the same person, same movie)', () => {
+  const awardsData = {
+    bestActor: { nominees: [{ type: 'person', id: 101, name: 'Double Dipper', movieId: 7 }] },
+    bestSupportingActor: { nominees: [] }
+  };
+
+  it('flags the same person + same movie across the lead/supporting pair, both directions', async () => {
+    const { actingSiblingConflict } = await import('@/assets/javascript/personalAwards.js');
+    expect(actingSiblingConflict('bestSupportingActor', { name: 'Double Dipper', id: 101, movieId: 7 }, awardsData)).toBe('bestActor');
+    const reversed = { bestSupportingActor: awardsData.bestActor, bestActor: { nominees: [] } };
+    expect(actingSiblingConflict('bestActor', { name: 'Double Dipper', movieId: 7 }, reversed)).toBe('bestSupportingActor');
+  });
+
+  it('a DIFFERENT movie is not a conflict — busy years are legal', async () => {
+    const { actingSiblingConflict } = await import('@/assets/javascript/personalAwards.js');
+    expect(actingSiblingConflict('bestSupportingActor', { name: 'Double Dipper', movieId: 8 }, awardsData)).toBeNull();
+  });
+
+  it('a different person in the same movie is not a conflict', async () => {
+    const { actingSiblingConflict } = await import('@/assets/javascript/personalAwards.js');
+    expect(actingSiblingConflict('bestSupportingActor', { name: 'Someone Else', id: 999, movieId: 7 }, awardsData)).toBeNull();
+  });
+
+  it('actor/actress pairs are separate tracks, and non-acting categories never conflict', async () => {
+    const { actingSiblingConflict } = await import('@/assets/javascript/personalAwards.js');
+    expect(actingSiblingConflict('bestSupportingActress', { name: 'Double Dipper', movieId: 7 }, awardsData)).toBeNull();
+    expect(actingSiblingConflict('bestDirector', { name: 'Double Dipper', movieId: 7 }, awardsData)).toBeNull();
+  });
+
+  it('matches by id when names are missing', async () => {
+    const { actingSiblingConflict } = await import('@/assets/javascript/personalAwards.js');
+    const data = { bestActor: { nominees: [{ id: 101, movieId: 7 }] }, bestSupportingActor: { nominees: [] } };
+    expect(actingSiblingConflict('bestSupportingActor', { id: 101, movieId: 7 }, data)).toBe('bestActor');
+  });
+});

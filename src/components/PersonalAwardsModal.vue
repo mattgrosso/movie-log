@@ -209,7 +209,7 @@
                       v-for="option in movieGroup.loadedCast"
                       :key="getOptionId(option)"
                       class="nominee-tile text-bg-dark"
-                      :class="[{'winner': isWinner(option)}]"
+                      :class="[{'winner': isWinner(option), 'sibling-conflict': Boolean(siblingConflictFor(option)) && !isNominee(option)}]"
                       @click="toggleNominee(option)"
                     >
                       <!-- Image container -->
@@ -245,6 +245,12 @@
                         </div>
                         <div class="nominee-role" v-if="getOptionRole(option)">
                           {{ getOptionRole(option) }}
+                        </div>
+                        <!-- Feedback: the same person+movie must not sit in
+                             both lead and supporting — say WHY the tile
+                             won't select instead of silently refusing. -->
+                        <div v-if="siblingConflictFor(option)" class="nominee-conflict">
+                          Already in {{ siblingConflictLabel(option) }}
                         </div>
                       </div>
                     </div>
@@ -347,7 +353,7 @@ import ErrorLogService from '../services/ErrorLogService.js';
 import { pickEligibleAwardsYear } from '../utils/awards.js';
 import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
 import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
-import { expandNomineeFromMinimal as expandNomineeFromMinimalShared } from '../assets/javascript/personalAwards.js';
+import { expandNomineeFromMinimal as expandNomineeFromMinimalShared, actingSiblingConflict } from '../assets/javascript/personalAwards.js';
 
 export default {
   name: "PersonalAwardsModal",
@@ -1523,8 +1529,27 @@ export default {
         return option.character || null;
       }
     },
+    // The sibling acting category (lead vs supporting) already holding this
+    // person for this movie, or null — see personalAwards.js.
+    siblingConflictFor (option) {
+      if (!this.isActingCategory(this.selectedCategory)) return null;
+      return actingSiblingConflict(this.selectedCategory, option, this.awardsData);
+    },
+    siblingConflictLabel (option) {
+      const sibling = this.siblingConflictFor(option);
+      const name = PERSONAL_AWARD_CATEGORIES.find((category) => category.key === sibling)?.name || sibling;
+      return name ? name.replace(/^Best /, '') : '';
+    },
     toggleNominee (option) {
       const categoryData = this.awardsData[this.selectedCategory] || { nominees: [], winner: null };
+
+      // Adding while the sibling category holds the same person+movie is
+      // blocked (the tile's badge explains why); REMOVING an existing
+      // nomination is always allowed, which is also how a historical
+      // double-nomination gets cleaned up.
+      if (this.isActingCategory(this.selectedCategory) && !this.isNominee(option) && this.siblingConflictFor(option)) {
+        return;
+      }
 
       if (this.isActingCategory(this.selectedCategory)) {
         // For acting categories, handle multi-role nominations
@@ -2172,6 +2197,13 @@ export default {
           gap: 8px;
         }
 
+        /* A tile blocked by its lead/supporting sibling reads as inert. */
+        .nominee-tile.sibling-conflict:not(.winner) {
+          cursor: default;
+          filter: grayscale(0.6);
+          opacity: 0.55;
+        }
+
         .nominee-tile {
           aspect-ratio: 2/3;
           border-radius: 6px;
@@ -2276,6 +2308,15 @@ export default {
               text-overflow: ellipsis;
               white-space: nowrap;
               margin-bottom: 1px;
+            }
+
+            .nominee-conflict {
+              color: #ffd54f;
+              font-size: 0.6em;
+              font-weight: 600;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
 
             .nominee-role {
