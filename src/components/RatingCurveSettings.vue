@@ -2,7 +2,7 @@
   <div class="rating-curve-settings">
     <h6 class="curve-title">Rating Curve</h6>
     <p class="curve-explainer">
-      Anchor the scale with your own movies: your last true 10, and your
+      Anchor the scale with your own movies: your lowest rated 10, and your
       dead-average 5. Everything else stretches to fit.
     </p>
 
@@ -40,7 +40,7 @@
         v-model="pickerQuery"
         type="search"
         class="form-control picker-search"
-        :placeholder="picking === 'ten' ? 'Search for your last true 10…' : 'Search, or pick from your middle…'"
+        :placeholder="picking === 'ten' ? 'Search for your lowest rated 10…' : 'Search, or pick from your middle…'"
       >
       <p v-if="picking === 'five' && !pickerQuery.trim()" class="picker-hint">
         The middle of your library — scroll either way until one feels dead
@@ -100,7 +100,7 @@ export default {
       windowEnd: 0,
       manualTweak: this.$store.state.settings?.normalizationTweak ?? 0.25,
       slots: [
-        { key: 'ten', label: 'This is a 10' },
+        { key: 'ten', label: 'My lowest rated 10' },
         { key: 'five', label: 'This is a 5' }
       ]
     };
