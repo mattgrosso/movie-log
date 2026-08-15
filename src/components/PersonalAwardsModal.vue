@@ -15,8 +15,7 @@
                posters over text, no Bootstrap alert-info blue on dark) -->
           <div v-if="hasNewMovies" class="new-movies-card text-start">
             <h6 class="new-movies-title">
-              <i class="bi bi-stars"></i>
-              New movies to consider
+              Movies you&rsquo;ve watched since you last nominated
             </h6>
             <div class="new-movies-row">
               <!-- Bare posters, titles as tooltips only (feedback) -->
@@ -30,9 +29,6 @@
                 <div v-else class="new-movie-poster new-movie-poster-blank">{{ entry.movie.title }}</div>
               </div>
             </div>
-            <small class="new-movies-footnote">
-              Rated after you completed your {{ currentYear }} awards.
-            </small>
           </div>
         </div>
       </template>
@@ -2168,20 +2164,13 @@ export default {
       border: 1px solid #2e2e2e;
       border-radius: 10px;
       margin-top: 0.75rem;
-      padding: 0.75rem 1rem 0.5rem;
+      padding: 0.75rem 1rem 0.25rem;
     }
 
     .new-movies-title {
-      align-items: center;
       color: #eee;
-      display: flex;
       font-size: 0.95rem;
-      gap: 0.5rem;
       margin-bottom: 0.75rem;
-
-      i {
-        color: #ffd700;
-      }
     }
 
     .new-movies-row {
@@ -2219,12 +2208,6 @@ export default {
       text-align: center;
     }
 
-    .new-movies-footnote {
-      color: #ccc;
-      display: block;
-      font-size: 0.75rem;
-      margin-top: 0.25rem;
-    }
   }
 
   .awards-form {
