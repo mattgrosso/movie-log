@@ -28,6 +28,7 @@ import OfflineBanner from "./components/OfflineBanner.vue";
 import LibraryAccessBanner from "./components/LibraryAccessBanner.vue";
 import { pickFallbackBanner } from "./assets/javascript/bannerFallback.js";
 import { flushStashedBugReports } from "./utils/bugReports.js";
+import { reloadForUpdate, isSafeMomentForReload, shouldAutoAttempt } from "./utils/appUpdate.js";
 
 export default {
   name: "Cinema-Roll",
@@ -39,12 +40,30 @@ export default {
     OfflineBanner,
     UpdateAvailableBanner
   },
+  data () {
+    return {
+      lastActivityAt: Date.now(),
+      lastBecameVisibleAt: Date.now(),
+      deployedBundleSeen: null,
+      autoUpdateTimer: null
+    };
+  },
   computed: {
     libraryCount () {
       return Object.keys(this.$store.state.movieLog || {}).length;
     }
   },
   watch: {
+    // Auto-apply updates (bug report: "the user shouldn't have to take an
+    // action... the banner could still be a fallback"). Immediately when
+    // the update is spotted at a fresh moment (just launched/foregrounded —
+    // nothing is in progress yet), otherwise after ~25s of no interaction —
+    // and never while typing, mid-game, or in a modal (the July lesson:
+    // an unconditional reload yanked the page out from under a backfill).
+    '$store.state.updateAvailable' (available) {
+      if (!available) return;
+      this.armAutoUpdate();
+    },
     // Cold boot on a non-home route: Home (the usual banner resolver) never
     // mounts, so once the library arrives, pick the fallback banner here.
     // Home still owns banner choice whenever it runs — this only fills a
@@ -116,6 +135,7 @@ export default {
         }
         const deployedBundle = (await response.text()).match(/js\/app\.[a-z0-9]+\.js/);
         if (deployedBundle && deployedBundle[0] !== runningBundle) {
+          this.deployedBundleSeen = deployedBundle[0];
           this.$store.commit('setUpdateAvailable', true);
         }
       } catch {
@@ -149,6 +169,32 @@ export default {
     },
     handleOffline () {
       this.$store.commit('setIsOnline', false);
+    },
+    noteActivity () {
+      this.lastActivityAt = Date.now();
+    },
+    armAutoUpdate () {
+      const target = this.deployedBundleSeen || 'unknown';
+      if (!shouldAutoAttempt(target)) return; // once per version; banner remains
+
+      // Fresh moment (just launched or just foregrounded): nothing is in
+      // flight yet — apply right away.
+      const fresh = Date.now() - (this.lastBecameVisibleAt || 0) < 5000;
+      if (fresh && isSafeMomentForReload({ routePath: this.$route?.path || '' })) {
+        reloadForUpdate();
+        return;
+      }
+
+      // Otherwise: poll for a quiet stretch.
+      if (this.autoUpdateTimer) clearInterval(this.autoUpdateTimer);
+      this.autoUpdateTimer = setInterval(() => {
+        const quiet = Date.now() - this.lastActivityAt > 25000;
+        if (quiet && isSafeMomentForReload({ routePath: this.$route?.path || '' })) {
+          clearInterval(this.autoUpdateTimer);
+          this.autoUpdateTimer = null;
+          reloadForUpdate();
+        }
+      }, 5000);
     }
   },
   async mounted () {
@@ -167,17 +213,24 @@ export default {
     // update gets picked up even if any single trigger fails to fire.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
+        this.lastBecameVisibleAt = Date.now();
         this.checkForServiceWorkerUpdate();
         this.attemptPendingWritesFlush();
       }
     });
     window.addEventListener('pageshow', () => {
+      this.lastBecameVisibleAt = Date.now();
       this.checkForServiceWorkerUpdate();
       this.attemptPendingWritesFlush();
     });
     window.addEventListener('focus', () => {
       this.checkForServiceWorkerUpdate();
       this.attemptPendingWritesFlush();
+    });
+    // Activity signals for the auto-update quiet-moment detector. Passive:
+    // these must never delay scrolling.
+    ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach((eventName) => {
+      window.addEventListener(eventName, this.noteActivity, { passive: true });
     });
     window.addEventListener('online', this.handleOnline);
     window.addEventListener('offline', this.handleOffline);

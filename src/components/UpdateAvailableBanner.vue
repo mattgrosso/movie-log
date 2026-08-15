@@ -9,14 +9,14 @@
 </template>
 
 <script>
-// Shows once App.vue's deploy check (or registerServiceWorker's updated()
-// hook) flags a new version - deliberately a manual prompt, not an
-// automatic reload (see registerServiceWorker.js's comment on the bug an
-// unconditional reload caused: it yanked the page out from under
-// long-running work like the box office backfill). Rendered globally from
-// App.vue (same "always visible regardless of route/login state" treatment
-// as BugReportButton.vue), in normal document flow right below the header
-// so it pushes content down rather than overlaying anything.
+import { reloadForUpdate } from '../utils/appUpdate.js';
+
+// Shows once App.vue's deploy check flags a new version. Since 2026-08-15
+// updates normally apply THEMSELVES at a quiet moment (App.vue's
+// auto-update watcher, feedback: "the user shouldn't have to take an
+// action") — this banner is the visible state while waiting and the manual
+// fallback whenever a quiet moment never comes (typing, mid-game, modal
+// open). Rendered globally from App.vue in normal document flow.
 export default {
   name: 'UpdateAvailableBanner',
   data () {
@@ -28,34 +28,10 @@ export default {
     async reload () {
       if (this.updating) return;
       this.updating = true;
-      await this.waitForNewWorker();
-      window.location.reload();
+      await reloadForUpdate();
     },
-    // Bug report: tapping Refresh on a non-home page reloaded into a broken
-    // site. The banner appears the instant the deploy-check notices new
-    // bundle names on the server - usually while the new service worker is
-    // still mid-install. A plain reload at that moment is served the OLD
-    // cached app by the OLD worker; seconds later the new worker activates
-    // (skipWaiting + clientsClaim), purges the old precache, and the old
-    // app's lazy route chunks 404 - blank screen. Waiting here until no
-    // install is in flight means the reload lands on the NEW app instead.
-    // Capped at 15s so a stalled install can't strand the button; the
-    // router's stale-chunk guard (staleChunkReload.js) is the backstop.
-    async waitForNewWorker () {
-      try {
-        const registration = await navigator.serviceWorker?.getRegistration?.();
-        if (!registration) return;
-        // Kick a check in case none is in flight yet, but don't let a
-        // failed fetch block the reload.
-        await registration.update().catch(() => {});
-        const deadline = Date.now() + 15000;
-        while ((registration.installing || registration.waiting) && Date.now() < deadline) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-        }
-      } catch {
-        // Any surprise here must never eat the reload itself.
-      }
-    }
+    // The wait-out-the-install logic lives in utils/appUpdate.js now,
+    // shared with App.vue's automatic update path.
   }
 }
 </script>
