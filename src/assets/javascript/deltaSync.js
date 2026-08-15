@@ -91,3 +91,33 @@ export function diffLibraries (fullDownload, reconstructed) {
     compared: Object.keys(expected).length
   };
 }
+
+// Diagnostic detail for a stale entry, attached to the shadow report so a
+// divergence in the wild explains itself (first seen 2026-08-15: the Dune
+// entry stale on every boot with its stamp exactly equal to lastSync — the
+// report alone couldn't say whether the delta query missed the boundary
+// entry or the snapshot round-trip mangled it).
+export function describeStaleEntry (freshEntry, reconstructedEntry, deltaEntries, dbKey) {
+  const diffPaths = [];
+  const walk = (a, b, path, depth) => {
+    if (diffPaths.length >= 5) return;
+    if (stableStringify(a) === stableStringify(b)) return;
+    const bothObjects = a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b);
+    if (!bothObjects || depth >= 2) {
+      diffPaths.push(path || '(root)');
+      return;
+    }
+    new Set([...Object.keys(a), ...Object.keys(b)]).forEach((key) => {
+      walk(a[key], b[key], path ? `${path}.${key}` : key, depth + 1);
+    });
+  };
+  walk(freshEntry, reconstructedEntry, '', 0);
+
+  return {
+    dbKey,
+    freshStamp: freshEntry?.[UPDATED_AT_FIELD] ?? null,
+    reconstructedStamp: reconstructedEntry?.[UPDATED_AT_FIELD] ?? null,
+    inDelta: Boolean(deltaEntries && dbKey in deltaEntries),
+    diffPaths
+  };
+}

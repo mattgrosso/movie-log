@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { maxUpdatedAt, reconstructFromDelta, diffLibraries } from '@/assets/javascript/deltaSync.js';
+import { maxUpdatedAt, reconstructFromDelta, diffLibraries, describeStaleEntry } from '@/assets/javascript/deltaSync.js';
 
 function entry (title, updatedAt) {
   return { movie: { id: title, title }, ratings: [{ calculatedTotal: 7 }], updatedAt };
@@ -93,4 +93,34 @@ describe('diffLibraries', () => {
     expect(report.missing).toHaveLength(20);
     expect(report.compared).toBe(50);
   });
-});
+
+  describe('describeStaleEntry', () => {
+    const fresh = { updatedAt: 100, movie: { id: 1, title: 'Dune', revenue: 700 }, ratings: [{ love: 9 }] };
+
+    it('names the differing fields and reports both stamps', () => {
+      const recon = { updatedAt: 90, movie: { id: 1, title: 'Dune', revenue: null }, ratings: [{ love: 9 }] };
+      const detail = describeStaleEntry(fresh, recon, {}, 'k-dune');
+
+      expect(detail.freshStamp).toBe(100);
+      expect(detail.reconstructedStamp).toBe(90);
+      expect(detail.inDelta).toBe(false);
+      expect(detail.diffPaths).toContain('updatedAt');
+      expect(detail.diffPaths).toContain('movie.revenue');
+    });
+
+    it('reports when the delta query did return the key (mismatch is content, not coverage)', () => {
+      const recon = { ...fresh, movie: { ...fresh.movie, revenue: 1 } };
+      const detail = describeStaleEntry(fresh, recon, { 'k-dune': recon }, 'k-dune');
+
+      expect(detail.inDelta).toBe(true);
+      expect(detail.diffPaths).toEqual(['movie.revenue']);
+    });
+
+    it('caps the path list so a pathological entry cannot bloat the report', () => {
+      const recon = { ...fresh, movie: Object.fromEntries(Array.from({ length: 30 }, (_, i) => ['f' + i, i])) };
+      const detail = describeStaleEntry(fresh, recon, {}, 'k-dune');
+
+      expect(detail.diffPaths.length).toBeLessThanOrEqual(5);
+    });
+  });
+})

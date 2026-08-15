@@ -19,7 +19,7 @@ import { getRating } from "../assets/javascript/GetRating";
 import router from '@/router';
 import ErrorLogService from "../services/ErrorLogService.js";
 import { saveSnapshot, loadSnapshot } from "../utils/offlineStore.js";
-import { maxUpdatedAt, reconstructFromDelta, diffLibraries } from "../assets/javascript/deltaSync.js";
+import { maxUpdatedAt, reconstructFromDelta, diffLibraries, describeStaleEntry } from "../assets/javascript/deltaSync.js";
 import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite } from "../utils/pendingWriteQueue.js";
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
@@ -958,6 +958,12 @@ export default createStore({
             lastSyncUsed: meta.lastSync,
             checkedAt: Date.now()
           };
+          if (report.stale.length) {
+            // Self-explaining divergences: stamps on both sides, whether the
+            // delta query actually returned the key, and which fields differ.
+            report.staleDetail = report.stale.map((dbKey) =>
+              describeStaleEntry(fresh[dbKey], reconstructed[dbKey], deltaEntries, dbKey));
+          }
           context.commit('setDeltaShadowReport', report);
 
           if (report.identical) {
