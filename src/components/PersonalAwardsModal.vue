@@ -394,7 +394,11 @@ export default {
       // Cache expensive operations per year/category
       optionsCache: {}, // Format: { "1994-bestActor": [{ movieId, movie, loadedCast, hasMore }] }
       // Cache TMDb person details across all categories
-      personDetailsCache: {} // Format: { "Tom Hanks": { gender, profile_path, etc. } }
+      personDetailsCache: {}, // Format: { "Tom Hanks": { gender, profile_path, etc. } }
+      // In-flight request per actor name, so concurrent lookups for the same
+      // person (now that the grids load in parallel) share one fetch instead
+      // of racing — the caches above are only written AFTER the await.
+      personDetailsInFlight: {}
     };
   },
   computed: {
@@ -1081,32 +1085,46 @@ export default {
         }
       });
 
-      // Load initial cast for each movie (3 people per movie)
+      // Load initial cast for each movie (3 people per movie). Movies load
+      // CONCURRENTLY through a small worker pool — bug report: "when I'm
+      // nominating people... it takes a long time to load the actors." This
+      // used to be one movie at a time, each awaiting one person at a time:
+      // ~30 movies × 3+ lookups = 90+ back-to-back TMDB round trips, tens
+      // of seconds on a phone. Six movies × a 3-person batch keeps peak
+      // concurrency around 18 requests, well inside TMDB's limits.
       const movieIds = Object.keys(movieGroups);
+      const CONCURRENT_MOVIES = 6;
+      let nextMovieIndex = 0;
 
-      for (const movieId of movieIds) {
-        const movieGroup = movieGroups[movieId];
+      const loadInitialCastForMovie = async (movieGroup) => {
+        // Load people in batches until we get 3 valid ones (accounting for gender filtering)
+        const processedCast = [];
+        let currentIndex = 0;
 
-        if (movieGroup.allCast.length > 0) {
-          // Load people in batches until we get 3 valid ones (accounting for gender filtering)
-          const processedCast = [];
-          let currentIndex = 0;
+        while (processedCast.length < 3 && currentIndex < movieGroup.allCast.length) {
+          const batchSize = 3;
+          const castBatch = movieGroup.allCast.slice(currentIndex, currentIndex + batchSize);
+          if (castBatch.length === 0) break;
 
-          while (processedCast.length < 3 && currentIndex < movieGroup.allCast.length) {
-            const batchSize = 3;
-            const castBatch = movieGroup.allCast.slice(currentIndex, currentIndex + batchSize);
-            if (castBatch.length === 0) break;
-
-            const filteredBatch = await this.filterCastMembersByGender(castBatch);
-            processedCast.push(...filteredBatch);
-            currentIndex += batchSize;
-          }
-
-          movieGroup.loadedCast = processedCast.slice(0, 3); // Show first 3 valid people
-          movieGroup.processedIndex = currentIndex;
-          movieGroup.hasMore = currentIndex < movieGroup.allCast.length;
+          const filteredBatch = await this.filterCastMembersByGender(castBatch);
+          processedCast.push(...filteredBatch);
+          currentIndex += batchSize;
         }
-      }
+
+        movieGroup.loadedCast = processedCast.slice(0, 3); // Show first 3 valid people
+        movieGroup.processedIndex = currentIndex;
+        movieGroup.hasMore = currentIndex < movieGroup.allCast.length;
+      };
+
+      const workers = Array.from({ length: Math.min(CONCURRENT_MOVIES, movieIds.length) }, async () => {
+        while (nextMovieIndex < movieIds.length) {
+          const movieGroup = movieGroups[movieIds[nextMovieIndex++]];
+          if (movieGroup.allCast.length > 0) {
+            await loadInitialCastForMovie(movieGroup);
+          }
+        }
+      });
+      await Promise.all(workers);
 
       // Always surface already-nominated cast members, even when they sit deeper
       // in the cast than the initial 3 loaded above. They were explicitly chosen
@@ -1138,35 +1156,30 @@ export default {
       return movieGroups;
     },
     async filterCastMembersByGender (castMembers) {
-      // Process a specific set of cast members (same logic as filterPeopleByGender but for subset)
-      const filteredCast = [];
-
-      for (const person of castMembers) {
+      // Process a specific set of cast members (same logic as filterPeopleByGender
+      // but for subset). The batch's lookups run in PARALLEL (order preserved
+      // by Promise.all) — awaiting one person at a time was the inner half of
+      // the slow-actor-loading bug report.
+      const results = await Promise.all(castMembers.map(async (person) => {
         try {
-          if (!person.needsGenderCheck) {
-            filteredCast.push(person);
-            continue;
-          }
+          if (!person.needsGenderCheck) return person;
 
           const details = await this.getDetailsForCastMember(person.name);
 
           // See genderEligibility.js - anything that isn't a definite
           // female/male reading counts for EVERY acting category.
           if (isEligibleForActingCategory(details?.gender, { isActress: person.isActress })) {
-            filteredCast.push({
-              ...person,
-              details,
-              needsGenderCheck: false
-            });
+            return { ...person, details, needsGenderCheck: false };
           }
+          return null;
         } catch (error) {
           console.error('Error filtering cast member by gender:', person.name, error);
           ErrorLogService.error('Error filtering cast member by gender:', person.name, error);
-        // Note: ErrorLogService will be imported if needed for production logging
+          return null;
         }
-      }
+      }));
 
-      return filteredCast;
+      return results.filter(Boolean);
     },
     getCategorySortKey (categoryKey) {
       // Map awards categories to Cinema Roll sort keys
@@ -1289,6 +1302,16 @@ export default {
         return this.personDetailsCache[actorName];
       }
 
+      // Concurrent callers share one request per name — the parallel grid
+      // loading would otherwise fetch the same actor once per movie they
+      // appear in, since the caches are only written after the response.
+      if (!this.personDetailsInFlight[actorName]) {
+        this.personDetailsInFlight[actorName] = this.fetchDetailsForCastMember(actorName)
+          .finally(() => { delete this.personDetailsInFlight[actorName]; });
+      }
+      return this.personDetailsInFlight[actorName];
+    },
+    async fetchDetailsForCastMember (actorName) {
       // Check localStorage fallback (helpful for iOS PWAs with memory pressure)
       try {
         const cacheKey = `person_${actorName}_${this.currentYear}`;
@@ -1384,18 +1407,13 @@ export default {
       }
     },
     async filterPeopleByGender (people) {
-      // Filter people by gender using TMDb API calls (same as FavoriteActors.vue)
-      const filteredPeople = [];
-      let count = 0;
-
-      for (const person of people) {
+      // Filter people by gender using TMDb API calls (same as FavoriteActors.vue).
+      // Parallel for the same reason as filterCastMembersByGender — this list
+      // can be dozens of people, and one-at-a-time awaits were a visible wait.
+      const results = await Promise.all(people.map(async (person) => {
         try {
-          if (!person.needsGenderCheck) {
-            filteredPeople.push(person);
-            continue;
-          }
+          if (!person.needsGenderCheck) return person;
 
-          count++;
           const details = await this.getDetailsForCastMember(person.name);
 
           // Shared with the cast-grouping path above (genderEligibility.js).
@@ -1403,20 +1421,22 @@ export default {
           // BOTH actor and actress categories, so those people could never
           // be nominated at all - while the other path included them.
           if (isEligibleForActingCategory(details?.gender, { isActress: person.isActress })) {
-            filteredPeople.push({
+            return {
               ...person,
               details, // Include the full TMDb details
               needsGenderCheck: false
-            });
+            };
           }
+          return null;
         } catch (error) {
           console.error('Error filtering person by gender:', person.name, error);
           ErrorLogService.error('Error filtering person by gender:', person.name, error);
-          // Continue with next person - don't let one API failure crash everything
+          // Skip this person - don't let one API failure crash everything
+          return null;
         }
-      }
+      }));
 
-      return filteredPeople;
+      return results.filter(Boolean);
     },
     getOptionId (option) {
       try {
