@@ -489,36 +489,23 @@
 
               <SettingsSection title="Friends &amp; Sharing">
                 <small class="form-text text-white d-block mb-2">
-                  Sharing is on by default, but nobody sees your data until you both accept a friend request. Turn any of it off here.
+                  Friends see your ratings only after you both accept a request. Your Circle lives on the Insights page.
                 </small>
                 <div class="form-check form-switch mb-3">
                   <input class="form-check-input" type="checkbox" id="socialEnabledToggle" :checked="socialSettings.enabled" @change="updateSocialEnabled">
                   <label class="form-check-label" for="socialEnabledToggle">Share on Cinema Roll</label>
                 </div>
-                <template v-if="socialSettings.enabled">
-                  <div class="mb-3">
-                    <label for="socialDisplayName" class="form-label">Display name</label>
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="socialDisplayName"
-                      :value="socialSettings.displayName || ''"
-                      placeholder="How friends see you"
-                      @change="updateSocialDisplayName"
-                    >
-                  </div>
-                  <div class="form-check form-switch mb-2">
-                    <input class="form-check-input" type="checkbox" id="socialRatingsToggle" :checked="socialSettings.shareRatings" @change="updateSocialShareRatings">
-                    <label class="form-check-label" for="socialRatingsToggle">Share my movie-by-movie scores</label>
-                  </div>
-                  <div class="form-check form-switch mb-3">
-                    <input class="form-check-input" type="checkbox" id="socialCriteriaToggle" :checked="socialSettings.shareCriteria" :disabled="!socialSettings.shareRatings" @change="updateSocialShareCriteria">
-                    <label class="form-check-label" for="socialCriteriaToggle">Also share my criterion breakdown</label>
-                  </div>
-                  <button type="button" class="btn btn-warning w-100" @click="$router.push('/circle')">
-                    <i class="bi bi-people"></i> Open your Circle
-                  </button>
-                </template>
+                <div v-if="socialSettings.enabled" class="mb-2">
+                  <label for="socialDisplayName" class="form-label">Display name</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="socialDisplayName"
+                    :value="socialSettings.displayName || ''"
+                    placeholder="How friends see you"
+                    @change="updateSocialDisplayName"
+                  >
+                </div>
               </SettingsSection>
 
               <RatingCurveSettings/>
@@ -2977,14 +2964,6 @@ export default {
       const value = event.target.value.trim();
       if (!value) return;
       this.$store.dispatch('writeDurably', { path: 'settings/social/displayName', value });
-      this.$nextTick(() => this.$store.dispatch('publishSocialProfile'));
-    },
-    updateSocialShareRatings (event) {
-      this.$store.dispatch('writeDurably', { path: 'settings/social/shareRatings', value: event.target.checked });
-      this.$nextTick(() => this.$store.dispatch('publishSocialProfile'));
-    },
-    updateSocialShareCriteria (event) {
-      this.$store.dispatch('writeDurably', { path: 'settings/social/shareCriteria', value: event.target.checked });
       this.$nextTick(() => this.$store.dispatch('publishSocialProfile'));
     },
     updateShowErrorLogs (event) {
