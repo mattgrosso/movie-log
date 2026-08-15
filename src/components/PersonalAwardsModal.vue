@@ -51,7 +51,8 @@
                 :key="category.key"
                 type="button"
                 class="category-btn"
-                :class="{'completed': category.completed, 'disabled': category.disabled}"
+                :class="{'completed': category.completed, 'disabled': category.disabled, 'has-banner': Boolean(categoryBannerStyle(category.key))}"
+                :style="categoryBannerStyle(category.key)"
                 :disabled="category.disabled"
                 :title="category.disabledReason || ''"
                 @click="onCategoryTileClick(category)"
@@ -1938,6 +1939,24 @@ export default {
       const winnerTitle = this.getOptionTitle(categoryData.winner);
       return winnerTitle.length > 20 ? winnerTitle.substring(0, 17) + '...' : winnerTitle;
     },
+    // The winning movie's backdrop, laid behind the category row as a
+    // banner (feedback: "the poster's always nicer... maybe the banner
+    // image"). Movie winners ARE library entries (entry-level
+    // customBackdropPath wins, same as Home's banner); person winners carry
+    // their movie under .movie.
+    categoryBannerStyle (categoryKey) {
+      const winner = this.awardsData[categoryKey]?.winner;
+      const backdrop = winner?.customBackdropPath || winner?.movie?.backdrop_path;
+      if (!backdrop) return null;
+      const url = `https://image.tmdb.org/t/p/w500${backdrop}`;
+      // Left-heavy scrim keeps the text legible; the image reveals toward
+      // the chevron end.
+      return {
+        backgroundImage: `linear-gradient(90deg, rgba(13, 13, 13, 0.94) 0%, rgba(13, 13, 13, 0.82) 45%, rgba(13, 13, 13, 0.35) 100%), url(${url})`,
+        backgroundPosition: 'center',
+        backgroundSize: 'cover'
+      };
+    },
     isCategoryMarkedAsNoNominees (categoryKey) {
       const categoryData = this.awardsData[categoryKey];
       return categoryData && categoryData.noNominees === true;
@@ -2243,6 +2262,26 @@ export default {
           &:active {
             background: #1f1f1f;
             transform: scale(0.985);
+          }
+
+          &.has-banner {
+            border-color: #3a3a3a;
+            min-height: 72px;
+
+            .category-name,
+            .category-winner {
+              text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+            }
+
+            .category-chevron {
+              color: rgba(255, 255, 255, 0.75);
+            }
+
+            &:active {
+              /* background-image rows can't darken via background-color;
+                 press feedback stays on the scale. */
+              transform: scale(0.985);
+            }
           }
 
           &.disabled {
