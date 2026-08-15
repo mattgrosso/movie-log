@@ -775,6 +775,43 @@ describe('TMDb Data Processing & Movie Rating Addition', () => {
       expect(result.value.movie.runtime).toBe(90)
     })
 
+    // Bug report: an airplane-mode rating "seemed to work" and then was gone
+    // for good — an enqueueWrite that silently failed (it never throws, it
+    // resolves null) leaves NOTHING durable while offline, so pretending the
+    // save happened is exactly how a rating vanishes without a trace.
+    it('throws (and never fakes an optimistic save) when offline and the durable enqueue itself fails', async () => {
+      store.state.isOnline = false
+      enqueueWriteMock.mockResolvedValueOnce(null)
+      const placeholderRatings = [{ id: 'offline-doomed', title: 'Doomed Movie', love: 5 }]
+
+      await expect(addRating(placeholderRatings)).rejects.toThrow(/offline storage/i)
+
+      expect(store.commit).not.toHaveBeenCalledWith('setMovieLogEntry', expect.anything())
+    })
+
+    it('a placeholder rated ONLINE surfaces a failure when both the enqueue and the direct write fail — no safety net left to silently trust', async () => {
+      store.state.isOnline = true
+      enqueueWriteMock.mockResolvedValueOnce(null)
+      store.dispatch.mockRejectedValueOnce(new Error('network down'))
+
+      await expect(addRating([{ id: 'offline-unsafe', title: 'Unsafe Movie', love: 5 }])).rejects.toThrow('network down')
+    })
+
+    it('commits the optimistic entry only AFTER the durable enqueue has resolved', async () => {
+      const order = []
+      enqueueWriteMock.mockImplementationOnce(async (entry) => {
+        order.push('enqueue')
+        return { id: 'queued-1', ...entry }
+      })
+      store.commit.mockImplementationOnce((mutation) => {
+        if (mutation === 'setMovieLogEntry') order.push('commit')
+      })
+
+      await addRating([{ id: 'offline-ordered', title: 'Ordered Movie', love: 5 }])
+
+      expect(order).toEqual(['enqueue', 'commit'])
+    })
+
     it('reuses the same movieLog key for a second offline edit of the same not-yet-reconciled placeholder', async () => {
       const id = 'offline-repeat'
       const first = await addRating([{ id, title: 'Repeat Movie', love: 5 }])

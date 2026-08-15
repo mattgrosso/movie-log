@@ -655,9 +655,19 @@ export default createStore({
         // is the source of truth and overwrites/re-persists on arrival - the
         // dbLoaded guard just stops a slower cache read from clobbering
         // already-arrived live data.
-        loadSnapshot(topKey, 'movieLog').then((cached) => {
+        loadSnapshot(topKey, 'movieLog').then(async (cached) => {
           if (cached && !context.state.dbLoaded) {
             context.commit('setMovieLog', cached);
+          }
+          // Re-top the snapshot with anything still durably queued — the
+          // snapshot only mirrors the last SERVER state, so without this a
+          // movie rated offline vanished from view on relaunch (bug
+          // report). Also covers a snapshot-less first session: the queue
+          // entry alone is enough to show the rating.
+          if (!context.state.dbLoaded) {
+            await context.dispatch('replayPendingWrites', 'movieLog');
+          }
+          if (!context.state.dbLoaded && (cached || Object.keys(context.state.movieLog).length)) {
             context.commit('setDbLoaded', true);
           }
           return null;
@@ -673,15 +683,26 @@ export default createStore({
             // pre-tiebreak scores (re-showing the tie).
             context.commit('setMovieLog', reapplyInFlightWrites(context.state, 'movieLog', data));
             saveSnapshot(topKey, 'movieLog', data);
+            // And the durable-queue re-top: on a reconnecting launch this
+            // first server snapshot predates the background flush, so
+            // without this the offline-made rating blinked out of the
+            // library until the flush's own refire brought it back.
+            context.dispatch('replayPendingWrites', 'movieLog');
           }
           context.commit('setDbLoaded', true);
         });
       }
       const settingsHasData = Boolean(Object.keys(context.state.settings).length);
       if (!settingsHasData) {
-        loadSnapshot(topKey, 'settings').then((cached) => {
+        loadSnapshot(topKey, 'settings').then(async (cached) => {
           if (cached && !Object.keys(context.state.settings).length) {
             context.commit('setSettings', cached);
+            // Same durable-queue re-top as movieLog above — offline
+            // stickiness/tiebreak/awards edits are settings writes. Only
+            // after a cached commit: replaying onto empty settings would
+            // create a partial object that blocks this guard on a later
+            // resolution.
+            await context.dispatch('replayPendingWrites', 'settings');
           }
           return null;
         }).catch(() => {});
@@ -695,6 +716,7 @@ export default createStore({
             // reapplyInFlightWrites) so a just-made change can't flicker back.
             context.commit('setSettings', reapplyInFlightWrites(context.state, 'settings', data));
             saveSnapshot(topKey, 'settings', data);
+            context.dispatch('replayPendingWrites', 'settings');
           }
         });
       }
@@ -827,6 +849,26 @@ export default createStore({
       }
 
       await performDatabaseWrite(context, dbEntry);
+    },
+    // Re-applies every still-queued durable write for `root` ('movieLog' or
+    // 'settings') to LOCAL state, oldest first. Bug report: a movie rated
+    // offline "seemed to appear... but when I closed the app and reopened
+    // it, the rating was gone." The IndexedDB snapshot only ever mirrors the
+    // last SERVER state (saveSnapshot fires from the live listener alone),
+    // so an offline relaunch — or the first server snapshot after
+    // reconnecting, arriving before the flush completes — showed the library
+    // WITHOUT anything rated since the last sync, even though its durable
+    // queue entry was sitting right there. Replaying the queue on top closes
+    // that: local state = last known server state + everything still
+    // pending. Safe to re-run any time: a queue entry is removed once the
+    // server confirms it, so replaying can only re-assert values the server
+    // hasn't caught up to yet (a written-but-unreconciled placeholder stays
+    // queued, but its queued value matches what was written — idempotent).
+    async replayPendingWrites (context, root) {
+      const pending = await listPendingWrites();
+      pending
+        .filter((entry) => entry?.dbEntry?.path && entry.dbEntry.path.split('/')[0] === root)
+        .forEach((entry) => context.commit('applyDbPathLocally', entry.dbEntry));
     },
     // Recomputes state.pendingReconciliations from the pendingWriteQueue -
     // cheap, purely local (IndexedDB) read, safe to call regardless of

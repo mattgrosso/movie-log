@@ -498,6 +498,66 @@ describe('initializeDB wiring', () => {
   })
 })
 
+describe('replayPendingWrites (bug report: offline rating "was gone" after closing and reopening the app)', () => {
+  it('re-applies queued writes for the requested root only, oldest first', async () => {
+    listPendingWritesMock.mockResolvedValue([
+      { id: '1', type: 'write', createdAt: 1, dbEntry: { path: 'movieLog/m1', value: { movie: { id: 1, title: 'Old Value' } } } },
+      { id: '2', type: 'placeholder', createdAt: 2, dbEntry: { path: 'movieLog/m1', value: { movie: { id: 1, title: 'New Value' } } } },
+      { id: '3', type: 'write', createdAt: 3, dbEntry: { path: 'settings/lastTweak', value: 42 } }
+    ])
+
+    await store.dispatch('replayPendingWrites', 'movieLog')
+
+    expect(store.state.movieLog.m1.movie.title).toBe('New Value')
+    expect(store.state.settings.lastTweak).toBeUndefined()
+
+    await store.dispatch('replayPendingWrites', 'settings')
+    expect(store.state.settings.lastTweak).toBe(42)
+  })
+
+  it('a relaunch served from the stale snapshot still shows the queued offline rating on top', async () => {
+    const { loadSnapshot } = await import('@/utils/offlineStore.js')
+    loadSnapshot.mockImplementation((topKey, kind) => Promise.resolve(
+      kind === 'movieLog' ? { synced: { movie: { id: 1, title: 'Synced Movie' } } } : null
+    ))
+    listPendingWritesMock.mockResolvedValue([
+      { id: 'q1', type: 'placeholder', createdAt: 5, dbEntry: { path: 'movieLog/offline-key', value: { movie: { id: 'offline-1', title: 'Rated On The Plane' } } } }
+    ])
+
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    expect(store.state.movieLog.synced).toBeTruthy()
+    expect(store.state.movieLog['offline-key'].movie.title).toBe('Rated On The Plane')
+    expect(store.state.dbLoaded).toBe(true)
+  })
+
+  it('a first-ever session with no snapshot at all still shows the queued rating', async () => {
+    listPendingWritesMock.mockResolvedValue([
+      { id: 'q1', type: 'placeholder', createdAt: 5, dbEntry: { path: 'movieLog/offline-key', value: { movie: { id: 'offline-1', title: 'Only Copy' } } } }
+    ])
+
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    expect(store.state.movieLog['offline-key'].movie.title).toBe('Only Copy')
+    expect(store.state.dbLoaded).toBe(true)
+  })
+
+  it("the first server snapshot after reconnecting doesn't blink the queued rating out of the library", async () => {
+    listPendingWritesMock.mockResolvedValue([
+      { id: 'q1', type: 'write', createdAt: 5, dbEntry: { path: 'movieLog/offline-key', value: { movie: { id: 9, title: 'Still Pending' } } } }
+    ])
+    await store.dispatch('initializeDB')
+
+    fireSnapshot('movieLog', { synced: { movie: { id: 1, title: 'Server Movie' } } })
+    await flushMicrotasks()
+
+    expect(store.state.movieLog.synced).toBeTruthy()
+    expect(store.state.movieLog['offline-key'].movie.title).toBe('Still Pending')
+  })
+})
+
 describe('change tracking on every library write (delta sync, phase 0)', () => {
   const TS = { '.sv': 'timestamp' }
 

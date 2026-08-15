@@ -181,6 +181,7 @@ describe('App - renders UpdateAvailableBanner globally', () => {
     })
 
     expect(wrapper.findComponent({ name: 'UpdateAvailableBanner' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'OfflineBanner' }).exists()).toBe(true)
     vi.restoreAllMocks()
   })
 })

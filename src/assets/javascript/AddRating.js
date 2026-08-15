@@ -340,20 +340,13 @@ const addRating = async (ratings) => {
     }
   }
 
-  // Optimistic local commit - the movie shows up in the grid/previous-
-  // viewings/a same-session re-edit immediately, regardless of connectivity
-  // or what happens below. See setMovieLogEntry's own comment in
-  // store/index.js.
-  const key = dbEntry.path.split('movieLog/')[1];
-  store.commit('setMovieLogEntry', { key, value: dbEntry.value });
-
   // BULLETPROOFING (Jul 2026, following a live data-loss report): durably
   // enqueue BEFORE attempting any network write, unconditionally, for every
   // rating - not only as a fallback after a failed attempt. This closes the
   // one gap the earlier "direct write" fix still had: if the tab/app is
   // killed in the split second while the write is actually in flight
   // (after the user has already seen the rating "saved" via the optimistic
-  // commit above, but before the network round-trip resolves either way),
+  // commit below, but before the network round-trip resolves either way),
   // there would otherwise be nothing durable on disk yet. With the enqueue
   // happening FIRST, that same instant is already covered - IndexedDB has a
   // durable copy the moment this line completes, and it will be retried by
@@ -379,6 +372,27 @@ const addRating = async (ratings) => {
     });
   }
   const queuedRecord = await enqueueWrite(queueEntry);
+
+  // enqueueWrite never throws — it resolves null on ANY IndexedDB failure
+  // (private browsing, iOS storage pressure, a wedged database). Offline,
+  // that queue entry is the ONLY thing standing between this rating and
+  // total loss on the next app close, so a null here must be a hard error
+  // the user sees (RateMovie's submitError UI), not a silent "saved" that
+  // wasn't. Bug report: an airplane-mode rating "seemed to work" then was
+  // gone for good — an invisible enqueue failure produces exactly that.
+  // Online, the direct server write below is its own confirmation, so a
+  // failed enqueue only narrows the safety net rather than gutting it.
+  if (!queuedRecord && !store.state.isOnline) {
+    throw new Error('Could not save this rating on the device — offline storage is unavailable, and there is no connection to save it online.');
+  }
+
+  // Optimistic local commit - the movie shows up in the grid/previous-
+  // viewings/a same-session re-edit immediately, regardless of what happens
+  // to the network attempt below. Deliberately AFTER the durability line
+  // above: nothing may look saved before something durable (IndexedDB entry
+  // or, online, the awaited server write) stands behind it.
+  const key = dbEntry.path.split('movieLog/')[1];
+  store.commit('setMovieLogEntry', { key, value: dbEntry.value });
 
   // THE ACTUAL FIX for the original data-loss bug report: a direct, AWAITED
   // write attempt with no dependency on the SHARED/guarded flushPendingWrites
@@ -411,7 +425,9 @@ const addRating = async (ratings) => {
       // immediate visibility/control via RateMovie.vue's existing error UI,
       // rather than silently trusting an unconfirmed save - the data itself
       // is never at risk either way, this is purely about surfacing status.
-      if (isPlaceholder) {
+      // A placeholder with NO queue entry (the enqueue itself failed) has no
+      // safety net left, so that one combination must surface too.
+      if (isPlaceholder && queuedRecord) {
         console.error('Direct write failed for a placeholder rating, will retry via the background queue:', error);
       } else {
         throw error;
