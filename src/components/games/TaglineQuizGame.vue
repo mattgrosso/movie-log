@@ -133,6 +133,14 @@ export default {
       return null;
     },
     async fetchTagline (candidate) {
+      // Stored tagline first (2026-08-15): entries rated/backfilled since
+      // taglines became part of the stored shape carry movie.tagline —
+      // '' means the movie genuinely has none (skip without a request),
+      // a string plays offline, undefined is a legacy entry (fetch).
+      const stored = candidate?.movie?.tagline;
+      if (typeof stored === 'string') {
+        return stored.trim() || null;
+      }
       const movieId = candidate?.movie?.id;
       if (movieId == null) return null;
       try {

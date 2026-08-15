@@ -179,6 +179,10 @@ const shapeTmdbDataIntoMovie = (tmdbData, ratings) => {
     release_date: tmdbData.release_date,
     revenue: tmdbData.revenue,
     runtime: tmdbData.runtime,
+    // Same /movie/{id} call, never kept before (2026-08-15): stored so Tag
+    // Lines / Clue Budget work offline. '' = movie genuinely has none;
+    // undefined = legacy entry from before this field (fetch fallback).
+    tagline: (tmdbData.tagline || '').trim(),
     title: tmdbData.title,
     keywords: tmdbData.keywords,
     chatGPTKeywords: collectChatGPTKeywords(ratings)

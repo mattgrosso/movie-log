@@ -332,6 +332,13 @@ export default {
     // others; each guards against a stale response landing after "New
     // Round" already moved on to a different target.
     fetchLiveData (roundTarget) {
+      // Stored tagline (2026-08-15): offer the Tagline clue offline for
+      // entries that carry one; the live fetch below still refines pricing
+      // and covers legacy entries.
+      const storedTagline = typeof roundTarget?.movie?.tagline === 'string' ? roundTarget.movie.tagline.trim() : '';
+      if (storedTagline) {
+        this.mergeLiveExtras({ tagline: storedTagline, peoplePopularity: {} });
+      }
       this.fetchTaglineAndPopularity(roundTarget);
       this.fetchKeywordRarity(roundTarget);
     },

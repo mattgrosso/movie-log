@@ -67,6 +67,14 @@ const collectMoviesNeedingCountries = (movieLog) =>
     .map((dbKey) => ({ dbKey, entry: movieLog[dbKey] }))
     .filter(({ entry }) => hasRealTmdbId(entry) && entry.movie.production_countries === undefined);
 
+// Taglines became part of the stored movie shape 2026-08-15 (Tag Lines /
+// Clue Budget offline support). undefined = never backfilled; '' after the
+// backfill = the movie genuinely has none.
+const collectMoviesNeedingTagline = (movieLog) =>
+  Object.keys(movieLog || {})
+    .map((dbKey) => ({ dbKey, entry: movieLog[dbKey] }))
+    .filter(({ entry }) => hasRealTmdbId(entry) && entry.movie.tagline === undefined);
+
 loadEnvLocal();
 // The TMDB key lives in .env (build-time env), not .env.local — pull it in
 // the same non-throwing way for the --apply-tmdb mode.
@@ -167,7 +175,8 @@ async function fetchTmdbFinancials (tmdbId) {
     budget: data.budget ?? 0,
     revenue: data.revenue ?? 0,
     production_countries: data.production_countries || [],
-    spoken_languages: data.spoken_languages || []
+    spoken_languages: data.spoken_languages || [],
+    tagline: (data.tagline || '').trim()
   };
 }
 
@@ -176,13 +185,18 @@ async function fetchTmdbFinancials (tmdbId) {
 // gets a fresh updatedAt — a field changed without a stamp would be
 // invisible to a future delta sync (the same one-atomic-write rule
 // stampPlanForWrite enforces in-app).
-async function tmdbBackfillAccount (accountKey, needBoxOffice, needCountries) {
+async function tmdbBackfillAccount (accountKey, needBoxOffice, needCountries, needTagline = []) {
   const byKey = new Map();
-  needBoxOffice.forEach(({ dbKey, entry }) => byKey.set(dbKey, { entry, boxOffice: true, countries: false }));
+  needBoxOffice.forEach(({ dbKey, entry }) => byKey.set(dbKey, { entry, boxOffice: true, countries: false, tagline: false }));
   needCountries.forEach(({ dbKey, entry }) => {
     const existing = byKey.get(dbKey);
     if (existing) existing.countries = true;
-    else byKey.set(dbKey, { entry, boxOffice: false, countries: true });
+    else byKey.set(dbKey, { entry, boxOffice: false, countries: true, tagline: false });
+  });
+  needTagline.forEach(({ dbKey, entry }) => {
+    const existing = byKey.get(dbKey);
+    if (existing) existing.tagline = true;
+    else byKey.set(dbKey, { entry, boxOffice: false, countries: false, tagline: true });
   });
 
   const work = [...byKey.entries()];
@@ -202,7 +216,7 @@ async function tmdbBackfillAccount (accountKey, needBoxOffice, needCountries) {
   let nextIndex = 0;
   const workers = Array.from({ length: Math.min(TMDB_CONCURRENCY, work.length) }, async () => {
     while (nextIndex < work.length) {
-      const [dbKey, { entry, boxOffice, countries }] = work[nextIndex++];
+      const [dbKey, { entry, boxOffice, countries, tagline }] = work[nextIndex++];
       try {
         const financials = await fetchTmdbFinancials(entry.movie.id);
         const base = `${accountKey}/movieLog/${dbKey}`;
@@ -213,6 +227,9 @@ async function tmdbBackfillAccount (accountKey, needBoxOffice, needCountries) {
         if (countries) {
           pendingUpdates[`${base}/movie/production_countries`] = financials.production_countries;
           pendingUpdates[`${base}/movie/spoken_languages`] = financials.spoken_languages;
+        }
+        if (tagline) {
+          pendingUpdates[`${base}/movie/tagline`] = financials.tagline;
         }
         pendingUpdates[`${base}/updatedAt`] = ServerValue.TIMESTAMP;
         pendingCount++;
@@ -265,6 +282,7 @@ for (const accountKey of accountKeys) {
   const needTrim = collectEntriesNeedingTrim(movieLog);
   const needBoxOffice = collectMoviesNeedingBoxOffice(movieLog);
   const needCountries = collectMoviesNeedingCountries(movieLog);
+  const needTagline = collectMoviesNeedingTagline(movieLog);
 
   console.log(`${accountKey}`);
   console.log(`  entries: ${total}`);
@@ -272,13 +290,14 @@ for (const accountKey of accountKeys) {
   console.log(`  needing trim: ${needTrim.length}`);
   console.log(`  missing box office: ${needBoxOffice.length}`);
   console.log(`  missing countries: ${needCountries.length}`);
+  console.log(`  missing tagline: ${needTagline.length}`);
 
   if (applyTimestamps && needStamp.length) {
     const written = await stampAccount(accountKey, needStamp);
     console.log(`  ✔ wrote ${written} updatedAt stamps`);
   }
-  if (applyTmdb && (needBoxOffice.length || needCountries.length)) {
-    const { attempted, failed } = await tmdbBackfillAccount(accountKey, needBoxOffice, needCountries);
+  if (applyTmdb && (needBoxOffice.length || needCountries.length || needTagline.length)) {
+    const { attempted, failed } = await tmdbBackfillAccount(accountKey, needBoxOffice, needCountries, needTagline);
     console.log(`  ✔ tmdb backfill: ${attempted - failed}/${attempted} movies updated${failed ? ` (${failed} failed)` : ''}`);
   }
   if (backupOnly && total) {

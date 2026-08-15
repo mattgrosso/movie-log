@@ -42,6 +42,34 @@ function tenMovies () {
 }
 
 describe('TaglineQuizGame', () => {
+  it('plays entirely from a stored tagline — no network request (offline support)', async () => {
+    // Taglines are part of the stored movie shape as of 2026-08-15; a
+    // candidate carrying one must start the round with zero TMDB calls.
+    const movies = tenMovies().map((e) => ({
+      ...e,
+      movie: { ...e.movie, tagline: `Stored tagline for ${e.movie.id}` }
+    }));
+    const wrapper = factory(movies);
+    await flushPromises();
+
+    expect(wrapper.vm.tagline).toMatch(/^Stored tagline for /);
+    expect(axios.get).not.toHaveBeenCalled();
+  });
+
+  it("skips a stored-empty tagline ('' = movie genuinely has none) without fetching for it", async () => {
+    // One movie known to have no tagline, the rest stored with real ones:
+    // the empty one must never trigger a fetch, and a real one plays.
+    const movies = tenMovies().map((e, i) => ({
+      ...e,
+      movie: { ...e.movie, tagline: i === 0 ? '' : `Stored tagline for ${e.movie.id}` }
+    }));
+    const wrapper = factory(movies);
+    await flushPromises();
+
+    expect(wrapper.vm.tagline).toMatch(/^Stored tagline for /);
+    expect(axios.get).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
     axios.get.mockReset();
