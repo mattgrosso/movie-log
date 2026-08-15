@@ -16,6 +16,16 @@ Full narrative: `docs/history/data-and-offline.md`.
 
 ## The write path
 
+**Offline audit 2026-08-15 (v1.47.0): every user-authored write in the app is
+durable.** `setDBValue` remains ONLY for derived/re-derivable values (error-log
+toggle, group-order daily override, prompt snooze states) and the deliberately
+non-durable maintenance batches via `updateDatabaseEntriesNow`. Any NEW write of
+something a user typed, chose, or decided must use `writeDurably` with a LEAF
+path — never whole-entry, never whole-map, never fire-and-forget. Bug reports
+are the one exception shape (global `bugReports/` path, outside the account
+root): they use their own localStorage stash + `flushStashedBugReports` drain.
+
+
 Use **`writeDurably`** (store action) for anything user-authored. It does, in order:
 
 1. **Commit locally** via `applyDbPathLocally` (or `setMovieLogEntry` for a whole entry).
