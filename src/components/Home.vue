@@ -163,6 +163,10 @@
                   <span class="average-label">(views)</span>
                   <span class="average-value">{{viewsCount(displayedResults)}}</span>
                 </span>
+                <span v-else-if="showLogScore">
+                  <span class="average-label">(log)</span>
+                  <span class="average-value">{{filteredLogScore}}</span>
+                </span>
                 <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{unifiedFilteredResults.length}}</span>
                 <span v-else>{{displayedResults.length}}</span>
               </button>
@@ -1058,6 +1062,7 @@ import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 import { awardsYearThreshold } from "../assets/javascript/personalAwards.js";
+import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
 import ErrorLogService from '../services/ErrorLogService.js';
 import { computeFlatKeywords } from '../utils/keywords.js';
 import {
@@ -1194,6 +1199,7 @@ export default {
       showSuggestionsOnly: false,
       dismissedWelcomeSuggestions: false, // a 0-rated user can cancel out of the auto-shown welcome suggestions
       showViewCount: false,
+      showLogScore: false,
       sortOrder: "bestOrNewestOnTop",
       sortValue: null,
       unratedMovies: [],
@@ -1499,6 +1505,17 @@ export default {
     personalAwardName () {
       const value = this.$store.state.settings?.personalAwardName;
       return (typeof value === 'string' && value.length > 0) ? value : 'Oscar';
+    },
+    // Cached (computed, not a method): walks the whole matched set through
+    // getRating, so it must only recompute when results/toggle change.
+    filteredLogScore () {
+      if (!this.showLogScore) return null;
+      const scores = (this.sortedResults || [])
+        .map((entry) => getRating(entry)?.calculatedTotal)
+        .filter(Number.isFinite);
+      const globalAvg = globalAverage(this.$store.getters.allMoviesAsArray || [], getRating);
+      const score = logScore(scores, globalAvg, logScoreSettings(this.$store.state.settings));
+      return score == null ? '—' : score;
     },
     awardsYearThresholdInput () {
       return awardsYearThreshold(this.$store.state.settings);
@@ -3364,17 +3381,22 @@ export default {
       });
     },
     toggleCountViewsAverage () {
+      // Cycle: count -> average -> views -> log score -> count (log score
+      // added 2026-08-15 — Brian-survey item C2, per Matt: "let's just add
+      // more things to that cycle").
       if (this.showAverage) {
         this.showAverage = false;
         this.showViewCount = true;
       } else if (this.showViewCount) {
-        this.showAverage = false;
         this.showViewCount = false;
+        this.showLogScore = true;
+      } else if (this.showLogScore) {
+        this.showLogScore = false;
       } else {
         this.showAverage = true;
-        this.showViewCount = false;
       }
     },
+
     averageRating (results) {
       if (!Array.isArray(results) || results.length === 0) return '0.00';
       const ratedMovies = results.filter((result) => this.mostRecentRating(result).calculatedTotal);
