@@ -17,7 +17,11 @@ vi.mock('firebase/database', () => ({
   ref: vi.fn((db, path) => path),
   onValue: vi.fn(),
   set: vi.fn(() => Promise.resolve()),
-  update: vi.fn(() => Promise.resolve())
+  update: vi.fn(() => Promise.resolve()),
+  query: vi.fn(),
+  orderByChild: vi.fn(),
+  startAt: vi.fn(),
+  get: vi.fn(() => Promise.resolve({ val: () => null }))
 }))
 
 const signInWithPopupMock = vi.fn()

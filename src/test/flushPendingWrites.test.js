@@ -20,7 +20,11 @@ vi.mock('firebase/database', () => ({
   ref: vi.fn((db, path) => path),
   onValue: (...args) => onValueMock(...args),
   set: (...args) => setMock(...args),
-  update: (...args) => updateMock(...args)
+  update: (...args) => updateMock(...args),
+  query: vi.fn((target, ...clauses) => ({ __query: target, clauses })),
+  orderByChild: vi.fn((field) => ({ orderByChild: field })),
+  startAt: vi.fn((value) => ({ startAt: value })),
+  get: vi.fn(() => Promise.resolve({ val: () => null }))
 }))
 
 // Invokes the real onValue callback the store registered for a given branch,

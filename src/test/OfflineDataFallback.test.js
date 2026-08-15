@@ -12,12 +12,18 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
 }))
 
 const onValueMock = vi.fn()
+const queryMock = vi.fn((target, ...clauses) => ({ __query: target, clauses }))
+const getMock = vi.fn(() => Promise.resolve({ val: () => null }))
 vi.mock('firebase/database', () => ({
   serverTimestamp: () => ({ '.sv': 'timestamp' }),
   getDatabase: vi.fn(() => ({})),
   ref: vi.fn((db, path) => path),
   onValue: (...args) => onValueMock(...args),
-  set: vi.fn()
+  set: vi.fn(),
+  query: (...args) => queryMock(...args),
+  orderByChild: (field) => ({ orderByChild: field }),
+  startAt: (value) => ({ startAt: value }),
+  get: (...args) => getMock(...args)
 }))
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(() => ({}))
@@ -56,6 +62,8 @@ beforeEach(async () => {
   vi.resetModules()
   onValueMock.mockReset()
   loadSnapshotMock.mockReset()
+  getMock.mockReset().mockImplementation(() => Promise.resolve({ val: () => null }))
+  queryMock.mockClear()
   saveSnapshotMock.mockReset()
 
   const storeModule = await import('@/store/index.js')
@@ -181,6 +189,106 @@ describe('initializeDB offline snapshot fallback', () => {
 
       expect(store.state.dbReadDenied).toBe(false)
       expect(store.state.movieLog.live.movie.title).toBe('Live Movie')
+    })
+  })
+
+  describe('delta sync shadow mode (phase 1: compare, act on neither)', () => {
+    function fireMovieLog (data) {
+      const call = onValueMock.mock.calls.find(([path]) => path === 'testing-database/movieLog')
+      call[1]({ val: () => data })
+    }
+    const stamped = (title, updatedAt) => ({ movie: { id: title, title }, updatedAt })
+
+    it('first launch records a lastSync baseline (max updatedAt received) without querying anything', async () => {
+      loadSnapshotMock.mockResolvedValue(null)
+      await store.dispatch('initializeDB')
+
+      fireMovieLog({ a: stamped('A', 100), b: stamped('B', 250) })
+      await flushMicrotasks()
+
+      expect(getMock).not.toHaveBeenCalled()
+      expect(saveSnapshotMock).toHaveBeenCalledWith('testing-database', 'deltaSyncMeta', expect.objectContaining({ lastSync: 250 }))
+      expect(store.state.deltaShadowReport).toBeNull()
+    })
+
+    it('with a baseline: runs the delta query from lastSync, reconstructs, and reports identical when it matches', async () => {
+      loadSnapshotMock.mockImplementation((topKey, kind) => Promise.resolve(
+        kind === 'deltaSyncMeta' ? { lastSync: 100 }
+          : kind === 'movieLog' ? { a: stamped('A', 50), b: stamped('B old', 100) }
+            : null
+      ))
+      getMock.mockImplementation((target) => Promise.resolve({
+        val: () => (target.__query ? { b: stamped('B new', 300) } : null)
+      }))
+      await store.dispatch('initializeDB')
+      await flushMicrotasks()
+
+      fireMovieLog({ a: stamped('A', 50), b: stamped('B new', 300) })
+      await flushMicrotasks()
+
+      const queryArg = getMock.mock.calls.find(([target]) => target.__query)[0]
+      expect(queryArg.clauses).toEqual([{ orderByChild: 'updatedAt' }, { startAt: 100 }])
+      expect(store.state.deltaShadowReport.identical).toBe(true)
+      expect(store.state.deltaShadowReport.deltaEntryCount).toBe(1)
+      expect(saveSnapshotMock).toHaveBeenCalledWith('testing-database', 'deltaSyncMeta', expect.objectContaining({ lastSync: 300 }))
+    })
+
+    it('reports divergence when the reconstruction misses something the full download has', async () => {
+      loadSnapshotMock.mockImplementation((topKey, kind) => Promise.resolve(
+        kind === 'deltaSyncMeta' ? { lastSync: 100 }
+          : kind === 'movieLog' ? { a: stamped('A', 50) }
+            : null
+      ))
+      // Delta returns nothing — but the full download has a NEW entry, so
+      // the delta path would have silently omitted it. The exact failure
+      // shape shadow mode exists to catch.
+      getMock.mockImplementation(() => Promise.resolve({ val: () => null }))
+      await store.dispatch('initializeDB')
+      await flushMicrotasks()
+
+      fireMovieLog({ a: stamped('A', 50), b: stamped('B missed', 300) })
+      await flushMicrotasks()
+
+      expect(store.state.deltaShadowReport.identical).toBe(false)
+      expect(store.state.deltaShadowReport.missing).toEqual(['b'])
+    })
+
+    it('applies a newer tombstone during reconstruction, so a deletion synced by delta matches', async () => {
+      loadSnapshotMock.mockImplementation((topKey, kind) => Promise.resolve(
+        kind === 'deltaSyncMeta' ? { lastSync: 100 }
+          : kind === 'movieLog' ? { a: stamped('A', 50), gone: stamped('Gone', 90) }
+            : null
+      ))
+      getMock.mockImplementation((target) => Promise.resolve({
+        val: () => (target.__query ? null : { gone: 200 })
+      }))
+      await store.dispatch('initializeDB')
+      await flushMicrotasks()
+
+      fireMovieLog({ a: stamped('A', 50) })
+      await flushMicrotasks()
+
+      expect(store.state.deltaShadowReport.identical).toBe(true)
+    })
+
+    it('runs the comparison once per session, not on every listener refire', async () => {
+      loadSnapshotMock.mockImplementation((topKey, kind) => Promise.resolve(
+        kind === 'deltaSyncMeta' ? { lastSync: 100 }
+          : kind === 'movieLog' ? { a: stamped('A', 50) }
+            : null
+      ))
+      getMock.mockImplementation(() => Promise.resolve({ val: () => null }))
+      await store.dispatch('initializeDB')
+      await flushMicrotasks()
+
+      fireMovieLog({ a: stamped('A', 50) })
+      await flushMicrotasks()
+      const callsAfterFirst = getMock.mock.calls.length
+
+      fireMovieLog({ a: stamped('A', 50) })
+      await flushMicrotasks()
+
+      expect(getMock.mock.calls.length).toBe(callsAfterFirst)
     })
   })
 

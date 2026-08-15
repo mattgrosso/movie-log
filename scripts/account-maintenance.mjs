@@ -204,7 +204,8 @@ const accountKeys = Object.keys(root)
   // --account is an explicit override; the skip list only applies to sweeps.
   .filter((key) => key === onlyAccount || !skipAccounts.has(key));
 
-console.log(`${accountKeys.length} account(s)${applyTimestamps ? ' — APPLYING timestamps' : ' — audit only'}\n`);
+const modes = [applyTimestamps && 'timestamps', applyTmdb && 'tmdb backfill'].filter(Boolean);
+console.log(`${accountKeys.length} account(s)${modes.length ? ` — APPLYING ${modes.join(' + ')}` : ' — audit only'}\n`);
 
 for (const accountKey of accountKeys) {
   const movieLog = root[accountKey]?.movieLog || {};

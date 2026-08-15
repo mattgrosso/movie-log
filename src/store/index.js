@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { createStore } from "vuex"
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue, set, update, serverTimestamp } from "firebase/database";
+import { getDatabase, ref, onValue, set, update, serverTimestamp, query, orderByChild, startAt, get } from "firebase/database";
 import {
   getAuth,
   GoogleAuthProvider,
@@ -19,6 +19,7 @@ import { getRating } from "../assets/javascript/GetRating";
 import router from '@/router';
 import ErrorLogService from "../services/ErrorLogService.js";
 import { saveSnapshot, loadSnapshot } from "../utils/offlineStore.js";
+import { maxUpdatedAt, reconstructFromDelta, diffLibraries } from "../assets/javascript/deltaSync.js";
 import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite } from "../utils/pendingWriteQueue.js";
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
@@ -240,6 +241,9 @@ export default createStore({
     // read). Drives LibraryAccessBanner's "your movies aren't gone"
     // guidance; cleared the moment a listener successfully delivers data.
     dbReadDenied: false,
+    // Latest delta-sync shadow-mode comparison (phase 1) — see
+    // runDeltaShadowCheck. Null until a launch has a baseline to compare.
+    deltaShadowReport: null,
     filteredResults: [],
     // Header banner: Home resolves bannerUrl on arrival based on bannerRequest
     // (set by MovieDetail/RateMovie/search links). See Header.vue + Home.resolveBanner.
@@ -465,6 +469,9 @@ export default createStore({
     setDbReadDenied (state, value) {
       state.dbReadDenied = value;
     },
+    setDeltaShadowReport (state, value) {
+      state.deltaShadowReport = value;
+    },
     // Persists to localStorage here too, so this is the one place that needs
     // to know devMode is backed by localStorage at all — callers just commit.
     setDevMode (state, value) {
@@ -668,7 +675,15 @@ export default createStore({
         // is the source of truth and overwrites/re-persists on arrival - the
         // dbLoaded guard just stops a slower cache read from clobbering
         // already-arrived live data.
-        loadSnapshot(topKey, 'movieLog').then(async (cached) => {
+        // Started once, shared by the offline-fallback race below AND the
+        // delta-sync shadow check: the shadow comparison needs the snapshot
+        // as it stood BEFORE this launch's live data re-persists it, and an
+        // IndexedDB read transaction opened here sees the pre-overwrite
+        // value regardless of when it resolves.
+        const priorSnapshotPromise = loadSnapshot(topKey, 'movieLog').catch(() => null);
+        let shadowCheckStarted = false;
+
+        priorSnapshotPromise.then(async (cached) => {
           if (cached && !context.state.dbLoaded) {
             context.commit('setMovieLog', cached);
           }
@@ -690,6 +705,16 @@ export default createStore({
           const data = snapshot.val();
 
           if (data) {
+            // Delta sync SHADOW check (phase 1): reconstruct the library
+            // from prior-snapshot + delta query and diff it against this
+            // full download, acting on neither. Once per session, and
+            // dispatched BEFORE saveSnapshot below re-persists the fresh
+            // data (the prior-snapshot read transaction is already open, so
+            // ordering here is belt-and-braces, not load-bearing).
+            if (!shadowCheckStarted) {
+              shadowCheckStarted = true;
+              context.dispatch('runDeltaShadowCheck', { fresh: data, priorSnapshotPromise, topKey });
+            }
             // Same in-flight re-top as the settings listener below — a
             // tiebreak's score adjustments are movieLog writes, and a
             // snapshot predating them would otherwise briefly restore the
@@ -880,6 +905,57 @@ export default createStore({
       }
 
       await performDatabaseWrite(context, dbEntry);
+    },
+    // Delta sync phase 1 — SHADOW MODE. Runs the real delta machinery on
+    // every launch and reports whether it would have produced the same
+    // library the full download did, while the app continues to run
+    // entirely on the full download. Divergence is the thing this exists to
+    // catch BEFORE phase 2 trusts the delta path — it logs loudly (console
+    // + ErrorLogService, visible in the in-app error log) and stashes a
+    // report in state; agreement logs quietly. Never throws: any failure
+    // here (offline probe, missing meta, first run) just means "no
+    // comparison this launch."
+    async runDeltaShadowCheck (context, { fresh, priorSnapshotPromise, topKey }) {
+      try {
+        const meta = await loadSnapshot(topKey, 'deltaSyncMeta');
+        const priorSnapshot = await priorSnapshotPromise;
+        const newLastSync = maxUpdatedAt(fresh);
+
+        if (meta?.lastSync != null && priorSnapshot) {
+          // startAt is inclusive, so the boundary entry is re-fetched —
+          // harmless (the merge replaces it with an identical copy) and
+          // safer than +1 arithmetic against equal-stamp writes.
+          const [deltaSnap, tombstoneSnap] = await Promise.all([
+            get(query(ref(db, `${topKey}/movieLog`), orderByChild('updatedAt'), startAt(meta.lastSync))),
+            get(ref(db, `${topKey}/movieLogDeletions`))
+          ]);
+          const deltaEntries = deltaSnap.val() || {};
+          const reconstructed = reconstructFromDelta(priorSnapshot, deltaEntries, tombstoneSnap.val() || {});
+          const report = {
+            ...diffLibraries(fresh, reconstructed),
+            deltaEntryCount: Object.keys(deltaEntries).length,
+            lastSyncUsed: meta.lastSync,
+            checkedAt: Date.now()
+          };
+          context.commit('setDeltaShadowReport', report);
+
+          if (report.identical) {
+            console.info(`[delta-shadow] identical: ${report.compared} entries reconstructed from snapshot + ${report.deltaEntryCount} delta entries`);
+            ErrorLogService.info?.(`[delta-shadow] identical (${report.compared} entries, ${report.deltaEntryCount} via delta)`);
+          } else {
+            console.warn('[delta-shadow] DIVERGENCE:', report);
+            ErrorLogService.error('[delta-shadow] delta reconstruction diverged from full download:', report);
+          }
+        }
+
+        // Either way, this launch's full download is the new baseline.
+        if (newLastSync != null) {
+          await saveSnapshot(topKey, 'deltaSyncMeta', { lastSync: newLastSync, savedAt: Date.now() });
+        }
+      } catch (error) {
+        // Shadow mode must never affect the real load path.
+        console.warn('[delta-shadow] check skipped:', error);
+      }
     },
     // Re-applies every still-queued durable write for `root` ('movieLog' or
     // 'settings') to LOCAL state, oldest first. Bug report: a movie rated
