@@ -54,7 +54,7 @@
            top, value beneath), rather than the old bulleted list — a bought
            clue reads as the chip it was, flipped over. -->
       <ul v-if="purchasedClues.length" class="purchased-clues">
-        <li v-for="clue in purchasedClues" :key="clue.key" class="purchased-clue">
+        <li v-for="clue in purchasedClues" :key="clue.key" class="purchased-clue" :class="{ wide: isWideClue(clue) }">
           <span class="purchased-clue-label">{{ clue.label }} <span class="purchased-clue-cost">${{ clue.cost }}</span></span>
           <span class="purchased-clue-value">{{ clue.value }}</span>
         </li>
@@ -163,6 +163,13 @@ export default {
   },
   methods: {
     entryKeyFor: entryKey,
+    // Feedback: a long value squashed into a half-width card reads squat.
+    // Tagline is always a sentence, so it's always full width; anything
+    // else earns full width only when its actual value runs long (a
+    // multi-genre list, co-directors) — short facts stay compact.
+    isWideClue (clue) {
+      return clue.key === 'tagline' || String(clue.value ?? '').length > 24;
+    },
     suggestionYear (entry) {
       const date = entry?.movie?.release_date;
       return date ? new Date(date).getFullYear() : 'Unknown';
@@ -530,6 +537,14 @@ export default {
   min-height: 46px;
   padding: 0.35rem 0.5rem;
   text-align: center;
+}
+
+/* Long-value clues (tagline always; genre lists, co-directors when they
+   actually run long) span the full row and read left-aligned like a
+   sentence rather than a squashed tile. */
+.purchased-clue.wide {
+  grid-column: 1 / -1;
+  text-align: left;
 }
 
 .purchased-clue-label {

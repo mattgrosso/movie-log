@@ -416,6 +416,24 @@ describe('ClueBudgetGame - round history (feature: game stats)', () => {
   });
 });
 
+describe('ClueBudgetGame - purchased-card widths (feedback: long taglines made the cards squat)', () => {
+  it('a tagline card is always full width; short facts stay compact; long genre lists widen', async () => {
+    const wrapper = factory(tenMovies());
+    await flushPromises();
+
+    wrapper.vm.buyClue({ key: 'tagline', label: 'Tagline', cost: 15, value: 'Short.' });
+    wrapper.vm.buyClue({ key: 'decade', label: 'Decade', cost: 5, value: '1990s' });
+    wrapper.vm.buyClue({ key: 'genres', label: 'Genres', cost: 8, value: 'Action, Adventure, Sci-Fi' });
+    await wrapper.vm.$nextTick();
+
+    const cards = wrapper.findAll('.purchased-clue');
+    const byLabel = (label) => cards.find((card) => card.text().includes(label));
+    expect(byLabel('Tagline').classes()).toContain('wide'); // even a short tagline: sentences get the row
+    expect(byLabel('Decade').classes()).not.toContain('wide');
+    expect(byLabel('Genres').classes()).toContain('wide'); // 25 chars of genre list
+  });
+});
+
 describe('ClueBudgetGame - persistence across navigation (bug report: "when I jumped over to my database and came back it reset the game")', () => {
   beforeEach(() => {
     axios.get.mockReset();
