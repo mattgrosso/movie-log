@@ -236,8 +236,9 @@ describe('TrophyCase', () => {
     expect(panel.exists()).toBe(true)
     const posters = panel.findAll('.person-film-poster').filter((el) => el.element.tagName === 'IMG')
     expect(posters).toHaveLength(2)
-    expect(panel.text()).toContain('2018 · Director') // "Best" dropped by design
-    expect(panel.text()).not.toContain('Best Director')
+    // Year on one line, full category name on the next ("Best" restored).
+    expect(panel.find('.person-film-year').text()).toBe('2018')
+    expect(panel.find('.person-film-category').text()).toBe('Best Director')
     // Feedback: no titles under the posters — the poster is the identifier.
     expect(panel.find('.person-film-title').exists()).toBe(false)
     // And no duplicated name header inside the panel.

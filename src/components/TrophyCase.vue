@@ -48,7 +48,8 @@
             <button v-for="film in expandedFilms" :key="film.key" type="button" class="person-film" :title="film.title" @click="goToMovieId(film.movieId)">
               <img v-if="film.src" :src="film.src" :alt="film.title" class="person-film-poster">
               <div v-else class="person-film-poster decorated-photo-placeholder">{{ film.title.charAt(0) }}</div>
-              <span class="person-film-caption">{{ film.caption }}</span>
+              <span class="person-film-year">{{ film.year }}</span>
+              <span v-if="film.categoryLabel" class="person-film-category">{{ film.categoryLabel }}</span>
             </button>
           </div>
         </div>
@@ -125,7 +126,8 @@
             <button v-for="film in expandedFilms" :key="film.key" type="button" class="person-film" :title="film.title" @click="goToMovieId(film.movieId)">
               <img v-if="film.src" :src="film.src" :alt="film.title" class="person-film-poster">
               <div v-else class="person-film-poster decorated-photo-placeholder">{{ film.title.charAt(0) }}</div>
-              <span class="person-film-caption">{{ film.caption }}</span>
+              <span class="person-film-year">{{ film.year }}</span>
+              <span v-if="film.categoryLabel" class="person-film-category">{{ film.categoryLabel }}</span>
             </button>
           </div>
         </div>
@@ -142,7 +144,7 @@
         </p>
         <div class="academy-scorecard">
           <div v-for="row in academyScorecard" :key="row.categoryKey" class="academy-score-line">
-            <span class="academy-score-label">{{ shortCategoryName(row.categoryKey) }}</span>
+            <span class="academy-score-label">{{ categoryName(row.categoryKey) }}</span>
             <span class="academy-score-value" :class="{ contrarian: row.rate < 0.34 }">
               {{ Math.round(row.rate * 100) }}% ({{ row.agreements }}/{{ row.contests }})
             </span>
@@ -150,7 +152,7 @@
         </div>
         <div v-if="academyDisagreements.length" class="versus-row">
           <div v-for="clash in academyDisagreements" :key="`${clash.year}-${clash.categoryKey}`" class="versus-card">
-            <span class="versus-context">{{ clash.year }} · {{ shortCategoryName(clash.categoryKey) }}</span>
+            <span class="versus-context">{{ clash.year }} · {{ categoryName(clash.categoryKey) }}</span>
             <div class="versus-posters">
               <div class="versus-side">
                 <img v-if="clash.yoursPosterPath" :src="`https://image.tmdb.org/t/p/w185${clash.yoursPosterPath}`" :alt="clash.yoursLabel" class="versus-poster">
@@ -176,7 +178,7 @@
         <h2 class="section-title">Robbed, By Your Own Ratings</h2>
         <div class="versus-row">
           <div v-for="upset in upsets" :key="`${upset.year}-${upset.categoryKey}`" class="versus-card" @click="goToMovieId(upset.robbed.movie.id)">
-            <span class="versus-context">{{ upset.year }} · {{ shortCategoryName(upset.categoryKey) }}</span>
+            <span class="versus-context">{{ upset.year }} · {{ categoryName(upset.categoryKey) }}</span>
             <div class="versus-posters">
               <div class="versus-side">
                 <img v-if="upset.robbed.movie.poster_path" :src="`https://image.tmdb.org/t/p/w185${upset.robbed.movie.poster_path}`" :alt="upset.robbed.movie.title" class="versus-poster">
@@ -345,7 +347,7 @@ export default {
             // The same person can own two categories - the card key keeps
             // the two cards' expansion states distinct.
             cardKey: `${owner.name}|${owner.categoryKey}`,
-            label: `${owner.count}× ${this.shortCategoryName(owner.categoryKey)}`,
+            label: `${owner.count}× ${this.categoryName(owner.categoryKey)}`,
             photo: owner.sample.expanded,
             entries: owner.entries
           }))
@@ -375,7 +377,8 @@ export default {
           movieId: entry.expanded.movie.id,
           src: entry.expanded.movie.poster_path ? `https://image.tmdb.org/t/p/w185${entry.expanded.movie.poster_path}` : null,
           title: entry.expanded.movie.title,
-          caption: `${entry.year}${entry.categoryKey ? ` · ${this.shortCategoryName(entry.categoryKey)}` : ''}`
+          year: entry.year,
+          categoryLabel: entry.categoryKey ? this.categoryName(entry.categoryKey) : null
         }));
     },
     biggestSweeps () {
@@ -469,11 +472,6 @@ export default {
     },
     categoryName (categoryKey) {
       return PERSONAL_AWARD_CATEGORIES.find((category) => category.key === categoryKey)?.name || categoryKey;
-    },
-    // Feedback: every category is "Best something" — on this screen the
-    // "Best" is noise, so captions read "Director", "Supporting Actor".
-    shortCategoryName (categoryKey) {
-      return this.categoryName(categoryKey).replace(/^Best /, '');
     },
     // A PERSON gets a picture of the person - never a poster of one of
     // their films (bug report: "I don't wanna show Steven Spielberg but
@@ -596,7 +594,10 @@ export default {
   display: flex;
   gap: 0.9rem;
   overflow-x: auto;
-  padding-bottom: 0.4rem;
+  /* Roomy enough that the expanded card's caret (absolutely positioned
+     just below the card) stays INSIDE this box — poking past it made the
+     row vertically scrollable and it felt like it "broke loose". */
+  padding-bottom: 0.75rem;
 }
 
 .decorated-person {
@@ -625,7 +626,7 @@ export default {
   border-left: 7px solid transparent;
   border-right: 7px solid transparent;
   border-top: 7px solid #3a3a3a;
-  bottom: -0.5rem;
+  bottom: -0.55rem;
   content: '';
   left: 50%;
   position: absolute;
@@ -736,11 +737,19 @@ export default {
   width: 92px;
 }
 
-.person-film-caption {
+.person-film-year {
   color: #ffc107;
   display: block;
-  font-size: 0.65rem;
+  font-size: 0.68rem;
+  font-weight: 600;
   margin-top: 0.25rem;
+}
+
+.person-film-category {
+  color: #adb5bd;
+  display: block;
+  font-size: 0.65rem;
+  line-height: 1.2;
 }
 
 
