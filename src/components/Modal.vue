@@ -168,6 +168,13 @@ export default {
       display: none;
     }
 
+    .cinemaroll-modal-header {
+      /* The base modal's 1rem header padding stacked with the page's own
+         top spacing — most of the "way too much space below the header"
+         gap (feedback, twice). */
+      padding: 0 1rem;
+    }
+
     .cinemaroll-modal-body {
       overflow: visible;
       /* No top padding: the page's own header spacing is enough, and the

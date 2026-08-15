@@ -71,8 +71,10 @@ export default {
 <style scoped>
 .personal-awards-screen {
   color: #eee;
-  /* House page shape: side padding plus the BackLink safety margin every
-     routed screen carries. */
-  padding: 2.5rem 1rem 2rem;
+  /* Side padding only. The old 2.5rem top "BackLink safety margin" was a
+     misunderstanding: BackLink is position:absolute and floats over the
+     global header banner, so the reserved space was pure dead air below
+     the header image (feedback, twice). */
+  padding: 0.75rem 1rem 2rem;
 }
 </style>

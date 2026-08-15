@@ -3,7 +3,12 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
+    <!-- viewport-fit=cover: without it iOS reports env(safe-area-inset-*) as 0
+         even though the standalone PWA already draws full-bleed under the
+         Dynamic Island (the 'black' status-bar style renders transparent on
+         modern iOS). Geometry doesn't change — this only unlocks real inset
+         values for things like the awards sticky-bar shade. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover"/>
     <meta name="theme-color" content="#000000">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
