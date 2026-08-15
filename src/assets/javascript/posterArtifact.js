@@ -134,3 +134,40 @@ export function assignMosaicCells (cellColors, tileColors, { maxUse = null } = {
     return best;
   });
 }
+
+// Typeahead options for the highlight input (feedback: "start to type
+// something and then choose from a list"). Every distinct data point in
+// the library, tagged by kind so the list can say what a match IS.
+export function collectHighlightOptions (entries) {
+  const seen = new Map(); // lowercase -> { label, kind }
+  const add = (label, kind) => {
+    if (typeof label !== 'string' || label.length < 2) return;
+    const key = label.toLowerCase();
+    if (!seen.has(key)) seen.set(key, { label, kind });
+  };
+  (entries || []).forEach((entry) => {
+    const movie = entry?.movie || {};
+    (movie.genres || []).forEach((g) => add(g?.name, 'genre'));
+    (movie.cast || []).forEach((p) => add(p?.name, 'cast'));
+    (movie.crew || []).forEach((p) => add(p?.name, 'crew'));
+    (movie.flatKeywords || []).forEach((k) => add(k, 'keyword'));
+    (movie.keywords || []).forEach((k) => add(k?.name, 'keyword'));
+  });
+  return [...seen.values()];
+}
+
+// Prefix matches first, then substring matches, capped.
+export function suggestHighlights (options, query, cap = 12) {
+  const needle = (query || '').trim().toLowerCase();
+  if (needle.length < 2) return [];
+  const starts = [];
+  const contains = [];
+  for (const option of options) {
+    const lower = option.label.toLowerCase();
+    if (lower === needle) continue; // already typed exactly
+    if (lower.startsWith(needle)) starts.push(option);
+    else if (lower.includes(needle)) contains.push(option);
+    if (starts.length >= cap) break;
+  }
+  return [...starts, ...contains].slice(0, cap);
+}

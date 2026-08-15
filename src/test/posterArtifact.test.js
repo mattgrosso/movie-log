@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickPosterEntries, gridLayout, tilePosition, posterCaption, entryMatchesHighlight, assignMosaicCells } from '@/assets/javascript/posterArtifact.js';
+import { pickPosterEntries, gridLayout, tilePosition, posterCaption, entryMatchesHighlight, assignMosaicCells, collectHighlightOptions, suggestHighlights } from '@/assets/javascript/posterArtifact.js';
 
 const NOW = new Date('2026-08-15T12:00:00');
 
@@ -127,5 +127,32 @@ describe('assignMosaicCells', () => {
     const cells = [red, red, red, red]
     const tiles = [red]
     expect(assignMosaicCells(cells, tiles, { maxUse: 1 })).toEqual([0, 0, 0, 0])
+  })
+})
+
+describe('highlight typeahead', () => {
+  const entries = [
+    { movie: { genres: [{ name: 'Comedy' }], cast: [{ name: 'Tom Hanks' }], crew: [{ name: 'Nora Ephron' }], flatKeywords: ['new york'] } },
+    { movie: { genres: [{ name: 'Comedy' }], cast: [{ name: 'Tom Cruise' }], crew: [], flatKeywords: [] } }
+  ]
+
+  it('collects each distinct data point once, tagged by kind', () => {
+    const options = collectHighlightOptions(entries)
+    const labels = options.map((o) => o.label)
+    expect(labels).toContain('Comedy')
+    expect(labels).toContain('Tom Hanks')
+    expect(labels).toContain('Nora Ephron')
+    expect(labels).toContain('new york')
+    expect(labels.filter((l) => l === 'Comedy')).toHaveLength(1)
+    expect(options.find((o) => o.label === 'Tom Hanks').kind).toBe('cast')
+  })
+
+  it('suggests prefix matches before substring matches, from 2 characters', () => {
+    const options = collectHighlightOptions(entries)
+    expect(suggestHighlights(options, 't')).toEqual([])
+    const toms = suggestHighlights(options, 'tom')
+    expect(toms.map((o) => o.label)).toEqual(['Tom Hanks', 'Tom Cruise'])
+    const rk = suggestHighlights(options, 'york')
+    expect(rk.map((o) => o.label)).toEqual(['new york'])
   })
 })

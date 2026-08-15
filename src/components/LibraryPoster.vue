@@ -29,7 +29,20 @@
         class="form-control highlight-input"
         placeholder="Highlight a genre, actor, keyword… (optional)"
         :disabled="generating"
+        @focus="onHighlightFocus"
+        @blur="onHighlightBlur"
       >
+      <div v-if="highlightSuggestions.length" class="highlight-suggestions">
+        <button
+          v-for="option in highlightSuggestions"
+          :key="option.kind + option.label"
+          type="button"
+          class="highlight-suggestion"
+          @click="chooseHighlight(option)"
+        >
+          {{ option.label }} <span class="suggestion-kind">{{ option.kind }}</span>
+        </button>
+      </div>
     </div>
 
     <!-- Mosaic target picker: which poster to recreate from all the others -->
@@ -95,7 +108,7 @@
 // pixel sampling already has).
 import BackLink from './games/BackLink.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { pickPosterEntries, gridLayout, tilePosition, posterCaption, entryMatchesHighlight, assignMosaicCells } from '../assets/javascript/posterArtifact.js';
+import { pickPosterEntries, gridLayout, tilePosition, posterCaption, entryMatchesHighlight, assignMosaicCells, collectHighlightOptions, suggestHighlights } from '../assets/javascript/posterArtifact.js';
 
 const TILE_SOURCE_SIZE = 'w185';
 const LOAD_CONCURRENCY = 12;
@@ -111,6 +124,8 @@ export default {
       resultUrl: null,
       error: null,
       highlight: '', // fade non-matching tiles (genre/actor/keyword/director)
+      highlightFocused: false,
+      highlightOptions: null, // built lazily on first focus (large)
       mosaicQuery: '',
       mosaicTarget: null // library entry whose poster the mosaic recreates
     };
@@ -126,6 +141,10 @@ export default {
         { mode: 'all', label: 'Everything' },
         { mode: 'mosaic', label: 'Mosaic' }
       ];
+    },
+    highlightSuggestions () {
+      if (!this.highlightFocused || !this.highlightOptions) return [];
+      return suggestHighlights(this.highlightOptions, this.highlight);
     },
     mosaicMatches () {
       const needle = this.mosaicQuery.trim().toLowerCase();
@@ -160,6 +179,21 @@ export default {
     if (this.resultUrl) URL.revokeObjectURL(this.resultUrl);
   },
   methods: {
+    onHighlightFocus () {
+      this.highlightFocused = true;
+      if (!this.highlightOptions) {
+        // Built once — every distinct genre/person/keyword in the library.
+        this.highlightOptions = collectHighlightOptions(this.library);
+      }
+    },
+    onHighlightBlur () {
+      // Delayed so a tap on a suggestion lands before the list hides.
+      setTimeout(() => { this.highlightFocused = false; }, 200);
+    },
+    chooseHighlight (option) {
+      this.highlight = option.label;
+      this.highlightFocused = false;
+    },
     loadTile (path, size) {
       return new Promise((resolve) => {
         const image = new Image();
@@ -208,16 +242,16 @@ export default {
             const tile = await this.loadTile(entry.movie.poster_path);
             const { x, y } = tilePosition(index, layout);
             if (tile) {
-              // Highlight mode: non-matching tiles fade back so the matches
-              // pop (feedback: "everything else is... faded out").
-              const matches = entryMatchesHighlight(entry, this.highlight);
-              if (!matches && this.highlight.trim()) {
-                if ('filter' in context) context.filter = 'grayscale(1) brightness(0.3)';
-                else context.globalAlpha = 0.18;
-              }
               context.drawImage(tile, x, y, layout.tileW, layout.tileH);
-              context.filter = 'none';
-              context.globalAlpha = 1;
+              // Highlight mode: non-matching tiles fade back so the matches
+              // pop. A dark overlay, NOT ctx.filter — WebKit exposes the
+              // filter property but doesn't implement it on canvas, so the
+              // grayscale approach silently no-opped on iPhone (bug report:
+              // "doesn't seem to make any difference at all").
+              if (this.highlight.trim() && !entryMatchesHighlight(entry, this.highlight)) {
+                context.fillStyle = 'rgba(10, 10, 10, 0.85)';
+                context.fillRect(x, y, layout.tileW, layout.tileH);
+              }
             } else {
               context.fillStyle = '#2a2a2a';
               context.fillRect(x, y, layout.tileW, layout.tileH);
@@ -391,6 +425,38 @@ export default {
 .mosaic-picker {
   margin: 0 auto 0.75rem;
   max-width: 420px;
+}
+
+.highlight-suggestions {
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  margin-top: 0.35rem;
+  max-height: 240px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.highlight-suggestion {
+  background: none;
+  border: none;
+  color: #eee;
+  display: block;
+  font-size: 0.85rem;
+  min-height: 40px;
+  padding: 0.4rem 0.8rem;
+  text-align: left;
+  width: 100%;
+
+  &:active {
+    background: #1f1f1f;
+  }
+}
+
+.suggestion-kind {
+  color: #888;
+  font-size: 0.7rem;
+  margin-left: 0.4rem;
 }
 
 .highlight-input {
