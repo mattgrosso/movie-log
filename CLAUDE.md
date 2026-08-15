@@ -1,1338 +1,187 @@
-# Cinema Roll - Project Summary
+# Cinema Roll
 
-## Overview
-Cinema Roll is a personal movie rating and tracking application built with Vue.js 3. It allows users to rate movies on multiple criteria, track their viewing history, and gain insights into their viewing patterns.
+A personal movie rating and tracking app (Vue 3, Options API). Users rate movies across
+weighted criteria, track viewing history, and get insights into their patterns.
 
-**Live URL**: [cinema-roll.surge.sh](https://cinema-roll.surge.sh/)
+**Live**: [cinema-roll.surge.sh](https://cinema-roll.surge.sh/)
 
-## Technology Stack
-- **Frontend**: Vue.js 3 with Options API
-- **State Management**: Vuex store
-- **Routing**: Vue Router with hash-based routing
-- **Styling**: Bootstrap 5 + SCSS
-- **Database**: Firebase Realtime Database
-- **Authentication**: Google Auth (Firebase)
-- **Charts**: Chart.js via vue-chart-3
-- **Calendar**: FullCalendar for date-based views
-- **Testing**: Vitest with coverage
-- **Error Tracking**: Sentry
-- **Build Tools**: Vue CLI
-- **Deployment**: AWS S3 + CloudFront
+## How this documentation is organised
 
-## Key Features
+This file holds only what's true in **every** session. Deeper guidance lives in
+path-scoped rules that load automatically when you touch the relevant code, and the full
+development narrative is archived and read on demand.
 
-### Rating System
-- Multi-dimensional rating system with weighted scores:
-  - Love (2.8 weight)
-  - Overall (2.0 weight)
-  - Story (1.25 weight)
-  - Direction (1.1 weight)
-  - Imagery (0.9 weight)
-  - Performance (0.7 weight)
-  - Soundtrack (0.3 weight)
-  - Stickiness (1.9 weight, divided by 2)
-- Calculated total score based on weighted averages
+| Working on | Loads automatically |
+|---|---|
+| any `.vue` / SCSS | `.claude/rules/vue-ui.md` |
+| `src/components/games/**`, `games/*.js` | `.claude/rules/games.md` |
+| `Home.vue`, `searchFiltering.js`, `entityCounts.js` | `.claude/rules/home-search.md` |
+| `store/**`, `utils/**`, `AddRating.js`, backfills | `.claude/rules/data-writes.md` |
+| awards modules, `PersonalAwardsModal`, `TweakInline` | `.claude/rules/awards.md` |
+| `MovieDetail`, `Insights`, `Favorite*`, services | `.claude/rules/detail-and-insights.md` |
+| `src/test/**` | `.claude/rules/testing.md` |
+| login, `databaseKey.js`, db rules, `aws-lambda/**` | `.claude/rules/auth-and-db-rules.md` |
 
-### Data Sources
-- **Movie Database**: The Movie Database (TMDb) API for movie information
-- **Awards Data**: Academy Award winners integration
-- **Letterboxd**: Service for scraping and importing data
+Archived narrative — post-mortems, why decisions were made, what was tried and rejected.
+**Read these with the Read tool when you need the detail**; they are deliberately not
+imported, so they cost nothing until then:
 
-### Core Components
-- **Home**: Main dashboard with search, advanced filtering, and movie grid
-- **RateMovie**: Rating interface with multi-criteria scoring
-- **Insights**: Analytics and visualizations of viewing patterns
-- **Favorites**: Lists of favorite actors, directors, etc.
-- **Charts**: Various data visualizations
-- **Settings**: User preferences and configuration
+- `docs/history/search-and-home.md` — chips, grouping, perf work, fuzzy search, onboarding
+- `docs/history/games.md` — all ten games, round by round
+- `docs/history/data-and-offline.md` — offline rating, PWA, cost control, delta sync
+- `docs/history/awards.md` — personal awards, Trophy Case, tiebreak tournaments
+- `docs/history/ui-and-layout.md` — layout bugs, image perf, MovieDetail, Insights
+- `docs/history/tooling-and-auth.md` — lint/CI, sign-in, bug reporting, versioning
+- `docs/history/mixed-bug-rounds.md` — assorted bug-report rounds
+- `docs/history/geography-removed.md` — maps feature, built and removed; read before any
+  second attempt
 
-### Advanced Filtering System
-- **Search-First Design**: Text input remains primary for adding new ratings
-- **Auto-Chip Conversion**: Search terms automatically convert to chips after 2-second delay
-- **Manual Chip Conversion**: Arrow button in search bar to manually convert searches
-- **Quick Links**: Preserved favorites (Annual Best, Best Picture, This Year, etc.)
-- **Combinable Filters**: Add additional filters on top of quick links or search
-- **Filter Chips**: Visual display of active filters with easy removal
-- **Filter Types**: Search, Director, Year, Genre, Production Company, Tag with searchable dropdowns
-- **Mobile-Optimized**: Modal interface for adding filters
-- **Intersection Logic**: Multiple chips use AND logic (not OR) for proper filtering
-- **Backward Compatibility**: Maintains `this.value` for existing functionality while supporting chips
+> Reference other files by plain backticked path. **Never with `@`** — that's an import,
+> and imported files load into context at launch, which defeats the whole structure.
 
-### Analytics & Insights
-- Calendar heatmap of viewing activity
-- Yearly averages and trends
-- Streaks tracking
-- Outliers identification
-- Keyword cloud from movie metadata
-- Charts for various metrics
+## Rules that always apply
 
-### Letterboxd Integration
-- **Automatic Detection**: Web scraping service to detect logged movies
-- **Manual Overrides**: Subtle plus icon interface for manually marking movies as logged when auto-detection fails
-- **Username Configuration**: User can set their Letterboxd username for scraping
-- **Special Title Handling**: Enhanced normalization for problematic titles (F1, M, etc.)
-- **Filter Integration**: Manual overrides properly excluded from "Not on Letterboxd" quick filter
-- **Username persistence fix (Jun 2026)**: `letterboxdUsername`/`letterboxdConnected` in `Home.vue` were getter-only computeds but bound with `v-model` / assigned to (`this.letterboxdConnected = true`). Writes were silent no-ops, so a NEW user's typed username was dropped and saved as `''` on blur (existing users were unaffected because their value was already persisted). Fixed by giving both computeds a setter that commits to local settings (`setSettings`); the existing `@blur` handlers persist to Firebase. Letterboxd is username-only (no OAuth) — setting the username IS the "login".
-- **Deep-link log pre-fill** (`LetterboxdUrlService.generateUrls`): the `letterboxd://x-callback-url/log` link passes `date` (today, local `YYYY-MM-DD` via `todayLocalISODate()` — NOT `toISOString()`, which is UTC and rolls the day late at night) and `rating` (Cinema Roll's normalized 0–10 score → 0.5–5 stars via `normalizedRatingToStars`, i.e. `/2`, matching `ToggleableRating.vue`'s star math; 0/missing omits the param). Letterboxd stopped defaulting the viewing date to today after an app update, hence the explicit `date`. Callers: `DBGridLayoutSearchResult.vue` + `MovieDetail.vue` pass `{ normalizedRating: this.normalizedRatingForMedia(this.result) }`. Tests: `src/test/LetterboxdUrlService.test.js`.
+### Never interfere with the dev server
 
-## Database Structure
-Firebase Realtime Database with user-specific data:
+The user keeps `yarn serve` running in another pane and relies on it continuously.
+**Do not run `yarn serve`, `pkill`, or anything that touches existing processes.** Use
+`yarn test:run` for verification, and ask the user to check features in their own server.
+
+### Mobile-first: `:active`, never `:hover`
+
+This is an iOS-installed PWA. A tapped element keeps its hover state with no mouse to
+leave it. This has shipped as a user-visible bug more than once.
+
+### Always check contrast
+
+Dark themes throughout. Verify text is legible against its actual background before
+shipping any UI change. Bootstrap's `.text-muted` fails against this app's dark panels.
+
+### Keep tests current, and prove they guard something
+
+Write tests first where practical. When a feature lands, update existing tests, add new
+ones, remove stale ones. The convention here is to **temporarily revert a fix and confirm
+the test fails with the bug's real signature** — several tests in this repo were found
+passing against broken code.
+
+### Keep this documentation updated
+
+When you learn something durable, put it in the right place:
+
+- a rule that applies to one area → the matching `.claude/rules/*.md`
+- a fact true in every session → this file
+- the story of what was tried and why → the matching `docs/history/*.md`
+
+Keep this file **under ~200 lines**. It grew to 275KB once — ~74k tokens on every single
+request — which is what prompted this structure.
+
+## Hard constraints
+
+**Node is pinned to 18.18** (`.tool-versions`, and CI). This is load-bearing and forces:
+
+- ESLint **9**, not 10 (10 requires Node ^20.19)
+- `firebase-admin` **^12**, not ^13 (13 needs Node ≥20)
+- No `--env-file` in scripts (needs Node 20.6+) — use `scripts/loadEnvLocal.mjs`
+
+Moving to Node 20 is the prerequisite for lifting all three.
+
+## Rating system
+
+Weighted criteria, combined into `calculatedTotal`:
+
+| Criterion | Weight |
+|---|---|
+| Love | 2.8 |
+| Overall | 2.0 |
+| Stickiness | 1.9 (÷2) |
+| Story | 1.25 |
+| Direction | 1.1 |
+| Imagery | 0.9 |
+| Performance | 0.7 |
+| Soundtrack | 0.3 |
+
+`GetRating.js` is uncached and moderately expensive — never call it inside a sort
+comparator (see `.claude/rules/home-search.md`).
+
+## Data
+
+Firebase Realtime Database, keyed by the user's sanitized email:
+
 ```
 /{user-email-key}/
-  ├── movieLog/          # User's rated movies
-  ├── settings/          # User preferences and tags
-  └── academyAwardWinners/  # Cached awards data
+  ├── movieLog/            # rated movies
+  ├── settings/            # preferences, tags, personal awards, game wins
+  └── academyAwardWinners/ # cached awards data
+/bugReports/               # write-only by clients; triage via Admin SDK
 ```
 
-## File Structure
-- `src/components/` - Vue components (35+ components)
-- `src/store/index.js` - Vuex store with Firebase integration
-- `src/router/index.js` - Vue Router configuration
-- `src/services/` - Letterboxd scraping services
-- `src/assets/javascript/` - Rating calculation utilities
-- `src/test/` - Vitest test files including comprehensive chip filtering tests
-
-## Development Commands
-- `yarn serve` - Development server with hot reload
-- `yarn build` - Production build
-- `yarn test` - Run tests
-- `yarn test:coverage` - Run tests with coverage
-- `yarn lint` - ESLint
-- `yarn deploy` - Build and deploy to AWS
-
-## Authentication & Security
-- Google OAuth via Firebase Auth
-- User-specific database keys (email-based)
-- Dev mode toggle for testing different user accounts
-
-## Known Issues (from FeatureRequests.md)
-- Issue with rating movies a perfect 10
-- Need for database sharding as user base grows
-- Missing user tutorial/onboarding
-
-## Recent Development Focus
-Based on recent commits and development:
-
-### Chip-Based Filtering System & Search UX
-- **Complete Filtering Overhaul**: Visual chip system with auto-conversion after 2-second typing pause
-- **Instant Search + Chip Conversion**: Best of both worlds - real-time filtering while typing, converts to organized chips when pausing
-- **Auto-Clear for Random Chips**: When random search on load creates a chip, clicking input auto-clears it so user can search immediately
-- **Focus-Based Clearing**: Uses `requestAnimationFrame` for responsive auto-clearing without timing delays
-- **Smart Search Value Management**: Preserves search context for "Search TMDB" button and "More from" section functionality
-- **Filter Intersection Logic**: Multiple chips use AND logic for proper database-style filtering
-
-### Random Search Toggle Feature
-- **Complete Toggle Implementation**: User setting to enable/disable automatic random search on page load
-- **Settings Integration**: Toggle in Home.vue settings panel with proper Firebase persistence
-- **Race Condition Fix**: Resolved timing issues where random search triggered before user's setting loaded from database
-- **Null-Safe Logic**: Prevents random search execution until definitive user setting is available
-
-### Header Banner — Context-Driven (Jun 2026, replaced the 30s timer)
-The 30-second random-swap timer is GONE. The banner now changes only on meaningful navigation and reflects what the user just did.
-- **`Header.vue` is a pure renderer** of `store.state.bannerUrl` (mobile `.random-banner` only; desktop still shows the `topTenPosters` strip, left as-is — the cinematic backdrops aren't the right ratio for a wide desktop image).
-- **`Home.resolveBanner()`** picks the banner on each home arrival (called at the end of `mounted`, and once from the `allEntriesWithFlatKeywordsAdded` watcher when the library first loads). It reads `store.state.bannerRequest`:
-  - `{ type:'movie', movieId }` → feature that movie's backdrop (ignores the rating floor — you engaged with it).
-  - `{ type:'fromResults' }` → random pick from `displayedResults` (the visible filtered set). Runs after the incoming search/chip is applied in `mounted`, so results are ready.
-  - none → only if no banner is set yet, pick a random movie rated **> 6** (the floor applies to the no-context fresh pick only). Contextless returns to home do NOT re-randomize (no dizzy swapping).
-- **Sources set `bannerRequest`** (consumed once by `resolveBanner`): `MovieDetail.goBack` (the viewed movie), `MovieDetail.searchFor` (`fromResults`), `RateMovie.returnHome` (the just-rated movie via `this.id`).
-- Store: `bannerUrl`, `bannerRequest` state + `setBannerUrl`/`setBannerRequest` mutations. Note `store.state.filteredResults` is dead (never committed) — don't rely on it.
-
-### Unified Home/Back Affordance (Jun 2026)
-Full-screen takeover pages use one pattern: a **◀ Home** caret+label, top-left (`.home-link`). MovieDetail's old ✕ close button was converted to this (keeping its loading spinner), matching RateMovie and Insights. The global Header's "Cinema Roll" title remains an always-home click.
-
-### Search & Filter Polish
-- **Production Companies Integration**: Full support for filtering by production companies
-- **Automated Testing**: Comprehensive test suite (99+ tests) for chip functionality to prevent regressions
-- **Performance Optimizations**: Eliminated competing debounced functions that caused filtering delays
-- **Mobile UX**: Proper focus handling and responsive chip conversion timing
-
-### Recent Bug Fixes
-- **Filter Intersection Bug**: Fixed critical bug where multiple chips created union instead of intersection
-- **Search Value Persistence**: Fixed "Search TMDB" button losing text when chips are created
-- **More From Section**: Fixed inconsistency where "Steven Spielberg" wouldn't show "More from" section but "Francis Ford Coppola" would
-- **Settings Loading Race**: Eliminated race conditions in settings loading that caused random search to trigger incorrectly
-
-## Environment Variables Required
-- `VUE_APP_GOOGLE_API_KEY` - Firebase/Google API key
-- `VUE_APP_TMDB_API_KEY` - The Movie Database API key
-
-This application serves as a comprehensive personal movie tracking system with sophisticated rating algorithms and rich data visualization capabilities.
-
-## Project Development Notes
-
-### Testing Strategy
-- Remember to keep our test suite up to date with all new changes. Whenever possible write tests first and use those to power our process. Whenever we wrap up a new feature remember to update existing test, add new ones and remove any that are no longer relevant. You can run tests with 'yarn test:run'
-
-### Development Server Protocol
-**NEVER kill or interfere with running development servers.** The user typically has `yarn serve` running in another terminal pane and relies on it for continuous development. 
-
-- **DON'T**: Use `yarn serve`, `pkill`, or any commands that would interfere with existing processes
-- **DO**: Use `yarn test:run` for quick syntax/functionality checks
-- **DO**: Ask the user to test new features in their existing development server
-- **DO**: Focus on code implementation and let the user handle server management
-
-This is critical for maintaining an uninterrupted development workflow.
-
-## Recent Changes - Awards Modal Stability Fixes (Aug 2024)
-
-### Fixed Awards Modal Auto-Close Issue
-- **Problem**: Awards modal would unexpectedly disappear when users completed categories, preventing them from continuing work
-- **Root Cause #1**: `autoSave()` function automatically set completion date when all categories were filled, causing modal to be hidden by daily limit logic
-- **Root Cause #2**: `showAwardsModal` computed property treated any year with awards data as "complete", ignoring partial progress
-- **Root Cause #3**: `firstEligibleYear` computed property (banner display) had similar flawed logic, causing missing year in banner
-- **Solution**: 
-  1. Removed auto-completion behavior from `autoSave()` - users now must explicitly click "Complete Awards" button
-  2. Fixed eligibility logic to keep showing modal for years with partial progress (not explicitly completed)
-  3. Fixed banner year display logic to include years with partial progress
-
-### Added Awards Resume Functionality
-- **New Feature**: "Resume Awards" section in Insights page (`src/components/Insights.vue`)
-- **Functionality**: Shows partially completed award years with progress bars and "Resume" buttons
-- **Detection Logic**: Identifies years with partial progress (some nominees/winners but not explicitly completed)
-- **Resume Method**: Sets daily awards year selection and navigates to Home to trigger modal
-- **New Movies Detection**: Highlights years with new movies added since last awards session
-
-### Key Files Modified
-- `src/components/PersonalAwardsModal.vue:927-963` - Removed auto-completion from autoSave()
-- `src/components/Home.vue:1796-1801` - **CRITICAL FIX**: Added partial progress check to showAwardsModal eligibility logic
-- `src/components/PersonalAwardsModal.vue:376-381` - **CRITICAL FIX**: Added partial progress check to firstEligibleYear banner logic
-- `src/components/Insights.vue:277-314` - Added Resume Awards section in template
-- `src/components/Insights.vue:431-487` - Added partialAwardsYears computed property
-- `src/components/Insights.vue:1169-1183` - Added resumeAwards() method
-
-### Technical Details
-- Awards modal no longer auto-closes when categories are completed
-- Completion date only set when user explicitly clicks "Complete Awards" button
-- Resume logic bypasses daily limit by setting `dailyAwardsYear` to specific year
-- Progress calculation excludes explicitly completed years (via button) but includes partial work
-- All existing functionality preserved, just made less fragile
-
-This fixes the fragility issue where the modal would disappear unexpectedly and provides a reliable way to resume work on partial awards.
-
-### Best Director saved nominees not highlighted on reopen (fixed Jun 2026)
-**Symptom**: a year's Best Director nominees/winner persisted, but on reopening the modal they showed in the top "Current Nominees" gallery yet were NOT highlighted as selected in the "Available Options" grid below (acting categories had a milder, intermittent version). **Root cause**: the grid highlights via `isNominee`/`isWinner`, which compare identities through `getOptionId()`; the top gallery just renders stored nominees directly (so it always shows them — hence the split symptom). `getOptionId` classified an option as movie-vs-person **by shape**: a freshly-computed Best Director option is a movie-group `{ movieId, movie, allCast:[{id:'directors-X',…}] }` with **no top-level `id`** → `movie-X`, but a nominee restored via `convertNomineeToMinimal`→`expandNomineeFromMinimal` has the director id **promoted to top-level** `id:'directors-X'` → `person-directors-X-X`. The two never matched, so saved Directors didn't light up (and couldn't be un-nominated) after a save+reload — in-session worked because both sides were the same movie-group object. **Fix**: `getOptionId` now special-cases `selectedCategory === 'bestDirector'` to always return `movie-<movieId>` regardless of object shape.
-
-**Acting categories had a SEPARATE, milder cause (also fixed Jun 2026)**: identity round-trips fine there (`person.id` is preserved), but the grid only loads 3 cast/movie initially, so a nominee deeper in the cast had no tile to light up until "Load more cast". Fix: `extractAndGroupPeopleByMovie` now, after the initial 3-per-movie load, **always appends any already-nominated cast member** to that movie's `loadedCast` (matched by `id`+`movieId`; included regardless of the gender heuristic since the user explicitly chose them — only TMDb details are fetched for the profile image). `loadMoreForMovie` gained a dedupe guard so a surfaced-early nominee isn't re-added (duplicate tile/`:key`) when the user later clicks "Load more cast". Only runs on a cache miss (`optionsCache` is cleared each modal open, and `awardsData` is already populated by `initializeAwardsData` at that point, so nominees are known when the grid is built).
-
-Tests: `src/test/AwardsNomineeIdentity.test.js` — Director round-trip (mounts the modal, exercises the real convert/expand round-trip; fails on the old code) + deep-acting-nominee surfacing (6-person cast, nominee at index 4 surfaces exactly once; no extra tiles when there are no nominees).
-
-### Debug Logging Cleanup (Aug 2024)
-- All debug logging (`🏆 AWARDS DEBUG:` messages) has been removed after successful problem resolution
-- Core functionality preserved, console noise eliminated
-- System now operates cleanly in production
-
-### Awards UI Enhancement - Actor Display (Aug 2024)
-- **Improvement**: Split actor nomination display from 2 lines to 3 lines for better readability
-- **Before**: Name on line 1, "Movie (Role)" on line 2
-- **After**: Name on line 1, Movie on line 2, Role on line 3 (italicized)
-- **Files Modified**: `src/components/PersonalAwardsModal.vue` - template, methods, and CSS
-- **New Methods**: `getOptionMovie()` and `getOptionRole()` for cleaner data separation
-- **Styling**: Role text is smaller, italicized, and slightly more transparent for visual hierarchy
-
-## Grouped Result Hierarchy (Jun 2026)
-
-The grouped search view (`groupedByAllCategories` in `Home.vue`) buckets results into categories (Title, Director, Cast, Producer, Company, Keywords, plus role-detected Writer/Music/Editor/Cinematographer/Crew, and Other). **Group order is also matching priority** — via `usedMovieIds`, a movie matching multiple categories lands in whichever group comes first.
-
-- **Order is data-driven**: `DEFAULT_GROUP_ORDER` constant + a `groupOrder` computed. Candidate matches are computed per-group first, then claimed in `groupOrder` priority.
-- **Manual reorder UI**: opens a panel (`showGroupOrderPanel`) listing the currently-present groups with ▲/▼ controls. Moving a present group swaps it within the full master order, so absent groups keep their slots and the whole hierarchy stays intact. **Entry point moved (Jul 2026)**: the dedicated orange group-order button in the results-actions bar was removed — per user feedback it "added another segment" when Games was placed there, so Games now occupies that slot instead (the bar's colors are assigned purely by button *position* via `:nth-child`, so moving Games into slot 2 gave it the same orange coloring automatically). Reordering is now triggered by **tapping any group's own header** (`.group-header`, the `<h6>` above each category's grid) — `openGroupOrderPanel()` sets `showGroupOrderPanel = true` and `scrollIntoView({behavior:'smooth', block:'start'})`s the panel (via `ref="groupOrderPanel"`), since the tapped header is often well below it. `toggleGroupOrderPanel` (used only by the panel's own "Done" button now) is unchanged.
-- **Click-to-promote**: Clicking a typed value on a movie detail page (keyword, director, cast, etc.) promotes that group to the top. `MovieDetail.searchFor(query, type)` maps the type to a group key and sets `homePagePromoteGroup` in the store; `Home.applyPromoteGroup()` applies it on load.
-- **Daily persistence**: Stored at `settings/groupOrderOverride = { order, date: toDateString() }` in Firebase (same pattern as `dailyAwardsYear`). The `groupOrder` computed ignores overrides whose `date` isn't today, so it reverts to default the next day. Clicks and manual edits share this override; clicks win.
-- **Count fix**: The result count badge uses `displayedResults` (the unique movies actually rendered, summed across grouped categories) instead of `unifiedFilteredResults.length`, which previously diverged from the visible cards.
-- **Keyword case fix**: `applyFilter` keyword/general matching is now case-insensitive (`flatKeywords` keep TMDb's original casing like "Star Wars" while search values are lowercased).
-
-Tests: `src/test/GroupOrdering.test.js`. Note: the `ChipFiltering`/`QuickLinksFiltering` mocks were missing `allMoviesAsArray` getter and the `homePage*` state fields, which broke their `mount()`; both are now fixed.
-
-## Search Recompute Performance (Jun 2026)
-
-Profiled the per-recompute lag in the search/result chain (`getRating` call-counting + `performance.now()` probes, since removed). Findings and fixes:
-
-- **`getRating()` (in `GetRating.js`) is uncached and moderately expensive** (8 Vuex `weight` getter calls + `Math.min/max(...allRatings)` spreads per call). The legacy `sortResults(a, b)` comparator called it ~3x per comparison → O(n log n) `getRating` calls dominated the sort cost (measured ~224ms / ~3950 calls over ~1300 movies).
-- **Fix (landed): `sortResultsFast(array)`** — decorate-sort-undecorate. Computes each item's primary+secondary sort value ONCE (and reuses a single `getRating` per item for the default "rating" sort), then sorts on cached values with comparison semantics **identical** to `sortResults` (including the quirk that `===` on two Date objects is false, so date sorts skip the secondary tiebreak). Dropped to 1 `getRating`/item, ~76ms. `sortResults` is kept as the reference oracle for the equivalence test. All five `.sort(this.sortResults)` call sites now use `sortResultsFast`. **Note `sortResultsFast` returns a NEW array (does not mutate input)** — the in-place `existingCategory.movies.sort(...)` site was changed to reassign.
-- **Fix (landed): single-pass grouping** — `groupedByAllCategories` Step 1 previously did ~7 full `filter()` passes over the library (one per group type + 2 for keyword/genre). Collapsed to ONE loop building all candidate buckets. Candidate SETS and order are identical (movies pushed in library order), so claiming behavior is unchanged. Modest win — the dominant grouping cost is `applyFilter` work itself, not loop overhead.
-- **Equivalence is enforced by test**: `src/test/SortResultsFast.test.js` asserts `sortResultsFast` produces byte-identical ordering to `sortResults` across all sort keys × orders, including ties and non-mutation. **If you ever change sort logic, change BOTH or the test will catch the divergence.**
-- **Fix (landed): collapsed cast/crew name matching in `applyFilter` `general` case** — the old code did `cast.flatMap(p => [fullNameLower, ...fullNameLower.split(' ')]).some(n => n.includes(v))` (and the same for crew), allocating two arrays per person per movie per keystroke. Every space-delimited name-part is a substring of the full name, so that `.some()` is provably equivalent to a single `fullName.toLowerCase().includes(v)`. Replaced with `cast.some(p => p.name && p.name.toLowerCase().includes(v))`. **Output is identical** (last-name/first-name/substring matches all still resolve via the full-name check); only the per-keystroke array allocation is removed. Locked in by `src/test/GeneralFilterNameMatching.test.js`.
-- **Fix (landed): memoized lowercased search fields** — `applyFilter` used to re-lowercase title/cast/crew/keyword/general strings for every movie on every keystroke. New `buildSearchFields(movie)` precomputes them ONCE per library change, attached as `result._search` in `allEntriesWithFlatKeywordsAdded`. `applyFilter` reads `result._search` (with an on-the-fly fallback for quick-link-sourced entries that lack it — those lists are small). **`genre` and `company` filter types are intentionally left reading `movie.*` directly** because they do exact case-sensitive equality (not lowercased); only the lowercasing-heavy cases (`general`/`person`/`keyword`/`title`/`director`/`producer`/`cast`) use `_search`. Crew entries cache `{ name (lower), job (original), jobLower }` so director's exact `=== 'Director'` and producer's substring check both stay correct. Guarded by the existing `ChipFiltering` (decorated path) + `QuickLinksFiltering` (fallback path) + `GeneralFilterNameMatching` suites. Much of the observed ms is dev-mode inflation (unminified Vue, forced-reflow violations); production is materially faster. Next lever if needed: reduce per-call `applyFilter` cost (hoist `searchTerm.toLowerCase()`, avoid re-deriving lowercased cast/crew strings). Deferred deliberately — higher risk to the matching core.
-
-- **Fix (landed): inlined grouped matcher** — `groupedByAllCategories` Step 1 used to call `this.applyFilter` 7×/movie (title, director, cast, producer, company, keyword, genre) ≈ 9,100 dispatched calls/keystroke over ~1,300 movies. Replaced with a single read of each movie's precomputed `_search` + inline conditions that **mirror each applyFilter case exactly** (genre/company stay case-sensitive vs the raw `searchTerm`; the rest use the lowercased term). Candidate sets are identical, so claiming is unchanged — guarded by `GroupOrdering.test.js`. Measured **4.00ms → 2.44ms** (~1.6×) on the harness below.
-- **Perf harness**: `src/test/Performance.bench.test.js` mounts Home over a 1,300-movie synthetic library and prints `[bench]` timings for `applyFilter`, `sortResultsFast`, and `groupedByAllCategories` (writes via `process.stdout` to bypass vitest's console intercept). NOT a correctness gate (loose sanity asserts only) — run `yarn test:run src/test/Performance.bench.test.js` and read the `[bench]` lines when experimenting. getRating is mocked, so it measures the matching/grouping/sort JS, not Vuex weight-getter cost. Baseline after all fixes: general 0.6ms, director 0.3ms, sortResultsFast 0.6ms, grouped 2.4ms — the pure-JS hot path is fast; remaining real-world keystroke lag is dev-mode Vue reactivity + forced reflow, not this code.
-
-## Search/Filter/Sort Extraction (Jun 2026)
-
-The pure matching + sorting logic now lives in **`src/assets/javascript/searchFiltering.js`** (extracted from Home.vue, which dropped ~180 lines). Exports: `buildSearchFields`, `getListOfYearsFromRange`, `applyFilter`, `getSortValue`, `sortResultsFast`, `sortResults`. They read NOTHING from `this` — sort/rating deps are passed explicitly (`{ sortValue, sortOrder, getRating }`; `getRating` is the component's `mostRecentRating`, which wraps `GetRating.js`).
-
-- **Home.vue keeps thin method wrappers** of the same names that feed component state into the module, so all existing call sites (`this.applyFilter`, `this.sortResultsFast`, etc.) and the mount-based tests are unchanged.
-- **Direct unit tests** (no component mount): `src/test/searchFiltering.test.js` — incl. the `sortResultsFast` vs `sortResults` oracle equivalence across every sort key × order, now testable purely. The mount-based `SortResultsFast`/`ChipFiltering`/`QuickLinksFiltering` suites still pass via the wrappers and remain the guard that the wrappers supply correct state.
-- **Not yet extracted** (still in Home, deliberately — they're entangled with reactive component state): `groupedByAllCategories`, `unifiedFilteredResults`, the quick-link computeds, the count maps, `detectYearTypes`. Next slice if continuing the Home.vue breakup.
-
-## Year-Scroller Special Case for Year Chips (Jul 2026)
-
-Feature request: "whenever I do any search term, it turns it into a chip... I would like to create a special case for chips that are years. So if I search for 1976... instead of showing all the chips across the bottom, I want to see some sort of UI that takes up the same amount of space as the chips, but goes horizontally all the way across and lets me quickly travel between years... swipe left and right and select other years."
-
-- **Where it lives**: `Home.vue`'s existing chip-row template (`.active-filters-section`) — a `v-if="hasActiveYearChip"` block renders `.year-scroller`, a horizontally-scrolling row of every distinct year in the library (`availableYears`, already existed — same source the "Add Filter" modal's Year `<select>` already uses, kept in sync deliberately rather than introducing a second, possibly-divergent year list). `flex: 1 1 100%; min-width: 0;` on `.year-scroller` is the same "flex-basis 100% forces its own full-width row in a flex-wrap container, min-width:0 is required for the internal overflow-x:auto to actually have something to scroll" pattern documented elsewhere in this app (Games' horizontally-scrolling rows) — the quick-link chip above stays untouched.
-- **Scope, widened one round later (same day, immediate follow-up — "I do want it to also be able to work with other filters... additional filter chips that just exist below the new year selector")**: `hasActiveYearChip` fires whenever ANY active chip is `type === 'year'` (still excluding `'yearRange'`/decades) — no longer requiring it to be the ONLY chip. `otherActiveFilters` (`activeFiltersMinusTemps` minus any year chip) still renders as the normal badge row, placed AFTER `.year-scroller` in DOM order — since the scroller always claims the full row width via its own flex-basis, the badges naturally wrap onto the next line rather than needing any extra positioning CSS. When no year chip is active, `otherActiveFilters` is just `activeFiltersMinusTemps` unfiltered, so the plain chip row's original behavior is unchanged in that case.
-- **Selecting a year** (`selectYear(year)`): drops any existing year chip(s) (via `this.activeFilters.filter(f => f.type !== 'year')`) and appends a fresh one, LEAVING every other active chip alone — tapping around the scroller with a genre chip also active doesn't clear the genre. Filtering needs zero downstream changes either way: `applyFilter`'s existing `'year'` case (`searchFiltering.js`) already does exact string matching on `movie.release_date`'s first 4 characters, so a tapped pill flows through the exact same AND-combined path a typed-and-blurred year chip always has.
-- **Auto-centering**: an `activeYearChipValue` watcher (finds the FIRST active year-type chip and parses its `value` to a number, or `null` when none is active) calls `centerYearScrollerPill()` on `$nextTick` whenever it changes — covers both "the scroller just appeared" (state restored on mount, or a year typed+blurred while viewing) and "a different year was tapped while already showing," so the current selection never drifts out of view as you "travel between years." `scrollIntoView` is guarded (`typeof ... === 'function'`) rather than assumed present.
-- **Real bug caught by its own test, before shipping**: the pill's `:class` binding only ever set `'btn-primary'`/`'btn-outline-secondary'` for the selected/unselected look — `centerYearScrollerPill`'s selector (`.year-scroller-pill.active`) was querying for a class that was NEVER ACTUALLY APPLIED to any element, so centering silently no-op'd for every real user (no error, just never scrolled). A dedicated centering test (spying on `Element.prototype.scrollIntoView`, since jsdom doesn't implement it at all by default — needs a stub assigned before `vi.spyOn` can attach to it) caught this immediately once written; fixed by adding a genuinely separate `selected` class alongside the Bootstrap color class (kept distinct from `:active`, the existing mobile-first PRESS-state pseudo-class already used on `.year-scroller-pill`, to avoid any confusion between the two "active" concepts) and pointing the selector at `.year-scroller-pill.selected` instead. A good reminder that a class-binding typo like this produces no visible symptom on the SELECTED pill itself (which still looked right — the CSS mismatch only broke the separate scroll-into-view behavior), so it's exactly the kind of thing that's easy to ship silently broken without a targeted test.
-- **Not live-verified in a real browser** — Home.vue's search/chip system has an established, heavily-used precedent of mount-based Vue Test Utils verification (`ChipFiltering`/`QuickLinksFiltering`/`YearChipBlur`/`GroupOrdering`, etc.) rather than live-login browser sessions, since there's no practical way to authenticate a real Google login from an automated session — this feature followed that same precedent. Worth a quick look in your own dev server to confirm the layout/scroll feel is right, though.
-
-Tests: `src/test/YearScroller.test.js` (8 tests) — row-swap on/off, the exact year list + highlighted state, tap-to-filter, the combined year+genre case (both filters actually apply together, the other chip renders as a badge, tapping a new year preserves it), the scroller-before-badges DOM order, the "does NOT activate" guard cases (non-year chip, yearRange/decade chip), and the centering behavior including the bug above.
-
-## Fuzzy "Did you mean?" Search Suggestions (Jun 2026)
-
-Typo-tolerant search suggestions powered by `fuse.js`, scoped to the user's OWN rated library (no TMDB-catalog matching). Built to **suggest, never auto-correct** — the user taps a suggestion to commit it, so a wrong guess never silently builds a chip.
-
-- **Index** (`searchableTerms` computed in `Home.vue`): distinct typed terms reused from the existing count maps (`countDirectors`, `countCastCrew`, `countedKeywords`, `countedGenres`, `countStudios`) plus distinct titles. Each entry carries an `expectedType` string that `createFilterByType()` understands (`director`, `cast/crew`, `keyword`, `genre`, `studios`); titles use `expectedType: null` and commit as a `general` chip, matching how a typed title behaves.
-- **Index build is memoized** (`fuzzyIndex` computed): the Fuse instance is built ONCE per library change, not per keystroke. The index is large (tens of thousands of terms across all cast/crew/keywords/etc.), so building it cost ~40ms; doing that on every keystroke was a measurable typing lag. `didYouMeanSuggestions` reuses `this.fuzzyIndex`. Do NOT inline `new Fuse(...)` back into `didYouMeanSuggestions`.
-- **Ranking** (`didYouMeanSuggestions` computed): reuses `fuzzyIndex` (threshold 0.4, `ignoreLocation`, `minMatchCharLength: 3`) and returns up to 5 deduped suggestions. **Gated to the zero-results state**: returns `[]` unless term ≥ 3 chars AND `paginatedSortedResults.length === 0` AND no quick link active — so fuzzy work never runs on the common (has-results) path, and exact-match search (`groupedByAllCategories`/`unifiedFilteredResults`) is unchanged.
-### The "2010" year-search bug (fixed Jun 2026)
-Typing a year (e.g. "2010") showed the year's rated movies, but on **blur** they vanished and were replaced by "Did you mean?" suggestions. Two distinct fixes:
-
-- **ROOT CAUSE — `convertSearchToChip` dropped structured filters on blur.** While typing, `overwriteCurrentlyTypingSearchFilter` uses `detectFilterType` → builds a temp **`year`** chip → the year's movies show. On blur, `convertSearchToChip` removed the temp chip, fell back to a `general` match for "2010" (which does NOT match by release year) → found ~nothing → that surfaced suggestions → the blur-guard (`if didYouMeanSuggestions.length > 0 return`) bailed **before ever committing the year chip**. So the valid year filter was thrown away. **Fix**: the typo blur-guard now applies ONLY when `detectFilterType(searchTerm).type === 'general'`; structured filters (year, genre, director, company, keyword, ...) are always committed. Guard test: `YearChipBlur.test.js` (type "2010" → blur → a permanent non-temp `year` chip exists, the 3 mock 2010 movies persist, no suggestions; fails under the old unconditional guard).
-- **Secondary — suggestions term is `this.searchValue` ONLY, not `effectiveSearchTerm`/chips.** The old `searchValue || effectiveSearchTerm` gate could fire suggestions off a committed *chip's* value (e.g. a structured chip that legitimately matches nothing). Suggestions are typo-correction for *typed input*; a chip yielding zero results should show the normal zero-results UI, not fuzzy guesses. Guard: `FuzzySuggestions.test.js` "regression guard".
-- **Important interaction**: the existing search already does substring matching, so partial spellings like "villeneuv"/"speilberg-as-substring" are found by normal search and fuzzy never fires. Fuzzy only kicks in on *genuine* typos (transpositions, wrong letters) that aren't substrings, e.g. "villenueve" → "Denis Villeneuve". Tests must use real non-substring typos.
-- **UI, cut down from a chip row (Jul 2026, bug report — "the prominence... is far too high").** Originally rendered as a full row of outlined chips (one per suggestion, up to 5) between the search bar and the `NoResults`/`NewRatingSearch` new-rating UI — per feedback, rating a genuinely new movie is far more common than a typo, so a multi-chip block there over-indexed on the rare case. Moved to a single small text row directly under the search input at the TOP of the template (not between the search bar and the results/no-results area below). `didYouMeanSuggestions.length > 0` still gates the blur-guard in `convertSearchToChip()`, unchanged throughout both passes below.
-- **As many terms as fit on one line, not hardcoded to exactly one (Jul 2026, immediate follow-up — "we actually now do have room for more than one result... the full length of all the search terms and that label combined need to always be less than the width of the input").** A first pass cut it to exactly one suggestion (`topDidYouMeanSuggestion`), which the user then judged too conservative once they saw the smaller styling had freed up real width. Replaced with `didYouMeanLineSuggestions` (`didYouMeanSuggestions.slice(0, didYouMeanFitCount)`) — each fitting term renders as its own `.did-you-mean-link` after a single "Did you mean?: " label, comma-separated, each independently tappable via the existing `applyDidYouMeanSuggestion`.
-  - **The fit-counting math is a pure function**, `countDidYouMeanSuggestionsThatFit(candidates, maxWidthPx, avgCharWidthPx = 6)` in `searchFiltering.js` — a character-count estimate (6px/char), not pixel-exact canvas text measurement, because `.did-you-mean-inline`'s CSS (`overflow:hidden; text-overflow:ellipsis; white-space:nowrap`) is the actual hard guarantee against wrapping/overflow; the estimate only decides how many terms to *attempt*, and errs conservative (wider avg char width) so undershooting is the more likely failure mode than a visible mid-term truncation. Always returns ≥1 when candidates exist, even if that one term doesn't perfectly fit — showing nothing isn't better than a truncated suggestion. Unit-tested directly (no mount) in `searchFiltering.test.js`.
-  - **`Home.vue`'s `updateDidYouMeanFitCount()`** is the thin DOM-measuring glue — reads `this.$refs.searchInput.offsetWidth` and calls the pure function. Invoked on `mounted()` (`$nextTick`, once the input is actually measurable), on a `didYouMeanSuggestions` watcher (new search term → different candidate lengths → recheck), and on `window` `resize` (debounced 200ms via `debouncedUpdateDidYouMeanFitCount`, following the exact `debouncedSetSearchValue` pattern already in `data()`) — torn down in `beforeUnmount`.
-  - **Margin**: `.did-you-mean-inline` had a *negative* `margin-top: -0.25rem` from the original design (pulling it up against the input) — per feedback ("needs a small amount of margin above it"), changed to a small positive `0.35rem`.
-  - Tests: mount-level rendering/wiring in `FuzzySuggestions.test.js` (jsdom never lays out elements — `offsetWidth` is always 0 — so these stub it via `Object.defineProperty` on the ref rather than relying on real measurement; a state update made inside a watcher's own nested `$nextTick` callback needs a **third** `await $nextTick()` beyond the two you'd naively expect — one for the watcher to fire, one for its nested callback to run, one more for the resulting DOM patch).
-- **Blur-guard (important)**: `convertSearchToChip()` bails when `didYouMeanSuggestions.length > 0`. Without this, blurring the input (`@blur="blurSearchBar"` → `convertSearchToChip`) auto-converted the raw typo into a dead `general` chip, which then flowed into `NewRatingSearch` and bounced through its no-results reset back to an empty input. The user is meant to tap a suggestion (committing the corrected value) rather than have the typo chipped.
-- **Zero-results / TMDB**: this path renders `NewRatingSearch`, which AUTO-searches TMDB (no button) and either redirects to pick-media or shows the "doesn't exist" message. There is no manual "Search TMDB" button on the zero-local-results screen by design (the button at `Home.vue:670` only renders when ≥1 local result exists). A misspelled-but-real new movie is usually still found by TMDB's own fuzzy search and redirects. Suggestions only correct against the user's OWN rated library.
-- **No auto-revert timer on the "No movies found on TMDB" message (Jul 2026, bug report — "stressful... I don't remember why we added it").** Two independent copies of this pattern existed, both removed:
-  - The manual-button flow (`Home.vue`'s `searchTMDB`/`showNoResultsMessage`, the "Search TMDB for {term}" button shown when at least one local result exists elsewhere on the page) used to flip `noResults` back to `false` on an unconditional 30-second `setTimeout` (itself already bumped once from an even more aggressive 3 seconds) — silently reverting the "No movies found..." alert back to the search button with no user action. `noResults` now only clears via the explicit "Try Another Search" tap (`startNewSearch`, unchanged) or a fresh keystroke (`onInput` now resets it too, since the alert can't get stuck referencing a now-stale typed term once the timer is gone). Tests: `src/test/NoResultsMessage.test.js`.
-  - **The closer match to "clears the input after a moment"**: `NewRatingSearch.vue`'s own `showNoResultsMessage` (used by the zero-local-results AUTO-search flow, `NoResults.vue` → `NewRatingSearch`) had a 5-second timer that didn't just revert a flag — it emitted `start-new-search`, which bubbles to `Home.vue`'s `startNewSearch()` and actually wipes the typed input. Removed the same way: the "doesn't exist" message just stays up (it doesn't reference the specific term, so there's nothing to go stale) until the user edits the input themselves, which the existing `value` watcher already re-triggers a search from. Tests: `src/test/NewRatingSearch.test.js`.
-
-Tests: `src/test/FuzzySuggestions.test.js`.
-
-## Favorite Sections — Live Tuning (Jun 2026)
-
-The 8 `Favorite*` sections on the Insights page (Directors, Writers, Composers, Cinematographers, Editors, Producers, Actors, Actresses) each rank people by a weighted Bayesian score. Each now has an inline **✏️ tuner**: a small icon-only button pinned to the right of the section's top-border title (absolutely positioned against `.insights-pane`, so the centered title is undisturbed) that opens a collapsing accordion of labeled sliders with plain-language help text.
-
-- **Shared machinery: `src/mixins/favoriteTuning.js`.** Holds ONLY the type-agnostic plumbing: the TMDB details cache (`detailsCache`), Firebase load/save of tuner values (`loadPersistedTuning`/`persistTuning`), tuner event handlers (`onTunerUpdate`/`resetTuner` → `await this.rescore()`), `getCachedDetails`, `bayesianAverage` (with a `globalAvgOverride` param), `mostRecentRating`, `getDetailsForCastMember`, `updateSearchValue`, and the `mounted`→`waitForDataAndBuildList` boot. Exposes `getRating`. A consumer MUST provide: data `tuningKey` + `tuningDefaults` + one data prop per lever; computed `tunerLevers`; methods `averageRating`, `buildTopTwelveList` (gather), `rescore`.
-- **Per-section independence preserved.** Every section keeps its own `tuningDefaults`, lever values, gather logic, blend field, and scoring quirks in its own file. Values persist per section at `settings/favoriteTuning/<key>` (keys: `director`/`writer`/`composer`/`cinematographer`/`editor`/`producer`/`actor`/`actress`) and survive refresh + sync across devices. The mixin holds zero tuning values.
-- **Gather/rescore split = no re-fetch while tuning.** `buildTopTwelveList` gathers people ONCE per data load (no TMDB, no minEntries filter); `rescore` scores eligible people with current levers, lazily fetching+caching TMDB details only for the eligible set, guarded by a `rescoreSeq` token that drops superseded async passes. Dragging a slider never re-hits TMDB (enforced by test).
-- **Lever sets differ by archetype** (each `tunerLevers` reflects only what that section actually uses):
-  - Crew **with blend** (Directors=`direction`, Writers=`story`, Composers=`soundtrack`, Cinematographers=`imagery`): minEntries, confidenceNumber, countWeight, knownForWeight, `<blend>Weight`.
-  - Crew **no blend** (Editors, Producers): the same minus the blend lever (Producers' `countWeight` slider maxes at 10 — its default is 5).
-  - **Cast** (Actors gender 2, Actresses gender 1): minEntries, confidenceNumber, billingLimit, billingExponent, performanceWeight. Cast `rescore` RE-GATHERS each pass (billingLimit/billingExponent change the gathered set/weights) and walks highest-bayesian-first, gender-gating via cached TMDB lookups until 12 found.
-- **Exact scoring preserved per section.** Known-for bonus intentionally differs: Directors/Composers blend the role sub-score; Writers/Cinematographers/Editors/Producers use the plain overall (`calculatedTotal`). `manualBoosts` is a dormant empty scaffold — NOT exposed in the tuner (cast components never had it).
-- **Net effect**: added the whole tuning feature while the 8 components shrank ~300 lines (dedup of the cloned machinery). Dead `compareTwoLists`/`isList…`/`get*Breakdown` helpers were dropped.
-- **UI component: `FavoriteTuner.vue`** (presentational only — emits `update`/`reset`). Tests: `FavoriteTuning.test.js` (Directors deep-dive), `FavoriteSectionsTuning.test.js` (all 8: build, persist key, live retune, no-refetch, cast gender gate), `FavoriteTunerSmoke.test.js`.
-
-## Asset / Image Performance (Jun 2026)
-
-A pass over image + asset loading on the high-traffic home/library screen:
-
-- **Lazy-load placeholder shrunk 316KB → 1.4KB.** The `v-lazy` `loading` placeholder behind every grid poster (`DBGridLayoutSearchResult.vue`) was `sheen.jpg` — a full 2000×3000 poster. Replaced with `sheen-placeholder.jpg` (40×60, metadata-stripped, visually identical when stretched). Old file deleted; it had a single reference.
-- **`moment` removed** — it was a direct dependency with ZERO imports anywhere in `src/`. Dropped from `package.json`; confirmed gone from `yarn.lock` (nothing transitive needed it).
-- **Library grid posters w500 → w342** (`DBGridLayoutSearchResult.vue:11`, the `v-lazy` src only). ~55% fewer bytes per poster at the rendered mobile size. Other w500 usages (details-modal backdrop on line 48, StickinessInline, TweakInline, ShareDBResults, PickMedia, RateMovie) intentionally kept — they show one/two large posters where w500 is right.
-- **Lazy-load pre-trigger** (`main.js`): `VueLazyLoad` now passes `observerOptions: { rootMargin: '1200px 0px' }` (default was `'0px'`). Posters start fetching ~1.5 screens before entering the viewport, so the placeholder is effectively never seen on normal scroll. Dial: bump to `'2000px'` if fast scrolls still flash placeholders, drop to `'800px'` to be stingier on data.
-- **`vue3-calendar-heatmap` removed (Jul 2026)** — registered globally in `main.js` (`app.use(VueCalendarHeatmap)`) but with **zero template usages anywhere** (`grep -ri heatmap src/**/*.vue` — nothing; the actual calendar UI is `FullCalendarView.vue`, built on `@fullcalendar/*`, a completely different library). Same dead-weight pattern as the `moment` removal above — it just hadn't been noticed because it doesn't throw or lint-warn (registered as a plugin, not an unused import). Its transitive dependency `tippy.js` (also listed, redundantly, as our own direct dependency despite zero direct imports) went with it. `chunk-vendors.js`: 796 KB → 762 KB (220 KB → 209 KB gzipped) — modest, but it's dead code either way.
-- **Bundle-size investigation (Jul 2026)**: the obvious suspects — Chart.js, `vue-chart-3`, `@fullcalendar/*` — turned out to **already be correctly code-split** into their own per-route async chunks (`insights.js`, `year-in-review.js`, a numbered chunk), *not* sitting in the eager `chunk-vendors.js`. Verified by grepping the built `dist/js/*.js` files for library-specific strings (e.g. `"Chart.js v"`, `"FullCalendar"`) rather than assuming from import locations. What *is* in `chunk-vendors.js` is dominated by Firebase (the full app+auth+database modular SDK, ~62 string-match density vs. next-highest ~15-21 for Vuex/tippy/axios/Sentry) — all things `main.js`/`store/index.js` need eagerly on every page (auth state, routing guards read `store.getters` synchronously), so there's no easy "just lazy-load it" lever left without swapping Firebase for something lighter, which is a much bigger undertaking than tonight's scope. Net: the vendor bundle is already close to as lean as it can get without a larger architectural change; 762 KB / 209 KB gzipped for an app this size isn't alarming for a personal app used by a handful of people.
-
-## Infinite-Scroll Result Loading (Jun 2026)
-
-Replaced the manual **"More..."** button on the home grid with auto-load on scroll. **Key distinction**: the result cap (`paginatedSortedResults = sortedResults.slice(0, numberOfResultsToShow)`, starts at 25, +48 per batch) limits how many grid items are RENDERED INTO THE DOM — independent of image lazy loading (which only defers poster bytes for already-rendered items). The cap matters because each `DBGridLayoutSearchResult` instantiates its own `<Modal>`, so rendering the whole library at once is costly. So lazy loading can't replace the cap; we kept windowing and just auto-advance it.
-
-- **Sentinel + IntersectionObserver** (`Home.vue`): the `v-if="canLoadMore"` block (formerly the More button) is now `ref="loadMoreSentinel"`. `setupLoadMoreObserver()` observes it with `rootMargin: '600px 0px'`; on intersect it calls `loadMoreResults()` (just `numberOfResultsToShow += 48`, no scroll). A batch of 48 posters is far taller than 600px, so each scroll fires once and the sentinel re-arms when scrolled back into the zone.
-- **The button is kept as a tap fallback** inside the sentinel (observer-unsupported / very tall viewport). `addMoreResults()` = `loadMoreResults()` + a `scrollBy` nudge; the observer uses the scroll-free `loadMoreResults()`.
-- **Lifecycle**: `canLoadMore` computed (`!groupedByAllCategories && sortedResults.length > numberOfResultsToShow`); a `canLoadMore` watcher re-wires the observer on `$nextTick` (the sentinel element is recreated each time it flips true); `mounted` also wires it for restored-state-at-mount; `beforeUnmount` disconnects. Guarded by `typeof IntersectionObserver === 'undefined'` so it no-ops in jsdom. `numberOfResultsToShow` persistence is unchanged (saved in `beforeRouteLeave` → MovieDetail).
-- Tests: `src/test/InfiniteScroll.test.js` (mocks `IntersectionObserver`, 60-movie library: render cap, scroll-free load, intersect-loads / not-intersecting-doesn't, teardown on all-loaded + unmount).
-
-## Tooling Health: Lint, CI, Coverage (Jun 2026)
-
-A pass to make the green/red signal trustworthy and enforced.
-
-- **Lint was fully broken** — `package.json` had ESLint **9** but the plugin ecosystem (`@vue/cli-plugin-eslint`, `eslint-plugin-n`, `eslint-config-standard`) is ESLint-8-era and calls removed APIs (`context.getScope`). `yarn lint` threw before linting anything. First pinned `eslint` to `^8.57.1` as a stopgap, then **completed the proper ESLint 9 flat-config migration** (see section below).
-- **Fixed all 13 lint errors** surfaced once it ran (all pre-existing, none from feature work): zero-width space in a Home.vue comment; `hasOwnProperty` → `Object.prototype.hasOwnProperty.call`; **two real latent bugs** — `fetchUnratedMoviesByPerson`/`fetchUnratedMoviesByCompany` catch blocks logged undefined `director`/`company` (would throw a ReferenceError in the error path) → now log the actual params; `==`→explicit `String()===` in PersonalAwardsModal; brace-style; reserved component names (`Header`/`Footer` → `AppHeader`/`AppFooter`, updated registration + tags in `App.vue`). The 2 `Insights.vue` computed-side-effect errors (the awards-year random-default picker) are **suppressed with an inline disable + TODO**, not rewritten — that logic has a documented bug history and no coverage. ~18 unused-var **warnings** remain (non-blocking; `yarn lint` exits 0 on warnings-only).
-- **CI added** (`.github/workflows/ci.yml`): runs `yarn lint` + `yarn test:run` on push to main and all PRs (Node 18, frozen lockfile). Makes green non-optional. Remote is `github.com:mattgrosso/movie-log`.
-- **Coverage config fixed**: `.history/` (VS Code Local History — 1,474 snapshot files) was polluting coverage, faking an All-files number of ~1%. Added `.history/` to the vitest coverage `exclude`. Real number is **~48% stmts / 74% branch**.
-- **Characterization tests added for the two biggest 0%-coverage components**:
-  - `src/test/RateMovie.test.js` (13 tests, 0%→44%): weights mapping, `weightedTotal` math, rating defaults, `sortByRating`/`indexIfSortedIntoArray`/neighbors ranking, `mostRecentRating`, poster/banner URLs, viewing-tag toggle, and `returnHome`'s documented banner request.
-  - `src/test/MovieDetail.test.js` (12 tests, 0%→52%): `getYear`/`prettifyRuntime`/`formattedDate`/`formatTimeDifference`, `getCrewMember` strict-vs-loose, `topStructure`, poster/backdrop custom-path selection, and the documented `goBack`/`searchFor`/`groupKeyForClickType` banner+promote behavior. **Found a latent quirk**: `formatTimeDifference`'s months branch runs to 730 days, so the `'1 year'` string is effectively unreachable (test characterizes the real output, `'13 months'` at 400 days).
-- **Test setup**: `src/test/setup.js` now also stubs `window.scrollTo` (jsdom doesn't implement it; components call it in lifecycle hooks).
-
-## ESLint 9 Flat-Config Migration (Jun 2026)
-
-Replaced the broken ESLint-8 setup with a proper ESLint 9 flat config. **Lint no longer runs through `vue-cli-service`** (that path, via `@vue/cli-plugin-eslint`, was the thing incompatible with ESLint 9). `yarn lint` = `eslint .`, `yarn lint:fix` = `eslint . --fix`.
-
-- **Config: `eslint.config.js`** (flat, CommonJS — the project isn't `type: module`). Composes `@eslint/js` recommended + `eslint-plugin-vue` `flat/essential` (flat configs default to Vue 3; the key is `flat/essential`, NOT `flat/vue3-essential` which is eslintrc-only) + `eslint-plugin-promise` `flat/recommended` (a single object, not an array — don't spread it). The old `eslintConfig` block in `package.json` is removed.
-- **Dropped the `standard` preset** (`@vue/eslint-config-standard@8` + transitive `eslint-config-standard@17` / `eslint-plugin-n@15` — unmaintained, eslintrc-only, and the source of the original `context.getScope` crash). Also removed orphaned `@vue/cli-plugin-eslint`, `eslint-plugin-import`, `eslint-plugin-node`, and `@babel/eslint-parser` (unused — the default parsers handle all `.vue`/`.js`). Added `eslint@^9`, `@eslint/js@^9`, `globals@^15`.
-- **Pinned to ESLint 9, NOT 10**: ESLint 10 / `@eslint/js@10` require Node ^20.19; the repo runs Node 18.18 (CI uses Node 18). ESLint 9 supports Node 18.18. Bumping to Node 20 later is the prerequisite for ESLint 10.
-- **Zero formatting churn**: the codebase was already `standard`-compliant (the earlier repo-wide `--fix` ran under standard), so reproducing standard's *rule options* (not just severities) kept everything clean. Key gotcha: bare severities use ESLint *defaults*, which differ from standard — had to set `indent: ['warn', 2, {SwitchCase:1}]`, `padded-blocks: ['warn','never']`, `object-curly-spacing: ['warn','always']`, `brace-style: ['warn','1tbs',{allowSingleLine:true}]` to match. The carried-over rules + a few re-added correctness rules (`eqeqeq` smart, `no-var`) live in the config.
-- **`aws-lambda/` is ignored** (separate deployable, 4-space style, never linted before — the old `vue-cli-service lint` only covered `src/`). Flat-config `ignores` also covers `dist`, `coverage`, `.history`, `public`, `registerServiceWorker.js`.
-- **Result**: `eslint .` → **0 errors, ~40 warnings** (38 pre-existing `no-unused-vars` + 2 non-auto-fixable `prefer-const`, all `warn` severity as before). Warnings don't fail CI; `yarn lint` exits 0. 318 tests still pass.
-
-### Test suite assessment (for future reference)
-Strong, trustworthy wall around the **algorithmic core** (`searchFiltering.js` 98%, rating calc, favorites scoring, tags/keywords/awards utils 100%, Home.vue 62%). Still **0% on**: `Insights.vue` (3071 lines), `LetterboxdScrapingService.js` (817), `YearInReview`, `Outliers`, `Header`/`Footer`, `ShareDBResults`. Tests are heavily **mock-based mounts of Home/components** — the hand-rolled store mocks can drift from the real store shape (see the documented mock-fix in GroupOrdering). Next coverage targets if continuing: Insights, then the Letterboxd scraping service.
-
-## "Can't scroll to the bottom" + sideways scroll on iOS PWA (Jun 2026)
-
-Symptom (reported on the installed iOS PWA, phone only): the page scrolls *most* of the way but stops ~5% short of the bottom, hiding the bottom controls (Submit / poster buttons). On RateMovie it *intermittently* also wants to scroll **horizontally**, into empty space (nothing visible is out there). It builds up over a session across **all** screens and only resets on a force-quit/reload.
-
-**Root cause — a form field overflowing its grid column horizontally, which latches the iOS layout viewport wider than the screen.** RateMovie's date field is `<input type="datetime-local">` in a narrow Bootstrap `.col-5` (the `medium` `<select>` in `.col-4` is a milder version). These controls have a UA-imposed **intrinsic minimum width** (datetime-local reserves room for "MM/DD/YYYY, --:-- --") that beats Bootstrap's `width: 100%`, so the field's layout box pokes past the right edge even though its visible area looks fine — hence "I can scroll over but there's nothing there." On the standalone iOS PWA that horizontal overflow latches the layout viewport wider than the visual viewport; the now-too-wide viewport throws off every screen's `100vh`-based vertical layout, cutting off the bottom, until the app is fully reloaded. The two symptoms (sideways scroll + cumulative bottom cut-off) are one bug.
-
-Fix (two complementary parts):
-- **Root cause — `RateMovie.vue` `.form-control, .form-select { min-width: 0; max-width: 100%; }`** (scoped under `.rate-movie`). `min-width: 0` lets the controls shrink to their column instead of overflowing it. This is the actual fix.
-- **Global safety net — `App.vue` `.cinema-roll { overflow-x: hidden; max-width: 100%; }`.** Clips *any* stray horizontal overflow (current or future, from any component) so the page can never scroll sideways and the viewport can never latch. Vertical page scroll is unaffected (the document, not `.cinema-roll`, is the vertical scroll container). Without this the datetime field would just be clipped; without the min-width fix it would fit but be cut on the right — both are needed.
-
-Verified earlier (browser, desktop width 2560): zero horizontal overflow on Home or RateMovie — confirming the offender is width-dependent (fine when the column is wide, overflows only at phone width). Test impact: RateMovie/Home suites still pass (CSS-only change). To re-verify on device, test the actual iOS PWA — the overflow does not reproduce at desktop width.
-
-### Unrelated minor fix landed alongside: modal scroll-lock leak
-While investigating, a *separate* latent bug was found and fixed (it is NOT the cause of the above — `body.no-scroll`'s `overflow:hidden` blocks ALL scrolling, not a 5% short-stop). Modals lock body scroll via the global `body.no-scroll` class (`App.vue`; toggled by `Modal.vue`, the 8 `Favorite*` components, Home's movie-info modal) or `document.body.style.overflow` (`RateMovie.vue`'s context modal), relying on their own close handler. `Home.rateMovieFromModal()` routed to `/rate-movie` without removing `no-scroll`, leaking the lock onto later screens. Fixes: `router.afterEach(() => { document.body.classList.remove('no-scroll'); document.body.style.overflow=''; })` in `src/router/index.js` (global safety net for the whole modal class) + `rateMovieFromModal()` now calls `closeMovieInfoModal()` before navigating. Tests: `src/test/ScrollLockCleanup.test.js`. (The router `afterEach` isn't unit-tested — importing the real router pulls in `store/index.js` which inits Firebase at module load.)
-
-## RateMovie rating-select extraction (Jun 2026)
-
-The eight rating criteria on RateMovie (direction, imagery, story, performance, soundtrack, stickiness, love, overall) used to be eight near-identical inline `<div>`+`<label>`+`<select>` blocks (~330 lines, with five byte-identical copies of the standard 0–10 option list). Extracted to a presentational child + a data-driven `v-for`:
-
-- **`src/components/RatingSelect.vue`** — props `label`, `description`, `name`, `options` (`[{ value, label }]`), `modelValue`; emits `update:modelValue`. Renders the wrapper/label/description and a native `<select>` whose `v-model` is proxied through a `selected` computed, so binding semantics match the old inline markup **exactly** (string option values; a `null` initial shows the leading empty option, which the component renders — it's NOT in the `options` array). All scoring/default logic stays in the parent.
-- **`RateMovie.vue`** — three module-level option constants (`STANDARD_OPTIONS`, `LOVE_OPTIONS`, `STICKINESS_OPTIONS`, built via `.map((label, value) => ({ value: String(value), label }))`) feed a `RATING_FIELDS` array (`{ key, label, description, options }`) exposed as `data().ratingFields`. The template is one `<RatingSelect v-for="field in ratingFields" v-model="$data[field.key]" :name="field.key" …/>`. **`v-model="$data[field.key]"` is deliberate** — it keeps the eight flat data props (`this.direction`, etc.), so `rating`, `addRating`, weights math, etc. are untouched (zero blast radius outside the template). `field.key` doubles as the data-prop name, the select id/name, and the criterion name used by the rating math, so array order = on-screen order.
-- Per-scale shapes: STANDARD (0–10) is shared by direction/imagery/story/performance/overall; LOVE is 0–10 values with custom labels (-5…5); STICKINESS is 0–5. RateMovie's `<style>` is **not** scoped, so `.rate-movie .form-select { min-width:0; max-width:100% }` still applies to the child-rendered selects.
-
-Tests (written before the extraction as the safety net): `src/test/RateMovieSelects.test.js` asserts at the **DOM level** (full `mount`, not shallowMount — which would stub the child) the 8 selects' labels, exact option value/label lists, and v-model binding; it was confirmed green on the OLD inline code first, then on the refactor, so it proves behavioral equivalence. `src/test/RatingSelect.test.js` unit-tests the child (render, empty option, modelValue reflection, emit).
-
-## In-App Bug Reporting (Jul 2026)
-
-Ported the "report a bug without breaking your flow" pattern from the thunderstone/space-base repos, adapted to Cinema Roll's Vuex store and single Firebase project.
-
-- **`src/components/BugReportButton.vue`** — a fixed circular button, bottom-right (`z-index:1200`, respects `env(safe-area-inset-bottom)`), rendered globally from `App.vue` (always visible, every screen, not gated on login state). Tap opens a small dark-themed panel: textarea + Cancel/Send. No hover state (mobile-first, `:active` only).
-- **`src/utils/bugReports.js`** → `submitBugReport(store, transcript, route)` writes to Firebase RTDB at `bugReports` (top-level — this project's RTDB isn't shared with another repo, so no namespacing needed, unlike thunderstone/space-base's `spaceBaseBugReports`). No anonymous-auth dance either: `database.rules.json` is already wide open (`.read`/`.write: true`), matching the rest of the app's data. Captures transcript, `reporterEmail` (`store.state.userEmail`), URL, userAgent, screen size/DPR, and a small `appState` JSON summary (route, `dbLoaded`, movie count, current sort/search/chip state) — deliberately NOT the whole `movieLog` (privacy + RTDB payload size).
-- **Triage scripts** (Firebase Admin SDK, bypasses the open client rules): `yarn fetch-bug-reports` (prints unresolved reports newest-first, `--all` for everything) / `yarn resolve-bug-report <id...>`. Both read `FIREBASE_ADMIN_KEY_PATH` from `.env.local` (gitignored) via Node's `--env-file`; the databaseURL is hardcoded to match `store/index.js` (one Firebase project, nothing to configure per environment). Needs a service-account key from Firebase Console → Project Settings → Service Accounts.
-- **`firebase-admin` is pinned to `^12.7.0`**, not the latest (`^13`) — v13 pulls in `@firebase/database-compat@2.1.4`, which requires Node ≥20; this repo's CI/dev environment runs Node 18.18 (same constraint documented under the ESLint 9 migration). Revisit once the repo moves to Node 20.
-
-Tests: `src/test/bugReports.test.js` (report shape, empty-transcript guard, reporterEmail fallback), `src/test/BugReportButton.test.js` (open/close, disabled-until-text, success/error paths).
-
-## Personal Awards + Other Ceremonies on Movie Pages (Jul 2026)
-
-MovieDetail's "Awards" section previously showed Academy Award wins/nominations only (from `film-awards-api`, per-movie via `/awards/tmdb/{id}`). It now has three subsections: **My Awards**, **Academy Awards**, **Other Ceremonies**.
-
-- **`src/assets/javascript/personalAwardsCategories.js`** — `PERSONAL_AWARD_CATEGORIES` (key/name/type) extracted out of `PersonalAwardsModal.vue`'s `categories` computed (which now just maps over the shared list) so MovieDetail can look up category display names without duplicating — and risking drifting from — that list.
-- **"My Awards" (`MovieDetail.personalAwardsByResult`)** — scans `settings.personalAwards` (keyed by year; see PersonalAwardsModal's existing `{ categories: { <key>: { nominees, winner } } }` shape, nominees/winner are "minimal" objects carrying `movieId`, a TMDB id) across **every** year, not just the movie's release year — a personal-awards year can legitimately honor films released in more than one calendar year. A category counts as a win if `winner.movieId` matches; otherwise a nomination if any entry in `nominees` matches. Person-shaped categories (Director/acting) surface the nominee's `name`. **Tapping an entry reopens that year's `PersonalAwardsModal`** — same trick as `Insights.resumeAwards()` (set `dailyAwardsYear`/`dailyAwardsYearDate`/`awardsPromptState:'forced'`, navigate home), now duplicated as `MovieDetail.openPersonalAwardsYear()` since the two components don't share a base.
-- **"Other Ceremonies"** (Golden Globes Drama/Musical-Comedy/Director, BAFTA Best Film, Cannes Palme d'Or, Venice Golden Lion) — **`src/assets/data/otherAwardsWinners.json`** (~1,490 entries, minified) + **`src/assets/javascript/otherAwards.js`** → `findOtherAwardsForMovie(movie)`.
-  - **Data provenance**: scraped from the *raw wikitext* of each ceremony's Wikipedia "winners and nominees" list page (via `action=query&prop=revisions`, NOT the rendered HTML and NOT an LLM summary of the page — an earlier attempt using a web-fetch-and-summarize tool silently mis-attributed rows across adjacent tables, e.g. inventing a "Tintin" Best Picture win and misreading the current year's Best Actor winner as that year's Best Picture winner; the raw-wikitext-parsed data was cross-checked against the summarized version for the years they overlapped and matches). Parsed with a small regex-based wikitable parser (bold + colored-background cell = winner; not committed to the repo, it was a one-off scratch script) that unwraps `[[wikilink|display]]`, `{{sort|key|display}}`, and `<ref>` noise. ~1% of rows are known-noisy (a handful of BAFTA/Cannes rows picked up a crew member's name instead of a film title from a malformed table row) — harmless for matching since a person's name essentially never collides with a real movie title.
-  - **No TMDB id in the source** (it's Wikipedia, not TMDB) — matching is by **normalized title** (lowercased, accent-stripped, non-alphanumeric collapsed) **+ release year within ±1** of the TMDB `release_date` year, to absorb the real-world slop between a ceremony's own "film year" labeling and TMDB's release date (international rollouts, year-of-eligibility conventions differing by ceremony). Index is a `Map` built once at module load, not per movie-page-visit.
-  - **Scope, deliberately limited**: winners *and* nominees for the 3 Golden Globe categories and BAFTA Best Film; **winners only** for Cannes/Venice (those Wikipedia pages don't tabulate nominees the same way — Cannes/Venice don't publicly "nominate" for their top prize the way the Golden Globes/BAFTA do). Berlin Golden Bear was attempted and **dropped** — its wikitext table had column-shifted rows for some tied years that put a director's name where the film title should be, and the noise rate was too high to trust. Revisit if someone wants to invest in fixing that page's parsing.
-
-Tests: `src/test/otherAwards.test.js` (matching, accent/case-insensitivity, year tolerance, no-match cases), `src/test/MovieDetailAwards.test.js` (personal-awards win/nomination classification, `openPersonalAwardsYear`, other-ceremony wiring).
-
-**Tried and reverted (Jul 2026): a small trophy-icon badge on grid posters** for any movie with a win (personal/Best Picture/other-ceremony), backed by two Vuex getters (`moviesWithPersonalAwardWins`, `bestPictureWinnerIds`) for cheap no-network lookups. Removed after real-world use — across a ~400-movie library there were enough winners that the badges cluttered the grid rather than reading as a meaningful signal. If revisiting, consider a rarer/higher bar (e.g. personal Best Picture only, not every category/ceremony) rather than "won anything, anywhere."
-
-### In-app bug report fixes for Awards/Rating Shape on MovieDetail (Jul 2026)
-Four bug reports filed via the in-app button after the above features shipped, all fixed together since three overlapped:
-
-- **"My Awards" → "The {{ personalAwardSectionTitle }}"**: previously hardcoded, ignoring the user-configurable `settings.personalAwardName` (Home.vue's settings panel, default 'Oscar'). The grammar helpers (`getAwardNameWithThe`/`getAwardNameWithoutThe`/`getAwardNameSingular`) that used to live only as Home.vue methods were extracted to pure functions in **`src/assets/javascript/personalAwards.js`** (`awardNameWithThe`/`awardNameWithoutThe`/`awardNameSingular`); Home.vue's methods now just delegate to them (zero behavior change there), and MovieDetail's `personalAwardSectionTitle` computed calls `awardNameWithThe` directly off `$store.state.settings.personalAwardName` (no dependency on Home.vue), e.g. "The Oscar" / "The Groskers".
-- **Personal award entries no longer show a leading year** ("2023 · Best Picture" → "Best Picture") — the movie's own release year already establishes when it was in contention, so repeating it on every line was redundant. `award.year` is still carried on the data object (used by `openPersonalAwardsYear`), just not rendered.
-- **Award links now resolve to the specific ceremony year, not a generic ceremony page**: `goToWikipedia(query)` was building a raw `/wiki/<title>` URL, which 404s (or lands on the wrong page) for anything but an exact title match. Now routes through Wikipedia's **`Special:Search?search=<q>&go=Go`** endpoint — jumps straight to an exact-title match same as before, but falls back to a full-text search results list instead of a dead page when the guessed title isn't exact. Paired with `otherAwards.js`'s new `buildWikipediaQuery(ceremony, year)`: Golden Globes get a computed ordinal title (`"81st Golden Globe Awards"` — reliable since the ceremony has run every year since 1943 with no gaps, formula `year - 1942`); BAFTA/Cannes/Venice (which all have historical irregularities — wartime pauses, combined-year ceremonies — that break a simple ordinal formula) get a `"<year> <ceremony>"` query instead, good enough for the search-with-fallback to land somewhere useful. Academy Award links already carried a year-specific `ceremony` string from `film-awards-api` (e.g. "67th Academy Awards") and needed no data change, just the same more-forgiving search-based navigation.
-- **Rating Shape (the radar chart) was tried and removed** — after seeing it live, it didn't look good and was pulled entirely (imports, `Chart.register`, `ratingRadarData`/`ratingRadarOptions` computeds, template, CSS all removed from MovieDetail.vue). The underlying pure module (`src/assets/javascript/ratingRadar.js`, `normalizedRadarValues`/`RADAR_LABELS`) and its test were left in place, unused, in case the idea gets revisited in a different form later — it's small and self-contained. `Chart.js`/`vue-chart-3` are still used elsewhere (Insights.vue), so no dependency was dropped.
-- **Awards section**: an initial collapse-behind-a-toggle-with-count-badge design was tried, but the follow-up ask was to **match the rest of the page's sections instead** — a plain always-visible `<h4>Awards</h4>` header, same as Cast/Keywords/Directors, with the awards content scrolling internally if it overflows (`.awards-body { max-height: 150px; overflow-y: auto; ...}`, the same scroll-box treatment as `.long-list` used by Cast/Genres/Directors) rather than collapsing/expanding.
-
-Tests: `src/test/otherAwards.test.js` (wikipediaQuery ordinal/year-query cases), `src/test/personalAwards.test.js` (award name grammar helpers), `src/test/MovieDetailAwards.test.js` (`personalAwardSectionTitle`, `goToWikipedia` URL shape, awards body always rendered + no year prefix).
-
-## Games Section (Jul-Aug 2026)
-
-A `/games` hub of ten games built entirely from the user's own rated library. **All game rules live in plain, store-free modules under `src/assets/javascript/games/`**, unit-tested without mounting anything; components in `src/components/games/` are thin wiring + presentation. `src/mixins/gameData.js` supplies `eligibleGameEntries` (entries with a poster, release date and ≥1 rating, respecting `settings.includeShorts`), `gameRatingFor`, `gamePosterUrl`, `recordGameWin`, `GAME_ICONS` and `lastPlayedGamePath`.
-
-> **This section was condensed in Aug 2026.** It had grown to 169 KB of round-by-round design narrative — every banner revision, every animation attempt — which is sent on every request. The full blow-by-blow is in git history before the "Trim CLAUDE.md" commit. What follows is the part worth re-reading.
-
-### The ten games
-| Game | Route | Shape |
-|---|---|---|
-| Higher or Lower | `/games/higher-lower` | Tap the poster you think scored higher. Streak. |
-| Reel Wordle | `/games/wordle` | Guess a library movie from year/decade/director/genre/runtime/rating clues. Unlimited guesses. |
-| Connections | `/games/connections` | Four groups of four, by director/genre/decade/cast/keyword/title/awards. Unlimited guesses. |
-| Six Degrees | `/games/six-degrees` | Build a shared-cast-or-director chain between two movies. |
-| Timeline | `/games/timeline` | Place a movie into a chronological row. Streak. |
-| Clue Budget | `/games/clue-budget` | Spend $100 on clues, then name the movie. |
-| Tag | `/games/tagline` | Match a real tagline to one of 4 posters. Streak. |
-| Trivia | `/games/trivia` | Claude-generated facts, hardest first. ONE guess. |
-| Stamp | `/games/stamp` | Swipe to confirm/remove a keyword across movies. Writes to the library. |
-| Poster Zoom | `/games/poster-zoom` | Name a movie from a 16x crop; tap the poster to zoom out. |
-
-All `requiresLogin`. Entry point: a button in Home's results-actions row (`goToGames()`).
-
-### Conventions that apply to every game
-- **Mobile-first: `:active` only, never `:hover`** — a tapped element keeps a hover state on iOS with no mouse to leave it. This has been shipped as a bug more than once.
-- **Persisted games store identity, not derived data.** `localStorage` under `cinemaRoll.<game>.current`, holding entry KEYS; the entry objects are re-resolved from the current library on restore, falling back to a fresh round if a movie is no longer eligible. **A finished round is never resumed.** Exception: Trivia persists its facts, because Claude's output isn't deterministic and re-fetching would hand back different ones.
-- **Wait for the library, don't read it once.** Use `watch: { eligibleGameEntries: { immediate: true } }`, not `created()`. A direct/deep-link load mounts before Firebase data arrives, and a one-shot read strands the game on "not enough movies" forever. This was a real bug in Six Degrees and Connections.
-- **Exclude the round you just finished** when picking the next target, falling back to the full pool if that would leave nothing. Two separate "it keeps repeating" bug reports traced to this being missing.
-- **Staleness guards must compare `entryKey`, not object identity.** Vue wraps `this.target` in a reactive proxy, so `!==` against a raw captured object never matches and the guard silently never fires. Hit in ClueBudget, Trivia and Poster Zoom.
-- **Custom banner per game**: `created()` saves `bannerUrl` and swaps in the game's own art plus `setHideHeaderLogo(true)`; `beforeUnmount()` restores both. All store calls optional-chained (`$store.commit?.()`) since several test mocks stub `$store` bare.
-- **Shared styling**: `_game-buttons.scss` (`.btn-game`, `.btn-game-primary/secondary`, `.full-width`, `.end-actions`) and `_game-inputs.scss` (`.game-input`), `@import`ed into each component's scoped style block.
-- **`.end-actions`** is the end-of-round row (primary action + "Back to Games"). Labels must not wrap — sharing the row halves each label's width, and a wrapped label makes one button taller than the other.
-- **Unlimited guesses, no hard loss state** is the house rule (Connections, Reel Wordle). Trivia is the deliberate exception: one guess, so you can't brute-force the suggestions list.
-- **`padding-top` on the game root** is a safety margin, not decoration: `BackLink` is fixed at (6,6) of the viewport whether or not the header currently has height.
-- **Typeahead dropdowns**: the panel styling goes on `.suggestions` (background, border, `position: absolute`, `max-height` + scroll); rows stay transparent. Styling each row as a bordered card reads as a stack of separate boxes, and an absolute panel doesn't push the buttons down the page.
-
-### Per-game notes worth keeping
-- **Reel Wordle** — clue cells are a fixed `repeat(6, 1fr)` grid with `min-width: 0` and ellipsis; wrapping or horizontal scroll here has been reported twice. Genre shows an explicit fraction ("Drama (1/2)") because colour alone couldn't distinguish an exact set match from a partial one. Guess history renders newest-first via a `displayGuesses` computed; the underlying array stays chronological.
-- **Connections** — `buildCandidateCategories` finds values shared by 4+ movies, then `generateConnectionsPuzzle` claims 4 with no movie in two answer keys. Difficulty tiers by kind (decade=1, genre=2, director/cast/title/awards=3, keyword=4), picking one per tier before falling back. **Breadth caps matter**: keywords 5-10 movies, genres ≤10% of the library — without them "Adventure" (212 movies) becomes a category and four random Dramas share nothing noticeable. Wrong guesses assign stable 1-4 hint numbers to the overlapping tiles.
-- **Six Degrees** — TWO graphs: `graph` (cast capped at 10 per movie, directors exempt) for puzzle generation and shortest-path, `playGraph` (uncapped) for the player's autocomplete and hints. Reusing the capped one for suggestions made real connections invisible. `scorePathDifficulty` is a weighted composite: hops 0.4, billing 0.4, year gap 0.1, age 0.1. Chain row scrolls horizontally and auto-scrolls to keep the newest entry visible.
-- **Timeline** — placement is a 3-step choreography (fly to gap → expand with flanking gaps → insert), all driven off one `stepDurationMs`. **The hard-won lesson: a helper that mutates reactive state as its last act, followed by more mutations in the caller, paints an intermediate frame** — `await` yields to Vue's scheduler in between. Keep them in one synchronous block. Also: `v-for` keys must be identity-based, not array indices, or insertion makes Vue reuse the wrong DOM nodes.
-- **Clue Budget** — clue prices come from real TMDB signals (person popularity, keyword rarity via `/discover` `total_results`, company prolificness), with fixed fallbacks so a round is playable before any fetch resolves. **Purchased clues are snapshotted at purchase**, not re-derived, so a price arriving later can't retroactively change what you paid.
-- **Trivia** — facts come from the `/trivia` AI lambda route. One guess per round.
-- **Stamp** — the only game that WRITES to the library (`customKeywords`/`removedKeywords` leaf paths via `writeDurably`, offline-safe, only when something actually changed, with undo). Removal is asymmetric: a TMDB/AI keyword can't be deleted, so it goes on `removedKeywords`, which `computeFlatKeywords` subtracts. Judge blind — no "already has it" marker.
-- **Poster Zoom** — see its own section below.
-
-### Testing traps specific to games
-1. `new Date('YYYY-01-01')` parses as UTC and shifts a year/decade in this repo's timezone — use mid-month dates in fixtures.
-2. State set in `mounted()` isn't visible to a synchronous post-mount assertion; prefer `created()` for pure data setup.
-3. `gameData.js` optional-chains `this.$store.state` itself — several mocks stub `$store` with no `state`. Don't tighten it without fixing them.
-4. Fixtures reuse dbKeys across tests, so persisted `localStorage` leaks between them — `beforeEach(() => window.localStorage.clear())`.
-5. To test the empty-then-populated library race, wrap the mock getters in Vue's `reactive()` or the watcher never fires.
-
-**Not built** (designed, deferred): per-game filters, and a shareable Wordle-style result card.
-
-## Custom Banners + Title Trim, Rolled Out to All Four Games (Jul 2026)
-
-Six Degrees went through ~10 rounds of banner/UI iteration (see the section above). Once that landed, the user handed over three more user-designed banner images (same halftone/dot-gradient house style, each with the game's own name + "CINEMA ROLL GAMES" baked into the bottom-right corner) and asked for the generalizable lessons from that whole process to be applied to Higher or Lower, Reel Wordle, and Connections too - "take your time and think on the feedback I've given for the 6 degrees design. Then do your best to make the other ones perfect." This was a judgment call about WHICH lessons actually transfer, not a mechanical copy of every Six Degrees change:
-
-- **Applied to all three** (clearly general-purpose):
-  - **Custom banner + hidden logo**: each game's source PNG (2560×1440, ~3.7MB) was resized/re-encoded the same way as Six Degrees' - `sips -Z 1200 -s format jpeg -s formatOptions 82` → `src/assets/images/games/{higher-lower,reel-wordle,connections}-banner.jpg`, ~250-310KB each, visually indistinguishable at display size. Each component's `created()`/`beforeUnmount()` pair sets/restores `bannerUrl` and toggles `hideHeaderLogo` exactly like Six Degrees (Connections already had a `created()` hook for `start()` - the banner code was merged into it rather than adding a second `created()`, which isn't valid on a single component options object).
-  - **`<h1>` title removed from all three** ("get rid of the title of the game and instead just have the description" - originally Six-Degrees-specific, but doubly justified everywhere now that every banner graphic has the game's name baked in, making an on-page `<h1>` genuinely redundant twice over). Each game's `.game-title` CSS rule is gone; whatever now renders first (`.game-subtitle` for Wordle/Connections, `.setup p` / `.streak-row` for Higher-or-Lower, which has no single persistent subtitle across its two states) picked up a `margin-top: 0.75rem` to preserve the h1's old top spacing.
-  - **Banner tap-to-home** required no new work - it's the global `Header.vue` fix from the Six Degrees round, and applies automatically to any game that sets a banner.
-- **Applied to Reel Wordle only** (Connections/Higher-or-Lower don't persist state at all, so the bug can't occur there): **a solved puzzle is no longer restored on the next visit**, mirroring Six Degrees' "don't resume a finished round" fix. `loadOrStartPuzzle()` now checks whether `saved.guessedKeys` contains `saved.targetKey` (i.e. one of the past guesses WAS the target - a win) and, if so, falls through to `startNewPuzzle()` instead of reconstructing the solved state.
-- **Deliberately NOT applied** (considered and rejected as not actually fitting):
-  - **Compact/rectangular button treatment**: this was specific to a bespoke Six Degrees control (the difficulty segmented picker); the other three games use the shared `.btn-game` pill styling, which was an intentional, separately-established design (see "Custom button look, scoped to Games" above), not something flagged as a problem.
-  - **Dropping redundant labels under posters**: Six Degrees' placeholders had a genuine "unknown identity" to hide; Higher-or-Lower's title (always shown, only the SCORE is hidden), Wordle's guess titles, and Connections' tiles (which already dropped their captions in an earlier round) don't have an analogous redundant label to remove.
-  - **"?" placeholder slots / horizontal scroll**: only meaningful for Six Degrees' open-ended, growing chain; the other three have fixed-size layouts (2 cards, a 4×4 grid, a vertically-stacked guess list) with nothing analogous to fill or overflow.
-  - **Win-message-to-top**: reconsidered case by case rather than copied - Higher-or-Lower already surfaces status via an always-rendered top-of-page `.status-line` (an earlier, unrelated fix); Wordle's win banner pairs its message with a poster-reveal reward that would lose context if hoisted above the fold; Connections' win banner already appears exactly where the tile grid was, which reads as a natural continuation of solving the last group. None of these had the specific "buried, verbosely-worded box" problem Six Degrees' `.result-banner` had.
-  - **Auto-complete-style friction reduction**: no natural equivalent found in any of the three (Higher-or-Lower is a binary tap, Wordle requires typing the exact title, Connections requires an exact 4-tile selection) - nothing to short-circuit the way "a person who's also in the target" could in Six Degrees.
-
-Tests: banner set/restore + logo hide/show pairs added to `HigherLowerGame.test.js`, `ReelWordleGame.test.js`, `ConnectionsGame.test.js` (same shape as Six Degrees'); `ReelWordleGame.test.js` also gained the won-puzzle-not-resumed case. No test referenced the removed `<h1>`/`.game-title` in any of the three, so none needed updating for that part.
-
-## Round-Robin Tiebreak Tournaments (Jul 2026)
-
-The tiebreak feature (`TweakInline.vue`, triggered from `Home.vue`) used to resolve only ONE adjacent pair of exactly-equal `calculatedTotal` movies at a time — pick a winner, the loser gets a flat `tweakValue -= 0.1`, done. A 4+ way tie got chipped away one random adjacent pair per day with no sense of a settled order. Replaced with a proper round-robin tournament, inspired directly by (but architecturally separate from) the Rate-Off game's bracket — Rate-Off itself (`games/bracket.js`/`RateOffGame.vue`) was later removed (see the Games Section above), but this module never imported it, so its removal changed nothing here.
-
-- **New pure module: `src/assets/javascript/tieBreakTournament.js`** (store-free, same pattern the now-removed `games/bracket.js` used) — `findTiedGroup(sortedEntries, getScore)` expands outward from the first adjacent tie to the full **contiguous run** of equal-scored entries (ties are always contiguous in a sorted list); `createRoundRobinTournament(contestantIds, rng)` builds every unique pair (N choose 2); `currentMatch`/`recordMatchResult`/`isComplete` are an immutable state machine identical in spirit to a pick-a-winner bracket; `rankContestants` sorts by win count descending (falls back to original order for a tie-of-ties, e.g. a 3-cycle where everyone goes 1-1 — not worth resolving further); `tweakDeltaForRank(rank)` generalizes the old flat `-0.1` to `-0.1 * rank` (rank 0 = untouched, matching "winner never penalized").
-  - **Match order (Jul 2026, bug report — "matchups came through in random order instead of doing all of one movie's matchups followed by the next")**: `buildSchedule`'s natural order is every one of contestant 0's matches, then contestant 1's remaining ones, etc — originally left unshuffled on purpose ("match order isn't a meaningful design decision... deterministic keeps this testable"). `createRoundRobinTournament`'s new optional 2nd arg `rng` (default `null`) shuffles the built schedule (local Fisher-Yates, not imported from `games/gameUtils.js` — keeps this module self-contained) when supplied; omitting it keeps the old stable order, which is why none of this file's own schedule-order-asserting tests needed to change. `TweakInline.vue`'s real call site passes `Math.random`.
-- **Persisted across sessions.** The tournament state lives at `settings/tieBreakTournament` in Firebase. `Home.vue`'s `shouldShowTieBreakModal` checks "does a tournament record exist" (regardless of complete/incomplete — see below) vs. the daily quota (`settings.tieBreakTweak`/`lastTweak`); it does NOT own creating or advancing the tournament — `TweakInline.vue` owns that via `ensureTournamentStarted`.
-- **Default is now "do the whole tournament in one sitting," with an explicit pause button (Jul 2026, follow-up feedback: "I now find that I wanna do a few in a row, especially when there's a bigger tournament").** The ORIGINAL design (see the now-superseded paragraph this replaces, in earlier history) re-stamped `settings/lastTweak` after **every single match**, which made `shouldShowTieBreakModal`'s daily-quota check go false immediately — so in practice a multi-match tournament could only ever advance one match per quota window (default: once/day), spread across however many days it took, whether the user wanted that pacing or not. `chooseWinner` no longer stamps `lastTweak` for a match that leaves the tournament still in progress — it only resets the clock at an actual stopping point: (a) `acknowledgeResults` (the "Done" tap after a 3+-contestant tournament's results screen), (b) the 2-way fast path's "nothing left to chain into" branch, or (c) the new **`saveForLater()`** method, wired to a "Save for later" button (`.save-for-later-btn`) shown only when `canSaveForLater` (`progress(tournament).total > 1` — same "not really a tournament" cutoff `progressLabel` already uses, so a plain 2-way pick never shows a pause button with nothing meaningful to pause). `saveForLater` stamps `lastTweak` and collapses the panel (`closeTweakInline`) WITHOUT touching the tournament record itself — progress is already persisted after every pick, so reopening (once the quota allows, or immediately with "force tiebreak to show") resumes exactly where it left off, same mechanism a natural browser close/reopen already relied on.
-- **Trigger is state-driven (`needsNewTournament` computed), not change-driven (fixed Jul 2026 bug).** Originally `ensureTournamentStarted` fired from a watcher on the `showTweakModal` *prop changing*. That broke with the settings-panel "force tiebreak to show" testing toggle: forcing pins `showTweakModal` true permanently (bypassing the quota), so it only ever changes value once (mount) and never again — after finishing one tournament and clearing it, a second tied group would show its "you have a tie" notice but tapping it rendered a crash-to-blank panel, because no tournament had been (re-)created for it (nothing was watching for that anymore). Fixed by watching a `needsNewTournament` computed (`showTweakModal && !currentTournament && tiedGroupDbKeys.length >= 2`) instead, which re-fires whenever `currentTournament` drops back to null with something left to start, regardless of whether `showTweakModal` itself ever changes; `acknowledgeResults` also calls `ensureTournamentStarted()` directly rather than waiting on the watcher's next tick. The "current match" template branch additionally requires `firstResult && secondResult` (not just presence of a tournament) so a momentary null pair can never throw instead of just quietly not rendering.
-- **Results-screen contrast fix (Jul 2026)**: the win-count text used Bootstrap's `.text-muted` (~#6c757d), which fails contrast against the `.tweak-container`'s `#4a4a4a` background (~2.3:1). Replaced with a custom `.result-wins` class using the same `#ccc` already used for the rank number (~6:1).
-- **Frozen membership = the freeze-out rule, for free.** `contestantIds` is snapshotted once at tournament creation and never recomputed from a fresh scan. Since `findTiedGroup` (a fresh scan) is only ever consulted when there's **no** active tournament record, a movie rated mid-tournament that happens to now match the tied score simply can't be pulled in — it just waits for the next scan, which only runs after the current tournament resolves and its record is cleared. No explicit "exclude new arrivals" logic needed; it falls out of *when* detection runs.
-- **`localTournament` optimistic cache** (`TweakInline.vue` data): Firebase's realtime listener updating `$store.state.settings.tieBreakTournament` isn't synchronous with a dispatch, so the component keeps its own just-written copy and prefers it over the store's value — without this the UI could flash a stale state between a pick and the listener catching up. A fresh mount (new session) has no local copy, so it reads straight from the persisted store value — that's what makes a tournament survive across page loads/days.
-- **Results screen is new** (the old flow silently applied the -0.1 and closed): once the last scheduled match is recorded, `finalRanking` is attached to the tournament and `TweakInline` shows a "Tournament Complete!" standings list (poster + win count per rank) before applying anything. Score adjustments for **all** contestants are applied in **one batch** at this point (not incrementally per match, per the user's explicit design: "winners and losers get tracked in the round robin instead of having their scores modified right away"). Tapping "Done" clears `settings/tieBreakTournament` (dispatches `value: null`, same clear-a-path convention as `PersonalAwardsModal.vue`/`Insights.vue`), which is what lets the next scan start fresh.
-- **A 2-contestant tie is now fully invisible-overhead, not just "unchanged in effect" (Jul 2026, bug report)**: round-robin on 2 entries is exactly 1 match, so score-wise it always behaved like the old pairwise flow — but the UI still showed tournament "trappings" (a `progressLabel` reading "2 contestants · match 1 of 1", and the "Tournament Complete!" standings screen requiring a "Done" tap) that made a 2-way tie feel like more ceremony than a simple pick. Per feedback ("that's not really a tournament... it should just go ahead and make the change and move onto the next one"): `progressLabel` now returns `''` whenever `progress(tournament).total <= 1`. `chooseWinner`, after applying the completed tournament's results, checks `updatedTournament.contestantIds.length <= 2` and — only for that case — skips the results screen entirely. `ensureTournamentStarted` now returns a boolean (was `void`) so callers can tell whether it actually started something. **3+-contestant tournaments still show progress and the standings/Done screen** — that ceremony is appropriate for a real multi-match tournament — but per the "one sitting by default" change above, matches within it no longer force a stop between each pick; only "Done" (after completion) or "Save for later" (mid-tournament) actually pause things.
-- **2-way completion no longer auto-chains into a DIFFERENT tied group's tournament (Jul 2026, bug report superseding the paragraph above — "I was presented with a new tiebreaker... after doing the first round it didn't actually close... if it's just an individual matchup, that should count as my tiebreak for this time").** The 2-contestant fast path originally called `ensureTournamentStarted()` right after clearing itself, so if another tied group existed elsewhere in the library its first match appeared immediately in the same open panel — no visual break, which read as "it never closes," and because the fast path only stamped `lastTweak` when NOTHING was left to chain into, the daily-quota clock never got a chance to reset either. `chooseWinner`'s 2-way branch now unconditionally does `clearCompletedTournament()` + `closeTweakInline()` + stamps `settings/lastTweak`, exactly like a 3+-contestant tournament's "Done" tap already does — regardless of whether another tied group exists. The next scan (whenever the quota next allows) picks up any other tied group fresh at that later point. Matches *within* one already-started tournament (a 3+-contestant one, or the fast path when it's the only tie) are unaffected — this only stops chaining into a **new, unrelated** tournament.
-- **Tap feedback: stuck-`:hover` scale/border replaced with a deliberate checkmark badge (Jul 2026, bug report — "the poster... gets a little larger... I do want an indication that I have clicked on one... a little checkmark").** `.poster-container:hover`/`.poster-wrapper:hover` (scale-up + border-brighten) were the same "stuck :hover on iOS, no real mouse to trigger `mouseleave`" pattern documented elsewhere in this file — the tapped poster visibly stayed "grown" after selection, reading as an unwanted glitch rather than feedback. Removed both `:hover` rules (the `:active` press-state pair was already there and is unaffected). New `selectedDbKey` data field is set to the winner's `dbKey` synchronously at the start of `chooseWinner`, drives a `.selected-checkmark` badge (green circle, `bi-check-lg`) absolutely positioned on whichever `.poster-wrapper` matches it, and is cleared back to `null` once the winner has been fully processed (end of `chooseWinner`, after the awaited save).
-- **Poster prefetching for the WHOLE tournament, not just the current match (Jul 2026, bug report — "swaps out one of the posters, but not the other one... some way we can pre-cache the next setup").** The next match's two posters hadn't been fetched before, so they visibly popped in one at a time as each image's network/decode finished — not a Vue bug, just cold-cache image latency. Since a round-robin tournament's full contestant list is known upfront at creation, `prefetchTournamentPosters(tournament)` (new method) kicks off a `new Image(); img.src = ...` fetch for **every** contestant's w500 poster as soon as the tournament exists — called from `ensureTournamentStarted()` right after creating one, and again from a new `created()` hook for the case where the component mounts onto an **already-persisted** tournament (e.g. resuming after a page reload), which never went through `ensureTournamentStarted` for that same tournament. By the time any given match is actually shown, its posters are already warm in the browser's HTTP cache.
-- **Spacing tightened up around the title and "Save for later" button (Jul 2026, bug reports).** With a 2-way tie, `progressLabel` renders nothing (see above), which left the posters looking "pulled too tight" right under the "Break the Tie" header — the title wrapper's `mb-2` became `mb-3` so the gap is consistent whether or not the subtitle line is present. Separately, "Save for later" felt cramped against the posters above it — its wrapper's `mt-2` became `mt-3`.
-
-Tests: `src/test/tieBreakTournament.test.js` (pure module — group detection incl. tie-of-ties, schedule shape, immutability, full 4-way resolution, unshuffled-by-default vs. shuffled-with-rng match order + rng determinism), `src/test/TweakInline.test.js` (mount-based — auto-start on first tie, progress label, 2-way and 4-way full playthroughs, one-batch score application, freeze-out of a newly-tied movie against an already-running tournament, acknowledge-clears-state, `lastTweak` NOT stamped between matches / IS stamped at Done and at "Save for later", "Save for later" hidden for a 2-way tie, a 2-way completion always closes+stamps `lastTweak` even when another tied group exists, `selectedDbKey`/checkmark-badge set+clear+render, poster prefetching on tournament creation AND on mount into an already-persisted tournament).
-
-- **A large tournament's final match "seemed frozen for 5-6 seconds" (Jul 2026, bug report) — a real perf bug, not just missing UI feedback.** `allMoviesRanked` used to be `[...allMoviesAsArray].sort(this.sortByRating)`, a naive comparator calling the moderately-expensive `getRating()` up to twice PER COMPARISON over the *entire* library (~1300 movies) — and `applyTournamentResults` fires one Firebase write per adjusted contestant, each of which can re-trigger this computed as `movieLog` updates land back, compounding the cost. Switched to `sortResultsFast` (`searchFiltering.js` — the same decorate-sort-undecorate fix already applied to `Home.vue`'s search/sort path, see "Search Recompute Performance" below) with `{ sortValue: 'rating', sortOrder: 'bestOrNewestOnTop', getRating }`, which computes `getRating()` once per item with identical resulting order. The now-unused naive `sortByRating` method was removed.
-- **The spinner also never actually tracked the real save time, on top of that.** `chooseWinner` set `submitting = true` then back to `false` synchronously around `applyTournamentResults`'s Firebase dispatches, which were fire-and-forget (never awaited) — so `submitting` never reflected real elapsed time regardless of the sort-perf fix, and worse, the "Tournament Complete!" results screen (which is what actually shows after a 3+-contestant tournament's LAST match) had no spinner element in its template at all - only the "current match" screen did, and that screen is immediately swapped out once `tournamentIsComplete` flips true. Fixed: `applyTournamentResults` now returns `Promise.all(writes)` (each `setDBValue` dispatch mapped, `null`/no-write entries filtered out first) and `chooseWinner` (now `async`) awaits it before flipping `submitting` back to `false` — the LOCAL UI transition (showing next match / results screen / closing the panel) still happens immediately, only the spinner and the results screen's "Done" button (now `:disabled="submitting"`) wait on the real write completion. The results screen gained its own `v-if="submitting"` spinner + "Saving final scores..." text, mirroring the one the current-match screen already had.
-- **Tap feedback on the tiebreak posters (Jul 2026, bug report — "something that just clearly indicates that I did click the poster").** `.poster-container` only had `:hover` (scale up, border brighten) — no feedback at all on a touch device, the same mobile-first gap already documented elsewhere in this file. Added `:active { transform: scale(0.95); }` plus a matching `:active .poster-wrapper { border-color: ... }`, alongside the existing `:hover` rules (harmless for mouse users, just redundant with the hover state).
-
-## Offline / PWA Support (Jul 2026)
-
-A full audit + pass at real offline support, prompted by wanting posters/images/data usable with no connection. Previously the PWA plugin only precached build assets (JS/CSS/fonts/`index.html`) — zero image caching, zero Firebase offline persistence, so a cold start with no connection would hang forever on the loading screen.
-
-- **TMDB image + Google Fonts runtime caching** (`vue.config.js`'s `workboxOptions.runtimeCaching`, GenerateSW mode — no `workbox-*` npm packages needed, the webpack plugin bundles the strategies from plain config objects): `image.tmdb.org` → CacheFirst, cache name `tmdb-images`, 3000-entry cap, 90-day expiry, `cacheableResponse: { statuses: [0, 200] }` (the `0` matters — cross-origin image fetches are opaque responses). `fonts.googleapis.com` → StaleWhileRevalidate. `fonts.gstatic.com` → CacheFirst, 1-year expiry. This only caches an image the first time it's actually requested (viewed) — it does not proactively warm anything by itself.
-- **"Download all posters for offline" (Settings panel, `Home.vue`)** is what actually satisfies "I want ALL my posters available offline" — `src/assets/javascript/offlinePosterCache.js`'s `collectImageUrls(movieLog)` (dedup'd poster w342 + backdrop w500 URLs, matching the sizes actually used elsewhere per the asset-perf section above) and `warmImageCache(urls, { concurrency, onProgress, signal })` (a small worker-pool fetcher, `mode: 'no-cors'` since TMDB doesn't send CORS headers and a same-origin-mode `fetch()` — unlike an `<img>` tag — would reject outright). The `fetch()` calls exist purely to give the already-registered CacheFirst route something to intercept and store; the responses themselves are never read. Both are pure/store-free and unit-tested without mounting anything (`src/test/offlinePosterCache.test.js`). Deliberately a manual, opt-in button rather than automatic — eagerly pulling ~60-100MB isn't something to do silently on someone's cellular connection.
-- **New/changed images are cached automatically after the initial bulk download** (Jul 2026, follow-up — "I don't wanna have to run it again manually except for this one time at the beginning"). `offlinePosterCache.js` exports `posterUrl`/`backdropUrl` (the same w342/w500 URL builders `collectImageUrls` uses internally) so individual call sites can warm exactly one new image without re-scanning the whole library. Two hook points, both fire-and-forget (never awaited, never block or fail the real save): **`AddRating.js`**'s `addRating()` warms the new movie's poster+backdrop right after a rating is saved; **`MovieDetail.vue`**'s `selectPoster`/`selectBackdrop` each warm the newly-chosen image right after the custom-path save succeeds. Together with the passive CacheFirst route (which already covers anything you view), this means the manual button is genuinely a one-time backfill — everything added or changed afterward keeps itself cached without another manual run. Tests: `TMDbDataProcessing.test.js` (warms poster+backdrop on a successful add, does NOT warm when TMDb data/poster is missing or `addMovieRating` returns early), `MovieDetail.test.js` (`selectPoster`/`selectBackdrop` each warm their specific new URL).
-- **Offline data fallback for `movieLog`/`settings`** (`src/utils/offlineStore.js` + `initializeDB` in `store/index.js`): Firebase RTDB's web SDK has no built-in disk persistence (unlike Firestore's `enableIndexedDbPersistence`), and `initializeDB` was purely a live `onValue()` WebSocket listener with no timeout — offline, it just never fires. `offlineStore.js` is a small dependency-free IndexedDB wrapper (`saveSnapshot`/`loadSnapshot`, keyed by `${databaseTopKey}:${movieLog|settings}`) that never throws (best-effort; resolves `null`/no-ops on any failure, e.g. private browsing). `initializeDB` now races `loadSnapshot(...)` against the live `onValue` listener rather than sequencing them: whichever settles the UI first wins, and the live callback (which always eventually fires once connected, cache hit or miss) is the source of truth — it unconditionally overwrites/re-persists on arrival. A `context.state.dbLoaded` guard on the cache-read side just stops a slower cache resolution from clobbering already-arrived live data; there's no artificial timer/delay, the two async paths just race naturally. **Inherent limitation, not a bug to fix further**: a user's very first-ever session with no prior successful sync has no snapshot to fall back to, so a true first-time offline cold start still can't show data that was never cached — there's nothing to persist yet. Tests: `src/test/offlineStore.test.js` (real IndexedDB behavior via `fake-indexeddb`, a new devDependency — jsdom itself has no IndexedDB implementation), `src/test/OfflineDataFallback.test.js` (imports the REAL `store/index.js`, not a hand-rolled mock store like `VuexStore.test.js` — Firebase/axios/router/Sentry mocked so module-load has no real side effects; exercises the actual race/guard logic end-to-end).
-- **Cleanup**: `public/offline.html` (a bare static fallback page) was precached but never actually wired to a `navigateFallback`, and turned out to be unnecessary anyway — hash-based routing means every in-app "page" is really the same `index.html` (the `#fragment` never reaches the server/service-worker), which is already precached and correctly served offline by Workbox's default exact-match precache route. Deleted as dead code rather than wired up. The redundant Bootstrap CDN `<link>` in `index.html` was also removed (Bootstrap is already bundled via `main.js`'s `import "bootstrap/dist/css/bootstrap.min.css"` — the CDN link was doing nothing but adding an uncached external request). `vue.config.js`'s manifest `icons` now also includes the maskable variants (`android-chrome-maskable-{192,512}.png`) — the files already existed in `public/img/icons/` but were never referenced, so Android home-screen icons weren't using them.
-- **Scope note**: this covers the app shell (already fine pre-existing), images (new), and the user's own rated-movie data (new). It does NOT cover the `academyAwardWinners` external-API fetch in `initializeDB` (Railway + TMDB calls) or other network-dependent features (Letterboxd scraping, TMDB search for new ratings) — those inherently require a connection and weren't in scope for "view what I've already rated, offline."
-
-### Foreground update-check reliability on iOS (Jul 2026)
-Bug report: the "check for a new version when the app comes back to the foreground" behavior (`App.vue`) worked reliably on one household member's iPhone but never on another's, despite both being recent iPhones with the app added to the home screen the same way. Root cause is environmental, not a code bug: the original implementation relied solely on `visibilitychange`, and iOS Safari/WebKit has a long-standing, version-dependent quirk where `visibilitychange` doesn't reliably fire when a home-screen-installed (standalone) PWA is brought back to the foreground — which iOS release a phone is on materially affects this. (iOS also evicts a site's service worker registration after ~7 days of no visits, as part of Safari's storage eviction policy — a second, independent reason a specific device might silently never see the check run.)
-- **Fix: don't depend on a single trigger.** `App.vue`'s `checkForServiceWorkerUpdate()` method (`registration.update()`, wrapped in try/catch so a failed check never throws) is now called from FOUR independent triggers instead of one: `visibilitychange` (existing, kept), `window` `pageshow`, `window` `focus`, and a `setInterval` re-check every 30 minutes while the app is open. The interval is a genuine backstop — it doesn't depend on any lifecycle event firing at all, so even a device where every event-based trigger is flaky still gets checked periodically.
-- **Not fixed by this change**: the ~7-day service-worker eviction on rarely-opened installs — there's no code workaround for that (nothing can run before the app is opened). If someone reports updates never arriving despite this fix, ask how often they actually open the app before assuming it's another visibility-event issue.
-- Tests: `src/test/App.test.js` — spies on `document`/`window` `addEventListener` and invokes the captured handler directly (real `dispatchEvent` calls would leak listeners across tests in the same file, since `App.vue`, being the root component, never unregisters them in `beforeUnmount` — correct for production, where it's mounted exactly once for the app's lifetime, but requires this workaround in tests). Covers each of the four triggers firing an update check, hidden-state suppression, the interval firing repeatedly, missing-`serviceWorker`-API safety, and a rejected `getRegistration()` not throwing.
-
-## New-User Onboarding (Jul 2026)
-
-Holistic look at what a genuinely 0-rated user actually sees on first login, prompted by "I added something to prompt new users to rate initial films... I doubt it was very good." Audited the full first-visit path (Login → `initializeDB` → Home with an empty `movieLog`) plus how Insights/Favorites/Games degrade with near-zero data.
-
-- **The core bug: the existing "help me get started" suggestions were gated backwards for a brand-new user.** `NewRatingSearch.vue`'s quick-pick flow ("Want some help getting started? Rate one of these popular movies:" — 3 shuffled TMDB popular movies, filtered against already-rated IDs, tap a poster to jump straight into `RateMovie`) already existed and was fine on its own terms. But reaching it required tapping a "Suggest some movies to rate" button first — and for a literal 0-rated user there was NOTHING ELSE on the page to look at besides that one button and an empty search bar, so the extra tap was pure friction with zero payoff (nothing to protect the user from seeing, unlike the 1-9-rated case where a standing button is the right call to avoid being naggy). Separately, that same 0-rated state was *also* rendering the unrelated plain-`NoResults` fallback ("Search for a movie in the box above and follow the instructions...") simultaneously below the button — two overlapping, slightly redundant pieces of guidance instead of one clear one.
-- **Fix — three-tier behavior by `userRatedMovieCount`, all in `Home.vue`**:
-  - **0 rated** (`isBrandNewUser`): a one-line `.welcome-new-user-text` ("Welcome to Cinema Roll! This app is built entirely around movies you rate yourself.") renders immediately, and the quick-pick suggestions (`NoResults` with `suggestionsMode`) show automatically — no button, no tap. New computed `shouldShowStartSuggestions` drives this: `showSuggestionsOnly || (isBrandNewUser && !dismissedWelcomeSuggestions)`, capped off entirely once `userRatedMovieCount >= 10`. `dismissedWelcomeSuggestions` (new data flag) lets "Cancel" actually dismiss it for this session — falls through to the plain "Search for a movie..." prompt, letting a user who doesn't like the 3 offered movies search directly instead.
-  - **1-9 rated**: unchanged from before — the tap-through "Suggest more movies to rate" button, not auto-shown (they've already started; a standing prompt here would read as nagging rather than helpful).
-  - **10+ rated**: unchanged — this whole mechanism is invisible; the OTHER "Suggest more movies" entry point deeper in the page (gated `>= 10`, shown once you've scrolled through all your own results) takes over, untouched by this pass.
-  - `handleCancelSuggestions()` (new method) replaces the old inline `showSuggestionsOnly = false` handler on `@cancel-suggestions` — sets both `showSuggestionsOnly` and `dismissedWelcomeSuggestions` so Cancel works correctly from either the 0-rated or 1-9-rated entry path.
-- **Deliberately NOT changed**: the actual `RateMovie.vue` rating form — each of the 8 criteria already ships with an inline description (`RATING_FIELDS`' `description` field, rendered by `RatingSelect.vue`), so a first-time rater already gets per-criterion guidance without needing a separate onboarding pass over that form. Also left alone: Insights/Favorites/Games empty-data states — a quick audit found they already degrade reasonably gracefully (e.g. Connections' "Not enough rated movies... Rate a few more and try again", Games' `eligibleGameEntries.length < 4` gate) or just show honest zeros (Insights) rather than erroring; a deeper redesign of those wasn't what was reported as broken, and 3000+-line/0%-coverage files like `Insights.vue` aren't something to touch broadly in an unsupervised pass. Revisit if a future report specifically flags one of those.
-- **Cleanup**: deleted `NEW_USER_TESTING_SUMMARY.md` (repo root) — a stale, year-old status report from a defensive-programming/crash-fixing pass (`Array.isArray` guards for malformed `genres`/`cast`/`crew`/etc., already long since merged) that referenced `src/test/integration/*` files deleted in a later "Deletes old bad tests" commit. Not related to this onboarding UX work beyond sharing the "new user" name — kept the actual defensive-programming fixes (still present in the current code), just removed the dead planning doc.
-
-Tests: `src/test/NewUserOnboarding.test.js` (welcome text + auto-shown suggestions at 0, tap-required button at 1-9, neither at 10+, cancel dismisses for the session).
-- **Gap above the poster suggestions halved, twice (Jul 2026, immediate follow-up bug reports — "that gap is too large, should be about half"; then "still pushed down a little too far, halve that again").** The space between the welcome text (or the tap-through button, or the did-you-mean row) and `NewRatingSearch`'s "Want some help getting started?" + 3 posters was dominated by `NewRatingSearch.vue`'s own root `mt-*` margin — adjacent block-level margins collapse to the larger of the two, so it didn't matter that `.welcome-new-user`'s bottom margin or the button's bottom margin were sometimes smaller; whichever side was reduced without touching the other left the collapsed gap unchanged. Both rounds reduced BOTH sides of every pairing that could produce this gap:
-  - Round 1: `NewRatingSearch.vue`'s root `mt-3` → `mt-2` (1rem → 0.5rem); `.welcome-new-user`'s `my-3` → `mt-3 mb-2` (keeps the space *above* the welcome text as-is, halves only the space *below* it).
-  - Round 2: `NewRatingSearch.vue`'s root `mt-2` → `mt-1` (0.5rem → 0.25rem); `.welcome-new-user`'s `mb-2` → `mb-1`; the 1-9-rated tap-through button's container `my-2` → `mt-2 mb-1` (split out for the first time here, since round 1 didn't need to touch it — its `my-2` bottom half was already ≤ `NewRatingSearch`'s `mt-3`/`mt-2`, so it was never the dominant side of that particular collapse until `NewRatingSearch`'s margin caught down to meet it).
-  - The OTHER "suggest more" entry point (10+-rated, `mt-4 mb-5`, appears deep in the page below the results grid rather than right under the search bar) is a different placement context and wasn't touched in either round — not what was being tested/reported.
-  - **Round 3 — rounds 1-2 fixed the wrong thing for THIS specific scenario.** The screenshot that prompted "still pushed down, and it wasn't clear the last change did anything" was a plain typed search ("nerf", zero local results, not the 0-rated/1-9-rated new-user paths at all) — that goes through a completely different branch, `Home.vue`'s OTHER `<NoResults>` instance (~line 718, the one bound to `:class="{'no-results-buffer': !activeFiltersMinusTemps.length}"`), which carries its own fixed `.no-results-buffer { margin-top: 58px; }` (a pre-existing rule, comment: "deal with the jump in position when the input is deblurred and a chip is automatically added"). At 58px, this single rule dwarfed the 4px-scale `mt-1`/`mb-1` adjustments from rounds 1-2, which is exactly why halving those produced no visible difference here — they were never the dominant margin for this path. Halved directly: `58px` → `29px`.
-
-## MovieDetail/Home Badge Count Accuracy + Shared entityCounts.js (Jul 2026)
-
-Bug report: "I've seen inconsistencies in how [the parenthetical (N) badges next to cast/director/genre/keyword names] show up... can you verify that it's giving us correct values." Investigation found two real, concrete bugs and one structural drift risk, all in logic that was byte-for-byte duplicated between `Home.vue` and `MovieDetail.vue` — introduced in one commit back in Sep 2025 and never revisited since (zero test coverage either).
-
-- **Bug: co-directed movies undercounted every director but whichever one TMDB listed first.** The old `countsDirectors`/`countDirectors` used `crew.find(person => person.job === "Director")` — `.find` stops at the first match. For a co-directed film (Daniels, Coens, Russo brothers, etc.) the page correctly *lists* every director (`getCrewMember('Director', 'strict')` scans the full crew array) but only the first-listed one's tally ever incremented — the other co-director's badge was silently wrong, varying movie to movie depending on TMDB's internal crew ordering.
-- **Bug: Writer/Composer/Editor/Cinematographer/Producer (and cast) counts were index-based, not job-based.** The old `countsCastCrew`/`countCastCrew` sliced BOTH cast and crew to the first 10 **array positions**, regardless of job, before counting. But the template renders the FULL cast list and every crew member matching a given job via `getCrewMember(job)` (unfiltered by position). TMDB crew arrays are ordered by department, not importance, so a composer/editor/cinematographer routinely sits well past position 10 — meaning their badge count was effectively a coin-flip per movie, correct on one page and wrong on another for no reason visible to the user. Same for cast billed past position 10.
-- **Bug (secondary): counts never respected `settings.includeShorts`,** unlike the Home.vue results grid the badges link to (which excludes shorts when the toggle is off) — a badge could say "(3)" while clicking through only shows 2 movies.
-- **Fix: extracted to `src/assets/javascript/entityCounts.js`** (pure, store-free — same pattern as `searchFiltering.js`/`tieBreakTournament.js`) — `countDirectors`/`countCastCrew`/`countGenres`/`countKeywords`/`countStudios`, each taking `(entries, includeShorts)` explicitly. Director now uses `.filter(...)` (credits every co-director). Cast/crew counting drops the index-based cutoff entirely: cast is counted in full; crew is filtered by JOB via `COUNTED_CREW_JOB_SUBSTRINGS = ['Writer', 'Composer', 'Editor', 'Photo', 'Producer']` (matching every crew role a badge is ever actually rendered for — Director is deliberately excluded here since it has its own dedicated map) rather than by array position, so a composer counts correctly regardless of where TMDB placed them, without also ballooning the count map with background department credits (grips, sound mixers, etc.) that no template section ever displays a badge for. `includeShorts` gates every function via a shared `eligibleEntries` filter (`runtime <= 40` = short, matching Home.vue's own shorts definition elsewhere).
-- **Both `Home.vue` and `MovieDetail.vue` now delegate to this module** via thin wrapper computeds (`countsDirectors () { return countDirectors(this.allEntriesWithFlatKeywordsAdded, this.showShorts) }`, etc.) — eliminating the duplication that let these bugs exist identically in two places and made a future fix to one silently miss the other. `MovieDetail.vue` gained its own `showShorts` computed (mirrors Home.vue's exactly: `typeof value === 'boolean' ? value : false`, default excludes shorts) since it previously had no access to that setting at all. The now-unused `lodash/uniq` import was removed from both files (the module handles dedup internally).
-- **This also fixes the same two bugs in Home.vue's "Add Filter" dropdown counts** (`allDirectors`/`allCastCrew`/`allGenres`/`allKeywords`/`allCounts`, which read off these same maps) and the fuzzy "Did you mean?" suggestion index (`searchableTerms`, which also reads `countDirectors`/`countCastCrew`) — not just MovieDetail's badges, since all of them shared the exact same buggy source maps.
-
-Tests: `src/test/entityCounts.test.js` (direct unit tests of the pure module — co-director credit, composer/editor/cinematographer counted regardless of crew-array position, no double-count for someone credited as both cast and crew, director excluded from the cast/crew bucket, shorts inclusion/exclusion), `src/test/MovieDetail.test.js`'s new "badge counts (entityCounts.js wiring)" describe block, `src/test/EntityCountsWiring.test.js` (the same wiring guard mounted on `Home.vue`).
-
-## Semantic Versioning (Jul 2026)
-
-`src/assets/javascript/version.js` (run via `yarn update-version`, which `yarn build`/`yarn deploy` always run first) used to ALWAYS default to a PATCH bump when run non-interactively — there's no TTY for an agent-run build to press 2/3 at, so every single agent-triggered deploy silently incremented the patch number regardless of what actually shipped, no matter how large. This went unnoticed long enough that the patch number reached 100+ under one minor version before being caught.
-
-- **Fix**: `VERSION_BUMP=minor` (or `major`/`patch`) as an env var on the build command now skips the interactive prompt and applies that bump directly — e.g. `VERSION_BUMP=minor yarn deploy`. Omitting it preserves all prior behavior exactly (interactive TTY prompt if available, PATCH default otherwise) — the user's own local `yarn build`/`yarn deploy` runs are unaffected.
-- **Going forward, apply real judgment when triggering a build/deploy**: PATCH for bug fixes/tweaks (the large majority of day-to-day work), MINOR when something shipping is a genuine new user-facing capability (a new game, a new app section, a feature like offline support or in-app bug reporting — a lot of which had been landing as silent patches before this fix), MAJOR only for an actual breaking change (rare for a personal app like this one). When in doubt between patch/minor, lean patch — the user can always request an explicit minor bump for something retroactively.
-
-## Insights: `estimatedMoviesThisYear` clarity pass (Jul 2026)
-
-Bug report: "I don't really remember how I calculated that, can you look that over and see if it seems like it's giving an accurate number or if we could make it more precise." (The "N to Date"/year-end-pace estimate shown on the Insights page, `Insights.vue`'s `estimatedMoviesThisYear` computed.)
-
-- **Audited the math by hand — no actual bug, but real obfuscation.** The pre-existing formula computed "movies per week this year" and "movies per month this year" by rescaling the SAME whole-year-so-far daily rate up and back down again (`moviesWatchedThisYear / (dayOfYear / 7)`, then `* (remainingDays / 7)`) — algebra shows those two terms are exactly identical to just `(moviesWatchedThisYear / dayOfYear) * remainingDays`, so despite reading like three independently-computed estimates blended together (`combinedEstimate`), it always reduced to using the whole-year rate three times over. The GENUINE diversification (recent-2-week rate, recent-2-month rate) was already present, one level further down in the formula (`recentWeeksAdjustment`/`recentMonthsAdjustment`) — and once the redundant middle step's algebra is followed through, the ORIGINAL code's final output already exactly equals a clean, honest equal-weighted blend of (whole-year rate, recent-2-week rate, recent-2-month rate) projected across the remaining days. Confirmed this is not just an approximation but a byte-for-byte identical result by simplifying the formula and running it against the existing characterization test in `Insights.test.js` (`estimatedMoviesThisYear` for a fixed fixture → same locked-in value, `15`, unchanged).
-- **Fix: simplified to the clean 3-rate-blend form directly** (`wholeYearRate`, `recentWeeksRate`, `recentMonthsRate`, all normalized to movies/day, averaged, then `* remainingDays`) — same output, but now honestly reflects what it computes instead of laundering one number through three redundant unit conversions. No visible number changed for any user.
-- **Not changed**: the actual WEIGHTING (equal thirds) or which time-windows feed the estimate. Favoring recent behavior more heavily than the whole-year average would be a legitimate, arguably-more-accurate alternative (recent pace usually predicts near-future pace better than a stale year-to-date average, especially early in the year when the whole-year rate is based on very little data) — but that's a genuine philosophy/design call about what "accurate" should mean here, not a bug fix, so it wasn't made unilaterally. Revisit if the user wants a different weighting.
-
-### 4th signal: last year's seasonal shape, guarded (Jul 2026, immediate follow-up)
-User's own framing: "can we look at what I was doing last year and use that to help guide the number... build in some guards against people with very small libraries, so it only works for those where it will actually be effective."
-
-- **What it adds**: a genuinely NEW kind of signal, not another rescaling of the same rate. The existing 3 estimates all extrapolate THIS year's own recent pace forward — none of them can see real seasonality (e.g. habitually watching more during awards season, or less during a busy summer). New `seasonalProjectedAdditional` computed: takes the fraction of LAST year's full-year total that had already been watched by this exact same calendar date (via the pre-existing `moviesWatchedLastYear`/`moviesWatchedLastYearToDate` computeds — `moviesWatchedLastYearToDate` already correctly compares by month/day, not a raw day-of-year count, so it's leap-year-safe for free), then scales this year's current count by the inverse of that fraction to imply a full-year total, and returns the ADDITIONAL movies that implies. `estimatedMoviesThisYear` pushes this onto the same array of "additional movies" estimates the other 3 already populate and averages them all equally — becomes a 4-way blend whenever the signal qualifies, otherwise stays exactly the pre-existing 3-way blend (verified: the untouched characterization test for a fixture with no prior-year data still returns the same locked-in `15`).
-- **Three independent guards, each able to disqualify the signal on its own** (`seasonalProjectedAdditional` returns `null`, which `estimatedMoviesThisYear` treats as "leave this signal out," not zero):
-  - `MIN_LAST_YEAR_TOTAL = 12` — a full prior year averaging under one movie a month isn't enough texture to imply a real "shape." This ALSO naturally excludes anyone who wasn't using the app (or didn't exist as a user) last year, since their full-year total would be 0 — no separate "does last year's data even exist" check needed, it falls out of the same threshold.
-  - `MIN_LAST_YEAR_TO_DATE = 4` — a fraction computed from only a couple of movies is noisy regardless of how large the denominator is (1 movie by this date out of a 20-movie year is a real data point, but far too thin to trust as "typical").
-  - `MIN_FRACTION = 0.15` — a belt-and-suspenders floor on the FRACTION itself, independent of the two count guards above: caps how aggressively the signal can scale up the estimate even when both counts clear their thresholds but the split still happens to be extremely lopsided (e.g. a binge-heavy December last year) — `Math.max(fraction, MIN_FRACTION)` before dividing, so one unusual year can nudge the blend without dominating it.
-- Tests: `Insights.test.js` — each guard tested in isolation (a fixture that only trips ONE threshold at a time, confirming they're independently sufficient to disqualify), an exactly hand-computable non-guard-tripping case (0.5 fraction, round numbers, asserts the precise implied value rather than just "not null"), the `MIN_FRACTION` floor case (asserts the capped value, not the uncapped one), and a differential test proving the signal actually reaches `estimatedMoviesThisYear`'s final blended output (identical "this year" data, with vs. without a qualifying prior year, asserting the two final estimates differ) rather than just checking `seasonalProjectedAdditional` in isolation.
-
-## Offline Movie Rating (Jul 2026)
-
-Cinema Roll already supported offline *viewing* (cached images, an IndexedDB snapshot fallback for `movieLog`/`settings` reads — see "Offline / PWA Support" above). This closes the remaining gap: rating movies while offline, for two cases the user asked to be built together — (1) re-rating/updating a movie already in the library, and (2) rating a brand-new movie with no TMDB lookup possible.
-
-**A real, pre-existing bug fixed along the way**: `AddRating.js`'s `getTMDBData()` silently swallowed any TMDB fetch failure and returned `undefined`; `addMovieRating` then proceeded anyway, writing a `movie` object with `id: null, poster_path: null, genres: [], cast: [], crew: [], title: ""` — wiping a previously-good entry's metadata on any transient network blip. Fixed at the failure path only (online, successful-fetch behavior is unchanged — still always live-refetches on re-rate, since that's the only path that ever picks up TMDB metadata corrections): a failure with an existing local entry now reuses that entry's `movie` data instead of nulling it; a failure with NO existing entry (a genuinely new movie) now **throws** instead of silently writing a broken entry.
-
-- **Offline detection**: new store state `isOnline` (init from `navigator.onLine`), flipped by `App.vue`'s `window` `'online'`/`'offline'` listeners. `App.vue` already had a 4-trigger pattern for its service-worker update check (`visibilitychange`/`pageshow`/`focus`/a 30-min interval) with an in-code rationale about no single browser event being reliable enough (esp. iOS) — the same four triggers now also call `attemptPendingWritesFlush()` (dispatches `flushPendingWrites`, itself a no-op if actually offline), so a queue flush isn't solely dependent on the `online` event firing.
-- **Durable write queue — `src/utils/pendingWriteQueue.js` (new)**: a clean IndexedDB sibling to `offlineStore.js` (own DB, not a second object store bolted onto it — different lifecycle: individually added/updated/removed entries vs. `offlineStore.js`'s whole-blob snapshot overwrite, so no shared-migration risk). `enqueueWrite`/`listPendingWrites`/`removePendingWrite`/`updatePendingWrite`, same try/catch/never-throws shape as `offlineStore.js`. **One queue, discriminated by `type`** (`'write'` | `'placeholder'`) rather than two separate stores — both need identical flush mechanics for their `dbEntry: {path, value}`, and a single list drives both "silently retry" and "prompt to reconcile." `enqueueWrite` for `type: 'write'` dedupes by `dbEntry.path` (overwrites in place), so repeated offline edits to the same movie before the next flush collapse to one write. `listPendingWrites` sorts oldest-first by `createdAt` — IndexedDB's `getAll()` returns key order, and the key is a random UUID, not insertion-ordered, so this is what actually guarantees FIFO flush order.
-- **`src/utils/placeholderId.js` (new)**: `makePlaceholderId()` → `offline-${crypto.randomUUID()}`; `isPlaceholderId(id)` → starts-with check. TMDB ids are always numeric, so a non-numeric-prefixed string id is a clean, collision-free discriminator for "this is an offline placeholder rating" — no separate boolean flag needed anywhere `previousEntry`/`findKeyForMovieInDatabase`-style `===` id matching already happens (all of which continue to work unmodified against a string id).
-- **Optimistic local commit — the piece that makes offline actually feel like it worked.** If a write only went to the IndexedDB queue while offline, `store.state.movieLog` would never update until the queue flushes — the just-rated movie wouldn't show up anywhere (grid, previous-viewings, a same-session re-edit) until connectivity returned. Online, this happens "for free" via Firebase's own client-side optimistic cache (the `onValue` listener reflects a local `set()` back before the server round-trip completes) — but the offline path never calls `set()` until flush, so that mechanism doesn't fire. Fix: a new mutation, `setMovieLogEntry(state, {key, value})` (rebuilds+refreezes `state.movieLog` — `setMovieLog` freezes it wholesale, so this can't mutate the existing frozen object in place), called synchronously and **unconditionally** (online or offline) from `AddRating.js`'s `addRating()` right after building `dbEntry`. This is also what makes a SECOND offline edit to the same still-unsynced placeholder correctly reuse the same movieLog key (`findKeyForMovieInDatabase` reads `store.state.movieLog`, which the optimistic commit already populated).
-- **Flush/retry action, `store/index.js`**: `setDBValue`'s core (`removeNaNAndUndefined` + `set(ref(...))` + try/catch) was extracted into a shared `performDatabaseWrite(context, dbEntry)` helper, used by both `setDBValue` (keeps its existing 1-second same-path debounce in front of it) and the new `flushPendingWrites` action (deliberately bypasses that debounce — a queued entry is already a single, deliberately-deduped write; routing it back through the debounce risks a legitimate flush being silently dropped). `flushPendingWrites`: no-ops if offline or already mid-flush (`isFlushingPendingWrites` guard, since it's called from several overlapping triggers), processes the queue in order, removes `type: 'write'` entries on success, marks `type: 'placeholder'` entries `{written: true}` (kept queued for reconciliation), records `{attempts, lastError}` on a per-entry failure without aborting the rest of the pass. A separate `refreshPendingReconciliations` action (list + filter unreconciled placeholders + commit `pendingReconciliations`) is purely local/IndexedDB, safe to call regardless of connectivity — called from `flushPendingWrites`'s tail AND unconditionally from `initializeDB`, so the "needs a match" banner reflects reality even before the next successful flush.
-- **`AddRating.js`**: `addMovieRating` now resolves `existingKey`/`existingEntry` up front. If offline and `existingEntry` exists, skips `getTMDBData()` entirely (no network call at all) and reuses `existingEntry.movie` (`buildMovieFromLocalData`, merging in the new rating's `ownership`/`chatGPTKeywords`). A new placeholder path (`buildPlaceholderMovie`, only reached for `isPlaceholderId` ids, never touches TMDB) builds a movie object with **deliberately non-null, sensible-default fields** rather than an all-null shape: `release_date` always resolves to a real (if approximate) `YYYY-01-01` — a typed year if given, else the current year — never `null`, since a null date would break date-parsing call sites throughout the app (MovieDetail, Insights, sort-by-date); `runtime` defaults to `90`, not `null` — the "include shorts" filter is `runtime <= 40`, and `null <= 40` is `true` in JS (null coerces to 0), so a null-runtime placeholder would be silently excluded whenever that setting is off. `genres`/`cast`/`crew`/`keywords`/`production_companies` stay empty arrays (the already-safe "no data yet" shape). Carries `isPendingReconciliation: true` — the durable marker components check for, independent of the id (which changes to the real TMDB id once reconciled). `addRating(ratings)` builds `dbEntry` → commits it via `setMovieLogEntry` (optimistic, immediate) → then, per the write-path design finalized in the "Real data-loss bug" section below (read that section for the full history — went through three rounds before landing here), **always durably `enqueueWrite`s first**, then (online only) directly `await`s `writeDatabaseEntryNow`, cleaning up the now-redundant queue entry on confirmed success → warms the image cache (already null-safe, no-ops for a placeholder). A new export, `shapeTmdbMovie(tmdbId, ratings)`, is the `getTMDBData`+shaping logic reused by the reconciliation flow — takes an explicit id rather than reading `ratings[0].id` (which still carries the OLD placeholder id at reconciliation time).
-- **`RateMovie.vue`**: two pre-existing null-unsafe spots fixed for a placeholder's null `release_date`/`poster_path`/`backdrop_path` — `mounted()`'s year derivation (`new Date(null).getFullYear()` was `NaN`) and `rateBannerUrl` (rendered `.../w500null`); `posterUrl()` (the neighbor-strip thumbnail) now falls back to the existing `Image_not_available.png`. `addRating()`'s submit call is now wrapped in try/catch — needed since `AddRating.js` can genuinely throw now (the new-movie-online-TMDB-failure case) — resets `loading` and shows a new inline `submitError` message on failure instead of hanging on "Submitting..." forever.
-- **Reaching `RateMovie.vue` for a brand-new movie while offline** (no TMDB search possible, so `PickMedia.vue` can't be used): two entry points, both building a synthetic `movieToRate` (`{id: makePlaceholderId(), title, release_date: null, poster_path: null, backdrop_path: null}`) and routing straight to `/rate-movie`, bypassing TMDB search entirely — (1) `NewRatingSearch.vue` (the zero-local-results auto-search flow, the PRIMARY new-movie path): a new `offlineFallback` state gates on `!$store.state.isOnline` (checked in `mounted()`/the `value` watcher, before ever firing a doomed request) and ALSO on the TMDB search itself throwing (now wrapped in try/catch — previously unhandled, would have left the UI stuck on the spinner forever on any network failure, not just genuine offline); shows "Rate '{title}' from memory" instead of the "doesn't exist" message. (2) `Home.vue`'s "Search TMDB for X" manual button (shown when some local results already exist alongside wanting to add a new one) — gated `v-else-if="$store.state.isOnline"`, with a `v-else` "Rate from memory" sibling button (`rateOffline()`).
-- **Placeholder entries are written to Firebase immediately** when possible (see the write-path design below), not held device-local until manually reconciled — holding them back would stack a second data-loss risk on top of the exact problem this feature exists to solve. They also always get a durable `type: 'placeholder'` queue entry regardless of connectivity, since that's how the reconciliation banner/screen find "things still needing a match," independent of write-retry.
-- **Library display**: `DBGridLayoutSearchResult.vue` — new `posterImageUrl(result)` falls back to `Image_not_available.png` when the poster path is falsy (this file had no existing "missing poster" fallback, only a lazy-load *loading* placeholder); a small `.pending-match-badge` ("Pending match", amber/black for contrast) renders `v-if` on `topStructure(result).isPendingReconciliation`; `showDetails()` routes a pending-reconciliation result straight to `/reconcile/:dbKey` instead of `MovieDetail`. `rateMedia()` (re-rate from modal) needed no change — `previousEntry.movie` flows back through `AddRating.js`'s `isPlaceholderId` check correctly. `MovieDetail.vue` gets the same badge (as a dismissive-free `.pending-reconciliation-notice` banner linking to `/reconcile/:dbKey`) — its existing local-lookup-by-id already tolerated a placeholder without crashing, every optional section already `v-if`-guarded.
-- **Reconciliation flow**: `PickMedia.vue`'s card-grid markup/CSS was extracted into `src/components/MediaResultGrid.vue` (`props: {mediaList, isTVShow}`, `emits: ['select']`) — small (~15-line template), low-risk extraction so the new reconciliation screen doesn't duplicate-and-drift from the existing "pick a TMDB result" rendering; `PickMedia.vue` now just wires its own `@select` handler (the same `setMovieToRate`+push it always did) onto the shared grid. New route `/reconcile/:dbKey` → `src/components/ReconcilePlaceholder.vue` (same `requiresLogin`/`loggedIn()` guard shape as every other authenticated route): on mount, finds the matching queue entry by `dbEntry.path === movieLog/${dbKey}`, pre-fills a search box with the placeholder's typed title(+year) and auto-searches if online; picking a result calls `shapeTmdbMovie(tmdbResult.id, queueEntry.ratings)` and **replaces the existing movieLog entry in place** (same `dbKey`/path — a single atomic write, not a new key + delete), commits it locally, writes it directly via `writeDatabaseEntryNow` (see the write-path design below — NOT enqueue-then-flush), then removes the now-done placeholder queue entry and navigates home. "Skip for now" just navigates home, leaving the queue entry untouched so it resurfaces later. `Home.vue` shows a small dismissible-free banner ("N movies rated offline need a match — Review") near the top of the template, driven by `$store.state.pendingReconciliations`, gated on `isOnline` (reconciliation needs a connection).
-
-Tests: `src/test/pendingWriteQueue.test.js` (pure module — round-trip, FIFO ordering, path-based dedupe for `type: 'write'` but not `'placeholder'`, graceful `[]`/`null` on IndexedDB failure), `src/test/flushPendingWrites.test.js` (imports the REAL store, same "mock firebase/axios/router, exercise real action logic" pattern as `OfflineDataFallback.test.js` — offline no-op, per-entry success/failure handling, debounce bypass, no-overlapping-passes guard, `setMovieLogEntry`'s refreeze, `refreshPendingReconciliations`, `initializeDB` wiring), `src/test/TMDbDataProcessing.test.js` (this is `AddRating.js`'s existing, pre-existing-but-comprehensive test file — several tests asserting the OLD buggy null-fallback behavior were rewritten to assert the throw/local-fallback fix instead; new describe block for the offline-skip-TMDB and placeholder-building paths), `src/test/App.test.js` (new describe block for the online/offline listeners + flush-trigger wiring), `src/test/NewRatingSearch.test.js` (new describe block for the offline fallback UI + `rateOffline`), `src/test/RateMovie.test.js` (new describe blocks for the placeholder-shaped `movieToRate` null-safety fixes and the submit-failure error handling), `src/test/ReconcilePlaceholder.test.js` + `src/test/MediaResultGrid.test.js` (new), `src/test/DBGridLayoutSearchResult.test.js` (new describe block for the badge/fallback-poster/reconcile-routing).
-
-**Scope boundary**: only `AddRating.js`'s write path routes through the durable queue — the ~10 other `setDBValue` call sites (tag CRUD, custom poster/backdrop picks, rating deletes, etc.) are untouched, a much larger blast-radius change than what was asked for. Not built: a shared `InjectManifest`-mode service worker / Workbox Background Sync (would've meant a bigger PWA-config architecture change; the in-app IndexedDB-queue-plus-multi-trigger-flush approach follows the exact pattern `offlineStore.js`/`App.vue`'s update-check already established elsewhere in this codebase).
-
-### Real data-loss bug found on first real-world use (fixed same day, three rounds)
-User report, immediately after the above shipped: rated a movie **while online** (not the offline case at all), saw it appear, "returned to the app" (navigated away and back), and the rating was gone — not searchable, not in "most recent," and did not come back even after fully closing/reopening the app. Root cause was the "fire and forget" design of the immediate flush: `AddRating.js`'s `addRating()` called `store.dispatch('flushPendingWrites')` **without awaiting it**, and `flushPendingWrites` early-returns immediately (no-op) whenever another pass is already mid-flight (`isFlushingPendingWrites` guard) — which is very likely right after rating, since navigating home itself triggers `initializeDB` → another `flushPendingWrites` dispatch on the very next route change. If that OTHER pass's `listPendingWrites()` snapshot was taken before the new rating's queue entry existed, neither pass ever wrote it, and nothing was scheduled to retry until some unrelated later trigger (an app relaunch in the meantime loses it, since the only copy was the local optimistic commit). A second, compounding risk: Firebase RTDB's `set()` has no built-in timeout and can hang indefinitely on a degraded connection (`navigator.onLine` still `true`, but the socket can't actually reach the server) — if that happened during a flush pass, `isFlushingPendingWrites` would get stuck `true` for the rest of the session, silently disabling **every subsequent** flush attempt.
-
-**Round 1** (kept, still true, but turned out insufficient on its own):
-- **`performDatabaseWrite` (store/index.js) races every write against a 15s timeout** (`withTimeout`, implemented via `Promise.race` + `.finally()` — an earlier `.then(resolve, reject)` version tripped `eslint-plugin-promise`'s `catch-or-return`/`always-return` rules) — a hung `set()` becomes a recorded failure instead of a permanent stall. Shared by `setDBValue` too, so it incidentally hardens every save in the app, not just ratings.
-- An interim `flushSingleEntry` action (attempt one queue entry directly, bypassing `isFlushingPendingWrites`) closed the specific race above, but — per the user's explicit follow-up ask, "we need to be totally certain this never happens again" — still left every online save fundamentally dependent on an IndexedDB write succeeding and a follow-up dispatch running correctly. Given the user had *just* lost real data to exactly that class of dependency, a narrower race-fix wasn't a strong enough guarantee; this action no longer exists (superseded by round 2).
-
-**Round 2, the actual fix — decouple the common (online) case from the offline queue entirely:**
-- **New action, `writeDatabaseEntryNow(context, dbEntry)`** — a raw, direct `performDatabaseWrite` call with **zero** queue/IndexedDB/shared-state involvement of any kind. `AddRating.js`'s `addRating()` now checks `store.state.isOnline` itself: when online (the common case), it `await`s this action **directly** and lets a failure **throw** — restoring the exact guarantee the app had before the offline-rating feature existed at all: if the save resolves, it is CONFIRMED on the server before `RateMovie.vue` is told it succeeded and navigates home; if it throws, the existing `submitError` UI fires and the user is NOT navigated away, so nothing is silently trusted. The durable IndexedDB queue (`enqueueWrite`) is now used ONLY as the fallback: when genuinely offline (no point attempting a write that can't reach the server), or as a last-resort durability net if the direct online attempt itself throws (still queued for background retry via the existing App.vue triggers, but the error is *also* re-thrown so the user sees it rather than silently trusting an unconfirmed save).
-- **Placeholder ratings (brand-new movie, offline) are the one deliberate exception**: they always get a `type: 'placeholder'` queue entry regardless of connectivity (needed for the reconciliation banner to find them, not for write-retry), and a failed *direct* write attempt for a placeholder is swallowed rather than re-thrown — the queue entry is already durably there as the safety net, and "sync eventually" is the feature's whole point for this specific path, so hard-erroring here would contradict the UX the feature is supposed to have.
-- **`ReconcilePlaceholder.vue`'s `selectMatch()` got the same treatment** — `await`s `writeDatabaseEntryNow` directly (reconciliation always requires connectivity anyway, the TMDB search above already needed it) instead of enqueue-then-flush; a failure shows the existing `searchError` UI and leaves the placeholder queue entry untouched so the user can retry, rather than silently believing the match was saved.
-- **Net effect**: for a normal online rating, the write path became a single direct, awaited, timeout-bounded Firebase call with no shared guard flag and no dependency on anything else running concurrently — no longer a mechanism by which the write ATTEMPT could be silently skipped. Round 2's remaining gap (closed in round 3 below): the durable queue entry was only created as a fallback *after* a failed attempt, not before — so a tab/app killed in the split second *while the write was actually in flight* (after the optimistic commit had already made it look saved) still had no durable copy anywhere yet.
-
-**Round 3, following the user's explicit follow-up ("we have to be 100% certain... do whatever you need to do to make this bulletproof"): durably enqueue BEFORE attempting the write, always, not only on failure.**
-- `AddRating.js`'s `addRating()` now: optimistic commit → **unconditionally `enqueueWrite`s first** (`type: 'write'` or `'placeholder'`) → *then* attempts `writeDatabaseEntryNow` (online) or leaves it queued (offline). The queue entry is the durability net sitting *underneath* the direct-write attempt, not an alternative to it or an after-the-fact fallback — from the instant `enqueueWrite` resolves, the rating is durable on this device (IndexedDB) regardless of what happens to the network attempt next, including the app being killed mid-attempt. On confirmed success, the now-redundant entry is cleaned up: `type: 'write'` is `removePendingWrite`d; `type: 'placeholder'` is marked `{ written: true }` instead (still needed for reconciliation tracking, a separate concern from write-durability) — `flushPendingWrites`' general sweep now also skips re-attempting a `written` placeholder entry (a correctness/efficiency fix that fell out of introducing the flag's real meaning — previously it was set but never actually checked, so an unreconciled placeholder was redundantly re-written to Firebase on every single background sweep for as long as it sat unreconciled).
-- `ReconcilePlaceholder.vue`'s `selectMatch()` got the identical treatment: the finalized `type: 'write'` entry is durably queued *before* `writeDatabaseEntryNow` is attempted (coexists fine alongside the original placeholder's own queue entry — different `type`, so `enqueueWrite`'s dedupe-by-path never conflates them), and only removed — alongside the now-superseded placeholder entry — once the write is actually confirmed. A failure leaves both entries queued, so a retry (manual or via the background sweep) has everything it needs; nothing is lost, only the reconciliation step needs redoing.
-- **What "bulletproof" now actually means, end to end**: the only window where a rating could theoretically vanish without a trace is being killed before the `enqueueWrite` promise itself resolves — i.e., before the user has seen anything that looks like a save (the optimistic UI commit happens first, but the very next line durably persists it). Once that line completes, the rating survives a killed tab, a crashed browser, a dropped connection, or a hung/failed write — every one of those paths either confirms the write directly or leaves a durable, retryable record that `initializeDB`/App.vue's background triggers pick up on the very next load.
-
-Tests: `src/test/flushPendingWrites.test.js`'s `writeDatabaseEntryNow` describe block (writes directly regardless of `isFlushingPendingWrites`, propagates failure to the caller, no queue interaction at all) plus a new test confirming a `written: true` placeholder is skipped entirely by the general sweep (no redundant `set()` call). `TMDbDataProcessing.test.js`: asserts `enqueueWrite` is called and its call ORDER is strictly before `writeDatabaseEntryNow`'s dispatch (not just that both happen); online+success removes the now-redundant `'write'` entry; online+failure leaves it queued AND re-throws; offline queues without attempting; a placeholder's failed direct write leaves its entry queued (not removed) and swallows rather than throwing; a placeholder's successful direct write marks its entry `written` rather than removing it. `ReconcilePlaceholder.test.js`: finalize asserts the same enqueue-before-write ordering and that BOTH queue entries (finalized + original placeholder) are removed only on confirmed success, or both left alone on failure.
-
-## Box Office / Budget on MovieDetail (Jul 2026)
-
-`MovieDetail.vue` now shows a "Box Office" section (Budget + Box Office/revenue, formatted as USD via `Intl.NumberFormat`) when either figure is known.
-
-- **No new network call**: TMDB's `/movie/{id}` response (already fetched by `getTMDBData` for every rating/re-rate) already includes `budget`/`revenue` — `AddRating.js`'s `shapeTmdbDataIntoMovie` just wasn't extracting them into the stored movie object. Now does, alongside everything else it already pulls from that same response.
-- **Graceful degradation for existing library entries**: only movies rated/re-rated after this change have `budget`/`revenue` stored locally (`MovieDetail.vue`'s `loadMovieData` is a pure local lookup, no live TMDB fetch — deliberately kept that way, consistent with this app's documented move away from per-view live TMDB calls, e.g. the Academy Awards migration). An older entry simply doesn't render the section at all, same convention every other optional section here already follows (Cast/Keywords/Production Companies/etc. are all `v-if`-guarded). `movieBudget`/`movieRevenue` computeds treat both `undefined` (never stored) and `0` (TMDB's own "not available" convention — it doesn't distinguish that from a genuinely free production) identically as "unknown."
-- **Free side effect**: `Insights.vue`'s "taste profile" scoring (`calculateBlockbusterScale` and several sibling genre-personality heuristics) already read `movie.budget || 0` defensively — since `budget` was never actually stored before now, that factor was silently always contributing 0. It'll start reflecting real data for any movie rated after this change, no code change needed there.
-- Placed right after Genres, before Awards — a "core facts about the film" section, grouped with Genre rather than the People/Company sections (Cast/Crew/Production Companies) that follow.
-
-Tests: `TMDbDataProcessing.test.js`'s existing "should correctly transform TMDb data for storage" test extended with budget/revenue assertions. `MovieDetail.test.js` new "Box Office" describe block: both figures present, budget-only, revenue-only, both zero, and the field-entirely-absent (pre-existing library entry) case.
-
-### Backfill button for the existing library (same day, immediate follow-up)
-Direct feedback: "I needed to appear on all my movies... it should always work even on all the movies I've already rated." Graceful degradation was the right call for the initial ship (no live TMDB fetch on every MovieDetail view), but leaving hundreds of already-rated movies permanently without this data wasn't - a one-time catch-up was needed, not just "wait until you happen to re-rate it."
-
-- **New pure module, `src/assets/javascript/backfillBoxOffice.js`** — same `warmImageCache`-style shape (`offlinePosterCache.js`) already established for the "Download all posters for offline" Settings button: worker-pool `concurrency` (default 4, a bit more conservative than image downloads since these are real TMDB API calls, not CDN image fetches), `onProgress({completed, total, failed})`, an `AbortSignal`, store-free/unit-testable without mounting anything.
-  - `collectMoviesNeedingBoxOffice(movieLog)` — candidates are entries with a real (non-placeholder) `movie.id` and both `budget`/`revenue` falsy. **Known, accepted tradeoff**: TMDB's own `0` = "no data" convention means a movie TMDB genuinely has no financials for is indistinguishable from "never fetched," so it stays a candidate on every future run too - a deliberate simplicity choice over adding a separate "already checked" marker field, since this only costs a handful of wasted re-fetches for genuinely-data-less movies, not a functional bug.
-  - `fetchBoxOffice(tmdbId)` — a single `/movie/{id}` call (no credits/keywords - this backfill doesn't need them).
-  - `backfillBoxOffice(movieLog, writeFn, options)` — the orchestrator; persistence is injected via `writeFn(dbKey, boxOffice, entry)` rather than importing the store directly, keeping the module pure. **Idempotent and safe to re-run by construction**: candidates are computed fresh from current `movieLog` state, so a partial run (or one from days ago, after a batch of new ratings) just picks up wherever it left off — no separate resume/checkpoint logic needed.
-- **`Home.vue` wiring** (`backfillBoxOfficeData()`, new `boxOfficeBackfill` state, mirrors `offlineDownload`'s exact shape/UI pattern) — the injected `writeFn`: reads the CURRENT `state.movieLog[dbKey]` fresh (not a captured closure) and commits an updated copy via the existing `setMovieLogEntry` mutation so the grid/detail page reflect it immediately without a reload, then durably persists via **two separate leaf-path writes** (`movieLog/<key>/movie/budget`, `movieLog/<key>/movie/revenue`) rather than one write to the whole `movie` object — a `set()` at the `movie` path would replace it wholesale, risking clobbering cast/crew/genres/etc. with a possibly-stale local snapshot. Uses `writeDatabaseEntryNow` (the direct, no-queue write action from the offline-rating work above) **without** the durable-queue-first treatment ratings get — this is re-fetchable TMDB metadata, not irreplaceable user data, and a failed write just leaves that movie as a candidate for the next run, which is an acceptable, self-healing failure mode here (unlike a lost rating).
-- New Settings-panel button, "Fill in box office data for all movies," directly under the existing "Download all posters for offline" one, same progress-spinner/success-summary convention.
-
-Tests: `src/test/backfillBoxOffice.test.js` (pure module - candidate selection incl. the 0/0-stays-a-candidate tradeoff and placeholder exclusion, fetch normalization, progress reporting, per-item fetch/write failure isolation, abort-signal support, concurrency capping). Caught a real off-by-a-typo bug while writing these: the initial candidate filter used `!movie.id` to exclude entries with no id, which also excludes `id: 0` - never happens with real TMDB ids (always ≥ 1) but was worth tightening to `movie.id == null` anyway once a test fixture happened to use `0` and exposed it. No dedicated Home.vue-mount test for the button wiring itself, matching the established precedent that `downloadForOffline`/`offlineDownload` (the analogous, older feature) also has no such test - only its pure module is directly tested.
-
-## Fix: PWA update no longer force-reloads mid-task (Jul 2026)
-
-Bug report right after the box office backfill button shipped: "after somewhere between fifteen and sixty seconds, it... resets the app. The page goes white and reloads." Confirmed the backfilled data was NOT lost (each write is confirmed/durable before the local grid updates - see the Offline Movie Rating sections above), so this was a UX bug, not a data bug - but a real one.
-
-**Root cause**: `registerServiceWorker.js` (Vue CLI's default PWA boilerplate, untouched since project creation) had `updated() { window.location.reload(); }` - an **unconditional** reload the instant a new service worker finishes installing and activating in the background. This was always latent, but two things made it bite now: (1) `App.vue` was recently hardened to check for updates from four separate triggers (visibilitychange/pageshow/focus/a 30-min interval - see "Foreground update-check reliability on iOS"), making it far more likely to catch a just-deployed update quickly; (2) the box office backfill is a genuinely long-running operation (15-60+ seconds for a real library), giving a background check plenty of time to land mid-run. But the bug was never actually specific to that button - ANY sustained session (typing a rating, browsing) was equally vulnerable to being yanked out from under the user with zero warning.
-
-**Fix**: `updated()` no longer reloads anything. It commits `setUpdateAvailable: true` to a new store flag instead. New `src/components/UpdateAvailableBanner.vue`, rendered globally from `App.vue` (same "always visible regardless of route" treatment as `BugReportButton.vue`) right below the header, in normal document flow (not fixed-position — avoids z-index/overlap fights with the various per-page back-link affordances that already use the corner-lift trick documented elsewhere in this file; a rare, brief layout shift when it does appear is the acceptable tradeoff). Shows "A new version of Cinema Roll is available" + a "Refresh" button — the user decides when to reload, on their own terms, never automatically.
-
-Tests: `src/test/registerServiceWorker.test.js` (new — stubs `NODE_ENV=production` to actually exercise the module's real `register(...)` call, mocks `register-service-worker` to capture the config object passed to it, then invokes `updated()` directly and asserts `window.location.reload` is genuinely never called — this test would have caught the original bug). `src/test/UpdateAvailableBanner.test.js` (new — hidden when no update, shown + reload-only-on-click when one is available). `App.test.js` gained a render-presence check.
-
-### Correction, same day: the real cause was a second, independent bug
-User pushed back — the reload happened "every time," not just once right after a deploy, which the service-worker theory alone couldn't explain (that path only fires when an actual new version has been detected; it wouldn't repeatedly trigger across unrelated attempts). They also flagged it might be a memory leak. Both pointed at the same real culprit, found by re-examining what the backfill button itself does to the app while it runs, not just what happens *to* it externally.
-
-**Actual root cause**: `Home.vue`'s `backfillBoxOfficeData()` called `setMovieLogEntry` — which does `state.movieLog = Object.freeze({ ...state.movieLog, [key]: value })` — **once per movie**, immediately as each one's fetch+write completed. For a real library (hundreds of entries), that's hundreds of full shallow copies of the entire `movieLog` object plus a fresh `Object.freeze()` walk, *each one* also triggering Vuex getters (`allMediaAsArray`, `allMediaSortedByRating`, etc.) and every Home.vue computed that depends on them (search filtering, sorting, grouping — the exact machinery "Search Recompute Performance" above already documents as expensive) to recompute, all firing in rapid succession with `concurrency: 4` giving no natural pacing between them. Not a leak in the strict sense (old objects were still eligible for GC), but the *practical* effect — sustained heavy allocation + main-thread churn piling up faster than the browser could keep up — is indistinguishable from one, and matches a mobile browser eventually killing/reloading an unresponsive or memory-heavy tab exactly.
-
-**Fix — batch everything, don't touch the store once per movie**:
-- **New mutation, `setMovieLogEntries(state, entries)`** — applies a whole array of `{key, value}` pairs in ONE spread + ONE freeze + ONE reactivity trigger, instead of N of each. `setMovieLogEntry` (singular) is unchanged and still used everywhere else (ratings, reconciliation) — those are genuinely one-at-a-time, user-driven events with no batching to be had.
-- **New action, `updateDatabaseEntriesNow(context, updates)`** — uses Firebase's `update()` (not `set()`) for an atomic multi-path write: `updates` is a flat object keyed by full relative paths across potentially many different movies (e.g. `{'movieLog/key1/movie/budget': 100, 'movieLog/key2/movie/revenue': 200}`), sent as ONE network round trip. This is the remote-write half of the same fix — fewer writes also means fewer `onValue` listener refires (Firebase's own live listener would otherwise pile up its own separate wave of `setMovieLog` reactivity triggers on top of the local ones, compounding the problem further).
-- **`backfillBoxOffice.js` redesigned around batching**: fetches still run with full `concurrency` (cheap, no store interaction), but results accumulate in a `pending` buffer and flush as one `writeBatchFn(batch)` call once `batchSize` (default 20) is reached, with a final flush for any remainder. Grab-and-clear on the buffer is synchronous (no `await` before it), which is what makes it safe against multiple concurrent workers flushing without an explicit lock — JS's single-threaded, run-to-completion semantics guarantee only one call can ever see a non-empty buffer at the check.
-- **Net effect**: a 400-movie backfill now triggers ~20 store reassignments and ~20 Firebase writes instead of ~400 of each — a ~20x reduction in exactly the kind of event this bug turned out to be about.
-
-Tests: `backfillBoxOffice.test.js` rewritten around the batched `writeBatchFn(batch)` interface (one flush when everything fits in a batch, a full-batch flush mid-run without waiting for all candidates, a final partial-batch flush, a failed batch write counting every member as failed without aborting the run). `flushPendingWrites.test.js` gained `setMovieLogEntries mutation`/`updateDatabaseEntriesNow` describe blocks — including a test that directly counts real Vuex reactivity triggers (`store.watch`) to prove a 20-entry batch causes exactly ONE `movieLog` reassignment, not twenty; that's the actual regression guard for this bug, not just an input/output check.
-
-## Two "keeps repeating" bug reports fixed together (Jul 2026)
-
-Three unresolved in-app bug reports (`yarn fetch-bug-reports`), two of which were the same underlying bug filed twice on different days. Both traced to the identical root cause pattern: a "pick something new" routine with no memory of what was JUST shown, so a small-enough candidate pool had a real, non-negligible chance of repeating.
-
-- **Tag (`TaglineQuizGame.vue`) repeated the same tagline in back-to-back rounds.** `startNewRound()`'s candidate search (`attemptedKeys`, reset fresh every round) had nothing excluding the round that had JUST finished — Reel Wordle's `startNewPuzzle()` already solved this exact problem for itself (`excludeKey`), but the fix was never carried over here. Fixed the same way: `previousTargetKey` (captured from `this.target` before it's reset) is filtered out of the candidate pool for that round, with a graceful fallback — if excluding it would leave ZERO candidates (a genuinely tiny library, or one where every other candidate already failed the tagline check this round), the exclusion is dropped rather than dead-ending on "no tagline found" when a perfectly good repeat candidate exists.
-- **Six Degrees' "Give me one" hint kept suggesting the same person** ("kept giving me Bruce Willis over and over again"). `nextHintStep`'s MOVIE branch always returned the raw BFS shortest-path's own next person, with no exclusion — unlike the PERSON branch, which already excluded `usedMovieKeys`. A well-connected hub actor sitting on the shortest path could dominate every single hint in a chain. Fixed by adding a `usedPersonNames` parameter (default empty, so existing callers with nothing used yet are unaffected): the natural shortest-path person is still preferred when unused (keeps hints matching the puzzle's own notion of "optimal" in the common case); when they're already in the chain, it scans every OTHER person credited on the current movie (via the capped `graph`, matching puzzle-generation semantics) for whichever unused connector's own best movie yields the shortest remaining path, mirroring the person-branch's own "iterate candidates, pick shortest" logic one level up; if truly nobody else connects this movie toward the target at all, it falls back to reusing the excluded person rather than returning no hint. `SixDegreesGame.vue`'s `giveHint()` now passes its existing `usedPersonNames` computed (previously only used for autocomplete-suggestion filtering) into the call.
-
-Tests: `sixDegrees.test.js` — a two-parallel-2-hop-path fixture ("Hub" is the naive first-found connector, "Alt" is the alternative) verifying the natural pick, the fallback when Hub is excluded, and the last-resort reuse-Hub case when Alt doesn't exist either. `TaglineQuizGame.test.js` — a deterministic `Math.random` stub (always picks the first candidate) proving round 2's target excludes round 1's, which would fail on the old code (always re-picking the same first-in-array movie).
-
-## Three more bug reports (Jul 2026): Wordle genre truncation, Trivia one-guess, Trivia poster link
-
-- **Reel Wordle: multi-genre clue text was cut off** ("when I get more than one genre I can't see most of the second word"). The fixed 6-column `.clue-cells` grid's `.clue-value` rule is a hard single-line truncation (`overflow:hidden; text-overflow:ellipsis; white-space:nowrap`) — correct for every other cell (short, fixed-format values: a year, "1990s", an arrow) but genuinely destructive for Genre, whose value can be `"Drama, Comedy (2/2)"` — long enough to lose real signal, not just cosmetic overflow, and with no touch-accessible fallback (the `:title` tooltip only helps a mouse user). Fixed narrowly: a new `.clue-value.wrap` modifier (`white-space:normal; overflow-wrap:break-word`, `overflow`/`text-overflow` reset to not-clipping) applied ONLY to the Genre cell's value — every other cell keeps the original one-line guarantee unchanged. `.clue-cell` gained `justify-content:center` so the other 5 (unwrapped, shorter) cells in the same guess-row stay vertically centered when Genre's 2-line wrap makes that row taller. CSS-only; no test changes needed (matches this file's own established precedent for pure-CSS fixes).
-- **Trivia: guessing became one-shot** ("it will be more fun if you only get one guess... that way you can't guess every movie I've ever rated"). The original design let a WRONG guess just cost a clue (unlimited guesses, "Next Clue" and a wrong guess were functionally the same action) — meaning a sufficiently persistent player could just tap through the whole suggestions list one at a time without ever really reasoning from the trivia. `submitGuess()` now always ends the round: correct → `win()` (unchanged); wrong → a new `lose()` (status `'lost'`, all facts revealed, no score/best persisted — same "terminal, no-score" shape as `giveUp()`'s existing `'revealed'` status, just with "Not quite — it was X" messaging instead of "It was X" to distinguish a wrong guess from an explicit give-up). `revealNextFact()` (the "Next Clue" button) is UNCHANGED and still free/unlimited — browsing facts before committing to your one guess costs nothing; only the actual guess is now final. Subtitle updated to state the rule upfront ("You get ONE guess — reveal as many facts as you need before you take it") so a player isn't surprised by a design change from what shipped originally.
-- **Trivia: the revealed poster is now tappable** ("when you get the answer... you should be able to click on the poster and go to facts about the movie"). Wrapped in a `<button>` (`goToMovie(entry)` → `$router.push(`/movie/${entry.movie.id}`)`), same navigation Six Degrees' `goToChainItem` already uses for a movie chain-step. Mobile-first `:active`-only tap feedback (scale+opacity), no `:hover`. **Real bug caught by its own test**: the first cut guarded with `if (!entry?.movie?.id) return;` — a bare falsy check, same class of bug as `backfillBoxOffice.js`'s documented `!movie.id` typo — which treats a legitimate `id: 0` as missing. Real TMDB ids are never 0 so this was harmless in production, but it silently broke the test whenever the randomly-picked target happened to be the id-0 fixture. Fixed to `entry?.movie?.id == null`.
-
-Tests: `src/test/games/TriviaGame.test.js` — the old "wrong guess reveals the next fact" test replaced with "a wrong guess ends the round immediately" (status `'lost'`, full reveal, no best-score dispatch, guess form gone); a new "Next Clue is still free and unlimited" test confirming browsing alone never ends a round; a new poster-click-navigates test. The pre-existing "New Round" test's button selector had to be narrowed (`.result-banner .btn-game-primary`) since `.result-banner` now contains TWO buttons (the poster + New Round) — `wrapper.find('.result-banner button')` would otherwise resolve to the poster button first.
-
-## Offline Support Extension: Stickiness, Tiebreak, Personal Awards (Jul 2026)
-
-Bug report: "Updates to the stickiness rating and the tiebreaker values and any [Groskers, the user's own name for their personal awards] changes. Also all should be able to be done off-line and then push to the database when I'm back online." The original Offline Movie Rating work (see its own section above) deliberately scoped itself to `AddRating.js`'s write path only, leaving ~10 other `setDBValue` call sites untouched as documented future work — this is that extension, covering the three the user actually asked for.
-
-- **The gap, precisely**: `setDBValue` writes (online) get "instant" UI reflection for free from Firebase's own client-side optimistic cache — the `onValue` listener fires with the new value before the round trip even completes. Offline, that listener never fires until reconnected, so nothing local ever showed the change, AND (before AddRating.js's fix) nothing durable existed on disk if the tab closed first. `AddRating.js` solved this for `movieLog/*` writes specifically (`setMovieLogEntry` for local commit, enqueue-before-attempt for durability). Stickiness/Tiebreak/Personal Awards write mostly to `settings/*` paths (at varying depths — `settings/lastTweak`, `settings/tieBreakTournament`, `settings/personalAwards/<year>`), which had **no** local-optimistic-commit mechanism at all.
-- **`src/utils/statePath.js`** (new, pure) — `setValueAtPath(obj, segments, value)`: immutable nested-set by path segments, cloning only the objects actually along the path. General enough to handle any depth, not just the specific paths these three features happen to use today.
-- **`applyDbPathLocally` mutation** (store/index.js) — the general-purpose counterpart to `setMovieLogEntry`/`setMovieLogEntries` for everything else: a single-segment `movieLog/<key>` path reuses the exact freeze+reassign shape those already use (proven, and every other `movieLog` writer stays on it unchanged); anything deeper, or anything under `settings/*` at any depth, routes through `setValueAtPath`.
-- **`writeDurably` action** (store/index.js) — the shared "offline-safe write" all three components now call instead of `setDBValue`: commit locally via `applyDbPathLocally`, THEN durably `enqueueWrite` (same "enqueue before attempt" ordering as AddRating.js's bulletproofing — durable on disk before any network attempt, so a mid-write app-kill can't lose it), then attempt `writeDatabaseEntryNow` directly if online (removing the now-redundant queue entry on confirmed success). **Deliberately does NOT re-throw on a failed online attempt**, unlike `AddRating.js`'s non-placeholder path — none of these three callers had dedicated per-write error UI before this (they already just `console.error`/`ErrorLogService.error` and move on), and adding blocking error UI to three unrelated flows was a much larger scope than "make it work offline." The durable queue entry is the real safety net either way; a failed attempt just means the existing background flush (App.vue's triggers / `initializeDB`) retries it later, same as the offline case.
-- **Call sites swapped, `setDBValue` → `writeDurably`, no payload/shape changes**: `StickinessInline.vue` (1, the full-movie-entry `movieLog/<dbKey>` write); `TweakInline.vue` (7 — `settings/tieBreakTournament` create/update/clear, `settings/lastTweak` stamps, and the `movieLog/<dbKey>` score-adjustment writes in `applyTournamentResults`); `PersonalAwardsModal.vue` (6 — `settings/dailyAwardsYear`/`dailyAwardsYearDate`/`awardsPromptState`/`lastAwardCompletionDate`, and the main `settings/personalAwards/<year>` save in `saveCurrentState`). TweakInline's own `localTournament` optimistic-override field (documented elsewhere in this file) already covered *that* component's instant-UI-feedback need independently of this fix, but the durability half (surviving a kill mid-write, syncing once back online) was still missing before this.
-- **Not changed**: `flushPendingWrites`/`writeDatabaseEntryNow`/the queue module itself — all were already fully path-generic (a `dbEntry.path` is just appended to the db ref), so extending coverage to new call sites needed zero changes there.
-
-Tests: `src/test/statePath.test.js` (pure — top-level and nested sets, sibling-preservation at every level, no mutation of the source, null/undefined-base tolerance, empty-path passthrough). `src/test/flushPendingWrites.test.js` gained `applyDbPathLocally mutation` (settings top-level + nested + sibling preservation, movieLog single-segment parity with `setMovieLogEntry`) and `writeDurably action` (local commit happens BEFORE the network attempt resolves, durable enqueue call shape, the queued entry is removed on confirmed success, a failed attempt leaves it queued without throwing, and the offline case commits+enqueues without ever attempting the network write) describe blocks — same "import the real store" pattern that file already established. `src/test/TweakInline.test.js`'s existing `setDBValue` assertions renamed to `writeDurably` (the `lastDispatchTo` helper matches by path, not action name, so most assertions needed no change at all).
-
-## Five more reports (Jul 2026): tiebreak flash, Clue Budget feedback + rating clue, daily-win checkmarks, Connections award name
-
-### The tiebreak flash — a real regression from the offline-support extension the day before
-Bug report: "After I break a tie, I get the tie break message again just for a second or two. But it's annoying because it's just long enough that I try to click on it."
-
-**Root cause, and why it was NEW**: `writeDurably` (added the previous day, see the Offline Support Extension section) did `await enqueueWrite(...)` **before** issuing the Firebase `set()`. `enqueueWrite` opens IndexedDB, scans the WHOLE pending queue for its path-dedupe, then writes — real, variable latency. A tiebreak fires several `writeDurably` calls back to back (`settings/tieBreakTournament`, N× `movieLog/<key>` score adjustments, `settings/lastTweak`), so an early write could reach the server and bounce an `onValue` snapshot back **while a later write hadn't even been sent yet**. Both listeners commit their branch WHOLESALE (`setSettings`/`setMovieLog`), so that snapshot — which legitimately predated `lastTweak` — clobbered the already-committed local value, `Date.now() - lastTweak` went back over the quota threshold, and the "You have a tie to deal with" notice re-rendered until the real `lastTweak` write finally landed. The pre-1.25.0 `setDBValue` path never had this window because it called `set()` immediately (Firebase's own client cache then included the pending write in every subsequent snapshot it fired).
-
-**Two-part fix**:
-- **Don't serialize the network write behind IndexedDB.** `writeDurably` now kicks off `enqueueWrite` and the network write together (`const queuedPromise = enqueueWrite(...)`, awaited later) rather than awaiting the enqueue first. Durability is unchanged — the IndexedDB record still lands regardless of what happens to the network write — the network write just no longer inherits IndexedDB's latency.
-- **New `state.inFlightWrites` ({path: value}) + `trackInFlightWrite`/`untrackInFlightWrite` mutations + the `reapplyInFlightWrites(state, rootKey, data)` helper.** A write is tracked from its local commit until the server settles it (success OR failure — the durable queue owns retries either way), and **both** `onValue` listeners now re-top the incoming snapshot with anything still in flight before committing it. This closes the whole CLASS of "a snapshot that predates my just-made change briefly reverts it," not just the tiebreak instance — the movieLog listener gets the same treatment since a tiebreak's score adjustments are movieLog writes. The raw server data is still what gets written to the offline IndexedDB snapshot (`saveSnapshot`), only the in-memory state is re-topped. `untrackInFlightWrite` runs in a `finally` that also covers the offline early-return, so `inFlightWrites` can't grow unboundedly across an offline session.
-- Tests: `flushPendingWrites.test.js`'s new `in-flight writes are not clobbered...` describe block. The firebase mock now **captures the real `onValue` callbacks** (`fireSnapshot(branch, data)`) so the listener's own clobber-protection is genuinely exercised rather than testing the private helper directly. **Verified as a real regression guard** by temporarily reverting the listener fix and confirming the key test fails with exactly the bug's signature (`expected 100 to be 999`).
-
-### The other four
-- **Clue Budget: a wrong guess said nothing** ("if I guess wrong it should say so. There's no real feedback right now") — `submitGuess` silently did nothing on a miss, indistinguishable from a tap that didn't register. Added `lastGuessFeedback` ("Not {title}. Try again."), rendered in an always-present `.guess-feedback` element toggled by `visibility` (not `v-if`) with a reserved `min-height`, so it can't reflow the clue shop below — same anti-layout-jump convention Connections' own guess feedback uses. Cleared on the next keystroke. **Guesses remain free** — this game charges for CLUES, not guesses — and there's a test asserting the budget is untouched by a wrong guess.
-- **Clue Budget: "Your Rating" is now a buyable clue** (user request). Comes in through `extras.yourRating` rather than being read off the entry, because computing a rating needs `GetRating.js` + the Vuex weight getters, which this store-free module can't reach (same reason `tagline` comes in that way). Seeded into `liveExtras` synchronously at round start, so it's offered on the very first render with no network round trip. **Flat-priced at $12, deliberately**: unlike the person/keyword/company clues there's no TMDB signal to scale against, and how identifying a given score is depends entirely on the shape of the player's own library (a 9.4 narrows hard, a 6.5 barely at all) — a fake curve would be worse than an honest fixed cost. Guarded with `Number.isFinite`, which correctly offers a legitimate `0` rating but skips an unrateable entry. **Test-fixture note**: `ClueBudgetGame.test.js` now mocks `GetRating.js` — its fixtures carry only a `calculatedTotal`, not the individual criteria the real weighted math needs, so the real `getRating` returns `NaN` for them (which the guard correctly refuses to offer). Discovered by the test failing exactly as designed.
-- **GamesHub: a checkmark on each game won today** ("I don't want to limit the number of times I can play a game in one day but it would be nice to have a checkmark on the game if I've won a game of that today... then I'll be able to play each one each day and feel satisfied"). Explicitly a marker, never a gate — there's a test asserting a won game is still tappable. New `gameWinKey(routePath)` (route's last segment) + `todayStamp()` (`toDateString()`, matching `settings/dailyAwardsYearDate`'s existing convention) exported from `gameData.js` and used on BOTH sides (the game recording, the hub reading) so they can't drift. `recordGameWin()` on the mixin writes `settings/games/wins/<key>` via `writeDurably` (offline-safe) and skips a redundant write if today is already stamped. **A stamp that isn't today's simply reads as "not won today"** — nothing to expire or clear.
-  - **The judgment call, documented in-code**: the five games with a discrete win state (Wordle/Connections/Six Degrees/Clue Budget/Trivia) are unambiguous, but the three endless streak games (Higher or Lower/Timeline/Tag) never "finish" — one correct answer counts there, since the point of the checkmark is "I played this today and did something," not a difficulty gate.
-  - **Wiring differs by game shape**: Wordle/Connections/Six Degrees derive `status` as a COMPUTED, so there's no imperative win moment to hook — they get a `watch: { status }`. The rest call `recordGameWin()` inline at their existing win/streak-increment point.
-  - `recordGameWin` derives its key from `this.$route`, which **no pre-existing game test mocks** — so it silently no-ops in all of them (nothing broke), and the new tests in `TriviaGame.test.js` add `$route` explicitly.
-- **Connections: the personal-award label said "(Personal)"** — a generic internal string. Now uses the user's own award name via `awardNameWithThe` (e.g. "Won Best Picture (The Groskers)"), threaded through as `awardsData.personalAwardName`. Per the report, the setting's own instructions tell the user to pick a name that reads naturally after "the", so prefixing is safe. Note the DEFAULT is `'Oscar'` (singular) → "(The Oscar)", not "(The Oscars)" — the existing tests were updated to pass an explicit `personalAwardName` and assert the real reported behavior, with one dedicated test pinning the default fallback.
-
-## Six Degrees: directors as connectors, auto-scroll, win-comparison path (Jul 2026)
-
-One report, three asks: "In the game of 6° I think I should be able to connect through a director as well as a performer. Also, it would be nice if after each correct [guess] it would scroll to the right for me. And finally it would be nice if at the end when I win, and it tells me what the shortest path was, I could click something to reveal that path. Ideally, it would reveal that path without losing my own path. It would just show me what could've been."
-
-- **Directors are now connectors.** `buildCastGraph` → **`buildPeopleGraph`** (renamed, since "cast graph" is no longer honest — all call sites + tests updated). Cast is still capped per movie (default 10) for the reason that cap has always existed; **directors are deliberately exempt from it** — a movie has one or two, and a director is exactly the kind of strong, memorable connector the cap exists to PRESERVE, not the long tail of bit-part actors it exists to cut. A person who both directed and acted in the same movie merges to one graph node via the `Set`.
-  - **Knock-on effect, deliberately left as-is**: `scorePathDifficulty`'s `billingIndexOf` returns `-1` for a director who isn't also in the cast, which every caller already clamps to `0` (top-billed) — so a director-connector scores as maximally prominent. That's correct rather than accidental: the billing component measures how hard a connector is to RECALL, and a film's director is about as recallable as it gets. Documented in-code so it doesn't read as an unhandled `-1`.
-  - Subtitle updated to "Connect these two through shared cast members **or directors**."
-- **The chain row auto-scrolls right after each new entry.** It's a fixed-height, horizontally-scrolling row that only ever grows, so a new entry landed off-screen. `scrollChainToEnd()` (called from `pick()`, which every guess AND every hint funnels through) scrolls to `scrollWidth` on `$nextTick`, smooth when `Element.scrollTo` exists and falling back to a plain `scrollLeft` assignment when it doesn't (jsdom, very old browsers). The element comes from a **function ref** (`chainRowEl`) rather than a named `ref`, because the row is now rendered inside a `v-for` (see below) where a named ref would resolve to an array.
-- **After a WIN you can opt into seeing the shortest path alongside your own** — additive, unlike giving up. This is deliberately NOT the same as `revealPath`: an earlier bug report established that **giving up REPLACES** your row ("when I give up, the shortest path should replace my built path, not show both"), and that behavior is unchanged. New `comparisonChain` data field is kept strictly separate from `revealedChain` for exactly this reason — only `revealedChain` drives `status === 'revealed'`, so showing the comparison leaves the round a `'won'`.
-  - **Only offered when there's actually something to show**: `canShowComparison` requires a win AND `optimalHops < hopsSoFar`. A player who already found the shortest path gets no button, because there's no "what could've been."
-  - **Template restructured to a `chainRows` `v-for`** rather than duplicating the chain-step markup for a second row. That markup has been through ~10 rounds of iteration (placeholders, delete badges, tap-to-navigate, photo fallbacks) and a copy would inevitably drift. Rows carry `{key, label, items, interactive}`; `interactive: false` is what suppresses delete badges on the comparison row (tap-to-navigate is deliberately left ON there — exploring what could've been is useful).
-  - `comparisonChain` is **not persisted** — it's a presentational peek at an already-finished round, and a finished round isn't resumed anyway (see `tryRestore`). Cleared at both round-reset points alongside `revealedChain`.
-  - `revealPath`/`showComparisonPath` now share a `linksFromPath(path)` helper instead of each open-coding the alternating movie/person walk.
-
-Tests: `sixDegrees.test.js` — directors as connectors, directors surviving a cast-heavy movie's cap, the director+actor merge case, `shortestPath` connecting through a director alone, and a no-crew-data tolerance case (the fixture gained an optional `directors` argument). `SixDegreesGame.test.js` — the scroll behavior and its fallback tested by calling `scrollChainToEnd()` directly, with a separate spy test that `pick()` triggers it (**a stub assigned to `chainRowEl` before `pick()` gets clobbered mid-update, because the template's function ref re-fires on every re-render** — worth remembering for any future test touching that ref); plus the comparison row's gating, the "adds a row without replacing" assertion, the "giving up still replaces" regression guard, and the new-game reset.
-
-## Five reports (Aug 2026): Six Degrees follow-ups, stickiness advance, bug-button move, and a diagnostics gap
-
-- **Six Degrees: "I still don't see a way to reveal the shortest path after I find my own path."** My own over-engineering from the day before: `canShowComparison` also required `optimalHops < hopsSoFar`, i.e. it HID the button whenever the player matched the optimum, on the reasoning that there'd be nothing "could've been" to show. Wrong on two counts — matching the shortest path is precisely when you want it confirmed, and from the player's side an absent button is indistinguishable from a broken one. Condition dropped; the button now shows after every win, and a new `comparisonLabel` computed says which case it is ("You found it — the shortest path was also N hops:" vs "The shortest path was N hops:").
-- **Six Degrees: "the scrolling is better but it should scroll so that I can still see my most recent addition."** The first cut scrolled to `scrollWidth` — but the chain row does NOT end at the newest entry: the "?" placeholders and the goal poster all sit AFTER it, so scrolling fully right pushed the thing the player just added back off the left edge. `scrollChainToEnd` now finds the newest REAL entry (each interactive, non-goal, non-placeholder step carries a `data-chain-index`) and scrolls only far enough to bring its right edge into view plus a `SCROLL_MARGIN_PX` margin — and returns without scrolling at all when it's already visible, so it can't yank the row around. Falls back to the old `scrollWidth` behavior if the element can't be found.
-- **Stickiness: "after each one it should just immediately take me to the next."** Two things were in the way. (1) The entire save block sat behind a **2-second `setTimeout`** — a holdover from when the write had to round-trip before local state caught up; `writeDurably` commits locally first, so that was pure dead time between every entry. Removed. (2) Advancing relied on `showStickinessInline` merely never having been set false, so anything that knocked it back (a remount, a transiently-empty list) dumped the user on the notice banner with no way forward but tapping it again. Staying on the form is now asserted explicitly (`if (resultsThatNeedStickiness.length) showStickinessInline = true`), and the panel only collapses once the queue is genuinely empty. The `dbEntry` is also now built BEFORE the dispatch, since `writeDurably`'s synchronous local commit means `firstStickinessResult` already points at the NEXT movie the moment it's called.
-- **Bug button moved to the bottom LEFT** (`.bug-report-trigger`, `right: 1rem` → `left: 1rem`). The panel itself is a centered overlay with no side anchoring, so nothing else needed to move.
-
-### The one that couldn't be reproduced — and the diagnostics fix it prompted
-Report: "I just navigated from the Wordle game by clicking on the banner of the header and return to the home screen where I see the banner image but the entire list of movies is empty." **Not reproduced** despite walking the exact path live (Home → scroll → Wordle → banner → Home) — the list rendered normally.
-
-What the investigation DID establish is a real defect in the reports themselves: `buildAppStateSummary` (`bugReports.js`) was reading `homePageSearchValue`/`homePageSearchChips`/`homePageNumberOfResults` — the **persisted navigation** fields that `Home.mounted()` explicitly CLEARS as part of its restore. So a report filed from Home will show an empty search and no chips *no matter what is actually filtering the list*, which is exactly why this one was undiagnosable: nothing in the snapshot could distinguish "no results matched the active filter" from "the list failed to render". (`numberOfResultsShown` is the one field NOT cleared, so it reflects whenever Home was last left — also misleading if read as current.)
-
-Fix: Home now publishes a small live summary (`liveDebugState` computed → `setHomePageLiveState` via an `immediate` watcher) covering the active quick link, typed search, chips, results rendered vs matched, library size, `numberToShow`, whether the grouped view is active, and the sort. `bugReports.js` includes it as `homeLive`, with the old fields kept (and now commented) for continuity with older reports. Purely diagnostic — nothing reads it for behavior, and it's never persisted. **If this report recurs, `homeLive` should immediately say which of the two it is.**
-
-**Fixed in a follow-up (same day):** navigating from Home directly to a game route left the game page inheriting Home's scroll position — Reel Wordle opened scrolled halfway down its own page. `GamesHub.selectGame` had worked around this with its own `window.scrollTo(0)` before pushing, which covered exactly ONE entry path (a hub tile) and missed every other way into a game: Home's Games button, `BackLink` between the hub and a game, a deep link, the header banner.
-
-Replaced with a router-level `scrollBehavior` (`src/router/scrollBehavior.js`, wired in `router/index.js`), **deliberately scoped to `/games*` only** — it returns `{top: 0}` for game routes and `false` (leave the scroll alone) for everything else. That scoping is the whole point: the app has never had a global scrollBehavior because `Home.vue` does its own scroll restoration (returning from a movie's detail page puts you back exactly where you were in the grid), and a blanket scroll-to-top would fight it. `selectGame`'s manual `window.scrollTo` was REMOVED rather than left as belt-and-suspenders, so there's exactly one mechanism. **`behavior: 'instant'` in the returned position is REQUIRED, not cosmetic** — and a first cut of this shipped WITHOUT it and did nothing at all. The app sets `scroll-behavior: smooth` on `<html>`, and with that in effect a plain `window.scrollTo({top: 0})` is a **silent no-op in this app** (verified live: position stayed put, and a `window.scrollTo(0, 300)` didn't move either, while the identical call with `behavior: 'instant'` worked immediately). Vue Router passes whatever `scrollBehavior` returns straight through to `window.scrollTo`, so the override belongs in the returned object. The GamesHub workaround this replaced happened to pass `{top: 0, behavior: 'instant'}`, which is exactly why IT worked — worth remembering for any future programmatic document scroll in this app.
-
-**This turned out to be a much wider latent bug, found while verifying the above.** `document.documentElement.scrollTop = 900` is ALSO swallowed by the same CSS (the `scrollTop` setter honours the element's scroll-behavior) — and that assignment form is exactly what `Home.vue` used for its scroll restoration. So Home's "returning from a movie's detail page puts you back exactly where you were in the grid" had been **silently doing nothing**, on a 1300+ movie library. Verified live: setting `scrollTop = 900` left the position at 0. Fixed by routing all four of Home's document-scroll sites through a new `src/utils/scrollWindowTo.js` (`window.scrollTo({ top, behavior: 'instant' })`), which carries the full list of what does and doesn't work as its own comment. **Rule for this codebase: every programmatic document scroll must pass an explicit `behavior`** — `'instant'`, or `'smooth'` if animation is genuinely wanted (that path works; it's only the INHERITED CSS behaviour that fails). Tests: `src/test/scrollWindowTo.test.js`.
-
-**And behind THAT was a second, independent bug in the same feature** — found because fixing the CSS issue still didn't make restoration work. `mounted()` deferred the restore into a `$nextTick` callback that read `this.$store.state.homePageScrollPosition`, but the "clear stored state after restoring" block a few lines below sets that to `0` **synchronously** — i.e. always before the deferred callback runs. So the `> 0` guard was false every single time and the page never moved. Fixed by capturing the value into a local const before the clear. **Net: Home's "put me back where I was in the grid" had two stacked defects and has apparently never worked**; either one alone was enough to break it, which is presumably why it went unnoticed for so long. Extracted as a pure function specifically so it's unit-testable — importing the real router pulls in `store/index.js` and initialises Firebase at module load, which is why nothing else in `router/index.js` has tests. Tests: `src/test/scrollBehavior.test.js` (hub, individual games, every other route left alone, malformed input); `GamesHub.test.js`'s old "scrolls to top before navigating" test inverted to assert the component does NOT scroll itself.
-
-Tests: `SixDegreesGame.test.js` — the scroll tests rewritten around a stub row exposing `querySelector`/`getBoundingClientRect` (asserting it scrolls just far enough, and NOT at all when the newest entry is already visible), and the old "does NOT offer it when they matched the optimum" test inverted to assert the button now shows with the "You found it" label.
-
-## Stickiness prompt: `{...array}` corrupted the rating shape (Aug 2026)
-
-Bug report: "The stickiness prompt is still acting weirdly... it's still showing up when I don't really have a stickiness... It's clearly not correct."
-
-**Root cause — a genuine, long-latent data-shape bug.** `StickinessInline.addStickinessRating` built its updated entry as:
-```js
-ratings: { ...this.firstStickinessResult.ratings, [index]: { ...updated } }
-```
-Spreading an **array** into an object literal produces a plain object (`{0: …, 1: …}`) with **no `length`**. `GetRating.js` opens with `if (!media?.ratings?.length) return null` → `calculatePostStickyRatingFor(null)` → `{ calculatedTotal: 0 }`. So the instant a movie was saved this way its local copy lost `date`, `userAddedStickiness`, and its real score. In `resultsThatNeedStickiness` that reads as: flag `undefined` → "hasn't rated stickiness"; `date` `undefined` → defaults to `"1/1/2021"` → "more than a week ago" → **the movie goes straight back into the queue**, permanently, and displays a rating of 0.
-
-**Why it only surfaced now**: `setDBValue` never wrote to local state at all — the malformed object went to Firebase, which normalises sequential numeric keys back into a real array, and the corrected shape came back via the `onValue` listener. Switching this component to `writeDurably` (which commits locally FIRST, by design — see the Offline Support Extension section) made the broken intermediate shape visible for the first time. **Stored data was never affected**, only the local copy, so there's nothing to repair.
-
-Fix: build the new ratings with `.map()`, preserving the array. (`TweakInline.applyTournamentResults` already did it correctly with `.slice().map()` — this was the only site with the object-spread form.)
-
-**Generalisable lesson**: `{ ...someArray }` is never what you want when the value must stay an array, and it fails silently — the object looks right in a debugger and even round-trips through Firebase correctly. Anywhere local state is committed optimistically (which is now most write paths), the malformed shape is what the app actually runs on.
-
-Tests: `src/test/StickinessInline.test.js` (new file — this component had none). The mocked `getRating` deliberately reproduces the real `!ratings?.length` bail so the bug is reproducible in test, and the mocked `dispatch` applies the write back onto the fixture to mirror `writeDurably`'s synchronous local commit. **Verified as a real regression guard** by temporarily reinstating the object spread: 3 of the 5 tests fail. Fixture dates are relative (`daysAgo`) rather than fixed, so an entry can't silently drift into the six-month window as time passes.
-
-## Trophy Case: "Most Decorated" row showed initials instead of images (Aug 2026)
-
-Bug report: "in the trophy case I'm missing a bunch of images on that top row for the top winners they just have letters for all their names."
-
-**Cause — a shape mismatch, same family as the stickiness one.** `mostDecoratedPeople` pushes whole WIN objects (`{year, expanded, …}`) into `person.wins`, but `winnerImage(expanded)` reads `.details`/`.movie` off an EXPANDED nominee. The template passed `person.wins[0]` (the wrapper), so both lookups were `undefined`, `winnerImage` returned `null`, and **every** person in that row fell through to the initial-letter placeholder. The category rows below always passed `win.expanded` correctly, which is why only this one row was affected. Fixed by passing `person.wins[0].expanded`. Note the sibling `@click="goToMovie(person.wins[0])"` on the same element is CORRECT as-is — `goToMovie` takes a win and reads `win.expanded` itself — so the two look inconsistent but both are right.
-
-**Why the existing test didn't catch it**: `TrophyCase.test.js` already covered the Most Decorated row, but only asserted the `mostDecoratedPeople` computed and that the name appeared in `wrapper.text()` — never that an `<img>` actually rendered. Added a test asserting `.decorated-photo` is an `IMG` with the expected poster src (read from the component's own data rather than hardcoded, since wins are newest-year-first) plus a companion test that the placeholder still appears when there genuinely is no image. **Verified as a real regression guard** by reverting the fix: it fails with `expected 'DIV' to be 'IMG'`.
-
-**`expanded.details` IS real** — I initially mis-read it as a dead branch (a `grep` for `details:` in `personalAwards.js` looked empty), then live verification showed the Best Actor row rendering actual face photos, which disproved that. The chain is: `PersonalAwardsModal.convertNomineeToMinimal` stores `minimal.profilePath = nominee.details.profile_path` at selection time, and `expandNomineeFromMinimal` rebuilds it as `expanded.details = { profile_path: … }`. So a person winner shows their real TMDB photo when a `profilePath` was captured, falling back to the movie poster when it wasn't. Worth remembering: **grepping one file was not enough to conclude a branch was dead** — the producer and consumer were two hops apart.
-
-### Follow-up: people get PEOPLE pictures, never a poster (same day)
-Report: "they are... some of them are movie posters, which isn't really what we want... I don't wanna show Steven Spielberg but then show the poster for one of his movies, that's not right."
-
-`winnerImage` used to fall through to `expanded.movie.poster_path` for ANY winner without a stored profile path — so a person whose award predates the `profilePath` capture rendered as one of their films. Now it branches on winner type (`expanded.name` present = person, the same discriminator `winnerTitle` and the `trophy-subtitle` `v-if` already use):
-- **Person** → stored `details.profile_path`, else a TMDB `/search/person` lookup by name (`ensurePersonPhoto`, the same cache shape SixDegreesGame uses: `undefined` = never looked up, `null` = looked up/in-flight with nothing found), else their **initial**. Deliberately never a poster — a wrong picture is worse than a letter.
-- **Movie** → its poster, unchanged.
-
-Lookups are driven by a `personWinnersNeedingPhotos` computed (distinct names across all categories that lack a stored path) via an `immediate` watcher, so a repeat winner costs one request no matter how many awards they hold. This makes Trophy Case the first page here to fetch on load; it's best-effort and degrades to initials.
-
-Tests: `TrophyCase.test.js` — stored-photo case, the **"never substitutes a poster for a person"** guard (asserts the poster URL appears nowhere), the TMDB lookup being made/used and called exactly once for a two-time winner, no lookup when a photo was already stored, and movie winners still showing posters. `fetch` is stubbed in `beforeEach` to "found nothing" so unrelated tests get the initials path rather than a real request.
-
-### Trophy Case leaderboards (Aug 2026)
-Follow-up request: "movies with the most wins, movies with the most nominations... once we've unlocked nominations, we could also do people with the most nominations."
-
-Unlocking nominations was the real work — `categorizedWins` only ever walked `category.winner`, so the whole nominee side of the stored data was untouched. New pure module **`src/assets/javascript/awardStats.js`**: `collectAwardEntries(personalAwards, library)` walks every year/category once and expands BOTH the winner and each nominee into `{ wins, nominations }` (flat lists of `{year, categoryKey, expanded}`), plus `rankPeople` / `rankMovies` leaderboards over either list. Store-free and unit-tested without mounting, per this repo's usual split.
-
-Two modelling decisions, both deliberate and documented in the module:
-- **A winner is also a nominee.** `PersonalAwardsModal` only lets you pick a winner from nominees you already selected, so `nominees` contains the winner. Nomination counts therefore include wins — which is what people expect ("Titanic: 14 nominations, 11 wins"), not double-counting.
-- **A person's award counts for their film.** Every expanded nominee carries `.movie` (a movie-type entry, or a person expanded with the film they were nominated for), so both roll up identically. This matches how real tallies work — "Titanic won 11 Oscars" includes its acting and directing wins, not just Best Picture.
-
-Ties break alphabetically so ordering doesn't depend on year-walk order; `minCount` defaults to 2 because a leaderboard where everyone has one award is just a list of every award. Each section hides itself when nothing clears that threshold, so a new/small awards history doesn't render empty shelves.
-
-Three new sections join the existing Most Decorated (people by wins): **Most Nominated People**, **Most Awarded Movies**, **Most Nominated Movies**. `personWinnersNeedingPhotos` was widened to cover nominees as well as winners, since someone can be nominated repeatedly without ever winning and still needs a face. Movie rows use `.decorated-poster` — same footprint as the person photos so the rows line up, but `object-fit: contain` rather than `cover`, since cropping a poster loses the title.
-
-Tests: `src/test/awardStats.test.js` (pure — collection across years, missing/partial data, nominees whose movie left the library, person-vs-movie discrimination, cross-category counting, remakes staying separate by id, wins-included-in-nominations, tie ordering, limit/minCount) and a `leaderboards` describe block in `TrophyCase.test.js` (a sweep topping Most Awarded Movies via its people's wins, nomination-only films outranking it on nominations, poster rendering + movie links, everything hidden when nothing repeats, and photo lookups firing for never-won nominees).
-
-Note the original fix could NOT be visually verified end-to-end on the `testing-database` account: it has no repeat winners, so `mostDecoratedPeople` is empty and the row doesn't render at all there. Covered by the regression test instead.
-
-## Acting-category gender eligibility, unified (Aug 2026)
-
-While filling the test account with award data, the generated acting slates ignored gender (men nominated for Best Actress) because `AddRating.js` strips TMDB's `gender` from stored cast. User: "we should try to bring in gender. Just, if you're unsure about gender go ahead and count them as all genders."
-
-**That surfaced a real bug in the app.** `PersonalAwardsModal` had TWO copies of the gender filter — one in the cast-grouping path, one in the person-filter path — and they had **drifted apart**:
-- cast-grouping: actress ← gender `0 | 1 | 3`; actor ← `0 | 2 | 3`
-- person-filter: actress ← gender `1 | 3`; actor ← `2 | 3`
-
-TMDB's `gender` is an enum (`0` not specified, `1` female, `2` male, `3` non-binary), so the second path **silently excluded every "not specified" person from BOTH acting categories** — making them impossible to nominate anywhere, with no error and no way to notice. Which behaviour you got depended purely on which code path happened to load that person.
-
-New pure module **`src/assets/javascript/genderEligibility.js`** — `isEligibleForActingCategory(gender, { isActress })` plus a `TMDB_GENDER` enum — is now the single source, used by both call sites. The rule matches the user's: anything that isn't a definite female/male reading (missing, `0`, or `3`) is eligible for **every** acting category. Rationale worth keeping: being wrongly offered a nomination is harmless (you just don't pick them); being silently unnominatable is not.
-
-**Its own test caught a second bug in the first draft**: the guard was `typeof gender !== 'number'`, but `typeof NaN === 'number'` — so a garbled value sailed through as a definite reading and excluded the person from one side. Now `Number.isFinite`.
-
-Tests: `src/test/genderEligibility.test.js` (definite female/male matching one side only, non-binary and not-specified counting for both, missing/null/NaN/string all treated as unknown, and the no-options default).
-
-### Test-account award data (same session)
-The `testing-database` account had no repeat winners, so Most Decorated never rendered. With the user's explicit go-ahead ("as long as it's only on the test account"), 10 new complete award years were generated from that account's own library (1991, 1993, 1998, 2000, 2001, 2018, 2020-2023), taking it from 35 awards across 3 years to 145 across 13. Deliberately untouched: **1994/1999/2015** (the user's real picks) and **1992**, which is left partially complete because it's the fixture that exercises Insights' "Resume Awards" flow.
-
-Two things that made the data actually useful:
-- Winners drawn purely from each year's top films almost never repeat a person (first pass produced exactly ONE multi-win person). A follow-up pass promotes anyone nominated across multiple years to winner in the categories they were nominated in — which preserves the "winner is always among the nominees" invariant `awardStats.js` relies on, rather than inventing winners.
-- A second pass then re-ran every acting nominee through the real `isEligibleForActingCategory`, swapping 59 mis-gendered picks for genuinely eligible castmates from the same film (0 dropped, 0 remaining violations). It imports the app's own helper rather than reimplementing the rule, so the fixtures can't drift from the shipped logic.
-
-Scripts were one-off and not committed. **Gotcha for any future admin-SDK script**: it must live INSIDE the repo — Node resolves `firebase-admin` relative to the importing file, so a script in the scratchpad fails with `ERR_MODULE_NOT_FOUND`. A backup of the pre-change awards is in the session scratchpad.
-
-## Three small reports (Aug 2026): year direction, Wordle rating, exit-from-game
-
-- **Year scroller now runs ascending left-to-right** ("the next year should be to the right of the current year, not the other way around"). New `availableYearsAscending` computed rather than flipping `availableYears` itself — that same list also fills the "Add Filter" Year `<select>`, where newest-first is the right default for picking a recent year. One source of truth for WHICH years exist, two display orders. A test pins both orders so they can't be conflated later.
-- **Reel Wordle shows the guessed movie's own rating** next to its title, beside the year ("in addition to the year, it would also show me the rating on the movies after I guessed the wrong ones"). `clue.yourRating.value` already held it — it just wasn't rendered. Like the year, this is a plain "what did I guess" label; the Rating CELL below still shows only a direction arrow, so it gives nothing away about the target.
-- **"Back to Games" now shares the end-of-run row with Play Again** across Higher or Lower, Timeline, Trivia, Clue Budget and Tag ("on all of the games where there's a play again button we should have that space shared... so we can exit"). Shared `.end-actions` class in `_game-buttons.scss` (two equal halves; overrides `.cta-btn`'s own `max-width`, which would otherwise leave a gap down the middle). The top-left `BackLink` already reaches the hub, but after finishing a run your thumb is at the BOTTOM of the screen — that's where the "I'm done" action belongs. Tag's two near-identical `v-if` blocks (Play Again / Try Again) collapsed into one with a conditional label while doing this.
-  - **Test gotcha**: each game's end-of-run block sits inside the `v-else` that requires a started run, so setting `gameOver = true` alone renders nothing — call `start()` first.
-
-## Important Notes for Claude
-**Always keep this CLAUDE.md file updated** as you work on the project. When you make changes, add features, or learn new things about the codebase, update the relevant sections of this file to maintain an accurate project summary for future sessions.
-
-**CRITICAL: Always check text contrast and readability!** Before implementing any UI changes, ensure text is legible against its background. This app uses dark themes and Bootstrap classes - always verify that text colors work properly against dark backgrounds. Common issues include:
-- Dark text on dark backgrounds (unreadable)
-- Light text on light backgrounds (unreadable) 
-- Insufficient contrast ratios
-- Missing Bootstrap text color classes like `text-light`, `text-white`, or `text-muted`
-## Sign-in Beyond Google + Locked-Down Database Rules (Aug 2026)
-
-Bug report: *"I'd like to enable sign-in by other methods. I assume I will need to enable things in firebase but can you do everything else so that folks who don't have Gmail can use the app?"* Asked which providers via `AskUserQuestion` (answer: **both** email/password and Apple) and whether to tighten the wide-open database rules at the same time (answer: **yes**), since opening sign-up more widely materially changes that risk.
-
-### The constraint everything else follows from
-**A user's entire library is keyed by their email address** — `databaseTopKey` is the email with ~30 characters replaced by `-` (`mattgrosso@gmail.com` → `mattgrosso-gmail-com`). So any new provider must return a stable email, which rules out anonymous sign-in entirely and makes Apple's "Hide My Email" fine (its relay address is stable per-app).
-
-- **`src/assets/javascript/databaseKey.js` (new)** — `emailToDatabaseKey()`, now the single source of truth. It was previously an inline `replaceAll(...)` duplicated in the `setDatabaseTopKey` mutation AND the login action; identical then, but nothing kept them that way and the whole security model now rests on them agreeing.
-- **It deliberately does NOT lowercase.** An early draft added `.toLowerCase()` — which would have silently re-keyed every existing account whose address contains an uppercase character, pointing it at an empty database. Case is normalized in the login FORM instead (`normalizedEmail`), so new sign-ups are consistent without touching existing keys. Pinned by a test.
-- **`src/assets/javascript/databaseKeyCharacters.json` (new)** — the character list lives in JSON, not JS, so the rules generator (a plain Node script, which can't import an ES module in this non-`type: module` package) reads **the same bytes** rather than keeping a hand-maintained copy in step. A first attempt regex-scraped the array out of `databaseKey.js` and broke immediately: the list contains `','`, so splitting on commas destroyed it.
-
-### Providers (`src/store/index.js`)
-Every method funnels through one shared **`completeLogin(user)`** action that derives the key, persists it, boots the database, and routes home — no provider gets to do that its own way. It **throws** rather than proceeding if a provider returns no email, because silently dropping someone into an empty, wrongly-keyed database is much worse than refusing the sign-in.
-
-- `loginWithGoogle` (`login` is kept as an alias so existing callers work), `loginWithApple` (an `OAuthProvider('apple.com')` — the `email` scope is **required**, without it no address comes back), `loginWithEmail`, `signUpWithEmail`, `sendPasswordReset`, `logout`.
-- **Latent bug fixed on the way through**: the old login action called `context.dispatch('setDatabaseTopKey', ...)`, but that only ever existed as a **mutation** — so it was a silent no-op, `state.databaseTopKey` stayed null through login, and `initializeDB` (which early-returns without a key) did nothing. It only worked at all because the router guard re-read the key from localStorage on the very next navigation and committed it there. Now committed directly, so the flow is correct rather than accidentally correct. Regression-tested.
-- `signUpWithEmail` also fires `sendEmailVerification` (fire-and-forget, **not enforced anywhere yet**) — groundwork for tightening later without blocking sign-ups now. What actually stops someone registering an address that's already in use is Firebase's **"one account per email address"** setting; confirm it's on.
-- **`logout` is new** — there was no sign-out anywhere in the app, which was fine when it was one Google account and is not fine now that people can create accounts. Added to Home's settings panel under a new "Account" heading, with "Signed in as …". The raw email is now stored in localStorage alongside the sanitized key purely so that line survives a reload (the key can't be turned back into an address).
-
-### Auth state actually being observed (the prerequisite for tightening rules)
-Two things were true and invisible while the rules were open, and would have been hard failures the moment they weren't:
-
-1. **`getAuth()` was only ever called inside actions.** The Realtime Database SDK picks up its auth-token provider from whatever is already registered on the app when it initialises — if Auth has never been instantiated, it just sends **unauthenticated requests**. `getAuth()` now runs at module load, before `getDatabase()`.
-2. **`loggedIn()` never checked Firebase Auth at all** — it decides you're signed in synchronously from `localStorage`, and there was no `onAuthStateChanged` listener anywhere. Firebase restores a persisted session *asynchronously*, so listeners could attach before the token existed. New exported **`authReady`** promise (settled by the first `onAuthStateChanged` callback) is awaited by `initializeDB`. Deliberately not *gated* on the result — the offline IndexedDB-snapshot path has to keep working with no live session.
-3. New **`verifyRestoredSession`** action (dispatched from `App.vue`'s `mounted`, fire-and-forget) reconciles the two: a stored key with no Firebase session means the session was revoked/expired/signed-out-elsewhere, so it signs out cleanly instead of showing an empty library with no explanation. Only acts when online. **Watch for**: this can produce an unexpected one-off re-login for anyone whose Firebase session was evicted (Safari ITP, etc.) while their localStorage key survived — correct behaviour, but new.
-
-### Database rules — GENERATED, and NOT deployed by `yarn deploy`
-`database.rules.json` was `{".read": true, ".write": true}` — anyone could read or write anyone's data given the key.
-
-- **`scripts/generate-database-rules.mjs` (new, `yarn generate-db-rules`)** writes `database.rules.json`. The rules language has no regex, only `String.replace(substring, replacement)` (which replaces *every* occurrence, unlike JS's single-string `replace`), so the email→key transformation has to be a ~29-call chain. Generating that chain from the shared character list is the only way to keep it provably in step with the app.
-- Grants, all narrow, on a deny-by-default root: `$topKey` read/write only when `$topKey` equals the sanitized `auth.token.email`; `$topKey/sharedDBSearches/$shareKey` publicly readable (the `/share/:userDBKey/:shareKey` route is explicitly `requiresLogin: false`) but **not** the list of which shares exist; `bugReports` write-only-by-anyone (the report button renders on the login screen, before any session) and readable by nobody (triage uses the Admin SDK, which bypasses rules); `testing-database` (the dev-mode sandbox) scoped to the owner key, matching the `isMatt` check that already hardcodes it in `Home.vue`.
-- **`src/test/databaseRules.test.js` is the load-bearing test**: it reads the *generated* file, extracts the replace chain, applies it in JS (with `replaceAll` — using `replace` would let it pass against rules that are actually wrong) and asserts byte-identical output to `emailToDatabaseKey` across nine emails including apostrophes, plus-addressing, mixed case and an Apple relay address. It also asserts the chained character set exactly equals the shared list minus `-` (a provable no-op).
-
-**DEPLOY ORDER MATTERS — do not deploy rules and app together.** `yarn deploy` does *not* touch rules (`firebase deploy --only database` is separate), and that separation is deliberate:
-1. Ship the app first. It is safe under the current open rules.
-2. Enable **Email/Password** in the Firebase Console (Authentication → Sign-in method). Apple additionally needs a paid Apple Developer account + a configured Service ID; until that's done, leave `VUE_APP_ENABLE_APPLE_SIGNIN` unset so the Apple button doesn't render and nobody taps a dead control (`auth/operation-not-allowed`).
-3. Verify sign-in works and the library still loads (i.e. requests now carry a token).
-4. **Only then** `npx firebase deploy --only database`. Deploying restrictive rules while older clients are still live — and the PWA can serve a cached build for a while, see the iOS notes above — would show those clients an empty library.
-
-Tests: `databaseKey.test.js`, `authErrors.test.js`, `authActions.test.js`, `databaseRules.test.js`, rewritten `Login.test.js`. **`src/test/setup.js` now globally mocks `firebase/auth`** — with `getAuth()` at module load, every test file that imports the store even indirectly otherwise hits Firebase Auth's *Node* build and throws. Its `onAuthStateChanged` mock **must invoke its callback**, or `authReady` never settles and `initializeDB` hangs forever; the three test files with their own `firebase/auth` factories override the global one and each needed the same treatment.
-
-### Onboarding flash on fresh load (Aug 2026)
-Bug report right after the sign-in work shipped: *"there is a brief moment on a fresh load when it shows me the 'want help getting started?' messaging. I should never see that. That's for new users only."*
-
-Until the library arrives, `userRatedMovieCount` is 0 — **indistinguishable from a genuinely new account** — so `isBrandNewUser` was briefly true for everyone on every load. Two of the three places that key off it (the welcome text, the 1-9-rated tap-through button) already guarded on `$store.state.dbLoaded`; the third, `shouldShowStartSuggestions` (which renders the suggestions component itself), did not. Pre-existing, but the window widened materially when `initializeDB` started awaiting `authReady`, which is why it only became visible now.
-
-Fixed at the concept rather than by adding a third call-site guard: `isBrandNewUser` now means "the library has loaded AND it's empty." The other two guards are now redundant but harmless. Tests: a `while the library is still loading` describe block in `NewUserOnboarding.test.js` (nothing renders pre-load; both appear once `dbLoaded` flips) — verified as a genuine regression guard by reverting the fix and watching both fail. The test harness's `mountHome` gained a `{ dbLoaded }` option and now returns its mock store so a test can flip that flag the way real loading does.
-
-## Geography / Maps: BUILT AND REMOVED (Aug 2026)
-
-A filming-and-story-location feature was built out over several rounds and then
-**taken back out at the user's request**: *"I'm not sure we've really got it
-with this location stuff. I think there's a lot of good work here, and we've got
-some pieces of something that might work, but I think we should take the whole
-thing out."* Do not treat any of the below as describing current code — none of
-it exists. It's recorded because the research is expensive to redo and the
-findings are what a second attempt should start from.
-
-**Deleted**: `movieLocations.js`, `mapViewBox.js`, `worldMap.json`,
-`WorldMap.vue`, `LocationDetailMap.vue`, `scripts/generate-world-map-data.mjs`,
-the `leaflet` dependency, MovieDetail's "On The Map" section, Insights'
-"Around The World" pane, and Home's locations backfill button. All recoverable
-from git history (see the commits between "Add filming/story locations..." and
-"Fix unclickable map dots...").
-
-### Findings worth keeping for a second attempt
-- **Reading Maps (readingmaps.com) is off limits.** Their terms explicitly
-  prohibit extracting route data, waypoints, coordinates or descriptions. Their
-  frontend does expose a Supabase anon key in the client bundle, so the data is
-  a request away — that is not an invitation, and it was deliberately not used.
-  Linking is explicitly permitted. Emailing Aires Loutsaris is the legitimate
-  route.
-- **Wikidata is the open answer and it works well.** CC0, joins directly via
-  `P4947` (TMDB id) — **99% of the library matched**, 58% had filming locations
-  (`P915`), 71% narrative (`P840`), **79% had at least one**.
-- **The SPARQL query shape matters and was found by measurement.** The obvious
-  `{ ?film wdt:P915 ?p } UNION { ?film wdt:P840 ?p }` **times out even at two
-  ids**. Binding the predicate from a VALUES block
-  (`VALUES (?prop ?type) { (wdt:P915 "filming") (wdt:P840 "narrative") }`) runs
-  200 ids in ~2.4s. WDQS sends `access-control-allow-origin: *`.
-- **WKT is longitude-FIRST** (`Point(-118.24 34.05)`) — reversing it puts Los
-  Angeles in the Indian Ocean.
-- **Coordinate precision varies and matters.** Measured across 132 real places:
-  ~15% are country centroids, but **64% are precise to ~100m or better**. Any
-  zoom behaviour has to key off precision, or a country centroid gets presented
-  as a street address.
-- **Map data resolution, measured by rendering and comparing:** Natural Earth
-  110m staircases into rectangles past ~5x; 50m stays smooth to ~16x; 10m adds
-  almost nothing over 50m for ~6x the bytes. Costs gzipped: 110m land 17K; 50m
-  land + country borders + 1,160 city labels 318K; + state/province lines 381K.
-- **Labels beat geometry.** City labels cost 13K gzipped and did more for
-  legibility than 228K of finer coastline. A dot off the California coast means
-  nothing; a dot beside "Los Angeles" means everything.
-- **Anything drawn on an SVG map must be sized in CSS pixels, not grid units.**
-  Sizing in grid units produced dots ~1.6px across on a phone — the
-  zoom-compensation logic was correct, the constant it held was just far too
-  small, and it looked fine only in 1000px-wide test renders.
-- **OSM tiles** are usable for interactive viewing with visible attribution and
-  no offline prefetching, but carry no SLA. **Carto** now restricts tile access
-  to enterprise/grant licences. **Esri satellite** serves without a key and is
-  the most compelling for a filming location, but its terms were never verified.
-  **Stadia/MapTiler** have dark styles matching the app and domain-locked keys.
-
-### Stored data was deliberately NOT deleted
-If the backfill was ever run, entries carry `movie.locations`. That field is now
-unread, and removing it would mean re-querying Wikidata for the whole library on
-a second attempt. Leave it.
-
-### What survived the removal, and why
-- **Production countries** ("Made In" on MovieDetail + its backfill). Independent
-  of the maps, plain text, working. Flagged to the user as kept.
-- **`tmdbBackfill.js`**, the shared backfill engine — still used by box office
-  and production countries.
-- **The re-rate preservation fix** below, which fixed a genuine pre-existing bug
-  unrelated to maps. `CARRIED_OVER_MOVIE_FIELDS` is now empty but the mechanism
-  stays.
-- The Letterboxd viewing-date fix and the MovieDetail section reordering.
-
-### `tmdbBackfill.js` — shared backfill engine
-The concurrency + batched-write machinery was extracted out of `backfillBoxOffice.js` into `src/assets/javascript/tmdbBackfill.js` (`runTmdbBackfill`, `hasRealTmdbId`) and is now shared with the production-countries backfill. Extracted rather than copied because that logic is subtle (worker pool, plus a flush whose grab-and-clear is deliberately synchronous so concurrent workers can't race it) and two copies would drift — the same mistake that produced the duplicated count maps later consolidated into `entityCounts.js`. `backfillBoxOffice`'s public API is unchanged and all 18 of its pre-existing tests pass untouched. **Batched writes are a bug fix, not an optimisation** — see the Jul 2026 incident where a per-movie design froze and crashed the tab on a real library. `Home.vue`'s `writeMovieFieldBatch(batch, fieldsFor)` is the one shared write path for all three backfills: leaf-path updates only (never the whole `movie` object, which could clobber siblings with a stale snapshot), one combined local commit + one combined remote multi-path update per batch.
-
-Tests: `backfillProductionCountries.test.js` (10), plus a `Made In` describe block in `MovieDetail.test.js`. (The locations/map test files went with the feature.)
-
-### Re-rating used to destroy locally-owned data (fixed in the same pass)
-Found while wiring the above, and **wider than locations**. Saving a rating does a full `set()` of `movieLog/<key>`, and `shapeTmdbDataIntoMovie` builds a **brand new** movie object from the TMDB response — so anything not explicitly rebuilt was silently wiped:
-- `movie.locations` (would have been, had this not been fixed at the same time)
-- **`customPosterPath` / `customBackdropPath` — a genuine pre-existing bug.** These live at the ENTRY level, as siblings of `movie`/`ratings`, so re-rating a movie with a custom poster lost it. Confirmed by test: reverting the fix fails `keeps a custom poster across a re-rate`.
-
-Fixed in `addMovieRating` with two deliberately different strategies:
-- **Entry level — copy everything** except `movie`/`ratings` (being replaced) and `dbKey` (injected by the store's getter at read time, not real stored data). Nothing at this level comes from TMDB, so it's all worth keeping, and an allowlist would silently start dropping whatever gets added next.
-- **Movie level — an explicit allowlist** (`CARRIED_OVER_MOVIE_FIELDS`, now empty since `locations` went with the maps), applied only where the fresh TMDB object doesn't define the field. A blanket merge would resurrect stale values that re-fetching exists to correct, and would keep `isPendingReconciliation: true` set on a placeholder being finalised.
-
-Tests: the `re-rating preserves locally-owned data` block in `TMDbDataProcessing.test.js`, verified as a real guard by reverting the fix. (The locations half of that block went with the feature.)
-
-### Two bug reports from that round that still stand (Aug 2026)
-
-**Section order on MovieDetail** — *"we should move the awards at the cast and the keywords up above the box office."* Order is now Genres → Awards → Cast → Keywords → Box Office → Made In → Tags.
-
-**Letterboxd log date** (reported by Natalie) — *"it should have the date automatically filled in ... Even if I didn't watch it today and also even if I have watched it multiple times."* `generateUrls` was always sending **today**. It now takes `options.viewingDate` and uses the date the movie was actually watched, falling back to today only when there isn't a usable one. Both call sites (`MovieDetail`, `DBGridLayoutSearchResult`) pass `mostRecentRating(result)?.date` — the latest viewing, which is the one being logged for a rewatch. New `toLocalISODate(value)` generalises `todayLocalISODate`, and keeps the local-components approach for the same reason: `toISOString()` is UTC and would report the previous day for an evening viewing in a western timezone.
-
-Tests: viewing-date blocks in `LetterboxdUrlService.test.js`. (The map-zoom fix from this same round was removed along with the maps.)
-
-
-## Bug report round, Aug 2026: game navigation + Connections tuning
-
-**"Back to Games" beside "New Puzzle"** (two reports, Wordle and Connections). Both now use the shared `.end-actions` row that Timeline/Trivia/Higher-or-Lower/Tag already had.
-
-**Wordle's "New Puzzle" was too easy to hit by accident** — *"Once you started the game and I accidentally pressed it a couple of times."* It was a full-width button pinned at the TOP, right above the input, and pressing it silently throws the round away. The prominent one now only appears once you've won (in `.end-actions`); mid-round there's just an understated `.give-up-puzzle` text link at the bottom of the page.
-
-**`BackLink` was sending people home instead of back** — *"I'm clicking the back to Games button in 6° and it's just sending me home."* Two compounding causes, both real:
-1. `.back-link-edge-swipe` (the left-edge swipe strip) is `position: fixed; width: 20px; z-index: 500`, and `.back-link` sits at `left: 6px` with **no z-index** — so the swipe strip painted over the leftmost ~14px of the link, *including part of the caret*. Taps there hit the strip, which only responds to a real swipe, so they did nothing.
-2. The link is a small target sitting **on top of the header banner, which is itself tap-to-home** (added so a game hiding the logo still had a way home). Any near-miss therefore navigates home.
-
-Fixed by giving `.back-link` `z-index: 600` (above the strip) and a proper touch target (`min-height: 40px`, roomier padding). The banner's tap-to-home was deliberately left alone — it was explicitly requested, and `.version-only` isn't a big enough affordance on its own.
-
-**Connections genre breadth** — *"you should try to avoid using genres keywords that have a lot of [entries], for example adventure."* Keywords were capped at `KEYWORD_MAX_MOVIE_COUNT` but **genres had no cap at all**, so Adventure (212 of ~1,370 in the real library) and Drama (718) were valid categories — and four films drawn at random from 212 share nothing a player can notice. New `GENRE_MAX_LIBRARY_FRACTION = 0.1`, expressed as a **fraction** so it scales with the collection rather than being tuned to one library, floored at `GROUP_SIZE` so a small library still gets genre categories. Measured against the real library it keeps Western/War/Music/Horror/Documentary/History/Animation/Mystery/Family/Fantasy and drops Drama, Comedy, Thriller, Romance, Action, Adventure, Crime, Sci-Fi. **Decade is deliberately NOT capped** — it's the tier-1 easy way in, and "released in the 2020s" is a crisp checkable fact where "these four are Dramas" isn't.
-
-**Does Connections use user tags?** (asked, not a bug) — it uses `computeFlatKeywords`, i.e. TMDB keywords + AI keywords + the user's own `customKeywords`, minus `removedKeywords`. It does **not** use *viewing tags* (`settings.tags['viewing-tags']`, attached per-viewing), which are a separate concept in this app. Not changed — that's a feature decision, not a defect.
-
-**Not reproducible: Six Degrees' Spielberg report** — *"I use Steven Spielberg as a cast member and then it did not connect to the movie that Steven Spielberg directed."* Investigated against the REAL library rather than by inspection alone: built the actual `playGraph` and confirmed Blues Brothers resolves 66 people including Spielberg, and `moviesByPerson['Steven Spielberg']` resolves 32 films including the ones he directed. `pick()`'s auto-complete uses the uncapped graph, `usedMovieKeys` only holds chain movies, and suggestions aren't over-filtered. **No speculative fix was shipped.** Knowing which target movie she was heading for would make it findable.
-
-## Stamp (Aug 2026)
-
-Pick a keyword, then swipe through movies confirming or removing it. `stamp.js` (pure) + `StampGame.vue`.
-
-- **It works on KEYWORDS, not viewing tags.** Built against `rating.tags` first and that was wrong. Two different concepts live side by side: `rating.tags` (per-viewing, user-authored, assumed correct) and `movie.keywords`/`chatGPTKeywords`/`customKeywords`/`removedKeywords` (per-movie, mostly machine-authored — what this game tidies). Confirm which is meant before building.
-- **You judge blind** — no "already has it" marker; seeing the answer anchors the judgement. The reveal is the tally at the end.
-- **Writes are asymmetric**: a removed keyword may come from TMDB or the AI, so it can't be deleted — it goes on `removedKeywords`, which `computeFlatKeywords` subtracts. Re-adding just drops it from `removedKeywords`.
-- **Only writes when something changed** (`resolveSwipe` returns `added`/`removed`/`confirmed`/`declined`/`passed`; only the first two write), to leaf paths via `writeDurably`, reading the entry fresh from the store at decision time. Has undo.
-- **Candidate selection**: the movies already carrying the keyword ARE its definition; everything else is scored by resemblance (`affinityScore` — director 4, keyword 3, cast 2, genre 1, decade 1, with per-movie caps). A round is 6 tagged + 10 high-affinity + 4 random; the random ones are a deliberate control so the game can surface what the scoring is blind to.
-- Keyword eligibility is bounded 5-40 movies — one-movie keywords teach nothing, and "friendship" (359 movies) has no confirmable through-line.
-- **Card stack**: renders `stackDepth` cards deepest-first so the next posters are already decoded — the original one-card version waited on a network fetch per swipe. Commit on distance OR velocity (velocity measured over the tail of the gesture, so a long drag ending in a flick counts). `will-change` is scoped to the top card while dragging only.
-- **`transform` only, no `filter`/shadow** during drag — that combination left visual trails on a real device in Timeline.
-
-**Found here, applied globally: an invisible full-height overlay for a gesture will cover real content.** `BackLink`'s edge-swipe was a fixed 20px-wide div at `z-index: 500` that had been silently eating taps on the left-hand button of every game screen. It now listens on `window` and filters by where the touch started.
-
-Tests: `stamp.test.js`, `StampGame.test.js`.
-
-## Phantom scroll on every page (Aug 2026)
-
-Bug report: *"the content does not go below the bottom edge of the screen, but the page still can scroll down quite a bit. It seems like maybe we're forcing a height in here maybe that's because we wanted to get that footer bar to stay stuck to the bottom."* The diagnosis was exactly right.
-
-**13 components each declared `min-height: 100vh`** on their own root — every game, plus MovieDetail, TrophyCase and YearInReview. `.cinema-roll` is a flex column that already has `min-height: 100vh`, so the page came out as `header + a FULL viewport + footer`, i.e. roughly a header's worth of empty space to scroll through on **every one of those pages**, always.
-
-The rule meant to handle this, `.cinema-roll > router-view`, **never matched anything**: `<router-view>` renders the matched component *in its place*, so no `router-view` element exists in the DOM. It had been dead the whole time, which is why each page had grown its own `min-height` workaround.
-
-Fixed by wrapping `<router-view>` in `<main class="app-main">` (`display: flex; flex: 1 1 auto; flex-direction: column`) with `.app-main > * { flex: 1 1 auto }`, and deleting `min-height: 100vh` from all 13 components. The page now stretches to fill whatever is left below the header — same "footer at the bottom" result, no phantom scroll:
-- short content → total is exactly `100vh`, nothing to scroll
-- long content → total is the natural height, scrolls only as far as it needs
-
-Checked before shipping: the three surviving `height: 100%` rules in those components are all on images inside fixed-size parents (a timeline gap, the backdrop container, a poster box), so none relied on the page being a viewport tall; and every routed component is single-root, so `.app-main > *` can't split space between siblings.
-
-## Cost control pass (Aug 2026)
-
-Asked what was costing money and what would run away at scale. Audit findings and the first three fixes.
-
-### What every cold app launch used to cost
-| | per launch |
+External data: TMDB (movie metadata), a `film-awards-api` on Railway (Academy Awards),
+`src/assets/data/otherAwardsWinners.json` (Golden Globes / BAFTA / Cannes / Venice,
+scraped from Wikipedia wikitext), Letterboxd (scraping + deep links).
+
+## Layout
+
+- `src/components/` — Vue components (~40)
+- `src/components/games/` — the ten games
+- `src/assets/javascript/` — pure, store-free logic (search, rating, awards, games)
+- `src/mixins/` — `gameData.js`, `favoriteTuning.js`
+- `src/store/index.js` — Vuex + Firebase
+- `src/utils/` — IndexedDB queues, bug reports, small helpers
+- `src/test/` — ~79 Vitest files
+- `aws-lambda/` — the AI endpoint (separate deployable, not linted)
+- `scripts/` — db-rules generator, bug-report triage
+
+**Preference: extract pure logic into `src/assets/javascript/` and unit-test it directly**
+rather than only through component mounts. That's why `searchFiltering.js`,
+`entityCounts.js`, `tieBreakTournament.js`, `awardStats.js`, `storedEntry.js`,
+`syncStamp.js` and the games modules exist as separate files.
+
+## Commands
+
+| | |
 |---|---|
-| Firebase `movieLog` | **15.16 MB** |
-| Firebase `settings` | 0.44 MB |
-| Railway `/awards` | **5.25 MB** |
-| TMDB `/movie/{id}` | **98 sequential calls** |
-
-≈21 MB and ~100 API calls **per cold launch** (page reload or PWA open; in-app navigation is fine). Firebase RTDB gives 10 GB/month free then $1/GB, so 15.6 MB per launch is roughly **650 launches/month across all users** before it bills. **A quota cutoff would look exactly like the 1 Aug "banner shows but the movie list is empty" report** — worth checking the usage graph for that date if it recurs.
-
-### 1. The AI endpoint was unauthenticated
-`aws-lambda/claude-ai.js` had `Access-Control-Allow-Origin: *`, no auth and no rate limit — and its URL is baked into the public client bundle, so anyone could spend the Anthropic balance in a loop. Got riskier the day email/password signup shipped.
-
-Now verifies a **Firebase ID token** using node's built-in `crypto` (no `firebase-admin` dependency, ~40 lines; needs Node 18+ for global `fetch`, and the function runs `nodejs22.x`). Checks signature against Google's cached x509 certs plus `exp`, `aud` and `iss` — **the audience and issuer checks are load-bearing**: without them a valid token from *any* Firebase project would be accepted. Plus a per-container in-memory rate limit (20/min/user), which is a speed bump not a guarantee — Lambda runs many containers and each keeps its own counter. CORS was tightened too but is *not* the gate; it only constrains browsers.
-
-**API Gateway stage throttle (set Aug 2026):** the `$default` stage of `cinemaroll-ai-api` (HTTP API `2lyldox07e`) had **no throttle at all**, i.e. the AWS default of 10,000 req/s. Now `ThrottlingRateLimit=2`, `ThrottlingBurstLimit=10`. The sustained rate is what bounds spend; the burst only smooths legitimate spikes (several people starting a round at once), so widening burst costs nothing. Verified live: a burst of 30 produced 429s, a realistic burst of 5 passed clean.
-
-Two other bounds discovered while doing it, worth knowing:
-- **The AWS account's Lambda concurrency limit is 10** (not the usual 1,000), so at most 10 of these can run at once — a real throughput ceiling in its own right. It's also why reserved concurrency isn't usable here: AWS requires leaving ~100 unreserved.
-- Overflow beyond that surfaces as **503**, not 429. During testing, 503s looked like an application error until CloudWatch showed no lambda errors at all — worth remembering before chasing a phantom bug.
-
-**None of this is a spend cap.** Throttling limits RATE, not total: 2/s sustained is still ~172k calls/day. The only hard money ceiling is a **spend limit on the Anthropic API key** (console → Organization → Limits) plus an AWS budget alert. Both are console-only and were left for Matt.
-
-Client side, **`src/utils/aiRequest.js` is the only place that attaches the token**, so no caller can forget. It throws rather than firing a request that would 401 anyway.
-
-**Verified end-to-end, not just by unit test**: minted a real ID token via the Admin SDK + Identity Toolkit REST, then confirmed a valid token returns 200 with real keywords, and a forged token and a missing token both return 401. (The probe's throwaway auth user was deleted afterwards.)
-
-### 2. Two fetches that ignored their own caches
-- **`academyAwardWinners` had no persistence at all.** It enriches ~98 Best Picture winners with one TMDB call *each*, sequentially, and was guarded only on in-memory state — so all 98 ran on **every** cold launch. Now cached to IndexedDB under `'global'` (not user-specific). Only caches a non-empty result, so a failed fetch retries next launch.
-- **`allAcademyAwards` kicked off the cache read and the 5.25 MB network fetch in parallel.** The snapshot only ever won a race to first paint; the download happened regardless. Now awaits the cache and skips the fetch entirely on a hit. The old test asserted that race, so it was replaced with cache-hit / cache-miss tests — the race was the bug.
-
-Together these remove ~5.25 MB and ~98 API calls from every launch.
-
-### 3. Model choice is a cost decision
-All three routes were on **Opus** ($5/$25 per M tokens) for prompts that are just a title and a year. Now:
-- `keywords` → **Haiku 4.5** ($1/$5). Thematic labels; nothing to get factually wrong.
-- `context` / `trivia` → **Sonnet 5**. These have to be TRUE, and cheap models confabulate hardest on obscure factual recall. Trivia is *unverifiable to the player*, so a wrong "fact" quietly becomes part of the game. Still well below Opus.
-
-Dropping trivia to Haiku is a one-line further saving if quality holds up. Note the old ID `claude-opus-4-5` isn't in the current lineup.
-
-### Still outstanding: the scaling problem
-The library is re-downloaded in full on every launch, which is what makes cost scale linearly with launches (~2.3 TB/month at 1,000 users × 5 launches/day ≈ $2,300). Fixing it needs a compact index node (title/poster/rating/date — all the grid needs) with full entries loaded on demand. **Not yet done — deliberately scoped separately.**
-
-## Slimming the stored library (Aug 2026)
-
-The follow-on from the cost audit. The library was **15.2 MB re-downloaded on every cold launch**, which is what made Firebase cost scale with app opens rather than with users.
-
-### What was actually in it
-| | | |
-|---|---|---|
-| `movie.crew` | 7.39 MB | **49%** — 91 people/film |
-| `movie.cast` | 3.03 MB | 20% — 45/film |
-| `_search` | 0.98 MB | 6% |
-| everything else | 3.80 MB | 25% |
-
-**Half the database was crew nothing reads.** TMDB returns every credit — stunts, hairstylists, "Thanks" — and `AddRating` stored all of them.
-
-### The compact-index idea was wrong, and measuring caught it
-The first sketch was "store a small index (title/poster/rating) and load full entries on demand". That doesn't work: **search matches on cast names, crew names and keywords**, so an index like that can't support the app's most-used feature. Abandoned before any code was written.
-
-### What shipped: `src/assets/javascript/storedEntry.js`
-One definition of "trimmed", shared by the write paths and the migration.
-- **`KEPT_CREW_JOBS`** — substring matching, mirroring `getCrewMember`'s own loose matching ('Photo' catches "Director of Photography"). **Screenplay/Story/Novel are load-bearing, not extras**: `FavoriteWriters` and Home's crew grouping key off them, and **754 of 1,368 movies have no plain "Writer" credit at all**. Dropping them would have silently broken writer attribution for over half the library — caught by measuring, not by reading the code. Production Design / Costume Design / Casting are kept so those credits stay searchable.
-- **`RUNTIME_ENTRY_FIELDS` (`dbKey`, `_search`)** — injected when READING (the store's getter; Home's search memoisation) and written straight back by any code spreading a whole entry. ~1 MB of pure junk, uploaded and re-downloaded forever. Four `...this.result` writes in MovieDetail did this, and `addMovieRating`'s carry-over did it on every re-rate.
-- **`DERIVED_MOVIE_FIELDS` (`flatKeywords`)** — recomputed on load everywhere it's used (MovieDetail lines 824/1212), so storing it was redundant.
-
-**Cast is deliberately untouched.** Six Degrees walks the full billing list on purpose (see its uncapped `playGraph`), so trimming cast would regress a fix made specifically for that.
-
-### The migration
-"Slim down stored data" in Settings. Uses **multi-path `update()` with `null` values to DELETE paths** — the only way to remove a field without rewriting the whole entry, which is what created the problem in the first place. Batched (25/write) for the reason every migration here is batched. Idempotent: `collectEntriesNeedingTrim` returns nothing once done.
-
-**Measured against the real library: 15.20 → 9.49 MB, 38% smaller.** Free-tier headroom goes from ~674 to ~1,079 cold launches/month. A backup of the pre-migration library was taken to the session scratchpad.
-
-### Still not solved
-38% is a shave, not a fix — cost still scales linearly with launches. The real answer is **delta sync**: an `updatedAt` per entry, query only what changed since last sync against the IndexedDB snapshot that already exists. The hard part is **deletions** (a "what changed" query can't report absence, so it needs tombstones or a periodic full resync), plus setting `updatedAt` on every write path, of which there are now many. Deliberately not attempted — worth doing only if usage actually approaches the cap.
-
-## Delta Sync — phase 0 only (Aug 2026)
-
-The library is re-downloaded in full on every cold launch (9.49 MB after the trim above), which is what makes Firebase cost scale with app opens rather than with users. The fix is to fetch only what changed. **Phase 0 — recording what changed — has shipped. Nothing reads it yet.**
-
-### What phase 0 does
-**`src/assets/javascript/syncStamp.js`** (pure, store-free) decides how each write is performed:
-- Paths outside `movieLog` (settings, etc.) are untouched — settings are small enough to always fetch whole.
-- A **whole entry** (`movieLog/<key>`) gets `updatedAt` injected into the value and stays a `set()`. Ratings are the most critical write path in the app and `set()`'s replace-the-whole-entry semantics are what `addRating` and `deleteRating` both depend on, so that path's mechanics are left completely alone.
-- A **field inside an entry** becomes one atomic `update()` carrying both the field and the entry's `updatedAt`. It has to be a single round trip: stamping separately after a successful write means a failure between the two leaves the entry changed but *unstamped*, which is invisible and would hide it from every future sync.
-- A **deletion** becomes an atomic `update()` that removes the entry and writes a tombstone at `movieLogDeletions/<key>` together. A "what changed" query can report presence but never absence, so without tombstones a movie deleted on one device lingers on every other one forever.
-
-**The timestamp is `serverTimestamp()`, never `Date.now()`** — assigned by Firebase, so a device with a wrong clock can't hide a movie from itself. This also means a write queued offline for hours is stamped when it actually lands, not when it was made.
-
-### Why this needed almost no call-site work
-**All 58 movieLog writes funnel through four store actions, which collapse into two chokepoints** — `performDatabaseWrite` (behind `setDBValue`/`writeDurably`/`writeDatabaseEntryNow`) and the `update()` inside `updateDatabaseEntriesNow`. Stamping in the plumbing rather than at the call sites means no caller *can* forget, which is what made "every write path must set `updatedAt`" tractable instead of a 15-file audit.
-
-### Traps, all confirmed live against the sandbox
-Verified with a throwaway Firebase Admin SDK probe (written into `scripts/`, run, then deleted — the admin SDK can't resolve from the scratchpad, see the awards-fixtures note above), writing only under `testing-database/movieLog/__syncProbe_*` and cleaning up after itself:
-- **Overlapping paths are genuinely rejected.** `update({'movieLog/k': null, 'movieLog/k/updatedAt': TS})` fails outright — *"values argument contains a path /movieLog/k that is a parent of another"*. So the "never stamp a deletion" guard in `stampPlanForWrite` is load-bearing, not defensive. And had Firebase accepted it, the entry would have come back as a bare timestamp and nothing else.
-- The server sentinel (`{'.sv': 'timestamp'}`) **survives `removeNaNAndUndefined`**, which recurses through the whole payload — its only leaf is a string, so nothing is stripped. Pinned by a test.
-- `update()` **replaces at each named path** rather than merging into it (a field write doesn't clobber its siblings, and a whole-array write really does replace the array). Already relied on by the trim migration; now confirmed directly.
-
-### The index — the thing that makes any of this pay off
-`scripts/generate-database-rules.mjs` now emits `.indexOn: ["updatedAt"]` under `$topKey/movieLog`. **Without it the delta query does not fail — Firebase downloads the entire node, filters client-side, and logs only a console warning.** The data would be correct and the saving would be exactly zero. It rides along on the same pending `firebase deploy --only database` as the locked-down rules, so phase 1 doesn't need a second deploy.
-
-### Backfill
-Settings → **"Add change timestamps"** (`Home.backfillSyncStamps`, batches of 100 through `updateDatabaseEntriesNow`). Strictly optional — an unstamped entry is simply never returned by a delta query, which is correct as long as the local snapshot already holds it — but a uniform library removes a whole category of "why is this movie invisible to sync" reasoning. Local state is deliberately NOT committed: the real timestamps arrive via the `onValue` listener, and committing the placeholder would put a value in state that was never stored.
-
-### Phases 1-3 — deliberately NOT built
-Parked at Matt's request until he's at his desk (~2026-08-18). **The reason for staging is that the failure mode here is invisible**: a bug doesn't throw, it shows a stale rating or silently omits a movie — the same shape as the Jul 2026 data-loss scare. Phase 0 was safe to ship precisely because nothing reads it, so a mistake costs a stray field.
-- **Phase 1 — shadow mode.** After the index deploys, run the delta query AND the full download on launch, compare, report divergence, act on neither. Proof before trust.
-- **Phase 2 — enable** behind a setting, with a "force full refresh" button and an automatic full resync every N days so staleness can't accumulate unboundedly.
-- **Phase 3 — default on.**
-
-Design notes for whoever picks this up:
-- **Tombstones are advisory, compared by time, not applied blindly.** Apply a deletion only when `movieLogDeletions/<key> > movieLog/<key>/updatedAt`. That way re-rating a previously deleted movie wins naturally on its newer timestamp, so nothing ever has to clear a tombstone — which would otherwise need to be atomic with the entry write and can't be, given `set()` is what that path uses.
-- **`lastSync` must be the maximum `updatedAt` actually received**, never a local clock reading — that's what keeps clock skew out of it entirely.
-- **`lastSync` and the IndexedDB snapshot must be stored and invalidated together.** If the snapshot is ever lost while `lastSync` survives, a delta fetch returns almost nothing and the library looks empty.
-- The listener currently *replaces* `movieLog` wholesale; a delta listener must *merge*, which touches the same code as `reapplyInFlightWrites`' clobber protection.
-- Tombstones grow forever (~40 bytes each). Fine at any realistic scale, but prunable once every device has certainly synced past them.
-- **Not urgent.** After the trim, the free tier allows ~1,079 cold launches/month against a handful of real users. This is insurance against growth.
-
-Tests: `src/test/syncStamp.test.js` (24, pure — path classification, all four write shapes, the no-stamp-on-deletion guard, batch stamping incl. the overlapping-path avoidance, backfill collection). `src/test/flushPendingWrites.test.js`'s `change tracking on every library write` block (8, against the real store — the actual Firebase call shapes, including that queued offline writes are stamped at flush time and that the sentinel survives the scrubber). Note every `vi.mock('firebase/database')` factory now needs a `serverTimestamp` export or the store import fails.
-
-## Two bug reports + a broken admin script (Aug 2026)
-
-### The Games button did nothing — a permanently self-perpetuating dead button
-Report: *"the games button isn't working. I can click on other things but the games button does nothing."*
-
-**Root cause: `goToGames()` validated only that the stored path STARTS WITH `/games/`, never that the route still exists — and there is no catch-all route.** Confirmed live against the deployed build: navigating to `/games/rate-off` (removed in Jul 2026) changes the URL and renders **nothing** — header over a blank page, no error, no login redirect. `/games/quiz` (Taste Quiz) was deleted the same way.
-
-**What made it nasty rather than cosmetic:** `LAST_PLAYED_KEY` is only ever overwritten by successfully visiting *another* game — which this button is the way you'd reach — and only cleared by visiting the hub, which the button also wouldn't take you to. So once it pointed at a removed game it could never heal on its own.
-
-Fixed in two layers, deliberately both:
-- **`lastPlayedGamePath(router)`** (new, in `gameData.js`, shared by `goToGames` and `gamesButtonIcon`) returns the stored path only if it still exists, and **clears a stale value on the way out** so the button self-heals. Checks `router.getRoutes()` for an exact path match rather than `router.resolve()`, which now *always* matches because of the catch-all below.
-- **A catch-all route** (`/:pathMatch(.*)*` → redirect `/`). The blank-page-on-unmatched-path behaviour was never specific to games — any stale bookmark or old link hit it.
-
-**Test-harness note:** `GamesNavigation.test.js`'s mock `$router` was `{ push }` only; it now needs a `getRoutes()` that deliberately OMITS the removed games, which is the seam the bug lived in. A mock that returns every path would pass against the broken code.
-
-### `.end-actions` sat flush against the revealed poster
-Report: *"When you win in real Wordle, we need a little bit of padding above the new game or back to games button."* The shared `.end-actions` rule (`_game-buttons.scss`) had `margin: 0 auto` — no top margin — so in Wordle it butted straight up against `.reveal-poster`. Fixed once in the shared partial (`margin: 1rem auto 0`) rather than per-game, since all 8 games use it and several others also follow it with a poster.
-
-### `yarn fetch-bug-reports` / `yarn resolve-bug-report` were unrunnable
-Both used Node's native `--env-file` flag, which needs **Node 20.6+** — but this repo is pinned to **18.18** (`.tool-versions`, and CI's `node-version: 18`, for the reasons already documented under the ESLint 9 and `firebase-admin` notes). They failed outright with `bad option: --env-file`. Replaced with **`scripts/loadEnvLocal.mjs`**, a few lines that parse `.env.local` directly (a real env var still wins, so a one-off override works). Deliberately not a `dotenv` dependency for one gitignored file read by two scripts.
-
-**If an admin script ever hangs for minutes with no output, check the `databaseURL` first** — a wrong one (this project is `movie-log-8c4d5`, and the service-account key's `project_id` confirms it) doesn't error, it just retries the connection forever.
-
-### Verifying an authenticated write without signing in (Aug 2026)
-Automated sessions can't sign in, but they *can* run the app against `testing-database` end-to-end **while the DB rules are still open**:
-
-1. Load the app once and let it mount.
-2. `localStorage.setItem('databaseTopKey', 'testing-database')`. The router's `loggedIn()` guard reads only that key — no Firebase token is involved, and with `devMode` false the `databaseTopKey` getter returns it directly, so the whole app runs against the sandbox branch.
-3. Navigate by **hash only** (`location.hash = '#/'`). Do NOT reload: `verifyRestoredSession` runs in `App.vue`'s `mounted` and correctly wipes a stored key that has no matching Firebase session, which sends you straight back to `/login`.
-4. Drive the real UI, then verify **server-side** with the Firebase Admin SDK against `testing-database/...` rather than trusting the DOM.
-5. Clean up: revert any sandbox mutation and clear the key.
-
-Used this to close the one gap the unit tests couldn't: that a real whole-entry write through the live client SDK stamps `updatedAt` with a server number, advances it past the prior value, and leaves `ratings` an array / `crew` intact / no `dbKey`-`_search` junk written back.
-
-**This stops working the moment the locked-down rules deploy** — `testing-database` then requires `auth.token.email` sanitized to equal the branch name, so it needs a real session plus the in-app dev-mode toggle. Worth doing any authenticated-write verification BEFORE that deploy.
-
-## Games hub redesigned around the banner art (Aug 2026)
-
-Feedback: *"it's just a fairly basic list of them all stacked. I think we could do something nicer for each of them and maybe make it a bit more compact."*
-
-Every game already had bespoke banner artwork — its own icon, palette and slab-serif name — that it swaps into the header on entry. The hub was showing a generic amber Bootstrap icon instead and ignoring all nine. So the tiles now use that art.
-
-- **One column of icon+name+paragraph → a two-column grid of 16:9 art tiles**, going 3-up at 600px and 4-up at 900px. Two across even on a phone: nine stacked full-width tiles were most of the old page's height, and the art stays legible at half width (~173px).
-- **No name is overlaid on the art.** The artwork already carries the game's name; adding our own label would sit a second copy directly on top of the first.
-- **Captions cut to one short line each** ("Which movie scored higher?"), which is what actually keeps every tile the same height and the grid even.
-- **Won-today checkmark** moved onto the art as a corner badge, on a dark disc so it stays legible over any of the nine palettes. Still green rather than amber, still purely a marker that never gates play.
-
-Two things measured rather than assumed while building it:
-- **A 2:1 crop with `object-position` was tried and rejected** — it only saved 78px and risked cutting the composition of nine differently-laid-out banners (Trivia's "?" is top-left, Timeline's hourglass is left with the name bottom-right, etc.).
-- **Reserving two caption lines was tried and rejected** — it left visible dead space under every one-line caption, 75px across the grid. The `-webkit-line-clamp: 2` stayed as a safety net for very narrow screens, but nothing reserves the space up front.
-
-A screenshot suggesting the right column ran off-screen turned out to be a **screenshot-scaling artifact**, not a layout bug — `document.scrollWidth === clientWidth` throughout. Worth measuring before chasing.
-
-Test note: `GamesHub.test.js` identified tiles by `.game-tile-name`, which no longer exists. It now reads the artwork's `alt` (the game name), which is the accessible equivalent.
-
-## Poster Zoom (Aug 2026)
-
-The tenth game, added so the hub grid is two full columns. A poster opens at an extreme crop and zooms out a step at a time until you name it; fewer zoom-outs is a better score. `posterZoom.js` holds the ladder, focal-point selection, crop geometry and scoring; the component turns those into CSS.
-
-**Current shape:** ladder `[16, 11, 7.5, 5, 3.4, 2.3, 1.6, 1]`, posters fetched at TMDB's `original`, tap the poster to zoom out, "Give up" as an understated link, and a win outlines the region you actually saw.
-
-### Things that cost real time — don't redo them
-- **Tightened three times** (4.5x → 8x → 16x) because each opening was still guessable. Going tighter costs sharpness, which is why the fetch moved to `original` (measured across ten library posters: 1000x1500 to 2000x3000, vs w780's fixed 780x1170; the big ones are 1-2MB).
-- **A random focal point is unplayable at these zooms** — sampled crops came back as flat sky or a plain black rectangle. Candidates are now scored against the real pixels (`zoomOriginCandidates` + `pickMostInterestingOrigin`, with the component supplying a canvas-based variance sampler) and the sampling canvas scales with the opening zoom. Best-effort: any failure falls back to a random point.
-- **TMDB image CDN DOES send `access-control-allow-origin`.** An earlier note here claimed otherwise and called pixel inspection impossible. The load that "proved" it failed only because the image was already cached from a no-cors request, and Chrome won't reuse that entry for a CORS-mode request. **A failed CORS image load is not evidence about the server's headers — check them with `curl -I -H "Origin: ..."`.** The display `<img>` also sets `crossorigin` so both share one cache entry.
-- **Fitting on a phone took four attempts.** A 300px-wide 2:3 poster is 450px tall on its own. A `vh` fraction can't work — it has no way to know the header banner's height, which is 16:9 of the SCREEN WIDTH on a phone. `height: 100%` on a flex-sized row silently does nothing (a flex-determined height isn't definite enough for a percentage). Cross-axis `stretch` sets the height but lets flex pick the width, giving a landscape box from a 2:3 ratio. **What works:** cap the root to a JS-measured available height, and set the poster's `max-height` from the measured stage height — capping by height is what makes `aspect-ratio` derive the width. The measurement subtracts everything rendered below (an early version missed the app footer exactly).
-- **Any check of this screen's height MUST force the mobile header** (`.random-banner { display: flex }`, `.top-posters { display: none }`, container at 390px). `.random-banner` is `display: none` above 600px, so a desktop-width measurement is of a layout no phone ever sees — this produced a confident "it fits" that was wrong by 240px.
-- **The poster gave itself away twice.** The `transform` transition animated from the previous round's revealed `scale(1)` up into the new tight crop; and even fixed, the crop jumped when scoring resolved. Reveal is gated on `posterReady = imageLoaded && originSettled`, and the transition only exists on `.zoom-image.ready`. A resumed round sets `originSettled` immediately.
-- **A dead poster URL** used to render as a black square you were asked to identify. A failed load adds the movie to `failedPosterKeys` (filtered out of `zoomablePool`) and deals another; it can't loop, since the pool is finite and the gate takes over.
-- **Rotation left the poster shrunk.** A rotation settles over a few hundred ms, so measuring at the event catches it mid-flight — `remeasureAfterSettling` re-measures at 50/150/400/800ms. And the stale value had nothing to correct it: **capping the poster smaller doesn't change the body's size**, so a `ResizeObserver` on `document.body` goes quiet. It also watches the stage, whose growing back to fill leftover space is the signal the body can't provide.
-- **The winning crop outline**: `cropRectFor(index, origin)` — with `scale(Z)` about origin `o`, the visible window is `1/Z` wide starting at `o·(1 − 1/Z)`. The box is 2:3 rather than square because that's the shape of the viewport it was seen through. Dim outside is one spread `box-shadow` clipped by `overflow: hidden`. Delayed 0.5s past the zoom-out so it lands as a second beat, and skipped when the win came from the fully-zoomed-out step.
-
-Tests: `posterZoom.test.js` (pure), `PosterZoomGame.test.js`.
-
-### Tiebreak nudge halved to -0.05 per rank (Aug 2026)
-Report: *"I feel like I just did a tiebreaker tournament and now I'm presented with a new tiebreaker tournament that has a lot of the same movies in it."* A tournament resolves a tie by nudging losers DOWN — into whatever scores sit below them, where landing on an occupied 0.01 slot manufactures a fresh tie containing some of the same movies.
-
-**The trap: `tweakDeltaForRank` is not a score delta.** `tweakValue` is added to `overall`, which is weighted (2) and divided by 10 — the visible score moves by a FIFTH of the tweak, and `calculatedTotal` rounds to 2dp. So -0.05 is the smallest step that shifts the displayed score at all (exactly 0.01); the user's literal ask of "-0.01" would have moved the score by 0.002, vanished in rounding, and made the same tournament recur forever.
-
-Halved from -0.1 (a 0.02 score step) to -0.05 (0.01). This makes collisions rarer, not impossible — ~1,300 movies share a few hundred 0.01 slots, so any fixed step can land on an occupied one. **Deliberately NOT hunting for an unoccupied slot**, per Matt: ties derived from these nudges are acceptable, they should just happen less often.
-
-### Clue Budget fitted to one phone screen (Aug 2026)
-Report: *"so many different things you can buy that it having a scroll on my phone... maybe the buttons could be smaller. We can do three across or something."*
-
-There are **19 clue chips**, which is more than the report implies and more than three-across can absorb — measured, three-up still ran 251px past a 664px viewport. What actually got there, in order of how much each saved:
-
-- **Shop 360px → 191px**: four across (six at ≥600px), chip `min-height` 46 → 34, smaller label/cost type, tighter gap. Labels wrap to two clamped lines rather than ellipsing — the whole word is more use than a truncated one, and the fixed height absorbs the extra line so the grid stays even.
-- **"Production Company" → "Studio"** in `clueBudget.js`. The app already says "studios" everywhere else, and it was the longest label by some way.
-- **Subtitle 76px → 24px**: it wrapped to three lines, then still carried 1.75rem of combined margin on a single line. The budget row directly below already shows the amount, so the sentence doesn't repeat it.
-- **Give-up moved out of the shop grid** into an understated link (matching Reel Wordle's and Poster Zoom's) — it isn't a purchase, it ends the round, and it was occupying a chip slot.
-
-**Superseded the same day** — see below; four-across made the chips too small to tap, so the deck was cut instead.
-
-**It fits exactly at a 664px viewport** — a real phone PWA has more room. Note it only holds at the *start* of a round: `.purchased-clues` grows as you buy, which is inherent to accumulating information rather than a layout bug.
-
-**Watch out when editing this file's CSS with a regex** — `.game-subtitle` uses separate `margin-top`/`margin-bottom`, so a substitution targeting `margin:` matches nothing and silently reports success.
-
-### The update banner was racing the service worker (Aug 2026)
-Report: *"I didn't get my refresh for new version banner. Did we lose that?"* Nothing was lost — it was losing a race it can't reliably win.
-
-**`vue.config.js` sets `skipWaiting: true` (and `clientsClaim: true`), which is fundamentally at odds with a "click Refresh to update" prompt.** The banner is driven by `registerServiceWorker`'s `updated()` hook, which only fires while a new worker sits in the `installed` state — but `skipWaiting` means the worker activates itself immediately instead of waiting for the user. So the hook fires or doesn't depending on timing: you get the new version either way, you just aren't reliably told.
-
-**Fix (deliberately the conservative one):** `App.checkDeployedBundle()` compares the `app.<hash>.js` filename the server is serving against the one THIS page actually loaded, and flags an update on a mismatch. It doesn't depend on worker state at all. It piggybacks on `checkForServiceWorkerUpdate`'s existing four triggers (`visibilitychange`/`pageshow`/`focus`/30-min interval) rather than adding its own cadence, and no-ops once the flag is already set.
-
-**The cache-busting param is load-bearing.** Workbox precaches `index.html` and only strips params matching `ignoreURLParametersMatching` (`utm_`, `fbclid`), so an arbitrary `?updateCheck=<ts>` misses the precache entry and reaches the network — which is the entire point of the check.
-
-**NOT done, and the better fix if this is ever revisited:** set `skipWaiting: false` so the worker genuinely waits, making the banner reliable by construction. That requires rewriting the Refresh button too — with a waiting worker, a plain `location.reload()` updates nothing, since it only activates once every tab closes; it would need to post `SKIP_WAITING` and reload on `controllerchange`. Left alone deliberately: getting it wrong strands users on a stale build, and it wants testing on a real device.
-
-Test note: `App.test.js` uses `shallowMount` and stubs `addEventListener`, because App is the root component and never removes its listeners — real mounts leak handlers across tests in that file. Also, bundle-hash fixtures must be **lowercase hex**; the matcher is `[a-z0-9]+` and an uppercase fixture silently fails to match.
-
-### Clue Budget: back to three across, with a shorter deck (Aug 2026)
-Follow-up report: *"the buttons are too small now. Let's go with three buttons per row. If that's going to make the layout too tall we could lose some of the lesser categories."*
-
-Four-across fitted but the chips were ~86px wide, which isn't a comfortable target. Three across only fits if the deck is shorter, so **the deck was cut from 20 possible clues to 12** rather than shrinking the buttons further.
-
-**Cut** (the least likely to identify a film): Exact Year (Decade already covers the era, cheaper), Studio, Producer, Editor, Cinematographer, plus cast 4 → 2 and keywords 3 → 2. **Kept**: Decade, Runtime, Genres, Your Rating, Keyword ×2, Composer, Tagline, Writer, Director, Cast ×2. Twelve is four rows of three, the worst case, which still fits unscrolled. Chips are now 115×42 — 40px `min-height` is the usual minimum touch target.
-
-Removing the Studio clue also removed the only consumer of `fetchCompanyRarity`, so that TMDB request per round is gone with it (`priceFromCompanyRarity` is kept and still tested — it's a pure exported helper).
-
-**A regex nearly ate the wrong clues.** Deleting the blocks with a pattern that walked backwards from each `clues.push` silently swallowed the neighbouring `yourRating` and `composer` blocks too, because they sit directly adjacent. Caught by listing the surviving pushes rather than trusting the edit. Match the exact literal blocks instead.
-
-### Clue Budget: deck back up to 15, chips at 46px (Aug 2026)
-Follow-up: *"We have plenty of room. There are only 8 clues to buy now. We could easily fit 15. And I think you need to account for the fact that tagline isn't always present."*
-
-The previous cut to 12 was too deep, for two reasons worth recording:
-
-- **The 664px test viewport was a desktop window, not a phone.** Matt's device is 812pt tall, so the installed PWA has roughly 750px — about 90px more than I was budgeting against. Measuring in that window is right for catching gross overflow, but it is NOT the real ceiling.
-- **A round rarely offers the theoretical maximum.** Tagline is fetched live and often absent, and crew completeness across the 1,368-movie library measures: director 100%, writer 96%, cinematographer 94%, cast≥3 97%, keywords≥3 94%, composer 85%. So a "12 max" deck plays as ~10.
-
-**Restored**: Exact Year, Cinematographer (94% available, and a genuinely hard clue rather than filler), and a third cast member (97%). Max is now 15 = five rows of three, measured at 728px total — fits a real phone, does not fit the 664px test window. Chips are 115×46.
-
-**Still cut**, as the least identifying: Studio, Producer, Editor. `priceFromCompanyRarity` remains exported and tested even though nothing calls it.
-
-### Clue Budget: the shop now fills to 15 (Aug 2026)
-Follow-up: *"It shows 10 clues now. Can't we get it to always be 15?"*
-
-Capping by clue TYPE can't do it, because the types are patchy — tagline is fetched live and often absent, and across the 1,368-movie library composer sits on 85%, cinematographer 94%, writer 96%. So a "15 max" deck routinely played as 10.
-
-`buildClueDeck` now **tops up to `TARGET_CLUE_COUNT` (15)** from the two lists that run deep: 94% of the library has 8+ cast, 85% has 6+ keywords. Extras alternate cast/keyword so neither takes over, and are priced by continuing each list's own direction — cast cheaper further down the billing, keywords dearer as they get nicher — with a floor and ceiling so the top-ups don't run away.
-
-**Measured across the whole real library, worst case (no tagline, no live pricing): 94% of movies now yield a full 15.** The remaining 6% genuinely lack the data.
-
-**Cast and keywords are no longer capped at a fixed count** — the cap is the deck as a whole. The old per-type cap tests were rewritten accordingly, and cost-ordering assertions became `<=`/`>=` because top-up entries share a floor/ceiling rather than continuing to diverge.
-
-Measuring this needed a detour: the library dump runs through `firebase-admin` (CommonJS) but `clueBudget.js` is ESM, and Node treats `.js` as CJS here since `package.json` has no `type: module`. Two steps — dump to JSON with plain Node, then read it from a throwaway **vitest** file, which handles the ESM. Both removed afterwards.
+| `yarn serve` | dev server — **the user runs this, not you** |
+| `yarn test:run` | run tests (use this to verify) |
+| `yarn test:coverage` | coverage |
+| `yarn lint` / `yarn lint:fix` | `eslint .` (flat config, not vue-cli-service) |
+| `yarn build` / `yarn deploy` | build / deploy to AWS S3 + CloudFront |
+| `yarn generate-db-rules` | regenerate `database.rules.json` — never hand-edit it |
+| `yarn fetch-bug-reports` | unresolved in-app bug reports, newest first |
+| `yarn resolve-bug-report <id…>` | mark reports resolved |
+
+### Versioning — apply real judgment
+
+`yarn build`/`yarn deploy` bump the version. Non-interactively this **defaults to PATCH**,
+which silently pushed the patch number past 100 before anyone noticed. Set it explicitly:
+
+```
+VERSION_BUMP=minor yarn deploy
+```
+
+PATCH for fixes and tweaks; MINOR for a genuine new user-facing capability (a new game, a
+new section, offline support); MAJOR only for a breaking change. When in doubt, patch.
+
+**After deploying, always tell the user the resulting version.**
+
+## Environment
+
+- `VUE_APP_GOOGLE_API_KEY` — Firebase/Google
+- `VUE_APP_TMDB_API_KEY` — The Movie Database
+- `VUE_APP_ENABLE_APPLE_SIGNIN` — leave unset until Apple sign-in is configured
+- `FIREBASE_ADMIN_KEY_PATH` in `.env.local` (gitignored) — for the triage scripts
+
+## Open work
+
+- **⚠️ Tightened Firebase database rules are written but NOT deployed.** The deploy order
+  matters and getting it wrong shows live users an empty library. See
+  `.claude/rules/auth-and-db-rules.md`. **Never deploy these unsupervised.**
+- **Delta sync phases 1–3 are parked.** Phase 0 (recording `updatedAt` + tombstones)
+  shipped; nothing reads it yet. Design notes in `docs/history/data-and-offline.md`.
+- **Locations/maps was built and removed.** Read `docs/history/geography-removed.md`
+  before any second attempt — the research is expensive to redo.
+- Known issues: rating a perfect 10, database sharding as the library grows.
+
+## Testing against real data
+
+Use the Firebase `testing-database` path (via the in-app dev-mode toggle) for anything
+that mutates data. **Never use the real account for that.**
