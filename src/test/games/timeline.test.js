@@ -47,12 +47,52 @@ describe('isValidPlacement', () => {
     expect(isValidPlacement(timeline, 2, entry(2020))).toBe(true);
   });
 
-  it('treats a tie year as valid on either side of the matching boundary', () => {
+  it('treats an identical release date as valid on either side of the matching boundary', () => {
     const timeline = [entry(1990), entry(2010)];
-    // Same year as the right neighbor — valid whether placed just before or
-    // (per the next test) effectively at that same boundary.
+    // entry() gives every fixture the same June 15 date, so a same-year
+    // candidate here is an exact-date tie — valid in either relative order.
     expect(isValidPlacement(timeline, 1, entry(2010, 'dup-a'))).toBe(true);
     expect(isValidPlacement(timeline, 0, entry(1990, 'dup-b'))).toBe(true);
+  });
+
+  describe('same-year, different-month placements (bug reports: Moana credited after Rogue One; Gladiator II accepted before Flow)', () => {
+    // Real dates from the reports: Moana 2016-10-23, Rogue One 2016-12-14;
+    // Flow 2024-08-29, Gladiator II 2024-11-13.
+    it('rejects placing an earlier-month movie after a later-month movie of the same year', () => {
+      const rogueOne = dateEntry('rogue-one', '2016-12-14');
+      const moana = dateEntry('moana', '2016-10-23');
+      expect(isValidPlacement([rogueOne], 1, moana)).toBe(false);
+      expect(isValidPlacement([rogueOne], 0, moana)).toBe(true);
+    });
+
+    it('rejects placing a later-month movie before an earlier-month movie of the same year', () => {
+      const flow = dateEntry('flow', '2024-08-29');
+      const gladiator2 = dateEntry('gladiator-2', '2024-11-13');
+      expect(isValidPlacement([flow], 0, gladiator2)).toBe(false);
+      expect(isValidPlacement([flow], 1, gladiator2)).toBe(true);
+    });
+
+    it('correctSlotIndex points at the month-correct slot within a same-year run', () => {
+      const timeline = [dateEntry('a', '2016-03-04'), dateEntry('b', '2016-12-14')];
+      expect(correctSlotIndex(timeline, dateEntry('c', '2016-10-23'))).toBe(1);
+    });
+
+    it('same year and month but different days orders by day', () => {
+      const early = dateEntry('early', '1994-03-04');
+      const late = dateEntry('late', '1994-03-25');
+      expect(isValidPlacement([late], 1, early)).toBe(false);
+      expect(isValidPlacement([late], 0, early)).toBe(true);
+    });
+
+    it('a year-only release date still ties with any full date in that year', () => {
+      const bareYear = { dbKey: 'bare', movie: { release_date: '2016-06-15' } };
+      // '2016-06' fails the strict YYYY-MM-DD parse (so no month precision
+      // via releaseDateParts) but still yields year 2016 through movieYear —
+      // a bare '2016' would hit the UTC-rollover pitfall and read as 2015.
+      const yearOnly = { dbKey: 'y', movie: { release_date: '2016-06' } };
+      expect(isValidPlacement([bareYear], 0, yearOnly)).toBe(true);
+      expect(isValidPlacement([bareYear], 1, yearOnly)).toBe(true);
+    });
   });
 
   it('accepts any slot on an empty timeline', () => {

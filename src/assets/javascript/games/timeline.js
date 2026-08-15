@@ -5,24 +5,30 @@ import { movieYear, entryKey } from './gameUtils.js';
 // guessing where each new (year-hidden) card belongs relative to the ones
 // already placed. See CLAUDE.md for the full design writeup.
 //
-// `timeline` is always kept in ascending-year order by the component (a
-// correct placement is inserted exactly where it was guessed, which by
-// definition keeps it sorted) — these functions assume that invariant
-// rather than re-sorting, so callers must not hand them an unsorted array.
+// `timeline` is always kept in ascending release-date order by the
+// component (a correct placement is inserted exactly where it was guessed,
+// which by definition keeps it sorted) — these functions assume that
+// invariant rather than re-sorting, so callers must not hand them an
+// unsorted array.
 
-// Ties count as valid on either side of the boundary — the player only ever
-// sees a YEAR (not an exact release date), so two movies from the same year
-// placed in either relative order should both read as "correct," matching
-// the physical board game's own same-year tie handling.
+// Placement compares FULL release dates, to the precision both sides carry.
+// This used to compare years only ("the player only ever sees a YEAR"), but
+// formatTimelineDate below escalates the display to month/day when years
+// collide — so a same-year pair placed in the wrong month order was marked
+// correct while the on-screen dates plainly showed it wasn't (two separate
+// bug reports: Moana placed after Rogue One, Gladiator II before Flow).
+// Ties still count as valid on either side of the boundary, but only when
+// the dates are equal at the precision available — matching what the
+// player can actually see.
 export function isValidPlacement (timeline, slotIndex, candidateEntry) {
-  const candidateYear = movieYear(candidateEntry);
-  if (candidateYear == null) return false;
+  const candidate = comparableDate(candidateEntry);
+  if (candidate == null) return false;
 
-  const beforeYear = slotIndex > 0 ? movieYear(timeline[slotIndex - 1]) : null;
-  const afterYear = slotIndex < timeline.length ? movieYear(timeline[slotIndex]) : null;
+  const before = slotIndex > 0 ? comparableDate(timeline[slotIndex - 1]) : null;
+  const after = slotIndex < timeline.length ? comparableDate(timeline[slotIndex]) : null;
 
-  if (beforeYear != null && candidateYear < beforeYear) return false;
-  if (afterYear != null && candidateYear > afterYear) return false;
+  if (before != null && compareReleaseDates(candidate, before) < 0) return false;
+  if (after != null && compareReleaseDates(candidate, after) > 0) return false;
   return true;
 }
 
@@ -57,6 +63,26 @@ function releaseDateParts (entry) {
   const match = typeof raw === 'string' && /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
   if (!match) return null;
   return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+}
+
+// Full date parts where the entry carries a parseable "YYYY-MM-DD", else a
+// year-only reading (some TMDB dates are bare years), else null.
+function comparableDate (entry) {
+  const parts = releaseDateParts(entry);
+  if (parts) return parts;
+  const year = movieYear(entry);
+  return year == null ? null : { year, month: null, day: null };
+}
+
+// Comparator over comparableDate() values — negative/zero/positive — that
+// only compares as deep as BOTH sides have precision: a year-only date ties
+// with any date in that year rather than inventing an ordering.
+function compareReleaseDates (a, b) {
+  if (a.year !== b.year) return a.year - b.year;
+  if (a.month == null || b.month == null) return 0;
+  if (a.month !== b.month) return a.month - b.month;
+  if (a.day == null || b.day == null) return 0;
+  return a.day - b.day;
 }
 
 // How much date precision an entry needs to display to stay unambiguous
