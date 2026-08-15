@@ -171,8 +171,10 @@ export default {
     .cinemaroll-modal-header {
       /* The base modal's 1rem header padding stacked with the page's own
          top spacing — most of the "way too much space below the header"
-         gap (feedback, twice). */
-      padding: 0 1rem;
+         gap (feedback, twice). 4px horizontal so header cards line up
+         exactly with the body's category buttons (screen 1rem + 4px),
+         per feedback; the centered title text doesn't care. */
+      padding: 0 4px;
     }
 
     .cinemaroll-modal-body {

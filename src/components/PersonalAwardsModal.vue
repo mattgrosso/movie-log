@@ -17,10 +17,10 @@
             <h6 class="new-movies-title">
               <i class="bi bi-stars"></i>
               New movies to consider
-              <span class="new-movies-count">{{ newMoviesForCurrentYear.length }}</span>
             </h6>
             <div class="new-movies-row">
-              <div v-for="entry in newMoviesForCurrentYear" :key="entry.movie.id" class="new-movie-card">
+              <!-- Bare posters, titles as tooltips only (feedback) -->
+              <div v-for="entry in newMoviesForCurrentYear" :key="entry.movie.id" class="new-movie-card" :title="entry.movie.title">
                 <img
                   v-if="entry.movie.poster_path"
                   :src="`https://image.tmdb.org/t/p/w185${entry.movie.poster_path}`"
@@ -28,10 +28,6 @@
                   class="new-movie-poster"
                 >
                 <div v-else class="new-movie-poster new-movie-poster-blank">{{ entry.movie.title }}</div>
-                <div class="new-movie-caption">
-                  <span class="new-movie-name">{{ entry.movie.title }}</span>
-                  <span class="new-movie-rating">{{ mostRecentRating(entry).calculatedTotal }}/10</span>
-                </div>
               </div>
             </div>
             <small class="new-movies-footnote">
@@ -2188,16 +2184,6 @@ export default {
       }
     }
 
-    .new-movies-count {
-      background: rgba(255, 215, 0, 0.15);
-      border-radius: 999px;
-      color: #ffd700;
-      font-size: 0.75rem;
-      font-weight: 700;
-      line-height: 1;
-      padding: 0.25rem 0.5rem;
-    }
-
     .new-movies-row {
       /* House poster-row shape: fixed image heights, tops and bottoms
          aligned, captions flow freely below, horizontal scroll as needed. */
@@ -2231,26 +2217,6 @@ export default {
       justify-content: center;
       padding: 0.25rem;
       text-align: center;
-    }
-
-    .new-movie-caption {
-      display: flex;
-      flex-direction: column;
-      margin-top: 0.35rem;
-      row-gap: 0.1rem;
-      text-align: center;
-    }
-
-    .new-movie-name {
-      color: #eee;
-      font-size: 0.75rem;
-      font-weight: 600;
-      line-height: 1.25;
-    }
-
-    .new-movie-rating {
-      color: #ffd700;
-      font-size: 0.7rem;
     }
 
     .new-movies-footnote {
