@@ -80,7 +80,7 @@ describe('Favorite sections — shared tuning mixin', () => {
     it(`re-tunes live and persists to settings/favoriteTuning/${key}`, async () => {
       await wrapper.vm.onTunerUpdate({ key: 'minEntries', value: 1 })
       expect(wrapper.vm.topTenList.map(d => d.name)).toContain('Star Person')
-      expect(dispatch).toHaveBeenCalledWith('setDBValue', expect.objectContaining({
+      expect(dispatch).toHaveBeenCalledWith('writeDurably', expect.objectContaining({
         path: `settings/favoriteTuning/${key}`,
         value: expect.objectContaining({ minEntries: 1 })
       }))
@@ -121,7 +121,7 @@ describe('Favorite sections — shared tuning mixin', () => {
     it(`re-tunes live (gender-gated) and persists to settings/favoriteTuning/${key}`, async () => {
       await wrapper.vm.onTunerUpdate({ key: 'minEntries', value: 1 })
       expect(wrapper.vm.topTenList.map(d => d.name)).toContain('Star Person')
-      expect(dispatch).toHaveBeenCalledWith('setDBValue', expect.objectContaining({
+      expect(dispatch).toHaveBeenCalledWith('writeDurably', expect.objectContaining({
         path: `settings/favoriteTuning/${key}`,
         value: expect.objectContaining({ minEntries: 1 })
       }))

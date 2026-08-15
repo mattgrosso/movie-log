@@ -27,6 +27,7 @@ import UpdateAvailableBanner from "./components/UpdateAvailableBanner.vue";
 import OfflineBanner from "./components/OfflineBanner.vue";
 import LibraryAccessBanner from "./components/LibraryAccessBanner.vue";
 import { pickFallbackBanner } from "./assets/javascript/bannerFallback.js";
+import { flushStashedBugReports } from "./utils/bugReports.js";
 
 export default {
   name: "Cinema-Roll",
@@ -142,6 +143,9 @@ export default {
     handleOnline () {
       this.$store.commit('setIsOnline', true);
       this.attemptPendingWritesFlush();
+      // Bug reports live outside the account-scoped queue; drain their own
+      // localStorage stash on reconnect (2026-08-15 offline audit).
+      flushStashedBugReports().catch(() => {});
     },
     handleOffline () {
       this.$store.commit('setIsOnline', false);

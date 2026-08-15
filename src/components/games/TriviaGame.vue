@@ -227,7 +227,7 @@ export default {
       this.recordGameWin();
       this.recordGameRound({ won: true, facts: this.revealedCount });
       if (isNewBestScore(this.revealedCount, this.bestFactsUsed)) {
-        this.$store.dispatch('setDBValue', { path: 'settings/games/triviaBestFactsUsed', value: this.revealedCount });
+        this.$store.dispatch('writeDurably', { path: 'settings/games/triviaBestFactsUsed', value: this.revealedCount });
       }
       this.persistState(); // status !== 'playing' now, so this clears the save
     },

@@ -622,42 +622,18 @@ export default {
       return arr.indexOf(movie);
     },
     async addViewingTag () {
-      if (!this.settings.tags || !this.settings.tags["viewing-tags"]) {
-        const dbEntry = {
-          path: `settings`,
-          value: {
-            tags: {
-              "viewing-tags": { title: "default viewing tag" }
-            }
-          }
-        }
-
-        await this.$store.dispatch('setDBValue', dbEntry);
-      }
-      const viewingTagsArray = Object.keys(this.settings.tags["viewing-tags"]).map((key) => this.settings.tags["viewing-tags"][key]);
-      if (!viewingTagsArray.find((tag) => tag.title === this.newViewingTagTitle)) {
+      // Offline audit 2026-08-15: this used to `set()` at the WHOLE
+      // `settings` path when the tags map didn't exist yet — which would
+      // replace every other setting the user has (awards, curve, games...)
+      // with just `{tags}`. Leaf-path durable writes only, ever.
+      const existingTags = this.settings.tags?.["viewing-tags"] || {};
+      const viewingTagsArray = Object.values(existingTags);
+      if (!viewingTagsArray.find((tag) => tag?.title === this.newViewingTagTitle)) {
         const dbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
-
-        let dbEntry;
-        if (this.settings.tags["viewing-tags"].title === "default viewing tag") {
-          dbEntry = {
-            path: `settings`,
-            value: {
-              tags: {
-                "viewing-tags": {
-                  [dbKey]: { title: this.newViewingTagTitle }
-                }
-              }
-            }
-          }
-        } else {
-          dbEntry = {
-            path: `settings/tags/viewing-tags/${dbKey}`,
-            value: { title: this.newViewingTagTitle }
-          }
-        }
-
-        this.$store.dispatch('setDBValue', dbEntry);
+        await this.$store.dispatch('writeDurably', {
+          path: `settings/tags/viewing-tags/${dbKey}`,
+          value: { title: this.newViewingTagTitle }
+        });
       }
 
       this.newViewingTagTitle = null;
@@ -760,9 +736,11 @@ export default {
         );
         if (tagKey) {
           delete this.settings.tags["viewing-tags"][tagKey];
-          this.$store.dispatch('setDBValue', {
-            path: `settings/tags/viewing-tags`,
-            value: this.settings.tags["viewing-tags"]
+          // Leaf-path durable deletion — the whole-map setDBValue was lost
+          // offline, resurrecting the tag on reconnect (2026-08-15 audit).
+          this.$store.dispatch('writeDurably', {
+            path: `settings/tags/viewing-tags/${tagKey}`,
+            value: null
           });
         }
       }

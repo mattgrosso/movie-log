@@ -72,7 +72,15 @@ const findKeyForMovieInDatabase = (id) => {
 }
 
 const getDirectorsFilmography = async (director) => {
-  const filmography = await axios.get(`https://api.themoviedb.org/3/person/${director.id}/movie_credits?api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
+  // Guarded: this rides the save path, which is otherwise carefully
+  // offline-hardened — a filmography fetch failure must degrade to "no
+  // filmography stored", never break the save (2026-08-15 offline audit).
+  let filmography;
+  try {
+    filmography = await axios.get(`https://api.themoviedb.org/3/person/${director.id}/movie_credits?api_key=${process.env.VUE_APP_TMDB_API_KEY}`);
+  } catch {
+    return [];
+  }
   const directingCredits = filmography.data.crew.filter((credit) => credit.job === "Director");
 
   const minimizedCredits = directingCredits.map((credit) => {

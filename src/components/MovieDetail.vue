@@ -1239,11 +1239,16 @@ export default {
       };
 
       try {
-        await this.$store.dispatch('setDBValue', {
-          path: `movieLog/${this.result.dbKey}`,
-          // Sanitised: `updated` is spread from live store state, which carries
-          // read-time-injected dbKey/_search and a derived flatKeywords.
-          value: entryForStorage(updated)
+        // Leaf-path durable writes (StampGame's pattern) — the old
+        // whole-entry setDBValue was lossy offline and could clobber
+        // concurrent field changes (2026-08-15 offline audit).
+        await this.$store.dispatch('writeDurably', {
+          path: `movieLog/${this.result.dbKey}/movie/customKeywords`,
+          value: customKeywords
+        });
+        await this.$store.dispatch('writeDurably', {
+          path: `movieLog/${this.result.dbKey}/movie/removedKeywords`,
+          value: removedKeywords
         });
         this.result = updated;
         if (this.previousEntry && this.previousEntry.dbKey === updated.dbKey) {
@@ -1372,11 +1377,11 @@ export default {
         ratings: nextRatings
       };
       try {
-        await this.$store.dispatch('setDBValue', {
-          path: `movieLog/${this.result.dbKey}`,
-          // Sanitised: `updated` is spread from live store state, which carries
-          // read-time-injected dbKey/_search and a derived flatKeywords.
-          value: entryForStorage(updated)
+        // Leaf-path durable write — survives offline, can't clobber other
+        // entry fields (2026-08-15 offline audit).
+        await this.$store.dispatch('writeDurably', {
+          path: `movieLog/${this.result.dbKey}/ratings`,
+          value: nextRatings
         });
         this.result = updated;
         if (this.previousEntry && this.previousEntry.dbKey === updated.dbKey) {
@@ -1398,7 +1403,7 @@ export default {
 
       const newDbKey = `${new Date().getTime()}-${crypto.randomUUID()}`;
       try {
-        await this.$store.dispatch('setDBValue', {
+        await this.$store.dispatch('writeDurably', {
           path: `settings/tags/viewing-tags/${newDbKey}`,
           value: { title: trimmed }
         });
@@ -1498,12 +1503,15 @@ export default {
         scratch = null;
       }
 
-      const dbEntry = {
-        path: `movieLog/${entry.dbKey}`,
-        value: scratch
-      }
+      // Durable: the old setDBValue deletion was lost offline, silently
+      // RESURRECTING the deleted rating on reconnect (2026-08-15 audit).
+      // Partial removals write the ratings leaf; removing the last rating
+      // deletes the entry (writeDurably tombstones it for delta sync).
+      const dbEntry = scratch === null
+        ? { path: `movieLog/${entry.dbKey}`, value: null }
+        : { path: `movieLog/${entry.dbKey}/ratings`, value: scratch.ratings };
 
-      this.$store.dispatch('setDBValue', dbEntry);
+      this.$store.dispatch('writeDurably', dbEntry);
       document.querySelectorAll('.confirm-delete-button').forEach((button) => button.classList.add('d-none'));
       document.querySelectorAll('.delete-button').forEach((button) => button.classList.remove('d-none'));
 
@@ -1649,16 +1657,12 @@ export default {
 
     async selectPoster (posterPath) {
       try {
-        // Update the movie entry in the database with the custom poster path
-        const dbEntry = {
-          path: `movieLog/${this.result.dbKey}`,
-          value: {
-            ...this.result,
-            customPosterPath: posterPath
-          }
-        };
-
-        await this.$store.dispatch('setDBValue', { ...dbEntry, value: entryForStorage(dbEntry.value) });
+        // Leaf-path durable write for the custom poster choice
+        // (2026-08-15 offline audit).
+        await this.$store.dispatch('writeDurably', {
+          path: `movieLog/${this.result.dbKey}/customPosterPath`,
+          value: posterPath
+        });
 
         // Update local data
         this.result.customPosterPath = posterPath;
@@ -1746,15 +1750,12 @@ export default {
     async selectBackdrop (backdropPath) {
       try {
         // Update the movie entry in the database with the custom backdrop path
-        const dbEntry = {
-          path: `movieLog/${this.result.dbKey}`,
-          value: {
-            ...this.result,
-            customBackdropPath: backdropPath
-          }
-        };
-
-        await this.$store.dispatch('setDBValue', { ...dbEntry, value: entryForStorage(dbEntry.value) });
+        // Leaf-path durable write for the custom backdrop choice
+        // (2026-08-15 offline audit).
+        await this.$store.dispatch('writeDurably', {
+          path: `movieLog/${this.result.dbKey}/customBackdropPath`,
+          value: backdropPath
+        });
 
         // Update local data
         this.result.customBackdropPath = backdropPath;

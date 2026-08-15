@@ -81,7 +81,7 @@ describe('TaglineQuizGame', () => {
 
     expect(wrapper.vm.lastGuessCorrect).toBe(true);
     expect(wrapper.vm.streak).toBe(1);
-    expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/taglineQuizBestStreak', value: 1 });
+    expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/games/taglineQuizBestStreak', value: 1 });
     const badge = wrapper.find('.tq-guess-badge');
     expect(badge.classes()).toContain('correct');
     expect(badge.find('.bi-check-lg').exists()).toBe(true);

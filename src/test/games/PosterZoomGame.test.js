@@ -402,6 +402,11 @@ describe('PosterZoomGame', () => {
       const { wrapper } = factory(tenMovies());
       const broken = targetOf(wrapper).dbKey;
 
+      // First error retries the SAME poster at the likely-cached w500 size
+      // (offline audit 2026-08-15); the second gives up on the movie.
+      await wrapper.find('.zoom-image').trigger('error');
+      expect(wrapper.vm.posterSizeFallback).toBe('w500');
+      expect(targetOf(wrapper).dbKey).toBe(broken);
       await wrapper.find('.zoom-image').trigger('error');
 
       expect(wrapper.vm.failedPosterKeys).toContain(broken);
@@ -412,6 +417,7 @@ describe('PosterZoomGame', () => {
     it('never deals a known-broken poster again this session', async () => {
       const { wrapper } = factory(tenMovies());
       const broken = targetOf(wrapper).dbKey;
+      await wrapper.find('.zoom-image').trigger('error'); // w500 retry
       await wrapper.find('.zoom-image').trigger('error');
 
       expect(wrapper.vm.zoomablePool.map((e) => e.dbKey)).not.toContain(broken);
@@ -443,6 +449,7 @@ describe('PosterZoomGame', () => {
       const { wrapper } = factory(tenMovies());
       wrapper.vm.failedPosterKeys = wrapper.vm.zoomablePool.map((e) => e.dbKey);
 
+      wrapper.vm.onPosterError(); // w500 retry first
       wrapper.vm.onPosterError();
 
       expect(wrapper.vm.imageLoaded).toBe(true);

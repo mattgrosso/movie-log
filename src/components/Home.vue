@@ -2811,7 +2811,7 @@ export default {
     updateShowShorts (event) {
       const newVal = event.target.checked;
       ErrorLogService.debug('updateShowShorts handler fired', { newVal, component: 'Home' });
-      this.$store.dispatch('setDBValue', { path: 'settings/includeShorts', value: newVal });
+      this.$store.dispatch('writeDurably', { path: 'settings/includeShorts', value: newVal });
     },
     updateShowErrorLogs (event) {
       const newVal = event.target.checked;
@@ -3053,7 +3053,12 @@ export default {
       }
     },
     async wikiLinkFor (searchValue) {
-      const wiki = await axios.get(`https://en.wikipedia.org/w/api.php?action=query&origin=*&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=%27${searchValue}%27`);
+      let wiki;
+      try {
+        wiki = await axios.get(`https://en.wikipedia.org/w/api.php?action=query&origin=*&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=%27${searchValue}%27`);
+      } catch {
+        return ''; // offline/blocked: the chip just doesn't open (2026-08-15 audit)
+      }
       if (!wiki || !wiki.data || !wiki.data.query || !wiki.data.query.pages) {
         return '';
       }
@@ -3362,7 +3367,12 @@ export default {
       if (!this.effectiveSearchTerm) {
         return;
       }
-      const resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.effectiveSearchTerm}`);
+      let resp;
+      try {
+        resp = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.VUE_APP_TMDB_API_KEY}&language=en-US&query=${this.effectiveSearchTerm}`);
+      } catch {
+        return; // network failure mid-flight: no unhandled rejection (2026-08-15 audit)
+      }
       if (resp.data.results.length) {
         this.newEntrySearch(resp.data.results);
 
@@ -3518,10 +3528,10 @@ export default {
       this.$router.push(lastPlayedGamePath(this.$router) || '/games');
     },
     saveTieBreakTweak () {
-      this.$store.dispatch('setDBValue', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
+      this.$store.dispatch('writeDurably', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
     },
     savePersonalAwardName () {
-      this.$store.dispatch('setDBValue', { path: 'settings/personalAwardName', value: this.personalAwardName });
+      this.$store.dispatch('writeDurably', { path: 'settings/personalAwardName', value: this.personalAwardName });
     },
     // Grammar helper methods for award names — delegate to the shared
     // pure functions (assets/javascript/personalAwards.js) so MovieDetail.vue
@@ -3536,10 +3546,10 @@ export default {
       return awardNameSingular(this.personalAwardName);
     },
     saveLetterboxdConnection () {
-      this.$store.dispatch('setDBValue', { path: 'settings/letterboxdConnected', value: this.letterboxdConnected });
+      this.$store.dispatch('writeDurably', { path: 'settings/letterboxdConnected', value: this.letterboxdConnected });
     },
     saveLetterboxdUsername () {
-      this.$store.dispatch('setDBValue', { path: 'settings/letterboxdUsername', value: this.letterboxdUsername });
+      this.$store.dispatch('writeDurably', { path: 'settings/letterboxdUsername', value: this.letterboxdUsername });
       // Auto-enable integration when username is provided
       if (this.letterboxdUsername && !this.letterboxdConnected) {
         this.letterboxdConnected = true;
@@ -3776,10 +3786,12 @@ export default {
         addedAt: new Date().toISOString()
       };
 
-      // Update the database
-      this.$store.dispatch('setDBValue', {
-        path: `settings/letterboxdOverrides`,
-        value: this.letterboxdOverrides
+      // Durable leaf write: whole-map setDBValue writes could be silently
+      // swallowed by the same-path debounce on a quick add-then-remove, and
+      // were lost entirely offline (2026-08-15 offline audit).
+      this.$store.dispatch('writeDurably', {
+        path: `settings/letterboxdOverrides/${overrideKey}`,
+        value: this.letterboxdOverrides[overrideKey]
       });
 
       // Clear the form
@@ -3790,10 +3802,9 @@ export default {
       // Remove from local state
       delete this.letterboxdOverrides[overrideKey];
 
-      // Update the database
-      this.$store.dispatch('setDBValue', {
-        path: `settings/letterboxdOverrides`,
-        value: this.letterboxdOverrides
+      this.$store.dispatch('writeDurably', {
+        path: `settings/letterboxdOverrides/${overrideKey}`,
+        value: null
       });
     },
     // New multi-filter system methods
@@ -4512,6 +4523,14 @@ export default {
       }
     },
     async fetchUnratedMoviesBySearchFilter (searchFilter) {
+      // Offline: skip the whole discover fan-out (up to ~7 TMDB requests per
+      // debounced filter change) instead of letting every one fail
+      // individually (2026-08-15 offline audit). The suggestions section
+      // simply doesn't render, same as having no matches.
+      if (!this.$store.state.isOnline) {
+        this.unratedMovies = [];
+        return;
+      }
       this.unratedMoviesError = null;
       this.unratedMovies = [];
 

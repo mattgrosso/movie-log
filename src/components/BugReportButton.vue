@@ -35,6 +35,7 @@
           </button>
         </div>
       </template>
+      <p v-else-if="queuedOffline" class="bug-report-panel__sent"><i class="bi bi-check-circle-fill"></i> Saved — will send when you're back online.</p>
       <p v-else class="bug-report-panel__sent"><i class="bi bi-check-circle-fill"></i> Sent — thanks!</p>
     </div>
   </div>
@@ -52,6 +53,7 @@ export default {
       sending: false,
       error: null,
       sent: false,
+      queuedOffline: false,
     };
   },
   methods: {
@@ -72,10 +74,11 @@ export default {
       this.sending = true;
       this.error = null;
       try {
-        await submitBugReport(this.$store, this.transcript, this.$route);
+        const result = await submitBugReport(this.$store, this.transcript, this.$route);
         this.sent = true;
+        this.queuedOffline = Boolean(result && result.queued);
         this.transcript = '';
-        setTimeout(() => { this.isOpen = false; this.sent = false; }, 1800);
+        setTimeout(() => { this.isOpen = false; this.sent = false; this.queuedOffline = false; }, 2200);
       } catch (err) {
         this.error = err.message;
       } finally {

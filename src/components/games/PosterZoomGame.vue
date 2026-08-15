@@ -170,6 +170,7 @@ export default {
   },
   data () {
     return {
+      posterSizeFallback: null, // per-round w500 retry before discarding a poster
       availableHeight: null,
       stageHeight: null,
       // The poster stays hidden until it has BOTH loaded and settled on its
@@ -226,7 +227,11 @@ export default {
       return this.$store.state.settings?.games?.posterZoomBestZoomOuts ?? null;
     },
     posterUrl () {
-      return this.target ? this.gamePosterUrl(this.target, POSTER_SIZE) : null;
+      // posterSizeFallback: offline, `original` is a size no other screen
+      // ever requests, so it's never in the service worker cache — retry
+      // the same poster at w500 (the banner/detail size, usually cached)
+      // before giving up on the movie (2026-08-15 offline audit).
+      return this.target ? this.gamePosterUrl(this.target, this.posterSizeFallback || POSTER_SIZE) : null;
     },
     // Once the round is over the poster is shown whole, however far in the
     // player had got.
@@ -301,6 +306,10 @@ export default {
     // exactly one entry, so this can't loop — if everything fails, the
     // not-enough-movies gate takes over, which is the honest outcome.
     onPosterError () {
+      if (!this.posterSizeFallback) {
+        this.posterSizeFallback = 'w500';
+        return; // the img retries at the likely-cached size
+      }
       const key = this.target ? entryKey(this.target) : null;
       if (key && !this.failedPosterKeys.includes(key)) {
         this.failedPosterKeys = [...this.failedPosterKeys, key];
@@ -492,7 +501,7 @@ export default {
       this.recordGameWin();
       this.recordGameRound({ won: true, zoomOuts: this.zoomOuts });
       if (isNewBestScore(this.zoomOuts, this.bestZoomOuts)) {
-        this.$store.dispatch('setDBValue', {
+        this.$store.dispatch('writeDurably', {
           path: 'settings/games/posterZoomBestZoomOuts',
           value: this.zoomOuts
         });
@@ -507,6 +516,7 @@ export default {
       const nextTarget = pickZoomTarget(pool, excludeKey, Math.random);
 
       this.imageLoaded = false;
+      this.posterSizeFallback = null;
       this.originSettled = false;
       this.target = nextTarget;
       this.origin = pickZoomOrigin();

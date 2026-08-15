@@ -455,7 +455,7 @@ export default {
       this.streak += 1;
       this.recordGameWin(); // one correct placement counts — see the mixin
       if (this.streak > this.bestStreak) {
-        this.$store.dispatch('setDBValue', { path: 'settings/games/timelineBestStreak', value: this.streak });
+        this.$store.dispatch('writeDurably', { path: 'settings/games/timelineBestStreak', value: this.streak });
       }
 
       if (canAnimate) {

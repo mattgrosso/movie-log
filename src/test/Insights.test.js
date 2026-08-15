@@ -514,14 +514,14 @@ describe('Insights', () => {
       // The old settings-flag handoff raced the navigation and sometimes
       // opened nothing (reported bug) — direct routing replaced it.
       expect(pushSpy).toHaveBeenCalledWith({ path: '/awards', query: { year: 1999 } })
-      expect(dispatchSpy).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/awardsPromptState' }))
+      expect(dispatchSpy).not.toHaveBeenCalledWith('writeDurably', expect.objectContaining({ path: 'settings/awardsPromptState' }))
     })
 
     it('startNewAwards clears the last completion date and navigates home', async () => {
       const { wrapper, dispatchSpy, pushSpy } = mountInsights()
       await wrapper.vm.startNewAwards()
 
-      expect(dispatchSpy).toHaveBeenCalledWith('setDBValue', { path: 'settings/lastAwardCompletionDate', value: null })
+      expect(dispatchSpy).toHaveBeenCalledWith('writeDurably', { path: 'settings/lastAwardCompletionDate', value: null })
       expect(pushSpy).toHaveBeenCalledWith('/')
       expect(wrapper.vm.startingNewAwards).toBe(false)
     })

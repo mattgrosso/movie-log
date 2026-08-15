@@ -216,7 +216,7 @@ describe('ClueBudgetGame', () => {
     wrapper.vm.submitGuess(wrapper.vm.target);
 
     expect(wrapper.vm.status).toBe('won');
-    expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/clueBudgetBestSavings', value: 70 });
+    expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/games/clueBudgetBestSavings', value: 70 });
   });
 
   it('guessing the WRONG movie does not end the round, but DOES say so and costs $10 (bug reports: "no real feedback" + "each wrong guess costs $10")', async () => {
@@ -312,7 +312,7 @@ describe('ClueBudgetGame', () => {
 
     wrapper.vm.submitGuess(wrapper.vm.target);
 
-    expect(dispatch).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/games/clueBudgetBestSavings' }));
+    expect(dispatch).not.toHaveBeenCalledWith('writeDurably', expect.objectContaining({ path: 'settings/games/clueBudgetBestSavings' }));
   });
 
   it('"New Round" resets the budget, clears purchases, and fetches fresh live data for a different movie', async () => {

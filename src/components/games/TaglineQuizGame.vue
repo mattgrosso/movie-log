@@ -93,7 +93,13 @@ export default {
     },
     statusMessage () {
       if (this.loading) return 'Loading a tagline...';
-      if (this.noTaglineFound) return "Couldn't find a movie with a tagline in your library — try again.";
+      if (this.noTaglineFound) {
+        // Offline audit 2026-08-15: taglines aren't stored locally, so this
+        // game genuinely needs a connection — say THAT, not "your library
+        // has no taglines" (which reads as a data problem).
+        if (this.$store.state.isOnline === false) return "Tag Lines needs a connection to fetch taglines — you're offline right now.";
+        return "Couldn't find a movie with a tagline in your library — try again.";
+      }
       if (!this.revealed) return 'Which movie has this tagline?';
       if (this.lastGuessCorrect) return 'Correct!';
       return `Not quite — final streak: ${this.streak}.`;
@@ -205,7 +211,7 @@ export default {
       this.streak += 1;
       this.recordGameWin(); // one correct pick counts — see the mixin
       if (this.streak > this.bestStreak) {
-        this.$store.dispatch('setDBValue', { path: 'settings/games/taglineQuizBestStreak', value: this.streak });
+        this.$store.dispatch('writeDurably', { path: 'settings/games/taglineQuizBestStreak', value: this.streak });
       }
 
       setTimeout(() => {

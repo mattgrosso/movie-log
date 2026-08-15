@@ -239,7 +239,7 @@ export default {
       this.recordGameWin();
       this.recordGameRound({ won: true, saved: this.budget });
       if (this.bestSavings == null || this.budget > this.bestSavings) {
-        this.$store.dispatch('setDBValue', { path: 'settings/games/clueBudgetBestSavings', value: this.budget });
+        this.$store.dispatch('writeDurably', { path: 'settings/games/clueBudgetBestSavings', value: this.budget });
       }
       this.persistState(); // no longer 'playing', so this clears the save
     },

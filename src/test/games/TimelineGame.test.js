@@ -90,7 +90,7 @@ describe('TimelineGame', () => {
     expect(wrapper.vm.streak).toBe(1);
     expect(wrapper.vm.mysteryCard).toBeTruthy();
     expect(wrapper.vm.revealed).toBe(false);
-    expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/timelineBestStreak', value: 1 });
+    expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/games/timelineBestStreak', value: 1 });
   });
 
   describe('the placement animation (slide, then a merged settle+expand where the poster and its new flanking gaps grow together)', () => {
@@ -244,7 +244,7 @@ describe('TimelineGame', () => {
       expect(wrapper.vm.streak).toBe(1);
       expect(wrapper.vm.mysteryCard).toBeTruthy();
       expect(wrapper.vm.revealed).toBe(false);
-      expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/timelineBestStreak', value: 1 });
+      expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/games/timelineBestStreak', value: 1 });
 
       vi.restoreAllMocks();
     });
@@ -289,7 +289,7 @@ describe('TimelineGame', () => {
 
     // Game over — no further guesses accepted, and no incorrect state
     // shouldn't have touched the best-streak dispatch.
-    expect(wrapper.vm.$store.dispatch).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/games/timelineBestStreak' }));
+    expect(wrapper.vm.$store.dispatch).not.toHaveBeenCalledWith('writeDurably', expect.objectContaining({ path: 'settings/games/timelineBestStreak' }));
   });
 
   it('"Play Again" resets the streak and starts a fresh timeline', async () => {

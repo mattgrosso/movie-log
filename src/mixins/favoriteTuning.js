@@ -109,7 +109,7 @@ export default {
         ...this.$store.state.settings,
         favoriteTuning: { ...existing, [this.tuningKey]: values }
       });
-      this.$store.dispatch('setDBValue', {
+      this.$store.dispatch('writeDurably', {
         path: `settings/favoriteTuning/${this.tuningKey}`,
         value: values
       });

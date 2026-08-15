@@ -36,12 +36,8 @@ function buildAppStateSummary (store, route) {
   };
 }
 
-export async function submitBugReport (store, transcript, route) {
-  const text = (transcript || '').trim();
-  if (!text) throw new Error('Describe what happened before sending.');
-
-  const db = getDatabase();
-  const report = {
+function buildReport (store, text, route) {
+  return {
     createdAt: serverTimestamp(),
     transcript: text,
     reporterEmail: store.state.userEmail || null,
@@ -53,6 +49,69 @@ export async function submitBugReport (store, transcript, route) {
     // keys on write, so a plain object here can lose fields with no warning.
     appState: JSON.stringify(buildAppStateSummary(store, route)),
   };
+}
 
-  await set(push(dbRef(db, 'bugReports')), report);
+// Offline stash (2026-08-15 offline audit): bugReports/ lives OUTSIDE the
+// account root, so it can't ride the account-scoped durable write queue.
+// A report written while offline (or when the write fails) is stashed in
+// localStorage and flushed on the next submit attempt or app launch —
+// serverTimestamp() placeholders serialize as plain objects and still
+// resolve server-side on the eventual write.
+const STASH_KEY = 'cinemaroll-pending-bug-reports';
+
+function readStash () {
+  try {
+    return JSON.parse(localStorage.getItem(STASH_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function writeStash (reports) {
+  try {
+    localStorage.setItem(STASH_KEY, JSON.stringify(reports.slice(-10)));
+  } catch {
+    // Storage full/blocked: nothing more we can do for a best-effort stash.
+  }
+}
+
+export async function flushStashedBugReports () {
+  const stash = readStash();
+  if (!stash.length || !navigator.onLine) return 0;
+
+  const db = getDatabase();
+  let sent = 0;
+  for (const report of stash) {
+    try {
+      await set(push(dbRef(db, 'bugReports')), { ...report, createdAt: serverTimestamp() });
+      sent += 1;
+    } catch {
+      break; // still unreachable; keep the rest for next time
+    }
+  }
+  writeStash(stash.slice(sent));
+  return sent;
+}
+
+export async function submitBugReport (store, transcript, route) {
+  const text = (transcript || '').trim();
+  if (!text) throw new Error('Describe what happened before sending.');
+
+  const report = buildReport(store, text, route);
+
+  try {
+    const db = getDatabase();
+    await set(push(dbRef(db, 'bugReports')), report);
+    // A success is also our chance to drain anything stashed earlier.
+    flushStashedBugReports().catch(() => {});
+  } catch (error) {
+    // Offline or write failure: stash it (with a client timestamp note so
+    // triage can tell when it actually happened) instead of losing the text.
+    writeStash([...readStash(), { ...report, createdAt: null, clientCreatedAt: Date.now(), queuedOffline: true }]);
+    if (!navigator.onLine) {
+      return { queued: true };
+    }
+    throw error;
+  }
+  return { queued: false };
 }

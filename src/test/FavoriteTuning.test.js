@@ -80,7 +80,7 @@ describe('FavoriteDirectors live tuning', () => {
 
     expect(wrapper.vm.topTenList.map(d => d.name)).toContain('Rare Renee')
     // Persisted to Firebase settings.
-    expect(dispatch).toHaveBeenCalledWith('setDBValue', expect.objectContaining({
+    expect(dispatch).toHaveBeenCalledWith('writeDurably', expect.objectContaining({
       path: 'settings/favoriteTuning/director',
       value: expect.objectContaining({ minEntries: 2 })
     }))
@@ -122,7 +122,7 @@ describe('FavoriteDirectors live tuning', () => {
 
     await wrapper.vm.resetTuner()
     expect(wrapper.vm.minEntries).toBe(4) // default
-    expect(dispatch).toHaveBeenLastCalledWith('setDBValue', expect.objectContaining({
+    expect(dispatch).toHaveBeenLastCalledWith('writeDurably', expect.objectContaining({
       path: 'settings/favoriteTuning/director',
       value: expect.objectContaining({ minEntries: 4 })
     }))

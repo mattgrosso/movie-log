@@ -92,7 +92,7 @@ describe('TriviaGame', () => {
     expect(wrapper.find('.result-banner').text()).toContain('Not quite');
     expect(wrapper.find('.result-banner').text()).toContain(`Movie ${targetId}`);
     expect(wrapper.find('.result-banner').classes()).toContain('lost');
-    expect(dispatch).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/games/triviaBestFactsUsed' }));
+    expect(dispatch).not.toHaveBeenCalledWith('writeDurably', expect.objectContaining({ path: 'settings/games/triviaBestFactsUsed' }));
 
     // Guessing again is no longer possible - the guess form itself is gone.
     expect(wrapper.find('.guess-form').exists()).toBe(false);
@@ -131,7 +131,7 @@ describe('TriviaGame', () => {
     await flushPromises();
 
     expect(wrapper.vm.status).toBe('won');
-    expect(dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/triviaBestFactsUsed', value: 1 });
+    expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/games/triviaBestFactsUsed', value: 1 });
     expect(wrapper.find('.result-banner').text()).toContain(`Movie ${targetId}`);
     expect(wrapper.find('.reveal-poster').exists()).toBe(true);
   });
@@ -174,7 +174,7 @@ describe('TriviaGame', () => {
     wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.movie.id === targetId));
     await flushPromises();
 
-    expect(dispatch).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/games/triviaBestFactsUsed' }));
+    expect(dispatch).not.toHaveBeenCalledWith('writeDurably', expect.objectContaining({ path: 'settings/games/triviaBestFactsUsed' }));
   });
 
   it('"Reveal Answer" ends the round without a score', async () => {
@@ -186,7 +186,7 @@ describe('TriviaGame', () => {
 
     expect(wrapper.vm.status).toBe('revealed');
     expect(wrapper.vm.revealedCount).toBe(5);
-    expect(dispatch).not.toHaveBeenCalledWith('setDBValue', expect.objectContaining({ path: 'settings/games/triviaBestFactsUsed' }));
+    expect(dispatch).not.toHaveBeenCalledWith('writeDurably', expect.objectContaining({ path: 'settings/games/triviaBestFactsUsed' }));
     expect(wrapper.find('.result-banner').classes()).toContain('revealed');
   });
 

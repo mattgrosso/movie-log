@@ -466,12 +466,17 @@ export default {
       this.showInsetBrowserModal = true;
     },
     async wikiLinkFor (title) {
-      const wiki = await axios.get(`https://en.wikipedia.org/w/api.php?action=query&origin=*&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=%27${title}%27`);
-      const pages = wiki.data.query.pages;
-      const pagesArray = Object.keys(pages).map((page) => pages[page]);
-      const bestMatch = minBy(pagesArray, (page) => page.index);
+      try {
+        const wiki = await axios.get(`https://en.wikipedia.org/w/api.php?action=query&origin=*&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=%27${title}%27`);
+        const pages = wiki?.data?.query?.pages;
+        if (!pages) return '';
+        const pagesArray = Object.keys(pages).map((page) => pages[page]);
+        const bestMatch = minBy(pagesArray, (page) => page.index);
 
-      return `https://en.m.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
+        return `https://en.m.wikipedia.org/w/index.php?curid=${bestMatch.pageid}`;
+      } catch {
+        return ''; // offline/blocked: no unhandled rejection (2026-08-15 audit)
+      }
     },
     searchFor (term) {
       this.updateSearchValue(term);
@@ -615,12 +620,14 @@ export default {
         scratch = null;
       }
 
-      const dbEntry = {
-        path: `movieLog/${previousEntry.dbKey}`,
-        value: scratch
-      }
+      // Durable deletion — the setDBValue version was lost offline and the
+      // rating came back on reconnect (2026-08-15 offline audit). Partial
+      // removals write the ratings leaf; the last one deletes the entry.
+      const dbEntry = scratch === null
+        ? { path: `movieLog/${previousEntry.dbKey}`, value: null }
+        : { path: `movieLog/${previousEntry.dbKey}/ratings`, value: scratch.ratings };
 
-      this.$store.dispatch('setDBValue', dbEntry);
+      this.$store.dispatch('writeDurably', dbEntry);
       document.querySelectorAll('.confirm-delete-button').forEach((button) => button.classList.add('d-none'));
       document.querySelectorAll('.delete-button').forEach((button) => button.classList.remove('d-none'));
     },

@@ -90,7 +90,7 @@ describe('HigherLowerGame', () => {
 
     expect(wrapper.vm.lastGuessCorrect).toBe(true);
     expect(wrapper.vm.streak).toBe(1);
-    expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('setDBValue', { path: 'settings/games/higherLowerBestStreak', value: 1 });
+    expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/games/higherLowerBestStreak', value: 1 });
 
     await vi.advanceTimersByTimeAsync(1000);
 

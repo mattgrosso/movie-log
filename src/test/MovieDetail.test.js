@@ -272,8 +272,9 @@ describe('MovieDetail', () => {
     it('selectPoster persists the choice and warms the offline image cache for it', async () => {
       await wrapper.vm.selectPoster('/new-poster.jpg')
 
-      expect(mockStore.dispatch).toHaveBeenCalledWith('setDBValue', expect.objectContaining({
-        value: expect.objectContaining({ customPosterPath: '/new-poster.jpg' })
+      expect(mockStore.dispatch).toHaveBeenCalledWith('writeDurably', expect.objectContaining({
+        path: expect.stringMatching(/\/customPosterPath$/),
+        value: '/new-poster.jpg'
       }))
       expect(warmImageCacheMock).toHaveBeenCalledWith(['https://image.tmdb.org/t/p/w342/new-poster.jpg'])
     })
@@ -281,8 +282,9 @@ describe('MovieDetail', () => {
     it('selectBackdrop persists the choice and warms the offline image cache for it', async () => {
       await wrapper.vm.selectBackdrop('/new-backdrop.jpg')
 
-      expect(mockStore.dispatch).toHaveBeenCalledWith('setDBValue', expect.objectContaining({
-        value: expect.objectContaining({ customBackdropPath: '/new-backdrop.jpg' })
+      expect(mockStore.dispatch).toHaveBeenCalledWith('writeDurably', expect.objectContaining({
+        path: expect.stringMatching(/\/customBackdropPath$/),
+        value: '/new-backdrop.jpg'
       }))
       expect(warmImageCacheMock).toHaveBeenCalledWith(['https://image.tmdb.org/t/p/w500/new-backdrop.jpg'])
     })

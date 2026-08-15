@@ -1372,7 +1372,7 @@ export default {
       this.startingNewAwards = true;
       try {
         // Override the daily limit by clearing the last completion date
-        await this.$store.dispatch('setDBValue', {
+        await this.$store.dispatch('writeDurably', {
           path: 'settings/lastAwardCompletionDate',
           value: null
         });
