@@ -154,9 +154,6 @@
               <button class="results-actions-button btn btn-info" type="button" @click="goToGames" title="Games" aria-label="Go to games">
                 <i class="bi" :class="gamesButtonIcon"/>
               </button>
-              <button class="results-actions-button btn btn-info" type="button" @click="$router.push('/watchlist')" title="Watchlist" aria-label="Go to watchlist">
-                <i class="bi bi-bookmark-star"/>
-              </button>
               <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage" title="Toggle count / average / views" aria-label="Toggle between result count, average rating, and view count">
                 <span v-if="showAverage">
                   <span class="average-label">(avg)</span>
@@ -175,8 +172,11 @@
               <button class="results-actions-button btn btn-warning btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quick-links-accordion" aria-expanded="false" aria-controls="quick-links-accordion" @click="toggleQuickLinksAccordion" title="Quick filters" aria-label="Toggle quick filters">
                 <i class="bi bi-lightning-charge"/>
               </button>
-              <button class="results-actions-button btn btn-info btn-sm" @click="findRandomSearchValue" title="Surprise me (random)" aria-label="Show a random movie">
-                <i class="bi bi-shuffle"/>
+              <!-- Shuffle lives inside the quick-links panel now (feedback:
+                   the extra watchlist button broke the rainbow); watchlist
+                   takes shuffle's old slot and color. -->
+              <button class="results-actions-button btn btn-info btn-sm" @click="$router.push('/watchlist')" title="Watchlist" aria-label="Go to watchlist">
+                <i class="bi bi-binoculars"/>
               </button>
               <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Sort results" aria-label="Sort results">
                 <i v-if="sortValue === 'rating'" class="bi bi-123"/>
@@ -256,6 +256,12 @@
             <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap col-md-12">
               <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
                 <div>
+                  <span
+                    class="badge mx-1 text-bg-secondary"
+                    @click="findRandomSearchValue"
+                  >
+                    <i class="bi bi-shuffle"></i> Surprise me
+                  </span>
                   <span
                     class="badge mx-1"
                     :class="activeQuickLinkList === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
