@@ -5,7 +5,7 @@
   "scripts": {
     "update-version": "node src/assets/javascript/version.js",
     "serve": "nodemon --watch .env --exec \"vue-cli-service serve\"",
-    "build": "yarn update-version && vue-cli-service build",
+    "build": "vue-cli-service build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest",
@@ -13,7 +13,7 @@
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
     "predeploy": "node scripts/backup-database.mjs --quiet || echo backup-skipped",
-    "deploy": "yarn build && aws s3 sync dist/ s3://cinemaroll --delete --profile personal-deploy && aws cloudfront create-invalidation --distribution-id ETF4I2E64GQSC --paths '/*' --profile personal-deploy > invalidation_output.txt",
+    "deploy": "node scripts/bump-and-build.mjs && aws s3 sync dist/ s3://cinemaroll --delete --profile personal-deploy && aws cloudfront create-invalidation --distribution-id ETF4I2E64GQSC --paths '/*' --profile personal-deploy > invalidation_output.txt",
     "account-maintenance": "node scripts/account-maintenance.mjs",
     "backup-db": "node scripts/backup-database.mjs",
     "restore-db": "node scripts/restore-database.mjs",

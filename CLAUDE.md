@@ -151,8 +151,10 @@ rather than only through component mounts. That's why `searchFiltering.js`,
 
 ### Versioning — apply real judgment
 
-`yarn build`/`yarn deploy` bump the version. Non-interactively this **defaults to PATCH**,
-which silently pushed the patch number past 100 before anyone noticed. Set it explicitly:
+Only `yarn deploy` bumps the version (since 2026-08-15; `yarn build` builds the
+current version, so check-builds are free, and a failed build rolls the bump
+back — no more gap numbers). Non-interactively the bump **defaults to PATCH**.
+Set it explicitly:
 
 ```
 VERSION_BUMP=minor yarn deploy
