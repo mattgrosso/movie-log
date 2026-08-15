@@ -32,6 +32,16 @@ function library () {
 }
 
 function tmdbImpl (url) {
+  if (url.includes('/recommendations')) {
+    return Promise.resolve({
+      data: {
+        results: [
+          { id: 95, title: 'Similar Pick', release_date: '2021-06-15', vote_count: 8000, vote_average: 8.0 },
+          { id: 1, title: 'Already Rated', release_date: '2010-06-15', vote_count: 9000, vote_average: 8.4 }
+        ]
+      }
+    });
+  }
   if (url.includes('/search/person')) {
     return Promise.resolve({ data: { results: [{ id: 777 }] } });
   }
@@ -105,6 +115,15 @@ describe('WatchlistScreen (request: watchlists from my ratings + movies to consi
     expect(text).not.toContain('Already Rated');
     expect(text).toContain('Unseen Perfor'); // MediaResultGrid truncates >15 chars
     expect(text).not.toContain('Deep Cameo');
+  });
+
+  it('pools TMDB recommendations from your top-rated movies into "More like your favorites"', async () => {
+    const { wrapper } = factory();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('More like your favorites');
+    expect(wrapper.text()).toContain('Similar Pick');
+    expect(wrapper.text()).not.toContain('Already Rated');
   });
 
   it('selecting a watchlist movie hands off to the normal rating flow', async () => {

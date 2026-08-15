@@ -59,7 +59,7 @@ import axios from 'axios';
 import BackLink from './games/BackLink.vue';
 import MediaResultGrid from './MediaResultGrid.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { rewatchCandidates, favoritePeople, rankWatchlistCandidates, ratedTmdbIds } from '../assets/javascript/discover.js';
+import { rewatchCandidates, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds } from '../assets/javascript/discover.js';
 
 export default {
   name: 'WatchlistScreen',
@@ -68,8 +68,10 @@ export default {
     return {
       directorMovies: [],
       actorMovies: [],
+      similarMovies: [],
       directorsLoading: true,
       actorsLoading: true,
+      similarLoading: true,
       // One-shot guard for the library watcher below.
       loaded: false
     };
@@ -87,6 +89,9 @@ export default {
     favoriteActors () {
       return favoritePeople(this.library, getRating, { role: 'actor' });
     },
+    recommendationSeeds () {
+      return topRatedSeeds(this.library, getRating);
+    },
     peopleSections () {
       if (!this.$store.state.isOnline) return [];
       return [
@@ -103,6 +108,13 @@ export default {
           names: this.favoriteActors.map((p) => p.name),
           movies: this.actorMovies,
           loading: this.actorsLoading
+        },
+        {
+          key: 'similar',
+          title: 'More like your favorites',
+          names: this.recommendationSeeds.map((entry) => entry.movie.title),
+          movies: this.similarMovies,
+          loading: this.similarLoading
         }
       ].filter((section) => section.names.length);
     }
@@ -141,17 +153,21 @@ export default {
       if (!this.$store.state.isOnline) {
         this.directorsLoading = false;
         this.actorsLoading = false;
+        this.similarLoading = false;
         return;
       }
       const rated = ratedTmdbIds(this.library);
-      const [directorMovies, actorMovies] = await Promise.all([
+      const [directorMovies, actorMovies, similarMovies] = await Promise.all([
         this.moviesFromPeople(this.favoriteDirectors, 'crew', rated),
-        this.moviesFromPeople(this.favoriteActors, 'cast', rated)
+        this.moviesFromPeople(this.favoriteActors, 'cast', rated),
+        this.moviesLikeFavorites(this.recommendationSeeds, rated)
       ]);
       this.directorMovies = directorMovies;
       this.directorsLoading = false;
       this.actorMovies = actorMovies;
       this.actorsLoading = false;
+      this.similarMovies = similarMovies;
+      this.similarLoading = false;
     },
     // credits kind: 'crew' keeps only their Director credits; 'cast' keeps
     // reasonably-billed roles (order < 10) so cameos don't flood the list.
@@ -176,6 +192,27 @@ export default {
       }));
 
       return rankWatchlistCandidates(allCredits, rated);
+    },
+    // Recommendations v1 (bug report: 'some kind of a recommendation
+    // system you and I will work out together') — TMDB's own
+    // /recommendations for each of your top-rated movies, pooled and run
+    // through the same unseen-only quality ranking. A deliberately simple
+    // first pass to react to; the 'work out together' design conversation
+    // can replace the seeding/scoring without touching the screen.
+    async moviesLikeFavorites (seeds, rated) {
+      const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+      const pooled = [];
+
+      await Promise.all(seeds.map(async (seed) => {
+        try {
+          const response = await axios.get(`https://api.themoviedb.org/3/movie/${seed.movie.id}/recommendations?api_key=${apiKey}`);
+          pooled.push(...(response.data?.results || []));
+        } catch (error) {
+          console.error('Recommendations lookup failed for', seed.movie.title, error);
+        }
+      }));
+
+      return rankWatchlistCandidates(pooled, rated);
     }
   }
 };

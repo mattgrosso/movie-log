@@ -101,6 +101,17 @@ export function rankWatchlistCandidates (credits, ratedTmdbIds, now = Date.now()
     .map(({ movie }) => movie);
 }
 
+// The movies to seed "more like this" recommendations from: your highest
+// rated, one per title. Ties keep library order (stable sort).
+export function topRatedSeeds (entries, getRatingFn, { cap = 5 } = {}) {
+  return (entries || [])
+    .filter((entry) => typeof entry?.movie?.id === 'number')
+    .map((entry) => ({ entry, rating: getRatingFn(entry)?.calculatedTotal ?? 0 }))
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, cap)
+    .map(({ entry }) => entry);
+}
+
 // Every TMDB id already in the library — the "unseen only" filter's input.
 export function ratedTmdbIds (entries) {
   return new Set(
