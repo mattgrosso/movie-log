@@ -183,6 +183,10 @@ const shapeTmdbDataIntoMovie = (tmdbData, ratings) => {
     // Lines / Clue Budget work offline. '' = movie genuinely has none;
     // undefined = legacy entry from before this field (fetch fallback).
     tagline: (tmdbData.tagline || '').trim(),
+    // Community score, for the "give these another shot" watchlist
+    // (2026-08-15) — same details call, never kept before.
+    vote_average: tmdbData.vote_average ?? null,
+    vote_count: tmdbData.vote_count ?? null,
     title: tmdbData.title,
     keywords: tmdbData.keywords,
     chatGPTKeywords: collectChatGPTKeywords(ratings)

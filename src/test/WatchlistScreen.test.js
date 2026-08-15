@@ -11,7 +11,7 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
 const YEARS = 365.25 * 24 * 3600 * 1000;
 const yearsAgo = (y) => Date.now() - y * YEARS;
 
-function entry (id, title, { rating = 8.5, watched = yearsAgo(4), crew = [], cast = [] } = {}) {
+function entry (id, title, { rating = 8.5, watched = yearsAgo(6), crew = [], cast = [] } = {}) {
   return {
     dbKey: `key-${id}`,
     movie: { id, title, poster_path: '/p.jpg', crew, cast },

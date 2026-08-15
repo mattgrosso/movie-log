@@ -20,21 +20,70 @@ function lastWatchedAt (entry) {
   return times.length ? Math.max(...times) : null;
 }
 
-// How-loved × long-unwatched: score = (rating's margin above the entry
-// threshold) * sqrt(years). Scoring the MARGIN rather than the raw rating
-// is what keeps "9.0 from 3 years ago" ahead of "7.2 from 8 years ago" —
-// with raw ratings, every qualifying score is within ~30% of every other,
-// so sqrt(age) dominated and the list was just "oldest first."
-export function rewatchCandidates (entries, getRatingFn, now = Date.now(), { minRating = 7, minYears = 1, cap = 24 } = {}) {
+// Cycle-based rewatching (feedback 2026-08-15: "for my very favorite
+// movies, I probably wanna watch them on a two to three year cycle at the
+// very top" — the old how-loved x how-long score just reproduced the top
+// shelf). Every qualifying movie gets a due CYCLE from how loved it is,
+// and the list ranks by how OVERDUE it is relative to its own cycle — so
+// favorites resurface often by design, an 8 from six years ago outranks a
+// 9.5 from eighteen months ago, and nothing appears before its time.
+const REWATCH_CYCLES = [
+  { minRating: 9.5, years: 2 },
+  { minRating: 9, years: 3 },
+  { minRating: 8, years: 5 },
+  { minRating: 7, years: 8 }
+];
+
+export function rewatchCycleYears (rating) {
+  const tier = REWATCH_CYCLES.find((t) => rating >= t.minRating);
+  return tier ? tier.years : null;
+}
+
+export function rewatchCandidates (entries, getRatingFn, now = Date.now(), { dueThreshold = 1, cap = 24 } = {}) {
   return (entries || [])
     .map((entry) => {
       const rating = getRatingFn(entry)?.calculatedTotal;
       const watchedAt = lastWatchedAt(entry);
-      if (!Number.isFinite(rating) || rating < minRating || watchedAt == null) return null;
+      if (!Number.isFinite(rating) || watchedAt == null) return null;
+      const cycle = rewatchCycleYears(rating);
+      if (cycle == null) return null;
+      const yearsSince = (now - watchedAt) / YEAR_MS;
+      // Overdue ratio: 1 = exactly due. Capped so an ancient mid-tier
+      // movie can't bury every recently-due favorite.
+      const overdue = Math.min(yearsSince / cycle, 3);
+      if (overdue < dueThreshold) return null;
+      return { entry, rating, yearsSince, cycle, overdue, score: overdue };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (b.score - a.score) || (b.rating - a.rating))
+    .slice(0, cap);
+}
+
+// "Give these another shot" (feedback 2026-08-15): movies YOU rated coolly
+// that the wider world loves — ranked by the differential between TMDB's
+// community average and your own score. Needs movie.vote_average /
+// vote_count in the stored shape (backfilled server-side like taglines);
+// entries without them are skipped, and a vote-count floor keeps
+// obscure-but-inflated titles out.
+export function anotherShotCandidates (entries, getRatingFn, now = Date.now(), {
+  maxYourRating = 6.5,
+  minCommunity = 7.4,
+  minVotes = 200,
+  minYears = 1,
+  cap = 24
+} = {}) {
+  return (entries || [])
+    .map((entry) => {
+      const yours = getRatingFn(entry)?.calculatedTotal;
+      const community = entry?.movie?.vote_average;
+      const votes = entry?.movie?.vote_count;
+      const watchedAt = lastWatchedAt(entry);
+      if (!Number.isFinite(yours) || !Number.isFinite(community) || watchedAt == null) return null;
+      if (yours > maxYourRating || community < minCommunity) return null;
+      if (!Number.isFinite(votes) || votes < minVotes) return null;
       const yearsSince = (now - watchedAt) / YEAR_MS;
       if (yearsSince < minYears) return null;
-      const margin = rating - (minRating - 0.5);
-      return { entry, rating, yearsSince, score: margin * Math.sqrt(yearsSince) };
+      return { entry, yours, community, yearsSince, score: community - yours };
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score)

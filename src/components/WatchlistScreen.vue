@@ -26,6 +26,35 @@
           <div v-else class="rewatch-poster rewatch-poster-placeholder">{{ candidate.entry.movie.title.charAt(0) }}</div>
           <span class="rewatch-name">{{ candidate.entry.movie.title }}</span>
           <span class="rewatch-meta">{{ candidate.rating.toFixed(1) }} · {{ yearsAgoLabel(candidate.yearsSince) }}</span>
+          <span class="rewatch-due">{{ dueLabel(candidate) }}</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Local, always available: movies the world loves more than you did
+         (feedback: "if I rated something and didn't really love it, and
+         the community loves it... should I give this another chance?"). -->
+    <section v-if="anotherShotList.length" class="watchlist-section">
+      <h2 class="section-title">Give these another shot</h2>
+      <p class="section-caption">You were cool on them; the wider world wasn't.</p>
+      <div class="rewatch-row">
+        <button
+          v-for="candidate in anotherShotList"
+          :key="candidate.entry.dbKey"
+          type="button"
+          class="rewatch-card"
+          @click="goToMovie(candidate.entry)"
+        >
+          <img
+            v-if="posterUrl(candidate.entry)"
+            :src="posterUrl(candidate.entry)"
+            :alt="candidate.entry.movie.title"
+            class="rewatch-poster"
+            loading="lazy"
+          >
+          <div v-else class="rewatch-poster rewatch-poster-placeholder">{{ candidate.entry.movie.title.charAt(0) }}</div>
+          <span class="rewatch-name">{{ candidate.entry.movie.title }}</span>
+          <span class="rewatch-meta">You {{ candidate.yours.toFixed(1) }} · World {{ candidate.community.toFixed(1) }}</span>
         </button>
       </div>
     </section>
@@ -59,7 +88,7 @@ import axios from 'axios';
 import BackLink from './games/BackLink.vue';
 import MediaResultGrid from './MediaResultGrid.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { rewatchCandidates, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds } from '../assets/javascript/discover.js';
+import { rewatchCandidates, anotherShotCandidates, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds } from '../assets/javascript/discover.js';
 
 export default {
   name: 'WatchlistScreen',
@@ -82,6 +111,9 @@ export default {
     },
     rewatchList () {
       return rewatchCandidates(this.library, getRating);
+    },
+    anotherShotList () {
+      return anotherShotCandidates(this.library, getRating);
     },
     favoriteDirectors () {
       return favoritePeople(this.library, getRating, { role: 'director' });
@@ -135,6 +167,12 @@ export default {
     posterUrl (entry) {
       const path = entry?.movie?.poster_path;
       return path ? `https://image.tmdb.org/t/p/w342${path}` : null;
+    },
+    dueLabel (candidate) {
+      // Cycle-based (discover.js): 1.0 = exactly due.
+      if (candidate.overdue >= 1.5) return 'long overdue';
+      if (candidate.overdue >= 1) return 'due for a rewatch';
+      return 'coming due';
     },
     yearsAgoLabel (years) {
       const rounded = Math.round(years);
@@ -305,6 +343,13 @@ export default {
   font-weight: 600;
   line-height: 1.2;
   margin-top: 0.3rem;
+}
+
+.rewatch-due {
+  color: #ffd700;
+  display: block;
+  font-size: 0.68rem;
+  margin-top: 0.1rem;
 }
 
 .rewatch-meta {
