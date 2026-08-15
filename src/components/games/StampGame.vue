@@ -655,18 +655,21 @@ export default {
 .clump-label.removed { color: #ff6a6a; }
 .clump-label.passed { color: #6ec1e4; }
 
-/* A wrapping clump of small posters — fixed heights, top-aligned rows,
-   just big enough to discern (the standing poster-row rule). */
+/* The house poster-row: the same 92×138 size the Trophy Case settled on,
+   scrolling horizontally as needed, image edges aligned. */
 .clump-posters {
+  align-items: flex-start;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
 }
 
 .clump-poster {
-  border-radius: 4px;
-  height: 78px;
+  border-radius: 0.35rem;
+  flex: 0 0 auto;
+  height: 138px;
   object-fit: cover;
-  width: 52px;
+  width: 92px;
 }
 </style>
