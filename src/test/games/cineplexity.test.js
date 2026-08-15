@@ -42,6 +42,9 @@ describe('buildCineplexityRound', () => {
     expect(round.matches.length).toBeGreaterThanOrEqual(3)
     expect(round.matches.length).toBeLessThanOrEqual(6)
     round.matches.forEach((m) => expect(m.movie.title).toBeTruthy())
+    // Chronological order (QA feedback)
+    const years = round.matches.map((m) => new Date(m.movie.release_date).getFullYear())
+    expect(years).toEqual([...years].sort((a, b) => a - b))
   })
 
   it('returns null for a library too small to play', () => {
