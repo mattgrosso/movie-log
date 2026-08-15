@@ -377,6 +377,45 @@ describe('ClueBudgetGame', () => {
   });
 });
 
+describe('ClueBudgetGame - round history (feature: game stats)', () => {
+  function routedFactory () {
+    const dispatch = vi.fn();
+    const wrapper = mount(ClueBudgetGame, {
+      global: {
+        mocks: {
+          $store: { state: { settings: {} }, getters: { allMediaAsArray: tenMovies() }, dispatch, commit: vi.fn() },
+          $router: { push: vi.fn() },
+          $route: { path: '/games/clue-budget' }
+        }
+      }
+    });
+    return { wrapper, dispatch };
+  }
+
+  it('a win records {won, saved} into settings/games/history', async () => {
+    const { wrapper, dispatch } = routedFactory();
+    await flushPromises();
+    wrapper.vm.buyClue(wrapper.vm.availableClues.find((c) => c.key === 'decade'));
+
+    wrapper.vm.submitGuess(wrapper.vm.target);
+
+    const call = dispatch.mock.calls.find(([, entry]) => entry?.path === 'settings/games/history/clue-budget');
+    expect(call).toBeTruthy();
+    const lastRecord = call[1].value[call[1].value.length - 1];
+    expect(lastRecord).toMatchObject({ won: true, saved: wrapper.vm.budget });
+  });
+
+  it('going broke records a loss', async () => {
+    const { wrapper, dispatch } = routedFactory();
+    await flushPromises();
+
+    wrapper.vm.revealPoster();
+
+    const call = dispatch.mock.calls.find(([, entry]) => entry?.path === 'settings/games/history/clue-budget');
+    expect(call[1].value[call[1].value.length - 1]).toMatchObject({ won: false, saved: 0 });
+  });
+});
+
 describe('ClueBudgetGame - persistence across navigation (bug report: "when I jumped over to my database and came back it reset the game")', () => {
   beforeEach(() => {
     axios.get.mockReset();

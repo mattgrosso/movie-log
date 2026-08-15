@@ -224,11 +224,13 @@ export default {
     },
     lose () {
       this.status = 'lost';
+      this.recordGameRound({ won: false, saved: 0 });
       this.persistState(); // no longer 'playing', so this clears the save
     },
     win () {
       this.status = 'won';
       this.recordGameWin();
+      this.recordGameRound({ won: true, saved: this.budget });
       if (this.bestSavings == null || this.budget > this.bestSavings) {
         this.$store.dispatch('setDBValue', { path: 'settings/games/clueBudgetBestSavings', value: this.budget });
       }

@@ -482,6 +482,7 @@ export default {
     },
     giveUp () {
       if (this.status !== 'playing') return;
+      this.recordGameRound({ won: false, zoomOuts: this.zoomOuts });
       this.status = 'revealed';
       this.persistState(); // no longer 'playing', so this clears the save
     },
@@ -489,6 +490,7 @@ export default {
       this.status = 'won';
       this.lastWrongTitle = null;
       this.recordGameWin();
+      this.recordGameRound({ won: true, zoomOuts: this.zoomOuts });
       if (isNewBestScore(this.zoomOuts, this.bestZoomOuts)) {
         this.$store.dispatch('setDBValue', {
           path: 'settings/games/posterZoomBestZoomOuts',

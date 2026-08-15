@@ -178,7 +178,10 @@ export default {
     // Connections and Six Degrees; the games that set status directly just
     // call recordGameWin() inline.
     status (newStatus) {
-      if (newStatus === 'won') this.recordGameWin();
+      if (newStatus === 'won') {
+        this.recordGameWin();
+        this.recordGameRound({ guesses: this.guesses.length, clues: this.activeClues.length, score: this.score });
+      }
     },
     // Fires once eligibleGameEntries has real data (it may be empty for a
     // tick while the library is still loading). Only initializes if nothing

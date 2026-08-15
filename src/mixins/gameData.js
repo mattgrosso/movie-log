@@ -1,5 +1,6 @@
 import { getRating } from '../assets/javascript/GetRating.js';
 import { getEligibleEntries, ratingFor } from '../assets/javascript/games/gameUtils.js';
+import { appendRound } from '../assets/javascript/games/gameHistory.js';
 
 // localStorage key recording whichever individual game route was last
 // visited (NOT the hub itself — see created() below) — Home.vue's
@@ -44,6 +45,23 @@ export function lastPlayedGamePath (router) {
 // grid and Home.vue's Games entry-point button, which shows whichever
 // game's icon LAST_PLAYED_KEY points back to (falling back to a generic
 // controller icon when nothing specific is stored).
+// Display names by route, sharing GAME_ICONS' keys — used by the Game
+// Stats screen, which deliberately does NOT mix in gameData (the mixin's
+// created() records a play session for any /games/* route, and a stats
+// visit is not a play).
+export const GAME_NAMES = {
+  '/games/higher-lower': 'Higher or Lower',
+  '/games/wordle': 'Reel Wordle',
+  '/games/connections': 'Connections',
+  '/games/six-degrees': 'Six Degrees',
+  '/games/timeline': 'Timeline',
+  '/games/clue-budget': 'Clue Budget',
+  '/games/tagline': 'Tag',
+  '/games/trivia': 'Trivia',
+  '/games/poster-zoom': 'Poster Zoom',
+  '/games/stamp': 'Stamp'
+};
+
 export const GAME_ICONS = {
   '/games/higher-lower': 'bi-arrow-down-up',
   '/games/wordle': 'bi-grid-3x3-gap-fill',
@@ -118,6 +136,22 @@ export default {
       if (!key) return;
       const current = this.$store.state?.settings?.games?.plays?.[key] || 0;
       this.$store.dispatch?.('writeDurably', { path: `settings/games/plays/${key}`, value: current + 1 });
+    },
+    // Feature request: "add a history for each game with some good
+    // statistics on how they've gone." Called by each game at ITS OWN
+    // end-of-round moment with a small metrics object (a streak game passes
+    // {streak}, Clue Budget passes {won, saved}, and so on — see
+    // gameHistory.js's per-game summaries for what each shape feeds).
+    // Appends to the capped per-game round list; timestamps use the device
+    // clock, which is fine for display history (unlike sync stamps, where
+    // clock skew genuinely matters). Same optional-chaining as the other
+    // recorders — several test mocks stub $store without dispatch/$route.
+    recordGameRound (metrics) {
+      const key = gameWinKey(this.$route?.path);
+      if (!key) return;
+      const existing = this.$store.state?.settings?.games?.history?.[key];
+      const history = appendRound(existing, { at: Date.now(), ...metrics });
+      this.$store.dispatch?.('writeDurably', { path: `settings/games/history/${key}`, value: history });
     },
     // Called by each game at ITS OWN definition of a win. For the games with
     // a discrete win state (Wordle/Connections/Six Degrees/Clue Budget/

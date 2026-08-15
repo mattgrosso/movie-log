@@ -2,7 +2,12 @@
   <div class="games-hub">
     <BackLink @click="$router.push('/')"/>
     <h1 class="games-hub-title">Games</h1>
-    <p class="games-hub-subtitle">Little games built from your own rated library.</p>
+    <p class="games-hub-subtitle">
+      Little games built from your own rated library.
+      <button type="button" class="stats-link" @click="$router.push('/games/stats')">
+        <i class="bi bi-bar-chart-fill"></i> Game stats
+      </button>
+    </p>
 
     <!-- Bug report: a new user hits this wall with no way forward except
          leaving to go rate movies manually. Reuses the SAME "help me get
@@ -192,6 +197,21 @@ export default {
 .games-hub-subtitle {
   color: #adb5bd;
   margin: 0.25rem 1rem 1.5rem;
+}
+
+.stats-link {
+  background: none;
+  border: none;
+  color: #ffc107;
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.3rem;
+  text-decoration: underline;
+}
+
+/* Mobile-first: press state only, no :hover. */
+.stats-link:active {
+  opacity: 0.6;
 }
 
 .not-enough-movies {

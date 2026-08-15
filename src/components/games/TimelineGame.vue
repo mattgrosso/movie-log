@@ -387,6 +387,7 @@ export default {
       this.lastGuessCorrect = correct;
 
       if (!correct) {
+        this.recordGameRound({ streak: this.streak });
         this.gameOver = true;
         return;
       }
@@ -465,6 +466,8 @@ export default {
       if (!next) {
         this.mysteryCard = null;
         this.ranOutOfMovies = true;
+        // Placing the whole library is a run end too — arguably the best one.
+        this.recordGameRound({ streak: this.streak });
         this.gameOver = true;
         return;
       }

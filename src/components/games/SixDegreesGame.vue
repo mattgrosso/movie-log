@@ -358,7 +358,10 @@ export default {
     // watch it rather than hooking an imperative win moment — see
     // ReelWordleGame.
     status (newStatus) {
-      if (newStatus === 'won') this.recordGameWin();
+      if (newStatus === 'won') {
+        this.recordGameWin();
+        this.recordGameRound({ steps: this.hopsSoFar, optimal: this.pair?.optimalHops ?? null });
+      }
     },
     // eligibleGameEntries can be empty for a tick while the library is still
     // loading from Firebase (most visible on a direct/deep-link navigation

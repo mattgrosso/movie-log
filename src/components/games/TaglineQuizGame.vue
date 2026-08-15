@@ -197,6 +197,7 @@ export default {
       this.lastGuessCorrect = isCorrect;
 
       if (!isCorrect) {
+        this.recordGameRound({ streak: this.streak });
         this.gameOver = true;
         return;
       }

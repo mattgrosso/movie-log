@@ -161,7 +161,10 @@ export default {
     // status is a computed (derived from solvedLabels), so watch it rather
     // than hooking an imperative win moment — see ReelWordleGame.
     status (newStatus) {
-      if (newStatus === 'won') this.recordGameWin();
+      if (newStatus === 'won') {
+        this.recordGameWin();
+        this.recordGameRound({ mistakes: this.mistakes });
+      }
     },
     eligibleGameEntries: {
       immediate: true,

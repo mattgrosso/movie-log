@@ -23,6 +23,7 @@ const TaglineQuizGame = () => import(/* webpackChunkName: "games" */ "../compone
 const TriviaGame = () => import(/* webpackChunkName: "games" */ "../components/games/TriviaGame.vue");
 const PosterZoomGame = () => import(/* webpackChunkName: "games" */ "../components/games/PosterZoomGame.vue");
 const StampGame = () => import(/* webpackChunkName: "games" */ "../components/games/StampGame.vue");
+const GameStatsScreen = () => import(/* webpackChunkName: "games" */ "../components/games/GameStatsScreen.vue");
 
 // Router
 const loggedIn = () => {
@@ -289,6 +290,21 @@ const routes = [
     path: '/games/tagline',
     name: 'TaglineQuizGame',
     component: TaglineQuizGame,
+    meta: {
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    path: '/games/stats',
+    name: 'GameStatsScreen',
+    component: GameStatsScreen,
     meta: {
       requiresLogin: true
     },

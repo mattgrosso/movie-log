@@ -64,3 +64,44 @@ describe('gameData.recordGamePlay (bug report: order the games menu by sessions 
     })).not.toThrow();
   });
 });
+
+describe('gameData.recordGameRound (feature: per-game history with statistics)', () => {
+  it('appends a timestamped record with the game\'s own metrics', () => {
+    const dispatch = vi.fn();
+    const wrapper = mountAt('/games/clue-budget', { games: { history: { 'clue-budget': [{ at: 1, won: false, saved: 0 }] } } }, dispatch);
+    dispatch.mockClear();
+
+    wrapper.vm.recordGameRound({ won: true, saved: 40 });
+
+    const call = dispatch.mock.calls.find(([, entry]) => entry.path === 'settings/games/history/clue-budget');
+    expect(call).toBeTruthy();
+    const written = call[1].value;
+    expect(written).toHaveLength(2);
+    expect(written[1]).toMatchObject({ won: true, saved: 40 });
+    expect(written[1].at).toEqual(expect.any(Number));
+  });
+
+  it('caps the stored history at 50 records', () => {
+    const dispatch = vi.fn();
+    const long = Array.from({ length: 50 }, (_, i) => ({ at: i }));
+    const wrapper = mountAt('/games/timeline', { games: { history: { timeline: long } } }, dispatch);
+    dispatch.mockClear();
+
+    wrapper.vm.recordGameRound({ streak: 9 });
+
+    const call = dispatch.mock.calls.find(([, entry]) => entry.path === 'settings/games/history/timeline');
+    expect(call[1].value).toHaveLength(50);
+    expect(call[1].value[49]).toMatchObject({ streak: 9 });
+    expect(call[1].value[0].at).toBe(1);
+  });
+
+  it('no-ops without a route, same as the other recorders', () => {
+    const dispatch = vi.fn();
+    const wrapper = mount(DummyGame, {
+      global: { mocks: { $store: { state: { settings: {} }, getters: { allMediaAsArray: [] }, dispatch } } }
+    });
+    dispatch.mockClear();
+    wrapper.vm.recordGameRound({ streak: 1 });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+});

@@ -284,6 +284,10 @@ export default {
     finished (isFinished) {
       if (isFinished && this.history.length) {
         this.recordGameWin();
+        this.recordGameRound({
+          decided: this.history.length,
+          changes: this.tally.added + this.tally.removed
+        });
       }
     }
   },
