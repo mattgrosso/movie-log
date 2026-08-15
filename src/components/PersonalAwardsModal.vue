@@ -1935,9 +1935,9 @@ export default {
       const categoryData = this.awardsData[categoryKey];
       if (!categoryData || !categoryData.winner) return null;
 
-      // Return a shortened version of the winner name for display
-      const winnerTitle = this.getOptionTitle(categoryData.winner);
-      return winnerTitle.length > 20 ? winnerTitle.substring(0, 17) + '...' : winnerTitle;
+      // Full title, never truncated — house rule: names and titles are not
+      // clamped; there's a whole row of horizontal room here.
+      return this.getOptionTitle(categoryData.winner);
     },
     // The winning movie's backdrop, laid behind the category row as a
     // banner (feedback: "the poster's always nicer... maybe the banner
