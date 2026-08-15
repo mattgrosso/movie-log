@@ -13,14 +13,14 @@ function libraryEntry (id, title, posterPath = '/p.jpg') {
   return { dbKey: `key-${id}`, movie: { id, title, poster_path: posterPath } };
 }
 
-function mountTrophyCase (personalAwards, library = []) {
+function mountTrophyCase (personalAwards, library = [], allAcademyAwards = []) {
   const pushSpy = vi.fn();
   const commitSpy = vi.fn();
   const wrapper = mount(TrophyCase, {
     global: {
       mocks: {
         $store: {
-          state: { settings: { personalAwards } },
+          state: { settings: { personalAwards }, allAcademyAwards },
           getters: { allMediaAsArray: library },
           commit: commitSpy
         },
@@ -253,6 +253,40 @@ describe('TrophyCase', () => {
     expect(row.text()).toContain('The Robbed')
     expect(row.text()).toContain('9.2')
     expect(row.text()).toContain('lost to The Winner (7.0)')
+  })
+
+  it('"You vs. the Academy" scores your winners against the real ceremony and lists the clashes', () => {
+    const library = [libraryEntry(597, 'Titanic'), libraryEntry(2567, 'As Good as It Gets')]
+    const personalAwards = {
+      1997: {
+        categories: {
+          bestPicture: { winner: { type: 'movie', movieId: 2567 } } // you went your own way
+        }
+      },
+      1998: { categories: { bestPicture: { winner: { type: 'movie', movieId: 597 } } } } // no academy data that year in fixture
+    }
+    const academy = [
+      { year: 1997, category: 'Best Picture', tmdb: '597', isWinner: true, title: 'Titanic', names: [] },
+      { year: 1997, category: 'Best Picture', tmdb: '2567', isWinner: false, title: 'As Good as It Gets', names: [] }
+    ]
+    const { wrapper } = mountTrophyCase(personalAwards, library, academy)
+
+    expect(wrapper.text()).toContain('You vs. the Academy')
+    expect(wrapper.text()).toContain('0% of the time')
+    expect(wrapper.text()).toContain('(0 of 1 shared categories)')
+    const clash = wrapper.find('.academy-row')
+    expect(clash.text()).toContain('You: As Good as It Gets')
+    expect(clash.text()).toContain('Academy: Titanic')
+  })
+
+  it('the Academy section hides itself entirely when the dataset is absent', () => {
+    const library = [libraryEntry(597, 'Titanic')]
+    const personalAwards = {
+      1997: { categories: { bestPicture: { winner: { type: 'movie', movieId: 597 } } } }
+    }
+    const { wrapper } = mountTrophyCase(personalAwards, library, [])
+
+    expect(wrapper.text()).not.toContain('You vs. the Academy')
   })
 
   it('returnHome navigates home', () => {
