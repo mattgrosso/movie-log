@@ -154,6 +154,9 @@
               <button class="results-actions-button btn btn-info" type="button" @click="goToGames" title="Games" aria-label="Go to games">
                 <i class="bi" :class="gamesButtonIcon"/>
               </button>
+              <button class="results-actions-button btn btn-info" type="button" @click="$router.push('/watchlist')" title="Watchlist" aria-label="Go to watchlist">
+                <i class="bi bi-bookmark-star"/>
+              </button>
               <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage" title="Toggle count / average / views" aria-label="Toggle between result count, average rating, and view count">
                 <span v-if="showAverage">
                   <span class="average-label">(avg)</span>
