@@ -170,7 +170,9 @@ export default {
 
     .cinemaroll-modal-body {
       overflow: visible;
-      padding: 1rem 0;
+      /* No top padding: the page's own header spacing is enough, and the
+         double gap read as dead space (feedback). */
+      padding: 0 0 1rem;
     }
   }
 }

@@ -2820,16 +2820,21 @@ export default {
   min-width: 0;
   /* …while normal pane content keeps its 1rem inset. */
   padding: 0 1rem;
-  transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.35, 1);
 }
 
-.awards-slider.showing-detail .awards-pane {
-  transform: translateX(-100%);
+/* The slide is margin-left on the LIST pane, deliberately not transform:
+   a transformed ancestor disables position:sticky in WebKit/Blink, which
+   silently killed the pinned nominees bar. Margin animation relayouts two
+   fixed-width panes per frame — cheap — and leaves the detail pane
+   transform-free so its sticky bar actually sticks. */
+.list-pane {
+  transition: margin-left 0.35s cubic-bezier(0.25, 0.8, 0.35, 1);
 }
 
-/* The hidden list can be taller than the detail — don't let it stretch the
-   page while offscreen. */
 .awards-slider.showing-detail .list-pane {
+  margin-left: -100%;
+  /* The hidden list can be taller than the detail — don't let it stretch
+     the page while offscreen. */
   max-height: 70vh;
   overflow: hidden;
 }
