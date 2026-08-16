@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import Insights from '@/components/Insights.vue'
+import AwardsResults from '@/components/AwardsResults.vue'
 
 vi.mock('@/assets/javascript/GetRating.js', () => ({
   getRating: vi.fn((media) => {
@@ -74,6 +75,29 @@ function mountInsights ({ state = {}, mediaEntries = [] } = {}) {
     }
   })
 
+  return { wrapper, pushSpy, commitSpy, dispatchSpy, mockStore }
+}
+
+
+
+// The awards-results browser moved out of Insights to /awards (2026-08-15
+// tabbed rework); its logic tests mount the extracted component directly.
+function mountAwardsResults ({ state = {}, mediaEntries = [] } = {}) {
+  const pushSpy = vi.fn()
+  const commitSpy = vi.fn()
+  const dispatchSpy = vi.fn(() => Promise.resolve())
+  const mockStore = {
+    state: { currentLog: 'movieLog', settings: {}, ...state },
+    getters: {},
+    commit: commitSpy,
+    dispatch: dispatchSpy
+  }
+  const wrapper = shallowMount(AwardsResults, {
+    props: { allEntriesWithFlatKeywordsAdded: mediaEntries.map((e) => ({ ...e, movie: { ...e.movie, flatKeywords: [] } })) },
+    global: {
+      mocks: { $store: mockStore, $route: { query: {} }, $router: { push: pushSpy } }
+    }
+  })
   return { wrapper, pushSpy, commitSpy, dispatchSpy, mockStore }
 }
 
@@ -329,7 +353,7 @@ describe('Insights', () => {
 
     it('only includes years with 10+ eligible (non-short) movies', () => {
       const mediaEntries = [...buildLibraryForYear(2020, 12), ...buildLibraryForYear(2021, 5)]
-      const { wrapper } = mountInsights({
+      const { wrapper } = mountAwardsResults({
         mediaEntries,
         state: { settings: { personalAwards: { 2020: { categories: {} }, 2021: { categories: {} } } } }
       })
@@ -345,7 +369,7 @@ describe('Insights', () => {
         categories[`cat${i}`] = { nominees: [{ id: i }], winner: { id: i } }
       }
       const mediaEntries = buildLibraryForYear(2020, 10)
-      const { wrapper } = mountInsights({
+      const { wrapper } = mountAwardsResults({
         mediaEntries,
         state: { settings: { personalAwards: { 2020: { categories } } } }
       })
@@ -357,7 +381,7 @@ describe('Insights', () => {
 
     it('partialAwardsYears excludes years with zero completed categories, includes years with some progress', () => {
       const mediaEntries = buildLibraryForYear(2020, 10)
-      const { wrapper } = mountInsights({
+      const { wrapper } = mountAwardsResults({
         mediaEntries,
         state: {
           settings: {
@@ -376,7 +400,7 @@ describe('Insights', () => {
 
     it('partialAwardsYears flags hasNewMovies when the library gained eligible movies since the saved snapshot', () => {
       const mediaEntries = buildLibraryForYear(2020, 10)
-      const { wrapper } = mountInsights({
+      const { wrapper } = mountAwardsResults({
         mediaEntries,
         state: {
           settings: {
@@ -399,7 +423,7 @@ describe('Insights', () => {
   describe('expandNomineeFromMinimal', () => {
     it('reconstructs a person nominee by looking up the movie in the current library', () => {
       const movieEntry = entry({ dbKey: 'm1', movie: { id: 42, title: 'Target Movie' } })
-      const { wrapper } = mountInsights({ mediaEntries: [movieEntry] })
+      const { wrapper } = mountAwardsResults({ mediaEntries: [movieEntry] })
 
       const expanded = wrapper.vm.expandNomineeFromMinimal({ type: 'person', id: 'p1', name: 'Someone', movieId: 42, character: 'Lead' })
       expect(expanded.name).toBe('Someone')
@@ -409,27 +433,27 @@ describe('Insights', () => {
 
     it('reconstructs a movie nominee as the full library entry', () => {
       const movieEntry = entry({ dbKey: 'm1', movie: { id: 42, title: 'Target Movie' } })
-      const { wrapper } = mountInsights({ mediaEntries: [movieEntry] })
+      const { wrapper } = mountAwardsResults({ mediaEntries: [movieEntry] })
 
       const expanded = wrapper.vm.expandNomineeFromMinimal({ type: 'movie', movieId: 42 })
       expect(expanded.movie.title).toBe('Target Movie')
     })
 
     it('returns null (and does not throw) when the referenced movie is no longer in the library', () => {
-      const { wrapper } = mountInsights()
+      const { wrapper } = mountAwardsResults()
 
       expect(wrapper.vm.expandNomineeFromMinimal({ type: 'person', id: 'p1', name: 'Ghost', movieId: 999 })).toBeNull()
       expect(wrapper.vm.expandNomineeFromMinimal({ type: 'movie', movieId: 999 })).toBeNull()
     })
 
     it('passes through already-expanded (legacy) nominee objects unchanged', () => {
-      const { wrapper } = mountInsights()
+      const { wrapper } = mountAwardsResults()
       const legacy = { name: 'Old Format', movie: { id: 1, title: 'X' } }
       expect(wrapper.vm.expandNomineeFromMinimal(legacy)).toBe(legacy)
     })
 
     it('returns null for a null/undefined nominee', () => {
-      const { wrapper } = mountInsights()
+      const { wrapper } = mountAwardsResults()
       expect(wrapper.vm.expandNomineeFromMinimal(null)).toBeNull()
     })
   })
@@ -508,7 +532,7 @@ describe('Insights', () => {
     })
 
     it('resumeAwards navigates straight to the awards page with the year in the URL', async () => {
-      const { wrapper, dispatchSpy, pushSpy } = mountInsights()
+      const { wrapper, dispatchSpy, pushSpy } = mountAwardsResults()
       await wrapper.vm.resumeAwards(1999)
 
       // The old settings-flag handoff raced the navigation and sometimes
@@ -518,7 +542,7 @@ describe('Insights', () => {
     })
 
     it('startNewAwards clears the last completion date and navigates home', async () => {
-      const { wrapper, dispatchSpy, pushSpy } = mountInsights()
+      const { wrapper, dispatchSpy, pushSpy } = mountAwardsResults()
       await wrapper.vm.startNewAwards()
 
       expect(dispatchSpy).toHaveBeenCalledWith('writeDurably', { path: 'settings/lastAwardCompletionDate', value: null })

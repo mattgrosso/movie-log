@@ -11,6 +11,10 @@
       :pageMode="true"
       @closed="leave"
     />
+    <!-- Past-results browser, relocated from Insights (2026-08-15 tabbed
+         rework). Trophy Case deliberately has no per-year winner lists,
+         so this is where a completed year is reviewed in full. -->
+    <AwardsResults :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"/>
   </div>
 </template>
 
@@ -24,12 +28,13 @@
 // looked. Now the year rides in the URL (/awards?year=1997) and there is
 // no handoff to race.
 import PersonalAwardsModal from './PersonalAwardsModal.vue';
+import AwardsResults from './AwardsResults.vue';
 import BackLink from './games/BackLink.vue';
 import { awardNameWithThe, awardNameSingular } from '../assets/javascript/personalAwards.js';
 
 export default {
   name: 'PersonalAwardsScreen',
-  components: { PersonalAwardsModal, BackLink },
+  components: { PersonalAwardsModal, AwardsResults, BackLink },
   computed: {
     yearFromRoute () {
       const year = Number(this.$route.query.year);
