@@ -172,6 +172,9 @@ const auth = getAuth();
 
 const db = getDatabase();
 
+// Pending debounced profile publish (see scheduleSocialPublish).
+let socialPublishTimer = null;
+
 // Firebase restores a persisted session asynchronously after page load. The
 // router guard, meanwhile, decides you're logged in synchronously from
 // localStorage — so without this, database listeners can be attached before the
@@ -1240,6 +1243,12 @@ export default createStore({
     // feature existed, for the case that actually broke.
     async writeDatabaseEntryNow (context, dbEntry) {
       await performDatabaseWrite(context, dbEntry);
+      // A brand-new rating comes through HERE, not writeDurably — AddRating
+      // owns its own durability machinery — so the staleness fix has to hook
+      // both. Double-firing is fine: scheduleSocialPublish is debounced.
+      if (typeof dbEntry?.path === 'string' && dbEntry.path.startsWith('movieLog')) {
+        context.dispatch('scheduleSocialPublish');
+      }
     },
     // General-purpose "offline-safe write" for the features that don't need
     // AddRating.js's placeholder/reconciliation machinery, just its core
@@ -1261,6 +1270,12 @@ export default createStore({
     async writeDurably (context, dbEntry) {
       context.commit('applyDbPathLocally', dbEntry);
       context.commit('trackInFlightWrite', dbEntry);
+      // Any change to the library makes the published profile stale. Hooked
+      // here rather than in a screen because a rating can be saved from
+      // several places, and Home may not even be mounted.
+      if (typeof dbEntry?.path === 'string' && dbEntry.path.startsWith('movieLog')) {
+        context.dispatch('scheduleSocialPublish');
+      }
 
       // Bug report ("I get the tie break message again just for a second or
       // two"): this used to `await enqueueWrite(...)` BEFORE issuing the
@@ -1649,6 +1664,33 @@ export default createStore({
         set(ref(db, `social/profiles/${me}`), profile),
         set(ref(db, `social/directory/${me}`), { name: profile.name })
       ]);
+    },
+    // Republish shortly after the library changes.
+    //
+    // The only trigger used to be a watcher on Home that published at most
+    // once every SIX HOURS, so a friend could rate something and have it not
+    // reach anyone until that window rolled over — which is exactly what Matt
+    // saw (2026-08-16): "I happen to know that Natalie watched a movie today
+    // and rated it, and yet the most recent movie I see is from yesterday."
+    //
+    // The delay is a coalescing window, not a throttle: rating a batch of ten
+    // movies should publish the whole profile once, not ten times, and the
+    // profile is a full document (every rated title) rather than a delta.
+    // Readers already re-fetch on every visit, so once it is published it is
+    // seen immediately.
+    scheduleSocialPublish (context, { delay = 20000 } = {}) {
+      if (!context.getters.socialSettings?.enabled) return;
+      if (socialPublishTimer) clearTimeout(socialPublishTimer);
+      socialPublishTimer = setTimeout(() => {
+        socialPublishTimer = null;
+        context.dispatch('publishSocialProfile');
+        // Keeps Home's every-six-hours backstop from immediately repeating it.
+        try {
+          localStorage.setItem('cinemaRoll.social.lastPublish', String(Date.now()));
+        } catch (error) {
+          // Private mode / storage full: the publish itself still happened.
+        }
+      }, delay);
     },
     async unpublishSocialProfile (context) {
       const me = context.getters.socialUserKey;
