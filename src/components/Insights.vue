@@ -2550,8 +2550,11 @@ export default {
       padding: 1px 4px;
     }
 
+    /* A genuinely different hue rather than a dimmer blue — the darker
+       shade just read as "faded out" (bug report). Blue = library totals,
+       teal = anything time-based. */
     .alt .glance-label {
-      background: #2c4177;
+      background: #2f7d78;
     }
 
     .glance-value {

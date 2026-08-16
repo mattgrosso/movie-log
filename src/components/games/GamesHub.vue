@@ -1,13 +1,13 @@
 <template>
   <div class="games-hub">
     <BackLink @click="$router.push('/')"/>
-    <h1 class="games-hub-title">Games</h1>
-    <p class="games-hub-subtitle">
-      Little games built from your own rated library.
+    <div class="games-hub-header">
+      <h1 class="games-hub-title">Games</h1>
       <button type="button" class="stats-link" @click="$router.push('/games/stats')">
-        <i class="bi bi-bar-chart-fill"></i> Game stats
+        Game stats <i class="bi bi-chevron-right"></i>
       </button>
-    </p>
+    </div>
+    <p class="games-hub-subtitle">Little games built from your own rated library.</p>
 
     <!-- Bug report: a new user hits this wall with no way forward except
          leaving to go rate movies manually. Reuses the SAME "help me get
@@ -206,14 +206,26 @@ export default {
   margin: 0.25rem 1rem 1.5rem;
 }
 
+/* Its own place in the title row rather than trailing the subtitle as an
+   underlined afterthought (bug report), matching the "Deep Stats ›"
+   treatment on Insights. */
+.games-hub-header {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  margin-right: 1rem;
+}
+
 .stats-link {
   background: none;
   border: none;
   color: #ffc107;
+  flex: 0 0 auto;
   font-size: 0.85rem;
-  margin-left: 0.5rem;
+  font-weight: 600;
+  min-height: 40px;
   padding: 0.15rem 0.3rem;
-  text-decoration: underline;
+  white-space: nowrap;
 }
 
 /* Mobile-first: press state only, no :hover. */

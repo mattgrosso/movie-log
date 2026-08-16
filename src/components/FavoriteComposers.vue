@@ -16,7 +16,10 @@
             class="portrait"
           />
         </div>
-        <span class="name">{{ entry.name }}</span>
+        <span class="name">
+          {{ entry.name }}
+          <span v-if="entry.finalScore != null" class="person-score">{{ entry.finalScore.toFixed(2) }}</span>
+        </span>
       </li>
     </ul>
     <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
@@ -267,6 +270,12 @@ export default {
       }
 
       .name {
+        /* Name left, Log Score right — "so I can see how close the races
+           are". The score never shrinks; the name gives way instead. */
+        align-items: baseline;
+        display: flex;
+        gap: 3px;
+        justify-content: space-between;
         background: #00000069;
         border-bottom-left-radius: 6px;
         border-bottom-right-radius: 6px;
@@ -277,6 +286,12 @@ export default {
         padding: 2px 4px;
         position: absolute;
         right: 4px;
+
+        .person-score {
+          color: #9ec5fe;
+          flex: 0 0 auto;
+          font-weight: 700;
+        }
       }
     }
   }

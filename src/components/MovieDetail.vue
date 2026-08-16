@@ -34,11 +34,13 @@
             <h3>
               <a class="link" @click.stop="searchFor(`${getYear(result)}`)">{{getYear(result)}}</a>
             </h3>
-            <!-- Overall rank (Brian-survey C1) — same h3 typography as the
-                 year and rating flanking it (bug report: the small gray tag
-                 "didn't really match the style of everything else"). -->
-            <h3 v-if="overallRank" class="overall-rank">{{ordinalRank}} overall</h3>
-            <ToggleableRating :rating="ratingForMedia(result)" :normalizedRating="normalizedRatingForMedia(result)"/>
+            <!-- Rank rides with the score as a small parenthetical rather
+                 than standing on its own (bug report). The word "overall"
+                 is dropped — the ordinal alone reads fine next to a score. -->
+            <span class="rating-with-rank">
+              <ToggleableRating :rating="ratingForMedia(result)" :normalizedRating="normalizedRatingForMedia(result)"/>
+              <span v-if="overallRank" class="overall-rank">({{ordinalRank}})</span>
+            </span>
           </div>
           <div class="line-two">
             <h3>{{prettifyRuntime(result)}}</h3>
@@ -1896,6 +1898,17 @@ export default {
 
   .rating-runtime-and-date {
     margin-bottom: 1rem;
+
+    .rating-with-rank {
+      align-items: baseline;
+      display: flex;
+      gap: 0.3rem;
+    }
+
+    .overall-rank {
+      color: #ccc;
+      font-size: 0.8rem;
+    }
 
 
     .line-one {
