@@ -87,9 +87,12 @@
       <MediaResultGrid :mediaList="notPunted(friendPickMedia)" @select="rateMedia"/>
     </section>
 
-    <section v-for="section in peopleSections" :key="section.key" class="watchlist-section">
+    <section v-for="section in rankedSections" :key="section.key" class="watchlist-section">
       <h2 class="section-title">{{ section.title }}</h2>
-      <p class="section-caption">Based on {{ section.names.join(', ') }}.</p>
+      <p class="section-caption">
+        Based on {{ section.names.join(', ') }}.
+        <span v-if="section.record" class="section-record">{{ section.record.hits }} of {{ section.record.suggested }} watched</span>
+      </p>
       <p v-if="section.loading" class="section-loading">Looking up filmographies&hellip;</p>
       <MediaResultGrid v-else-if="section.movies.length" :mediaList="notPunted(section.movies)" @select="rateMedia"/>
       <p v-else class="section-loading">Nothing new found — you've seen the good ones.</p>
@@ -114,6 +117,7 @@ import BackLink from './games/BackLink.vue';
 import MediaResultGrid from './MediaResultGrid.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { friendsLoveUnseen } from '../assets/javascript/social.js';
+import { rankSections, sourceSummary } from '../assets/javascript/recommendationStats.js';
 import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds, tasteProfile, puntKeyFor, nextPunt, isPunted } from '../assets/javascript/discover.js';
 import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 
@@ -236,6 +240,16 @@ export default {
           loading: this.gemsLoading
         }
       ].filter((section) => section.names.length);
+    },
+    // Order by what has actually earned watches (recommendationStats.js).
+    // Sources with no history sit at the neutral prior, so a new section
+    // still gets a fair showing rather than being buried.
+    rankedSections () {
+      const sources = this.$store.state.settings?.watchlistLearning?.sources || {};
+      return rankSections(this.peopleSections, sources).map((section) => ({
+        ...section,
+        record: sourceSummary(sources[section.key])
+      }));
     }
   },
   created () {
@@ -327,6 +341,19 @@ export default {
       this.actorsLoading = false;
       this.similarMovies = similarMovies;
       this.similarLoading = false;
+
+      // Learning loop: credit sources whose earlier suggestions have since
+      // been rated, then record whatever is on screen now. Recording after
+      // reconciling means a movie can't be credited in the same pass it was
+      // first offered.
+      await this.$store.dispatch('reconcileWatchlistLearning', rated);
+      await this.$store.dispatch('recordWatchlistSuggestions', {
+        directors: directorMovies.map((movie) => movie.id),
+        actors: actorMovies.map((movie) => movie.id),
+        similar: similarMovies.map((movie) => movie.id),
+        gems: gemMovies.map((movie) => movie.id),
+        friends: this.friendPickMedia.map((movie) => movie.id)
+      });
     },
     // Hidden Gems (Brian-survey D2): well-loved but little-seen — high
     // TMDB score, LOW vote count (the inverse of every popularity filter),
@@ -452,6 +479,11 @@ export default {
   font-size: 1.1rem;
   margin-bottom: 0.5rem;
   padding-bottom: 0.35rem;
+}
+
+.section-record {
+  color: #9ec5fe;
+  white-space: nowrap;
 }
 
 .section-caption {

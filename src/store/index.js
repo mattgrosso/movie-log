@@ -27,6 +27,7 @@ import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/sy
 import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
+import { pendingUpdates, reconcilePending } from "../assets/javascript/recommendationStats.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -1238,6 +1239,56 @@ export default createStore({
         `Database batch update timed out after ${DATABASE_WRITE_TIMEOUT_MS}ms`
       );
     },
+    // ------------------------------------------------------------------
+    // Watchlist learning: which recommendation sources actually earn
+    // watches. Suggestions are recorded once; when a recorded movie later
+    // appears in the library, its source gets the credit. See
+    // recommendationStats.js.
+    async recordWatchlistSuggestions (context, shownBySource) {
+      const pending = context.state.settings?.watchlistLearning?.pending || {};
+      const updates = pendingUpdates(pending, shownBySource);
+      const entries = Object.entries(updates);
+      if (!entries.length) return;
+
+      await Promise.all(entries.map(([tmdbId, record]) =>
+        context.dispatch('writeDurably', {
+          path: `settings/watchlistLearning/pending/${tmdbId}`,
+          value: record
+        })
+      ));
+      // Count what was offered, so a source's hit RATE has a denominator.
+      const counts = {};
+      entries.forEach(([, record]) => { counts[record.source] = (counts[record.source] || 0) + 1; });
+      await Promise.all(Object.entries(counts).map(([source, added]) => {
+        const current = Number(context.state.settings?.watchlistLearning?.sources?.[source]?.suggested) || 0;
+        return context.dispatch('writeDurably', {
+          path: `settings/watchlistLearning/sources/${source}/suggested`,
+          value: current + added
+        });
+      }));
+    },
+    // Credit sources whose suggestions have since been rated, and forget
+    // suggestions that went stale. Safe to run on every watchlist visit.
+    async reconcileWatchlistLearning (context, ratedTmdbIds) {
+      const learning = context.state.settings?.watchlistLearning;
+      if (!learning?.pending) return;
+      const { hits, resolved, expired } = reconcilePending(learning.pending, ratedTmdbIds);
+
+      await Promise.all(Object.entries(hits).map(([source, count]) => {
+        const current = Number(learning.sources?.[source]?.hits) || 0;
+        return context.dispatch('writeDurably', {
+          path: `settings/watchlistLearning/sources/${source}/hits`,
+          value: current + count
+        });
+      }));
+      await Promise.all([...resolved, ...expired].map((tmdbId) =>
+        context.dispatch('writeDurably', {
+          path: `settings/watchlistLearning/pending/${tmdbId}`,
+          value: null
+        })
+      ));
+    },
+
     // ------------------------------------------------------------------
     // Magic Mirror feed. The mirror used to read the whole movieLog over
     // unauthenticated REST; the 2026-08-14 lockdown ended that. Rather than
