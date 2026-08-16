@@ -313,6 +313,30 @@
           <p class="long-list mb-0">{{ productionCountries.join(' · ') }}</p>
         </div>
 
+        <!-- Custom Lists (B1): membership toggles for this movie. Only
+             the lists themselves are shown — tap to add or remove. -->
+        <div v-if="customLists.length" class="movie-lists mb-3">
+          <div class="d-flex align-items-center">
+            <h4 class="mb-0 me-2">Lists</h4>
+            <button type="button" class="btn btn-sm btn-link p-0 movie-lists-all" @click="$router.push('/lists')">
+              <i class="bi bi-list-ul"></i>
+            </button>
+          </div>
+          <div class="movie-lists-chips">
+            <button
+              v-for="list in customLists"
+              :key="list.id"
+              type="button"
+              class="movie-list-chip"
+              :class="{ active: inList(list) }"
+              @click="toggleList(list)"
+            >
+              <i class="bi" :class="inList(list) ? 'bi-check-lg' : 'bi-plus'"></i>
+              {{ list.name }}
+            </button>
+          </div>
+        </div>
+
         <!-- Tags -->
         <div v-if="(viewingTags && viewingTags.length) || isEditingTags" class="tags mb-3">
           <div class="tags-header d-flex align-items-center">
@@ -534,6 +558,7 @@ import ErrorLogService from "../services/ErrorLogService.js";
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 import { computeFlatKeywords } from '../utils/keywords.js';
 import { buildTagSuggestions, canCreateNewTag } from '../utils/tags.js';
+import { listContains } from '../assets/javascript/customLists.js';
 import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwardsCategories.js';
 import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
@@ -599,6 +624,9 @@ export default {
     }
   },
   computed: {
+    customLists () {
+      return this.$store.getters?.customLists || [];
+    },
     overallRank () {
       // Optional-chained: test mounts (and early lifecycle) may lack the
       // getter; the badge simply doesn't render then.
@@ -2069,6 +2097,30 @@ export default {
 
     .keyword-create-new {
       width: 100%;
+    }
+  }
+
+  .movie-lists {
+    .movie-lists-all { color: #9ec5fe; }
+
+    .movie-lists-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 4px;
+    }
+
+    .movie-list-chip {
+      background: none;
+      border: 1px solid white;
+      border-radius: 999px;
+      color: white;
+      font-size: 0.75rem;
+      min-height: 34px;
+      padding: 0.2rem 0.7rem;
+
+      &.active { background: #3b5aaa; }
+      &:active { opacity: 0.7; }
     }
   }
 
