@@ -558,6 +558,30 @@
                   Movie Hat stays its own app — this just lets Cinema Roll put movies into your hats and draw from them.
                 </p>
 
+                <!-- Movie Hat is a separate Firebase project, so it needs its
+                     own sign-in: a Cinema Roll token means nothing there. Once
+                     its database is locked down this is what grants access, and
+                     only to the hats you're a member of. -->
+                <div class="settings-hat-account">
+                  <template v-if="movieHatEmail">
+                    <p class="settings-note settings-hat-connected">
+                      <i class="bi bi-check-circle"></i>
+                      Connected as {{ movieHatEmail }}
+                    </p>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @click="disconnectMovieHat">Disconnect</button>
+                  </template>
+                  <template v-else>
+                    <button type="button" class="btn btn-warning btn-sm" :disabled="connectingHat" @click="connectMovieHat">
+                      <span v-if="connectingHat" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                      Connect to Movie Hat
+                    </button>
+                    <p class="settings-note mt-2">
+                      Sign in with whichever Google account owns your hats.
+                    </p>
+                  </template>
+                  <p v-if="hatConnectError" class="settings-hat-error">{{ hatConnectError }}</p>
+                </div>
+
                 <button type="button" class="btn btn-outline-info btn-sm" :disabled="findingHats" @click="findMovieHats">
                   <span v-if="findingHats" class="spinner-border spinner-border-sm me-1" role="status"></span>
                   {{ linkedMovieHats.length ? 'Look for more hats' : 'Find my hats' }}
@@ -579,7 +603,7 @@
                 </div>
 
                 <p v-if="searchedForHats && !hatChoices.length" class="settings-note">
-                  No hats found for {{ userEmail }} — that's the address Movie Hat knows you by.
+                  No hats found for {{ movieHatEmail || userEmail }} — that's the address Movie Hat knows you by.
                 </p>
               </SettingsSection>
 
@@ -1274,6 +1298,8 @@ export default {
       findingHats: false,
       searchedForHats: false,
       hatLookupError: null,
+      connectingHat: false,
+      hatConnectError: null,
       mirrorFeedCopied: false,
       activeFilters: [], // New multi-filter system
       activeQuickLinkList: "title",
@@ -1651,6 +1677,9 @@ export default {
   computed: {
     userEmail () {
       return this.$store.state.userEmail;
+    },
+    movieHatEmail () {
+      return this.$store.state.movieHatEmail;
     },
     linkedMovieHats () {
       return this.$store.getters.linkedMovieHats;
@@ -3094,6 +3123,26 @@ export default {
     },
   },
   methods: {
+    async connectMovieHat () {
+      this.connectingHat = true;
+      this.hatConnectError = null;
+      try {
+        await this.$store.dispatch('connectMovieHat');
+        this.searchedForHats = true;
+      } catch (error) {
+        // Closing the popup is a choice, not a failure worth shouting about.
+        if (error?.code !== 'auth/popup-closed-by-user') {
+          this.hatConnectError = "Couldn't sign in to Movie Hat.";
+          ErrorLogService.error('Movie Hat sign-in failed', error);
+        }
+      } finally {
+        this.connectingHat = false;
+      }
+    },
+    disconnectMovieHat () {
+      this.searchedForHats = false;
+      this.$store.dispatch('disconnectMovieHat');
+    },
     async findMovieHats () {
       this.findingHats = true;
       this.hatLookupError = null;
@@ -5815,6 +5864,18 @@ export default {
   font-size: 0.75rem;
   line-height: 1.35;
   margin: 0 0 0.6rem;
+}
+
+.settings-hat-account {
+  border-bottom: 1px solid #2e2e2e;
+  margin-bottom: 0.7rem;
+  padding-bottom: 0.7rem;
+}
+
+.settings-hat-connected {
+  /* #7fd6a2 on the section card is ~8:1. */
+  color: #7fd6a2;
+  margin-bottom: 0.4rem;
 }
 
 .settings-hat-count {

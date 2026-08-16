@@ -24,6 +24,8 @@
 // It is destructive on purpose — that is what makes it a hat and not a
 // shuffle button — so anything here that draws must do all three.
 
+import { movieHatToken, emailToMemberKey } from './movieHatAuth.js';
+
 export const HAT_DATABASE_URL = 'https://movie-hat-9c418-default-rtdb.firebaseio.com';
 
 /** Firebase object-maps → arrays, carrying each child's key. Arrays pass through. */
@@ -118,13 +120,48 @@ export function drawnRecord (movie, now = Date.now()) {
 // ---------------------------------------------------------------------------
 
 async function hatRequest (path, options = {}) {
-  const response = await fetch(`${HAT_DATABASE_URL}/${path}`, options);
-  if (!response.ok) throw new Error(`Movie Hat responded ${response.status}`);
+  // Movie Hat is a different Firebase project, so this is ITS token, from
+  // the second sign-in — a Cinema Roll token means nothing there. Null while
+  // the rules are still open, which is why everything below keeps working
+  // before anyone connects.
+  const token = await movieHatToken();
+  const separator = path.includes('?') ? '&' : '?';
+  const url = token
+    ? `${HAT_DATABASE_URL}/${path}${separator}auth=${encodeURIComponent(token)}`
+    : `${HAT_DATABASE_URL}/${path}`;
+
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const error = new Error(`Movie Hat responded ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
   const text = await response.text();
   return text ? JSON.parse(text) : null;
 }
 
-/** Every hat in the app, for the one-off "find my hats" step. */
+/**
+ * The hats this address belongs to, from Movie Hat's own index.
+ *
+ * Was: download every hat in the database and filter client-side. That is
+ * exactly what the lockdown makes impossible — you can't read hats you
+ * aren't a member of — so it reads `userHats/<memberKey>` instead, which is
+ * readable only by you.
+ */
+export async function fetchMyHats (email) {
+  const memberKey = emailToMemberKey(email);
+  if (!memberKey) return [];
+
+  const mine = await hatRequest(`userHats/${memberKey}.json`);
+  if (!mine) return [];
+
+  return Object.values(mine)
+    .filter((entry) => entry?.title)
+    .map((entry) => ({ title: entry.title, dbKey: entry.hatKey || null }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/** Every hat in the app. Only usable while the database is still open. */
 export function fetchAllHats () {
   return hatRequest('hats.json');
 }

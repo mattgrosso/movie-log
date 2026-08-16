@@ -15,6 +15,11 @@ const app = createApp(App);
 
 app.use(store);
 
+// Movie Hat is a separate Firebase project with its own session. Watching it
+// from start-up is what makes the connection survive a reload — otherwise the
+// settings pane would offer to connect an account that is already connected.
+store.dispatch('watchMovieHatAuth');
+
 app.use(VueClickAway);
 
 // rootMargin grows the IntersectionObserver's trigger zone so posters start

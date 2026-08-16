@@ -25,7 +25,12 @@ import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
 import { emailToDatabaseKey, isQaAccountKey } from "../assets/javascript/databaseKey.js";
-import { fetchAllHats, hatsForMember, fetchHat, toHatMovie, alreadyInHat, addMovieToHat, pickFromHat, commitDraw } from "../assets/javascript/movieHat.js";
+import { fetchAllHats, fetchMyHats, hatsForMember, fetchHat, toHatMovie, alreadyInHat, addMovieToHat, pickFromHat, commitDraw } from "../assets/javascript/movieHat.js";
+import {
+  connectMovieHat as signIntoMovieHat,
+  disconnectMovieHat as signOutOfMovieHat,
+  watchMovieHatAuth as observeMovieHatAuth
+} from "../assets/javascript/movieHatAuth.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
 import { pendingUpdates, reconcilePending } from "../assets/javascript/recommendationStats.js";
@@ -277,6 +282,8 @@ export default createStore({
     availableMovieHats: [],
     // Per-hat cards for the watchlist's draw section.
     movieHatSummaries: [],
+    // The Google address signed into Movie Hat's project, if any.
+    movieHatEmail: null,
     // Friends on other apps (Movie Log), translated into the same profile
     // shape as native friends. Held in memory; the subscription itself
     // lives in settings/externalFriends.
@@ -484,6 +491,9 @@ export default createStore({
     },
     setAvailableMovieHats (state, value) {
       state.availableMovieHats = value || [];
+    },
+    setMovieHatUser (state, user) {
+      state.movieHatEmail = user?.email || null;
     },
     setMovieHatSummaries (state, value) {
       state.movieHatSummaries = value || [];
@@ -1696,13 +1706,48 @@ export default createStore({
      * database, which is megabytes.
      */
     async findMovieHats (context) {
-      const email = context.state.userEmail;
+      // Prefer the Movie Hat account when connected: the hats are keyed by
+      // whichever Google address owns them, which needn't be the address you
+      // use for Cinema Roll.
+      const email = context.state.movieHatEmail || context.state.userEmail;
       if (!email) return [];
 
-      const all = await fetchAllHats();
-      const mine = hatsForMember(all, email);
+      // The index first — the only route that survives the lockdown. The
+      // whole-database scan is the fallback for as long as it works, so
+      // linking hats keeps working before the index is backfilled.
+      let mine = await fetchMyHats(email);
+
+      if (!mine.length) {
+        try {
+          mine = hatsForMember(await fetchAllHats(), email);
+        } catch {
+          // Refused: the database is closed and the index is the only way.
+          mine = [];
+        }
+      }
+
       context.commit('setAvailableMovieHats', mine);
       return mine;
+    },
+
+    /** The one popup. Connects Cinema Roll to Movie Hat's own project. */
+    async connectMovieHat (context) {
+      const user = await signIntoMovieHat();
+      context.commit('setMovieHatUser', user);
+      // Whichever account just signed in is the one whose hats to look for.
+      if (user?.email) await context.dispatch('findMovieHats');
+      return user;
+    },
+
+    async disconnectMovieHat (context) {
+      await signOutOfMovieHat();
+      context.commit('setMovieHatUser', null);
+      context.commit('setAvailableMovieHats', []);
+    },
+
+    /** Keeps the store in step with the Movie Hat session across reloads. */
+    watchMovieHatAuth (context) {
+      observeMovieHatAuth((user) => context.commit('setMovieHatUser', user));
     },
 
     async linkMovieHats (context, hats) {
