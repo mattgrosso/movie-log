@@ -98,24 +98,48 @@ export default {
     activeYear () {
       this.$nextTick(() => this.centerYearPill());
     },
-    awardsYears (years) {
-      // The library arrives after the first render, so the strip is empty on
-      // a cold load and can't be centered until it isn't.
-      if (years.length) this.$nextTick(() => this.centerYearPill());
+    awardsYears: {
+      immediate: true,
+      handler (years) {
+        if (!years.length) return;
+        // The library arrives after the first render, so on a cold load the
+        // strip is empty and neither of these can happen yet.
+        this.defaultToMostRecentYear(years);
+        this.$nextTick(() => this.centerYearPill());
+      }
     }
   },
   methods: {
+    // Arriving with no year at all — the Awards card on Insights does exactly
+    // that — used to leave the modal to pick, and its picker answers "which
+    // year needs work", returning null once every year is finished. The page
+    // then rendered with no year and no values in it at all (Matt, 2026-08-16:
+    // "it just takes me to an empty Awards page, like all null values. It
+    // should just default to the most recent year").
+    //
+    // The picker is left alone: null is the right answer to its own question,
+    // which is what the home screen's "a year is ready" prompt asks.
+    defaultToMostRecentYear (years) {
+      if (this.yearFromRoute != null) return;
+      this.$router.replace({ path: '/awards', query: { year: years[years.length - 1] } });
+    },
     selectYear (year) {
       if (year === this.activeYear) return;
       // replace, not push: stepping through years shouldn't bury the way back.
       this.$router.replace({ path: '/awards', query: { year } });
     },
+    // Positioned by hand rather than with scrollIntoView({ inline: 'center' }),
+    // which left the last year clipped by ~26px when the page defaults to it —
+    // the most common landing of all. Clamping to the scroll range centers
+    // where it can and butts up against the end where it can't.
     centerYearPill () {
-      const pill = this.$refs.yearScroller?.querySelector('.awards-year-pill.selected');
-      // Guarded: jsdom has no scrollIntoView at all.
-      if (pill && typeof pill.scrollIntoView === 'function') {
-        pill.scrollIntoView({ inline: 'center', block: 'nearest' });
-      }
+      const scroller = this.$refs.yearScroller;
+      const pill = scroller?.querySelector('.awards-year-pill.selected');
+      if (!scroller || !pill) return;
+
+      const centered = pill.offsetLeft - (scroller.clientWidth - pill.offsetWidth) / 2;
+      const furthest = scroller.scrollWidth - scroller.clientWidth;
+      scroller.scrollLeft = Math.max(0, Math.min(centered, furthest));
     },
     leave () {
       if (window.history.length > 1) {

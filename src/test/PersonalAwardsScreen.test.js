@@ -48,9 +48,38 @@ describe('PersonalAwardsScreen', () => {
     expect(modal.props('allEntriesWithFlatKeywordsAdded')[0].movie.flatKeywords).toEqual(['kw']);
   });
 
-  it('tolerates a missing year (the component picks its own first eligible year)', () => {
-    const { wrapper } = factory({});
+  it('tolerates a missing year before the library has arrived to default from', () => {
+    const { wrapper, replaceSpy } = factory({});
     expect(wrapper.findComponent(PersonalAwardsModal).props('selectedYear')).toBeNull();
+    expect(replaceSpy).not.toHaveBeenCalled();
+  });
+
+  // The Awards card on Insights links to a bare /awards. The modal's own
+  // picker answers "which year needs work" and returns null once every year is
+  // finished, which rendered a page with nothing in it (Matt, 2026-08-16).
+  describe('landing without a year', () => {
+    const library = libraryForYears({ 1994: 12, 1997: 12, 2001: 12 });
+
+    it('defaults to the most recent year', () => {
+      const { replaceSpy } = factory({}, {}, library);
+
+      expect(replaceSpy).toHaveBeenCalledWith({ path: '/awards', query: { year: 2001 } });
+    });
+
+    it('defaults even when every year is already complete — the case that broke', () => {
+      const settings = {
+        personalAwards: { 1994: { completed: true }, 1997: { completed: true }, 2001: { completed: true } }
+      };
+      const { replaceSpy } = factory({}, settings, library);
+
+      expect(replaceSpy).toHaveBeenCalledWith({ path: '/awards', query: { year: 2001 } });
+    });
+
+    it('leaves an explicit year in the URL alone', () => {
+      const { replaceSpy } = factory({ year: '1997' }, {}, library);
+
+      expect(replaceSpy).not.toHaveBeenCalled();
+    });
   });
 
   it('closing leaves the page (Home fallback when there is no history to go back to)', () => {
