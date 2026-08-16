@@ -23,6 +23,20 @@ export const CRITERIA = ['love', 'overall', 'stickiness', 'story', 'direction', 
 // Missing criteria become -1, never null — Firebase silently drops null
 // array slots and returns a SPARSE array, which would shift every index in
 // a fixed-order array. Readers must treat negatives as absent.
+// Where and when, per viewing — Matt, 2026-08-16: club friends could see
+// WHAT you rated but not that you saw it in a theatre in 2019 and on
+// Blu-ray in 2024. Compact keys: at (timestamp), m (medium).
+function viewingsFrom (entry) {
+  return (entry?.ratings || [])
+    .map((rating) => ({
+      at: new Date(rating?.date ?? NaN).getTime(),
+      m: rating?.medium || null
+    }))
+    .filter((viewing) => Number.isFinite(viewing.at))
+    .sort((a, b) => b.at - a.at)
+    .map((viewing) => (viewing.m ? { at: viewing.at, m: viewing.m } : { at: viewing.at }));
+}
+
 function criteriaArrayFrom (rating) {
   if (!rating) return null;
   const values = CRITERIA.map((key) => {
@@ -77,6 +91,7 @@ export function buildSocialProfile (entries, getRatingFn, { name, shareRatings =
       r: Math.round(rating * 100) / 100,
       at: times.length ? Math.max(...times) : null,
       c: shareCriteria ? criteriaArrayFrom(mostRecent) : null,
+      v: viewingsFrom(entry),
       releaseYear: new Date(entry.movie.release_date ?? NaN).getFullYear() || null
     });
   });
@@ -100,15 +115,18 @@ export function buildSocialProfile (entries, getRatingFn, { name, shareRatings =
     updatedAt: now,
     counts: { titles: rated.length, viewings },
     topShelf: byRating.slice(0, 10).map(({ id, t, p, r }) => ({ id, t, p, r })),
-    recent: byRecency.slice(0, 20).map(({ id, t, p, r, at }) => ({ id, t, p, r, at })),
+    recent: byRecency.slice(0, 20).map(({ id, t, p, r, at, v }) => ({
+      id, t, p, r, at, ...(v?.[0]?.m ? { m: v[0].m } : {})
+    })),
     crown
   };
 
   if (shareRatings) {
     const ratings = {};
-    rated.forEach(({ id, t, p, r, at, c }) => {
+    rated.forEach(({ id, t, p, r, at, c, v }) => {
       ratings[id] = { r, at, t, p };
       if (shareCriteria && c) ratings[id].c = c;
+      if (v?.length) ratings[id].v = v;   // where and when, per viewing
     });
     profile.ratings = ratings;
   }
@@ -140,7 +158,9 @@ export function compareWithFriend (myEntries, getRatingFn, friendProfile, { glob
         theirs: their.r,
         gap: my.rating - their.r,
         myCriteria: criteriaArrayFrom(mostRecent),
-        theirCriteria: Array.isArray(their.c) ? their.c : null
+        theirCriteria: Array.isArray(their.c) ? their.c : null,
+        myViewings: viewingsFrom(my.entry),
+        theirViewings: Array.isArray(their.v) ? their.v : []
       });
     }
   });

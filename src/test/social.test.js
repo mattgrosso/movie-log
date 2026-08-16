@@ -3,11 +3,14 @@ import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsW
 
 const NOW = Date.UTC(2026, 7, 15)
 
-function entry (id, title, rating, { at = NOW - id * 1000, year = 2000, criteria = {} } = {}) {
+function entry (id, title, rating, { at = NOW - id * 1000, year = 2000, criteria = {}, medium = null, extraViewings = [] } = {}) {
   return {
     dbKey: `k${id}`,
     movie: { id, title, poster_path: `/${id}.jpg`, release_date: `${year}-06-15` },
-    ratings: [{ date: at, calculatedTotal: rating, direction: 9, ...criteria }]
+    ratings: [
+      ...extraViewings,
+      { date: at, calculatedTotal: rating, direction: 9, ...(medium ? { medium } : {}), ...criteria }
+    ]
   }
 }
 const ratingOf = (e) => ({ calculatedTotal: e.ratings[0].calculatedTotal })
@@ -225,5 +228,39 @@ describe('friendsLoveUnseen', () => {
   it('is empty with no friends, and ignores friends who share no scores', () => {
     expect(friendsLoveUnseen(myLibrary, ratingOf, {})).toEqual([])
     expect(friendsLoveUnseen(myLibrary, ratingOf, { shelfOnly: friends.shelfOnly })).toEqual([])
+  })
+})
+
+describe('published viewings (where and when)', () => {
+  it('carries every viewing newest-first with its medium', () => {
+    const library = [entry(1, 'Rewatched', 9, {
+      at: NOW,
+      medium: 'Theater',
+      extraViewings: [{ date: NOW - 100000, calculatedTotal: 8, medium: 'Bluray' }]
+    })]
+    const profile = buildSocialProfile(library, ratingOf, { name: 'Matt', shareRatings: true })
+
+    expect(profile.ratings[1].v).toEqual([
+      { at: NOW, m: 'Theater' },
+      { at: NOW - 100000, m: 'Bluray' }
+    ])
+    // The recent shelf shows the medium of the latest viewing.
+    expect(profile.recent[0].m).toBe('Theater')
+  })
+
+  it('omits the medium key when a viewing has none, rather than writing null', () => {
+    const profile = buildSocialProfile([entry(1, 'No Medium', 7)], ratingOf, { name: 'Matt', shareRatings: true })
+    expect(profile.ratings[1].v).toEqual([{ at: NOW - 1000 }])
+    expect(profile.recent[0].m).toBeUndefined()
+  })
+
+  it('skips viewings with unusable dates', () => {
+    const library = [{
+      dbKey: 'k1',
+      movie: { id: 1, title: 'Undated', poster_path: '/1.jpg', release_date: '2000-06-15' },
+      ratings: [{ calculatedTotal: 7 }]
+    }]
+    const profile = buildSocialProfile(library, ratingOf, { name: 'Matt', shareRatings: true })
+    expect(profile.ratings[1].v).toBeUndefined()
   })
 })

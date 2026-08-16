@@ -46,6 +46,12 @@
             </div>
             <span class="fc-gap-badge">{{ Math.abs(item.gap).toFixed(1) }}</span>
           </div>
+          <div v-if="expandedKey === item.entry.dbKey" class="fc-detail">
+            <div v-if="item.myViewings?.length || item.theirViewings?.length" class="fc-viewings">
+              <p v-if="item.myViewings?.length" class="fc-viewing-line">You: {{ viewingLabel(item.myViewings) }}</p>
+              <p v-if="item.theirViewings?.length" class="fc-viewing-line">{{ profile.name }}: {{ viewingLabel(item.theirViewings) }}</p>
+            </div>
+          </div>
           <div v-if="expandedKey === item.entry.dbKey && detailFor(item)" class="fc-detail">
             <div class="fc-detail-head"><span></span><span>You</span><span>{{ profile.name }}</span></div>
             <div v-for="row in detailFor(item)" :key="row.criterion" class="fc-detail-row">
@@ -145,7 +151,8 @@ export default {
       });
     },
     anyCriteriaDetail () {
-      return (this.comparison?.biggestDisagreements || []).some((item) => this.detailFor(item));
+      return (this.comparison?.biggestDisagreements || []).some((item) =>
+        this.detailFor(item) || item.myViewings?.length || item.theirViewings?.length);
     }
   },
   created () {
@@ -172,8 +179,15 @@ export default {
       })).filter((row) => row.mine >= 0 && row.theirs >= 0);
       return rows.length ? rows : null;
     },
+    // "Theater · Mar 2019, then Bluray · Aug 2024"
+    viewingLabel (viewings) {
+      return (viewings || []).slice(0, 3).map((viewing) => {
+        const when = new Date(viewing.at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+        return viewing.m ? `${viewing.m} · ${when}` : when;
+      }).join(', ');
+    },
     toggleDetail (item) {
-      if (!this.detailFor(item)) {
+      if (!this.detailFor(item) && !item.myViewings?.length && !item.theirViewings?.length) {
         this.goToMovie(item.entry.movie.id);
         return;
       }
@@ -322,6 +336,14 @@ export default {
   border-radius: 8px;
   margin: 0 0 0.5rem;
   padding: 0.5rem 0.75rem;
+}
+
+.fc-viewings { padding-bottom: 0.25rem; }
+
+.fc-viewing-line {
+  color: #ccc;
+  font-size: 0.75rem;
+  margin: 0;
 }
 
 .fc-detail-head,
