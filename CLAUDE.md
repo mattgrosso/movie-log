@@ -77,13 +77,20 @@ request — which is what prompted this structure.
 
 ## Hard constraints
 
-**Node is pinned to 18.18** (`.tool-versions`, and CI). This is load-bearing and forces:
+**Node is pinned to 20.20** (`.tool-versions`, and CI), raised from 18.18 on
+2026-08-16. That lifted the three constraints it used to force: ESLint is now **10**,
+`firebase-admin` is **^13**, and `--env-file` is available (scripts still use
+`scripts/loadEnvLocal.mjs`, which works fine — swapping it is optional cleanup, not a
+requirement).
 
-- ESLint **9**, not 10 (10 requires Node ^20.19)
-- `firebase-admin` **^12**, not ^13 (13 needs Node ≥20)
-- No `--env-file` in scripts (needs Node 20.6+) — use `scripts/loadEnvLocal.mjs`
+ESLint 10 needed `eslint-plugin-vue` **10** and an explicit `vue-eslint-parser`
+dependency: 10 removed `context.getSourceCode()`, which older plugin versions call.
 
-Moving to Node 20 is the prerequisite for lifting all three.
+**`.yarnrc` sets `--ignore-engines`.** `@achrinza/node-ipc`, a transitive dependency of
+`@vue/cli-service`'s dev server, declares an `engines` range stopping at Node 19 and is
+unmaintained; it runs fine on 20. Delete that flag the day the Vue CLI dev server goes
+away or node-ipc is dropped upstream — don't let it quietly excuse a real
+incompatibility.
 
 ## Rating system
 
