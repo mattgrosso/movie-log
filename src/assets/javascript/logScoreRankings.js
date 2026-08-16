@@ -1,37 +1,27 @@
-// Brian's ranking method, verbatim, as a standalone list builder (Matt,
-// 2026-08-15: "keep my existing ranking for directors as a test case, and
-// then right after it a ranking of directors using the same methods Brian
-// uses"). Deliberately UNTUNED: plain composite ratings, rank weighting
-// R/(R+i) best-first, Bayesian pull toward the library's global average —
-// no known-for bonus, no count bonus, no direction blending, no manual
-// levers. Differences from the Favorite Directors list above it are the
-// whole point.
+// Brian's ranking method as the scorer behind every Favorite* section
+// (comparison round 2026-08-15: Matt preferred it outright, so the old
+// per-section scoring — known-for bonus, count bonus, criterion blends —
+// was retired). Plain composite ratings, rank weighting R/(R+i)
+// best-first, Bayesian pull toward the library's global average; cast
+// billing shrinks CONFIDENCE (effective n), never the rating.
 
-import { logScore, globalAverage } from './logScore.js';
+import { logScore, actorLogScore } from './logScore.js';
 
-export function rankDirectorsByLogScore (entries, getRatingFn, weights = {}) {
-  const globalAvg = globalAverage(entries, getRatingFn);
-  const byDirector = new Map();
-
-  (entries || []).forEach((entry) => {
-    const rating = getRatingFn(entry)?.calculatedTotal;
-    if (!Number.isFinite(rating)) return;
-    const credited = new Set();
-    (entry?.movie?.crew || []).forEach((person) => {
-      if (person?.job !== 'Director' || !person.name || credited.has(person.name)) return;
-      credited.add(person.name); // TMDB sometimes lists a director twice on one film
-      if (!byDirector.has(person.name)) byDirector.set(person.name, []);
-      byDirector.get(person.name).push({ entry, rating });
-    });
-  });
-
-  return [...byDirector.entries()]
-    .map(([name, films]) => ({
-      name,
-      count: films.length,
-      score: logScore(films.map((film) => film.rating), globalAvg, weights),
-      films: [...films].sort((a, b) => b.rating - a.rating)
-    }))
-    .filter((director) => director.score !== null)
-    .sort((a, b) => (b.score - a.score) || (b.count - a.count) || a.name.localeCompare(b.name));
+// Shared scorer for the eight Favorite* sections (Brian's-method adoption,
+// Matt 2026-08-15: "use Brian's method instead of mine for all of the
+// categories"). `person` is a section's gathered shape: { entries,
+// billings? } — billings parallel to entries for cast sections. Crew
+// (billingWeight omitted) uses the plain log score; cast routes billing
+// into effective-n via actorLogScore. Returns null when nothing is rated.
+export function personLogScore (person, getRatingFn, globalAvg, { rankWeight = 7, bayesianWeight = 7, billingWeight = null } = {}) {
+  const entries = person?.entries || [];
+  const scores = entries.map((entry) => getRatingFn(entry)?.calculatedTotal);
+  if (billingWeight == null) {
+    return logScore(scores.filter(Number.isFinite), globalAvg, { rankWeight, bayesianWeight });
+  }
+  const credits = entries.map((entry, i) => ({
+    score: scores[i],
+    castPosition: Number.isFinite(person?.billings?.[i]) ? person.billings[i] : 0
+  })).filter((credit) => Number.isFinite(credit.score));
+  return actorLogScore(credits, globalAvg, { rankWeight, bayesianWeight, billingWeight })?.score ?? null;
 }

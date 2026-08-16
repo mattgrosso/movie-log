@@ -72,8 +72,8 @@ describe('Favorite sections — shared tuning mixin', () => {
       await wrapper.vm.buildTopTwelveList()
     })
 
-    it('exposes tuner levers and starts excluding the 2-film person (default minEntries)', () => {
-      expect(wrapper.vm.tunerLevers.length).toBeGreaterThanOrEqual(4)
+    it("exposes exactly Brian's levers and starts excluding the 2-film person (default minEntries)", () => {
+      expect(wrapper.vm.tunerLevers.map(l => l.key)).toEqual(['minEntries', 'rankWeight', 'bayesianWeight'])
       expect(wrapper.vm.topTenList.map(d => d.name)).not.toContain('Star Person')
     })
 
@@ -89,7 +89,7 @@ describe('Favorite sections — shared tuning mixin', () => {
     it('does not re-hit TMDB when changing a pure-scoring lever', async () => {
       await wrapper.vm.onTunerUpdate({ key: 'minEntries', value: 1 }) // fetches Star once
       const calls = fetchSpy.mock.calls.length
-      await wrapper.vm.onTunerUpdate({ key: 'countWeight', value: 1 })
+      await wrapper.vm.onTunerUpdate({ key: 'rankWeight', value: 3 })
       expect(fetchSpy.mock.calls.length).toBe(calls)
     })
 
@@ -111,10 +111,8 @@ describe('Favorite sections — shared tuning mixin', () => {
       await wrapper.vm.buildTopTwelveList()
     })
 
-    it('has billingLimit + billingExponent levers and excludes the 2-film person by default', () => {
-      const keys = wrapper.vm.tunerLevers.map(l => l.key)
-      expect(keys).toContain('billingLimit')
-      expect(keys).toContain('billingExponent')
+    it("has Brian's cast levers (incl. lead-role emphasis) and excludes the 2-film person by default", () => {
+      expect(wrapper.vm.tunerLevers.map(l => l.key)).toEqual(['minEntries', 'rankWeight', 'bayesianWeight', 'billingWeight'])
       expect(wrapper.vm.topTenList.map(d => d.name)).not.toContain('Star Person')
     })
 

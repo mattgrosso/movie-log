@@ -1,64 +1,49 @@
 import { describe, it, expect } from 'vitest'
-import { rankDirectorsByLogScore } from '@/assets/javascript/logScoreRankings.js'
+import { personLogScore } from '@/assets/javascript/logScoreRankings.js'
 
-// Brian's-method director list: pure log score over composite ratings.
+// The shared Brian's-method scorer behind every Favorite* section.
 
-function entry (id, title, rating, directors) {
-  return {
-    dbKey: `k${id}`,
-    movie: {
-      id,
-      title,
-      crew: directors.map((name) => ({ name, job: 'Director' }))
-    },
-    ratings: [{ calculatedTotal: rating }]
-  }
+function entry (id, rating) {
+  return { dbKey: `k${id}`, movie: { id }, ratings: [{ calculatedTotal: rating }] }
 }
 const ratingOf = (e) => ({ calculatedTotal: e.ratings[0].calculatedTotal })
 
-describe('rankDirectorsByLogScore', () => {
-  it('ranks a deep strong filmography above a lone masterpiece (Bayesian pull)', () => {
-    const library = [
-      entry(1, 'A', 9, ['Deep Career']),
-      entry(2, 'B', 9, ['Deep Career']),
-      entry(3, 'C', 9, ['Deep Career']),
-      entry(4, 'D', 9, ['Deep Career']),
-      entry(5, 'One Hit', 10, ['One Hit Wonder']),
-      // Ballast so the global average sits well below 9.
-      entry(6, 'E', 5, ['Someone Else']),
-      entry(7, 'F', 5, ['Someone Else']),
-      entry(8, 'G', 5, ['Another Person'])
-    ]
-    const ranked = rankDirectorsByLogScore(library, ratingOf)
-    expect(ranked[0].name).toBe('Deep Career')
-    expect(ranked[0].count).toBe(4)
-    // The single 10 gets pulled hard toward the global average with n=1.
-    const oneHit = ranked.find((d) => d.name === 'One Hit Wonder')
-    expect(oneHit.score).toBeLessThan(ranked[0].score)
+describe('personLogScore', () => {
+  it('crew: deep strong filmography beats a lone masterpiece under the Bayesian pull', () => {
+    const globalAvg = 5.5
+    const deep = personLogScore({ entries: [entry(1, 9), entry(2, 9), entry(3, 9), entry(4, 9)] }, ratingOf, globalAvg)
+    const oneHit = personLogScore({ entries: [entry(5, 10)] }, ratingOf, globalAvg)
+    expect(deep).toBeGreaterThan(oneHit)
   })
 
-  it('films come back sorted best-first and co-directors both get credit', () => {
-    const library = [
-      entry(1, 'Together', 8, ['Ana', 'Ben']),
-      entry(2, 'Solo High', 9.5, ['Ana'])
-    ]
-    const ranked = rankDirectorsByLogScore(library, ratingOf)
-    const ana = ranked.find((d) => d.name === 'Ana')
-    expect(ana.count).toBe(2)
-    expect(ana.films[0].entry.movie.title).toBe('Solo High')
-    expect(ranked.find((d) => d.name === 'Ben').count).toBe(1)
+  it('crew: rankWeight low lets the best work dominate a spotty record', () => {
+    const globalAvg = 5.5
+    const spotty = { entries: [entry(1, 10), entry(2, 4), entry(3, 4), entry(4, 4)] }
+    const steep = personLogScore(spotty, ratingOf, globalAvg, { rankWeight: 1, bayesianWeight: 0 })
+    const flat = personLogScore(spotty, ratingOf, globalAvg, { rankWeight: 15, bayesianWeight: 0 })
+    expect(steep).toBeGreaterThan(flat)
   })
 
-  it('a duplicate Director credit on one film counts once', () => {
-    const library = [
-      { dbKey: 'k1', movie: { id: 1, title: 'Dup', crew: [{ name: 'Ana', job: 'Director' }, { name: 'Ana', job: 'Director' }] }, ratings: [{ calculatedTotal: 8 }] },
-      entry(2, 'Other', 6, ['Ben'])
-    ]
-    const ranked = rankDirectorsByLogScore(library, ratingOf)
-    expect(ranked.find((d) => d.name === 'Ana').count).toBe(1)
+  it('cast: deep billing reduces CONFIDENCE, not the rating — more pull toward the average', () => {
+    const globalAvg = 5.5
+    const films = [entry(1, 9), entry(2, 9), entry(3, 9)]
+    const lead = personLogScore({ entries: films, billings: [0, 0, 0] }, ratingOf, globalAvg, { billingWeight: 7 })
+    const support = personLogScore({ entries: films, billings: [12, 12, 12] }, ratingOf, globalAvg, { billingWeight: 7 })
+    // Same films, same ratings — the supporting player just has less proof.
+    expect(lead).toBeGreaterThan(support)
+    expect(support).toBeGreaterThan(globalAvg) // still above average, just less so
   })
 
-  it('empty library yields an empty list', () => {
-    expect(rankDirectorsByLogScore([], ratingOf)).toEqual([])
+  it('cast: billingWeight high makes supporting parts count almost like leads', () => {
+    const globalAvg = 5.5
+    const person = { entries: [entry(1, 9), entry(2, 9)], billings: [10, 10] }
+    const strict = personLogScore(person, ratingOf, globalAvg, { billingWeight: 1 })
+    const generous = personLogScore(person, ratingOf, globalAvg, { billingWeight: 15 })
+    expect(generous).toBeGreaterThan(strict)
+  })
+
+  it('returns null when nothing is rated', () => {
+    expect(personLogScore({ entries: [] }, ratingOf, 5.5)).toBeNull()
+    expect(personLogScore({ entries: [{ movie: {}, ratings: [] }] }, () => null, 5.5)).toBeNull()
   })
 })

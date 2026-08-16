@@ -59,14 +59,17 @@
 <script>
 import FavoriteTuner from "./FavoriteTuner.vue";
 import favoriteTuning from "../mixins/favoriteTuning.js";
+import { getRating } from "../assets/javascript/GetRating.js";
+import { globalAverage } from "../assets/javascript/logScore.js";
+import { personLogScore } from "../assets/javascript/logScoreRankings.js";
 
 const TUNING_KEY = 'writer';
 const TUNING_DEFAULTS = Object.freeze({
   minEntries: 5,
-  confidenceNumber: 1,
-  countWeight: 0.25,
-  knownForWeight: 0.2,
-  storyWeight: 0.7
+  // Brian's method (adopted for every Favorite section, 2026-08-15) has
+  // exactly these levers — see personLogScore in logScoreRankings.js.
+  rankWeight: 7,
+  bayesianWeight: 7,
 });
 
 export default {
@@ -87,24 +90,6 @@ export default {
       // minEntries: Minimum number of movies you must have seen from a writer for them to be considered.
       //   Increase: Only writers you've seen more movies from will appear (list is more exclusive).
       //   Decrease: Writers with fewer movies seen can appear (list is more inclusive).
-      confidenceNumber: 1,
-      // confidenceNumber: Controls how much the global average rating influences the Bayesian average.
-      //   Increase: Scores are pulled more toward the global average (less sensitive to outliers, more conservative).
-      //   Decrease: Scores reflect your ratings more strongly (more sensitive to high/low averages for writers with few movies).
-      countWeight: 0.25,
-      // countWeight: Controls how much the number of movies seen from a writer boosts their score.
-      //   Increase: Writers you've seen more often are favored, even if their average is lower.
-      //   Decrease: Number of movies seen matters less; average rating dominates.
-      knownForWeight: 0.2,
-      // knownForWeight: Controls the bonus for rating a writer's 'known_for' movies highly.
-      //   Increase: Writers whose most famous movies you rate highly get a bigger boost.
-      //   Decrease: 'Known_for' bonus has less effect; overall average matters more.
-      manualBoosts: {
-        // Example: 'Charlie Kaufman': 1.2, 'Aaron Sorkin': 0.8
-      },
-      // manualBoosts: Lets you manually adjust a writer's score (by name).
-      //   >1: Boosts the writer's score (e.g. 1.2 = 20% higher).
-      //   <1: Reduces the writer's score (e.g. 0.8 = 20% lower).
       storyWeight: 0.7, // adjust as desired
       // This gives the story rating more weight in the final score
       showModal: false,
@@ -112,9 +97,6 @@ export default {
     }
   },
   computed: {
-    overallWeight () {
-      return 1 - this.storyWeight;
-    },
     tunerLevers () {
       return [
         {
@@ -127,83 +109,27 @@ export default {
           help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
         },
         {
-          key: 'confidenceNumber',
+          key: 'rankWeight',
+          label: 'Best-work emphasis',
+          value: this.rankWeight,
+          min: 1,
+          max: 15,
+          step: 1,
+          help: 'Films count best-first with declining weight R/(R+rank). Low = masterpieces dominate; high = the whole filmography matters.'
+        },
+        {
+          key: 'bayesianWeight',
           label: 'Small-sample caution',
-          value: this.confidenceNumber,
+          value: this.bayesianWeight,
           min: 0,
-          max: 10,
-          step: 0.5,
-          help: "Pulls writers with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
+          max: 15,
+          step: 1,
+          help: "How many films someone needs before you believe their average — thin filmographies get pulled toward your library average by B/(B+n). 0 = no pull; high = only deep careers can top the list."
         },
-        {
-          key: 'countWeight',
-          label: 'Reward for volume',
-          value: this.countWeight,
-          min: 0,
-          max: 2,
-          step: 0.05,
-          help: "Boosts writers you've watched a lot. Higher = prolific favorites climb even if their average dips slightly."
-        },
-        {
-          key: 'knownForWeight',
-          label: 'Signature-film bonus',
-          value: this.knownForWeight,
-          min: 0,
-          max: 1,
-          step: 0.05,
-          help: "Extra credit when you've rated their best-known films highly. Higher = loving their famous work matters more."
-        },
-        {
-          key: 'storyWeight',
-          label: 'Story vs. overall',
-          value: this.storyWeight,
-          min: 0,
-          max: 1,
-          step: 0.05,
-          help: 'Blends each film’s Story score with its overall score. Higher = leans on your Story ratings; 0 = pure overall.'
-        }
       ];
-    }
+    },
   },
   methods: {
-    averageRating (results, weights = null) {
-      // For writers, blend overall and story ratings
-      const getBlendedRating = (result) => {
-        const mostRecent = this.mostRecentRating(result);
-        const overall = parseFloat(mostRecent.calculatedTotal);
-        const story = typeof mostRecent.story === 'number' && !isNaN(mostRecent.story)
-          ? parseFloat(mostRecent.story)
-          : null;
-        if (!isNaN(overall) && story !== null) {
-          return (this.overallWeight * overall) + (this.storyWeight * story);
-        } else if (!isNaN(overall)) {
-          return overall;
-        } else if (story !== null) {
-          return story;
-        }
-        return NaN;
-      };
-      const ratedMovies = results.filter((result, idx) => {
-        const r = getBlendedRating(result);
-        return !isNaN(r) && (!weights || weights[idx] > 0);
-      });
-      if (ratedMovies.length === 0) return 0;
-      if (weights) {
-        let weightedSum = 0;
-        let totalWeight = 0;
-        ratedMovies.forEach((result, idx) => {
-          const rating = getBlendedRating(result);
-          const weight = weights[idx];
-          weightedSum += rating * weight;
-          totalWeight += weight;
-        });
-        return (weightedSum / totalWeight).toFixed(2);
-      } else {
-        const ratings = ratedMovies.map(getBlendedRating);
-        const total = ratings.reduce((a, b) => a + b, 0);
-        return (total / ratings.length).toFixed(2);
-      }
-    },
     async buildTopTwelveList () {
       // Phase 1 (once per data load): gather every writer + their rated films.
       // No minEntries filter and no TMDB fetch here, so re-tuning never re-gathers.
@@ -247,47 +173,26 @@ export default {
 
       await this.rescore();
     },
-    computeKnownForBonus (entries, details) {
-      // Average PLAIN overall rating of the writer's 'known_for' films you've
-      // rated, scaled by knownForWeight. (Writers' known-for uses the overall
-      // score, not the story-blended one — preserved from the original.)
-      if (!details || !Array.isArray(details.known_for) || !details.known_for.length) return 0;
-      const knownForIds = details.known_for.map(m => m.id);
-      const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
-      if (!ratedKnownFor.length) return 0;
-      const ratings = ratedKnownFor.map(e => parseFloat(this.mostRecentRating(e).calculatedTotal)).filter(r => !isNaN(r));
-      if (!ratings.length) return 0;
-      const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
-      return avgKnownFor * this.knownForWeight;
-    },
     async rescore () {
-      // Phase 2 (every tuner change): score eligible writers with CURRENT levers,
-      // reusing cached entries + TMDB details. Sequence token drops stale results.
+      // Phase 2 (every tuner change): Brian's method, nothing else — plain
+      // composite ratings through personLogScore (rank weighting + Bayesian
+      // pull). TMDB details are fetched only for portraits.
       const seq = ++this.rescoreSeq;
-      const eligible = this.peopleData.filter(p => p.entries.length >= this.minEntries);
-
-      await Promise.all(eligible.map(async (p) => {
-        if (!Object.prototype.hasOwnProperty.call(this.detailsCache, p.name)) {
-          await this.getCachedDetails(p.name);
-        }
-      }));
+      const globalAvg = globalAverage(this.allEntriesWithFlatKeywordsAdded, getRating);
+      const scored = this.peopleData
+        .filter(p => p.entries.length >= this.minEntries)
+        .map(p => ({
+          name: p.name,
+          entries: p.entries,
+          count: p.entries.length,
+          finalScore: personLogScore(p, getRating, globalAvg, { rankWeight: this.rankWeight, bayesianWeight: this.bayesianWeight })
+        }))
+        .filter(p => p.finalScore !== null)
+        .sort((a, b) => b.finalScore - a.finalScore)
+        .slice(0, 12);
+      await Promise.all(scored.map(async (p) => { p.details = await this.getCachedDetails(p.name); }));
       if (seq !== this.rescoreSeq) return;
-
-      const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
-
-      const scored = eligible.map((p) => {
-        const details = this.detailsCache[p.name];
-        const bayesian = this.bayesianAverage(p.entries, p.weights, globalAvg);
-        const count = p.entries.length;
-        const knownForBonus = this.computeKnownForBonus(p.entries, details);
-        const manualBoost = this.manualBoosts[p.name] || 1;
-        let finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
-        if (isNaN(finalScore)) finalScore = 0;
-        return { name: p.name, entries: p.entries, weights: p.weights, bayesian, count, details, finalScore, knownForBonus };
-      });
-
-      scored.sort((a, b) => b.finalScore - a.finalScore);
-      this.topTenList = scored.slice(0, 12);
+      this.topTenList = scored;
     },
     openWriterModal (entry) {
       this.selectedWriter = entry;

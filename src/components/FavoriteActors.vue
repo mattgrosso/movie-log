@@ -57,14 +57,18 @@
 <script>
 import FavoriteTuner from "./FavoriteTuner.vue";
 import favoriteTuning from "../mixins/favoriteTuning.js";
+import { getRating } from "../assets/javascript/GetRating.js";
+import { globalAverage } from "../assets/javascript/logScore.js";
+import { personLogScore } from "../assets/javascript/logScoreRankings.js";
 
 const TUNING_KEY = 'actor';
 const TUNING_DEFAULTS = Object.freeze({
   minEntries: 3,
-  confidenceNumber: 2,
-  billingLimit: 12,
-  billingExponent: 4,
-  performanceWeight: 0.7
+  // Brian's method (adopted for every Favorite section, 2026-08-15) has
+  // exactly these levers — see personLogScore in logScoreRankings.js.
+  rankWeight: 7,
+  bayesianWeight: 7,
+  billingWeight: 7,
 });
 
 export default {
@@ -82,18 +86,14 @@ export default {
       tuningKey: TUNING_KEY,
       tuningDefaults: TUNING_DEFAULTS,
       minEntries: TUNING_DEFAULTS.minEntries,
-      confidenceNumber: TUNING_DEFAULTS.confidenceNumber,
-      billingLimit: TUNING_DEFAULTS.billingLimit, // Only count actors in the top-N billing per film
-      billingExponent: TUNING_DEFAULTS.billingExponent, // Sharpness of the top-billing weighting
-      performanceWeight: TUNING_DEFAULTS.performanceWeight, // Blend of performance vs overall
+      rankWeight: TUNING_DEFAULTS.rankWeight,
+      bayesianWeight: TUNING_DEFAULTS.bayesianWeight,
+      billingWeight: TUNING_DEFAULTS.billingWeight,
       showModal: false,
       selectedActor: null,
     }
   },
   computed: {
-    overallWeight () {
-      return 1 - this.performanceWeight;
-    },
     tunerLevers () {
       return [
         {
@@ -106,96 +106,50 @@ export default {
           help: 'How many of their films you must have rated before they qualify. Higher = shorter, more exclusive list.'
         },
         {
-          key: 'confidenceNumber',
-          label: 'Small-sample caution',
-          value: this.confidenceNumber,
-          min: 0,
-          max: 10,
-          step: 0.5,
-          help: "Pulls actors with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
-        },
-        {
-          key: 'billingLimit',
-          label: 'Top-billing cutoff',
-          value: this.billingLimit,
+          key: 'rankWeight',
+          label: 'Best-work emphasis',
+          value: this.rankWeight,
           min: 1,
-          max: 30,
+          max: 15,
           step: 1,
-          help: 'Only count an actor when they appear within the top-N billed cast of a film. Lower = leading roles only.'
+          help: 'Films count best-first with declining weight R/(R+rank). Low = masterpieces dominate; high = the whole filmography matters.'
         },
         {
-          key: 'billingExponent',
+          key: 'bayesianWeight',
+          label: 'Small-sample caution',
+          value: this.bayesianWeight,
+          min: 0,
+          max: 15,
+          step: 1,
+          help: "How many films someone needs before you believe their average — thin filmographies get pulled toward your library average by B/(B+n). 0 = no pull; high = only deep careers can top the list."
+        },
+        {
+          key: 'billingWeight',
           label: 'Lead-role emphasis',
-          value: this.billingExponent,
-          min: 0,
-          max: 8,
-          step: 0.5,
-          help: 'How sharply top billing outweighs lower billing. Higher = a #1 lead counts far more than a #8 supporting part; 0 = all counted equally.'
+          value: this.billingWeight,
+          min: 1,
+          max: 15,
+          step: 1,
+          help: "A small role never changes what a film says about them — it adds less CONFIDENCE (W/(W+billing) of a film toward escaping the library-average pull). Low = leads dominate; high = supporting parts count almost like leads."
         },
-        {
-          key: 'performanceWeight',
-          label: 'Performance vs. overall',
-          value: this.performanceWeight,
-          min: 0,
-          max: 1,
-          step: 0.05,
-          help: 'Blends each film’s Performance score with its overall score. Higher = leans on your Performance ratings; 0 = pure overall.'
-        }
       ];
-    }
+    },
   },
   methods: {
-    averageRating (results, weights = null) {
-      // For actors, blend overall and performance ratings
-      const getBlendedRating = (result) => {
-        const mostRecent = this.mostRecentRating(result);
-        const overall = parseFloat(mostRecent.calculatedTotal);
-        const performance = typeof mostRecent.performance === 'number' && !isNaN(mostRecent.performance)
-          ? parseFloat(mostRecent.performance)
-          : null;
-        if (!isNaN(overall) && performance !== null) {
-          return (this.overallWeight * overall) + (this.performanceWeight * performance);
-        } else if (!isNaN(overall)) {
-          return overall;
-        } else if (performance !== null) {
-          return performance;
-        }
-        return NaN;
-      };
-      const ratedMovies = results.filter((result, idx) => {
-        const r = getBlendedRating(result);
-        return !isNaN(r) && (!weights || weights[idx] > 0);
-      });
-      if (ratedMovies.length === 0) return 0;
-      if (weights) {
-        let weightedSum = 0;
-        let totalWeight = 0;
-        ratedMovies.forEach((result, idx) => {
-          const rating = getBlendedRating(result);
-          const weight = weights[idx];
-          weightedSum += rating * weight;
-          totalWeight += weight;
-        });
-        return (weightedSum / totalWeight).toFixed(2);
-      } else {
-        const ratings = ratedMovies.map(getBlendedRating);
-        const total = ratings.reduce((a, b) => a + b, 0);
-        return (total / ratings.length).toFixed(2);
-      }
-    },
     gatherCastPeople () {
-      // Gather cast appearances within the current billingLimit, weighting each
-      // by 1/(billing+1)^billingExponent. Re-run on each rescore because both
-      // levers change the gathered set/weights (cheap: no TMDB calls here).
+      // Gather cast appearances with their billing positions. A fixed cap
+      // bounds noise and work — beyond it, W/(W+billing) contributes almost
+      // nothing to confidence anyway. Billing feeds personLogScore, never a
+      // pre-weight: a small role adds less CONFIDENCE, not a worse rating.
+      const BILLING_CAP = 20;
       const allEntries = this.allEntriesWithFlatKeywordsAdded;
       const valueToMovies = {};
-      const billingLimit = this.billingLimit;
       allEntries.forEach(entry => {
         const value = entry.movie.cast;
         if (!value) return;
         if (Array.isArray(value)) {
           value.forEach((val, idx) => {
-            if (idx >= billingLimit) return; // Skip if not in top billing
+            if (idx >= BILLING_CAP) return;
             const name = val.name || val;
             if (!valueToMovies[name]) valueToMovies[name] = [];
             valueToMovies[name].push({ entry, billing: idx });
@@ -217,31 +171,31 @@ export default {
         return {
           name,
           entries: sortedAppearances.map(a => a.entry),
-          weights: sortedAppearances.map(a => 1 / Math.pow(a.billing + 1, this.billingExponent))
+          billings: sortedAppearances.map(a => a.billing)
         };
       });
     },
     async buildTopTwelveList () {
-      // Cast levers (billingLimit/billingExponent) affect the gathered set, so
+      // The gather is cheap (no TMDB calls), so
       // rescore() re-gathers each pass. TMDB gender lookups are still cached.
       await this.rescore();
     },
     async rescore () {
+      // Brian's method for cast: billing shrinks a credit's share of the
+      // effective film count (confidence), never the rating itself. Gender
+      // gating walks the ranked list with cached TMDB lookups, as before.
       const seq = ++this.rescoreSeq;
-      const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
+      const globalAvg = globalAverage(this.allEntriesWithFlatKeywordsAdded, getRating);
       const ranked = this.gatherCastPeople()
         .filter(p => p.entries.length >= this.minEntries)
         .map(p => ({
           name: p.name,
           entries: p.entries,
-          weights: p.weights,
-          bayesian: this.bayesianAverage(p.entries, p.weights, globalAvg),
-          count: p.entries.length
+          count: p.entries.length,
+          finalScore: personLogScore(p, getRating, globalAvg, { rankWeight: this.rankWeight, bayesianWeight: this.bayesianWeight, billingWeight: this.billingWeight })
         }))
-        .sort((a, b) => b.bayesian - a.bayesian);
-
-      // Walk highest-bayesian first, fetching (cached) details to gender-gate,
-      // stopping once we have 12 actors (gender === 2).
+        .filter(p => p.finalScore !== null)
+        .sort((a, b) => b.finalScore - a.finalScore);
       const top = [];
       for (let i = 0; i < ranked.length && top.length < 12; i++) {
         const cand = ranked[i];

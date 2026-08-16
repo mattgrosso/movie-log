@@ -285,16 +285,6 @@
       <FavoriteDirectors :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
     </InsightsPane>
 
-    <!-- Brian's-method comparison list (Matt, 2026-08-15): pure Log Score
-         directors immediately after the tuned list, so the two methods can
-         be compared side by side. -->
-    <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Directors, Brian's Way</p>
-      </div>
-      <DirectorsLogScore :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded" @updateSearchValue="updateSearchValue"/>
-    </InsightsPane>
-
     <InsightsPane>
       <div class="insights-pane-header">
         <p>Favorite Actresses</p>
@@ -374,7 +364,6 @@ import FullCalendarView from "./FullCalendarView.vue";
 import FavoriteActresses from "./FavoriteActresses.vue";
 import FavoriteActors from "./FavoriteActors.vue";
 import FavoriteDirectors from "./FavoriteDirectors.vue";
-import DirectorsLogScore from "./DirectorsLogScore.vue";
 import FavoriteWriters from "./FavoriteWriters.vue";
 import FavoriteEditors from "./FavoriteEditors.vue";
 import FavoriteCinematographers from "./FavoriteCinematographers.vue";
@@ -404,7 +393,6 @@ export default {
     FavoriteActresses,
     FavoriteActors,
     FavoriteDirectors,
-    DirectorsLogScore,
     FavoriteWriters,
     FavoriteEditors,
     FavoriteCinematographers,

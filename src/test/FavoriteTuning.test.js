@@ -3,7 +3,9 @@ import { mount } from '@vue/test-utils'
 import FavoriteDirectors from '@/components/FavoriteDirectors.vue'
 
 vi.mock('@/assets/javascript/GetRating.js', () => ({
-  getRating: vi.fn(() => ({ calculatedTotal: 8, normalizedRating: 8 }))
+  // The real getRating is store-backed; here it reads the fixture's own
+  // rating so score-order assertions actually exercise the math.
+  getRating: vi.fn((entry) => ({ calculatedTotal: entry?.ratings?.[0]?.calculatedTotal }))
 }))
 
 // Build a director who appears in `count` films, each rated `score`.
@@ -40,7 +42,16 @@ describe('FavoriteDirectors live tuning', () => {
     const library = [
       ...films('Prolific Pat', 6, 8, 100), // many films, good
       ...films('Solid Sam', 4, 8.5, 200), // fewer films, slightly higher
-      ...films('Rare Renee', 2, 10, 300) // too few for default minEntries (4)
+      ...films('Rare Renee', 2, 9, 300), // too few for default minEntries (4)
+      ...films('Steady Stan', 4, 6.5, 500), // consistent, unspectacular
+      // Peaky Petra: one masterpiece, three duds — the rank-weight case.
+      {
+        movie: { id: 600, title: 'Petra Peak', crew: [{ job: 'Director', name: 'Peaky Petra' }] },
+        ratings: [{ calculatedTotal: 10 }]
+      },
+      ...films('Peaky Petra', 3, 4, 601),
+      // Ballast so the library average sits at 6.05, well below the leaders.
+      ...films('Background Bob', 8, 5, 400)
     ]
 
     wrapper = mount(FavoriteDirectors, {
@@ -92,27 +103,40 @@ describe('FavoriteDirectors live tuning', () => {
     expect(callsAfterBuild).toBeGreaterThan(0) // fetched once during build
 
     // Changing a pure-scoring lever should reuse cached details (no new fetches).
-    await wrapper.vm.onTunerUpdate({ key: 'countWeight', value: 1.5 })
+    await wrapper.vm.onTunerUpdate({ key: 'rankWeight', value: 3 })
     await wrapper.vm.$nextTick()
     expect(fetchSpy.mock.calls.length).toBe(callsAfterBuild)
   })
 
-  it('countWeight rewards volume: raising it lifts the more prolific director', async () => {
+  it('bayesianWeight (small-sample caution) drags a thin filmography down past a deeper one', async () => {
     await wrapper.vm.buildTopTwelveList()
-
-    await wrapper.vm.onTunerUpdate({ key: 'countWeight', value: 0 })
+    await wrapper.vm.onTunerUpdate({ key: 'minEntries', value: 1 })
+    await wrapper.vm.onTunerUpdate({ key: 'bayesianWeight', value: 0 })
     await wrapper.vm.$nextTick()
-    const patNoVolume = wrapper.vm.topTenList.findIndex(d => d.name === 'Prolific Pat')
-    const samNoVolume = wrapper.vm.topTenList.findIndex(d => d.name === 'Solid Sam')
-    // With no volume boost, higher-rated Sam leads.
-    expect(samNoVolume).toBeLessThan(patNoVolume)
+    const names = () => wrapper.vm.topTenList.map(d => d.name)
+    // No pull: Renee's two 9s beat Sam's four 8.5s outright.
+    expect(names().indexOf('Rare Renee')).toBeLessThan(names().indexOf('Solid Sam'))
 
-    await wrapper.vm.onTunerUpdate({ key: 'countWeight', value: 2 })
+    await wrapper.vm.onTunerUpdate({ key: 'bayesianWeight', value: 15 })
     await wrapper.vm.$nextTick()
-    const patHi = wrapper.vm.topTenList.findIndex(d => d.name === 'Prolific Pat')
-    const samHi = wrapper.vm.topTenList.findIndex(d => d.name === 'Solid Sam')
-    // With a strong volume boost, prolific Pat overtakes.
-    expect(patHi).toBeLessThan(samHi)
+    // Heavy caution: two films can't escape the library-average pull; Sam overtakes.
+    expect(names().indexOf('Solid Sam')).toBeLessThan(names().indexOf('Rare Renee'))
+  })
+
+  it('rankWeight (best-work emphasis) lets one masterpiece carry a spotty filmography', async () => {
+    await wrapper.vm.buildTopTwelveList()
+    await wrapper.vm.onTunerUpdate({ key: 'minEntries', value: 1 })
+    await wrapper.vm.onTunerUpdate({ key: 'bayesianWeight', value: 0 })
+    await wrapper.vm.onTunerUpdate({ key: 'rankWeight', value: 1 })
+    await wrapper.vm.$nextTick()
+    const names = () => wrapper.vm.topTenList.map(d => d.name)
+    // Steep decline: Petra's 10 dominates her three 4s and beats steady 6.5s.
+    expect(names().indexOf('Peaky Petra')).toBeLessThan(names().indexOf('Steady Stan'))
+
+    await wrapper.vm.onTunerUpdate({ key: 'rankWeight', value: 15 })
+    await wrapper.vm.$nextTick()
+    // Near-flat weights: the duds count almost fully; Stan's consistency wins.
+    expect(names().indexOf('Steady Stan')).toBeLessThan(names().indexOf('Peaky Petra'))
   })
 
   it('resetTuner restores defaults and persists them', async () => {

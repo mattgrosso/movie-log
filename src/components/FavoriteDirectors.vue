@@ -57,20 +57,19 @@
 <script>
 import FavoriteTuner from "./FavoriteTuner.vue";
 import favoriteTuning from "../mixins/favoriteTuning.js";
+import { getRating } from "../assets/javascript/GetRating.js";
+import { globalAverage } from "../assets/javascript/logScore.js";
+import { personLogScore } from "../assets/javascript/logScoreRankings.js";
 
 // Persisted under settings/favoriteTuning/<TUNING_KEY>. Each section uses its own
 // key so its levers stay independent of the others.
 const TUNING_KEY = 'director';
 const TUNING_DEFAULTS = Object.freeze({
   minEntries: 4,
-  confidenceNumber: 1,
-  countWeight: 0.5,
-  knownForWeight: 0.2,
-  directionWeight: 0.5,
-  // Log Score rank weight (Brian-survey A8/A9): favorites rewarded via
-  // declining weights R/(R+i) over a director's films sorted best-first.
-  // High = every film counts near-equally; low = their best work dominates.
-  rankWeight: 7
+  // Brian's method (adopted for every Favorite section, 2026-08-15) has
+  // exactly these levers — see personLogScore in logScoreRankings.js.
+  rankWeight: 7,
+  bayesianWeight: 7,
 });
 
 export default {
@@ -88,28 +87,16 @@ export default {
       tuningKey: TUNING_KEY,
       tuningDefaults: TUNING_DEFAULTS,
       minEntries: TUNING_DEFAULTS.minEntries,
+      rankWeight: TUNING_DEFAULTS.rankWeight,
+      bayesianWeight: TUNING_DEFAULTS.bayesianWeight,
       // minEntries: Minimum number of movies you must have seen from a director for them to be considered.
       //   Increase: Only directors you've seen more movies from will appear (list is more exclusive).
       //   Decrease: Directors with fewer movies seen can appear (list is more inclusive).
-      confidenceNumber: TUNING_DEFAULTS.confidenceNumber,
-      rankWeight: TUNING_DEFAULTS.rankWeight,
-      // confidenceNumber: Controls how much the global average rating influences the Bayesian average.
-      countWeight: TUNING_DEFAULTS.countWeight,
-      // countWeight: Controls how much the number of movies seen from a director boosts their score.
-      knownForWeight: TUNING_DEFAULTS.knownForWeight,
-      // knownForWeight: Controls the bonus for rating a director's 'known_for' movies highly.
-      // manualBoosts: dormant/unused scaffold (always empty → no effect). Left as a
-      // hook for a future per-person editor; not exposed in the tuner.
-      manualBoosts: {},
-      directionWeight: TUNING_DEFAULTS.directionWeight,
       showModal: false,
       selectedDirector: null,
     }
   },
   computed: {
-    overallWeight () {
-      return 1 - this.directionWeight;
-    },
     tunerLevers () {
       return [
         {
@@ -128,86 +115,21 @@ export default {
           min: 1,
           max: 15,
           step: 1,
-          help: 'Their films count best-first with declining weight (the Log Score). Lower = masterpieces dominate; higher = the whole filmography matters.'
+          help: 'Films count best-first with declining weight R/(R+rank). Low = masterpieces dominate; high = the whole filmography matters.'
         },
         {
-          key: 'confidenceNumber',
+          key: 'bayesianWeight',
           label: 'Small-sample caution',
-          value: this.confidenceNumber,
+          value: this.bayesianWeight,
           min: 0,
-          max: 10,
-          step: 0.5,
-          help: "Pulls directors with few films toward your overall average. Higher = fewer one-or-two-film flukes near the top."
+          max: 15,
+          step: 1,
+          help: "How many films someone needs before you believe their average — thin filmographies get pulled toward your library average by B/(B+n). 0 = no pull; high = only deep careers can top the list."
         },
-        {
-          key: 'countWeight',
-          label: 'Reward for volume',
-          value: this.countWeight,
-          min: 0,
-          max: 2,
-          step: 0.05,
-          help: "Boosts directors you've watched a lot. Higher = prolific favorites climb even if their average dips slightly."
-        },
-        {
-          key: 'knownForWeight',
-          label: 'Signature-film bonus',
-          value: this.knownForWeight,
-          min: 0,
-          max: 1,
-          step: 0.05,
-          help: "Extra credit when you've rated their best-known films highly. Higher = loving their famous work matters more."
-        },
-        {
-          key: 'directionWeight',
-          label: 'Direction vs. overall',
-          value: this.directionWeight,
-          min: 0,
-          max: 1,
-          step: 0.05,
-          help: 'Blends each film’s Direction score with its overall score. Higher = leans on your Direction ratings; 0 = pure overall.'
-        }
       ];
-    }
+    },
   },
   methods: {
-    averageRating (results, weights = null) {
-      // For directors, blend overall and direction ratings
-      const getBlendedRating = (result) => {
-        const mostRecent = this.mostRecentRating(result);
-        const overall = parseFloat(mostRecent.calculatedTotal);
-        const direction = typeof mostRecent.direction === 'number' && !isNaN(mostRecent.direction)
-          ? parseFloat(mostRecent.direction)
-          : null;
-        if (!isNaN(overall) && direction !== null) {
-          return (this.overallWeight * overall) + (this.directionWeight * direction);
-        } else if (!isNaN(overall)) {
-          return overall;
-        } else if (direction !== null) {
-          return direction;
-        }
-        return NaN;
-      };
-      const ratedMovies = results.filter((result, idx) => {
-        const r = getBlendedRating(result);
-        return !isNaN(r) && (!weights || weights[idx] > 0);
-      });
-      if (ratedMovies.length === 0) return 0;
-      // Log Score rank weighting (A8): every film's contribution declines
-      // by its RANK among this director's films — R/(R+i), best first —
-      // multiplied into any per-credit weights already in play.
-      const R = Number.isFinite(this.rankWeight) && this.rankWeight > 0 ? this.rankWeight : 7;
-      const scored = ratedMovies
-        .map((result, idx) => ({ rating: getBlendedRating(result), weight: weights ? weights[idx] : 1 }))
-        .sort((a, b) => b.rating - a.rating);
-      let weightedSum = 0;
-      let totalWeight = 0;
-      scored.forEach(({ rating, weight }, rank) => {
-        const w = weight * (R / (R + rank));
-        weightedSum += rating * w;
-        totalWeight += w;
-      });
-      return (weightedSum / totalWeight).toFixed(2);
-    },
     async buildTopTwelveList () {
       // Phase 1 (runs once per data load): gather every director and their rated
       // films into peopleData. No minEntries filter and no TMDB fetch here, so
@@ -257,72 +179,26 @@ export default {
       this.detailsCache[name] = details;
       return details;
     },
-    computeKnownForBonus (entries, details) {
-      // Average blended rating of the person's 'known_for' films you've rated,
-      // scaled by knownForWeight. Mirrors the original inline computation exactly.
-      if (!details || !Array.isArray(details.known_for) || !details.known_for.length) return 0;
-      const knownForIds = details.known_for.map(m => m.id);
-      const ratedKnownFor = entries.filter(e => knownForIds.includes(e.movie.id));
-      if (!ratedKnownFor.length) return 0;
-      const ratings = ratedKnownFor.map(e => {
-        const mostRecent = this.mostRecentRating(e);
-        const overall = parseFloat(mostRecent.calculatedTotal);
-        const direction = typeof mostRecent.direction === 'number' && !isNaN(mostRecent.direction)
-          ? parseFloat(mostRecent.direction)
-          : null;
-        if (!isNaN(overall) && direction !== null) {
-          return (this.overallWeight * overall) + (this.directionWeight * direction);
-        } else if (!isNaN(overall)) {
-          return overall;
-        } else if (direction !== null) {
-          return direction;
-        }
-        return NaN;
-      }).filter(r => !isNaN(r));
-      if (!ratings.length) return 0;
-      const avgKnownFor = ratings.reduce((a, b) => a + b, 0) / ratings.length;
-      return avgKnownFor * this.knownForWeight;
-    },
     async rescore () {
-      // Phase 2 (runs on every tuner change): score the eligible people using the
-      // CURRENT lever values, reusing cached entries + TMDB details. A sequence
-      // token drops stale results if a newer rescore started while we awaited.
+      // Phase 2 (every tuner change): Brian's method, nothing else — plain
+      // composite ratings through personLogScore (rank weighting + Bayesian
+      // pull). TMDB details are fetched only for portraits.
       const seq = ++this.rescoreSeq;
-      const eligible = this.peopleData.filter(p => p.entries.length >= this.minEntries);
-
-      // Lazily fetch details only for the currently-eligible people (cached).
-      await Promise.all(eligible.map(async (p) => {
-        if (!Object.prototype.hasOwnProperty.call(this.detailsCache, p.name)) {
-          await this.getCachedDetails(p.name);
-        }
-      }));
-      if (seq !== this.rescoreSeq) return; // superseded by a newer rescore
-
-      // Compute the lever-dependent global average once for this pass.
-      const globalAvg = parseFloat(this.averageRating(this.allEntriesWithFlatKeywordsAdded));
-
-      const scored = eligible.map((p) => {
-        const details = this.detailsCache[p.name];
-        const bayesian = this.bayesianAverage(p.entries, p.weights, globalAvg);
-        const count = p.entries.length;
-        const knownForBonus = this.computeKnownForBonus(p.entries, details);
-        const manualBoost = this.manualBoosts[p.name] || 1;
-        let finalScore = bayesian * (1 + this.countWeight * Math.log(count)) * manualBoost + knownForBonus;
-        if (isNaN(finalScore)) finalScore = 0;
-        return {
+      const globalAvg = globalAverage(this.allEntriesWithFlatKeywordsAdded, getRating);
+      const scored = this.peopleData
+        .filter(p => p.entries.length >= this.minEntries)
+        .map(p => ({
           name: p.name,
           entries: p.entries,
-          weights: p.weights,
-          bayesian,
-          count,
-          details,
-          finalScore,
-          knownForBonus
-        };
-      });
-
-      scored.sort((a, b) => b.finalScore - a.finalScore);
-      this.topTenList = scored.slice(0, 12);
+          count: p.entries.length,
+          finalScore: personLogScore(p, getRating, globalAvg, { rankWeight: this.rankWeight, bayesianWeight: this.bayesianWeight })
+        }))
+        .filter(p => p.finalScore !== null)
+        .sort((a, b) => b.finalScore - a.finalScore)
+        .slice(0, 12);
+      await Promise.all(scored.map(async (p) => { p.details = await this.getCachedDetails(p.name); }));
+      if (seq !== this.rescoreSeq) return;
+      this.topTenList = scored;
     },
     openDirectorModal (entry) {
       this.selectedDirector = entry;
