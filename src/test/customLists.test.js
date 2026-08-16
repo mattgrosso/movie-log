@@ -162,3 +162,25 @@ describe('reorderUpdates', () => {
     expect(reorderUpdates(rows, 'nope', 'up')).toEqual({})
   })
 })
+
+describe('list chips filter Home', () => {
+  // The chip carries its own membership snapshot so applyFilter stays a
+  // pure function of (result, filter) — no store reach-in.
+  it('matches only movies whose TMDB id is in the chip\'s id map', async () => {
+    const { applyFilter } = await import('@/assets/javascript/searchFiltering.js')
+    const chip = { type: 'list', value: 'Comfort Watches', ids: { 568: true, 242: true } }
+
+    const inList = { movie: { id: 568, title: 'Apollo 13' }, ratings: [] }
+    const notInList = { movie: { id: 999, title: 'Other' }, ratings: [] }
+
+    expect(applyFilter(inList, chip)).toBe(true)
+    expect(applyFilter(notInList, chip)).toBe(false)
+  })
+
+  it('an empty or malformed list chip matches nothing rather than everything', async () => {
+    const { applyFilter } = await import('@/assets/javascript/searchFiltering.js')
+    const movie = { movie: { id: 568, title: 'Apollo 13' }, ratings: [] }
+    expect(applyFilter(movie, { type: 'list', value: 'Empty', ids: {} })).toBe(false)
+    expect(applyFilter(movie, { type: 'list', value: 'Broken' })).toBe(false)
+  })
+})

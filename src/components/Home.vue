@@ -153,6 +153,22 @@
               Studios
             </span>
             <hr>
+            <div v-if="customLists.length" class="tags-quicklinks">
+              <p data-bs-toggle="collapse" data-bs-target="#listsCollapse" aria-expanded="false" aria-controls="listsCollapse">
+                Lists
+                <i class="bi bi-caret-right-fill"/>
+              </p>
+              <div class="collapse" id="listsCollapse">
+                <span
+                  v-for="list in customLists"
+                  :key="list.id"
+                  class="badge mx-1 text-bg-secondary"
+                  @click="filterByCustomList(list)"
+                >
+                  {{ list.name }}
+                </span>
+              </div>
+            </div>
             <div class="tags-quicklinks">
               <p data-bs-toggle="collapse" data-bs-target="#tagsCollapse" aria-expanded="false" aria-controls="tagsCollapse">
                 Tags
@@ -1619,6 +1635,9 @@ export default {
     },
     socialSettings () {
       return this.$store.getters.socialSettings || {};
+    },
+    customLists () {
+      return this.$store.getters?.customLists || [];
     },
     socialPublishReady () {
       return Boolean(this.$store.state.dbLoaded && this.$store.state.settingsLoaded);
@@ -3376,6 +3395,20 @@ export default {
         this.updateSearchValue(null);
         this.activeQuickLinkList = "title";
       }
+    },
+    // Filter Home to a Custom List. The chip carries the membership ids so
+    // the pure filter needs no store access (see searchFiltering's 'list').
+    filterByCustomList (list) {
+      const ids = {};
+      Object.keys(list.items || {}).forEach((tmdbId) => { ids[String(tmdbId)] = true; });
+      this.activeFilters.push({
+        id: `list-${list.id}-${Date.now()}`,
+        type: 'list',
+        value: list.name,
+        display: list.name,
+        ids
+      });
+      this.sortOrder = "bestOrNewestOnTop";
     },
     toggleQuickLinksList (value) {
       if (this.activeQuickLinkList === value || !value) {
