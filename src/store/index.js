@@ -25,7 +25,7 @@ import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
 import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
-import { buildSocialProfile, socialSettingsWithDefaults } from "../assets/javascript/social.js";
+import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -264,6 +264,9 @@ export default createStore({
     socialDirectory: {},
     socialFriendProfiles: {},
     socialAttachedFor: null,
+    // When the user last opened the Film Club — drives the rainbow chip's
+    // new-updates badge. Mirrored to localStorage so it survives reloads.
+    filmClubLastSeen: Number(localStorage.getItem('cinemaRoll.filmClub.lastSeen') || 0),
     filteredResults: [],
     // Header banner: Home resolves bannerUrl on arrival based on bannerRequest
     // (set by MovieDetail/RateMovie/search links). See Header.vue + Home.resolveBanner.
@@ -352,6 +355,15 @@ export default createStore({
     },
     // Requests I've sent that the other side hasn't accepted yet: my
     // outgoing edges with no reciprocal edge.
+    // New friend ratings since the Film Club was last opened — only
+    // mutual friends' profiles count (others aren't readable anyway).
+    filmClubNewUpdateCount (state, getters) {
+      const profiles = {};
+      getters.socialFriendKeys.forEach((key) => {
+        if (state.socialFriendProfiles?.[key]) profiles[key] = state.socialFriendProfiles[key];
+      });
+      return countNewFriendUpdates(profiles, state.filmClubLastSeen);
+    },
     socialPendingSentKeys (state, getters) {
       const me = getters.socialUserKey;
       if (!me) return [];
@@ -398,6 +410,10 @@ export default createStore({
     },
     setSocialAttachedFor (state, value) {
       state.socialAttachedFor = value;
+    },
+    markFilmClubSeen (state) {
+      state.filmClubLastSeen = Date.now();
+      localStorage.setItem('cinemaRoll.filmClub.lastSeen', String(state.filmClubLastSeen));
     },
     setAllAcademyAwards (state, value) {
       state.allAcademyAwards = value;
@@ -1233,6 +1249,9 @@ export default createStore({
       }, (error) => console.error('social requests listener cancelled:', error));
       onValue(ref(db, 'social/friends'), (snapshot) => {
         context.commit('setSocialEdges', snapshot.val());
+        // Profiles feed the Film Club badge on Home, so they load wherever
+        // the listeners attach — not just on the Film Club screen.
+        context.dispatch('fetchFriendProfiles');
       }, (error) => console.error('social friends listener cancelled:', error));
     },
     // Publish (or refresh) my public profile + directory row. Safe to call

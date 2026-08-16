@@ -338,7 +338,13 @@
                    search input's right edge (Matt: "it really
                    needs to be a first order page"). -->
               <button class="results-actions-button btn btn-warning btn-sm" type="button" @click="$router.push('/film-club')" title="Film Club" aria-label="Go to the Film Club">
-                <i class="bi bi-suit-club-fill"/>
+                <!-- New friend ratings since the club was last opened: the
+                     filled club hollows out and the count sits inside it. -->
+                <span v-if="filmClubNewUpdateCount" class="film-club-badge">
+                  <i class="bi bi-suit-club"/>
+                  <span class="film-club-badge-count">{{ filmClubNewUpdateCount > 9 ? '9+' : filmClubNewUpdateCount }}</span>
+                </span>
+                <i v-else class="bi bi-suit-club-fill"/>
               </button>
               <!-- Shuffle lives inside the quick-links panel now (feedback:
                    the extra watchlist button broke the rainbow); watchlist
@@ -1626,6 +1632,9 @@ export default {
       return Object.entries(requests)
         .filter(([key]) => !(edges[me]?.[key] && edges[key]?.[me]))
         .map(([key, request]) => ({ key, name: request?.name || key }));
+    },
+    filmClubNewUpdateCount () {
+      return this.$store.getters?.filmClubNewUpdateCount || 0;
     },
     friendRequestBannerText () {
       const requests = this.incomingFriendRequests;
@@ -5870,6 +5879,23 @@ export default {
     &:active {
       opacity: 0.5;
     }
+  }
+}
+
+/* The Film Club chip's new-updates badge: outline club with the count
+   tucked into the glyph's open center. */
+.film-club-badge {
+  display: inline-flex;
+  position: relative;
+
+  .film-club-badge-count {
+    font-size: 0.5rem;
+    font-weight: 700;
+    left: 50%;
+    line-height: 1;
+    position: absolute;
+    top: 40%;
+    transform: translate(-50%, -50%);
   }
 }
 

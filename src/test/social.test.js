@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults } from '@/assets/javascript/social.js'
+import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults, countNewFriendUpdates } from '@/assets/javascript/social.js'
 
 const NOW = Date.UTC(2026, 7, 15)
 
@@ -130,6 +130,25 @@ describe('compareWithFriend', () => {
   it('criterionGaps is null when the friend shares composites only', () => {
     const cmp = compareWithFriend(myLibrary, ratingOf, friend, { globalAvg: 6 })
     expect(cmp.criterionGaps).toBeNull()
+  })
+})
+
+describe('countNewFriendUpdates', () => {
+  const profiles = {
+    'natalie-key': { name: 'Natalie', recent: [{ id: 1, at: 1000 }, { id: 2, at: 3000 }] },
+    'seth-key': { name: 'Seth', recent: [{ id: 3, at: 2000 }] }
+  }
+
+  it('counts only ratings newer than lastSeen, across all friends', () => {
+    expect(countNewFriendUpdates(profiles, 1500)).toBe(2) // at 3000 and 2000
+    expect(countNewFriendUpdates(profiles, 0)).toBe(3)
+    expect(countNewFriendUpdates(profiles, 5000)).toBe(0)
+  })
+
+  it('tolerates empty and malformed profiles', () => {
+    expect(countNewFriendUpdates({}, 0)).toBe(0)
+    expect(countNewFriendUpdates({ x: null, y: { recent: null } }, 0)).toBe(0)
+    expect(countNewFriendUpdates(undefined, undefined)).toBe(0)
   })
 })
 

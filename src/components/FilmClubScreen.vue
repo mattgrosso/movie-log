@@ -170,6 +170,8 @@ export default {
   created () {
     this.$store.dispatch('attachSocialListeners');
     this.$store.dispatch('fetchSocialDirectory');
+    // Opening the club clears the rainbow chip's new-updates badge.
+    this.$store.commit('markFilmClubSeen');
   },
   methods: {
     nameFor (key) {

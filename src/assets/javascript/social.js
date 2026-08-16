@@ -203,6 +203,18 @@ function round2 (n) {
 }
 
 // ---------------------------------------------------------------------------
+// The rainbow badge: how many friend ratings have landed since the user
+// last opened the Film Club. Counts items in each friend's published
+// `recent` feed newer than lastSeen.
+export function countNewFriendUpdates (friendProfiles, lastSeen) {
+  const since = Number(lastSeen) || 0;
+  return Object.values(friendProfiles || {}).reduce((count, profile) => {
+    const fresh = (profile?.recent || []).filter((item) => Number(item?.at) > since);
+    return count + fresh.length;
+  }, 0);
+}
+
+// ---------------------------------------------------------------------------
 // The Film Club summary: every friend's profile combined.
 export function filmClubSummary (myEntries, getRatingFn, friendProfiles) {
   const profiles = Object.entries(friendProfiles || {}).filter(([, p]) => p);
