@@ -21,6 +21,7 @@
     "fetch-bug-reports": "node scripts/fetch-bug-reports.mjs",
     "resolve-bug-report": "node scripts/resolve-bug-report.mjs",
     "purge-qa-social": "node scripts/purge-qa-social.mjs",
+    "link-qa-tester": "node scripts/link-qa-tester.mjs",
     "generate-db-rules": "node scripts/generate-database-rules.mjs"
   },
   "dependencies": {

@@ -169,7 +169,7 @@ import { timeAgo } from '../assets/javascript/timeAgo.js';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { filmClubSummary } from '../assets/javascript/social.js';
 import { filterDirectory } from '../assets/javascript/interchange.js';
-import { omitQaAccounts } from '../assets/javascript/databaseKey.js';
+import { omitQaAccounts, isQaAccountKey } from '../assets/javascript/databaseKey.js';
 
 export default {
   name: 'FilmClubScreen',
@@ -222,6 +222,8 @@ export default {
       return Object.entries(this.$store.state.socialRequests || {})
         // A request from someone I've already befriended is stale noise.
         .filter(([key]) => !this.friendKeys.includes(key))
+        // The QA tester is invisible to real people, requests included.
+        .filter(([key]) => !isQaAccountKey(key))
         .map(([key, request]) => ({ key, name: request?.name || this.nameFor(key) }));
     },
     friendRows () {

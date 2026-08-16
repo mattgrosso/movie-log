@@ -363,11 +363,24 @@ export default createStore({
     },
     // Friendship = BOTH edges exist. My friends are my outgoing edges that
     // the other side has reciprocated.
+    //
+    // QA accounts are dropped here, at the single point everything else reads
+    // through — friends list, profiles, the club summary, the update badge,
+    // and the profile fetch. The database edges stay mutual on BOTH sides,
+    // because the rules require that to let the tester read a profile at all;
+    // the one-way-ness is this filter (Matt, 2026-08-16: "make it so that the
+    // testing account is friends with me, but that I just don't see them in
+    // my friend's list... they can see me, but I can't see them").
+    //
+    // Note this filters by the FRIEND's key, so it hides the tester from a
+    // real person without hiding real people from the tester.
     socialFriendKeys (state, getters) {
       const me = getters.socialUserKey;
       if (!me) return [];
       const myEdges = state.socialEdges?.[me] || {};
-      return Object.keys(myEdges).filter((key) => state.socialEdges?.[key]?.[me]);
+      return Object.keys(myEdges)
+        .filter((key) => state.socialEdges?.[key]?.[me])
+        .filter((key) => !isQaAccountKey(key));
     },
     // Requests I've sent that the other side hasn't accepted yet: my
     // outgoing edges with no reciprocal edge.

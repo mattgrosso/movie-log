@@ -64,3 +64,23 @@ describe('omitQaAccounts', () => {
     expect(isQaAccountKey('mattgrosso-gmail-com')).toBe(false);
   });
 });
+
+// The QA tester needs to be a real friend in the database — the rules only
+// allow reading a profile when BOTH edges exist — but must stay invisible to
+// the person it's friends with (Matt, 2026-08-16: "they can see me, but I
+// can't see them. That way you could test things").
+describe('one-way QA friendship', () => {
+  // Mirrors the filter in the socialFriendKeys getter.
+  const visibleFriends = (keys) => keys.filter((key) => !isQaAccountKey(key));
+
+  it("hides the tester from a real person's friend list", () => {
+    expect(visibleFriends(['natalierosegrosso-gmail-com', 'cinemaroll-tester-example-com']))
+      .toEqual(['natalierosegrosso-gmail-com']);
+  });
+
+  // The filter is on the FRIEND's key, not the viewer's, so it can't hide a
+  // real person from the tester — which is the half that has to keep working.
+  it('leaves real people visible to the tester', () => {
+    expect(visibleFriends(['mattgrosso-gmail-com'])).toEqual(['mattgrosso-gmail-com']);
+  });
+});
