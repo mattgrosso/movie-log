@@ -55,7 +55,7 @@ export function socialSettingsWithDefaults (raw, userEmail) {
 // ---------------------------------------------------------------------------
 // Publishing: shape a profile from the user's own library, respecting the
 // share toggles. Compact keys (t/p/r/at) keep ~1,400 ratings around 100KB.
-export function buildSocialProfile (entries, getRatingFn, { name, shareRatings = false, shareCriteria = false, now = Date.now() } = {}) {
+export function buildSocialProfile (entries, getRatingFn, { name, shareRatings = false, shareCriteria = false, lists = [], now = Date.now() } = {}) {
   const rated = [];
   let viewings = 0;
 
@@ -103,6 +103,26 @@ export function buildSocialProfile (entries, getRatingFn, { name, shareRatings =
     recent: byRecency.slice(0, 20).map(({ id, t, p, r, at }) => ({ id, t, p, r, at })),
     crown
   };
+
+  // Custom Lists (2026-08-16): a curated list is one of the more
+  // interesting things to show a friend, so the shelf tier carries them —
+  // name, size, and a few posters, never the whole membership.
+  const publishedLists = (lists || [])
+    .map((list) => {
+      const members = Object.keys(list?.items || {})
+        .map((tmdbId) => rated.find((movie) => String(movie.id) === String(tmdbId)))
+        .filter(Boolean)
+        .sort((a, b) => b.r - a.r);
+      if (!members.length) return null;
+      return {
+        name: list.name,
+        count: members.length,
+        top: members.slice(0, 6).map(({ id, t, p }) => ({ id, t, p }))
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+  if (publishedLists.length) profile.lists = publishedLists;
 
   if (shareRatings) {
     const ratings = {};

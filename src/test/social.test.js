@@ -183,3 +183,37 @@ describe('filmClubSummary', () => {
     expect(filmClubSummary(myLibrary, ratingOf, {})).toBeNull()
   })
 })
+
+describe('buildSocialProfile — Custom Lists', () => {
+  const library = [
+    entry(1, 'Best', 9.5),
+    entry(2, 'Mid', 7),
+    entry(3, 'Newest High', 9.9)
+  ]
+  const lists = [
+    { id: 'comfort', name: 'Comfort Watches', items: { 1: { at: 1 }, 3: { at: 2 } } },
+    { id: 'empty', name: 'Nothing Here', items: {} },
+    { id: 'ghosts', name: 'All Gone', items: { 999: { at: 1 } } }
+  ]
+
+  it('publishes a list\'s name, size, and top posters — never the whole membership', () => {
+    const profile = buildSocialProfile(library, ratingOf, { name: 'Matt', lists })
+    expect(profile.lists.length).toBe(1)             // empty + all-ghost lists dropped
+    const comfort = profile.lists[0]
+    expect(comfort.name).toBe('Comfort Watches')
+    expect(comfort.count).toBe(2)
+    expect(comfort.top[0].t).toBe('Newest High')     // best first
+    expect(comfort.top[0].r).toBeUndefined()         // posters only, no scores
+  })
+
+  it('omits the lists key entirely when there is nothing to show', () => {
+    expect(buildSocialProfile(library, ratingOf, { name: 'Matt' }).lists).toBeUndefined()
+    expect(buildSocialProfile(library, ratingOf, { name: 'Matt', lists: [lists[1]] }).lists).toBeUndefined()
+  })
+
+  it('counts only movies still in the library', () => {
+    const partly = [{ id: 'mix', name: 'Mixed', items: { 1: { at: 1 }, 999: { at: 2 } } }]
+    const profile = buildSocialProfile(library, ratingOf, { name: 'Matt', lists: partly })
+    expect(profile.lists[0].count).toBe(1)
+  })
+})

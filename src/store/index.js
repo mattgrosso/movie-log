@@ -1343,7 +1343,8 @@ export default createStore({
       const profile = buildSocialProfile(entries, getRating, {
         name: social.displayName || 'A Cinema Roll user',
         shareRatings: Boolean(social.shareRatings),
-        shareCriteria: Boolean(social.shareRatings && social.shareCriteria)
+        shareCriteria: Boolean(social.shareRatings && social.shareCriteria),
+        lists: context.getters.customLists
       });
       await Promise.all([
         set(ref(db, `social/profiles/${me}`), profile),

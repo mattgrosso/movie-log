@@ -80,6 +80,20 @@
         </div>
       </section>
 
+      <!-- Their Custom Lists -->
+      <section v-if="profile.lists && profile.lists.length" class="fc-section">
+        <h2 class="fc-section-title">{{ profile.name }}'s lists</h2>
+        <div v-for="list in profile.lists" :key="list.name" class="fc-list">
+          <p class="fc-list-name">{{ list.name }} <span class="fc-list-count">{{ list.count }} film{{ list.count === 1 ? '' : 's' }}</span></p>
+          <div class="fc-poster-row">
+            <div v-for="item in list.top" :key="item.id" class="fc-poster-card" @click="goToMovie(item.id)">
+              <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="fc-poster">
+              <div v-else class="fc-poster fc-poster-blank">{{ item.t }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Their public shelf — always available, and the whole story when
            they share composites but not the full ratings map. -->
       <section v-if="profile.topShelf && profile.topShelf.length" class="fc-section">
@@ -373,6 +387,15 @@ export default {
   font-size: 0.65rem;
   margin-top: 0.2rem;
   text-align: center;
+}
+
+.fc-list { margin-bottom: 0.6rem; }
+
+.fc-list-name {
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+
+  .fc-list-count { color: #ccc; font-size: 0.75rem; font-weight: 400; }
 }
 
 .fc-remove {
