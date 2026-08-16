@@ -53,10 +53,13 @@ export default {
   max-width: 100%;
 }
 
-/* Matt's house tile look (matches .insights-pane-item): white-bordered
-   box, blue label strip on top, white value. */
+/* Deliberately NOT the filled-header tile used above: Overview stacked ~17
+   accent-filled strips and read as a wall of one colour (Matt, 2026-08-16:
+   "we need to figure out how to break up the wall of yellow"). The accent
+   survives as the value's colour instead of a block of fill — colour
+   interspersed through the page rather than banded across it. */
 .fun-fact-card {
-  border: 1px solid white;
+  border: 1px solid #4a4a4a;
   border-radius: 3px;
   color: white;
   display: flex;
@@ -67,18 +70,17 @@ export default {
 }
 
 .fun-fact-label {
-  background: var(--accent, #3b5aaa);
-  border-bottom: 1px solid white;
-  /* Must come after the old `color: white`, which this replaces: white on the
-     Overview yellow is 1.4:1 and simply unreadable. */
-  color: var(--accent-text, white);
-  font-size: 0.7rem;
+  /* #b9b9b9 on the card, ~8:1 — .text-muted would fail here. */
+  color: #b9b9b9;
+  font-size: 0.62rem;
   font-weight: 600;
-  padding: 1px 6px;
+  letter-spacing: 0.06em;
+  padding: 6px 6px 0;
+  text-transform: uppercase;
 }
 
 .fun-fact-value {
-  color: white;
+  color: var(--accent, white);
   font-size: 1.3rem;
   font-weight: 700;
   line-height: 1.2;

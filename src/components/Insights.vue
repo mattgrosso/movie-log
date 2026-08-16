@@ -34,9 +34,9 @@
              sat oddly next to the deeper analysis ("I'm not sure how that's
              different from overview"). They're summary figures, so they live
              with the other summary figures. -->
-        <div class="glance-item third"><span class="glance-label">Highest</span><span class="glance-value">{{ highestRating }}</span></div>
-        <div class="glance-item third"><span class="glance-label">Average</span><span class="glance-value">{{ averageRating }}</span></div>
-        <div class="glance-item third"><span class="glance-label">Lowest</span><span class="glance-value">{{ lowestRating }}</span></div>
+        <div class="glance-item third alt"><span class="glance-label">Highest</span><span class="glance-value">{{ highestRating }}</span></div>
+        <div class="glance-item third alt"><span class="glance-label">Average</span><span class="glance-value">{{ averageRating }}</span></div>
+        <div class="glance-item third alt"><span class="glance-label">Lowest</span><span class="glance-value">{{ lowestRating }}</span></div>
       </div>
 
       <!-- Pulled above the fun facts: these are the way OUT of this page, and
@@ -44,22 +44,22 @@
            further up"). -->
       <div class="insights-links">
         <button type="button" class="insights-link-card" @click="$router.push('/stats')">
-          <i class="bi bi-graph-up-arrow"></i><span>Deep Stats</span>
+          <i class="bi bi-graph-up-arrow"></i><span>Deep Stats</span><i class="bi bi-chevron-right link-chevron"></i>
         </button>
         <button type="button" class="insights-link-card" @click="$router.push('/year-in-review')">
-          <i class="bi bi-calendar-heart"></i><span>Year in Review</span>
+          <i class="bi bi-calendar-heart"></i><span>Year in Review</span><i class="bi bi-chevron-right link-chevron"></i>
         </button>
         <button type="button" class="insights-link-card" @click="$router.push('/trophy-case')">
-          <i class="bi bi-trophy"></i><span>Trophy Case</span>
+          <i class="bi bi-trophy"></i><span>Trophy Case</span><i class="bi bi-chevron-right link-chevron"></i>
         </button>
         <button type="button" class="insights-link-card" @click="$router.push('/awards')">
-          <i class="bi bi-award"></i><span>Awards</span>
+          <i class="bi bi-award"></i><span>Awards</span><i class="bi bi-chevron-right link-chevron"></i>
         </button>
         <button type="button" class="insights-link-card" @click="$router.push('/games/stats')">
-          <i class="bi bi-controller"></i><span>Game Stats</span>
+          <i class="bi bi-controller"></i><span>Game Stats</span><i class="bi bi-chevron-right link-chevron"></i>
         </button>
         <button type="button" class="insights-link-card" @click="$router.push('/library-poster')">
-          <i class="bi bi-image"></i><span>Library Poster</span>
+          <i class="bi bi-image"></i><span>Library Poster</span><i class="bi bi-chevron-right link-chevron"></i>
         </button>
       </div>
 
@@ -2535,7 +2535,7 @@ export default {
 
   &.insights-accent-overview {
     --accent: #FFD700;
-    --accent-deep: #8a7400;
+    --accent-deep: #6d5c00;
   }
 
   &.insights-accent-ratings {
@@ -2654,33 +2654,51 @@ export default {
     margin-top: 0.75rem;
     width: 100%;
 
+    /* These read as boxes, not buttons ("they just kinda look like another box
+       like the others"). Everything about them now says control rather than
+       tile: a raised fill instead of a transparent panel, a soft 8px radius
+       against the tiles' hard 3px, a grey edge instead of the tiles' white
+       one, and a chevron saying it goes somewhere. The accent shrinks to the
+       icon's own colour — six filled accent chips were a sixth of the wall of
+       yellow by themselves. */
     .insights-link-card {
       align-items: center;
-      background: none;
-      border: 1px solid white;
-      border-radius: 3px;
+      background: #33383d;
+      border: 1px solid #555c63;
+      border-radius: 8px;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
       color: white;
       display: flex;
       font-weight: 600;
-      gap: 0.6rem;
+      gap: 0.55rem;
       min-height: 52px;
       padding: 0.4rem 0.6rem;
       text-align: left;
 
       i {
-        align-items: center;
-        background: var(--accent);
-        border-radius: 3px;
-        color: var(--accent-text);
-        display: flex;
+        color: var(--accent);
         flex: 0 0 auto;
-        font-size: 1rem;
-        height: 32px;
-        justify-content: center;
-        width: 32px;
+        font-size: 1.15rem;
       }
 
-      &:active { opacity: 0.7; }
+      span {
+        flex: 1 1 auto;
+        /* Small enough that "Year in Review" and "Library Poster" stay on one
+           line at 357px, so the rows keep an even height. */
+        font-size: 0.85rem;
+        min-width: 0;
+      }
+
+      .link-chevron {
+        /* #9aa0a6 on #33383d is ~4.6:1 — a hint, but still a legible one. */
+        color: #9aa0a6;
+        font-size: 0.9rem;
+      }
+
+      &:active {
+        background: #23272b;
+        box-shadow: none;
+      }
     }
   }
 
