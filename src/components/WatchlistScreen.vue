@@ -6,34 +6,9 @@
 
     <!-- Local, always available: movies you loved but haven't logged in a
          long time. -->
-    <DrawFromHat/>
-
     <section v-if="rewatchList.length" class="watchlist-section">
       <h2 class="section-title">Worth a rewatch</h2>
-      <div class="rewatch-row">
-        <div
-          v-for="candidate in rewatchList"
-          :key="candidate.entry.dbKey"
-          class="rewatch-card"
-          role="button"
-          @click="goToMovie(candidate.entry)"
-        >
-          <button type="button" class="punt-btn" title="Not yet" @click.stop="punt(candidate.entry)">
-            <i class="bi bi-x"></i>
-          </button>
-          <img
-            v-if="posterUrl(candidate.entry)"
-            :src="posterUrl(candidate.entry)"
-            :alt="candidate.entry.movie.title"
-            class="rewatch-poster"
-            loading="lazy"
-          >
-          <div v-else class="rewatch-poster rewatch-poster-placeholder">{{ candidate.entry.movie.title.charAt(0) }}</div>
-          <span class="rewatch-name">{{ candidate.entry.movie.title }}</span>
-          <span class="rewatch-meta">{{ candidate.rating.toFixed(1) }} · {{ yearsAgoLabel(candidate.yearsSince) }}</span>
-          <span class="rewatch-due">{{ dueLabel(candidate) }}</span>
-        </div>
-      </div>
+      <WatchlistRow :items="rewatchItems" puntable @select="goToMovie" @punt="punt"/>
     </section>
 
     <!-- Local, always available: movies the world loves more than you did
@@ -45,29 +20,7 @@
            Natalie (2026-08-16) — she took it as "I liked these and everyone
            else didn't". Say which way round it is in plain words. -->
       <p class="section-caption">You rated these low. Almost everyone else loves them.</p>
-      <div class="rewatch-row">
-        <div
-          v-for="candidate in anotherShotList"
-          :key="candidate.entry.dbKey"
-          class="rewatch-card"
-          role="button"
-          @click="goToMovie(candidate.entry)"
-        >
-          <button type="button" class="punt-btn" title="Not yet" @click.stop="punt(candidate.entry)">
-            <i class="bi bi-x"></i>
-          </button>
-          <img
-            v-if="posterUrl(candidate.entry)"
-            :src="posterUrl(candidate.entry)"
-            :alt="candidate.entry.movie.title"
-            class="rewatch-poster"
-            loading="lazy"
-          >
-          <div v-else class="rewatch-poster rewatch-poster-placeholder">{{ candidate.entry.movie.title.charAt(0) }}</div>
-          <span class="rewatch-name">{{ candidate.entry.movie.title }}</span>
-          <span class="rewatch-meta">You {{ candidate.yours.toFixed(1) }} · World {{ candidate.community.toFixed(1) }}</span>
-        </div>
-      </div>
+      <WatchlistRow :items="anotherShotItems" puntable @select="goToMovie" @punt="punt"/>
     </section>
 
     <!-- TMDB-fed: well-regarded movies from years sitting just under the
@@ -77,7 +30,7 @@
       <h2 class="section-title">Get {{ section.year }} to {{ awardsThreshold }}</h2>
       <p class="section-caption">{{ section.count }} rated — {{ section.missing }} to go for awards.</p>
       <p v-if="yearsLoading" class="section-loading">Looking up {{ section.year }}&hellip;</p>
-      <MediaResultGrid v-else-if="section.movies.length" :mediaList="notPunted(section.movies)" @select="rateMedia"/>
+      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" @select="rateMedia"/>
       <p v-else class="section-loading">Nothing well-regarded found that you haven't already rated.</p>
     </section>
 
@@ -89,8 +42,7 @@
     <section v-if="friendPickMedia.length" class="watchlist-section">
       <h2 class="section-title">Your Film Club loves these</h2>
       <p class="section-caption">Rated 8 or better by friends, never rated by you. Agreement sorts first.</p>
-      <SendToHat :movies="notPunted(friendPickMedia)"/>
-      <MediaResultGrid :mediaList="notPunted(friendPickMedia)" @select="rateMedia"/>
+      <WatchlistRow :items="mediaItems(friendPickMedia)" @select="rateMedia"/>
     </section>
 
     <section v-for="section in rankedSections" :key="section.key" class="watchlist-section">
@@ -100,12 +52,11 @@
         <span v-if="section.record" class="section-record">{{ section.record.hits }} of {{ section.record.suggested }} watched</span>
       </p>
       <p v-if="section.loading" class="section-loading">Looking up filmographies&hellip;</p>
-      <template v-else-if="section.movies.length">
-        <SendToHat :movies="notPunted(section.movies)"/>
-        <MediaResultGrid :mediaList="notPunted(section.movies)" @select="rateMedia"/>
-      </template>
+      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" @select="rateMedia"/>
       <p v-else class="section-loading">Nothing new found — you've seen the good ones.</p>
     </section>
+
+    <DrawFromHat/>
 
     <p v-if="!$store.state.isOnline" class="watchlist-offline-note">
       You're offline — the "what to see next" lists need a connection, so only the rewatch list is shown.
@@ -123,8 +74,7 @@
 // people means ~12 requests once per visit.
 import axios from 'axios';
 import BackLink from './games/BackLink.vue';
-import MediaResultGrid from './MediaResultGrid.vue';
-import SendToHat from './SendToHat.vue';
+import WatchlistRow from './WatchlistRow.vue';
 import DrawFromHat from './DrawFromHat.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { friendsLoveUnseen } from '../assets/javascript/social.js';
@@ -134,9 +84,10 @@ import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 
 export default {
   name: 'WatchlistScreen',
-  components: { BackLink, MediaResultGrid,
-    SendToHat,
-    DrawFromHat
+  components: {
+    BackLink,
+    DrawFromHat,
+    WatchlistRow
   },
   data () {
     return {
@@ -155,6 +106,25 @@ export default {
     };
   },
   computed: {
+    rewatchItems () {
+      return this.rewatchList.map((candidate) => ({
+        key: candidate.entry.dbKey,
+        title: candidate.entry.movie.title,
+        poster: this.posterUrl(candidate.entry),
+        // The poster already says which film it is; this says why it's here.
+        meta: `${candidate.rating.toFixed(1)} · ${this.yearsAgoLabel(candidate.yearsSince)}`,
+        source: candidate.entry
+      }));
+    },
+    anotherShotItems () {
+      return this.anotherShotList.map((candidate) => ({
+        key: candidate.entry.dbKey,
+        title: candidate.entry.movie.title,
+        poster: this.posterUrl(candidate.entry),
+        meta: `You ${candidate.yours.toFixed(1)} · World ${candidate.community.toFixed(1)}`,
+        source: candidate.entry
+      }));
+    },
     library () {
       return this.$store.getters.allMoviesAsArray || [];
     },
@@ -243,7 +213,7 @@ export default {
           movies: this.similarMovies,
           loading: this.similarLoading
         },
-{
+        {
           key: 'gems',
           title: 'Hidden gems',
           names: this.topTasteGenres.map((g) => g.name),
@@ -290,6 +260,18 @@ export default {
     }
   },
   methods: {
+    // TMDB-shaped lists (year fillers, Film Club picks, ranked sections).
+    mediaItems (movies) {
+      return this.notPunted(movies).map((media) => ({
+        key: media.id,
+        title: media.title || media.name || '',
+        poster: media.poster_path ? `https://image.tmdb.org/t/p/w342${media.poster_path}` : null,
+        // Only ever a reason to be here — never the title, which the poster
+        // is already carrying.
+        meta: media.note || (media.matchPct ? `${media.matchPct}% match` : null),
+        source: media
+      }));
+    },
     posterUrl (entry) {
       const path = entry?.movie?.poster_path;
       return path ? `https://image.tmdb.org/t/p/w342${path}` : null;

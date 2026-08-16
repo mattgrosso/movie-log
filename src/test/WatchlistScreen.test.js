@@ -81,6 +81,10 @@ function factory ({ isOnline = true, movies = library() } = {}) {
   return { wrapper, pushSpy, commitSpy };
 }
 
+// Cards are poster-only now, so a card's accessible name is where the title
+// lives (Matt, 2026-08-16: "posters are better than text").
+const cardNames = (wrapper) => wrapper.findAll('.watchlist-card').map((card) => card.attributes('aria-label'));
+
 describe('WatchlistScreen (request: watchlists from my ratings + movies to consider rewatching)', () => {
   beforeEach(() => {
     axios.get.mockReset();
@@ -91,7 +95,10 @@ describe('WatchlistScreen (request: watchlists from my ratings + movies to consi
     const { wrapper } = factory();
     await flushPromises();
 
-    const names = wrapper.findAll('.rewatch-name').map((n) => n.text());
+    // Posters carry the identity now, so the title is the image's alt text
+    // rather than a caption under it (Matt, 2026-08-16: "posters are better
+    // than text").
+    const names = cardNames(wrapper);
     expect(names).toContain('Old Favorite A');
     expect(names).not.toContain('Recent One');
   });
@@ -100,7 +107,7 @@ describe('WatchlistScreen (request: watchlists from my ratings + movies to consi
     const { wrapper, pushSpy } = factory();
     await flushPromises();
 
-    await wrapper.find('.rewatch-card').trigger('click');
+    await wrapper.find('.watchlist-card').trigger('click');
     expect(pushSpy).toHaveBeenCalledWith(expect.stringMatching(/^\/movie\//));
   });
 
@@ -111,10 +118,12 @@ describe('WatchlistScreen (request: watchlists from my ratings + movies to consi
     const text = wrapper.text();
     expect(text).toContain('From directors you love');
     expect(text).toContain('Based on Fave Director');
-    expect(text).toContain('Unseen Gem');
-    expect(text).not.toContain('Already Rated');
-    expect(text).toContain('Unseen Perfor'); // MediaResultGrid truncates >15 chars
-    expect(text).not.toContain('Deep Cameo');
+
+    const names = cardNames(wrapper);
+    expect(names).toContain('Unseen Gem');
+    expect(names).toContain('Unseen Performance');
+    expect(names).not.toContain('Already Rated');
+    expect(names).not.toContain('Deep Cameo');
   });
 
   it('pools TMDB recommendations from your top-rated movies into "More like your favorites"', async () => {
@@ -122,15 +131,18 @@ describe('WatchlistScreen (request: watchlists from my ratings + movies to consi
     await flushPromises();
 
     expect(wrapper.text()).toContain('More like your favorites');
-    expect(wrapper.text()).toContain('Similar Pick');
-    expect(wrapper.text()).not.toContain('Already Rated');
+
+    const names = cardNames(wrapper);
+    expect(names).toContain('Similar Pick');
+    expect(names).not.toContain('Already Rated');
   });
 
   it('selecting a watchlist movie hands off to the normal rating flow', async () => {
     const { wrapper, pushSpy, commitSpy } = factory();
     await flushPromises();
 
-    const card = wrapper.findAll('.media-result-grid .card').find((c) => c.text().includes('Unseen Gem'));
+    const card = wrapper.findAll('.watchlist-card')
+      .find((candidate) => candidate.attributes('aria-label') === 'Unseen Gem');
     await card.trigger('click');
 
     expect(commitSpy).toHaveBeenCalledWith('setMovieToRate', expect.objectContaining({ id: 90 }));
@@ -141,7 +153,7 @@ describe('WatchlistScreen (request: watchlists from my ratings + movies to consi
     const { wrapper } = factory({ isOnline: false });
     await flushPromises();
 
-    expect(wrapper.findAll('.rewatch-card').length).toBeGreaterThan(0);
+    expect(wrapper.findAll('.watchlist-card').length).toBeGreaterThan(0);
     expect(wrapper.text()).not.toContain('From directors you love');
     expect(wrapper.find('.watchlist-offline-note').exists()).toBe(true);
     expect(axios.get).not.toHaveBeenCalled();

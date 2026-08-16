@@ -23,6 +23,7 @@
     "purge-qa-social": "node scripts/purge-qa-social.mjs",
     "link-qa-tester": "node scripts/link-qa-tester.mjs",
     "diverge-test-library": "node scripts/diverge-test-library.mjs",
+    "link-tester-hat": "node scripts/link-tester-hat.mjs",
     "generate-db-rules": "node scripts/generate-database-rules.mjs"
   },
   "dependencies": {

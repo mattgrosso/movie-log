@@ -6,17 +6,25 @@ vi.mock('@/services/ErrorLogService.js', () => ({ default: { error: vi.fn() } })
 
 const HATS = [{ title: 'Just Matt', dbKey: 'k1' }, { title: 'Whole family', dbKey: 'k2' }];
 
-function factory ({ hats = HATS, result = null } = {}) {
+function factory ({ hats = HATS, result = null, summaries = [] } = {}) {
   const push = vi.fn();
-  const dispatch = vi.fn(() => (result instanceof Error ? Promise.reject(result) : Promise.resolve(result)));
+  const dispatch = vi.fn((action) => {
+    if (action === 'loadMovieHatSummaries') return Promise.resolve(summaries);
+    return result instanceof Error ? Promise.reject(result) : Promise.resolve(result);
+  });
   const wrapper = mount(DrawFromHat, {
-    global: { mocks: { $store: { getters: { linkedMovieHats: hats }, dispatch }, $router: { push } } }
+    global: {
+      mocks: {
+        $store: { state: { movieHatSummaries: summaries }, getters: { linkedMovieHats: hats }, dispatch },
+        $router: { push }
+      }
+    }
   });
   return { wrapper, dispatch, push };
 }
 
 async function drawFrom (wrapper, index = 0) {
-  await wrapper.findAll('.draw-button')[index].trigger('click');
+  await wrapper.findAll('.hat-card-draw')[index].trigger('click');
   await wrapper.vm.$nextTick();
   await wrapper.vm.$nextTick();
 }
@@ -28,16 +36,67 @@ describe('DrawFromHat', () => {
     expect(wrapper.find('.draw-from-hat').exists()).toBe(false);
   });
 
-  it('offers a button per linked hat and draws from the one pressed', async () => {
+  it('shows a card per linked hat and draws from the one pressed', async () => {
     const { wrapper, dispatch } = factory({
       result: { movie: { id: 550, title: 'Fight Club' }, hat: 'Whole family', remaining: 12 }
     });
 
-    expect(wrapper.findAll('.draw-button').map((button) => button.text()))
+    expect(wrapper.findAll('.hat-card-title').map((title) => title.text()))
       .toEqual(['Just Matt', 'Whole family']);
 
     await drawFrom(wrapper, 1);
     expect(dispatch).toHaveBeenCalledWith('drawFromMovieHat', { title: 'Whole family', dbKey: 'k2' });
+  });
+
+  // "A section lower down that shows each hat with the most recently drawn
+  // movie, the total number of movies in the hat, and a button to draw."
+  it('shows how many are waiting and what came out last', () => {
+    const { wrapper } = factory({
+      summaries: [{
+        title: 'Just Matt',
+        dbKey: 'k1',
+        waiting: 128,
+        lastDrawn: { title: 'Heat', poster_path: '/h.jpg', dateDrawn: Date.now() - 3 * 60 * 60 * 1000 }
+      }]
+    });
+    const card = wrapper.findAll('.hat-card')[0];
+
+    expect(card.find('.hat-card-count').text()).toBe('128 waiting');
+    expect(card.find('.hat-card-last').text()).toContain('Heat');
+    expect(card.find('.hat-card-last').text()).toContain('3 hours ago');
+    expect(card.find('.hat-card-poster').attributes('alt')).toBe('Heat');
+  });
+
+  it('asks for the hat summaries when it appears', () => {
+    const { dispatch } = factory({});
+    expect(dispatch).toHaveBeenCalledWith('loadMovieHatSummaries');
+  });
+
+  // Settings arrive after mount. Loading in mounted() fetched an empty list
+  // once and never retried, so every card sat on "…" forever.
+  it('waits for the linked hats to arrive before loading them', async () => {
+    const { wrapper, dispatch } = factory({ hats: [] });
+    expect(dispatch).not.toHaveBeenCalledWith('loadMovieHatSummaries');
+
+    wrapper.vm.$options.watch.hats.handler.call(wrapper.vm, HATS);
+    expect(dispatch).toHaveBeenCalledWith('loadMovieHatSummaries');
+  });
+
+  it('refreshes the cards after a draw, since the count just changed', async () => {
+    const { wrapper, dispatch } = factory({
+      result: { movie: { id: 1, title: 'Heat' }, hat: 'Just Matt', remaining: 5 }
+    });
+    dispatch.mockClear();
+
+    await drawFrom(wrapper);
+
+    expect(dispatch).toHaveBeenCalledWith('loadMovieHatSummaries');
+  });
+
+  it('says so when a hat could not be loaded, rather than showing a wrong count', () => {
+    const { wrapper } = factory({ summaries: [{ title: 'Just Matt', dbKey: 'k1', error: true }] });
+
+    expect(wrapper.findAll('.hat-card-count')[0].text()).toBe("couldn't load");
   });
 
   it('shows what was drawn, who put it in, and what is left', async () => {

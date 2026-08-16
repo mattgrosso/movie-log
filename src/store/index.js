@@ -275,6 +275,8 @@ export default createStore({
     socialFriendProfiles: {},
     // Hats this account belongs to, from the one-off Movie Hat lookup.
     availableMovieHats: [],
+    // Per-hat cards for the watchlist's draw section.
+    movieHatSummaries: [],
     // Friends on other apps (Movie Log), translated into the same profile
     // shape as native friends. Held in memory; the subscription itself
     // lives in settings/externalFriends.
@@ -482,6 +484,9 @@ export default createStore({
     },
     setAvailableMovieHats (state, value) {
       state.availableMovieHats = value || [];
+    },
+    setMovieHatSummaries (state, value) {
+      state.movieHatSummaries = value || [];
     },
     setSocialDirectory (state, value) {
       state.socialDirectory = value || {};
@@ -1738,6 +1743,33 @@ export default createStore({
       }
 
       return { added, skipped, hat: hat.title };
+    },
+
+    /**
+     * A card's worth of each linked hat: how many are waiting and what came
+     * out last. One request per hat, so it is called when the section
+     * renders rather than on every page load.
+     */
+    async loadMovieHatSummaries (context) {
+      const hats = context.getters.linkedMovieHats;
+      const summaries = await Promise.all(hats.map(async (hat) => {
+        try {
+          const loaded = await fetchHat(hat.title, hat.dbKey);
+          if (!loaded) return { ...hat, error: true };
+
+          // History is stored oldest-first; the newest draw is the one with
+          // the latest dateDrawn rather than simply the last key.
+          const lastDrawn = [...loaded.history]
+            .sort((a, b) => (b?.dateDrawn || 0) - (a?.dateDrawn || 0))[0] || null;
+
+          return { title: loaded.title, dbKey: loaded.dbKey, waiting: loaded.movies.length, lastDrawn };
+        } catch (error) {
+          return { ...hat, error: true };
+        }
+      }));
+
+      context.commit('setMovieHatSummaries', summaries);
+      return summaries;
     },
 
     /**

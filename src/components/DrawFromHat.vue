@@ -1,22 +1,43 @@
 <template>
   <section v-if="hats.length" class="draw-from-hat">
-    <h2 class="section-title">Draw from a hat</h2>
+    <h2 class="section-title">Your hats</h2>
     <p class="section-caption">
       A real draw — the movie leaves the hat and lands in its history, exactly as it would in Movie Hat.
     </p>
 
-    <div class="draw-buttons">
-      <button
-        v-for="hat in hats"
-        :key="hat.title"
-        type="button"
-        class="draw-button"
-        :disabled="drawing"
-        @click="draw(hat)"
-      >
-        <span v-if="drawing === hat.title" class="spinner-border spinner-border-sm" role="status"></span>
-        <span v-else>{{ hat.title }}</span>
-      </button>
+    <div class="hat-cards">
+      <div v-for="hat in cards" :key="hat.title" class="hat-card">
+        <!-- The last thing this hat gave you, as a poster. -->
+        <img
+          v-if="lastPoster(hat)"
+          :src="lastPoster(hat)"
+          :alt="hat.lastDrawn.title"
+          class="hat-card-poster"
+          loading="lazy"
+        >
+        <div v-else class="hat-card-poster hat-card-poster-blank">
+          <i class="bi bi-magic"></i>
+        </div>
+
+        <div class="hat-card-body">
+          <p class="hat-card-title">{{ hat.title }}</p>
+          <p class="hat-card-count">
+            <template v-if="hat.error">couldn't load</template>
+            <template v-else-if="hat.waiting == null">&hellip;</template>
+            <template v-else>{{ hat.waiting }} waiting</template>
+          </p>
+          <p v-if="hat.lastDrawn" class="hat-card-last">
+            Last drew <strong>{{ hat.lastDrawn.title }}</strong>
+            <span v-if="drawnAgo(hat)"> · {{ drawnAgo(hat) }}</span>
+          </p>
+          <p v-else-if="!hat.error" class="hat-card-last">Nothing drawn yet.</p>
+
+          <button type="button" class="hat-card-draw" :disabled="drawing" @click="draw(hat)">
+            <span v-if="drawing === hat.title" class="spinner-border spinner-border-sm" role="status"></span>
+            <span v-else>Draw</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div v-if="drawn" class="drawn">
@@ -41,19 +62,19 @@
 </template>
 
 <script>
-// Drawing from a Movie Hat without leaving Cinema Roll — Matt, 2026-08-16:
-// "I could go in cinema roll and draw a movie, and I would, you know, it
-// would just work, and it would pull up from the hat and all of the rules
-// and everything else that I have."
+// Your hats, on the watchlist — Matt, 2026-08-16: "The draw from hat buttons
+// do not need to be all the way at the top. Let's add a section lower down
+// that shows each hat with the most recently drawn movie, the total number
+// of movies in the hat, and a button to draw."
 //
 // A draw is destructive on purpose: the movie moves from the hat into its
 // history. That is what makes it a hat rather than a shuffle button, so this
 // does exactly what Movie Hat's own draw does, through the shared module.
 //
-// It deliberately does NOT lead into rating the movie: "that's dumb. I'll
-// have to watch the movie first." The only follow-on offered is looking the
-// film up.
+// It deliberately does NOT lead into rating: "that's dumb. I'll have to watch
+// the movie first." The only follow-on offered is looking the film up.
 import ErrorLogService from '../services/ErrorLogService.js';
+import { timeAgo } from '../assets/javascript/timeAgo.js';
 
 export default {
   name: 'DrawFromHat',
@@ -68,9 +89,33 @@ export default {
   computed: {
     hats () {
       return this.$store.getters.linkedMovieHats || [];
+    },
+    // The linked hats always render; their counts and last draw fill in when
+    // the lookups land, so the section doesn't pop into existence late.
+    cards () {
+      const summaries = this.$store.state.movieHatSummaries || [];
+      return this.hats.map((hat) => summaries.find((summary) => summary.title === hat.title) || { ...hat, waiting: null });
+    }
+  },
+  watch: {
+    // Settings arrive after mount, so loading these in mounted() fetched an
+    // empty list once and never tried again — the cards sat on "…" forever.
+    hats: {
+      immediate: true,
+      handler (hats) {
+        if (hats.length) this.$store.dispatch('loadMovieHatSummaries');
+      }
     }
   },
   methods: {
+    lastPoster (hat) {
+      return hat.lastDrawn?.poster_path
+        ? `https://image.tmdb.org/t/p/w185${hat.lastDrawn.poster_path}`
+        : null;
+    },
+    drawnAgo (hat) {
+      return timeAgo(hat.lastDrawn?.dateDrawn);
+    },
     async draw (hat) {
       this.drawing = hat.title;
       this.message = null;
@@ -85,6 +130,8 @@ export default {
           return;
         }
         this.drawn = result;
+        // The card's count and last-drawn are now stale by definition.
+        this.$store.dispatch('loadMovieHatSummaries');
       } catch (error) {
         ErrorLogService.error('Drawing from a movie hat failed', error);
         this.message = `Couldn't reach ${hat.title}.`;
@@ -118,32 +165,88 @@ export default {
   color: #b9b9b9;
   font-size: 0.75rem;
   line-height: 1.35;
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.7rem;
 }
 
-.draw-buttons {
+.hat-cards {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.draw-button {
+.hat-card {
+  background: #1f1f1f;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  display: flex;
+  gap: 0.6rem;
+  overflow: hidden;
+  padding: 0.5rem;
+}
+
+.hat-card-poster {
+  border-radius: 4px;
+  flex: 0 0 auto;
+  height: 84px;
+  object-fit: cover;
+  width: 56px;
+}
+
+.hat-card-poster-blank {
+  align-items: center;
+  background: #2b2b2b;
+  color: #7a7a7a;
+  display: flex;
+  justify-content: center;
+}
+
+.hat-card-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hat-card-title {
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.hat-card-count {
+  color: #b9b9b9;
+  font-size: 0.72rem;
+  margin: 0 0 0.15rem;
+}
+
+.hat-card-last {
+  color: #ccc;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  margin: 0 0 0.35rem;
+}
+
+.hat-card-last strong { color: #eee; font-weight: 600; }
+
+.hat-card-draw {
+  align-self: flex-start;
   background: #33383d;
   border: 1px solid #555c63;
   border-radius: 8px;
   color: #eee;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
+  margin-top: auto;
   min-height: 40px;
-  padding: 0.35rem 0.8rem;
+  padding: 0.3rem 1.1rem;
 }
 
 /* Mobile-first: press feedback is :active only, never :hover. */
-.draw-button:active {
+.hat-card-draw:active {
   background: #23272b;
 }
 
-.draw-button:disabled {
+.hat-card-draw:disabled {
   opacity: 0.6;
 }
 
