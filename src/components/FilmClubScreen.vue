@@ -123,16 +123,10 @@
           <p v-if="externalNote" class="cs-caption">{{ externalNote }}</p>
         </div>
 
-        <div class="cs-share-own">
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="crossAppToggle" :checked="crossAppDiscovery" @change="toggleDiscovery">
-            <label class="form-check-label" for="crossAppToggle">Let people on other apps find me</label>
-          </div>
-          <p class="cs-caption">
-            Publishes your display name and a request inbox to a public list, so friends on other apps can add you
-            without swapping links. Your ratings stay private until you accept someone.
-          </p>
-        </div>
+        <p v-if="!crossAppDiscovery" class="cs-share-own cs-caption">
+          People on other apps can't find you yet — turn on
+          <button type="button" class="cs-settings-link" @click="$router.push('/')">cross-app discovery in Settings</button>.
+        </p>
       </section>
 
       <!-- Directory -->
@@ -270,10 +264,7 @@ export default {
         this.requesting = null;
       }
     },
-    async toggleDiscovery (event) {
-      await this.$store.dispatch('setCrossAppDiscovery', event.target.checked);
-      this.$store.dispatch('watchClubInbox');
-    },
+
     async acceptRequest (request) {
       await this.$store.dispatch('acceptClubRequest', request);
     },
@@ -354,6 +345,14 @@ export default {
 .cs-external-error { color: #e88; font-size: 0.75rem; margin: 0; }
 .cs-row-app { color: #ccc; font-size: 0.75rem; font-weight: 400; }
 .cs-discovery { display: flex; flex-direction: column; gap: 0.3rem; }
+
+.cs-settings-link {
+  background: none;
+  border: none;
+  color: #9ec5fe;
+  padding: 0;
+  text-decoration: underline;
+}
 
 .cs-row {
   align-items: center;

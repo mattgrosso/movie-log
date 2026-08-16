@@ -552,6 +552,15 @@
                     @change="updateSocialDisplayName"
                   >
                 </div>
+                <template v-if="socialSettings.enabled">
+                  <div class="form-check form-switch mt-3 mb-1">
+                    <input class="form-check-input" type="checkbox" id="crossAppDiscoveryToggle" :checked="crossAppDiscovery" @change="updateCrossAppDiscovery">
+                    <label class="form-check-label" for="crossAppDiscoveryToggle">Let people on other apps find me</label>
+                  </div>
+                  <small class="form-text text-white d-block">
+                    Publishes your display name and a request inbox to a public list, so friends using a different movie app can add you. Your ratings stay private until you accept someone.
+                  </small>
+                </template>
               </SettingsSection>
 
               <RatingCurveSettings/>
@@ -1663,6 +1672,9 @@ export default {
     },
     socialSettings () {
       return this.$store.getters.socialSettings || {};
+    },
+    crossAppDiscovery () {
+      return this.$store.getters?.crossAppDiscoveryEnabled || false;
     },
     mirrorFeedKey () {
       return this.$store.state.settings?.mirrorFeedKey || null;
@@ -3060,6 +3072,9 @@ export default {
         // Opting out takes the published copies down, not just future ones.
         this.$store.dispatch('unpublishSocialProfile');
       }
+    },
+    updateCrossAppDiscovery (event) {
+      this.$store.dispatch('setCrossAppDiscovery', event.target.checked);
     },
     updateSocialDisplayName (event) {
       const value = event.target.value.trim();
