@@ -1305,6 +1305,21 @@ export default {
     // Refresh the published social profile once the library and settings
     // have both arrived, at most every 6 hours. A component watcher (not
     // $store.watch) so mounted mock stores in tests don't need the API.
+    // Film Club feed for friends on other apps: republished on launch,
+    // throttled to every 6 hours. Without this the feed would freeze at
+    // whatever the library looked like when the invite was created, and a
+    // Movie Log friend would silently see a stale library forever.
+    clubFeedReady: {
+      immediate: true,
+      handler (ready) {
+        if (!ready) return;
+        if (!this.$store.state.settings?.clubFeedKey) return;
+        const last = Number(localStorage.getItem('cinemaRoll.clubFeed.lastPublish') || 0);
+        if (Date.now() - last < 6 * 60 * 60 * 1000) return;
+        this.$store.dispatch('publishClubFeed');
+        localStorage.setItem('cinemaRoll.clubFeed.lastPublish', String(Date.now()));
+      }
+    },
     // Magic Mirror feed: republished on the same readiness signal, throttled
     // to every 6 hours. No-ops unless the user has a feed key (Matt does).
     mirrorFeedReady: {
@@ -1661,6 +1676,9 @@ export default {
       return Boolean(this.$store.state.dbLoaded && this.$store.state.settingsLoaded);
     },
     mirrorFeedReady () {
+      return Boolean(this.$store.state.dbLoaded && this.$store.state.settingsLoaded);
+    },
+    clubFeedReady () {
       return Boolean(this.$store.state.dbLoaded && this.$store.state.settingsLoaded);
     },
     incomingFriendRequests () {
