@@ -9,7 +9,7 @@ import { logScore, globalAverage } from './logScore.js';
 // "You love these" / "You're hardest on these": entities whose average
 // rating sits furthest from the library average, with a minimum film
 // count so tiny samples can't fake significance. No slider.
-export function tasteOutliers (entries, getRatingFn, { minCount = 5, cap = 8 } = {}) {
+export function tasteOutliers (entries, getRatingFn, { minCount = 5, cap = 8, perType = 3 } = {}) {
   const globalAvg = globalAverage(entries, getRatingFn);
   if (!Number.isFinite(globalAvg)) return { loved: [], hardest: [] };
 
@@ -47,9 +47,25 @@ export function tasteOutliers (entries, getRatingFn, { minCount = 5, cap = 8 } =
       };
     });
 
+  // TMDB attaches dozens of keywords per film, so unfiltered these lists
+  // come back nearly all keywords ("tennis", "jewelry") and bury the
+  // genres/people/studios that actually read as taste. Cap per type.
+  const diversify = (list) => {
+    const used = {};
+    const picked = [];
+    list.forEach((item) => {
+      if (picked.length >= cap) return;
+      used[item.type] = used[item.type] || 0;
+      if (used[item.type] >= perType) return;
+      used[item.type] += 1;
+      picked.push(item);
+    });
+    return picked;
+  };
+
   return {
-    loved: qualified.filter((q) => q.deviation > 0).sort((a, b) => b.deviation - a.deviation).slice(0, cap),
-    hardest: qualified.filter((q) => q.deviation < 0).sort((a, b) => a.deviation - b.deviation).slice(0, cap)
+    loved: diversify(qualified.filter((q) => q.deviation > 0).sort((a, b) => b.deviation - a.deviation)),
+    hardest: diversify(qualified.filter((q) => q.deviation < 0).sort((a, b) => a.deviation - b.deviation))
   };
 }
 

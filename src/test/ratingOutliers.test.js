@@ -69,3 +69,42 @@ describe('bestReleaseYears', () => {
     expect(y2010.score).toBeLessThan(years[0].score)
   })
 })
+
+describe('tasteOutliers type diversity', () => {
+  // TMDB gives films many keywords, so without a per-type cap the lists
+  // come back all keywords and bury genres/people.
+  const many = []
+  for (let i = 0; i < 10; i++) {
+    many.push({
+      dbKey: `k${i}`,
+      movie: {
+        id: i,
+        release_date: '2000-06-15',
+        genres: [{ name: 'Horror' }],
+        crew: [{ name: 'Dir Person', job: 'Director' }],
+        cast: [{ name: 'Star Person' }],
+        flatKeywords: ['kw-a', 'kw-b', 'kw-c', 'kw-d', 'kw-e', 'kw-f'],
+        production_companies: [{ name: 'Studio X' }]
+      },
+      ratings: [{ calculatedTotal: 9 }]
+    })
+  }
+  // Ballast to pull the global average well below 9.
+  for (let i = 0; i < 20; i++) {
+    many.push({
+      dbKey: `b${i}`,
+      movie: { id: 100 + i, release_date: '2000-06-15', genres: [{ name: 'Drama' }], crew: [], cast: [], flatKeywords: [], production_companies: [] },
+      ratings: [{ calculatedTotal: 4 }]
+    })
+  }
+  const rate = (e) => ({ calculatedTotal: e.ratings[0].calculatedTotal })
+
+  it('caps how many of any one type can fill a card', () => {
+    const { loved } = tasteOutliers(many, rate, { minCount: 5, cap: 8, perType: 3 })
+    const keywordCount = loved.filter((l) => l.type === 'Keyword').length
+    expect(keywordCount).toBeLessThanOrEqual(3)
+    // …leaving room for the other kinds of signal.
+    expect(loved.map((l) => l.type)).toContain('Genre')
+    expect(loved.map((l) => l.type)).toContain('Director')
+  })
+})

@@ -91,25 +91,24 @@ export default {
   width: 100%;
 
   .tuner-toggle {
-    // Pinned to the pane's top-right border line (its nearest positioned
-    // ancestor is .insights-pane), level with the centered title but without
-    // participating in its layout — so the title stays centered.
+    // In-flow, right-aligned. It used to be absolutely positioned onto the
+    // pane's top border line — that border (and the floating section title
+    // it sat beside) was retired in the 2026-08-15 tab rework, which left
+    // the pencil positioned against a distant ancestor and effectively
+    // invisible. Nothing to pin to now, so it just sits in the flow.
     align-items: center;
-    background: #212529; // matches the pane background to sit cleanly on the border
-    border: none;
+    background: none;
+    border: 1px solid white;
     border-radius: 50%;
-    color: #bbb;
+    color: white;
     cursor: pointer;
-    display: inline-flex;
+    display: flex;
     font-size: 0.72rem;
-    height: 26px;
+    height: 32px;
     justify-content: center;
+    margin: 0 0 0.5rem auto;
     padding: 0;
-    position: absolute;
-    right: 12px;
-    top: 0;
-    transform: translateY(-50%);
-    width: 26px;
+    width: 32px;
     z-index: 2;
 
     &:active {
