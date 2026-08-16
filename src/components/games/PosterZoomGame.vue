@@ -680,7 +680,14 @@ export default {
      the ceiling for a tall desktop window. */
   max-height: 460px;
   max-width: 100%;
-  min-height: 0;
+  /* A real floor, not zero. The stage CENTERS rather than stretches, so
+     this box's height comes from the image inside it — whose own height is
+     100% of this box. That circular dependency can collapse to almost
+     nothing (bug report, with a screenshot: a thumbnail-sized poster and
+     half a screen of empty space below it), and max-height cannot rescue a
+     box shrinking from below. min-height beats max-height in CSS, so this
+     guarantees a playable poster whatever the measurement does. */
+  min-height: min(40vh, 320px);
   overflow: hidden;
   position: relative;
   width: auto;
