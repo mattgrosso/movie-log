@@ -58,6 +58,9 @@
         <button type="button" class="insights-link-card" @click="$router.push('/games/stats')">
           <i class="bi bi-controller"></i><span>Game Stats</span>
         </button>
+        <button type="button" class="insights-link-card" @click="$router.push('/library-poster')">
+          <i class="bi bi-image"></i><span>Library Poster</span>
+        </button>
       </div>
     </template>
 

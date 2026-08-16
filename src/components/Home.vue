@@ -484,88 +484,16 @@
               <!-- Grouped into consistent SettingsSection cards (feedback:
                    the pane had grown patchwork). Ordered by everyday
                    relevance; rarely-used groups collapse by default. -->
-              <SettingsSection title="Library">
+              <SettingsSection title="Library" hint="Short films, your rating curve, and personal awards" collapsible :startOpen="false">
+
                 <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" id="shortsToggle" :checked="showShorts" @change="updateShowShorts">
                                 <label class="form-check-label" for="shortsToggle">Include short films</label>
                               </div>
-                <div class="mb-3">
-                  <button type="button" class="btn btn-warning w-100" @click="$router.push('/library-poster')">
-                    <i class="bi bi-image"></i> Make a poster of your library
-                  </button>
-                </div>
-                <div class="mb-3">
-                                <label class="form-label d-block">Offline access</label>
-                                <small class="form-text text-white d-block mb-2">
-                                  Downloads every poster/backdrop in your library so they're viewable without a connection. Only needs to be run again after rating a batch of new movies.
-                                </small>
-                                <button
-                                  class="btn btn-outline-info btn-sm"
-                                  @click="downloadForOffline"
-                                  :disabled="offlineDownload.status === 'running'"
-                                >
-                                  <span v-if="offlineDownload.status === 'running'">
-                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                                    Downloading {{ offlineDownload.completed }}/{{ offlineDownload.total }}...
-                                  </span>
-                                  <span v-else>
-                                    <i class="bi bi-cloud-download"></i> Download all posters for offline
-                                  </span>
-                                </button>
-                                <div v-if="offlineDownload.status === 'done'" class="text-success mt-2">
-                                  <small><i class="bi bi-check-circle"></i> {{ offlineDownload.total }} images cached{{ offlineDownload.failed ? ` (${offlineDownload.failed} failed — check your connection and try again)` : '' }}.</small>
-                                </div>
-                              </div>
-              </SettingsSection>
+                <h6 class="settings-subhead">Rating curve</h6>
+                <RatingCurveSettings/>
+                <h6 class="settings-subhead">Personal awards</h6>
 
-              <SettingsSection v-if="isMatt" title="Magic Mirror" collapsible :startOpen="false">
-                <small class="form-text text-white d-block mb-2">
-                  Publishes a few KB of display data (recent watches, this month's best, and your rated movie ids) for the Magic Mirror to read. Your library itself stays private. Paste this URL into the mirror's config.
-                </small>
-                <button v-if="!mirrorFeedKey" type="button" class="btn btn-outline-info btn-sm" @click="enableMirrorFeed">
-                  <i class="bi bi-display"></i> Turn on the mirror feed
-                </button>
-                <template v-else>
-                  <input class="form-control mb-2" readonly :value="mirrorFeedUrl" @focus="$event.target.select()">
-                  <button type="button" class="btn btn-outline-info btn-sm" @click="copyMirrorFeedUrl">
-                    <i class="bi bi-clipboard"></i> {{ mirrorFeedCopied ? 'Copied' : 'Copy URL' }}
-                  </button>
-                </template>
-              </SettingsSection>
-
-              <SettingsSection title="Friends &amp; Sharing">
-                <small class="form-text text-white d-block mb-2">
-                  Friends see your ratings only after you both accept a request. The Film Club lives in the rainbow bar.
-                </small>
-                <div class="form-check form-switch mb-3">
-                  <input class="form-check-input" type="checkbox" id="socialEnabledToggle" :checked="socialSettings.enabled" @change="updateSocialEnabled">
-                  <label class="form-check-label" for="socialEnabledToggle">Share on Cinema Roll</label>
-                </div>
-                <div v-if="socialSettings.enabled" class="mb-2">
-                  <label for="socialDisplayName" class="form-label">Display name</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="socialDisplayName"
-                    :value="socialSettings.displayName || ''"
-                    placeholder="How friends see you"
-                    @change="updateSocialDisplayName"
-                  >
-                </div>
-                <template v-if="socialSettings.enabled">
-                  <div class="form-check form-switch mt-3 mb-1">
-                    <input class="form-check-input" type="checkbox" id="crossAppDiscoveryToggle" :checked="crossAppDiscovery" @change="updateCrossAppDiscovery">
-                    <label class="form-check-label" for="crossAppDiscoveryToggle">Let people on other apps find me</label>
-                  </div>
-                  <small class="form-text text-white d-block">
-                    Publishes your display name and a request inbox to a public list, so friends using a different movie app can add you. Your ratings stay private until you accept someone.
-                  </small>
-                </template>
-              </SettingsSection>
-
-              <RatingCurveSettings/>
-
-              <SettingsSection title="Awards">
                 <div class="mb-3">
                                 <label for="personalAwardName" class="form-label">Personal Award Name:</label>
                                 <input
@@ -595,7 +523,37 @@
                               </div>
               </SettingsSection>
 
-              <SettingsSection title="Prompts">
+              <SettingsSection title="Friends &amp; sharing" hint="Your Film Club profile and who can find you" collapsible :startOpen="false">
+                <small class="form-text text-white d-block mb-2">
+                  Friends see your ratings only after you both accept a request. The Film Club lives in the rainbow bar.
+                </small>
+                <div class="form-check form-switch mb-3">
+                  <input class="form-check-input" type="checkbox" id="socialEnabledToggle" :checked="socialSettings.enabled" @change="updateSocialEnabled">
+                  <label class="form-check-label" for="socialEnabledToggle">Share on Cinema Roll</label>
+                </div>
+                <div v-if="socialSettings.enabled" class="mb-2">
+                  <label for="socialDisplayName" class="form-label">Display name</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="socialDisplayName"
+                    :value="socialSettings.displayName || ''"
+                    placeholder="How friends see you"
+                    @change="updateSocialDisplayName"
+                  >
+                </div>
+                <template v-if="socialSettings.enabled">
+                  <div class="form-check form-switch mt-3 mb-1">
+                    <input class="form-check-input" type="checkbox" id="crossAppDiscoveryToggle" :checked="crossAppDiscovery" @change="updateCrossAppDiscovery">
+                    <label class="form-check-label" for="crossAppDiscoveryToggle">Let people on other apps find me</label>
+                  </div>
+                  <small class="form-text text-white d-block">
+                    Publishes your display name and a request inbox to a public list, so friends using a different movie app can add you. Your ratings stay private until you accept someone.
+                  </small>
+                </template>
+              </SettingsSection>
+
+              <SettingsSection title="Prompts" hint="How often Cinema Roll asks you things" collapsible :startOpen="false">
                 <div class="mb-3">
                                 <label for="tieBreakTweak" class="form-label">Max daily tiebreak prompts:</label>
                                 <input
@@ -631,7 +589,7 @@
                 </template>
               </SettingsSection>
 
-              <SettingsSection title="Letterboxd">
+              <SettingsSection title="Letterboxd" hint="Link your account for deep links and imports" collapsible :startOpen="false">
                 <div class="mb-3">
                                 <label for="letterboxdUsername" class="form-label">Letterboxd Username:</label>
                                 <div class="input-group">
@@ -719,7 +677,31 @@
                               </div>
               </SettingsSection>
 
-              <SettingsSection title="Data maintenance" collapsible :startOpen="false">
+              <SettingsSection title="Data &amp; account" hint="Offline posters, backfills, export, sign out" collapsible :startOpen="false">
+                <h6 class="settings-subhead">Offline access</h6>
+                <div class="mb-3">
+                                <small class="form-text text-white d-block mb-2">
+                                  Downloads every poster/backdrop in your library so they're viewable without a connection. Only needs to be run again after rating a batch of new movies.
+                                </small>
+                                <button
+                                  class="btn btn-outline-info btn-sm"
+                                  @click="downloadForOffline"
+                                  :disabled="offlineDownload.status === 'running'"
+                                >
+                                  <span v-if="offlineDownload.status === 'running'">
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    Downloading {{ offlineDownload.completed }}/{{ offlineDownload.total }}...
+                                  </span>
+                                  <span v-else>
+                                    <i class="bi bi-cloud-download"></i> Download all posters for offline
+                                  </span>
+                                </button>
+                                <div v-if="offlineDownload.status === 'done'" class="text-success mt-2">
+                                  <small><i class="bi bi-check-circle"></i> {{ offlineDownload.total }} images cached{{ offlineDownload.failed ? ` (${offlineDownload.failed} failed — check your connection and try again)` : '' }}.</small>
+                                </div>
+                              </div>
+                <h6 class="settings-subhead">Maintenance</h6>
+
                 <div class="mb-3">
                                 <label class="form-label d-block">Box office data</label>
                                 <small class="form-text text-white d-block mb-2">
@@ -807,9 +789,8 @@
                                   <small v-else><i class="bi bi-check-circle"></i> Every movie already has one.</small>
                                 </div>
                               </div>
-              </SettingsSection>
+                <h6 class="settings-subhead">Account</h6>
 
-              <SettingsSection title="Account">
                 <p v-if="$store.state.userEmail" class="signed-in-as small mb-2">
                                   Signed in as {{ $store.state.userEmail }}
                                 </p>
@@ -828,7 +809,21 @@
                                 </button>
               </SettingsSection>
 
-              <SettingsSection title="Developer" collapsible :startOpen="false">
+              <SettingsSection title="Magic Mirror" hint="Publish a small feed for the hallway display" v-if="isMatt" collapsible :startOpen="false">
+                <small class="form-text text-white d-block mb-2">
+                  Publishes a few KB of display data (recent watches, this month's best, and your rated movie ids) for the Magic Mirror to read. Your library itself stays private. Paste this URL into the mirror's config.
+                </small>
+                <button v-if="!mirrorFeedKey" type="button" class="btn btn-outline-info btn-sm" @click="enableMirrorFeed">
+                  <i class="bi bi-display"></i> Turn on the mirror feed
+                </button>
+                <template v-else>
+                  <input class="form-control mb-2" readonly :value="mirrorFeedUrl" @focus="$event.target.select()">
+                  <button type="button" class="btn btn-outline-info btn-sm" @click="copyMirrorFeedUrl">
+                    <i class="bi bi-clipboard"></i> {{ mirrorFeedCopied ? 'Copied' : 'Copy URL' }}
+                  </button>
+                </template>
+              </SettingsSection>
+              <SettingsSection title="Developer" hint="Dev mode, error logs, diagnostics" collapsible :startOpen="false">
                 <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" id="errorLogsToggle" :checked="showErrorLogs" @change="updateShowErrorLogs">
                                 <label class="form-check-label" for="errorLogsToggle">Show error logs</label>
@@ -5728,6 +5723,29 @@ export default {
   max-width: 600px;
   margin: 0 auto 1.5rem auto;
   color: var(--bs-body-color, #212529);
+  /* The section cards carry their own padding; the card-body default was
+     inset inside an inset, which visibly narrowed every group. */
+  padding: 0.75rem 0.5rem;
+}
+
+/* Group label inside a section. Sized down and set in caps deliberately:
+   the item titles beneath it are full-size form labels, so a same-size
+   bold heading read as a sibling rather than a header. */
+.settings-subhead {
+  border-top: 1px solid #2e2e2e;
+  color: #b9c6e6;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 1.25rem 0 0.6rem;
+  padding-top: 0.85rem;
+  text-transform: uppercase;
+}
+
+.settings-section-body > .settings-subhead:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
 }
 .settings-panel-inline.dark {
   background: #23272b !important;

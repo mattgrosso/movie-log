@@ -1,6 +1,5 @@
 <template>
   <div class="rating-curve-settings">
-    <h6 class="curve-title">Rating Curve</h6>
     <p class="curve-explainer">
       Anchor the scale with your own movies: your lowest rated 10, and your
       dead-average 5. Everything else stretches to fit.
@@ -224,19 +223,10 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+/* Lives inside a SettingsSection now, which supplies the card chrome and
+   the heading — a second border and title here would just double it up. */
 .rating-curve-settings {
-  background: #161616;
-  border: 1px solid #2e2e2e;
-  border-radius: 10px;
   margin-bottom: 1rem;
-  padding: 0.9rem 1rem;
-}
-
-.curve-title {
-  color: #eee;
-  font-size: 0.95rem;
-  font-weight: 700;
-  margin-bottom: 0.25rem;
 }
 
 .curve-explainer {

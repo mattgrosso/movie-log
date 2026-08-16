@@ -7,7 +7,10 @@
       :class="{ collapsible }"
       @click="collapsible && (open = !open)"
     >
-      <span class="settings-section-title">{{ title }}</span>
+      <span class="settings-section-heading">
+        <span class="settings-section-title">{{ title }}</span>
+        <span v-if="hint" class="settings-section-hint">{{ hint }}</span>
+      </span>
       <i v-if="collapsible" class="bi bi-chevron-down settings-section-chevron" :class="{ open }"></i>
     </component>
     <div v-show="open" class="settings-section-body">
@@ -27,6 +30,9 @@ export default {
   name: 'SettingsSection',
   props: {
     title: { type: String, required: true },
+    // A title alone is opaque once every group is collapsed, so each one
+    // carries a line saying what's inside.
+    hint: { type: String, default: '' },
     collapsible: { type: Boolean, default: false },
     startOpen: { type: Boolean, default: true }
   },
@@ -68,13 +74,29 @@ export default {
   }
 }
 
+.settings-section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  padding-right: 0.75rem;
+}
+
 .settings-section-title {
   font-size: 0.95rem;
   font-weight: 700;
 }
 
+.settings-section-hint {
+  color: #9a9a9a;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
 .settings-section-chevron {
   color: #777;
+  flex: 0 0 auto;
   transition: transform 0.2s;
 
   &.open {
