@@ -518,6 +518,21 @@
                               </div>
               </SettingsSection>
 
+              <SettingsSection title="Magic Mirror" collapsible :startOpen="false">
+                <small class="form-text text-white d-block mb-2">
+                  Publishes a few KB of display data (recent watches, this month's best, and your rated movie ids) for the Magic Mirror to read. Your library itself stays private. Paste this URL into the mirror's config.
+                </small>
+                <button v-if="!mirrorFeedKey" type="button" class="btn btn-outline-info btn-sm" @click="enableMirrorFeed">
+                  <i class="bi bi-display"></i> Turn on the mirror feed
+                </button>
+                <template v-else>
+                  <input class="form-control mb-2" readonly :value="mirrorFeedUrl" @focus="$event.target.select()">
+                  <button type="button" class="btn btn-outline-info btn-sm" @click="copyMirrorFeedUrl">
+                    <i class="bi bi-clipboard"></i> {{ mirrorFeedCopied ? 'Copied' : 'Copy URL' }}
+                  </button>
+                </template>
+              </SettingsSection>
+
               <SettingsSection title="Friends &amp; Sharing">
                 <small class="form-text text-white d-block mb-2">
                   Friends see your ratings only after you both accept a request. The Film Club lives in the rainbow bar.
@@ -1219,6 +1234,7 @@ export default {
   },
   data () {
     return {
+      mirrorFeedCopied: false,
       activeFilters: [], // New multi-filter system
       activeQuickLinkList: "title",
       cachedCastMembers: new Set(), // Cache for fast cast member lookups
@@ -1289,6 +1305,19 @@ export default {
     // Refresh the published social profile once the library and settings
     // have both arrived, at most every 6 hours. A component watcher (not
     // $store.watch) so mounted mock stores in tests don't need the API.
+    // Magic Mirror feed: republished on the same readiness signal, throttled
+    // to every 6 hours. No-ops unless the user has a feed key (Matt does).
+    mirrorFeedReady: {
+      immediate: true,
+      handler (ready) {
+        if (!ready) return;
+        const last = Number(localStorage.getItem('cinemaRoll.mirrorFeed.lastPublish') || 0);
+        if (Date.now() - last < 6 * 60 * 60 * 1000) return;
+        if (!this.$store.state.settings?.mirrorFeedKey) return;
+        this.$store.dispatch('publishMirrorFeed');
+        localStorage.setItem('cinemaRoll.mirrorFeed.lastPublish', String(Date.now()));
+      }
+    },
     socialPublishReady: {
       immediate: true,
       handler (ready) {
@@ -1620,7 +1649,18 @@ export default {
     socialSettings () {
       return this.$store.getters.socialSettings || {};
     },
+    mirrorFeedKey () {
+      return this.$store.state.settings?.mirrorFeedKey || null;
+    },
+    mirrorFeedUrl () {
+      const account = this.$store.state.databaseTopKey;
+      if (!account || !this.mirrorFeedKey) return '';
+      return `https://movie-log-8c4d5-default-rtdb.firebaseio.com/mirrorFeed/${account}/${this.mirrorFeedKey}.json`;
+    },
     socialPublishReady () {
+      return Boolean(this.$store.state.dbLoaded && this.$store.state.settingsLoaded);
+    },
+    mirrorFeedReady () {
       return Boolean(this.$store.state.dbLoaded && this.$store.state.settingsLoaded);
     },
     incomingFriendRequests () {
@@ -2983,6 +3023,15 @@ export default {
       const newVal = event.target.checked;
       ErrorLogService.debug('updateShowShorts handler fired', { newVal, component: 'Home' });
       this.$store.dispatch('writeDurably', { path: 'settings/includeShorts', value: newVal });
+    },
+    async enableMirrorFeed () {
+      await this.$store.dispatch('ensureMirrorFeedKey');
+      await this.$store.dispatch('publishMirrorFeed');
+    },
+    copyMirrorFeedUrl () {
+      navigator.clipboard?.writeText(this.mirrorFeedUrl);
+      this.mirrorFeedCopied = true;
+      setTimeout(() => { this.mirrorFeedCopied = false; }, 2000);
     },
     updateSocialEnabled (event) {
       const enabled = event.target.checked;

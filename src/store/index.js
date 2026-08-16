@@ -26,6 +26,7 @@ import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
 import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
+import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -1237,6 +1238,33 @@ export default createStore({
         `Database batch update timed out after ${DATABASE_WRITE_TIMEOUT_MS}ms`
       );
     },
+    // ------------------------------------------------------------------
+    // Magic Mirror feed. The mirror used to read the whole movieLog over
+    // unauthenticated REST; the 2026-08-14 lockdown ended that. Rather than
+    // reopening the library, publish a few KB of exactly what it renders to
+    // mirrorFeed/<userKey>/<secret>, which the rules make world-readable at
+    // the secret level only. No credentials live on the mirror.
+    // The secret must never live in Cinema Roll's public bundle, so it is
+    // generated per-user at runtime and stored with the user's settings.
+    async ensureMirrorFeedKey (context) {
+      const existing = context.state.settings?.mirrorFeedKey;
+      if (typeof existing === 'string' && existing.length >= 16) return existing;
+      const bytes = new Uint8Array(16);
+      (window.crypto || window.msCrypto).getRandomValues(bytes);
+      const key = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+      await context.dispatch('writeDurably', { path: 'settings/mirrorFeedKey', value: key });
+      return key;
+    },
+    async publishMirrorFeed (context) {
+      const me = context.state.databaseTopKey;
+      const secret = context.state.settings?.mirrorFeedKey;
+      if (!me || !secret || !context.state.dbLoaded) return;
+      const entries = context.getters.allMediaAsArray;
+      if (!entries.length) return;
+      const feed = buildMirrorFeed(entries, getRating);
+      await set(ref(db, `mirrorFeed/${me}/${secret}`), feed);
+    },
+
     // ------------------------------------------------------------------
     // Social layer. All writes land OUTSIDE the user's private branch, under
     // social/ — see src/assets/javascript/social.js and the database rules.

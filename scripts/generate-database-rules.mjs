@@ -115,6 +115,25 @@ const rules = {
       }
     },
 
+    // Magic Mirror feed (2026-08-16). The mirror is a device on Matt's LAN
+    // with no Firebase session; it used to read the whole movieLog over
+    // unauthenticated REST until this file's lockdown (correctly) ended
+    // that. Instead of reopening the library, the app publishes a few KB of
+    // derived display data here.
+    //
+    // READ IS PUBLIC ONLY AT THE SECRET LEVEL: you must know both the
+    // account key AND the unguessable secret. The parent nodes stay
+    // unreadable, so the secret can't be discovered by listing.
+    mirrorFeed: {
+      $userKey: {
+        '.read': false,
+        '.write': `auth != null && $userKey === ${sanitizedAuthEmail}`,
+        $secret: {
+          '.read': true
+        }
+      }
+    },
+
     // Dev-mode sandbox. Owner only.
     'testing-database': {
       '.read': isOwner,
