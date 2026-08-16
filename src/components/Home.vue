@@ -553,6 +553,36 @@
                 </template>
               </SettingsSection>
 
+              <SettingsSection title="Movie Hat" hint="Send movies to your hats, and draw from them here" collapsible :startOpen="false">
+                <p class="settings-note">
+                  Movie Hat stays its own app — this just lets Cinema Roll put movies into your hats and draw from them.
+                </p>
+
+                <button type="button" class="btn btn-outline-info btn-sm" :disabled="findingHats" @click="findMovieHats">
+                  <span v-if="findingHats" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                  {{ linkedMovieHats.length ? 'Look for more hats' : 'Find my hats' }}
+                </button>
+                <p v-if="hatLookupError" class="settings-hat-error">{{ hatLookupError }}</p>
+
+                <div v-for="hat in hatChoices" :key="hat.title" class="form-check form-switch mt-2">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    :id="`hat-${hat.title}`"
+                    :checked="isHatLinked(hat.title)"
+                    @change="toggleHat(hat)"
+                  >
+                  <label class="form-check-label" :for="`hat-${hat.title}`">
+                    {{ hat.title }}
+                    <span class="settings-hat-count">{{ hat.movies }} waiting</span>
+                  </label>
+                </div>
+
+                <p v-if="searchedForHats && !hatChoices.length" class="settings-note">
+                  No hats found for {{ userEmail }} — that's the address Movie Hat knows you by.
+                </p>
+              </SettingsSection>
+
               <SettingsSection title="Prompts" hint="How often Cinema Roll asks you things" collapsible :startOpen="false">
                 <div class="mb-3">
                                 <label for="tieBreakTweak" class="form-label">Max daily tiebreak prompts:</label>
@@ -1240,6 +1270,10 @@ export default {
   },
   data () {
     return {
+      // Movie Hat linking (settings pane).
+      findingHats: false,
+      searchedForHats: false,
+      hatLookupError: null,
       mirrorFeedCopied: false,
       activeFilters: [], // New multi-filter system
       activeQuickLinkList: "title",
@@ -1615,6 +1649,21 @@ export default {
     next();
   },
   computed: {
+    userEmail () {
+      return this.$store.state.userEmail;
+    },
+    linkedMovieHats () {
+      return this.$store.getters.linkedMovieHats;
+    },
+    // Everything found by the lookup, plus anything already linked, so a
+    // linked hat still shows (and can be unlinked) before any lookup runs.
+    hatChoices () {
+      const found = this.$store.state.availableMovieHats || [];
+      const extras = this.linkedMovieHats.filter(
+        (linked) => !found.some((hat) => hat.title === linked.title)
+      );
+      return [...found, ...extras.map((hat) => ({ ...hat, movies: '—' }))];
+    },
     // Diagnostic only - see the liveDebugState watcher above.
     liveDebugState () {
       return {
@@ -3045,6 +3094,28 @@ export default {
     },
   },
   methods: {
+    async findMovieHats () {
+      this.findingHats = true;
+      this.hatLookupError = null;
+      try {
+        await this.$store.dispatch('findMovieHats');
+        this.searchedForHats = true;
+      } catch (error) {
+        this.hatLookupError = "Couldn't reach Movie Hat just now.";
+        ErrorLogService.error('Movie Hat lookup failed', error);
+      } finally {
+        this.findingHats = false;
+      }
+    },
+    isHatLinked (title) {
+      return this.linkedMovieHats.some((hat) => hat.title === title);
+    },
+    toggleHat (hat) {
+      const linked = this.isHatLinked(hat.title)
+        ? this.linkedMovieHats.filter((linkedHat) => linkedHat.title !== hat.title)
+        : [...this.linkedMovieHats, { title: hat.title, dbKey: hat.dbKey }];
+      this.$store.dispatch('linkMovieHats', linked);
+    },
 
     // Event handlers for form changes (replaces watchers)
     onStickinessUpdated () {
@@ -5738,6 +5809,26 @@ export default {
 /* Group label inside a section. Sized down and set in caps deliberately:
    the item titles beneath it are full-size form labels, so a same-size
    bold heading read as a sibling rather than a header. */
+.settings-note {
+  /* #b9b9b9 on the section card, ~8:1. */
+  color: #b9b9b9;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  margin: 0 0 0.6rem;
+}
+
+.settings-hat-count {
+  color: #9a9a9a;
+  font-size: 0.72rem;
+  margin-left: 0.35rem;
+}
+
+.settings-hat-error {
+  color: #ff9f9f;
+  font-size: 0.75rem;
+  margin: 0.5rem 0 0;
+}
+
 .settings-subhead {
   border-top: 1px solid #2e2e2e;
   color: #b9c6e6;

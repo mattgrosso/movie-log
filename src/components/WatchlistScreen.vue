@@ -6,6 +6,8 @@
 
     <!-- Local, always available: movies you loved but haven't logged in a
          long time. -->
+    <DrawFromHat/>
+
     <section v-if="rewatchList.length" class="watchlist-section">
       <h2 class="section-title">Worth a rewatch</h2>
       <div class="rewatch-row">
@@ -87,6 +89,7 @@
     <section v-if="friendPickMedia.length" class="watchlist-section">
       <h2 class="section-title">Your Film Club loves these</h2>
       <p class="section-caption">Rated 8 or better by friends, never rated by you. Agreement sorts first.</p>
+      <SendToHat :movies="notPunted(friendPickMedia)"/>
       <MediaResultGrid :mediaList="notPunted(friendPickMedia)" @select="rateMedia"/>
     </section>
 
@@ -97,7 +100,10 @@
         <span v-if="section.record" class="section-record">{{ section.record.hits }} of {{ section.record.suggested }} watched</span>
       </p>
       <p v-if="section.loading" class="section-loading">Looking up filmographies&hellip;</p>
-      <MediaResultGrid v-else-if="section.movies.length" :mediaList="notPunted(section.movies)" @select="rateMedia"/>
+      <template v-else-if="section.movies.length">
+        <SendToHat :movies="notPunted(section.movies)"/>
+        <MediaResultGrid :mediaList="notPunted(section.movies)" @select="rateMedia"/>
+      </template>
       <p v-else class="section-loading">Nothing new found — you've seen the good ones.</p>
     </section>
 
@@ -118,6 +124,8 @@
 import axios from 'axios';
 import BackLink from './games/BackLink.vue';
 import MediaResultGrid from './MediaResultGrid.vue';
+import SendToHat from './SendToHat.vue';
+import DrawFromHat from './DrawFromHat.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { friendsLoveUnseen } from '../assets/javascript/social.js';
 import { rankSections, sourceSummary } from '../assets/javascript/recommendationStats.js';
@@ -126,7 +134,10 @@ import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 
 export default {
   name: 'WatchlistScreen',
-  components: { BackLink, MediaResultGrid },
+  components: { BackLink, MediaResultGrid,
+    SendToHat,
+    DrawFromHat
+  },
   data () {
     return {
       yearSections: [], // { year, count, missing, movies }

@@ -25,6 +25,7 @@ import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
 import { emailToDatabaseKey, isQaAccountKey } from "../assets/javascript/databaseKey.js";
+import { fetchAllHats, hatsForMember, fetchHat, toHatMovie, alreadyInHat, addMovieToHat, pickFromHat, commitDraw } from "../assets/javascript/movieHat.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
 import { pendingUpdates, reconcilePending } from "../assets/javascript/recommendationStats.js";
@@ -272,6 +273,8 @@ export default createStore({
     socialEdges: {},
     socialDirectory: {},
     socialFriendProfiles: {},
+    // Hats this account belongs to, from the one-off Movie Hat lookup.
+    availableMovieHats: [],
     // Friends on other apps (Movie Log), translated into the same profile
     // shape as native friends. Held in memory; the subscription itself
     // lives in settings/externalFriends.
@@ -431,6 +434,14 @@ export default createStore({
       });
       return out;
     },
+    /** Hats this account has linked, as [{ title, dbKey }]. */
+    linkedMovieHats (state) {
+      const hats = state.settings?.movieHat?.hats;
+      if (Array.isArray(hats)) return hats.filter((hat) => hat && hat.title);
+      // Firebase turns a sparse array back into an object map.
+      if (hats && typeof hats === 'object') return Object.values(hats).filter((hat) => hat && hat.title);
+      return [];
+    },
     socialPendingSentKeys (state, getters) {
       const me = getters.socialUserKey;
       if (!me) return [];
@@ -468,6 +479,9 @@ export default createStore({
     },
     setSocialEdges (state, value) {
       state.socialEdges = value || {};
+    },
+    setAvailableMovieHats (state, value) {
+      state.availableMovieHats = value || [];
     },
     setSocialDirectory (state, value) {
       state.socialDirectory = value || {};
@@ -1665,6 +1679,83 @@ export default createStore({
         set(ref(db, `social/directory/${me}`), { name: profile.name })
       ]);
     },
+    // ---- Movie Hat ----------------------------------------------------
+    //
+    // Movie Hat is a separate app with its own database and stays that way
+    // (Matt, 2026-08-16). These actions are the only place Cinema Roll
+    // touches it, and they all go through assets/javascript/movieHat.js.
+
+    /**
+     * The one-off setup step: read every hat and keep the ones this account
+     * is a member of. Deliberately not run on load — it reads the whole
+     * database, which is megabytes.
+     */
+    async findMovieHats (context) {
+      const email = context.state.userEmail;
+      if (!email) return [];
+
+      const all = await fetchAllHats();
+      const mine = hatsForMember(all, email);
+      context.commit('setAvailableMovieHats', mine);
+      return mine;
+    },
+
+    async linkMovieHats (context, hats) {
+      await context.dispatch('writeDurably', {
+        path: 'settings/movieHat/hats',
+        value: (hats || []).map(({ title, dbKey }) => ({ title, dbKey }))
+      });
+    },
+
+    /**
+     * Send one or many movies to a hat. Returns what happened per movie so
+     * the screen can say "3 added, 1 was already in there" — Matt asked for
+     * exactly that rather than Cinema Roll tracking hat contents itself.
+     */
+    async addToMovieHat (context, { title, dbKey = null, entries = [] }) {
+      const hat = await fetchHat(title, dbKey);
+      if (!hat) throw new Error(`Couldn't find a hat called "${title}"`);
+
+      const addedBy = context.getters.socialSettings?.displayName || context.state.userEmail || 'Cinema Roll';
+      const added = [];
+      const skipped = [];
+      // Tracks within this batch too, so the same movie twice in one list
+      // doesn't get added twice.
+      const seen = [...hat.movies];
+
+      for (const entry of entries) {
+        const payload = toHatMovie(entry, { addedBy });
+        if (!payload) continue;
+
+        if (alreadyInHat(seen, payload.id)) {
+          skipped.push(payload);
+          continue;
+        }
+
+        await addMovieToHat(hat.title, hat.dbKey, payload);
+        seen.push(payload);
+        added.push(payload);
+      }
+
+      return { added, skipped, hat: hat.title };
+    },
+
+    /**
+     * Draw, for real: the movie leaves the hat and lands in its history,
+     * exactly as it would in Movie Hat itself. Deliberately does NOT lead
+     * into rating — "that's dumb. I'll have to watch the movie first."
+     */
+    async drawFromMovieHat (context, { title, dbKey = null }) {
+      const hat = await fetchHat(title, dbKey);
+      if (!hat) throw new Error(`Couldn't find a hat called "${title}"`);
+      if (!hat.movies.length) return { movie: null, hat: hat.title, remaining: 0 };
+
+      const movie = pickFromHat(hat.movies);
+      await commitDraw(hat.title, hat.dbKey, movie);
+
+      return { movie, hat: hat.title, remaining: hat.movies.length - 1 };
+    },
+
     // Republish shortly after the library changes.
     //
     // The only trigger used to be a watcher on Home that published at most
