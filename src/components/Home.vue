@@ -5888,13 +5888,19 @@ export default {
   display: inline-flex;
   position: relative;
 
+  /* The outline club runs 10% larger than its filled sibling so the
+     count fits inside the glyph (Matt). */
+  .bi-suit-club {
+    font-size: 1.1em;
+  }
+
   .film-club-badge-count {
     font-size: 0.5rem;
     font-weight: 700;
     left: 50%;
     line-height: 1;
     position: absolute;
-    top: 40%;
+    top: calc(40% + 2px);
     transform: translate(-50%, -50%);
   }
 }
