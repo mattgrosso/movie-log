@@ -124,3 +124,41 @@ describe('diffLibraries', () => {
     });
   });
 })
+
+describe('diffLibraries ignores runtime-injected fields', () => {
+  // dbKey/_search are added when an entry is read and are never stored, so
+  // the full download has them and delta-reconstructed entries do not.
+  // Comparing them made shadow mode report a divergence on every launch
+  // with recent activity — a false alarm that would have poisoned the
+  // phase-2 go/no-go.
+  const stored = { movie: { id: 1, title: 'Alpha' }, ratings: [{ calculatedTotal: 8 }], updatedAt: 1000 }
+
+  it('entries differing only by dbKey/_search count as identical', () => {
+    const fresh = { a: { ...stored, dbKey: 'a', _search: { title: 'alpha' } } }
+    const reconstructed = { a: { ...stored } }
+
+    const report = diffLibraries(fresh, reconstructed)
+    expect(report.identical).toBe(true)
+    expect(report.stale).toEqual([])
+  })
+
+  it('a real difference is still reported', () => {
+    const fresh = { a: { ...stored, dbKey: 'a' } }
+    const reconstructed = { a: { ...stored, ratings: [{ calculatedTotal: 4 }] } }
+
+    const report = diffLibraries(fresh, reconstructed)
+    expect(report.identical).toBe(false)
+    expect(report.stale).toEqual(['a'])
+  })
+
+  it('describeStaleEntry does not name dbKey as a differing path', () => {
+    const detail = describeStaleEntry(
+      { ...stored, dbKey: 'a', ratings: [{ calculatedTotal: 9 }] },
+      { ...stored },
+      { a: {} },
+      'a'
+    )
+    expect(detail.diffPaths).not.toContain('dbKey')
+    expect(detail.diffPaths.length).toBeGreaterThan(0) // the real rating diff survives
+  })
+})

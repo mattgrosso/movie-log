@@ -65,6 +65,21 @@ function stableStringify (value) {
   return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
 }
 
+// `dbKey` and `_search` are INJECTED AT READ TIME and never stored (see
+// storedEntry.js's RUNTIME_ENTRY_FIELDS). The full download carries them;
+// entries reconstructed from raw Firebase delta rows do not. Comparing them
+// reported a divergence for every entry that came through the delta path —
+// i.e. shadow mode cried wolf on every launch with any recent activity,
+// which would have poisoned the phase-2 go/no-go. Strip them before diffing.
+const RUNTIME_ONLY_FIELDS = ['dbKey', '_search'];
+
+function comparable (entry) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
+  const copy = { ...entry };
+  RUNTIME_ONLY_FIELDS.forEach((field) => { delete copy[field]; });
+  return copy;
+}
+
 export function diffLibraries (fullDownload, reconstructed) {
   const missing = [];
   const stale = [];
@@ -75,7 +90,7 @@ export function diffLibraries (fullDownload, reconstructed) {
   Object.keys(expected).forEach((dbKey) => {
     if (!(dbKey in actual)) {
       if (missing.length < EXAMPLE_CAP) missing.push(dbKey);
-    } else if (stableStringify(expected[dbKey]) !== stableStringify(actual[dbKey])) {
+    } else if (stableStringify(comparable(expected[dbKey])) !== stableStringify(comparable(actual[dbKey]))) {
       if (stale.length < EXAMPLE_CAP) stale.push(dbKey);
     }
   });
@@ -111,7 +126,7 @@ export function describeStaleEntry (freshEntry, reconstructedEntry, deltaEntries
       walk(a[key], b[key], path ? `${path}.${key}` : key, depth + 1);
     });
   };
-  walk(freshEntry, reconstructedEntry, '', 0);
+  walk(comparable(freshEntry), comparable(reconstructedEntry), '', 0);
 
   return {
     dbKey,
