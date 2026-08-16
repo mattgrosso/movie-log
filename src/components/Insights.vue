@@ -28,10 +28,10 @@
          every data page in the app. -->
     <template v-if="activeTab === 'overview'">
       <div class="glance-strip">
-        <div class="glance-item"><span class="glance-value">{{ filteredEntriesWithFlatKeywordsAdded.length }}</span><span class="glance-label">movies</span></div>
-        <div class="glance-item"><span class="glance-value">{{ viewsCount }}</span><span class="glance-label">viewings</span></div>
-        <div class="glance-item"><span class="glance-value">{{ averageRating }}</span><span class="glance-label">average</span></div>
-        <div class="glance-item"><span class="glance-value">{{ moviesWatchedThisYear }}</span><span class="glance-label">in {{ thisYear }} · pace {{ estimatedMoviesThisYear }}</span></div>
+        <div class="glance-item"><span class="glance-label">Movies</span><span class="glance-value">{{ filteredEntriesWithFlatKeywordsAdded.length }}</span></div>
+        <div class="glance-item"><span class="glance-label">Viewings</span><span class="glance-value">{{ viewsCount }}</span></div>
+        <div class="glance-item"><span class="glance-label">Average Rating</span><span class="glance-value">{{ averageRating }}</span></div>
+        <div class="glance-item"><span class="glance-label">{{ thisYear }} · On Track For {{ estimatedMoviesThisYear }}</span><span class="glance-value">{{ moviesWatchedThisYear }}</span></div>
       </div>
 
       <!-- Board item 8: funFacts.js finally gets a shelf (bug report: "more
@@ -2572,6 +2572,9 @@ export default {
 
 <style lang="scss">
   .insights {
+  /* Matt's house tile language (see .insights-pane-item in
+     InsightsPane.vue): white 1px borders, 3px radius, #3b5aaa blue
+     accents, white text — applied to every piece of the tabbed chrome. */
   .insights-tabs {
     display: flex;
     gap: 0.35rem;
@@ -2579,10 +2582,10 @@ export default {
     width: 100%;
 
     .insights-tab {
-      background: #161616;
-      border: 1px solid #2e2e2e;
-      border-radius: 10px;
-      color: #ccc;
+      background: none;
+      border: 1px solid white;
+      border-radius: 3px;
+      color: white;
       flex: 1 1 0;
       font-size: 0.85rem;
       font-weight: 600;
@@ -2590,9 +2593,7 @@ export default {
       min-width: 0;
 
       &.active {
-        background: #ffc107;
-        border-color: #ffc107;
-        color: #212529;
+        background: #3b5aaa;
       }
 
       &:active {
@@ -2609,18 +2610,28 @@ export default {
     width: 100%;
 
     .glance-item {
-      background: #161616;
-      border: 1px solid #2e2e2e;
-      border-radius: 10px;
+      border: 1px solid white;
+      border-radius: 3px;
+      color: white;
       display: flex;
       flex: 1 1 40%;
       flex-direction: column;
       min-width: 0;
-      padding: 0.5rem 0.75rem;
+      overflow: hidden;
+      text-align: center;
     }
 
-    .glance-value { color: #ffc107; font-size: 1.15rem; font-weight: 700; }
-    .glance-label { color: #ccc; font-size: 0.7rem; letter-spacing: 0.4px; text-transform: uppercase; }
+    .glance-label {
+      background: #3b5aaa;
+      border-bottom: 1px solid white;
+      font-size: 0.7rem;
+      padding: 1px 4px;
+    }
+
+    .glance-value {
+      font-size: 1.3rem;
+      padding: 0.15rem 0;
+    }
   }
 
   .insights-links {
@@ -2632,20 +2643,31 @@ export default {
 
     .insights-link-card {
       align-items: center;
-      background: #161616;
-      border: 1px solid #2e2e2e;
-      border-radius: 10px;
-      color: #eee;
+      background: none;
+      border: 1px solid white;
+      border-radius: 3px;
+      color: white;
       display: flex;
       font-weight: 600;
       gap: 0.6rem;
       min-height: 52px;
-      padding: 0.5rem 0.9rem;
+      padding: 0.4rem 0.6rem;
       text-align: left;
 
-      i { color: #ffc107; font-size: 1.1rem; }
+      i {
+        align-items: center;
+        background: #3b5aaa;
+        border-radius: 3px;
+        color: white;
+        display: flex;
+        flex: 0 0 auto;
+        font-size: 1rem;
+        height: 32px;
+        justify-content: center;
+        width: 32px;
+      }
 
-      &:active { background: #222; }
+      &:active { background: rgba(59, 90, 170, 0.35); }
     }
   }
 
@@ -2657,18 +2679,16 @@ export default {
     width: 100%;
 
     .people-chip {
-      background: #161616;
-      border: 1px solid #2e2e2e;
+      background: none;
+      border: 1px solid white;
       border-radius: 999px;
-      color: #ccc;
+      color: white;
       font-size: 0.8rem;
       min-height: 36px;
       padding: 0.25rem 0.8rem;
 
       &.active {
-        background: #ffc107;
-        border-color: #ffc107;
-        color: #212529;
+        background: #3b5aaa;
       }
 
       &:active { opacity: 0.7; }

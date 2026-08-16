@@ -51,7 +51,7 @@ export default {
 .fun-facts-more {
   background: none;
   border: none;
-  color: #ffc107;
+  color: #fff;
   font-size: 0.8rem;
   min-height: 36px;
   white-space: nowrap;
@@ -76,34 +76,39 @@ export default {
   padding-bottom: 0.4rem;
 }
 
+/* Matt's house tile look (matches .insights-pane-item): white-bordered
+   box, blue label strip on top, white value. */
 .fun-fact-card {
-  background: #161616;
-  border: 1px solid #2e2e2e;
-  border-radius: 10px;
+  border: 1px solid white;
+  border-radius: 3px;
+  color: white;
   display: flex;
   flex: 0 0 190px;
   flex-direction: column;
-  padding: 0.75rem 0.9rem;
-  row-gap: 0.25rem;
+  overflow: hidden;
+  text-align: center;
 }
 
 .fun-fact-label {
-  color: #ccc;
-  font-size: 0.72rem;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  background: #3b5aaa;
+  border-bottom: 1px solid white;
+  color: white;
+  font-size: 0.7rem;
+  padding: 1px 6px;
 }
 
 .fun-fact-value {
-  color: #ffc107;
-  font-size: 1.35rem;
+  color: white;
+  font-size: 1.3rem;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.2;
+  padding: 0.35rem 0.5rem 0;
 }
 
 .fun-fact-detail {
   color: #ccc;
   font-size: 0.75rem;
   line-height: 1.3;
+  padding: 0 0.5rem 0.5rem;
 }
 </style>
