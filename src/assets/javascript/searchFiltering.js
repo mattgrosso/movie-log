@@ -22,30 +22,108 @@
 const SMART_PUNCTUATION = {
   '‘': "'", '’': "'", '‚': "'", '‛': "'", '′': "'",
   '“': '"', '”': '"', '„': '"', '‟': '"', '″': '"',
-  '‐': '-', '‑': '-', '‒': '-', '–': '-', '—': '-',
-  '―': '-', '−': '-',
+  // Every dash, including the plain ASCII one, becomes a space: it keeps the
+  // word boundary a name needs ("Jean-Pierre" and "Jean Pierre" reach the same
+  // string) instead of making the hyphen decide whether something is findable.
+  '‐': ' ', '‑': ' ', '‒': ' ', '–': ' ', '—': ' ',
+  '―': ' ', '−': ' ', '-': ' ',
   '…': '...', ' ': ' '
 };
-const SMART_PUNCTUATION_PATTERN = new RegExp(`[${Object.keys(SMART_PUNCTUATION).join('')}]`, 'g');
+// Keys are escaped rather than concatenated raw: `-` inside a character class
+// would otherwise read as a range.
+const SMART_PUNCTUATION_PATTERN = new RegExp(
+  `[${Object.keys(SMART_PUNCTUATION).map((character) => `\\${character}`).join('')}]`,
+  'g'
+);
 
-/** Lowercase + fold typographic punctuation. Apply to stored text AND queries. */
+// The combining-marks block, written as escapes: the literal characters are
+// invisible in an editor and trivially broken by a stray keystroke.
+const DIACRITICS = /[̀-ͯ]/g;
+
+// Letters NFD does not decompose, because the accent is part of the glyph
+// rather than a combining mark. Without these, "Lodz" never finds "Łódź".
+const LETTER_FOLDS = {
+  ß: 'ss', æ: 'ae', œ: 'oe', ø: 'o', ł: 'l', đ: 'd', ð: 'd', þ: 'th', ħ: 'h', ı: 'i'
+};
+const LETTER_FOLD_PATTERN = new RegExp(`[${Object.keys(LETTER_FOLDS).join('')}]`, 'g');
+
+const WHITESPACE_RUN = /\s+/g;
+// Anything that isn't a letter or a number, unicode-aware: an `[^a-z0-9]` class
+// would erase a non-Latin title entirely and make it unfindable.
+const SEPARATORS = /[^\p{L}\p{N}]/gu;
+
+// applyFilter runs once per movie, so a query is normalized ~1,400 times per
+// keystroke with the same input every time. NFD + two regex passes is far from
+// free at that rate, so remember the last answer — the call sites are loops
+// over one query, which this turns into a single real computation.
+let lastNormalizeInput = null;
+let lastNormalizeOutput = '';
+let lastLooseInput = null;
+let lastLooseOutput = '';
+
+/**
+ * The canonical form for comparing search text: accents stripped, typographic
+ * punctuation folded to ASCII, lowercased, whitespace collapsed and trimmed.
+ *
+ * Apply it to STORED text and QUERIES alike. Normalizing only one side is what
+ * caused the Adam's Rib miss, and an earlier version of this file that stripped
+ * accents from titles but not from what you typed meant "Amélie" — the correctly
+ * spelled title — found nothing while "Amelie" worked.
+ */
 export function normalizeSearchText (value) {
   if (typeof value !== 'string' || !value) return '';
-  return value.replace(SMART_PUNCTUATION_PATTERN, (character) => SMART_PUNCTUATION[character]).toLowerCase();
+  if (value === lastNormalizeInput) return lastNormalizeOutput;
+
+  const normalized = value
+    .normalize('NFD')
+    .replace(DIACRITICS, '')
+    .replace(SMART_PUNCTUATION_PATTERN, (character) => SMART_PUNCTUATION[character])
+    .toLowerCase()
+    // After lowercasing, so only the lowercase forms need listing.
+    .replace(LETTER_FOLD_PATTERN, (character) => LETTER_FOLDS[character])
+    .replace(WHITESPACE_RUN, ' ')
+    .trim();
+
+  lastNormalizeInput = value;
+  lastNormalizeOutput = normalized;
+  return normalized;
+}
+
+/**
+ * `normalizeSearchText` with every remaining separator removed, so punctuation
+ * and spacing can't decide whether something is findable: "spider man",
+ * "Spider-Man" and "spiderman" all collapse to `spiderman`, and "adams rib"
+ * finds Adam's Rib. Used for the substring matches (title, cast, crew,
+ * company); exact-equality matches (keyword, genre, whole-name person) keep the
+ * spaced form, where word boundaries still carry meaning.
+ */
+export function looseSearchText (value) {
+  if (typeof value !== 'string' || !value) return '';
+  if (value === lastLooseInput) return lastLooseOutput;
+
+  const loose = normalizeSearchText(value).replace(SEPARATORS, '');
+
+  lastLooseInput = value;
+  lastLooseOutput = loose;
+  return loose;
 }
 
 /**
  * Precompute the normalized strings applyFilter needs so they aren't re-derived
- * per movie on every keystroke. Genre and company are intentionally left raw on
- * the movie — the `genre`/`company` filter types do exact case-sensitive equality.
+ * per movie on every keystroke.
+ *
+ * ONE form per name. Cast is deliberately untrimmed here (Six Degrees walks the
+ * full billing list), so a second copy of every cast name is thousands of extra
+ * strings held for the whole library at once — enough GC pressure to double the
+ * cost of an unrelated library sort, measured. Names therefore keep their word
+ * boundaries and rely on `normalizeSearchText` alone, which is why that folds
+ * hyphens to spaces; only the title, one string per movie, also keeps a loose
+ * form, and that's where run-together spellings ("spiderman") actually come up.
  */
 export function buildSearchFields (movie) {
   return {
     title: normalizeSearchText(movie.title),
-    // Also NFD-normalized, for the accent-insensitive `general` title match.
-    titleNormalized: movie.title
-      ? normalizeSearchText(movie.title.normalize('NFD').replace(/[̀-ͯ]/g, ''))
-      : '',
+    titleLoose: looseSearchText(movie.title),
     keywords: (movie.flatKeywords || []).filter(Boolean).map(normalizeSearchText),
     genres: (movie.genres || []).filter(g => g.name).map(g => normalizeSearchText(g.name)),
     cast: (movie.cast || []).filter(p => p.name).map(p => normalizeSearchText(p.name)),
@@ -83,7 +161,7 @@ export function applyFilter (result, filter) {
   switch (filter.type) {
     case 'general': {
       const searchValue = normalizeSearchText(filter.value);
-      return s.titleNormalized.includes(searchValue) ||
+      return s.titleLoose.includes(looseSearchText(filter.value)) ||
         s.keywords.some(keyword => keyword === searchValue) ||
         s.genres.some(genre => genre === searchValue) ||
         // A name-part (split on space) is always a substring of the full name,
@@ -94,13 +172,13 @@ export function applyFilter (result, filter) {
     }
     case 'person': {
       const filterValueLower = normalizeSearchText(filter.value);
-      const inCast = s.cast.some(name =>
-        name === filterValueLower || name.split(' ').slice(-1)[0] === filterValueLower
-      );
-      const inCrew = s.crew.some(person =>
-        person.name === filterValueLower || person.name.split(' ').slice(-1)[0] === filterValueLower
-      );
-      return inCast || inCrew;
+      if (!filterValueLower) return false;
+      // Whole name, or the surname alone. Hyphens are already spaces by now, so
+      // "jean pierre jeunet" reaches the same string as "Jean-Pierre Jeunet".
+      const matches = (name) =>
+        name === filterValueLower || name.split(' ').slice(-1)[0] === filterValueLower;
+
+      return s.cast.some(matches) || s.crew.some(person => matches(person.name));
     }
     case 'year': {
       // Extract year directly from release_date string to avoid timezone issues.
@@ -108,42 +186,54 @@ export function applyFilter (result, filter) {
       // throw and blank the entire filtered result set.
       if (!movie.release_date) return false;
       const movieYear = movie.release_date.substring(0, 4);
-      return movieYear === filter.value;
+      // String(): a year chip built from a number would never match otherwise.
+      return movieYear === String(filter.value);
     }
     case 'yearRange': {
       if (!movie.release_date) return false;
       const years = getListOfYearsFromRange(filter.value);
       return years.includes(movie.release_date.substring(0, 4));
     }
+    // genre/company/keyword used to compare the RAW typed text against the raw
+    // TMDB name, case-sensitively. A chip built from the library always matched,
+    // so this looked fine — but typing "warner bros. pictures" yourself matched
+    // nothing at all. They compare normalized now, against the precomputed
+    // fields, which is both more forgiving and cheaper.
     case 'genre':
-      return movie.genres && movie.genres.some(genre => genre.name === filter.value);
+      return s.genres.some(genre => genre === normalizeSearchText(filter.value));
 
     case 'company':
-      return movie.production_companies && movie.production_companies.some(company => company.name === filter.value);
+      return s.companies.some(company => company === normalizeSearchText(filter.value));
 
     case 'keyword':
       return s.keywords.some(keyword => keyword === normalizeSearchText(filter.value));
 
-    case 'tag':
-      return result.ratings && result.ratings.some(rating =>
-        rating.tags && rating.tags.some(tag => tag.title === filter.value)
+    case 'tag': {
+      // Tags are user-authored, so their capitalisation is a display choice,
+      // not part of their identity.
+      const tagValue = normalizeSearchText(filter.value);
+      return Boolean(result.ratings) && result.ratings.some(rating =>
+        rating.tags && rating.tags.some(tag => normalizeSearchText(tag.title) === tagValue)
       );
+    }
 
     case 'title':
-      return s.title.includes(normalizeSearchText(filter.value));
+      // A value that normalizes to nothing leaves `includes('')` true, i.e. no
+      // constraint — the whole library, not a blank screen (ChipFiltering).
+      return s.titleLoose.includes(looseSearchText(filter.value));
 
-    case 'director':
-      return s.crew.some(person =>
-        person.job === 'Director' && person.name.includes(normalizeSearchText(filter.value))
-      );
-
-    case 'producer':
-      return s.crew.some(person =>
-        person.jobLower.includes('producer') && person.name.includes(normalizeSearchText(filter.value))
-      );
-
-    case 'cast':
-      return s.cast.some(name => name.includes(normalizeSearchText(filter.value)));
+    case 'director': {
+      const value = normalizeSearchText(filter.value);
+      return s.crew.some(person => person.job === 'Director' && person.name.includes(value));
+    }
+    case 'producer': {
+      const value = normalizeSearchText(filter.value);
+      return s.crew.some(person => person.jobLower.includes('producer') && person.name.includes(value));
+    }
+    case 'cast': {
+      const value = normalizeSearchText(filter.value);
+      return s.cast.some(name => name.includes(value));
+    }
 
     default:
       return false;

@@ -6,7 +6,9 @@ import {
   getSortValue,
   sortResultsFast,
   sortResults,
-  countDidYouMeanSuggestionsThatFit
+  countDidYouMeanSuggestionsThatFit,
+  normalizeSearchText,
+  looseSearchText
 } from '@/assets/javascript/searchFiltering.js'
 
 // Direct unit tests of the pure search/filter/sort module — no component mount.
@@ -29,15 +31,61 @@ const movie = {
 const result = { movie, ratings: [{ tags: [{ title: 'cozy' }] }] }
 
 describe('buildSearchFields', () => {
-  it('lowercases title/keywords/genres/cast/crew/companies and NFD-normalizes title', () => {
+  it('normalizes title/keywords/genres/cast/crew/companies, accents and all', () => {
     const s = buildSearchFields(movie)
-    expect(s.title).toBe('amélie')
-    expect(s.titleNormalized).toBe('amelie') // accents stripped
+    expect(s.title).toBe('amelie') // accents stripped on the stored side too
+    expect(s.titleLoose).toBe('amelie')
     expect(s.keywords).toEqual(['paris', 'whimsical'])
     expect(s.genres).toEqual(['comedy', 'romance'])
     expect(s.cast).toContain('audrey tautou')
-    expect(s.crew[0]).toEqual({ name: 'jean-pierre jeunet', job: 'Director', jobLower: 'director' })
+    expect(s.crew[0]).toEqual({
+      // The hyphen is a space by now, so either spelling reaches this string.
+      name: 'jean pierre jeunet',
+      job: 'Director',
+      jobLower: 'director'
+    })
     expect(s.companies).toEqual(['ugc'])
+  })
+
+  // The bug this pass was for: the stored title was de-accented but the query
+  // wasn't, so typing the title correctly found nothing.
+  it('finds an accented title whether or not the accent is typed', () => {
+    expect(applyFilter(result, { type: 'general', value: 'Amélie' })).toBe(true)
+    expect(applyFilter(result, { type: 'general', value: 'amelie' })).toBe(true)
+    expect(applyFilter(result, { type: 'title', value: 'Amélie' })).toBe(true)
+  })
+
+  it('finds an accented name whether or not the accent is typed', () => {
+    const zellweger = { movie: { cast: [{ name: 'Renée Zellweger' }] } }
+
+    expect(applyFilter(zellweger, { type: 'cast', value: 'Renee' })).toBe(true)
+    expect(applyFilter(zellweger, { type: 'cast', value: 'Renée' })).toBe(true)
+    expect(applyFilter(zellweger, { type: 'general', value: 'renée zellweger' })).toBe(true)
+    expect(applyFilter(zellweger, { type: 'person', value: 'Renee Zellweger' })).toBe(true)
+  })
+
+  it('ignores punctuation and spacing differences in titles and names', () => {
+    const spiderMan = { movie: { title: 'Spider-Man' } }
+    const wall_e = { movie: { title: 'WALL·E' } }
+    const jeunet = { movie: { crew: [{ name: 'Jean-Pierre Jeunet', job: 'Director' }] } }
+
+    expect(applyFilter(spiderMan, { type: 'general', value: 'spider man' })).toBe(true)
+    expect(applyFilter(spiderMan, { type: 'general', value: 'spiderman' })).toBe(true)
+    expect(applyFilter(wall_e, { type: 'title', value: 'wall e' })).toBe(true)
+    expect(applyFilter(jeunet, { type: 'director', value: 'jean pierre' })).toBe(true)
+    expect(applyFilter(jeunet, { type: 'person', value: 'jean pierre jeunet' })).toBe(true)
+  })
+
+  it('collapses runaway whitespace instead of failing on it', () => {
+    expect(applyFilter(result, { type: 'general', value: '  amelie  ' })).toBe(true)
+    expect(applyFilter({ movie: { title: "Adam's Rib" } }, { type: 'title', value: 'adam  s   rib' })).toBe(true)
+  })
+
+  it('keeps a non-Latin title findable rather than stripping it to nothing', () => {
+    const entry = { movie: { title: '千と千尋の神隠し' } }
+
+    expect(applyFilter(entry, { type: 'general', value: '千と千尋' })).toBe(true)
+    expect(applyFilter(entry, { type: 'general', value: 'spirited away' })).toBe(false)
   })
 
   // Matt, 2026-08-16: typed "Adam’s rib" on an iPhone (which substitutes a
@@ -61,6 +109,7 @@ describe('buildSearchFields', () => {
   it('is null-safe for missing fields', () => {
     const s = buildSearchFields({})
     expect(s.title).toBe('')
+    expect(s.titleLoose).toBe('')
     expect(s.cast).toEqual([])
     expect(s.crew).toEqual([])
   })
@@ -86,9 +135,11 @@ describe('applyFilter', () => {
     ['person', 'audrey tautou', true], // full name
     ['year', '2001', true],
     ['year', '1999', false],
-    ['genre', 'Comedy', true], // case-sensitive exact
-    ['genre', 'comedy', false],
+    ['genre', 'Comedy', true],
+    ['genre', 'comedy', true], // matching is case-insensitive now, not just for chips
+    ['genre', 'horror', false],
     ['company', 'UGC', true],
+    ['company', 'ugc', true],
     ['keyword', 'PARIS', true], // case-insensitive
     ['tag', 'cozy', true],
     ['tag', 'noir', false],
@@ -210,5 +261,43 @@ describe('countDidYouMeanSuggestionsThatFit', () => {
   it('always returns at least 1 even if the single best term does not perfectly fit', () => {
     const count = countDidYouMeanSuggestionsThatFit([term('A Very Long Suggestion Title Indeed')], 50)
     expect(count).toBe(1)
+  })
+})
+
+// Gotchas found reading the whole search path on 2026-08-16, after the curly
+// apostrophe and the accent bug. Each was reachable by typing, not just by
+// clicking a chip built from the library.
+describe('search normalization gotchas', () => {
+  it('folds letters NFD leaves alone', () => {
+    expect(normalizeSearchText('Łódź')).toBe('lodz')
+    expect(normalizeSearchText('Straße')).toBe('strasse')
+    expect(applyFilter({ movie: { title: 'Łódź' } }, { type: 'general', value: 'lodz' })).toBe(true)
+  })
+
+  it('matches a company or genre typed in the wrong case', () => {
+    const entry = { movie: { production_companies: [{ name: 'Warner Bros. Pictures' }] } }
+
+    expect(applyFilter(entry, { type: 'company', value: 'warner bros. pictures' })).toBe(true)
+    expect(applyFilter(entry, { type: 'company', value: 'Warner Bros Pictures' })).toBe(false) // exact, minus case
+  })
+
+  it('matches a tag regardless of how it was capitalized when written', () => {
+    const entry = { movie: {}, ratings: [{ tags: [{ title: 'Cozy' }] }] }
+
+    expect(applyFilter(entry, { type: 'tag', value: 'cozy' })).toBe(true)
+  })
+
+  it('matches a year chip that arrived as a number', () => {
+    const entry = { movie: { release_date: '2001-04-25' } }
+
+    expect(applyFilter(entry, { type: 'year', value: 2001 })).toBe(true)
+  })
+
+  it('memoizes without leaking the previous answer', () => {
+    expect(normalizeSearchText('Amélie')).toBe('amelie')
+    expect(normalizeSearchText('Amélie')).toBe('amelie') // cache hit
+    expect(normalizeSearchText('Adam’s Rib')).toBe("adam's rib")
+    expect(looseSearchText('Adam’s Rib')).toBe('adamsrib')
+    expect(looseSearchText('Spider-Man')).toBe('spiderman')
   })
 })

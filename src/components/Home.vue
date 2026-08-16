@@ -1167,7 +1167,8 @@ import {
   sortResultsFast as sortResultsFastUtil,
   sortResults as sortResultsUtil,
   countDidYouMeanSuggestionsThatFit,
-  normalizeSearchText
+  normalizeSearchText,
+  looseSearchText
 } from '../assets/javascript/searchFiltering.js';
 import {
   awardNameWithThe,
@@ -2110,6 +2111,12 @@ export default {
         }
       });
 
+      // Deliberately NOT carrying a precomputed normalized copy of each term:
+      // that is one extra object and string per director, actor, keyword, genre,
+      // studio and title in the library, retained for a fallback that only ever
+      // fires on zero results. It measured as a doubling of an unrelated library
+      // sort. Fuse is fuzzy enough that an accent costs a little edit distance
+      // and nothing more.
       return terms;
     },
     fuzzyIndex () {
@@ -2160,7 +2167,7 @@ export default {
 
       for (const { item } of results) {
         // Skip a "suggestion" identical to what was typed (case-insensitive).
-        if (item.value.toLowerCase() === term.toLowerCase()) {
+        if (normalizeSearchText(item.value) === normalizeSearchText(term)) {
           continue;
         }
         const dedupeKey = `${item.expectedType || 'title'}:${item.value.toLowerCase()}`;
@@ -2272,9 +2279,11 @@ export default {
       // precomputed _search ONCE and evaluate all group conditions against it.
       // Every condition below mirrors the corresponding applyFilter case EXACTLY,
       // so candidate sets are identical — GroupOrdering.test.js guards this.
-      // genre/company stay case-sensitive against the raw searchTerm (matching
-      // applyFilter's `genre`/`company` cases); everything else is normalized.
+      // Everything compares through the same normalization applyFilter uses:
+      // `term` (accents and punctuation folded) for the exact-equality groups,
+      // `termLoose` (separators removed too) for the substring ones.
       const term = normalizeSearchText(searchTerm);
+      const termLoose = looseSearchText(searchTerm);
       const titleBucket = candidatesByKey.title.movies;
       const directorBucket = candidatesByKey.director.movies;
       const castBucket = candidatesByKey.cast.movies;
@@ -2285,18 +2294,15 @@ export default {
       allResults.forEach(media => {
         const s = media._search || this.buildSearchFields(media.movie);
 
-        if (s.title.includes(term)) titleBucket.push(media);
+        if (s.titleLoose.includes(termLoose)) titleBucket.push(media);
         if (s.crew.some(p => p.job === 'Director' && p.name.includes(term))) directorBucket.push(media);
         if (s.cast.some(n => n.includes(term))) castBucket.push(media);
         if (s.crew.some(p => p.jobLower.includes('producer') && p.name.includes(term))) producerBucket.push(media);
 
-        const companies = media.movie.production_companies;
-        if (companies && companies.some(c => c.name === searchTerm)) companyBucket.push(media);
+        if (s.companies.some(c => c === term)) companyBucket.push(media);
 
         // Keywords and Genres are merged into a single "Keywords & Genres" group.
-        const genres = media.movie.genres;
-        if (s.keywords.some(k => k === term) ||
-            (genres && genres.some(g => g.name === searchTerm))) {
+        if (s.keywords.some(k => k === term) || s.genres.some(g => g === term)) {
           keywordGenreBucket.push(media);
         }
       });
@@ -2338,10 +2344,12 @@ export default {
           let foundRole = false;
 
           // Helper function for full-word matching
-          const hasFullWordMatch = (personName, searchTerm) => {
+          // Normalized on both sides like every other comparison, so an
+          // accented or apostrophe'd name still lands in its role category.
+          const searchWords = normalizeSearchText(searchTerm).split(' ');
+          const hasFullWordMatch = (personName) => {
             if (!personName) return false;
-            const personWords = personName.toLowerCase().split(' ');
-            const searchWords = searchTerm.toLowerCase().split(' ');
+            const personWords = normalizeSearchText(personName).split(' ');
             return searchWords.some(searchWord =>
               personWords.some(personWord => personWord === searchWord)
             );
@@ -2349,9 +2357,7 @@ export default {
 
           // Check if person appears in cast
           if (movie.cast) {
-            const castMatch = movie.cast.find(person =>
-              hasFullWordMatch(person.name, searchTerm)
-            );
+            const castMatch = movie.cast.find(person => hasFullWordMatch(person.name));
             if (castMatch) {
               if (!adHocCategories.cast) adHocCategories.cast = [];
               adHocCategories.cast.push(media);
@@ -2361,9 +2367,7 @@ export default {
 
           // Check if person appears in crew (only if not already found in cast)
           if (!foundRole && movie.crew) {
-            const crewMatch = movie.crew.find(person =>
-              hasFullWordMatch(person.name, searchTerm)
-            );
+            const crewMatch = movie.crew.find(person => hasFullWordMatch(person.name));
             if (crewMatch) {
               let roleCategory = 'Crew';
 
@@ -3108,10 +3112,10 @@ export default {
         // Add each cast member's name to the Set
         cast.forEach(person => {
           if (person.name) {
-            this.cachedCastMembers.add(person.name.toLowerCase());
+            this.cachedCastMembers.add(normalizeSearchText(person.name));
           }
 
-          const lastName = person.name ? person.name.split(' ').slice(-1)[0].toLowerCase() : '';
+          const lastName = person.name ? normalizeSearchText(person.name).split(' ').slice(-1)[0] : '';
           if (lastName) {
             this.cachedCastMembers.add(lastName);
           }
@@ -4419,7 +4423,7 @@ export default {
       // Check for exact director match
       const allDirectors = this.allDirectors || [];
       const exactDirectorMatch = allDirectors.find(director =>
-        director.name && director.name.toLowerCase() === lowerValue
+        director.name && normalizeSearchText(director.name) === lowerValue
       );
       if (exactDirectorMatch) {
         return { type: 'person', value: exactDirectorMatch.name, display: `${exactDirectorMatch.name}` };
@@ -4435,7 +4439,7 @@ export default {
       // Check for exact genre match
       const allGenres = this.allGenres || [];
       const exactGenreMatch = allGenres.find(genre =>
-        genre.name && genre.name.toLowerCase() === lowerValue
+        genre.name && normalizeSearchText(genre.name) === lowerValue
       );
       if (exactGenreMatch) {
         // Find the genre ID for TMDB API
@@ -4471,7 +4475,7 @@ export default {
       // Check for exact keyword match
       const allKeywords = Object.keys(this.countedKeywords || {});
       const exactKeywordMatch = allKeywords.find(keyword =>
-        keyword && keyword.toLowerCase() === lowerValue
+        keyword && normalizeSearchText(keyword) === lowerValue
       );
       if (exactKeywordMatch) {
         return { type: 'keyword', value: exactKeywordMatch, display: `${exactKeywordMatch}` };
@@ -4499,7 +4503,7 @@ export default {
       // Check for exact company match
       const allStudios = this.allStudios || [];
       const exactStudioMatch = allStudios.find(studio =>
-        studio.name && studio.name.toLowerCase() === lowerValue
+        studio.name && normalizeSearchText(studio.name) === lowerValue
       );
       if (exactStudioMatch) {
         return { type: 'company', value: exactStudioMatch.name, display: `${exactStudioMatch.name}` };
@@ -4534,7 +4538,9 @@ export default {
     },
     detectFilterType (value) {
       const trimmed = value.trim();
-      const lowerValue = trimmed.toLowerCase();
+      // Normalized, not merely lowercased: an exactly-typed "Amélie" or a phone's
+      // curly apostrophe must still be recognised as the thing it names.
+      const lowerValue = normalizeSearchText(trimmed);
 
       // Check for years
       if (this.detectYearTypes(trimmed)) {

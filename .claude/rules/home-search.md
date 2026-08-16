@@ -29,11 +29,33 @@ Still in Home deliberately (entangled with reactive state): `groupedByAllCategor
   `src/test/searchFiltering.test.js` asserts byte-identical ordering between the two, so
   **if you change sort logic, change both.**
 - **`applyFilter` reads `result._search`**, precomputed once per library change by
-  `buildSearchFields`. Don't re-lowercase per keystroke. `genre` and `company` are
-  intentionally left reading `movie.*` directly — they do exact case-sensitive equality.
+  `buildSearchFields`. Don't re-normalize per keystroke.
 - **`groupedByAllCategories` inlines its matching** rather than calling `applyFilter` 7×
   per movie (~9,100 dispatched calls per keystroke over 1,300 movies). If you edit either,
-  keep them mirrored — genre/company case-sensitive, the rest lowercased.
+  keep them mirrored — every group compares through the same normalization.
+
+## Normalization: both sides, always (2026-08-16)
+
+`normalizeSearchText` — NFD accent strip, non-decomposing letters (ß→ss, ł→l), curly
+quotes and every dash folded (dashes become **spaces**, so "Jean-Pierre" and
+"Jean Pierre" reach one string), lowercase, whitespace collapsed. `looseSearchText` adds
+"remove every remaining separator" and is used **only for titles**, where run-together
+spellings ("spiderman") come up.
+
+Apply it to stored text AND the query. Normalizing one side is what hid Adam's Rib from
+an iPhone's curly apostrophe, and de-accenting only titles meant typing "Amélie"
+correctly found nothing.
+
+Two traps if you extend this:
+
+- **The query is normalized once per movie**, so `normalizeSearchText` memoizes its last
+  input. Keep that, or a 1,300-movie library pays NFD 1,300 times per keystroke.
+- **Don't precompute a normalized copy of every searchable term for Fuse.** It's one
+  extra object and string per director, actor, keyword, genre, studio and title, retained
+  for a fallback that only fires on zero results; it was measurable in an unrelated
+  library sort. Cast especially: `_search` is held for the whole library at once, and
+  cast is deliberately untrimmed, so a second copy of every cast name is thousands of
+  strings. One form per name.
 - Perf harness: `yarn test:run src/test/Performance.bench.test.js`, read the `[bench]`
   lines. Not a correctness gate. Baseline: general 0.6ms, grouped 2.4ms.
 
