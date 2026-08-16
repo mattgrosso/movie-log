@@ -42,6 +42,11 @@ Where a pure function can be extracted, test it directly rather than through a m
 
 - **jsdom never lays out elements** — `offsetWidth` is always 0. Stub it via
   `Object.defineProperty` on the ref.
+- **Don't assert `v-show` with `isVisible()`** on a detached mount — it gave contradictory
+  answers across runs for `SettingsSection`'s accordion. Assert what `v-show` actually
+  writes: `wrapper.find(sel).element.style.display` is `'none'` or `''`. Also re-`find()`
+  an element wrapped in `<component :is>` after every toggle; the element is swapped on
+  re-render and a cached wrapper's `trigger()` silently goes nowhere.
 - **`scrollIntoView` doesn't exist at all** — assign a stub before `vi.spyOn` can attach.
 - A state update made inside a watcher's own nested `$nextTick` needs a **third**
   `await $nextTick()` beyond the two you'd expect.
