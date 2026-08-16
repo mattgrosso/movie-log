@@ -1166,7 +1166,8 @@ import {
   getSortValue as getSortValueUtil,
   sortResultsFast as sortResultsFastUtil,
   sortResults as sortResultsUtil,
-  countDidYouMeanSuggestionsThatFit
+  countDidYouMeanSuggestionsThatFit,
+  normalizeSearchText
 } from '../assets/javascript/searchFiltering.js';
 import {
   awardNameWithThe,
@@ -2272,8 +2273,8 @@ export default {
       // Every condition below mirrors the corresponding applyFilter case EXACTLY,
       // so candidate sets are identical — GroupOrdering.test.js guards this.
       // genre/company stay case-sensitive against the raw searchTerm (matching
-      // applyFilter's `genre`/`company` cases); everything else uses lowercased.
-      const term = searchTerm.toLowerCase();
+      // applyFilter's `genre`/`company` cases); everything else is normalized.
+      const term = normalizeSearchText(searchTerm);
       const titleBucket = candidatesByKey.title.movies;
       const directorBucket = candidatesByKey.director.movies;
       const castBucket = candidatesByKey.cast.movies;

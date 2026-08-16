@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { emailToDatabaseKey } from '../assets/javascript/databaseKey.js';
+import { emailToDatabaseKey, isQaAccountKey, omitQaAccounts } from '../assets/javascript/databaseKey.js';
 
 describe('emailToDatabaseKey', () => {
   it('turns a normal email into the key format already in the database', () => {
@@ -33,5 +33,34 @@ describe('emailToDatabaseKey', () => {
     expect(emailToDatabaseKey(undefined)).toBeNull();
     expect(emailToDatabaseKey('')).toBeNull();
     expect(emailToDatabaseKey(42)).toBeNull();
+  });
+});
+
+// Natalie, 2026-08-16: "In the film club, I can see the cinema test user and I
+// can invite them to be in my film club with me which shouldn't be possible."
+// The QA tester is a real account signed in by `yarn mint-test-token`, and
+// sharing defaults on, so one QA session published it as a findable person.
+describe('omitQaAccounts', () => {
+  it('drops the QA tester from a directory of real people', () => {
+    const directory = {
+      'mattgrosso-gmail-com': { name: 'mattgrosso' },
+      'cinemaroll-tester-example-com': { name: 'Cinema Roll Tester' },
+      'natalierosegrosso-gmail-com': { name: 'natalierosegrosso' }
+    };
+
+    expect(Object.keys(omitQaAccounts(directory)))
+      .toEqual(['mattgrosso-gmail-com', 'natalierosegrosso-gmail-com']);
+  });
+
+  it('leaves a directory without QA accounts untouched, and is null-safe', () => {
+    const directory = { 'mattgrosso-gmail-com': { name: 'mattgrosso' } };
+
+    expect(omitQaAccounts(directory)).toEqual(directory);
+    expect(omitQaAccounts(null)).toEqual({});
+  });
+
+  it('knows the tester key by itself', () => {
+    expect(isQaAccountKey('cinemaroll-tester-example-com')).toBe(true);
+    expect(isQaAccountKey('mattgrosso-gmail-com')).toBe(false);
   });
 });

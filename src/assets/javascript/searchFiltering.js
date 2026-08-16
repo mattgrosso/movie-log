@@ -10,28 +10,53 @@
 // (direct unit tests of these exports).
 
 /**
- * Precompute the lowercased strings applyFilter needs so they aren't re-derived
- * per movie on every keystroke. Genre and company are intentionally NOT
- * lowercased — the `genre`/`company` filter types do exact case-sensitive equality.
+ * Typographic punctuation → its plain ASCII equivalent.
+ *
+ * iOS substitutes a curly apostrophe (U+2019) as you type, while TMDB stores a
+ * straight one, so "Adam’s Rib" typed on a phone matched nothing in a library
+ * that definitely contained Adam's Rib (Matt, 2026-08-16). Dashes, quotes and
+ * the ellipsis have the same split, so they're folded here too.
+ *
+ * Both sides of every comparison go through this — see `normalizeSearchText`.
+ */
+const SMART_PUNCTUATION = {
+  '‘': "'", '’': "'", '‚': "'", '‛': "'", '′': "'",
+  '“': '"', '”': '"', '„': '"', '‟': '"', '″': '"',
+  '‐': '-', '‑': '-', '‒': '-', '–': '-', '—': '-',
+  '―': '-', '−': '-',
+  '…': '...', ' ': ' '
+};
+const SMART_PUNCTUATION_PATTERN = new RegExp(`[${Object.keys(SMART_PUNCTUATION).join('')}]`, 'g');
+
+/** Lowercase + fold typographic punctuation. Apply to stored text AND queries. */
+export function normalizeSearchText (value) {
+  if (typeof value !== 'string' || !value) return '';
+  return value.replace(SMART_PUNCTUATION_PATTERN, (character) => SMART_PUNCTUATION[character]).toLowerCase();
+}
+
+/**
+ * Precompute the normalized strings applyFilter needs so they aren't re-derived
+ * per movie on every keystroke. Genre and company are intentionally left raw on
+ * the movie — the `genre`/`company` filter types do exact case-sensitive equality.
  */
 export function buildSearchFields (movie) {
   return {
-    title: movie.title ? movie.title.toLowerCase() : '',
-    // NFD-normalized for the accent-insensitive `general` title match.
+    title: normalizeSearchText(movie.title),
+    // Also NFD-normalized, for the accent-insensitive `general` title match.
     titleNormalized: movie.title
-      ? movie.title.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+      ? normalizeSearchText(movie.title.normalize('NFD').replace(/[̀-ͯ]/g, ''))
       : '',
-    keywords: (movie.flatKeywords || []).filter(Boolean).map(k => k.toLowerCase()),
-    genres: (movie.genres || []).filter(g => g.name).map(g => g.name.toLowerCase()),
-    cast: (movie.cast || []).filter(p => p.name).map(p => p.name.toLowerCase()),
+    keywords: (movie.flatKeywords || []).filter(Boolean).map(normalizeSearchText),
+    genres: (movie.genres || []).filter(g => g.name).map(g => normalizeSearchText(g.name)),
+    cast: (movie.cast || []).filter(p => p.name).map(p => normalizeSearchText(p.name)),
     // job kept original-case for the exact `=== 'Director'` check; jobLower for
     // the producer substring check.
     crew: (movie.crew || []).filter(p => p.name).map(p => ({
-      name: p.name.toLowerCase(),
+      name: normalizeSearchText(p.name),
       job: p.job || '',
-      jobLower: (p.job || '').toLowerCase()
+      jobLower: normalizeSearchText(p.job)
     })),
-    companies: (movie.production_companies || []).filter(c => c.name).map(c => c.name.toLowerCase())
+    companies: (movie.production_companies || []).filter(c => c.name).map(c => normalizeSearchText(c.name))
   };
 }
 
@@ -57,7 +82,7 @@ export function applyFilter (result, filter) {
 
   switch (filter.type) {
     case 'general': {
-      const searchValue = filter.value.toLowerCase();
+      const searchValue = normalizeSearchText(filter.value);
       return s.titleNormalized.includes(searchValue) ||
         s.keywords.some(keyword => keyword === searchValue) ||
         s.genres.some(genre => genre === searchValue) ||
@@ -68,7 +93,7 @@ export function applyFilter (result, filter) {
         s.companies.some(company => company.includes(searchValue));
     }
     case 'person': {
-      const filterValueLower = filter.value.toLowerCase();
+      const filterValueLower = normalizeSearchText(filter.value);
       const inCast = s.cast.some(name =>
         name === filterValueLower || name.split(' ').slice(-1)[0] === filterValueLower
       );
@@ -97,7 +122,7 @@ export function applyFilter (result, filter) {
       return movie.production_companies && movie.production_companies.some(company => company.name === filter.value);
 
     case 'keyword':
-      return s.keywords.some(keyword => keyword === filter.value.toLowerCase());
+      return s.keywords.some(keyword => keyword === normalizeSearchText(filter.value));
 
     case 'tag':
       return result.ratings && result.ratings.some(rating =>
@@ -105,20 +130,20 @@ export function applyFilter (result, filter) {
       );
 
     case 'title':
-      return s.title.includes(filter.value.toLowerCase());
+      return s.title.includes(normalizeSearchText(filter.value));
 
     case 'director':
       return s.crew.some(person =>
-        person.job === 'Director' && person.name.includes(filter.value.toLowerCase())
+        person.job === 'Director' && person.name.includes(normalizeSearchText(filter.value))
       );
 
     case 'producer':
       return s.crew.some(person =>
-        person.jobLower.includes('producer') && person.name.includes(filter.value.toLowerCase())
+        person.jobLower.includes('producer') && person.name.includes(normalizeSearchText(filter.value))
       );
 
     case 'cast':
-      return s.cast.some(name => name.includes(filter.value.toLowerCase()));
+      return s.cast.some(name => name.includes(normalizeSearchText(filter.value)));
 
     default:
       return false;

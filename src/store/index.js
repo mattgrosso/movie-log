@@ -24,7 +24,7 @@ import { maxUpdatedAt, reconstructFromDelta, diffLibraries, describeStaleEntry }
 import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite } from "../utils/pendingWriteQueue.js";
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
-import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
+import { emailToDatabaseKey, isQaAccountKey } from "../assets/javascript/databaseKey.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
 import { pendingUpdates, reconcilePending } from "../assets/javascript/recommendationStats.js";
@@ -1344,7 +1344,7 @@ export default createStore({
     },
     async publishDirectoryEntry (context) {
       const me = context.state.databaseTopKey;
-      if (!me || !context.state.settings?.crossAppDiscovery) return;
+      if (!me || isQaAccountKey(me) || !context.state.settings?.crossAppDiscovery) return;
       const invite = await context.dispatch('createClubInvite');
       if (!invite) return;
       const entry = buildDirectoryEntry({
@@ -1624,7 +1624,7 @@ export default createStore({
     async publishSocialProfile (context) {
       const me = context.getters.socialUserKey;
       const social = context.getters.socialSettings;
-      if (!me || !social.enabled || !context.state.settingsLoaded) return;
+      if (!me || isQaAccountKey(me) || !social.enabled || !context.state.settingsLoaded) return;
       const entries = context.getters.allMediaAsArray;
       if (!entries.length) return;
       const profile = buildSocialProfile(entries, getRating, {

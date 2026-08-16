@@ -40,6 +40,24 @@ describe('buildSearchFields', () => {
     expect(s.companies).toEqual(['ugc'])
   })
 
+  // Matt, 2026-08-16: typed "Adam’s rib" on an iPhone (which substitutes a
+  // curly apostrophe) and got nothing, on a library that has Adam's Rib.
+  it("folds typographic punctuation so a phone's curly apostrophe matches", () => {
+    const adamsRib = { movie: { title: "Adam's Rib" } }
+
+    expect(applyFilter(adamsRib, { type: 'general', value: 'Adam’s rib' })).toBe(true)
+    expect(applyFilter(adamsRib, { type: 'title', value: 'Adam’s' })).toBe(true)
+    // And the other direction: a stored curly apostrophe, a typed straight one.
+    expect(applyFilter({ movie: { title: 'Adam’s Rib' } }, { type: 'general', value: "adam's rib" })).toBe(true)
+  })
+
+  it('folds curly punctuation in names and dashes too', () => {
+    const entry = { movie: { cast: [{ name: "Peter O'Toole" }], title: 'Spider-Man' } }
+
+    expect(applyFilter(entry, { type: 'cast', value: 'O’Toole' })).toBe(true)
+    expect(applyFilter(entry, { type: 'title', value: 'Spider—Man' })).toBe(true)
+  })
+
   it('is null-safe for missing fields', () => {
     const s = buildSearchFields({})
     expect(s.title).toBe('')

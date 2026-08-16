@@ -39,7 +39,10 @@
          the community loves it... should I give this another chance?"). -->
     <section v-if="anotherShotList.length" class="watchlist-section">
       <h2 class="section-title">Give these another shot</h2>
-      <p class="section-caption">You were cool on them; the wider world wasn't.</p>
+      <!-- "You were cool on them; the wider world wasn't" read backwards to
+           Natalie (2026-08-16) — she took it as "I liked these and everyone
+           else didn't". Say which way round it is in plain words. -->
+      <p class="section-caption">You rated these low. Almost everyone else loves them.</p>
       <div class="rewatch-row">
         <div
           v-for="candidate in anotherShotList"

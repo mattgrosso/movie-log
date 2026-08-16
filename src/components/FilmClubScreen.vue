@@ -151,6 +151,7 @@ import BackLink from './games/BackLink.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { filmClubSummary } from '../assets/javascript/social.js';
 import { filterDirectory } from '../assets/javascript/interchange.js';
+import { omitQaAccounts } from '../assets/javascript/databaseKey.js';
 
 export default {
   name: 'FilmClubScreen',
@@ -188,7 +189,10 @@ export default {
       return this.$store.getters.socialUserKey;
     },
     directory () {
-      return this.$store.state.socialDirectory || {};
+      // Filter QA accounts on the way out as well as on the way in: a client
+      // running older code could republish one, and nobody should ever be
+      // offered the test user as a friend (Natalie, 2026-08-16).
+      return omitQaAccounts(this.$store.state.socialDirectory);
     },
     friendKeys () {
       return this.$store.getters.socialFriendKeys;

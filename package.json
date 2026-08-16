@@ -20,6 +20,7 @@
     "mint-test-token": "node scripts/mint-test-token.mjs",
     "fetch-bug-reports": "node scripts/fetch-bug-reports.mjs",
     "resolve-bug-report": "node scripts/resolve-bug-report.mjs",
+    "purge-qa-social": "node scripts/purge-qa-social.mjs",
     "generate-db-rules": "node scripts/generate-database-rules.mjs"
   },
   "dependencies": {

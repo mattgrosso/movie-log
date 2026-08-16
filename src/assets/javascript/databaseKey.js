@@ -48,6 +48,27 @@ const UNSAFE_KEY_PATTERN = new RegExp(
  * login form instead, so new accounts are consistent without re-keying old
  * ones.
  */
+/**
+ * Accounts that exist for automated QA and must never appear to real users.
+ *
+ * `yarn mint-test-token` signs a browser in as the tester, and sharing now
+ * defaults ON, so a single QA session published the tester into the Film Club
+ * directory where Natalie found it and could send it a friend request
+ * (2026-08-16). The account is legitimate — it just isn't a person.
+ */
+export const QA_ACCOUNT_KEYS = ['cinemaroll-tester-example-com'];
+
+export function isQaAccountKey (key) {
+  return QA_ACCOUNT_KEYS.includes(key);
+}
+
+/** Drop QA accounts from a directory-shaped `{ [accountKey]: value }` map. */
+export function omitQaAccounts (directory) {
+  return Object.fromEntries(
+    Object.entries(directory || {}).filter(([key]) => !isQaAccountKey(key))
+  );
+}
+
 export function emailToDatabaseKey (email) {
   if (typeof email !== 'string' || !email) {
     return null;
