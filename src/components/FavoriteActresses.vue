@@ -1,6 +1,5 @@
 <template>
   <div class="favorite-actresses">
-    <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="openActressModal(entry)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -20,6 +19,7 @@
         <span class="name">{{ entry.name }}</span>
       </li>
     </ul>
+    <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
     <div v-if="showModal && selectedActress" class="actress-modal-overlay">
       <div class="actress-modal">
         <button class="close-btn" @click="closeActressModal">&times;</button>

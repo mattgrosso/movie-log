@@ -91,11 +91,11 @@ export default {
   width: 100%;
 
   .tuner-toggle {
-    // In-flow, right-aligned. It used to be absolutely positioned onto the
-    // pane's top border line — that border (and the floating section title
-    // it sat beside) was retired in the 2026-08-15 tab rework, which left
-    // the pencil positioned against a distant ancestor and effectively
-    // invisible. Nothing to pin to now, so it just sits in the flow.
+    // In-flow, right-aligned, BELOW the list (Matt). It used to be
+    // absolutely positioned onto the pane's top border line — that border
+    // (and the floating title beside it) was retired in the 2026-08-15 tab
+    // rework, which left the pencil pinned to a distant ancestor and
+    // effectively invisible.
     align-items: center;
     background: none;
     border: 1px solid white;
@@ -106,7 +106,7 @@ export default {
     font-size: 0.72rem;
     height: 32px;
     justify-content: center;
-    margin: 0 0 0.5rem auto;
+    margin: 0.5rem 0 0 auto;
     padding: 0;
     width: 32px;
     z-index: 2;

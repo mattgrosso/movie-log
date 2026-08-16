@@ -1,6 +1,5 @@
 <template>
   <div class="favorite-directors">
-    <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="openDirectorModal(entry)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -20,6 +19,7 @@
         <span class="name">{{ entry.name }}</span>
       </li>
     </ul>
+    <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
     <div v-if="showModal && selectedDirector" class="director-modal-overlay">
       <div class="director-modal">
         <button class="close-btn" @click="closeDirectorModal">&times;</button>

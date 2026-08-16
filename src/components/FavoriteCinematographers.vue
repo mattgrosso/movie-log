@@ -1,6 +1,5 @@
 <template>
   <div class="favorite-cinematographers">
-    <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
     <ul>
       <li v-for="entry in topTenList" :key="entry.name" class="favorite-list-item col-3" @click="openCinematographerModal(entry)">
         <div class="portrait-wrapper" v-if="entry.details && entry.details.profile_path">
@@ -20,6 +19,7 @@
         <span class="name">{{ entry.name }}</span>
       </li>
     </ul>
+    <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
     <div v-if="showModal && selectedCinematographer" class="cinematographer-modal-overlay">
       <div class="cinematographer-modal">
         <button class="close-btn" @click="closeCinematographerModal">&times;</button>

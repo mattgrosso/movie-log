@@ -28,16 +28,14 @@
          every data page in the app. -->
     <template v-if="activeTab === 'overview'">
       <div class="glance-strip">
-        <div class="glance-item"><span class="glance-label">Movies</span><span class="glance-value">{{ filteredEntriesWithFlatKeywordsAdded.length }}</span></div>
-        <div class="glance-item"><span class="glance-label">Viewings</span><span class="glance-value">{{ viewsCount }}</span></div>
-        <div class="glance-item"><span class="glance-label">Average Rating</span><span class="glance-value">{{ averageRating }}</span></div>
-        <div class="glance-item"><span class="glance-label">{{ thisYear }} · On Track For {{ estimatedMoviesThisYear }}</span><span class="glance-value">{{ moviesWatchedThisYear }}</span></div>
-        <div class="glance-item"><span class="glance-label">This Week</span><span class="glance-value">{{ moviesWatchedThisWeek }}</span></div>
-        <div class="glance-item"><span class="glance-label">Last Week</span><span class="glance-value">{{ moviesWatchedLastWeek }}</span></div>
-        <div class="glance-item"><span class="glance-label">{{ thisMonth }}</span><span class="glance-value">{{ moviesWatchedThisMonth }}</span></div>
-        <div class="glance-item"><span class="glance-label">{{ lastMonth }}</span><span class="glance-value">{{ moviesWatchedLastMonth }}</span></div>
-        <div class="glance-item"><span class="glance-label">{{ lastYear }} to Same Date</span><span class="glance-value">{{ moviesWatchedLastYearToDate }}</span></div>
-        <div class="glance-item"><span class="glance-label">{{ lastYear }} Total</span><span class="glance-value">{{ moviesWatchedLastYear }}</span></div>
+        <div class="glance-item feature"><span class="glance-label">Movies</span><span class="glance-value">{{ filteredEntriesWithFlatKeywordsAdded.length }}</span></div>
+        <div class="glance-item feature"><span class="glance-label">Viewings</span><span class="glance-value">{{ viewsCount }}</span></div>
+        <div class="glance-item wide"><span class="glance-label">{{ thisYear }} so far · on track for {{ estimatedMoviesThisYear }}</span><span class="glance-value">{{ moviesWatchedThisYear }}</span></div>
+        <div class="glance-item third alt"><span class="glance-label">This Week</span><span class="glance-value">{{ moviesWatchedThisWeek }}</span></div>
+        <div class="glance-item third alt"><span class="glance-label">{{ thisMonth }}</span><span class="glance-value">{{ moviesWatchedThisMonth }}</span></div>
+        <div class="glance-item third alt"><span class="glance-label">{{ lastMonth }}</span><span class="glance-value">{{ moviesWatchedLastMonth }}</span></div>
+        <div class="glance-item alt"><span class="glance-label">{{ lastYear }} to Same Date</span><span class="glance-value">{{ moviesWatchedLastYearToDate }}</span></div>
+        <div class="glance-item alt"><span class="glance-label">{{ lastYear }} Total</span><span class="glance-value">{{ moviesWatchedLastYear }}</span></div>
       </div>
 
       <!-- Board item 8: funFacts.js finally gets a shelf (bug report: "more
@@ -66,18 +64,6 @@
     <!-- RATINGS: how you rate. -->
     <template v-else-if="activeTab === 'ratings'">
     <InsightsPane>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">Total Movies</p>
-          <p class="insights-pane-item-value">{{filteredEntriesWithFlatKeywordsAdded.length}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">Total Viewings</p>
-          <p class="insights-pane-item-value">{{viewsCount}}</p>
-        </div>
-      </div>
       <div class="insights-pane-item-wrapper col-4">
         <div class="insights-pane-item">
           <p class="insights-pane-item-header">Highest Rating</p>
@@ -2501,6 +2487,9 @@ export default {
 
 <style lang="scss">
   .insights {
+  /* Room to scroll past the floating bug-report button on every tab. */
+  padding-bottom: 72px;
+
   /* Matt's house tile language (see .insights-pane-item in
      InsightsPane.vue): white 1px borders, 3px radius, #3b5aaa blue
      accents, white text — applied to every piece of the tabbed chrome. */
@@ -2531,10 +2520,14 @@ export default {
     }
   }
 
+  /* Deliberate size variety — a wall of identical half-width boxes read
+     as "samey" (Matt). Tiles span 2, 3, or all 6 columns and scale their
+     value type to match; the secondary/comparison tiles use a deeper blue
+     from the same family. */
   .glance-strip {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
     gap: 0.5rem;
+    grid-template-columns: repeat(6, 1fr);
     margin-bottom: 0.75rem;
     width: 100%;
 
@@ -2543,11 +2536,14 @@ export default {
       border-radius: 3px;
       color: white;
       display: flex;
-      flex: 1 1 40%;
       flex-direction: column;
+      grid-column: span 3;
       min-width: 0;
       overflow: hidden;
       text-align: center;
+
+      &.wide { grid-column: span 6; }
+      &.third { grid-column: span 2; }
     }
 
     .glance-label {
@@ -2557,10 +2553,18 @@ export default {
       padding: 1px 4px;
     }
 
+    .alt .glance-label {
+      background: #2c4177;
+    }
+
     .glance-value {
       font-size: 1.3rem;
       padding: 0.15rem 0;
     }
+
+    .feature .glance-value { font-size: 1.9rem; font-weight: 700; }
+    .wide .glance-value { font-size: 2.3rem; font-weight: 700; }
+    .third .glance-value { font-size: 1.1rem; }
   }
 
   .insights-links {
