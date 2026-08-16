@@ -139,6 +139,9 @@ const rules = {
     clubInbox: {
       $userKey: {
         '.read': `auth != null && $userKey === ${sanitizedAuthEmail}`,
+        // Owner-level write so you can clear your whole inbox in one go;
+        // strangers are still confined to the create-only rule below.
+        '.write': `auth != null && $userKey === ${sanitizedAuthEmail}`,
         $inviteCode: {
           $requestId: {
             '.write': `!data.exists() || (auth != null && $userKey === ${sanitizedAuthEmail})`,
