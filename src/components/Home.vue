@@ -5004,6 +5004,21 @@ export default {
           border: none;
 
           &.results-actions-button {
+            /* flex-basis 0 makes every chip's width come from the grow
+               ratio alone, not its glyph's natural width (they varied:
+               different icon widths + mixed btn/btn-sm padding). Single-
+               icon chips are all 1 unit; the two with real content (the
+               count and the sort) get 1.6. */
+            flex: 1 1 0;
+            min-width: 0;
+            padding-left: 0;
+            padding-right: 0;
+
+            &.filtered-count-display,
+            &.dropdown-toggle {
+              flex-grow: 1.6;
+            }
+
             &:nth-child(1) {
               background-color: #E71D36; /* Red */
               color: white;
