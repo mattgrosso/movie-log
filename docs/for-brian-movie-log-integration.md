@@ -261,9 +261,9 @@ a sensible interval and skip parsing when `marker` is unchanged from last time.
    is present, causes the sender to receive a reciprocal request.
 6. A friend added this way appears in the normal friends UI and their ratings
    render like any other friend's.
-6b. A Movie Log user can browse Cinema Roll users from within Movie Log and
+7. A Movie Log user can browse Cinema Roll users from within Movie Log and
    add one without copying any link.
-7. Round trip: a movie rated 6.6965 with `impression: 1` on Movie Log arrives
+8. Round trip: a movie rated 6.6965 with `impression: 1` on Movie Log arrives
    in Cinema Roll as `rating: 6.6965` with `stickiness: 1`, and vice versa.
 
 ### Reference implementation
