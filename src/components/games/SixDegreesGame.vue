@@ -1,6 +1,6 @@
 <template>
   <div class="six-degrees-game">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
 
     <!-- Bug report: needs a well-connected cast graph, more than the bare
          GamesHub gate guarantees. Same "help me get started" quick-pick

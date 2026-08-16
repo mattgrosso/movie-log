@@ -2,7 +2,7 @@
   <div class="movie-detail-page">
     <!-- Header with backdrop and title -->
     <div class="movie-header">
-      <div class="home-link" :class="{'loading': isLoading}" @click="goBack" role="button" aria-label="Back to home">
+      <div class="home-link" :class="{'loading': isLoading}" @click="goBack" role="button" :aria-label="`Back to ${backLabel}`">
         <div v-if="isLoading" class="spinner-border spinner-border-sm text-light" role="status">
           <span class="visually-hidden">Loading...</span>
         </div>
@@ -10,7 +10,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
             <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
           </svg>
-          <span>Home</span>
+          <span>{{ backLabel }}</span>
         </template>
       </div>
       <img v-if="movie && getBackdropPath()"
@@ -533,6 +533,7 @@
 </template>
 
 <script>
+import { navigationTarget } from '../utils/navigationTarget.js';
 import axios from 'axios';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
@@ -608,6 +609,14 @@ export default {
     }
   },
   computed: {
+    // Names wherever back will actually land, so the link can't lie.
+    backLabel () {
+      const back = this.$router?.options?.history?.state?.back;
+      if (back && !back.startsWith('/movie/') && back !== this.$route?.fullPath) {
+        return this.$router?.resolve?.(back)?.meta?.title || 'Back';
+      }
+      return 'Home';
+    },
     overallRank () {
       // Optional-chained: test mounts (and early lifecycle) may lack the
       // getter; the badge simply doesn't render then.
@@ -960,14 +969,30 @@ export default {
       // Show loading state immediately
       this.isLoading = true;
 
-      // Set navigation intent to preserve scroll position
+      const target = navigationTarget({
+        backPath: this.$router?.options?.history?.state?.back,
+        currentPath: this.$route?.fullPath,
+        parentPath: this.$route?.meta?.parent || '/',
+        titleFor: (path) => this.$router?.resolve?.(path)?.meta?.title,
+        avoid: ['/login']
+      });
+
+      // Tapping through cast members walks you movie → movie → movie, and
+      // stepping back out one page at a time is nobody's idea of "back" —
+      // that chain is why this always pushed home. It still does, but ONLY
+      // for that case: arriving here from the Film Club or the watchlist now
+      // returns you there instead of dumping you on the home screen.
+      const cameFromAnotherMovie = target.useBack && target.path.startsWith('/movie/');
+
+      if (target.useBack && !cameFromAnotherMovie) {
+        this.$router.back();
+        return;
+      }
+
+      // Home-specific handoffs: restore the scroll position it saved, and
+      // feature this movie in its banner.
       this.$store.commit('setHomePageNavigationIntent', 'close');
-
-      // Feature this movie in the home banner on the way back.
       this.$store.commit('setBannerRequest', { type: 'movie', movieId: this.result && this.result.movie && this.result.movie.id });
-
-      // Navigate directly to home instead of using browser back
-      // This prevents issues when navigating between movie detail pages
       this.$router.push('/');
     },
 

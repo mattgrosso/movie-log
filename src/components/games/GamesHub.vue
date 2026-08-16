@@ -1,6 +1,6 @@
 <template>
   <div class="games-hub">
-    <BackLink @click="$router.push('/')"/>
+    <BackLink/>
     <div class="games-hub-header">
       <h1 class="games-hub-title">Games</h1>
       <button type="button" class="stats-link" @click="$router.push('/games/stats')">

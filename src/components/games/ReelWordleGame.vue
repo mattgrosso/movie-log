@@ -1,6 +1,6 @@
 <template>
   <div class="reel-wordle-game">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
     <p class="game-subtitle">
       Guess the movie from your own library.
       {{ guesses.length }} guess{{ guesses.length === 1 ? '' : 'es' }}.

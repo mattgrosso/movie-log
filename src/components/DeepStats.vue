@@ -1,6 +1,6 @@
 <template>
   <div class="deep-stats">
-    <BackLink label="Insights" @click="$router.push('/insights')"/>
+    <BackLink/>
     <h1 class="ds-title">Deep Stats</h1>
     <p class="ds-subtitle">Your library, interrogated.</p>
 

@@ -1,6 +1,6 @@
 <template>
   <div class="game-stats-screen">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
     <h1 class="stats-title">Game Stats</h1>
     <p class="stats-subtitle">How your games have gone, round by round.</p>
 

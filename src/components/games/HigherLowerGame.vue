@@ -1,6 +1,6 @@
 <template>
   <div class="higher-lower-game">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
 
     <div v-if="!leftCard" class="setup">
       <p>See a movie's real Cinema Roll score, then guess whether the next one scored higher or lower.</p>

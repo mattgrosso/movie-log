@@ -285,10 +285,14 @@ describe('TrophyCase', () => {
     expect(card.findAll('.versus-poster').filter((el) => el.element.tagName === 'IMG')).toHaveLength(2)
   })
 
-  it('returnHome navigates home', () => {
-    const { wrapper, pushSpy } = mountTrophyCase({})
-    wrapper.vm.returnHome()
-    expect(pushSpy).toHaveBeenCalledWith('/')
+  // Used to push you Home regardless of where you'd come from. It renders the
+  // shared back link now, which returns you where you were and falls back to
+  // Insights (this screen's declared parent).
+  it('renders the shared back link instead of its own go-home button', () => {
+    const { wrapper } = mountTrophyCase({})
+
+    expect(wrapper.findComponent({ name: 'BackLink' }).exists()).toBe(true)
+    expect(wrapper.vm.returnHome).toBeUndefined()
   })
 
   // User feedback: this page going headerless made it the odd one out —

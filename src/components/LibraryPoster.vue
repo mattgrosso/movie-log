@@ -1,6 +1,6 @@
 <template>
   <div class="library-poster-screen">
-    <BackLink label="Home" @click="$router.push('/')"/>
+    <BackLink/>
     <h1 class="poster-title">Library Poster</h1>
     <p class="poster-subtitle">Turn your library into one big printable poster of all your little posters.</p>
 

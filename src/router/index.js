@@ -62,6 +62,9 @@ const routes = [
     name: 'Home', // Added name for programmatic navigation
     component: Home,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Home',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -78,6 +81,9 @@ const routes = [
     path: '/login',
     component: Login,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Sign in',
       requiresLogin: false
     },
   },
@@ -85,6 +91,10 @@ const routes = [
     path: '/rate-movie',
     component: RateMovie,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Rate a movie',
+      parent: '/',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -99,6 +109,10 @@ const routes = [
     path: '/reconcile/:dbKey',
     component: ReconcilePlaceholder,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Reconcile',
+      parent: '/',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -113,6 +127,10 @@ const routes = [
     path: '/insights',
     component: Insights,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Insights',
+      parent: '/',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -127,6 +145,10 @@ const routes = [
     path: '/pick-media/:newEntrySearchResults',
     component: PickMedia,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Pick a movie',
+      parent: '/',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -141,6 +163,10 @@ const routes = [
     path: '/share/:userDBKey/:shareKey',
     component: ShareDBResults,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Shared list',
+      parent: '/',
       requiresLogin: false
     }
   },
@@ -149,6 +175,10 @@ const routes = [
     name: 'MovieDetail',
     component: MovieDetail,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Movie',
+      parent: '/',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -164,6 +194,10 @@ const routes = [
     name: 'YearInReview',
     component: YearInReview,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Year in Review',
+      parent: '/insights',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -179,6 +213,10 @@ const routes = [
     name: 'TrophyCase',
     component: TrophyCase,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Trophy Case',
+      parent: '/insights',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -194,6 +232,10 @@ const routes = [
     name: 'GamesHub',
     component: GamesHub,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Games',
+      parent: '/',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -209,6 +251,10 @@ const routes = [
     name: 'HigherLowerGame',
     component: HigherLowerGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Higher or Lower',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -224,6 +270,10 @@ const routes = [
     name: 'ReelWordleGame',
     component: ReelWordleGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Reel Wordle',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -239,6 +289,10 @@ const routes = [
     name: 'ConnectionsGame',
     component: ConnectionsGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Connections',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -254,6 +308,10 @@ const routes = [
     name: 'SixDegreesGame',
     component: SixDegreesGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Six Degrees',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -269,6 +327,10 @@ const routes = [
     name: 'TimelineGame',
     component: TimelineGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Timeline',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -284,6 +346,10 @@ const routes = [
     name: 'ClueBudgetGame',
     component: ClueBudgetGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Clue Budget',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -299,6 +365,10 @@ const routes = [
     name: 'TaglineQuizGame',
     component: TaglineQuizGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Tagline Quiz',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -314,6 +384,10 @@ const routes = [
     name: 'PersonalAwardsScreen',
     component: PersonalAwardsScreen,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Awards',
+      parent: '/insights',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -329,6 +403,10 @@ const routes = [
     name: 'LibraryPoster',
     component: LibraryPoster,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Library Poster',
+      parent: '/insights',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -344,6 +422,10 @@ const routes = [
     name: 'WatchlistScreen',
     component: WatchlistScreen,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Watchlist',
+      parent: '/',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -359,6 +441,10 @@ const routes = [
     name: 'FilmClubScreen',
     component: FilmClubScreen,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Film Club',
+      parent: '/',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -374,6 +460,10 @@ const routes = [
     name: 'FriendComparison',
     component: FriendComparison,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Friend',
+      parent: '/film-club',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -389,6 +479,10 @@ const routes = [
     name: 'DeepStats',
     component: DeepStats,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Deep Stats',
+      parent: '/insights',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -404,6 +498,10 @@ const routes = [
     name: 'GameStatsScreen',
     component: GameStatsScreen,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Game Stats',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -419,6 +517,10 @@ const routes = [
     name: 'StampGame',
     component: StampGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Stamp',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -434,6 +536,10 @@ const routes = [
     name: 'CineplexityGame',
     component: CineplexityGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Cineplexity',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -449,6 +555,10 @@ const routes = [
     name: 'TriviaGame',
     component: TriviaGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Trivia',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {
@@ -464,6 +574,10 @@ const routes = [
     name: 'PosterZoomGame',
     component: PosterZoomGame,
     meta: {
+      // Back-link identity: what this screen is called, and where back
+      // goes when there is no history to go back to.
+      title: 'Poster Zoom',
+      parent: '/games',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {

@@ -2,18 +2,24 @@ import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import GameStatsScreen from '@/components/games/GameStatsScreen.vue';
 
-function factory (games = {}) {
+function factory (games = {}, { back = null } = {}) {
   const pushSpy = vi.fn();
+  const backSpy = vi.fn();
   const wrapper = mount(GameStatsScreen, {
     global: {
       mocks: {
         $store: { state: { settings: { games } }, dispatch: vi.fn(), commit: vi.fn() },
-        $router: { push: pushSpy },
-        $route: { path: '/games/stats' }
+        $router: {
+          push: pushSpy,
+          back: backSpy,
+          options: { history: { state: { back } } },
+          resolve: (path) => ({ meta: { title: path === '/insights' ? 'Insights' : 'Games' } })
+        },
+        $route: { path: '/games/stats', fullPath: '/games/stats', meta: { parent: '/games' } }
       }
     }
   });
-  return { wrapper, pushSpy };
+  return { wrapper, pushSpy, backSpy };
 }
 
 // Feature request: "add a history for each game with some good statistics
@@ -64,9 +70,20 @@ describe('GameStatsScreen', () => {
     expect(names).toEqual(['Timeline', 'Stamp']);
   });
 
-  it('back link returns to the games hub', async () => {
+  it('falls back to the games hub when there is no history', async () => {
     const { wrapper, pushSpy } = factory({});
-    await wrapper.find('.back-link, [class*=back]').trigger('click');
+    await wrapper.find('.back-link').trigger('click');
     expect(pushSpy).toHaveBeenCalledWith('/games');
+  });
+
+  // This screen is linked from Insights as well as from Games, and the link
+  // used to say "Games" and go there either way (Matt, 2026-08-16).
+  it('returns to Insights when that is where you came from', async () => {
+    const { wrapper, backSpy, pushSpy } = factory({}, { back: '/insights' });
+
+    expect(wrapper.find('.back-link').text()).toBe('Insights');
+    await wrapper.find('.back-link').trigger('click');
+    expect(backSpy).toHaveBeenCalled();
+    expect(pushSpy).not.toHaveBeenCalled();
   });
 });

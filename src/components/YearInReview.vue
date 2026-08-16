@@ -1,5 +1,9 @@
 <template>
   <div class="year-in-review">
+    <!-- There was no way off this screen at all: `returnHome` existed but
+         nothing ever called it (2026-08-16 navigation pass). -->
+    <BackLink/>
+
     <!-- Header -->
     <div class="page-header">
       <h2 class="page-title">Year in Review</h2>
@@ -91,6 +95,7 @@
 </template>
 
 <script>
+import BackLink from './games/BackLink.vue';
 import { BarChart } from 'vue-chart-3';
 import { Chart, registerables } from 'chart.js';
 
@@ -99,7 +104,8 @@ Chart.register(...registerables);
 export default {
   name: 'YearInReview',
   components: {
-    BarChart
+    BarChart,
+    BackLink
   },
   data () {
     return {
@@ -394,9 +400,7 @@ export default {
     }
   },
   methods: {
-    returnHome () {
-      this.$router.push('/insights');
-    },
+
     goToMovie (movie) {
       this.$router.push(`/movie/${movie.id}`);
     },

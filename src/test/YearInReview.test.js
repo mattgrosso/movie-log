@@ -229,11 +229,13 @@ describe('YearInReview', () => {
       expect(push).toHaveBeenCalledWith('/movie/42')
     })
 
-    it('returnHome pushes to /insights', () => {
-      const push = vi.fn()
-      const wrapper = factory([], { push })
-      wrapper.vm.returnHome()
-      expect(push).toHaveBeenCalledWith('/insights')
+    // There was no way off this screen at all: `returnHome` was defined and
+    // never called from anywhere (found in the 2026-08-16 navigation pass).
+    it('has a back link, which it previously did not', () => {
+      const wrapper = factory([], { push: vi.fn() })
+
+      expect(wrapper.findComponent({ name: 'BackLink' }).exists()).toBe(true)
+      expect(wrapper.vm.returnHome).toBeUndefined()
     })
   })
 

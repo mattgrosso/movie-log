@@ -1,6 +1,6 @@
 <template>
   <div class="timeline-game" :style="started ? { '--step-duration': stepDurationMs + 'ms' } : {}">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
 
     <div v-if="eligibleGameEntries.length < 5" class="not-enough-movies">
       <p>Rate a few more movies before there's enough to build a timeline with.</p>

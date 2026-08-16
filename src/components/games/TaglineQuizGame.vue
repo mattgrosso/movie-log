@@ -1,6 +1,6 @@
 <template>
   <div class="tagline-quiz-game">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
 
     <div v-if="eligibleGameEntries.length < 4" class="not-enough-movies">
       <p>Rate a few more movies before there's enough to build a round with.</p>

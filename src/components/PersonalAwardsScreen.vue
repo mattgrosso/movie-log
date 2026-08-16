@@ -1,6 +1,6 @@
 <template>
   <div class="personal-awards-screen">
-    <BackLink label="Back" @click="leave"/>
+    <BackLink/>
 
     <!-- Year strip: the same control the home screen uses for years, down to
          the Bootstrap button classes. Just the years — no progress marks, no
@@ -48,6 +48,7 @@
 // it with what we're looking at now", 2026-08-16).
 import PersonalAwardsModal from './PersonalAwardsModal.vue';
 import BackLink from './games/BackLink.vue';
+import { navigationTarget } from '../utils/navigationTarget.js';
 import {
   awardNameWithThe,
   awardNameSingular,
@@ -142,10 +143,19 @@ export default {
       scroller.scrollLeft = Math.max(0, Math.min(centered, furthest));
     },
     leave () {
-      if (window.history.length > 1) {
+      // window.history.length counts entries from before this app was ever
+      // opened, so it is not a reliable "is there anywhere to go back to".
+      // history.state.back is, and it is the same rule BackLink follows.
+      const target = navigationTarget({
+        backPath: this.$router?.options?.history?.state?.back,
+        currentPath: this.$route?.fullPath,
+        parentPath: this.$route?.meta?.parent || '/',
+        avoid: ['/login']
+      });
+      if (target.useBack) {
         this.$router.back();
       } else {
-        this.$router.push('/');
+        this.$router.push(target.path);
       }
     }
   }

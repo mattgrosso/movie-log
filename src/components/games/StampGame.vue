@@ -1,6 +1,6 @@
 <template>
   <div class="stamp-game">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
 
     <div v-if="!round" class="not-enough-tags">
       <p v-if="eligibleGameEntries.length < 5">Rate a few more movies before there's enough to work with.</p>

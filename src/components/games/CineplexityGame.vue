@@ -1,6 +1,6 @@
 <template>
   <div class="cineplexity-game">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
 
     <div v-if="!round" class="not-enough">
       <p>Rate a few more movies before there's enough overlap to play with.</p>

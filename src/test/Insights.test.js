@@ -373,11 +373,26 @@ describe('Insights', () => {
   })
 
   describe('navigation and Firebase-write methods', () => {
-    it('returnHome shows the header again and navigates to Home', () => {
+    // The back link works out where it's going and hands the target over;
+    // Insights' only remaining job on the way out is restoring the header.
+    it('leaving restores the header and follows the link\'s target', () => {
       const { wrapper, commitSpy, pushSpy } = mountInsights()
-      wrapper.vm.returnHome()
+
+      wrapper.vm.leave({ path: '/', label: 'Home', useBack: false })
+
       expect(commitSpy).toHaveBeenCalledWith('setShowHeader', true)
-      expect(pushSpy).toHaveBeenCalledWith({ path: '/', query: { movieDbKey: undefined } })
+      expect(pushSpy).toHaveBeenCalledWith('/')
+    })
+
+    it('leaving prefers real history when there is somewhere to go back to', () => {
+      const { wrapper, commitSpy } = mountInsights()
+      const back = vi.fn()
+      wrapper.vm.$router.back = back
+
+      wrapper.vm.leave({ path: '/film-club', label: 'Film Club', useBack: true })
+
+      expect(commitSpy).toHaveBeenCalledWith('setShowHeader', true)
+      expect(back).toHaveBeenCalled()
     })
 
     it('goToYearInReview navigates to /year-in-review', () => {

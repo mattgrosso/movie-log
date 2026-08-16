@@ -1,11 +1,6 @@
 <template>
   <div class="trophy-case">
-    <div class="home-link" @click="returnHome">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
-        <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
-      </svg>
-      <span>Home</span>
-    </div>
+    <BackLink/>
 
     <h1 class="trophy-case-title">Trophy Case</h1>
 
@@ -166,8 +161,10 @@ import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCa
 import { expandNomineeFromMinimal } from '../assets/javascript/personalAwards.js';
 import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins, rankSweeps, winStreaks, categoryOwners, longestWaits, rankUpsets } from '../assets/javascript/awardStats.js';
 import { getRating } from '../assets/javascript/GetRating.js';
+import BackLink from './games/BackLink.vue';
 
 export default {
+  components: { BackLink },
   name: 'TrophyCase',
   // Deliberately does NOT hide the app header (it used to): every other
   // screen keeps the header space — games swap in their own art, the rest
@@ -487,10 +484,9 @@ export default {
       if (movieId) {
         this.$router.push(`/movie/${movieId}`);
       }
-    },
-    returnHome () {
-      this.$router.push('/');
     }
+    // returnHome removed: BackLink goes wherever you came from, and falls
+    // back to Insights (this screen's declared parent) rather than Home.
   }
 };
 </script>

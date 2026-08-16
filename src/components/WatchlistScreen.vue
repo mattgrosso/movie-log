@@ -1,6 +1,6 @@
 <template>
   <div class="watchlist-screen">
-    <BackLink label="Home" @click="$router.push('/')"/>
+    <BackLink/>
     <h1 class="watchlist-title">Watchlist</h1>
     <p class="watchlist-subtitle">Built from your own ratings — what to revisit, and what to see next.</p>
 

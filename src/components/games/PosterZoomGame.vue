@@ -1,6 +1,6 @@
 <template>
   <div ref="root" class="poster-zoom-game">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
 
     <div v-if="zoomablePool.length < 5" class="not-enough-movies">
       <p>Rate a few more movies (with posters) before there's enough to zoom into.</p>

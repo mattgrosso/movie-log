@@ -1,6 +1,6 @@
 <template>
   <div class="connections-game">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
 
     <!-- Bug report: Connections in particular needs far more data than the
          GamesHub gate (4 movies) guarantees - a real puzzle needs several

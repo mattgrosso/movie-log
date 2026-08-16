@@ -1,6 +1,6 @@
 <template>
   <div class="film-club-screen">
-    <BackLink label="Home" @click="$router.push('/')"/>
+    <BackLink/>
     <h1 class="cs-title">Film Club</h1>
     <p class="cs-subtitle">Friends on Cinema Roll — what they're watching and where your tastes meet.</p>
 

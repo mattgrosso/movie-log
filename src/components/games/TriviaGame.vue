@@ -1,6 +1,6 @@
 <template>
   <div class="trivia-game">
-    <BackLink label="Games" @click="$router.push('/games')"/>
+    <BackLink/>
 
     <div v-if="eligibleGameEntries.length < 5" class="not-enough-movies">
       <p>Rate a few more movies before there's enough to quiz you on.</p>
