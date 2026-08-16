@@ -67,10 +67,13 @@ export default {
 }
 
 .fun-fact-label {
-  background: #3b5aaa;
+  background: var(--accent, #3b5aaa);
   border-bottom: 1px solid white;
-  color: white;
+  /* Must come after the old `color: white`, which this replaces: white on the
+     Overview yellow is 1.4:1 and simply unreadable. */
+  color: var(--accent-text, white);
   font-size: 0.7rem;
+  font-weight: 600;
   padding: 1px 6px;
 }
 

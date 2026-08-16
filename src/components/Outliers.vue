@@ -72,7 +72,8 @@ export default {
   overflow: hidden;
 
   .outlier-card-title {
-    background: #3b5aaa;
+    background: var(--accent, #3b5aaa);
+    color: var(--accent-text, white);
     border-bottom: 1px solid white;
     font-size: 0.8rem;
     margin: 0;
@@ -84,6 +85,13 @@ export default {
     list-style: none;
     margin: 0;
     padding: 0.25rem 0.6rem 0.4rem;
+    /* Shorter, and you flip through it in place rather than pushing the rest
+       of the tab off the screen ("some of these panels are too tall and would
+       be better if they were shorter and had internal scrolling so I could
+       flip through them", Matt 2026-08-16). */
+    max-height: 15rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .outlier-row {

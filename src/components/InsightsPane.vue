@@ -62,7 +62,8 @@ export default {
 
       .insights-pane-item-header {
         border-bottom: 1px solid white;
-        background: #3b5aaa;
+        background: var(--accent, #3b5aaa);
+        color: var(--accent-text, white);
         font-size: 0.7rem;
         border-top-left-radius: 3px;
         border-top-right-radius: 3px;

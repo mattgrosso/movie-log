@@ -47,14 +47,17 @@ describe('YearlyAverage (Best Years rework)', () => {
     expect(wrapper.emitted('updateSearchValue')[0]).toEqual(['1994'])
   })
 
-  it('caps at ten years with a show-all expander', async () => {
+  // Was capped at ten behind a "show all" button. The card scrolls internally
+  // now, so every year is present and one flick away (Matt, 2026-08-16:
+  // "shorter and had internal scrolling so I could flip through them").
+  it('lists every year, with no expander to press', () => {
     const many = []
     for (let y = 1990; y < 2005; y++) {
       for (let i = 0; i < 4; i++) many.push(movieResult(5 + (y % 5), `${y}-06-15`))
     }
     const wrapper = factory(many)
-    expect(wrapper.findAll('.year-row').length).toBe(10)
-    await wrapper.find('.year-more').trigger('click')
+
     expect(wrapper.findAll('.year-row').length).toBe(15)
+    expect(wrapper.find('.year-more').exists()).toBe(false)
   })
 })

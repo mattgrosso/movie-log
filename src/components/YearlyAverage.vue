@@ -4,7 +4,7 @@
       <p class="best-years-title">Best years of movies</p>
       <p class="best-years-caption">Release years ranked by the Log Score of your ratings — a year needs depth AND quality to place. Tap a year to see its films.</p>
       <ul>
-        <li v-for="(item, index) in rankedYears" :key="item.year" class="year-row" @click="$emit('updateSearchValue', String(item.year))">
+        <li v-for="(item, index) in allYears" :key="item.year" class="year-row" @click="$emit('updateSearchValue', String(item.year))">
           <span class="year-rank">{{ index + 1 }}</span>
           <span class="year-info">
             <span class="year-name">{{ item.year }}</span>
@@ -13,9 +13,6 @@
           <span class="year-numbers">{{ item.score.toFixed(2) }} <span class="year-count">· {{ item.count }} films</span></span>
         </li>
       </ul>
-      <button v-if="!showAll && allYears.length > limit" type="button" class="year-more" @click="showAll = true">
-        Show all {{ allYears.length }} years
-      </button>
     </div>
   </div>
 </template>
@@ -39,18 +36,11 @@ export default {
     }
   },
   emits: ['updateSearchValue'],
-  data () {
-    return {
-      limit: 10,
-      showAll: false
-    };
-  },
+  // No limit and no "show all" button any more: the list scrolls inside its
+  // own card, so every year is one flick away.
   computed: {
     allYears () {
       return bestReleaseYears(this.resultsWithRatings, getRating, logScoreSettings(this.$store?.state?.settings));
-    },
-    rankedYears () {
-      return this.showAll ? this.allYears : this.allYears.slice(0, this.limit);
     }
   }
 };
@@ -68,7 +58,8 @@ export default {
   overflow: hidden;
 
   .best-years-title {
-    background: #3b5aaa;
+    background: var(--accent, #3b5aaa);
+    color: var(--accent-text, white);
     border-bottom: 1px solid white;
     font-size: 0.8rem;
     margin: 0;
@@ -87,6 +78,13 @@ export default {
     list-style: none;
     margin: 0;
     padding: 0.25rem 0.6rem 0.4rem;
+    /* Shorter, and you flip through it in place rather than pushing the rest
+       of the tab off the screen ("some of these panels are too tall and would
+       be better if they were shorter and had internal scrolling so I could
+       flip through them", Matt 2026-08-16). */
+    max-height: 15rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .year-row {
@@ -141,13 +139,5 @@ export default {
     font-weight: 400;
   }
 
-  .year-more {
-    background: none;
-    border: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-    color: #9ec5fe;
-    min-height: 40px;
-    width: 100%;
-  }
 }
 </style>

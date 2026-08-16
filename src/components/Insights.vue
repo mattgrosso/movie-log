@@ -1,5 +1,5 @@
 <template>
-  <div class="insights">
+  <div class="insights" :class="`insights-accent-${activeTab}`">
     <div class="home-link" @click="returnHome">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
         <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
@@ -17,7 +17,7 @@
         :key="tab.key"
         type="button"
         class="insights-tab"
-        :class="{ active: activeTab === tab.key }"
+        :class="[`insights-tab-${tab.key}`, { active: activeTab === tab.key }]"
         @click="setTab(tab.key)"
       >
         {{ tab.label }}
@@ -30,18 +30,18 @@
       <div class="glance-strip">
         <div class="glance-item feature"><span class="glance-label">Movies</span><span class="glance-value">{{ filteredEntriesWithFlatKeywordsAdded.length }}</span></div>
         <div class="glance-item feature"><span class="glance-label">Viewings</span><span class="glance-value">{{ viewsCount }}</span></div>
-        <div class="glance-item wide"><span class="glance-label">{{ thisYear }} so far · on track for {{ estimatedMoviesThisYear }}</span><span class="glance-value">{{ moviesWatchedThisYear }}</span></div>
-        <div class="glance-item third alt"><span class="glance-label">This Week</span><span class="glance-value">{{ moviesWatchedThisWeek }}</span></div>
-        <div class="glance-item third alt"><span class="glance-label">{{ thisMonth }}</span><span class="glance-value">{{ moviesWatchedThisMonth }}</span></div>
-        <div class="glance-item third alt"><span class="glance-label">{{ lastMonth }}</span><span class="glance-value">{{ moviesWatchedLastMonth }}</span></div>
-        <div class="glance-item alt"><span class="glance-label">{{ lastYear }} to Same Date</span><span class="glance-value">{{ moviesWatchedLastYearToDate }}</span></div>
-        <div class="glance-item alt"><span class="glance-label">{{ lastYear }} Total</span><span class="glance-value">{{ moviesWatchedLastYear }}</span></div>
+        <!-- The three rating numbers used to head the Ratings tab, where they
+             sat oddly next to the deeper analysis ("I'm not sure how that's
+             different from overview"). They're summary figures, so they live
+             with the other summary figures. -->
+        <div class="glance-item third"><span class="glance-label">Highest</span><span class="glance-value">{{ highestRating }}</span></div>
+        <div class="glance-item third"><span class="glance-label">Average</span><span class="glance-value">{{ averageRating }}</span></div>
+        <div class="glance-item third"><span class="glance-label">Lowest</span><span class="glance-value">{{ lowestRating }}</span></div>
       </div>
 
-      <!-- Board item 8: funFacts.js finally gets a shelf (bug report: "more
-           fun data about my ratings and watching habits"). -->
-      <FunFactsRow/>
-
+      <!-- Pulled above the fun facts: these are the way OUT of this page, and
+           they were buried under a scroll ("maybe they should be pulled
+           further up"). -->
       <div class="insights-links">
         <button type="button" class="insights-link-card" @click="$router.push('/stats')">
           <i class="bi bi-graph-up-arrow"></i><span>Deep Stats</span>
@@ -62,29 +62,15 @@
           <i class="bi bi-image"></i><span>Library Poster</span>
         </button>
       </div>
+
+      <!-- Board item 8: funFacts.js finally gets a shelf (bug report: "more
+           fun data about my ratings and watching habits"). -->
+      <FunFactsRow/>
     </template>
 
     <!-- RATINGS: how you rate. -->
     <template v-else-if="activeTab === 'ratings'">
     <InsightsPane>
-      <div class="insights-pane-item-wrapper col-4">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">Highest Rating</p>
-          <p class="insights-pane-item-value">{{highestRating}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-4">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">Average Rating</p>
-          <p class="insights-pane-item-value">{{averageRating}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-4">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">Lowest Rating</p>
-          <p class="insights-pane-item-value">{{lowestRating}}</p>
-        </div>
-      </div>
       <LineChart :chartData="ratingsCountData" :options="ratingsCountOptions"/>
     </InsightsPane>
 
@@ -98,6 +84,9 @@
 
     <InsightsPane>
       <ScatterChart :chartData="scatterPlotData" :options="scatterPlotOptions"/>
+      <!-- What the cloud of dots is actually saying. 1,300 points are hard to
+           read by eye, so the plot states its own conclusion. -->
+      <p v-if="scatterReading" class="scatter-reading">{{ scatterReading }}</p>
       <div class="scatter-controls mt-3">
         <div class="row g-2">
           <div class="col-12">
@@ -132,9 +121,29 @@
 
     <!-- ACTIVITY: when you watch. -->
     <template v-else-if="activeTab === 'activity'">
-    <InsightsPane>
-      <FullCalendarView :results="allEntriesWithFlatKeywordsAdded" :open="true" />
-    </InsightsPane>
+      <!-- The pace figure gets a box to itself, and every other time-based
+           number moved off Overview to join it — Activity was just a calendar,
+           and Overview was half activity ("I'm not sure what activity means
+           relative to overview"). -->
+      <div class="pace-box">
+        <span class="pace-label">{{ thisYear }} so far</span>
+        <span class="pace-value">{{ moviesWatchedThisYear }}</span>
+        <span class="pace-note">on track for {{ estimatedMoviesThisYear }} by the end of the year</span>
+      </div>
+
+      <div class="glance-strip">
+        <div class="glance-item third"><span class="glance-label">This Week</span><span class="glance-value">{{ moviesWatchedThisWeek }}</span></div>
+        <div class="glance-item third"><span class="glance-label">{{ thisMonth }}</span><span class="glance-value">{{ moviesWatchedThisMonth }}</span></div>
+        <div class="glance-item third"><span class="glance-label">{{ lastMonth }}</span><span class="glance-value">{{ moviesWatchedLastMonth }}</span></div>
+        <!-- Last year's two figures are the comparison pair, so they share a
+             deeper shade of the tab's colour rather than a different hue. -->
+        <div class="glance-item alt"><span class="glance-label">{{ lastYear }} to Same Date</span><span class="glance-value">{{ moviesWatchedLastYearToDate }}</span></div>
+        <div class="glance-item alt"><span class="glance-label">{{ lastYear }} Total</span><span class="glance-value">{{ moviesWatchedLastYear }}</span></div>
+      </div>
+
+      <InsightsPane>
+        <FullCalendarView :results="allEntriesWithFlatKeywordsAdded" :open="true" />
+      </InsightsPane>
     </template>
 
     <!-- PEOPLE: the eight Favorite sections behind one chip selector. -->
@@ -148,7 +157,9 @@
         :class="{ active: peopleCategory === category.key }"
         @click="setPeopleCategory(category.key)"
       >
-        {{ category.label }}
+        <!-- The oval is a span inside a taller, invisible button: the pill can
+             be small without the tap target going under 40px with it. -->
+        <span class="people-chip-pill">{{ category.label }}</span>
       </button>
     </div>
     <InsightsPane :key="peopleCategory">
@@ -192,6 +203,7 @@ import { Chart, registerables } from "chart.js";
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
 import InsightsPane from "./InsightsPane.vue";
 import FunFactsRow from './FunFactsRow.vue';
+import { correlation, describeCorrelation } from '../assets/javascript/axisCorrelation.js';
 import uniq from 'lodash/uniq';
 
 Chart.register(...registerables);
@@ -764,7 +776,9 @@ export default {
       const data = countsWithLabels.map((count) => count.value);
       const labels = countsWithLabels.map((count) => count.label);
 
-      const color = "#5bc62b";
+      // The Ratings tab's own colour, so the chart belongs to the section it
+      // sits in rather than being a third hue on the page.
+      const color = "#1D8BF1";
 
       return {
         labels,
@@ -796,6 +810,17 @@ export default {
           }
         }
       }
+    },
+    // A sentence for the scatter plot: what the dots are actually saying.
+    scatterReading () {
+      const points = this.scatterPlotData?.datasets?.[0]?.data || [];
+      const labelFor = (key) => this.axisOptions.find((option) => option.key === key)?.label;
+
+      return describeCorrelation(
+        correlation(points),
+        labelFor(this.selectedXAxis),
+        labelFor(this.selectedYAxis)
+      );
     },
     scatterPlotData () {
       const data = this.filteredEntriesWithFlatKeywordsAdded.map(result => {
@@ -2490,9 +2515,52 @@ export default {
 
 <style lang="scss">
   .insights {
-  /* Matt's house tile language (see .insights-pane-item in
-     InsightsPane.vue): white 1px borders, 3px radius, #3b5aaa blue
-     accents, white text — applied to every piece of the tabbed chrome. */
+  /* Matt's house tile language (see .insights-pane-item in InsightsPane.vue):
+     white 1px borders, 3px radius, white body text.
+
+     The accent is no longer one blue everywhere. Every tab owns a colour from
+     the app's rainbow bar, and everything inside that tab — tile headers, link
+     icons, chips, the pane headers in YearlyAverage/Outliers/FunFactsRow —
+     paints itself with it. So the variety means something: the colour tells
+     you which section you're looking at ("we still need more variety in
+     there, and hopefully the variety will have some kind of meaning", Matt
+     2026-08-16). --accent-deep is the same hue darkened, for the
+     second-tier/comparison tiles within a section.
+
+     Black label text on every one of these, matching the rainbow bar: white
+     on the yellow or the green would be illegible. */
+  --accent: #1D8BF1;
+  --accent-deep: #12578f;
+  --accent-text: #000;
+
+  &.insights-accent-overview {
+    --accent: #FFD700;
+    --accent-deep: #8a7400;
+  }
+
+  &.insights-accent-ratings {
+    --accent: #1D8BF1;
+    --accent-deep: #12578f;
+  }
+
+  &.insights-accent-activity {
+    --accent: #24d776;
+    --accent-deep: #14663a;
+  }
+
+  &.insights-accent-people {
+    --accent: #cd7fe8;
+    --accent-deep: #6d3b7f;
+  }
+
+  /* The deep shades are dark enough to need white back. */
+  &.insights-accent-overview .alt .glance-label,
+  &.insights-accent-ratings .alt .glance-label,
+  &.insights-accent-activity .alt .glance-label,
+  &.insights-accent-people .alt .glance-label {
+    color: white;
+  }
+
   .insights-tabs {
     display: flex;
     gap: 0.35rem;
@@ -2510,9 +2578,17 @@ export default {
       min-height: 40px;
       min-width: 0;
 
+      /* Each tab wears its own colour when active, so the bar itself carries
+         the key to the colour coding below it. */
       &.active {
-        background: #3b5aaa;
+        color: #000;
+        font-weight: 700;
       }
+
+      &.insights-tab-overview.active { background: #FFD700; }
+      &.insights-tab-ratings.active { background: #1D8BF1; }
+      &.insights-tab-activity.active { background: #24d776; }
+      &.insights-tab-people.active { background: #cd7fe8; }
 
       &:active {
         opacity: 0.7;
@@ -2547,17 +2623,18 @@ export default {
     }
 
     .glance-label {
-      background: #3b5aaa;
+      background: var(--accent);
       border-bottom: 1px solid white;
+      color: var(--accent-text);
       font-size: 0.7rem;
+      font-weight: 600;
       padding: 1px 4px;
     }
 
-    /* A genuinely different hue rather than a dimmer blue — the darker
-       shade just read as "faded out" (bug report). Blue = library totals,
-       teal = anything time-based. */
+    /* Second tier within a section — last year's comparison figures — in the
+       same hue, deeper. A different hue here fought with the tab colour. */
     .alt .glance-label {
-      background: #2f7d78;
+      background: var(--accent-deep);
     }
 
     .glance-value {
@@ -2592,9 +2669,9 @@ export default {
 
       i {
         align-items: center;
-        background: #3b5aaa;
+        background: var(--accent);
         border-radius: 3px;
-        color: white;
+        color: var(--accent-text);
         display: flex;
         flex: 0 0 auto;
         font-size: 1rem;
@@ -2603,28 +2680,90 @@ export default {
         width: 32px;
       }
 
-      &:active { background: rgba(59, 90, 170, 0.35); }
+      &:active { opacity: 0.7; }
     }
+  }
+
+  /* The pace figure, pulled out into a box of its own — it was one tile in a
+     grid of eight and read as just another number. */
+  .pace-box {
+    border: 1px solid white;
+    border-radius: 3px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+    text-align: center;
+    width: 100%;
+
+    .pace-label {
+      background: var(--accent);
+      border-bottom: 1px solid white;
+      color: var(--accent-text);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 4px;
+    }
+
+    .pace-value {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1.1;
+      padding-top: 0.25rem;
+    }
+
+    .pace-note {
+      /* #b9b9b9 on the panel background, ~8:1 — .text-muted would fail here. */
+      color: #b9b9b9;
+      font-size: 0.75rem;
+      padding: 0 0.5rem 0.5rem;
+    }
+  }
+
+  .scatter-reading {
+    color: #e6e6e6;
+    font-size: 0.85rem;
+    margin: 0.6rem 0 0;
+    text-align: center;
+    width: 100%;
   }
 
   .people-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-bottom: 0.75rem;
+    column-gap: 0.35rem;
+    margin-bottom: 0.4rem;
     width: 100%;
 
+    /* Deliberately smaller and lighter than the tabs above them: at full size
+       with a white border they read as a second tab bar ("they kind of compete
+       with the tabs at the top even though they're ovals"). The button keeps a
+       40px tap target — the house minimum — while the visible pill inside it
+       shrinks. */
     .people-chip {
+      align-items: center;
       background: none;
-      border: 1px solid white;
-      border-radius: 999px;
-      color: white;
-      font-size: 0.8rem;
-      min-height: 36px;
-      padding: 0.25rem 0.8rem;
+      border: none;
+      display: flex;
+      min-height: 40px;
+      padding: 0;
 
-      &.active {
-        background: #3b5aaa;
+      .people-chip-pill {
+        border: 1px solid #6f6f6f;
+        border-radius: 999px;
+        /* #ccc on the page background, ~9:1. */
+        color: #ccc;
+        font-size: 0.72rem;
+        line-height: 1;
+        padding: 0.3rem 0.6rem;
+      }
+
+      &.active .people-chip-pill {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-text);
+        font-weight: 700;
       }
 
       &:active { opacity: 0.7; }

@@ -394,3 +394,85 @@ describe('Insights', () => {
 
   })
 })
+
+// The 2026-08-16 reorganization: Matt couldn't tell what Activity meant next
+// to Overview ("it kinda seems like a lot of this is activity"), and the
+// rating summary numbers sat on Ratings where they read as a duplicate of
+// Overview. Everything time-based is on Activity now; the headline figures
+// are on Overview.
+describe('Insights — what lives on which tab', () => {
+  function tabLabels (wrapper) {
+    return wrapper.findAll('.glance-label').map((label) => label.text())
+  }
+
+  async function showTab (wrapper, key) {
+    await wrapper.setData({ activeTab: key })
+    return wrapper
+  }
+
+  it('puts the library and rating headline figures on Overview', async () => {
+    const { wrapper } = mountInsights({ mediaEntries: [entry()] })
+    await showTab(wrapper, 'overview')
+
+    expect(tabLabels(wrapper)).toEqual(['Movies', 'Viewings', 'Highest', 'Average', 'Lowest'])
+  })
+
+  it('keeps every time-based figure off Overview', async () => {
+    const { wrapper } = mountInsights({ mediaEntries: [entry()] })
+    await showTab(wrapper, 'overview')
+    const labels = tabLabels(wrapper).join(' ')
+
+    expect(labels).not.toMatch(/week/i)
+    expect(labels).not.toMatch(/so far/i)
+    expect(wrapper.find('.pace-box').exists()).toBe(false)
+  })
+
+  it('gives Activity the pace box and the period counts', async () => {
+    const { wrapper } = mountInsights({ mediaEntries: [entry()] })
+    await showTab(wrapper, 'activity')
+
+    expect(wrapper.find('.pace-box').exists()).toBe(true)
+    expect(wrapper.find('.pace-box').text()).toMatch(/on track for/)
+    expect(tabLabels(wrapper).length).toBe(5) // week, this month, last month, and last year's pair
+    expect(tabLabels(wrapper)[0]).toBe('This Week')
+  })
+
+  it('no longer repeats the rating figures on Ratings', async () => {
+    const { wrapper } = mountInsights({ mediaEntries: [entry()] })
+    await showTab(wrapper, 'ratings')
+
+    expect(wrapper.text()).not.toMatch(/Highest Rating/)
+    expect(wrapper.find('.glance-label').exists()).toBe(false)
+  })
+
+  // Colour that means something: each tab owns one, and the panels inside it
+  // inherit it through a custom property.
+  it('carries the active tab colour on the root, and marks the active tab', async () => {
+    const { wrapper } = mountInsights({ mediaEntries: [entry()] })
+
+    await showTab(wrapper, 'activity')
+    expect(wrapper.classes()).toContain('insights-accent-activity')
+    const active = wrapper.findAll('.insights-tab').filter((tab) => tab.classes('active'))
+    expect(active).toHaveLength(1)
+    expect(active[0].classes()).toContain('insights-tab-activity')
+
+    await showTab(wrapper, 'people')
+    expect(wrapper.classes()).toContain('insights-accent-people')
+    expect(wrapper.classes()).not.toContain('insights-accent-activity')
+  })
+
+  it('reads the scatter plot out loud when the axes are related', async () => {
+    const rising = Array.from({ length: 12 }, (_, i) => entry({
+      dbKey: `k${i}`,
+      ratings: [{ calculatedTotal: i, date: localDate(2026, 1, 15) }],
+      movie: { id: i, runtime: 60 + i * 10 }
+    }))
+    const { wrapper } = mountInsights({ mediaEntries: rising })
+    await showTab(wrapper, 'ratings')
+    await wrapper.setData({ selectedXAxis: 'runtime', selectedYAxis: 'userRating' })
+
+    // Asserted on the computed: the readout renders inside an InsightsPane,
+    // which shallowMount stubs, so its slot never reaches the DOM here.
+    expect(wrapper.vm.scatterReading).toMatch(/Runtime .* and User Rating rise together/)
+  })
+})
