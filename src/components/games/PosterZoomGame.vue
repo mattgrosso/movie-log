@@ -1,5 +1,5 @@
 <template>
-  <div ref="root" class="poster-zoom-game" :style="rootStyle">
+  <div ref="root" class="poster-zoom-game">
     <BackLink label="Games" @click="$router.push('/games')"/>
 
     <div v-if="zoomablePool.length < 5" class="not-enough-movies">
@@ -23,12 +23,11 @@
              screen and the only action the round needs, which beats a small
              button at the bottom of the page. Kept a div rather than a
              <button> deliberately — this box's sizing was hard-won (see
-             viewportStyle) and buttons bring their own intrinsic-sizing
+             the CSS below) and buttons bring their own intrinsic-sizing
              quirks, so the semantics are added by hand instead. -->
         <div
           class="zoom-viewport"
           :class="{ tappable: canZoomOut }"
-          :style="viewportStyle"
           :role="canZoomOut ? 'button' : null"
           :tabindex="canZoomOut ? 0 : null"
           :aria-label="canZoomOut ? 'Zoom out' : null"
@@ -128,10 +127,6 @@ const STORAGE_KEY = 'cinemaRoll.posterZoom.current';
 // image.tmdb.org keeps it after the first view.
 const POSTER_SIZE = 'original';
 
-// Below this the game is unplayable, so a measurement under it is treated
-// as a transient layout rather than a real constraint.
-const MIN_STAGE_HEIGHT = 220;
-
 export default {
   name: 'PosterZoomGame',
   components: { BackLink, NewRatingSearch },
@@ -143,45 +138,13 @@ export default {
     this.$store.commit?.('setBannerUrl', posterZoomBanner);
     this.$store.commit?.('setHideHeaderLogo', true);
   },
-  mounted () {
-    this.$nextTick(this.measureAvailableHeight);
-    window.addEventListener('resize', this.measureAvailableHeight);
-    // Rotating and rotating back left the poster shrunk (bug report). The
-    // viewport is mid-flight during a rotation, so whatever is measured then
-    // is wrong — and once it settles, nothing necessarily fires again:
-    // capping the poster smaller doesn't change the body's size, so a
-    // body-only observer goes quiet on a stale value. Re-measuring after the
-    // rotation settles is what actually corrects it.
-    window.addEventListener('orientationchange', this.remeasureAfterSettling);
-    // Keyboard dismissal doesn't reliably fire resize on iOS; the input
-    // losing focus is the signal that typing (and the keyboard) is done.
-    // Settling delays because the keyboard animates out.
-    window.addEventListener('focusout', this.remeasureAfterSettling);
-    if (typeof ResizeObserver !== 'undefined') {
-      this.resizeObserver = new ResizeObserver(this.measureAvailableHeight);
-      // The header banner loads asynchronously and shifts this screen's top
-      // offset when it does, so a single measurement at mount is too early.
-      this.resizeObserver.observe(document.body);
-      // And the stage itself, so a stale stageHeight self-corrects: the
-      // stage grows back to fill leftover space, and that is a size change
-      // the body-level observer would never see.
-      if (this.$refs.stage) this.resizeObserver.observe(this.$refs.stage);
-    }
-  },
   beforeUnmount () {
-    window.removeEventListener('resize', this.measureAvailableHeight);
-    window.removeEventListener('orientationchange', this.remeasureAfterSettling);
-    window.removeEventListener('focusout', this.remeasureAfterSettling);
-    this.settleTimers.forEach(clearTimeout);
-    this.resizeObserver?.disconnect();
     this.$store.commit?.('setBannerUrl', this.previousBannerUrl || null);
     this.$store.commit?.('setHideHeaderLogo', false);
   },
   data () {
     return {
       posterSizeFallback: null, // per-round w500 retry before discarding a poster
-      availableHeight: null,
-      stageHeight: null,
       // The poster stays hidden until it has BOTH loaded and settled on its
       // focal point. Revealing it earlier lets you watch it zoom in from the
       // full image, or lets the crop jump once scoring resolves — either way
@@ -191,7 +154,6 @@ export default {
       // Movies whose poster URL is dead. TMDB paths do rot, and a broken one
       // rendered as a black square you were asked to identify (bug report).
       failedPosterKeys: [],
-      settleTimers: [],
       target: null,
       zoomIndex: 0,
       origin: { x: 50, y: 50 },
@@ -209,27 +171,6 @@ export default {
     // expressible as a fraction of the viewport.
     posterReady () {
       return this.imageLoaded && this.originSettled;
-    },
-    rootStyle () {
-      // Only while actually playing. The "not enough movies" screen has its
-      // own suggestions list that should be free to be as tall as it needs.
-      if (!this.availableHeight || this.zoomablePool.length < 5) return {};
-      return { maxHeight: `${this.availableHeight}px` };
-    },
-    // Capping by height is what makes aspect-ratio derive the WIDTH. Every
-    // CSS-only way of expressing "as tall as the row it's in" failed here:
-    // a percentage height doesn't resolve against a flex-determined parent,
-    // and cross-axis stretch sets the height but then lets flex sizing pick
-    // the width, which produced a landscape box on a 2:3 poster.
-    viewportStyle () {
-      if (!this.stageHeight) return {};
-      // Never cap below a playable size. The poster is capped by the stage
-      // while the stage is sized by its own content, so a single bad
-      // measurement — mid-transition, or before the image has laid out —
-      // could otherwise LATCH: stage measures small, poster is capped
-      // small, so the stage never grows back. Reported as "now I get a tiny
-      // poster I can't see".
-      return { maxHeight: `${Math.max(this.stageHeight, MIN_STAGE_HEIGHT)}px` };
     },
     // Only entries with a poster can be a target — the whole game is the
     // poster. Kept separate from eligibleGameEntries because the guess
@@ -417,58 +358,6 @@ export default {
     // A rotation doesn't land in one frame: the viewport, the header banner's
     // height and the browser chrome all settle over a few hundred ms. One
     // measurement at the event is measured mid-flight, so take several.
-    remeasureAfterSettling () {
-      this.measureAvailableHeight();
-      [50, 150, 400, 800].forEach((delay) => {
-        this.settleTimers.push(setTimeout(this.measureAvailableHeight, delay));
-      });
-    },
-    measureAvailableHeight () {
-      const el = this.$refs.root;
-      if (!el) return;
-
-      // Keyboard guard (Natalie's bug: "the poster is really really small,
-      // smaller than my thumb"): on iOS, focusing the guess input raises
-      // the keyboard, which SHRINKS the viewport and fires a resize — but
-      // dismissing it doesn't reliably fire one, so the shrunken
-      // measurement stuck. While a text input is focused, refuse to commit
-      // any SMALLER measurement (the keyboard overlays the poster; its
-      // size needn't change at all); growth always commits, and the
-      // focusout remeasure below restores truth when typing ends.
-      const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
-
-      const rect = el.getBoundingClientRect();
-      // Document coordinates, so scroll position doesn't skew the result.
-      const topInDocument = rect.top + window.scrollY;
-      // Whatever renders after this screen — the app's footer sits below the
-      // routed view, and ignoring it left the page a footer's height too tall.
-      const below = Math.max(0, document.documentElement.scrollHeight - (topInDocument + rect.height));
-      const next = Math.round(window.innerHeight - topInDocument - below);
-
-      // Only react to real changes: setting maxHeight resizes the body,
-      // which re-fires the observer, and without this that would loop.
-      if (next > 200 && Math.abs(next - (this.availableHeight || 0)) > 1) {
-        if (!(typing && next < (this.availableHeight || 0))) {
-          this.availableHeight = next;
-        }
-      }
-
-      // The stage's own height is flex-determined and therefore real, even
-      // though CSS can't reference it. Safe to read in the same pass: the
-      // stage fills leftover space, so capping the poster inside it can't
-      // change it back.
-      const stage = this.$refs.stage;
-      if (stage) {
-        const stageNext = Math.round(stage.getBoundingClientRect().height);
-        // Same sanity floor as availableHeight above: a measurement this
-        // small is a transient layout, not the truth.
-        if (stageNext > MIN_STAGE_HEIGHT && Math.abs(stageNext - (this.stageHeight || 0)) > 1) {
-          if (!(typing && stageNext < (this.stageHeight || 0))) {
-            this.stageHeight = stageNext;
-          }
-        }
-      }
-    },
     goToMovie (entry) {
       // == null rather than a bare falsy check: a real TMDB id is never 0,
       // but treating it as missing is a bug this codebase has shipped before.
@@ -657,40 +546,43 @@ export default {
    min-height: 0 is required — a flex item defaults to min-height: auto and
    would refuse to shrink below its content, which is exactly the overflow
    this exists to prevent. */
+/* The stage is the sizing authority. It takes the leftover column space,
+   and the poster is positioned against IT — so the poster's height is never
+   derived from its own contents and can neither collapse nor overflow.
+   min-height is a floor for the case where flex has nothing to give. */
 .zoom-stage {
   display: flex;
   flex: 1 1 auto;
   justify-content: center;
   margin: 0.25rem 0;
-  min-height: 0;
-  align-items: center;
+  min-height: 45vh;
+  position: relative;
 }
 
 .zoom-viewport {
-  /* Height comes from the stage's cross-axis stretch, width from the aspect
-     ratio. Sizing this as a fixed fraction of the viewport was tried and
-     can't work: it has no way to know how tall the header banner is, and
-     that banner is 16:9 of the screen width on a phone. */
+  /* Pinned to the stage's top and bottom, so its height is DEFINITE —
+     the stage's height, whatever that turns out to be — and the aspect
+     ratio derives the width from it.
+     
+     This replaces a JS measurement loop (resize + orientationchange +
+     focusout + two ResizeObservers) that tried to compute this height in
+     pixels. Every bug that loop produced came from the same place: the
+     poster's height was derived from the image inside it, whose own height
+     was 100% of the poster — circular, so it could collapse to a thumbnail
+     (and, once "fixed" with a min-height, overflow the page instead).
+     Nothing here can collapse, and rotation and the keyboard need no
+     special handling because there is nothing to re-measure. */
   aspect-ratio: 2 / 3;
   background: #000;
-  flex: 0 0 auto;
   border: 1px solid #333;
   border-radius: 0.5rem;
-  /* max-height is set inline from the measured stage height; this is just
-     the ceiling for a tall desktop window. */
-  max-height: 460px;
+  bottom: 0;
+  left: 50%;
   max-width: 100%;
-  /* A real floor, not zero. The stage CENTERS rather than stretches, so
-     this box's height comes from the image inside it — whose own height is
-     100% of this box. That circular dependency can collapse to almost
-     nothing (bug report, with a screenshot: a thumbnail-sized poster and
-     half a screen of empty space below it), and max-height cannot rescue a
-     box shrinking from below. min-height beats max-height in CSS, so this
-     guarantees a playable poster whatever the measurement does. */
-  min-height: min(40vh, 320px);
   overflow: hidden;
-  position: relative;
-  width: auto;
+  position: absolute;
+  top: 0;
+  translate: -50% 0;
 }
 
 .zoom-image {

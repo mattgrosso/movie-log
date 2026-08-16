@@ -38,8 +38,12 @@
                  than standing on its own (bug report). The word "overall"
                  is dropped — the ordinal alone reads fine next to a score. -->
             <span class="rating-with-rank">
-              <ToggleableRating :rating="ratingForMedia(result)" :normalizedRating="normalizedRatingForMedia(result)"/>
-              <span v-if="overallRank" class="overall-rank">({{ordinalRank}})</span>
+              <ToggleableRating
+                :rating="ratingForMedia(result)"
+                :normalizedRating="normalizedRatingForMedia(result)"
+                @typeChanged="visibleRatingType = $event"
+              />
+              <span v-if="overallRank && visibleRatingType === 'rating'" class="overall-rank">({{ordinalRank}})</span>
             </span>
           </div>
           <div class="line-two">
@@ -551,6 +555,9 @@ export default {
   },
   data () {
     return {
+      // Mirrors ToggleableRating's current view so the rank can hide
+      // when the score is showing as stars or a normalized value.
+      visibleRatingType: 'rating',
       movie: null,
       result: null, // Will be constructed from movie data
       previousEntry: null,

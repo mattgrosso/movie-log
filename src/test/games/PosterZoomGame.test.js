@@ -47,61 +47,35 @@ beforeEach(() => {
 });
 
 describe('PosterZoomGame', () => {
-  describe('keyboard-shrink guard (Natalie: poster "smaller than my thumb")', () => {
-    // iOS fires resize when the keyboard opens (shrinking the stage) but
-    // not reliably when it closes — so a shrink measured mid-typing stuck.
-    function stubStage (wrapper, height) {
-      wrapper.vm.$refs.stage.getBoundingClientRect = () => ({ height, top: 0, width: 300 })
-    }
+  describe('poster sizing has no JS measurement (Natalie: poster "smaller than my thumb")', () => {
+    // This screen once measured its own height in JS — resize +
+    // orientationchange + focusout + two ResizeObservers — because the
+    // poster's height came from the image inside it, whose height was 100%
+    // of the poster. That circle could collapse the poster to a thumbnail,
+    // and each added listener was a patch on the last failure. The poster is
+    // now pinned to the stage in CSS, so there is nothing to measure and
+    // nothing to get wrong on rotation or when the keyboard opens.
+    it('registers no resize, orientation or focus listeners', () => {
+      const added = []
+      const realAdd = window.addEventListener
+      window.addEventListener = (type, ...rest) => { added.push(type); return realAdd.call(window, type, ...rest) }
 
-    it('refuses to commit a SMALLER stage height while a text input is focused', async () => {
-      const { wrapper } = factory(tenMovies())
-      wrapper.vm.stageHeight = 400
+      try {
+        factory(tenMovies())
+      } finally {
+        window.addEventListener = realAdd
+      }
 
-      const input = document.createElement('input')
-      document.body.appendChild(input)
-      input.focus()
-
-      // Above the unplayable floor, so this test is about the keyboard
-      // guard alone rather than the floor.
-      stubStage(wrapper, 300) // keyboard-shrunken measurement
-      wrapper.vm.measureAvailableHeight()
-      expect(wrapper.vm.stageHeight).toBe(400) // held
-
-      input.blur()
-      wrapper.vm.measureAvailableHeight()
-      expect(wrapper.vm.stageHeight).toBe(300) // real change commits once typing ends
-      input.remove()
+      expect(added).not.toContain('resize')
+      expect(added).not.toContain('orientationchange')
+      expect(added).not.toContain('focusout')
     })
 
-    it('never latches at an unplayable size (bug report: "a tiny poster I can\'t see")', async () => {
+    it('puts no inline height on the poster box', () => {
       const { wrapper } = factory(tenMovies())
-      wrapper.vm.stageHeight = 400
-
-      // A transient layout — mid-transition, or before the image lays out.
-      stubStage(wrapper, 40)
-      wrapper.vm.measureAvailableHeight()
-      expect(wrapper.vm.stageHeight).toBe(400) // rejected, not committed
-
-      // And even if a tiny value ever did land, the poster stays playable:
-      // the stage caps the poster while the stage is sized BY the poster, so
-      // committing a tiny cap would latch with no way back.
-      wrapper.vm.stageHeight = 40
-      expect(Number.parseInt(wrapper.vm.viewportStyle.maxHeight, 10)).toBeGreaterThanOrEqual(220)
-    })
-
-    it('always commits growth, even while typing', () => {
-      const { wrapper } = factory(tenMovies())
-      wrapper.vm.stageHeight = 200
-
-      const input = document.createElement('input')
-      document.body.appendChild(input)
-      input.focus()
-
-      stubStage(wrapper, 420)
-      wrapper.vm.measureAvailableHeight()
-      expect(wrapper.vm.stageHeight).toBe(420)
-      input.remove()
+      const viewport = wrapper.find('.zoom-viewport')
+      expect(viewport.exists()).toBe(true)
+      expect(viewport.attributes('style') || '').not.toMatch(/height/)
     })
   })
 
@@ -536,44 +510,6 @@ describe('PosterZoomGame', () => {
     });
   });
 
-  describe('surviving a rotation', () => {
-    it('re-measures repeatedly after an orientation change, not just once', () => {
-      // A rotation settles over a few hundred ms — the viewport, the header
-      // banner's height and the browser chrome all move. One measurement at
-      // the event fires mid-flight and sticks (bug report: rotating and back
-      // left the poster shrunk).
-      vi.useFakeTimers();
-      try {
-        const { wrapper } = factory(tenMovies());
-        const spy = vi.spyOn(wrapper.vm, 'measureAvailableHeight');
-
-        wrapper.vm.remeasureAfterSettling();
-        expect(spy).toHaveBeenCalledTimes(1);
-
-        vi.advanceTimersByTime(1000);
-        expect(spy.mock.calls.length).toBeGreaterThan(1);
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-
-    it('clears its pending re-measures on unmount', () => {
-      vi.useFakeTimers();
-      try {
-        const { wrapper } = factory(tenMovies());
-        wrapper.vm.remeasureAfterSettling();
-        expect(wrapper.vm.settleTimers.length).toBeGreaterThan(0);
-
-        const spy = vi.spyOn(wrapper.vm, 'measureAvailableHeight');
-        wrapper.unmount();
-        vi.advanceTimersByTime(1000);
-
-        expect(spy).not.toHaveBeenCalled();
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-  });
 
   describe('banner', () => {
     it('swaps in its own artwork and hides the logo, then restores both', () => {

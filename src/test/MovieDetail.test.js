@@ -365,3 +365,41 @@ describe('MovieDetail geography sections', () => {
 
 })
 
+
+describe('MovieDetail — rank rides only with the precise score', () => {
+  // Tapping the score cycles precise -> normalized -> stars. A rank beside
+  // a star rating or a normalized score answers a question nobody asked.
+  it('shows the rank for the precise score and hides it for the other views', async () => {
+    const store = {
+      state: { movieLog: {}, settings: { tags: { 'viewing-tags': {} } }, academyAwardWinners: {} },
+      // Ranked list containing this movie, so overallRank is a real value
+      // and the assertions below can't pass trivially on null.
+      getters: {
+        allMoviesAsArray: [],
+        allMediaAsArray: [makeResult()],
+        allMediaSortedByRating: [{ dbKey: 'other' }, makeResult()],
+        customLists: []
+      },
+      commit: vi.fn(),
+      dispatch: vi.fn()
+    }
+    const wrapper = shallowMount(MovieDetail, {
+      global: {
+        mocks: { $store: store, $route: { params: { tmdbId: '42' }, query: {} }, $router: { push: vi.fn() } },
+        stubs: { ToggleableRating: true, Modal: true }
+      }
+    })
+    await wrapper.setData({ result: makeResult(), movie: makeResult().movie, visibleRatingType: 'rating' })
+    expect(wrapper.vm.overallRank).toBe(2)                        // there IS a rank to show
+    expect(wrapper.find('.overall-rank').text()).toBe('(2nd)')
+
+    await wrapper.setData({ visibleRatingType: 'stars' })
+    expect(wrapper.find('.overall-rank').exists()).toBe(false)
+
+    await wrapper.setData({ visibleRatingType: 'normalizedRating' })
+    expect(wrapper.find('.overall-rank').exists()).toBe(false)
+
+    await wrapper.setData({ visibleRatingType: 'rating' })
+    expect(wrapper.find('.overall-rank').text()).toBe('(2nd)')    // and back again
+  })
+})

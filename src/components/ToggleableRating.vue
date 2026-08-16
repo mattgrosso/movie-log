@@ -23,6 +23,10 @@
 <script>
 export default {
   name: 'ToggleableRating',
+  // Which of the three views is showing. MovieDetail uses it to show the
+  // overall rank ONLY beside the precise score — a rank next to a star
+  // rating or a normalized score is answering a question nobody asked.
+  emits: ['typeChanged'],
   props: {
     rating: {
       type: Number,
@@ -36,6 +40,14 @@ export default {
   data () {
     return {
       visibleRatingType: 'rating'
+    }
+  },
+  mounted () {
+    this.$emit('typeChanged', this.visibleRatingType);
+  },
+  watch: {
+    visibleRatingType (type) {
+      this.$emit('typeChanged', type);
     }
   },
   computed: {
