@@ -28,7 +28,7 @@ import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
 import { pendingUpdates, reconcilePending } from "../assets/javascript/recommendationStats.js";
-import { toInterchange, profileFromFeed, buildInvite, parseInvite, buildConnectRequest, normalizeInboxRequests } from "../assets/javascript/interchange.js";
+import { toInterchange, profileFromFeed, buildInvite, parseInvite, buildConnectRequest, normalizeInboxRequests, buildDirectoryEntry, normalizeDirectory, FEDERATED_APPS } from "../assets/javascript/interchange.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -276,6 +276,9 @@ export default createStore({
     externalFriendErrors: {},
     // Connect requests from people on other apps (see clubInbox rules).
     clubInboxRequests: {},
+    // Users of other apps, fetched from their public directories.
+    federatedDirectory: [],
+    federatedDirectoryLoading: false,
     socialAttachedFor: null,
     // When the user last opened the Film Club — drives the rainbow chip's
     // new-updates badge. Mirrored to localStorage so it survives reloads.
@@ -380,6 +383,9 @@ export default createStore({
     // One list for the whole club: native mutual friends and friends on
     // other apps, in the same shape, so nothing downstream needs to care
     // which app someone uses.
+    crossAppDiscoveryEnabled (state) {
+      return Boolean(state.settings?.crossAppDiscovery);
+    },
     clubInboxRequests (state) {
       return normalizeInboxRequests(state.clubInboxRequests);
     },
@@ -449,6 +455,12 @@ export default createStore({
     },
     setSocialDirectory (state, value) {
       state.socialDirectory = value || {};
+    },
+    setFederatedDirectory (state, rows) {
+      state.federatedDirectory = rows || [];
+    },
+    setFederatedDirectoryLoading (state, value) {
+      state.federatedDirectoryLoading = Boolean(value);
     },
     setClubInboxRequests (state, value) {
       state.clubInboxRequests = value || {};
@@ -1317,6 +1329,75 @@ export default createStore({
         name: context.getters.socialSettings.displayName || 'A Cinema Roll user'
       });
       await set(ref(db, `clubFeed/${me}/${secret}`), feed);
+    },
+    // Cross-app discovery is its own opt-in: this row is PUBLICLY readable,
+    // which is more exposure than the in-app directory (auth required), so
+    // it is never published without an explicit choice.
+    async setCrossAppDiscovery (context, enabled) {
+      await context.dispatch('writeDurably', { path: 'settings/crossAppDiscovery', value: Boolean(enabled) });
+      if (enabled) {
+        await context.dispatch('publishDirectoryEntry');
+      } else {
+        const me = context.state.databaseTopKey;
+        if (me) await set(ref(db, `clubDirectory/${me}`), null);
+      }
+    },
+    async publishDirectoryEntry (context) {
+      const me = context.state.databaseTopKey;
+      if (!me || !context.state.settings?.crossAppDiscovery) return;
+      const invite = await context.dispatch('createClubInvite');
+      if (!invite) return;
+      const entry = buildDirectoryEntry({
+        handle: context.state.settings?.clubHandle || me,
+        name: context.getters.socialSettings.displayName,
+        inboxUrl: invite.inboxUrl
+      });
+      if (entry) await set(ref(db, `clubDirectory/${me}`), entry);
+    },
+    // Everyone discoverable on the apps we federate with.
+    async fetchFederatedDirectory (context) {
+      context.commit('setFederatedDirectoryLoading', true);
+      try {
+        const lists = await Promise.all(FEDERATED_APPS.map(async (app) => {
+          try {
+            const response = await fetch(app.directoryUrl, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`directory responded ${response.status}`);
+            return normalizeDirectory(await response.json(), { app: app.id });
+          } catch (error) {
+            console.warn(`[film-club] ${app.name} directory unavailable:`, error.message);
+            return [];
+          }
+        }));
+        context.commit('setFederatedDirectory', lists.flat());
+      } finally {
+        context.commit('setFederatedDirectoryLoading', false);
+      }
+    },
+    // Add someone straight from the directory — no links, no pasting.
+    async requestFriendFromDirectory (context, entry) {
+      if (!entry?.inboxUrl) return { ok: false, error: 'That person has no inbox.' };
+      const invite = await context.dispatch('createClubInvite');
+      if (!invite) return { ok: false, error: 'Could not create your own feed.' };
+      try {
+        const response = await fetch(entry.inboxUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildConnectRequest({
+            name: invite.name,
+            feedUrl: invite.feedUrl,
+            replyInboxUrl: invite.inboxUrl
+          }))
+        });
+        if (!response.ok) throw new Error(`inbox responded ${response.status}`);
+        // Remember we asked, so the directory can hide them.
+        await context.dispatch('writeDurably', {
+          path: `settings/clubRequestsSent/${entry.handle}`,
+          value: { name: entry.name, app: entry.app, inboxUrl: entry.inboxUrl, at: Date.now() }
+        });
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: `Could not reach them: ${error.message}` };
+      }
     },
     async ensureClubInviteCode (context) {
       const existing = context.state.settings?.clubInviteCode;

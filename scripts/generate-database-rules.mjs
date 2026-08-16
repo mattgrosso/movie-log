@@ -115,6 +115,19 @@ const rules = {
       }
     },
 
+    // Cross-app directory (2026-08-16). Publicly readable ON PURPOSE: it is
+    // how someone using a different app finds you well enough to send a
+    // request. It carries a handle, display name and inbox URL — never a
+    // feed URL, because a feed URL is a capability. Opt-in per user; a row
+    // exists only for someone who turned cross-app discovery on.
+    clubDirectory: {
+      '.read': true,
+      $userKey: {
+        '.write': `auth != null && $userKey === ${sanitizedAuthEmail}`,
+        '.validate': "!newData.exists() || (newData.hasChildren(['handle', 'name', 'inboxUrl']) && newData.child('name').val().length < 120)"
+      }
+    },
+
     // Cross-app connect inbox (2026-08-16). Lets someone on ANOTHER app ask
     // to join your Film Club without having an account here.
     //

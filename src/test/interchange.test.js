@@ -244,3 +244,51 @@ describe('cross-app connect', () => {
     expect(buildConnectRequest({ name: 'Matt' })).toBeNull()
   })
 })
+
+describe('cross-app directory', () => {
+  it('an entry carries how to find and knock, but never a feed URL', async () => {
+    const { buildDirectoryEntry } = await import('@/assets/javascript/interchange.js')
+    const entry = buildDirectoryEntry({ handle: 'mattg', name: 'Matt Grosso', inboxUrl: 'https://db/clubInbox/matt/code.json' })
+
+    expect(entry).toEqual({ handle: 'mattg', name: 'Matt Grosso', app: 'cinemaroll', inboxUrl: 'https://db/clubInbox/matt/code.json' })
+    expect(JSON.stringify(entry)).not.toContain('clubFeed')   // capability never published
+    expect(buildDirectoryEntry({ handle: 'x', name: 'y' })).toBeNull()
+  })
+
+  it('normalizes another app\'s directory and drops anything unusable', async () => {
+    const { normalizeDirectory } = await import('@/assets/javascript/interchange.js')
+    const payload = {
+      bgoegan: { handle: 'bgoegan', name: 'Brian Goegan', inboxUrl: 'https://ml/inbox/brian.json', avatarUrl: 'https://ml/a.png' },
+      keyOnly: { name: 'Handle From Key', inboxUrl: 'https://ml/inbox/k.json' },
+      insecure: { handle: 'bad', name: 'Bad', inboxUrl: 'http://ml/inbox/bad.json' },
+      noInbox: { handle: 'none', name: 'No Inbox' },
+      dupe: { handle: 'bgoegan', name: 'Impostor', inboxUrl: 'https://ml/inbox/fake.json' }
+    }
+    const rows = normalizeDirectory(payload, { app: 'movielog' })
+
+    expect(rows.map((r) => r.handle)).toEqual(['bgoegan', 'keyOnly'])   // sorted by name
+    expect(rows[0].app).toBe('movielog')
+    expect(rows[0].avatarUrl).toBe('https://ml/a.png')
+    expect(rows[1].handle).toBe('keyOnly')                              // handle falls back to the key
+  })
+
+  it('rejects a non-https avatar without dropping the person', async () => {
+    const { normalizeDirectory } = await import('@/assets/javascript/interchange.js')
+    const rows = normalizeDirectory([{ handle: 'a', name: 'A', inboxUrl: 'https://ml/i.json', avatarUrl: 'http://x/a.png' }])
+    expect(rows.length).toBe(1)
+    expect(rows[0].avatarUrl).toBeNull()
+  })
+
+  it('hides people you already have or already asked', async () => {
+    const { filterDirectory } = await import('@/assets/javascript/interchange.js')
+    const entries = [
+      { handle: 'a', name: 'Alice', inboxUrl: 'https://ml/a.json' },
+      { handle: 'b', name: 'Bob', inboxUrl: 'https://ml/b.json' },
+      { handle: 'c', name: 'Carol', inboxUrl: 'https://ml/c.json' }
+    ]
+    expect(filterDirectory(entries, { excludeInboxUrls: ['https://ml/a.json'] }).map((e) => e.handle)).toEqual(['b', 'c'])
+    expect(filterDirectory(entries, { excludeHandles: ['b'] }).map((e) => e.handle)).toEqual(['a', 'c'])
+    expect(filterDirectory(entries, { search: 'car' }).map((e) => e.handle)).toEqual(['c'])
+    expect(filterDirectory(entries, { search: 'A' }).map((e) => e.handle)).toEqual(['a', 'c'])  // Alice + Carol
+  })
+})

@@ -103,26 +103,35 @@
           </span>
         </div>
 
-        <div class="cs-add-external">
-          <input v-model="externalUrl" type="text" class="form-control cs-input" placeholder="Paste their invite link">
-          <button type="button" class="btn btn-warning btn-sm" :disabled="!externalUrl.trim() || addingExternal" @click="addExternal">
-            {{ addingExternal ? 'Connecting…' : 'Connect' }}
-          </button>
+        <!-- Browse people on other apps and add them directly. -->
+        <div class="cs-discovery">
+          <input v-model="directorySearch" type="text" class="form-control cs-input" placeholder="Search people on other apps">
+          <p v-if="directoryLoading" class="cs-caption">Looking…</p>
+          <p v-else-if="!visibleDirectory.length" class="cs-caption">
+            {{ directorySearch ? 'Nobody by that name.' : 'Nobody discoverable right now.' }}
+          </p>
+          <div v-for="person in visibleDirectory" :key="`${person.app}-${person.handle}`" class="cs-row">
+            <span class="cs-row-name">
+              {{ person.name }}
+              <span class="cs-row-app">@{{ person.handle }} · {{ person.app }}</span>
+            </span>
+            <button type="button" class="btn btn-warning btn-sm" :disabled="requesting === person.handle" @click="requestFriend(person)">
+              {{ requesting === person.handle ? 'Asking…' : 'Add friend' }}
+            </button>
+          </div>
           <p v-if="externalError" class="cs-external-error">{{ externalError }}</p>
           <p v-if="externalNote" class="cs-caption">{{ externalNote }}</p>
         </div>
 
         <div class="cs-share-own">
-          <p class="cs-caption">Your invite — send this to someone on another app and they can both follow you and ask to be added:</p>
-          <button v-if="!inviteJson" type="button" class="btn btn-outline-light btn-sm" :disabled="creatingInvite" @click="createInvite">
-            {{ creatingInvite ? 'Creating…' : 'Create my invite link' }}
-          </button>
-          <template v-else>
-            <textarea class="form-control cs-input cs-invite" readonly rows="4" :value="inviteJson" @focus="$event.target.select()"></textarea>
-            <button type="button" class="btn btn-outline-light btn-sm" @click="copyInvite">
-              {{ inviteCopied ? 'Copied' : 'Copy my invite' }}
-            </button>
-          </template>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="crossAppToggle" :checked="crossAppDiscovery" @change="toggleDiscovery">
+            <label class="form-check-label" for="crossAppToggle">Let people on other apps find me</label>
+          </div>
+          <p class="cs-caption">
+            Publishes your display name and a request inbox to a public list, so friends on other apps can add you
+            without swapping links. Your ratings stay private until you accept someone.
+          </p>
         </div>
       </section>
 
@@ -147,6 +156,7 @@
 import BackLink from './games/BackLink.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { filmClubSummary } from '../assets/javascript/social.js';
+import { filterDirectory } from '../assets/javascript/interchange.js';
 
 export default {
   name: 'FilmClubScreen',
@@ -154,6 +164,22 @@ export default {
   computed: {
     socialSettings () {
       return this.$store.getters.socialSettings;
+    },
+    crossAppDiscovery () {
+      return this.$store.getters.crossAppDiscoveryEnabled;
+    },
+    directoryLoading () {
+      return this.$store.state.federatedDirectoryLoading;
+    },
+    visibleDirectory () {
+      const friends = this.$store.getters.filmClubFriends || [];
+      const known = Object.values(this.$store.state.settings?.externalFriends || {}).map((f) => f?.feedUrl);
+      const asked = Object.keys(this.$store.state.settings?.clubRequestsSent || {});
+      return filterDirectory(this.$store.state.federatedDirectory, {
+        search: this.directorySearch,
+        excludeHandles: asked,
+        excludeInboxUrls: known.filter(Boolean)
+      }).slice(0, 25);
     },
     inboxRequests () {
       return this.$store.getters.clubInboxRequests || [];
@@ -224,42 +250,29 @@ export default {
     this.$store.dispatch('fetchSocialDirectory');
     this.$store.dispatch('syncExternalFriends');
     this.$store.dispatch('watchClubInbox');
+    this.$store.dispatch('fetchFederatedDirectory');
     // Opening the club clears the rainbow chip's new-updates badge.
     this.$store.commit('markFilmClubSeen');
   },
   methods: {
-    async addExternal () {
+    async requestFriend (person) {
       this.externalError = '';
       this.externalNote = '';
-      this.addingExternal = true;
+      this.requesting = person.handle;
       try {
-        const result = await this.$store.dispatch('sendClubRequest', this.externalUrl);
+        const result = await this.$store.dispatch('requestFriendFromDirectory', person);
         if (!result?.ok) {
-          this.externalError = result?.error || 'That invite could not be read.';
+          this.externalError = result?.error || 'Could not send that request.';
           return;
         }
-        this.externalNote = result.replied
-          ? 'Connected — they have your invite too.'
-          : (result.note || 'Subscribed.');
-        this.externalUrl = '';
+        this.externalNote = `Asked ${person.name}. They'll see it in ${person.app}.`;
       } finally {
-        this.addingExternal = false;
+        this.requesting = null;
       }
     },
-    async createInvite () {
-      this.creatingInvite = true;
-      try {
-        const invite = await this.$store.dispatch('createClubInvite');
-        this.inviteJson = invite ? JSON.stringify(invite, null, 2) : '';
-        this.$store.dispatch('watchClubInbox');
-      } finally {
-        this.creatingInvite = false;
-      }
-    },
-    copyInvite () {
-      navigator.clipboard?.writeText(this.inviteJson);
-      this.inviteCopied = true;
-      setTimeout(() => { this.inviteCopied = false; }, 2000);
+    async toggleDiscovery (event) {
+      await this.$store.dispatch('setCrossAppDiscovery', event.target.checked);
+      this.$store.dispatch('watchClubInbox');
     },
     async acceptRequest (request) {
       await this.$store.dispatch('acceptClubRequest', request);
@@ -340,7 +353,7 @@ export default {
 
 .cs-external-error { color: #e88; font-size: 0.75rem; margin: 0; }
 .cs-row-app { color: #ccc; font-size: 0.75rem; font-weight: 400; }
-.cs-invite { font-family: monospace; font-size: 0.65rem; }
+.cs-discovery { display: flex; flex-direction: column; gap: 0.3rem; }
 
 .cs-row {
   align-items: center;

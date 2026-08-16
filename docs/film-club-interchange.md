@@ -106,9 +106,28 @@ secret path your database rules make readable, and send that URL. That's it
 — roughly five minutes of rules work, exposes nothing else, and Cinema Roll
 handles the rest.
 
-## Connecting (optional, but it's what makes it feel like one app)
+## Discovery — the public directory
 
-A feed lets you follow someone. The connect inbox lets someone *ask*.
+Each app publishes the users who opted into cross-app discovery at a publicly
+readable path (Cinema Roll: `clubDirectory/<userKey>`, and browsable at
+`…/clubDirectory.json`):
+
+```jsonc
+{ "handle": "mattg", "name": "Matt Grosso", "app": "cinemaroll",
+  "avatarUrl": "https://…/a.png",
+  "inboxUrl": "https://…/clubInbox/<key>/<code>.json" }
+```
+
+**A directory row never contains a feed URL.** A feed URL is a capability —
+anyone holding it can read that library — so feeds are exchanged only between
+two people who have agreed. The directory carries just enough to find someone
+and knock on their door, which is what removes link-swapping entirely.
+
+Publish a row only for users who explicitly opted in; this is public data.
+
+## Connecting
+
+A directory lets you find someone. The connect inbox lets you *ask*.
 
 Each user exposes an inbox path carrying a per-user invite code:
 `…/clubInbox/<accountKey>/<inviteCode>/<requestId>`, with rules that let a

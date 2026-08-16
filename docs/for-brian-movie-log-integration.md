@@ -17,18 +17,22 @@ of this document.** The sections above it are the human explanation.
 
 ## The shape of it
 
-Two mechanisms, both dead simple, both pull-only. Neither app ever writes into
-the other's database.
+Three mechanisms, all dead simple, all pull-only. Neither app ever writes into
+the other's database except to drop a request in a mailbox.
 
-1. **A feed.** Each user publishes one JSON document describing their rated
-   library at an unguessable URL. Anyone holding the URL can read it. That's
-   how libraries flow.
-2. **A connect inbox.** Each user has an inbox URL where someone on another
+1. **A public directory.** Each app publishes a list of users who opted into
+   cross-app discovery: handle, display name, and a request inbox URL.
+   **Never a feed URL** — a feed URL is a capability, so it is exchanged only
+   between two people who have agreed. This is what removes link-swapping:
+   your users see mine in a list and vice versa.
+2. **A connect inbox.** Each discoverable user has an inbox URL where another
    app can drop a "can I add you?" request. The recipient accepts inside their
-   own app. That's how friendships start.
+   own app, in whatever UI they already have.
+3. **A feed.** Once two people are connected, each reads the other's library
+   from an unguessable URL exchanged during the handshake.
 
-An **invite** is just a small JSON blob containing both URLs, which a user
-sends to a friend however they like (text, email, whatever).
+**No copying and pasting anything.** A user browses, taps Add, the other
+person accepts in their own app, and both sides start pulling.
 
 ## Good news about our data
 
@@ -84,7 +88,34 @@ Log's half against a fixed, working contract. Do not redesign the contract.
   area, and there is a global change marker (seen as `movieLogLastModified`
   / `appState.marker`) that changes when a library changes.
 
-### Deliverable 1 — publish a feed
+### Deliverable 1 — publish a public directory
+
+Publish everyone who opts into cross-app discovery at a publicly readable
+path. Cinema Roll uses `clubDirectory/<userKey>`, world-readable, each row
+writable only by its owner:
+
+```jsonc
+{
+  "bgoegan": {
+    "handle": "bgoegan",
+    "name": "Brian Goegan",
+    "app": "movielog",
+    "avatarUrl": "https://…/avatar.png",          // optional, https only
+    "inboxUrl": "https://…/clubInbox/<key>/<code>.json"
+  }
+}
+```
+
+Rules:
+- **Never put a feed URL in the directory.** Feeds are capabilities.
+- Publish a row only for users who explicitly opted in — this is public.
+- An array works as well as an object map; we normalise either.
+
+Cinema Roll's directory is at
+`https://movie-log-8c4d5-default-rtdb.firebaseio.com/clubDirectory.json`.
+Fetch it to show Cinema Roll users inside Movie Log.
+
+### Deliverable 2 — publish a feed
 
 For each user who opts in, publish a JSON document at a stable, unguessable
 URL. Recommended path: `clubFeed/<userKey>/<32-hex-secret>`, with database
@@ -145,7 +176,7 @@ Alternatively — and this is genuinely fine — **expose your raw records** at 
 secret path instead. Cinema Roll's importer detects and adapts them. If you do
 that, you can skip the transformation entirely; the rest of this still applies.
 
-### Deliverable 2 — a connect inbox
+### Deliverable 3 — a connect inbox
 
 Create a path where someone on another app can drop a request. Cinema Roll's
 equivalent, which you can copy:
@@ -186,7 +217,7 @@ Anyone with the invite link can write here, so **treat every field as
 untrusted**: require `https://` URLs, cap lengths, ignore anything older than
 ~60 days, and never render raw HTML from `name`.
 
-### Deliverable 3 — the two user-facing flows
+### Deliverable 4 — the two user-facing flows
 
 **Accepting an incoming request.** Show pending inbox requests in your
 existing Friends/People UI ("Matt Grosso on cinemaroll wants to connect —
@@ -196,26 +227,16 @@ Accept / Dismiss"). On accept:
    they get you as a friend without a second exchange.
 3. Delete the request from your inbox.
 
-**Sending a request.** Let the user paste an invite (JSON blob, or a bare feed
-URL). Subscribe to the `feedUrl` immediately; if the invite has an `inboxUrl`,
-POST your request object there.
-
-An invite you generate should look like:
-
-```jsonc
-{
-  "format": "film-club/1",
-  "name": "Brian Goegan",
-  "app": "movielog",
-  "feedUrl": "https://…/clubFeed/<key>/<secret>.json",
-  "inboxUrl": "https://…/clubInbox/<key>/<code>.json"
-}
-```
+**Sending a request.** Show Cinema Roll's directory inside your existing
+"Find people" UI — ideally merged with your own results so a user doesn't have
+to think about which app someone is on. Tapping Add POSTs a request to that
+person's `inboxUrl` containing your own `feedUrl` and `replyInboxUrl`. Hide
+people the user has already added or already asked.
 
 Note that Firebase RTDB accepts `POST` to a `.json` path and auto-generates a
 child key, which makes the inbox a single HTTP call with no SDK.
 
-### Deliverable 4 — consuming a feed
+### Deliverable 5 — consuming a feed
 
 Fetch a friend's `feedUrl`, check `format` starts with `film-club/`, and map
 it into whatever your friends UI renders. `tmdbId` is the join key for
@@ -228,8 +249,9 @@ a sensible interval and skip parsing when `marker` is unchanged from last time.
 
 ### Acceptance criteria
 
-1. A user can generate an invite containing a working `feedUrl` and `inboxUrl`.
-2. Fetching that `feedUrl` unauthenticated returns a valid `film-club/1`
+1. A user who opts into discovery appears in your public directory with a
+   handle, name and inbox URL — and **no feed URL**.
+2. Fetching a user's `feedUrl` unauthenticated returns a valid `film-club/1`
    document; fetching its parent path is denied.
 3. Posting a well-formed request to that `inboxUrl` unauthenticated succeeds;
    modifying or deleting an existing request unauthenticated fails.
@@ -239,6 +261,8 @@ a sensible interval and skip parsing when `marker` is unchanged from last time.
    is present, causes the sender to receive a reciprocal request.
 6. A friend added this way appears in the normal friends UI and their ratings
    render like any other friend's.
+6b. A Movie Log user can browse Cinema Roll users from within Movie Log and
+   add one without copying any link.
 7. Round trip: a movie rated 6.6965 with `impression: 1` on Movie Log arrives
    in Cinema Roll as `rating: 6.6965` with `stickiness: 1`, and vice versa.
 

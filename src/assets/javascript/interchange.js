@@ -291,3 +291,68 @@ export function normalizeInboxRequests (raw, { now = Date.now(), maxAgeDays = 60
     .filter(Boolean)
     .sort((a, b) => b.at - a.at);
 }
+
+// ---------------------------------------------------------------------------
+// DISCOVERY: a public directory per app, so friends can be found and added
+// without anyone copying links around.
+//
+// The directory deliberately does NOT contain feed URLs. A feed URL is a
+// capability — anyone holding it can read that library — so feeds are
+// exchanged only between two people who have agreed. The directory carries
+// just enough to find someone and knock on their door.
+
+// Apps Cinema Roll knows how to browse. Adding one is a two-line change.
+export const FEDERATED_APPS = Object.freeze([
+  {
+    id: 'movielog',
+    name: 'Movie Log',
+    directoryUrl: 'https://movie-log-ae673-default-rtdb.firebaseio.com/clubDirectory.json'
+  }
+]);
+
+export function buildDirectoryEntry ({ handle, name, inboxUrl, app = CONNECT_APP, avatarUrl = null }) {
+  if (!handle || !name || !inboxUrl) return null;
+  const entry = { handle: String(handle).slice(0, 40), name: String(name).slice(0, 120), app, inboxUrl };
+  if (avatarUrl) entry.avatarUrl = String(avatarUrl).slice(0, 500);
+  return entry;
+}
+
+// Another app's directory, treated as hostile input: an object map or an
+// array, entries missing required fields dropped, https-only inbox URLs.
+export function normalizeDirectory (payload, { app } = {}) {
+  const rows = Array.isArray(payload)
+    ? payload
+    : Object.entries(payload || {}).map(([key, value]) => ({ key, ...(value || {}) }));
+
+  const seen = new Set();
+  return rows
+    .map((row) => {
+      const inboxUrl = typeof row?.inboxUrl === 'string' ? row.inboxUrl.trim() : '';
+      if (!/^https:\/\//i.test(inboxUrl)) return null;
+      const handle = String(row?.handle || row?.key || '').trim();
+      if (!handle || seen.has(handle)) return null;
+      seen.add(handle);
+      return {
+        handle: handle.slice(0, 40),
+        name: String(row?.name || handle).slice(0, 120),
+        app: row?.app || app || 'another app',
+        avatarUrl: typeof row?.avatarUrl === 'string' && /^https:\/\//i.test(row.avatarUrl) ? row.avatarUrl : null,
+        inboxUrl
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// Hide people already connected or already asked, so the list only shows
+// people you could actually add.
+export function filterDirectory (entries, { search = '', excludeInboxUrls = [], excludeHandles = [] } = {}) {
+  const term = search.trim().toLowerCase();
+  const inboxes = new Set(excludeInboxUrls.filter(Boolean));
+  const handles = new Set(excludeHandles.filter(Boolean));
+  return (entries || []).filter((entry) => {
+    if (inboxes.has(entry.inboxUrl) || handles.has(entry.handle)) return false;
+    if (!term) return true;
+    return entry.name.toLowerCase().includes(term) || entry.handle.toLowerCase().includes(term);
+  });
+}
