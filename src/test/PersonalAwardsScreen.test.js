@@ -69,7 +69,7 @@ describe('PersonalAwardsScreen', () => {
     it('lists every eligible year, oldest first', () => {
       const { wrapper } = factory({ year: '1997' }, {}, library);
 
-      expect(wrapper.findAll('.awards-year-pill').map((pill) => pill.find('.awards-year-label').text()))
+      expect(wrapper.findAll('.awards-year-pill').map((pill) => pill.text()))
         .toEqual(['1994', '1997', '2001']);
     });
 
@@ -80,7 +80,7 @@ describe('PersonalAwardsScreen', () => {
 
       const selected = wrapper.findAll('.awards-year-pill').filter((pill) => pill.classes('selected'));
       expect(selected).toHaveLength(1);
-      expect(selected[0].find('.awards-year-label').text()).toBe('1997');
+      expect(selected[0].text()).toBe('1997');
     });
 
     // The modal, not the URL, decides the year on a bare /awards.
@@ -90,24 +90,7 @@ describe('PersonalAwardsScreen', () => {
       await wrapper.vm.$nextTick();
 
       const selected = wrapper.findAll('.awards-year-pill').filter((pill) => pill.classes('selected'));
-      expect(selected[0].find('.awards-year-label').text()).toBe('2001');
-    });
-
-    it('shows progress per year: a trophy when complete, a count when partway', () => {
-      const settings = {
-        personalAwards: {
-          1994: { completed: true },
-          1997: { categories: { a: { nominees: [{ movieId: 1 }], winner: { movieId: 1 } } } }
-        }
-      };
-      const { wrapper } = factory({ year: '1997' }, settings, library);
-      const [completed, partial, untouched] = wrapper.findAll('.awards-year-pill');
-
-      expect(completed.classes()).toContain('completed');
-      expect(completed.find('.bi-trophy-fill').exists()).toBe(true);
-      expect(partial.classes()).toContain('started');
-      expect(partial.find('.awards-year-progress').text()).toBe('1/13');
-      expect(untouched.classes()).not.toContain('started');
+      expect(selected[0].text()).toBe('2001');
     });
 
     it('replaces the route rather than stacking history when you pick a year', async () => {

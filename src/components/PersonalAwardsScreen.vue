@@ -2,30 +2,19 @@
   <div class="personal-awards-screen">
     <BackLink label="Back" @click="leave"/>
 
-    <!-- Year strip, same idea as the home screen's year scroller: every
-         eligible year, ascending, scrolled side to side, current one
-         centered. This is how you reach a single year's awards — before it
-         there was no way to ask for one (Matt, 2026-08-16). -->
+    <!-- Year strip: the same control the home screen uses for years, down to
+         the Bootstrap button classes. Just the years — no progress marks, no
+         trophies ("we don't need anything. It can just be the years and
+         buttons. That's all I need", 2026-08-16). -->
     <div v-if="awardsYears.length" ref="yearScroller" class="awards-year-scroller">
       <button
-        v-for="yearData in awardsYears"
-        :key="yearData.year"
+        v-for="year in awardsYears"
+        :key="year"
         type="button"
-        class="awards-year-pill"
-        :class="{
-          selected: yearData.year === activeYear,
-          completed: yearData.completed,
-          started: yearData.started && !yearData.completed
-        }"
-        @click="selectYear(yearData.year)"
-      >
-        <span class="awards-year-label">{{ yearData.year }}</span>
-        <span class="awards-year-progress">
-          <i v-if="yearData.completed" class="bi bi-trophy-fill"></i>
-          <template v-else-if="yearData.started">{{ yearData.completedCategories }}/{{ yearData.totalCategories }}</template>
-          <template v-else>&mdash;</template>
-        </span>
-      </button>
+        class="btn btn-sm awards-year-pill"
+        :class="year === activeYear ? 'btn-primary selected' : 'btn-outline-secondary'"
+        @click="selectYear(year)"
+      >{{ year }}</button>
     </div>
 
     <PersonalAwardsModal
@@ -62,9 +51,8 @@ import BackLink from './games/BackLink.vue';
 import {
   awardNameWithThe,
   awardNameSingular,
-  awardsYearsWithProgress
+  awardsBrowsableYears
 } from '../assets/javascript/personalAwards.js';
-import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
 
 export default {
   name: 'PersonalAwardsScreen',
@@ -83,11 +71,7 @@ export default {
       return Number.isFinite(year) ? year : null;
     },
     awardsYears () {
-      return awardsYearsWithProgress(
-        this.allEntriesWithFlatKeywordsAdded,
-        this.$store.state.settings,
-        PERSONAL_AWARD_CATEGORIES.length
-      );
+      return awardsBrowsableYears(this.allEntriesWithFlatKeywordsAdded, this.$store.state.settings);
     },
     personalAwardName () {
       const value = this.$store.state.settings?.personalAwardName;
@@ -164,64 +148,22 @@ export default {
 }
 
 .awards-year-pill {
-  align-items: center;
-  background: #161616;
-  border: 1px solid #2e2e2e;
-  border-radius: 8px;
-  color: #ccc;
-  display: flex;
-  flex-direction: column;
   flex-shrink: 0;
-  gap: 0.1rem;
-  /* 40px minimum touch target. */
-  min-height: 44px;
-  padding: 0.35rem 0.6rem;
+  white-space: nowrap;
+}
+
+/* Bootstrap's btn-outline-secondary paints its label #6c757d, which is the
+   same ~2.6:1 against this background that makes .text-muted unreadable here.
+   #ccc is the house replacement (~9:1). */
+.awards-year-pill.btn-outline-secondary {
+  border-color: #4a4a4a;
+  color: #ccc;
 }
 
 /* Mobile-first: press feedback is :active only. A tapped pill would keep a
-   hover state forever on an installed PWA. */
+   hover state forever on an installed PWA. Same convention as the home
+   screen's year scroller. */
 .awards-year-pill:active {
   opacity: 0.7;
-}
-
-.awards-year-pill.started {
-  border-color: #4a4a4a;
-  color: #eee;
-}
-
-.awards-year-pill.completed {
-  border-color: #6b5a1f;
-  color: #eee;
-}
-
-.awards-year-pill.selected {
-  background: #3b5aaa;
-  border-color: #fff;
-  color: #fff;
-}
-
-.awards-year-label {
-  font-size: 0.9rem;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.awards-year-progress {
-  /* #9a9a9a on #161616 clears 7:1; the selected pill's own color wins over it. */
-  color: #9a9a9a;
-  font-size: 0.65rem;
-  line-height: 1.1;
-}
-
-.awards-year-pill.selected .awards-year-progress {
-  color: #dfe6f7;
-}
-
-.awards-year-pill.completed .awards-year-progress {
-  color: #ffd700;
-}
-
-.awards-year-pill.selected.completed .awards-year-progress {
-  color: #ffd700;
 }
 </style>

@@ -124,8 +124,8 @@ export function awardsYearThreshold (settings) {
   return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 10;
 }
 
-// Every year the awards flow will offer, oldest first, each with how far
-// through its categories you are.
+// Every year the awards flow will offer, oldest first — the year strip on
+// /awards.
 //
 // Deliberately NOT the same list as the modal's `yearsEligibleForAwards`,
 // which drops finished years because it answers "what should I work on next".
@@ -135,9 +135,8 @@ export function awardsYearThreshold (settings) {
 // awards").
 //
 // Ascending, matching the year scroller on the home screen.
-export function awardsYearsWithProgress (entries, settings, totalCategories) {
+export function awardsBrowsableYears (entries, settings) {
   const threshold = awardsYearThreshold(settings);
-  const personalAwards = settings?.personalAwards || {};
   const counts = {};
 
   (entries || []).forEach((entry) => {
@@ -154,23 +153,5 @@ export function awardsYearsWithProgress (entries, settings, totalCategories) {
   return Object.keys(counts)
     .map(Number)
     .filter((year) => Number.isFinite(year) && counts[year] >= threshold)
-    .sort((a, b) => a - b)
-    .map((year) => {
-      const awardData = personalAwards[year];
-      const categories = awardData?.categories ? Object.values(awardData.categories) : [];
-      // A category counts as done when it has a winner, or when it was
-      // explicitly marked as having no nominees.
-      const completedCategories = categories.filter(
-        (category) => (category?.nominees?.length > 0 && category.winner) || category?.noNominees === true
-      ).length;
-
-      return {
-        year,
-        movieCount: counts[year],
-        completedCategories,
-        totalCategories,
-        started: completedCategories > 0,
-        completed: completedCategories === totalCategories || awardData?.completed === true
-      };
-    });
+    .sort((a, b) => a - b);
 }
