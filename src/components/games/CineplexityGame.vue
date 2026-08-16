@@ -221,6 +221,9 @@ export default {
         this.misses += 1;
         this.feedback = 'Not a match (or already found).';
         this.feedbackKind = 'miss';
+        // Bug report: a wrong guess should clear the input the same way a
+        // hit does, so the next attempt doesn't start with stale text.
+        this.guess = '';
         this.persistRound();
       }
     },

@@ -34,8 +34,10 @@
             <h3>
               <a class="link" @click.stop="searchFor(`${getYear(result)}`)">{{getYear(result)}}</a>
             </h3>
-            <!-- Overall rank (Brian-survey C1) — quiet, next to the rating. -->
-            <span v-if="overallRank" class="overall-rank">{{ordinalRank}} overall</span>
+            <!-- Overall rank (Brian-survey C1) — same h3 typography as the
+                 year and rating flanking it (bug report: the small gray tag
+                 "didn't really match the style of everything else"). -->
+            <h3 v-if="overallRank" class="overall-rank">{{ordinalRank}} overall</h3>
             <ToggleableRating :rating="ratingForMedia(result)" :normalizedRating="normalizedRatingForMedia(result)"/>
           </div>
           <div class="line-two">
@@ -1895,10 +1897,6 @@ export default {
   .rating-runtime-and-date {
     margin-bottom: 1rem;
 
-    .overall-rank {
-      color: #ccc;
-      font-size: 0.8rem;
-    }
 
     .line-one {
       display: flex;
