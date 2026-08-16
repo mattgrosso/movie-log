@@ -2487,9 +2487,6 @@ export default {
 
 <style lang="scss">
   .insights {
-  /* Room to scroll past the floating bug-report button on every tab. */
-  padding-bottom: 72px;
-
   /* Matt's house tile language (see .insights-pane-item in
      InsightsPane.vue): white 1px borders, 3px radius, #3b5aaa blue
      accents, white text — applied to every piece of the tabbed chrome. */
@@ -2629,7 +2626,11 @@ export default {
   }
 
     color: white;
-    padding: 18px;
+    /* The bottom value clears the floating bug-report button (44px tall,
+       sitting 60px up from the viewport bottom). It lives in the shorthand
+       deliberately: a separate padding-bottom earlier in this block was
+       silently reset by this very declaration. */
+    padding: 18px 18px 72px;
     max-width: 600px;
     margin: 0 auto;
     /* .app-main is a flex container, so this is a flex ITEM: min-width:auto

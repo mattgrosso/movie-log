@@ -128,6 +128,10 @@ const STORAGE_KEY = 'cinemaRoll.posterZoom.current';
 // image.tmdb.org keeps it after the first view.
 const POSTER_SIZE = 'original';
 
+// Below this the game is unplayable, so a measurement under it is treated
+// as a transient layout rather than a real constraint.
+const MIN_STAGE_HEIGHT = 220;
+
 export default {
   name: 'PosterZoomGame',
   components: { BackLink, NewRatingSearch },
@@ -218,7 +222,14 @@ export default {
     // and cross-axis stretch sets the height but then lets flex sizing pick
     // the width, which produced a landscape box on a 2:3 poster.
     viewportStyle () {
-      return this.stageHeight ? { maxHeight: `${this.stageHeight}px` } : {};
+      if (!this.stageHeight) return {};
+      // Never cap below a playable size. The poster is capped by the stage
+      // while the stage is sized by its own content, so a single bad
+      // measurement — mid-transition, or before the image has laid out —
+      // could otherwise LATCH: stage measures small, poster is capped
+      // small, so the stage never grows back. Reported as "now I get a tiny
+      // poster I can't see".
+      return { maxHeight: `${Math.max(this.stageHeight, MIN_STAGE_HEIGHT)}px` };
     },
     // Only entries with a poster can be a target — the whole game is the
     // poster. Kept separate from eligibleGameEntries because the guess
@@ -449,7 +460,9 @@ export default {
       const stage = this.$refs.stage;
       if (stage) {
         const stageNext = Math.round(stage.getBoundingClientRect().height);
-        if (stageNext > 0 && Math.abs(stageNext - (this.stageHeight || 0)) > 1) {
+        // Same sanity floor as availableHeight above: a measurement this
+        // small is a transient layout, not the truth.
+        if (stageNext > MIN_STAGE_HEIGHT && Math.abs(stageNext - (this.stageHeight || 0)) > 1) {
           if (!(typing && stageNext < (this.stageHeight || 0))) {
             this.stageHeight = stageNext;
           }

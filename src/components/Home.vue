@@ -1501,7 +1501,13 @@ export default {
     }
 
     if (this.$route.query.search) {
-      this.inputValue = decodeURIComponent(this.$route.query.search);
+      // Bug report: links from Insights (an actor in Outliers, a year in
+      // Best Years) "type the search term into the input but don't
+      // actually search". Setting inputValue only fills the box — the
+      // search itself runs through updateSearchValue, same as typing.
+      const incomingSearch = decodeURIComponent(this.$route.query.search);
+      this.inputValue = incomingSearch;
+      this.$nextTick(() => this.updateSearchValue(incomingSearch));
     }
 
     // Handle new search from MovieDetail page
@@ -5983,6 +5989,8 @@ export default {
    icons at ALL times, so nothing resizes when the new-updates count
    appears inside it (Matt, tuned by eye over three rounds). */
 .film-club-glyph {
+  /* White, not the chip's inherited black (bug report). */
+  color: #fff;
   font-size: 1.32em;
 }
 
@@ -5992,7 +6000,8 @@ export default {
   position: relative;
 
   .film-club-badge-count {
-    color: #fff;
+    /* Knocked out of the now-white club. */
+    color: #212529;
     font-size: 0.5rem;
     font-weight: 700;
     left: 50%;

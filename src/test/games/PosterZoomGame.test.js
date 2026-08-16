@@ -62,14 +62,32 @@ describe('PosterZoomGame', () => {
       document.body.appendChild(input)
       input.focus()
 
-      stubStage(wrapper, 180) // keyboard-shrunken measurement
+      // Above the unplayable floor, so this test is about the keyboard
+      // guard alone rather than the floor.
+      stubStage(wrapper, 300) // keyboard-shrunken measurement
       wrapper.vm.measureAvailableHeight()
       expect(wrapper.vm.stageHeight).toBe(400) // held
 
       input.blur()
       wrapper.vm.measureAvailableHeight()
-      expect(wrapper.vm.stageHeight).toBe(180) // real change commits once typing ends
+      expect(wrapper.vm.stageHeight).toBe(300) // real change commits once typing ends
       input.remove()
+    })
+
+    it('never latches at an unplayable size (bug report: "a tiny poster I can\'t see")', async () => {
+      const { wrapper } = factory(tenMovies())
+      wrapper.vm.stageHeight = 400
+
+      // A transient layout — mid-transition, or before the image lays out.
+      stubStage(wrapper, 40)
+      wrapper.vm.measureAvailableHeight()
+      expect(wrapper.vm.stageHeight).toBe(400) // rejected, not committed
+
+      // And even if a tiny value ever did land, the poster stays playable:
+      // the stage caps the poster while the stage is sized BY the poster, so
+      // committing a tiny cap would latch with no way back.
+      wrapper.vm.stageHeight = 40
+      expect(Number.parseInt(wrapper.vm.viewportStyle.maxHeight, 10)).toBeGreaterThanOrEqual(220)
     })
 
     it('always commits growth, even while typing', () => {
