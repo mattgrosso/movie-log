@@ -190,9 +190,23 @@ export default {
         .filter(p => p.finalScore !== null)
         .sort((a, b) => b.finalScore - a.finalScore)
         .slice(0, 12);
-      await Promise.all(scored.map(async (p) => { p.details = await this.getCachedDetails(p.name); }));
+      // Render the ranking IMMEDIATELY — it is computed entirely from local
+      // data. Portraits are a TMDB lookup and stream in after. Awaiting all
+      // 12 lookups before assigning meant a slow/throttled TMDB left the
+      // whole section blank, names and scores included.
       if (seq !== this.rescoreSeq) return;
       this.topTenList = scored;
+      scored.forEach((person, index) => {
+        this.getCachedDetails(person.name).then((details) => {
+          if (seq === this.rescoreSeq) {
+            const row = this.topTenList[index];
+            if (row && row.name === person.name) {
+              this.topTenList[index] = { ...row, details };
+            }
+          }
+          return null;
+        }).catch(() => null);
+      });
     },
     openWriterModal (entry) {
       this.selectedWriter = entry;

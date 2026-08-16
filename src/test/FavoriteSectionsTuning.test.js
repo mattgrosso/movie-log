@@ -136,3 +136,23 @@ describe('Favorite sections — shared tuning mixin', () => {
     })
   })
 })
+
+describe('crew sections render without waiting on TMDB', () => {
+  // Regression: rescore used to await all 12 portrait lookups before
+  // assigning topTenList, so a slow or throttled TMDB left the whole
+  // section blank — names and scores included — even though the ranking
+  // is computed entirely from local data.
+  it('populates the list even when the portrait fetch never resolves', async () => {
+    const dispatch = vi.fn()
+    const neverResolves = vi.fn(() => new Promise(() => {}))
+    const library = Array.from({ length: 6 }, (_, i) => ({
+      movie: { id: i, title: `Film ${i}`, crew: [{ job: 'Director', name: 'Star Person' }] },
+      ratings: [{ calculatedTotal: 8, direction: 8 }]
+    }))
+    const wrapper = mountSection(FavoriteDirectors, library, dispatch, neverResolves)
+
+    await wrapper.vm.buildTopTwelveList()
+
+    expect(wrapper.vm.topTenList.map(d => d.name)).toContain('Star Person')
+  })
+})

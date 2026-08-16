@@ -22,6 +22,11 @@ export default {
       // name -> TMDB details (or null). Cached so re-scoring on a tuner change
       // never re-hits the API.
       detailsCache: {},
+      // name -> in-flight lookup promise. Portrait fetches are no longer
+      // awaited before the list renders, so two rescores can overlap;
+      // without this they would each issue their own request for the same
+      // person (caught by the "does not re-hit TMDB" test).
+      detailsInFlight: {},
       // Gathered people for the current library load; shape is component-defined.
       peopleData: [],
       // Bumped each rescore so a slower async rescore can detect it was
@@ -72,9 +77,19 @@ export default {
       if (Object.prototype.hasOwnProperty.call(this.detailsCache, name)) {
         return this.detailsCache[name];
       }
-      const details = await this.getDetailsForCastMember(name);
-      this.detailsCache[name] = details;
-      return details;
+      if (this.detailsInFlight[name]) {
+        return this.detailsInFlight[name];
+      }
+      const lookup = this.getDetailsForCastMember(name).then((details) => {
+        this.detailsCache[name] = details;
+        delete this.detailsInFlight[name];
+        return details;
+      }).catch((error) => {
+        delete this.detailsInFlight[name];
+        throw error;
+      });
+      this.detailsInFlight[name] = lookup;
+      return lookup;
     },
     bayesianAverage (list, weights = null, globalAvgOverride = null) {
       // Weighted Bayesian average. globalAvgOverride lets rescore() compute the
