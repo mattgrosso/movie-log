@@ -37,6 +37,15 @@
         }
       }
     },
+    "clubFeed": {
+      "$userKey": {
+        ".read": false,
+        ".write": "auth != null && $userKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-')",
+        "$secret": {
+          ".read": true
+        }
+      }
+    },
     "mirrorFeed": {
       "$userKey": {
         ".read": false,

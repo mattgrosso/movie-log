@@ -191,12 +191,9 @@ export default {
       return this.$store.getters.socialFriendKeys || [];
     },
     friendPicks () {
-      const profiles = {};
-      (this.$store.getters.socialFriendKeys || []).forEach((key) => {
-        const profile = this.$store.state.socialFriendProfiles?.[key];
-        if (profile) profiles[key] = profile;
-      });
-      return friendsLoveUnseen(this.library, getRating, profiles);
+      // Includes friends on other apps — a Movie Log friend's raves count
+      // exactly like a Cinema Roll friend's.
+      return friendsLoveUnseen(this.library, getRating, this.$store.getters.filmClubProfiles || {});
     },
     friendPickMedia () {
       return this.friendPicks.map((pick) => ({
@@ -257,6 +254,7 @@ export default {
     // reachable without ever visiting the club, so bootstrap them here too.
     this.$store.dispatch('attachSocialListeners');
     this.$store.dispatch('fetchFriendProfiles');
+    this.$store.dispatch('syncExternalFriends');
   },
   watch: {
     // Friend edges arrive asynchronously from the listener, so refetch when

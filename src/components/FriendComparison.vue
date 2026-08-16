@@ -133,7 +133,8 @@ export default {
       return this.$route.params.friendKey;
     },
     profile () {
-      return this.$store.state.socialFriendProfiles?.[this.friendKey] || null;
+      // Native friend or a friend on another app — same shape either way.
+      return this.$store.getters.filmClubProfiles?.[this.friendKey] || null;
     },
     library () {
       return this.$store.getters.allMoviesAsArray || [];
@@ -157,7 +158,10 @@ export default {
   },
   created () {
     this.$store.dispatch('attachSocialListeners');
-    if (!this.profile) this.$store.dispatch('fetchFriendProfiles');
+    if (!this.profile) {
+      this.$store.dispatch('fetchFriendProfiles');
+      this.$store.dispatch('syncExternalFriends');
+    }
   },
   methods: {
     criterionLabel (key) {

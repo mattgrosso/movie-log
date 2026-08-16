@@ -115,6 +115,21 @@ const rules = {
       }
     },
 
+    // Film Club Interchange feed (2026-08-16). Lets a friend on ANOTHER
+    // app (Brian's Movie Log) subscribe to this user's library without a
+    // Cinema Roll account. Same secret-path shape as mirrorFeed below:
+    // readable only if you know both the account key and the secret, and
+    // writable only by its owner.
+    clubFeed: {
+      $userKey: {
+        '.read': false,
+        '.write': `auth != null && $userKey === ${sanitizedAuthEmail}`,
+        $secret: {
+          '.read': true
+        }
+      }
+    },
+
     // Magic Mirror feed (2026-08-16). The mirror is a device on Matt's LAN
     // with no Firebase session; it used to read the whole movieLog over
     // unauthenticated REST until this file's lockdown (correctly) ended

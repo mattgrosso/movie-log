@@ -71,7 +71,8 @@
         <div v-for="friend in friendRows" :key="friend.key" class="cs-row cs-row-tappable" @click="$router.push(`/film-club/${friend.key}`)">
           <span class="cs-row-name">{{ friend.name }}</span>
           <span class="cs-row-detail">
-            {{ friend.titles != null ? `${friend.titles} titles` : 'no profile yet' }}
+            <span v-if="friend.error" class="cs-row-error">feed unreachable</span>
+            <template v-else>{{ friend.titles != null ? `${friend.titles} titles` : 'no profile yet' }}</template>
             <i class="bi bi-chevron-right"></i>
           </span>
         </div>
@@ -83,6 +84,36 @@
         <div v-for="pending in pendingRows" :key="pending.key" class="cs-row">
           <span class="cs-row-name">{{ pending.name }}</span>
           <button type="button" class="btn btn-outline-secondary btn-sm" @click="cancel(pending.key)">Cancel</button>
+        </div>
+      </section>
+
+      <!-- Friends on other apps -->
+      <section class="cs-section">
+        <h2 class="cs-section-title">Friends on other apps</h2>
+        <p class="cs-caption">
+          Someone using a different movie app (like Movie Log) can join your club by sharing a feed link. They'll appear
+          alongside everyone else — same comparisons, same picks.
+        </p>
+        <div class="cs-add-external">
+          <input v-model="externalName" type="text" class="form-control cs-input" placeholder="Their name" maxlength="40">
+          <input v-model="externalUrl" type="text" class="form-control cs-input" placeholder="Their feed URL (https://…)">
+          <button type="button" class="btn btn-warning btn-sm" :disabled="!externalUrl.trim() || addingExternal" @click="addExternal">
+            {{ addingExternal ? 'Adding…' : 'Add' }}
+          </button>
+          <p v-if="externalError" class="cs-external-error">{{ externalError }}</p>
+        </div>
+
+        <div class="cs-share-own">
+          <p class="cs-caption">Your own feed, for a friend on another app to subscribe to:</p>
+          <button v-if="!clubFeedUrl" type="button" class="btn btn-outline-light btn-sm" @click="enableClubFeed">
+            Create my feed link
+          </button>
+          <template v-else>
+            <input class="form-control cs-input mb-2" readonly :value="clubFeedUrl" @focus="$event.target.select()">
+            <button type="button" class="btn btn-outline-light btn-sm" @click="copyClubFeed">
+              {{ clubFeedCopied ? 'Copied' : 'Copy my feed link' }}
+            </button>
+          </template>
         </div>
       </section>
 
@@ -115,6 +146,12 @@ export default {
     socialSettings () {
       return this.$store.getters.socialSettings;
     },
+    clubFeedUrl () {
+      const account = this.$store.state.databaseTopKey;
+      const secret = this.$store.state.settings?.clubFeedKey;
+      if (!account || !secret) return '';
+      return `https://movie-log-8c4d5-default-rtdb.firebaseio.com/clubFeed/${account}/${secret}.json`;
+    },
     me () {
       return this.$store.getters.socialUserKey;
     },
@@ -134,10 +171,13 @@ export default {
         .map(([key, request]) => ({ key, name: request?.name || this.nameFor(key) }));
     },
     friendRows () {
-      return this.friendKeys.map((key) => ({
-        key,
-        name: this.profiles[key]?.name || this.nameFor(key),
-        titles: this.profiles[key]?.counts?.titles ?? null
+      return (this.$store.getters.filmClubFriends || []).map((friend) => ({
+        key: friend.key,
+        name: friend.name,
+        titles: friend.profile?.counts?.titles ?? null,
+        external: friend.external,
+        source: friend.source,
+        error: friend.error
       }));
     },
     pendingRows () {
@@ -150,11 +190,11 @@ export default {
         .map(([key, row]) => ({ key, name: row?.name || key }));
     },
     summary () {
-      const withProfiles = {};
-      this.friendKeys.forEach((key) => {
-        if (this.profiles[key]) withProfiles[key] = this.profiles[key];
-      });
-      return filmClubSummary(this.$store.getters.allMoviesAsArray || [], getRating, withProfiles);
+      return filmClubSummary(
+        this.$store.getters.allMoviesAsArray || [],
+        getRating,
+        this.$store.getters.filmClubProfiles || {}
+      );
     }
   },
   watch: {
@@ -170,10 +210,41 @@ export default {
   created () {
     this.$store.dispatch('attachSocialListeners');
     this.$store.dispatch('fetchSocialDirectory');
+    this.$store.dispatch('syncExternalFriends');
     // Opening the club clears the rainbow chip's new-updates badge.
     this.$store.commit('markFilmClubSeen');
   },
   methods: {
+    async addExternal () {
+      this.externalError = '';
+      this.addingExternal = true;
+      try {
+        const id = await this.$store.dispatch('addExternalFriend', {
+          name: this.externalName,
+          feedUrl: this.externalUrl
+        });
+        if (!id) {
+          this.externalError = 'That doesn\'t look like a URL.';
+          return;
+        }
+        if (this.$store.state.externalFriendErrors?.[id]) {
+          this.externalError = `Added, but the feed didn't load: ${this.$store.state.externalFriendErrors[id]}`;
+        }
+        this.externalName = '';
+        this.externalUrl = '';
+      } finally {
+        this.addingExternal = false;
+      }
+    },
+    async enableClubFeed () {
+      await this.$store.dispatch('ensureClubFeedKey');
+      await this.$store.dispatch('publishClubFeed');
+    },
+    copyClubFeed () {
+      navigator.clipboard?.writeText(this.clubFeedUrl);
+      this.clubFeedCopied = true;
+      setTimeout(() => { this.clubFeedCopied = false; }, 2000);
+    },
     nameFor (key) {
       return this.directory[key]?.name || key;
     },
@@ -227,6 +298,26 @@ export default {
 .cs-caption { color: #ccc; font-size: 0.75rem; margin: 0 0 0.5rem; }
 .cs-empty { color: #ccc; font-size: 0.85rem; margin: 0; }
 
+.cs-add-external,
+.cs-share-own {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cs-share-own { border-top: 1px solid #2e2e2e; margin-top: 0.75rem; padding-top: 0.75rem; }
+
+.cs-input {
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  color: white;
+  font-size: 0.8rem;
+
+  &::placeholder { color: #888; }
+}
+
+.cs-external-error { color: #e88; font-size: 0.75rem; margin: 0; }
+
 .cs-row {
   align-items: center;
   border-top: 1px solid #2e2e2e;
@@ -242,6 +333,7 @@ export default {
 
 .cs-row-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .cs-row-detail { color: #ccc; font-size: 0.8rem; white-space: nowrap; }
+.cs-row-error { color: #e88; }
 .cs-row-actions { display: flex; gap: 0.4rem; }
 
 .cs-poster-row {

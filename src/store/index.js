@@ -28,6 +28,7 @@ import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
 import { pendingUpdates, reconcilePending } from "../assets/javascript/recommendationStats.js";
+import { toInterchange, profileFromFeed } from "../assets/javascript/interchange.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -265,6 +266,11 @@ export default createStore({
     socialEdges: {},
     socialDirectory: {},
     socialFriendProfiles: {},
+    // Friends on other apps (Movie Log), translated into the same profile
+    // shape as native friends. Held in memory; the subscription itself
+    // lives in settings/externalFriends.
+    externalFriendProfiles: {},
+    externalFriendErrors: {},
     socialAttachedFor: null,
     // When the user last opened the Film Club — drives the rainbow chip's
     // new-updates badge. Mirrored to localStorage so it survives reloads.
@@ -366,6 +372,35 @@ export default createStore({
       });
       return countNewFriendUpdates(profiles, state.filmClubLastSeen);
     },
+    // One list for the whole club: native mutual friends and friends on
+    // other apps, in the same shape, so nothing downstream needs to care
+    // which app someone uses.
+    filmClubFriends (state, getters) {
+      const native = getters.socialFriendKeys.map((key) => ({
+        key,
+        name: state.socialFriendProfiles?.[key]?.name || key,
+        profile: state.socialFriendProfiles?.[key] || null,
+        external: false
+      }));
+      const external = Object.entries(state.settings?.externalFriends || {}).map(([id, friend]) => ({
+        key: id,
+        name: state.externalFriendProfiles?.[id]?.name || friend?.name || 'A friend',
+        profile: state.externalFriendProfiles?.[id] || null,
+        external: true,
+        source: state.externalFriendProfiles?.[id]?.source || 'external',
+        error: state.externalFriendErrors?.[id] || null
+      }));
+      return [...native, ...external].sort((a, b) => a.name.localeCompare(b.name));
+    },
+    // Keyed profiles for everything that aggregates across the club
+    // (summary, watchlist picks).
+    filmClubProfiles (state, getters) {
+      const out = {};
+      getters.filmClubFriends.forEach((friend) => {
+        if (friend.profile) out[friend.key] = friend.profile;
+      });
+      return out;
+    },
     socialPendingSentKeys (state, getters) {
       const me = getters.socialUserKey;
       if (!me) return [];
@@ -406,6 +441,14 @@ export default createStore({
     },
     setSocialDirectory (state, value) {
       state.socialDirectory = value || {};
+    },
+    setExternalFriendProfile (state, { id, profile }) {
+      const next = { ...state.externalFriendProfiles };
+      if (profile) next[id] = profile; else delete next[id];
+      state.externalFriendProfiles = next;
+    },
+    setExternalFriendError (state, { id, message }) {
+      state.externalFriendErrors = { ...state.externalFriendErrors, [id]: message };
     },
     setSocialFriendProfile (state, { key, profile }) {
       state.socialFriendProfiles = { ...state.socialFriendProfiles, [key]: profile };
@@ -1239,6 +1282,66 @@ export default createStore({
         `Database batch update timed out after ${DATABASE_WRITE_TIMEOUT_MS}ms`
       );
     },
+    // ------------------------------------------------------------------
+    // Film Club Interchange. Publishing lets a friend on another app
+    // subscribe to this library; subscribing pulls THEIR feed and turns it
+    // into the same profile shape Film Club renders, so a Movie Log friend
+    // is indistinguishable from a Cinema Roll one. See interchange.js.
+    async ensureClubFeedKey (context) {
+      const existing = context.state.settings?.clubFeedKey;
+      if (typeof existing === 'string' && existing.length >= 16) return existing;
+      const bytes = new Uint8Array(16);
+      (window.crypto || window.msCrypto).getRandomValues(bytes);
+      const key = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+      await context.dispatch('writeDurably', { path: 'settings/clubFeedKey', value: key });
+      return key;
+    },
+    async publishClubFeed (context) {
+      const me = context.state.databaseTopKey;
+      const secret = context.state.settings?.clubFeedKey;
+      if (!me || !secret || !context.state.dbLoaded) return;
+      const entries = context.getters.allMediaAsArray;
+      if (!entries.length) return;
+      const feed = toInterchange(entries, getRating, {
+        name: context.getters.socialSettings.displayName || 'A Cinema Roll user'
+      });
+      await set(ref(db, `clubFeed/${me}/${secret}`), feed);
+    },
+    async addExternalFriend (context, { name, feedUrl }) {
+      const clean = String(feedUrl || '').trim();
+      if (!clean || !/^https?:\/\//i.test(clean)) return null;
+      const id = `ext-${Date.now().toString(36)}`;
+      await context.dispatch('writeDurably', {
+        path: `settings/externalFriends/${id}`,
+        value: { name: String(name || '').trim() || 'A friend', feedUrl: clean, addedAt: Date.now() }
+      });
+      await context.dispatch('syncExternalFriends');
+      return id;
+    },
+    async removeExternalFriend (context, id) {
+      if (!id) return;
+      await context.dispatch('writeDurably', { path: `settings/externalFriends/${id}`, value: null });
+      context.commit('setExternalFriendProfile', { id, profile: null });
+    },
+    // Fetch each subscribed feed and translate it. Failures are per-friend
+    // and non-fatal — one unreachable feed must not blank the club.
+    async syncExternalFriends (context) {
+      const friends = context.state.settings?.externalFriends || {};
+      await Promise.all(Object.entries(friends).map(async ([id, friend]) => {
+        if (!friend?.feedUrl) return;
+        try {
+          const response = await fetch(friend.feedUrl, { cache: 'no-store' });
+          if (!response.ok) throw new Error(`feed responded ${response.status}`);
+          const profile = profileFromFeed(await response.json(), { fallbackName: friend.name });
+          if (!profile) throw new Error('unrecognised feed format');
+          context.commit('setExternalFriendProfile', { id, profile });
+        } catch (error) {
+          console.warn('[film-club] could not sync external friend', friend.name, error.message);
+          context.commit('setExternalFriendError', { id, message: error.message });
+        }
+      }));
+    },
+
     // ------------------------------------------------------------------
     // Watchlist learning: which recommendation sources actually earn
     // watches. Suggestions are recorded once; when a recorded movie later
