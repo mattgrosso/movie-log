@@ -2,14 +2,9 @@
   <section v-if="facts.length" class="fun-facts">
     <div class="fun-facts-header">
       <h2 class="fun-facts-title">Fun Facts</h2>
-      <div class="fun-facts-actions">
-        <button type="button" class="fun-facts-more" @click="$router.push('/film-club')">
-          Film Club <i class="bi bi-chevron-right"></i>
-        </button>
-        <button type="button" class="fun-facts-more" @click="$router.push('/stats')">
-          Deep Stats <i class="bi bi-chevron-right"></i>
-        </button>
-      </div>
+      <button type="button" class="fun-facts-more" @click="$router.push('/stats')">
+        Deep Stats <i class="bi bi-chevron-right"></i>
+      </button>
     </div>
     <div class="fun-facts-row">
       <div v-for="fact in facts" :key="fact.key" class="fun-fact-card">
@@ -51,12 +46,6 @@ export default {
   align-items: center;
   display: flex;
   justify-content: space-between;
-}
-
-.fun-facts-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 0.25rem;
 }
 
 .fun-facts-more {
