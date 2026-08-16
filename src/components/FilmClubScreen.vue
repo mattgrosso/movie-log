@@ -21,53 +21,26 @@
         </div>
       </section>
 
-      <!-- The combined club summary -->
-      <section v-if="summary" class="cs-section">
-        <h2 class="cs-section-title">Around the club</h2>
-        <template v-if="summary.feed.length">
-          <h3 class="cs-subhead">Recently watched</h3>
-          <div class="cs-poster-row">
-            <div v-for="item in summary.feed" :key="`${item.friendKey}-${item.id}-${item.at}`" class="cs-poster-card" @click="goToMovie(item.id)">
-              <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="cs-poster">
-              <div v-else class="cs-poster cs-poster-blank">{{ item.t }}</div>
-              <span class="cs-poster-note">{{ item.friendName }} · {{ item.r != null ? item.r.toFixed(1) : '—' }}</span>
-            </div>
+      <!-- Recently watched — the bit Matt likes most, so it stays at the
+           top, now with how long ago each viewing was. -->
+      <section v-if="summary && summary.feed.length" class="cs-section">
+        <h2 class="cs-section-title">Recently watched</h2>
+        <div class="cs-poster-row">
+          <div v-for="item in summary.feed" :key="`${item.friendKey}-${item.id}-${item.at}`" class="cs-poster-card" @click="goToMovie(item.id)">
+            <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="cs-poster">
+            <div v-else class="cs-poster cs-poster-blank">{{ item.t }}</div>
+            <span class="cs-poster-note">{{ item.friendName }} · {{ item.r != null ? item.r.toFixed(1) : '—' }}</span>
+            <span v-if="watchedAgo(item.at)" class="cs-poster-when">{{ watchedAgo(item.at) }}</span>
           </div>
-        </template>
-        <template v-if="summary.clubFavorites.length">
-          <h3 class="cs-subhead">Club favorites</h3>
-          <p class="cs-caption">Rated by two or more of you, best average first.</p>
-          <div v-for="movie in summary.clubFavorites" :key="`fav-${movie.id}`" class="cs-consensus-row" @click="goToTitle(movie)">
-            <img v-if="movie.p" :src="poster(movie.p)" :alt="movie.t" class="cs-thumb">
-            <div class="cs-consensus-info">
-              <span class="cs-row-name">{{ movie.t }}</span>
-              <span class="cs-scores">
-                <span v-for="score in movie.scores" :key="score.who" class="cs-score-chip">{{ score.who }} {{ score.r.toFixed(1) }}</span>
-              </span>
-            </div>
-            <span class="cs-average">{{ movie.average.toFixed(2) }}</span>
-          </div>
-        </template>
-        <template v-if="summary.biggestDivides.length">
-          <h3 class="cs-subhead">Most divisive</h3>
-          <p class="cs-caption">The widest spreads between anyone in the club.</p>
-          <div v-for="movie in summary.biggestDivides" :key="`div-${movie.id}`" class="cs-consensus-row" @click="goToTitle(movie)">
-            <img v-if="movie.p" :src="poster(movie.p)" :alt="movie.t" class="cs-thumb">
-            <div class="cs-consensus-info">
-              <span class="cs-row-name">{{ movie.t }}</span>
-              <span class="cs-scores">
-                <span v-for="score in movie.scores" :key="score.who" class="cs-score-chip">{{ score.who }} {{ score.r.toFixed(1) }}</span>
-              </span>
-            </div>
-            <span class="cs-average cs-spread">±{{ movie.spread.toFixed(1) }}</span>
-          </div>
-        </template>
+        </div>
       </section>
 
-      <!-- Friends -->
+      <!-- Friends sit high on the page now: picking one was several screens
+           down ("I have to scroll pretty far down before I can, like, select
+           a friend and look at what they've got going on"). -->
       <section class="cs-section">
         <h2 class="cs-section-title">Friends</h2>
-        <p v-if="!friendRows.length" class="cs-empty">No friends yet — find people below and send a request.</p>
+        <p v-if="!friendRows.length" class="cs-empty">No friends yet — open "Find people" below and send a request.</p>
         <div v-for="friend in friendRows" :key="friend.key" class="cs-row cs-row-tappable" @click="$router.push(`/film-club/${friend.key}`)">
           <span class="cs-row-name">{{ friend.name }}</span>
           <span class="cs-row-detail">
@@ -78,18 +51,63 @@
         </div>
       </section>
 
-      <!-- Pending sent -->
-      <section v-if="pendingRows.length" class="cs-section">
-        <h2 class="cs-section-title">Requests sent</h2>
+      <!-- Both of these lists run long and pushed everything else off the
+           screen; they scroll in place instead ("it feels like it takes up
+           too much space vertically... its own little section in a
+           independent scrolling"). -->
+      <section v-if="summary && summary.clubFavorites.length" class="cs-section">
+        <h2 class="cs-section-title">Club favorites</h2>
+        <p class="cs-caption">Rated by two or more of you, best average first.</p>
+        <div class="cs-scroll-list">
+          <div v-for="movie in summary.clubFavorites" :key="`fav-${movie.id}`" class="cs-consensus-row" @click="goToTitle(movie)">
+            <img v-if="movie.p" :src="poster(movie.p)" :alt="movie.t" class="cs-thumb">
+            <div class="cs-consensus-info">
+              <span class="cs-row-name">{{ movie.t }}</span>
+              <span class="cs-scores">
+                <span v-for="score in movie.scores" :key="score.who" class="cs-score-chip">{{ score.who }} {{ score.r.toFixed(1) }}</span>
+              </span>
+            </div>
+            <span class="cs-average">{{ movie.average.toFixed(2) }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="summary && summary.biggestDivides.length" class="cs-section">
+        <h2 class="cs-section-title">Most divisive</h2>
+        <p class="cs-caption">The widest spreads between anyone in the club.</p>
+        <div class="cs-scroll-list">
+          <div v-for="movie in summary.biggestDivides" :key="`div-${movie.id}`" class="cs-consensus-row" @click="goToTitle(movie)">
+            <img v-if="movie.p" :src="poster(movie.p)" :alt="movie.t" class="cs-thumb">
+            <div class="cs-consensus-info">
+              <span class="cs-row-name">{{ movie.t }}</span>
+              <span class="cs-scores">
+                <span v-for="score in movie.scores" :key="score.who" class="cs-score-chip">{{ score.who }} {{ score.r.toFixed(1) }}</span>
+              </span>
+            </div>
+            <span class="cs-average cs-spread">±{{ movie.spread.toFixed(1) }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Everything to do with FINDING people is housekeeping, not the daily
+           view, so it collapses ("should the sections about who my friends
+           are, finding friends in other apps, and finding people be somehow
+           their own, like, maybe collapsible accordion"). Same component the
+           settings pane uses. -->
+      <SettingsSection
+        v-if="pendingRows.length"
+        title="Requests sent"
+        hint="People you've asked, still waiting"
+        collapsible
+        :startOpen="false"
+      >
         <div v-for="pending in pendingRows" :key="pending.key" class="cs-row">
           <span class="cs-row-name">{{ pending.name }}</span>
           <button type="button" class="btn btn-outline-secondary btn-sm" @click="cancel(pending.key)">Cancel</button>
         </div>
-      </section>
+      </SettingsSection>
 
-      <!-- Friends on other apps -->
-      <section class="cs-section">
-        <h2 class="cs-section-title">Friends on other apps</h2>
+      <SettingsSection title="Friends on other apps" hint="Add someone using Movie Log or another app" collapsible :startOpen="false">
         <p class="cs-caption">
           Someone using a different movie app (like Movie Log) can join your club by sharing a feed link. They'll appear
           alongside everyone else — same comparisons, same picks.
@@ -127,17 +145,15 @@
           People on other apps can't find you yet — turn on
           <button type="button" class="cs-settings-link" @click="$router.push('/')">cross-app discovery in Settings</button>.
         </p>
-      </section>
+      </SettingsSection>
 
-      <!-- Directory -->
-      <section class="cs-section">
-        <h2 class="cs-section-title">Find people</h2>
+      <SettingsSection title="Find people" hint="Everyone else on Cinema Roll who shares" collapsible :startOpen="false">
         <p v-if="!directoryRows.length" class="cs-empty">Nobody else has turned on sharing yet.</p>
         <div v-for="person in directoryRows" :key="person.key" class="cs-row">
           <span class="cs-row-name">{{ person.name }}</span>
           <button type="button" class="btn btn-warning btn-sm" @click="add(person.key)">Add friend</button>
         </div>
-      </section>
+      </SettingsSection>
     </template>
   </div>
 </template>
@@ -148,6 +164,8 @@
 // and the directory for sending requests. All set math is pure in
 // src/assets/javascript/social.js; this screen only renders and dispatches.
 import BackLink from './games/BackLink.vue';
+import SettingsSection from './SettingsSection.vue';
+import { timeAgo } from '../assets/javascript/timeAgo.js';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { filmClubSummary } from '../assets/javascript/social.js';
 import { filterDirectory } from '../assets/javascript/interchange.js';
@@ -155,7 +173,7 @@ import { omitQaAccounts } from '../assets/javascript/databaseKey.js';
 
 export default {
   name: 'FilmClubScreen',
-  components: { BackLink },
+  components: { BackLink, SettingsSection },
   computed: {
     socialSettings () {
       return this.$store.getters.socialSettings;
@@ -253,6 +271,9 @@ export default {
     this.$store.commit('markFilmClubSeen');
   },
   methods: {
+    watchedAgo (at) {
+      return timeAgo(at);
+    },
     async requestFriend (person) {
       this.externalError = '';
       this.externalNote = '';
@@ -416,6 +437,24 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* How fresh the viewing is. #9a9a9a on #161616 is ~7:1. */
+.cs-poster-when {
+  color: #9a9a9a;
+  display: block;
+  font-size: 0.62rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Club favorites and Most divisive both run to dozens of rows and pushed the
+   rest of the page away. They scroll in place now. */
+.cs-scroll-list {
+  max-height: 16rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .cs-consensus-row {

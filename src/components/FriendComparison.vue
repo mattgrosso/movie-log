@@ -10,55 +10,45 @@
       <h1 class="fc-title">You &amp; {{ profile.name }}</h1>
       <p class="fc-subtitle">{{ profile.counts?.titles || 0 }} titles in their library<span v-if="comparison && comparison.sharedCount"> · {{ comparison.sharedCount }} you've both rated</span></p>
 
-      <!-- Headline numbers -->
+      <!-- Headline numbers. Each one now says what it means underneath: the
+           labels alone didn't ("I don't really know what alignment means...
+           it's telling me two different numbers"). -->
       <div v-if="comparison && comparison.sharedCount" class="fc-strip">
-        <div class="fc-strip-item"><span class="fc-strip-value">{{ comparison.alignment.toFixed(1) }}</span><span class="fc-strip-label">alignment</span></div>
-        <div class="fc-strip-item"><span class="fc-strip-value">{{ comparison.myAverage.toFixed(2) }}</span><span class="fc-strip-label">your average</span></div>
-        <div class="fc-strip-item"><span class="fc-strip-value">{{ comparison.theirAverage.toFixed(2) }}</span><span class="fc-strip-label">their average</span></div>
-        <div v-if="comparison.myLogScore != null" class="fc-strip-item"><span class="fc-strip-value">{{ comparison.myLogScore.toFixed(2) }} / {{ comparison.theirLogScore.toFixed(2) }}</span><span class="fc-strip-label">log scores</span></div>
-      </div>
-
-      <!-- Criterion tendencies -->
-      <section v-if="comparison && comparison.criterionGaps" class="fc-section">
-        <h2 class="fc-section-title">Where your tastes differ</h2>
-        <p class="fc-caption">Average difference per criterion across everything you've both rated. Right of center means you score it higher than {{ profile.name }} does.</p>
-        <div v-for="gap in comparison.criterionGaps" :key="gap.criterion" class="fc-gap-row">
-          <span class="fc-gap-name">{{ criterionLabel(gap.criterion) }}</span>
-          <span class="fc-gap-bar">
-            <span class="fc-gap-track">
-              <span class="fc-gap-fill" :class="{ negative: gap.gap < 0 }" :style="gapBarStyle(gap.gap)"></span>
-            </span>
-          </span>
-          <span class="fc-gap-value" :class="{ negative: gap.gap < 0 }">{{ gap.gap > 0 ? '+' : '' }}{{ gap.gap.toFixed(2) }}</span>
+        <div class="fc-strip-item">
+          <span class="fc-strip-value">{{ comparison.alignment.toFixed(1) }}</span>
+          <span class="fc-strip-label">alignment</span>
         </div>
-      </section>
+        <div class="fc-strip-item">
+          <span class="fc-strip-value">{{ comparison.myAverage.toFixed(2) }}</span>
+          <span class="fc-strip-label">your average</span>
+        </div>
+        <div class="fc-strip-item">
+          <span class="fc-strip-value">{{ comparison.theirAverage.toFixed(2) }}</span>
+          <span class="fc-strip-label">their average</span>
+        </div>
+      </div>
+      <p v-if="comparison && comparison.sharedCount" class="fc-strip-note">
+        <strong>Alignment</strong> is 10 minus how far apart your scores usually are — you two
+        typically land {{ comparison.averageGap.toFixed(1) }} apart on the {{ comparison.sharedCount }}
+        {{ comparison.sharedCount === 1 ? 'movie' : 'movies' }} you've both rated, so 10 would mean identical scores every time.
+      </p>
+      <p v-if="comparison && comparison.myLogScore != null" class="fc-strip-note">
+        <strong>Log Score</strong> weights a library by depth as well as quality, so a big
+        well-liked one outscores a handful of favourites: yours across those shared movies is
+        {{ comparison.myLogScore.toFixed(2) }}, {{ profile.name }}'s is {{ comparison.theirLogScore.toFixed(2) }}.
+      </p>
 
-      <!-- Disagreements -->
-      <section v-if="comparison && comparison.biggestDisagreements && comparison.biggestDisagreements.length" class="fc-section">
-        <h2 class="fc-section-title">Biggest disagreements</h2>
-        <p v-if="anyCriteriaDetail" class="fc-caption">Tap a movie to see the criterion-by-criterion breakdown.</p>
-        <div v-for="item in comparison.biggestDisagreements" :key="item.entry.dbKey">
-          <div class="fc-versus-row" @click="toggleDetail(item)">
-            <img v-if="item.entry.movie.poster_path" :src="poster(item.entry.movie.poster_path)" :alt="item.entry.movie.title" class="fc-thumb">
-            <div class="fc-versus-info">
-              <span class="fc-row-name">{{ item.entry.movie.title }}</span>
-              <span class="fc-versus-scores">You {{ item.mine.toFixed(1) }} · {{ profile.name }} {{ item.theirs.toFixed(1) }}</span>
-            </div>
-            <span class="fc-gap-badge">{{ Math.abs(item.gap).toFixed(1) }}</span>
-          </div>
-          <div v-if="expandedKey === item.entry.dbKey" class="fc-detail">
-            <div v-if="item.myViewings?.length || item.theirViewings?.length" class="fc-viewings">
-              <p v-if="item.myViewings?.length" class="fc-viewing-line">You: {{ viewingLabel(item.myViewings) }}</p>
-              <p v-if="item.theirViewings?.length" class="fc-viewing-line">{{ profile.name }}: {{ viewingLabel(item.theirViewings) }}</p>
-            </div>
-          </div>
-          <div v-if="expandedKey === item.entry.dbKey && detailFor(item)" class="fc-detail">
-            <div class="fc-detail-head"><span></span><span>You</span><span>{{ profile.name }}</span></div>
-            <div v-for="row in detailFor(item)" :key="row.criterion" class="fc-detail-row">
-              <span class="fc-detail-name">{{ criterionLabel(row.criterion) }}</span>
-              <span :class="{ 'fc-detail-win': row.mine > row.theirs }">{{ row.mine.toFixed(1) }}</span>
-              <span :class="{ 'fc-detail-win': row.theirs > row.mine }">{{ row.theirs.toFixed(1) }}</span>
-            </div>
+      <!-- What they've been watching, high on the page: it wasn't here at
+           all ("somewhere on the individual person's page, I should see their
+           most recent views... And it should be higher up on their page"). -->
+      <section v-if="recentViews.length" class="fc-section">
+        <h2 class="fc-section-title">{{ profile.name }} recently watched</h2>
+        <div class="fc-poster-row">
+          <div v-for="item in recentViews" :key="`recent-${item.id}-${item.at}`" class="fc-poster-card" @click="goToMovie(item.id)">
+            <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="fc-poster">
+            <div v-else class="fc-poster fc-poster-blank">{{ item.t }}</div>
+            <span class="fc-poster-note">{{ item.r != null ? item.r.toFixed(1) : '—' }}</span>
+            <span v-if="watchedAgo(item.at)" class="fc-poster-when">{{ watchedAgo(item.at) }}</span>
           </div>
         </div>
       </section>
@@ -83,6 +73,53 @@
             <div v-else class="fc-poster fc-poster-blank">{{ item.t }}</div>
             <span class="fc-poster-note">{{ item.r.toFixed(1) }}</span>
           </div>
+        </div>
+      </section>
+
+      <!-- Criterion tendencies -->
+      <section v-if="comparison && comparison.criterionGaps" class="fc-section">
+        <h2 class="fc-section-title">Where your tastes differ</h2>
+        <p class="fc-caption">Average difference per criterion across everything you've both rated. Right of center means you score it higher than {{ profile.name }} does.</p>
+        <div v-for="gap in comparison.criterionGaps" :key="gap.criterion" class="fc-gap-row">
+          <span class="fc-gap-name">{{ criterionLabel(gap.criterion) }}</span>
+          <span class="fc-gap-bar">
+            <span class="fc-gap-track">
+              <span class="fc-gap-fill" :class="{ negative: gap.gap < 0 }" :style="gapBarStyle(gap.gap)"></span>
+            </span>
+          </span>
+          <span class="fc-gap-value" :class="{ negative: gap.gap < 0 }">{{ gap.gap > 0 ? '+' : '' }}{{ gap.gap.toFixed(2) }}</span>
+        </div>
+      </section>
+
+      <!-- Disagreements -->
+      <section v-if="comparison && comparison.biggestDisagreements && comparison.biggestDisagreements.length" class="fc-section">
+        <h2 class="fc-section-title">Biggest disagreements</h2>
+        <p v-if="anyCriteriaDetail" class="fc-caption">Tap a movie to see the criterion-by-criterion breakdown.</p>
+        <div class="fc-scroll-list">
+        <div v-for="item in comparison.biggestDisagreements" :key="item.entry.dbKey">
+          <div class="fc-versus-row" @click="toggleDetail(item)">
+            <img v-if="item.entry.movie.poster_path" :src="poster(item.entry.movie.poster_path)" :alt="item.entry.movie.title" class="fc-thumb">
+            <div class="fc-versus-info">
+              <span class="fc-row-name">{{ item.entry.movie.title }}</span>
+              <span class="fc-versus-scores">You {{ item.mine.toFixed(1) }} · {{ profile.name }} {{ item.theirs.toFixed(1) }}</span>
+            </div>
+            <span class="fc-gap-badge">{{ Math.abs(item.gap).toFixed(1) }}</span>
+          </div>
+          <div v-if="expandedKey === item.entry.dbKey" class="fc-detail">
+            <div v-if="item.myViewings?.length || item.theirViewings?.length" class="fc-viewings">
+              <p v-if="item.myViewings?.length" class="fc-viewing-line">You: {{ viewingLabel(item.myViewings) }}</p>
+              <p v-if="item.theirViewings?.length" class="fc-viewing-line">{{ profile.name }}: {{ viewingLabel(item.theirViewings) }}</p>
+            </div>
+          </div>
+          <div v-if="expandedKey === item.entry.dbKey && detailFor(item)" class="fc-detail">
+            <div class="fc-detail-head"><span></span><span>You</span><span>{{ profile.name }}</span></div>
+            <div v-for="row in detailFor(item)" :key="row.criterion" class="fc-detail-row">
+              <span class="fc-detail-name">{{ criterionLabel(row.criterion) }}</span>
+              <span :class="{ 'fc-detail-win': row.mine > row.theirs }">{{ row.mine.toFixed(1) }}</span>
+              <span :class="{ 'fc-detail-win': row.theirs > row.mine }">{{ row.theirs.toFixed(1) }}</span>
+            </div>
+          </div>
+        </div>
         </div>
       </section>
 
@@ -116,6 +153,7 @@
 // both sides have a breakdown — theirs exists only behind their own
 // shareCriteria opt-in.
 import BackLink from './games/BackLink.vue';
+import { timeAgo } from '../assets/javascript/timeAgo.js';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { compareWithFriend, CRITERIA } from '../assets/javascript/social.js';
 import { logScoreSettings } from '../assets/javascript/logScore.js';
@@ -129,6 +167,11 @@ export default {
     };
   },
   computed: {
+    // The friend's own recent feed, straight off their published profile —
+    // the same `recent` list the club-wide feed is built from.
+    recentViews () {
+      return (this.profile?.recent || []).filter((item) => item && item.at).slice(0, 12);
+    },
     friendKey () {
       return this.$route.params.friendKey;
     },
@@ -164,6 +207,9 @@ export default {
     }
   },
   methods: {
+    watchedAgo (at) {
+      return timeAgo(at);
+    },
     criterionLabel (key) {
       return key.charAt(0).toUpperCase() + key.slice(1);
     },
@@ -254,6 +300,34 @@ export default {
 }
 
 .fc-section-title { font-size: 1.05rem; margin: 0 0 0.5rem; }
+
+/* Explains the headline numbers directly under them. #b9b9b9 on the panel is
+   ~8:1; .text-muted would fail. */
+.fc-strip-note {
+  color: #b9b9b9;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  margin: 0 0 0.5rem;
+}
+
+.fc-strip-note strong { color: #eee; }
+
+/* How fresh the viewing is. */
+.fc-poster-when {
+  color: #9a9a9a;
+  display: block;
+  font-size: 0.62rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Twelve rows that each expand — far too tall to sit in the flow. */
+.fc-scroll-list {
+  max-height: 18rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
 .fc-gap-row {
   align-items: center;
