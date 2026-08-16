@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults, countNewFriendUpdates } from '@/assets/javascript/social.js'
+import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults, countNewFriendUpdates, friendsLoveUnseen } from '@/assets/javascript/social.js'
 
 const NOW = Date.UTC(2026, 7, 15)
 
@@ -184,3 +184,46 @@ describe('filmClubSummary', () => {
   })
 })
 
+
+describe('friendsLoveUnseen', () => {
+  const myLibrary = [entry(1, 'Seen It', 7)]
+  const friends = {
+    nat: {
+      name: 'Natalie',
+      ratings: {
+        1: { r: 9, t: 'Seen It', p: '/1.jpg' },        // I've rated it — excluded
+        2: { r: 9, t: 'Both Love', p: '/2.jpg' },
+        3: { r: 8.5, t: 'Nat Only', p: '/3.jpg' },
+        4: { r: 6, t: 'Lukewarm', p: '/4.jpg' }        // below the love floor
+      }
+    },
+    seth: {
+      name: 'Seth',
+      ratings: {
+        2: { r: 8.2, t: 'Both Love', p: '/2.jpg' },
+        5: { r: 9.9, t: 'Seth Only', p: '/5.jpg' }
+      }
+    },
+    shelfOnly: { name: 'Quiet One' }                    // shares no ratings map
+  }
+
+  it('ranks agreement above raw score', () => {
+    const rows = friendsLoveUnseen(myLibrary, ratingOf, friends)
+    expect(rows[0].title).toBe('Both Love')             // 2 fans beats Seth's lone 9.9
+    expect(rows[0].fanCount).toBe(2)
+    expect(rows[0].average).toBe(8.6)
+    expect(rows[0].fans[0].name).toBe('Natalie')        // best score first
+  })
+
+  it('excludes what I have already rated and what nobody loved', () => {
+    const titles = friendsLoveUnseen(myLibrary, ratingOf, friends).map((r) => r.title)
+    expect(titles).not.toContain('Seen It')
+    expect(titles).not.toContain('Lukewarm')
+    expect(titles).toEqual(expect.arrayContaining(['Nat Only', 'Seth Only']))
+  })
+
+  it('is empty with no friends, and ignores friends who share no scores', () => {
+    expect(friendsLoveUnseen(myLibrary, ratingOf, {})).toEqual([])
+    expect(friendsLoveUnseen(myLibrary, ratingOf, { shelfOnly: friends.shelfOnly })).toEqual([])
+  })
+})

@@ -190,6 +190,46 @@ function criterionGapsAcross (shared) {
   return gaps.length ? gaps.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap)) : null;
 }
 
+// Across the whole Film Club: movies your friends rate highly that you
+// have never rated. Agreement is the point — two friends at 9 is a much
+// stronger recommendation than one, so consensus sorts above raw score.
+// Requires friends who share their movie-by-movie scores; friends on the
+// shelf-only tier simply contribute nothing here.
+export function friendsLoveUnseen (myEntries, getRatingFn, friendProfiles, { minRating = 8, cap = 20 } = {}) {
+  const mine = new Set();
+  (myEntries || []).forEach((entry) => {
+    const id = entry?.movie?.id;
+    if (id != null && Number.isFinite(getRatingFn(entry)?.calculatedTotal)) mine.add(String(id));
+  });
+
+  const byMovie = new Map();
+  Object.values(friendProfiles || {}).forEach((profile) => {
+    if (!profile?.ratings) return;
+    Object.entries(profile.ratings).forEach(([tmdbId, rating]) => {
+      if (mine.has(String(tmdbId))) return;
+      if (!Number.isFinite(rating?.r) || rating.r < minRating) return;
+      const existing = byMovie.get(String(tmdbId)) || {
+        id: Number(tmdbId),
+        title: rating.t || '',
+        poster_path: rating.p || null,
+        fans: []
+      };
+      existing.fans.push({ name: profile.name || 'A friend', rating: rating.r });
+      byMovie.set(String(tmdbId), existing);
+    });
+  });
+
+  return [...byMovie.values()]
+    .map((movie) => ({
+      ...movie,
+      fans: [...movie.fans].sort((a, b) => b.rating - a.rating),
+      fanCount: movie.fans.length,
+      average: Math.round((movie.fans.reduce((sum, fan) => sum + fan.rating, 0) / movie.fans.length) * 100) / 100
+    }))
+    .sort((a, b) => (b.fanCount - a.fanCount) || (b.average - a.average) || a.title.localeCompare(b.title))
+    .slice(0, cap);
+}
+
 function pickUnseenLoves (theirRatings, mineMap, { minRating = 8, cap = 12 } = {}) {
   return Object.entries(theirRatings || {})
     .filter(([id, their]) => !mineMap.has(Number(id)) && Number.isFinite(their?.r) && their.r >= minRating)

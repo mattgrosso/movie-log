@@ -79,6 +79,14 @@
     <!-- TMDB-fed: unseen movies from the people your ratings favor. Tapping
          one drops into the normal rating flow (you've just watched it) —
          the same setMovieToRate + /rate-movie handoff PickMedia uses. -->
+    <!-- Film Club picks: the strongest signal in the app, and until now it
+         only existed on the per-friend comparison page. -->
+    <section v-if="friendPickMedia.length" class="watchlist-section">
+      <h2 class="section-title">Your Film Club loves these</h2>
+      <p class="section-caption">Rated 8 or better by friends, never rated by you. Agreement sorts first.</p>
+      <MediaResultGrid :mediaList="notPunted(friendPickMedia)" @select="rateMedia"/>
+    </section>
+
     <section v-for="section in peopleSections" :key="section.key" class="watchlist-section">
       <h2 class="section-title">{{ section.title }}</h2>
       <p class="section-caption">Based on {{ section.names.join(', ') }}.</p>
@@ -105,6 +113,7 @@ import axios from 'axios';
 import BackLink from './games/BackLink.vue';
 import MediaResultGrid from './MediaResultGrid.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
+import { friendsLoveUnseen } from '../assets/javascript/social.js';
 import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds, tasteProfile, puntKeyFor, nextPunt, isPunted } from '../assets/javascript/discover.js';
 import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 
@@ -172,6 +181,29 @@ export default {
     recommendationSeeds () {
       return topRatedSeeds(this.library, getRating);
     },
+    // Film Club's strongest signal, previously stranded on the per-friend
+    // comparison page: what your friends love that you've never rated.
+    socialFriendKeys () {
+      return this.$store.getters.socialFriendKeys || [];
+    },
+    friendPicks () {
+      const profiles = {};
+      (this.$store.getters.socialFriendKeys || []).forEach((key) => {
+        const profile = this.$store.state.socialFriendProfiles?.[key];
+        if (profile) profiles[key] = profile;
+      });
+      return friendsLoveUnseen(this.library, getRating, profiles);
+    },
+    friendPickMedia () {
+      return this.friendPicks.map((pick) => ({
+        id: pick.id,
+        title: pick.title,
+        poster_path: pick.poster_path,
+        note: pick.fanCount > 1
+          ? `${pick.fanCount} friends · ${pick.average.toFixed(1)} avg`
+          : `${pick.fans[0].name} · ${pick.fans[0].rating.toFixed(1)}`
+      }));
+    },
     peopleSections () {
       if (!this.$store.state.isOnline) return [];
       return [
@@ -206,7 +238,20 @@ export default {
       ].filter((section) => section.names.length);
     }
   },
+  created () {
+    // Film Club picks need friends' published profiles; the watchlist is
+    // reachable without ever visiting the club, so bootstrap them here too.
+    this.$store.dispatch('attachSocialListeners');
+    this.$store.dispatch('fetchFriendProfiles');
+  },
   watch: {
+    // Friend edges arrive asynchronously from the listener, so refetch when
+    // the mutual set changes.
+    socialFriendKeys: {
+      handler (keys) {
+        if (keys?.length) this.$store.dispatch('fetchFriendProfiles');
+      }
+    },
     // Same wait-for-the-library pattern as the games: a deep link mounts
     // before Firebase data arrives.
     library: {

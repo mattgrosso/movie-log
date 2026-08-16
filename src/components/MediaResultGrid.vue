@@ -21,6 +21,9 @@
           {{truncate(getTitle(media))}}
           <br>
           {{getReleaseDate(media)}}
+          <!-- Per-item attribution, same opt-in shape as matchPct: only the
+               callers that computed a note pass one. -->
+          <span v-if="media.note" class="media-note">{{ media.note }}</span>
         </p>
       </li>
     </ul>
