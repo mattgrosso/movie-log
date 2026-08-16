@@ -42,23 +42,10 @@ export default {
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  padding: 24px 0 48px;
-  border-top: 2px solid white;
-  position: relative;
-
-  .insights-pane-header {
-    position: absolute;
-    background: #212529;
-    top: 0;
-    transform: translateY(-50%);
-    padding: 0 10px;
-
-    p {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: bold;
-    }
-  }
+  /* The old horizontal-rule-with-floating-title chrome is retired
+     (2026-08-15 tab rework follow-up) — tabs and content identify the
+     sections now. */
+  padding: 0 0 32px;
 
   .insights-pane-item-wrapper {
     padding: 0 5px 10px;

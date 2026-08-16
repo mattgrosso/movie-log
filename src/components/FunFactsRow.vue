@@ -1,11 +1,6 @@
 <template>
   <section v-if="facts.length" class="fun-facts">
-    <div class="fun-facts-header">
-      <h2 class="fun-facts-title">Fun Facts</h2>
-      <button type="button" class="fun-facts-more" @click="$router.push('/stats')">
-        Deep Stats <i class="bi bi-chevron-right"></i>
-      </button>
-    </div>
+    <h2 class="fun-facts-title">Fun Facts</h2>
     <div class="fun-facts-row">
       <div v-for="fact in facts" :key="fact.key" class="fun-fact-card">
         <span class="fun-fact-label">{{ fact.label }}</span>
@@ -42,24 +37,6 @@ export default {
   min-width: 0;
 }
 
-.fun-facts-header {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-}
-
-.fun-facts-more {
-  background: none;
-  border: none;
-  color: #fff;
-  font-size: 0.8rem;
-  min-height: 36px;
-  white-space: nowrap;
-}
-
-.fun-facts-more:active {
-  opacity: 0.6;
-}
 
 .fun-facts-title {
   color: #eee;
@@ -68,12 +45,12 @@ export default {
   margin: 0 0 0.5rem;
 }
 
+/* Two columns, everything visible — no horizontal scroll (Matt). */
 .fun-facts-row {
-  display: flex;
-  gap: 0.6rem;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, 1fr);
   max-width: 100%;
-  overflow-x: auto;
-  padding-bottom: 0.4rem;
 }
 
 /* Matt's house tile look (matches .insights-pane-item): white-bordered
@@ -83,8 +60,8 @@ export default {
   border-radius: 3px;
   color: white;
   display: flex;
-  flex: 0 0 190px;
   flex-direction: column;
+  min-width: 0;
   overflow: hidden;
   text-align: center;
 }

@@ -32,6 +32,12 @@
         <div class="glance-item"><span class="glance-label">Viewings</span><span class="glance-value">{{ viewsCount }}</span></div>
         <div class="glance-item"><span class="glance-label">Average Rating</span><span class="glance-value">{{ averageRating }}</span></div>
         <div class="glance-item"><span class="glance-label">{{ thisYear }} · On Track For {{ estimatedMoviesThisYear }}</span><span class="glance-value">{{ moviesWatchedThisYear }}</span></div>
+        <div class="glance-item"><span class="glance-label">This Week</span><span class="glance-value">{{ moviesWatchedThisWeek }}</span></div>
+        <div class="glance-item"><span class="glance-label">Last Week</span><span class="glance-value">{{ moviesWatchedLastWeek }}</span></div>
+        <div class="glance-item"><span class="glance-label">{{ thisMonth }}</span><span class="glance-value">{{ moviesWatchedThisMonth }}</span></div>
+        <div class="glance-item"><span class="glance-label">{{ lastMonth }}</span><span class="glance-value">{{ moviesWatchedLastMonth }}</span></div>
+        <div class="glance-item"><span class="glance-label">{{ lastYear }} to Same Date</span><span class="glance-value">{{ moviesWatchedLastYearToDate }}</span></div>
+        <div class="glance-item"><span class="glance-label">{{ lastYear }} Total</span><span class="glance-value">{{ moviesWatchedLastYear }}</span></div>
       </div>
 
       <!-- Board item 8: funFacts.js finally gets a shelf (bug report: "more
@@ -60,9 +66,6 @@
     <!-- RATINGS: how you rate. -->
     <template v-else-if="activeTab === 'ratings'">
     <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Totals</p>
-      </div>
       <div class="insights-pane-item-wrapper col-6">
         <div class="insights-pane-item">
           <p class="insights-pane-item-header">Total Movies</p>
@@ -97,23 +100,14 @@
     </InsightsPane>
 
     <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Yearly Averages</p>
-      </div>
       <YearlyAverage :resultsWithRatings="resultsWithRatings"/>
     </InsightsPane>
 
     <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Outliers</p>
-      </div>
       <Outliers :resultsWithRatings="resultsWithRatings" :allCounts="allCounts" @updateSearchValue="updateSearchValue"/>
     </InsightsPane>
 
     <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Custom Scatter Plot</p>
-      </div>
       <ScatterChart :chartData="scatterPlotData" :options="scatterPlotOptions"/>
       <div class="scatter-controls mt-3">
         <div class="row g-2">
@@ -150,68 +144,6 @@
     <!-- ACTIVITY: when you watch. -->
     <template v-else-if="activeTab === 'activity'">
     <InsightsPane>
-      <div class="insights-pane-header">
-        <p>View Counts</p>
-      </div>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">This week</p>
-          <p class="insights-pane-item-value">{{moviesWatchedThisWeek}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">Last Week</p>
-          <p class="insights-pane-item-value">{{moviesWatchedLastWeek}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">Movies in {{thisMonth}}</p>
-          <p class="insights-pane-item-value">{{moviesWatchedThisMonth}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">Movies in {{lastMonth}}</p>
-          <p class="insights-pane-item-value">{{moviesWatchedLastMonth}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">{{thisYear}} to Date</p>
-          <p class="insights-pane-item-value">{{moviesWatchedThisYear}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">{{lastYear}} to Same Date</p>
-          <p class="insights-pane-item-value">{{moviesWatchedLastYearToDate}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">On Track This Year For</p>
-          <p class="insights-pane-item-value">{{estimatedMoviesThisYear}}</p>
-        </div>
-      </div>
-      <div class="insights-pane-item-wrapper col-6">
-        <div class="insights-pane-item">
-          <p class="insights-pane-item-header">{{lastYear}} Total</p>
-          <p class="insights-pane-item-value">{{moviesWatchedLastYear}}</p>
-        </div>
-      </div>
-      <div class="col-12 mt-3">
-        <button class="btn btn-outline-info btn-sm flex-fill w-100" @click="goToYearInReview">
-          See Your Year in Review
-        </button>
-      </div>
-    </InsightsPane>
-
-    <InsightsPane>
-      <div class="insights-pane-header">
-        <p>Full Calendar</p>
-      </div>
       <FullCalendarView :results="allEntriesWithFlatKeywordsAdded" :open="true" />
     </InsightsPane>
     </template>
@@ -231,9 +163,6 @@
       </button>
     </div>
     <InsightsPane :key="peopleCategory">
-      <div class="insights-pane-header">
-        <p>Favorite {{ activePeopleLabel }}</p>
-      </div>
       <component
         :is="activePeopleComponent"
         :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
