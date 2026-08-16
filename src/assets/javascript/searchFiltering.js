@@ -99,12 +99,6 @@ export function applyFilter (result, filter) {
     case 'keyword':
       return s.keywords.some(keyword => keyword === filter.value.toLowerCase());
 
-    // Custom Lists (B1). The chip carries the membership snapshot itself
-    // (`ids`), so this stays a pure function of (result, filter) with no
-    // store lookup — re-tap the list to pick up later additions.
-    case 'list':
-      return Boolean(filter.ids && filter.ids[String(movie.id)]);
-
     case 'tag':
       return result.ratings && result.ratings.some(rating =>
         rating.tags && rating.tags.some(tag => tag.title === filter.value)

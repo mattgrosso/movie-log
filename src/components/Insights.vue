@@ -46,9 +46,6 @@
         <button type="button" class="insights-link-card" @click="$router.push('/stats')">
           <i class="bi bi-graph-up-arrow"></i><span>Deep Stats</span>
         </button>
-        <button type="button" class="insights-link-card" @click="$router.push('/lists')">
-          <i class="bi bi-list-stars"></i><span>Your Lists</span>
-        </button>
         <button type="button" class="insights-link-card" @click="$router.push('/year-in-review')">
           <i class="bi bi-calendar-heart"></i><span>Year in Review</span>
         </button>

@@ -31,8 +31,6 @@ const LibraryPoster = () => import(/* webpackChunkName: "library-poster" */ "../
 const PersonalAwardsScreen = () => import(/* webpackChunkName: "awards" */ "../components/PersonalAwardsScreen.vue");
 const DeepStats = () => import(/* webpackChunkName: "deep-stats" */ "../components/DeepStats.vue");
 const FilmClubScreen = () => import(/* webpackChunkName: "film-club" */ "../components/FilmClubScreen.vue");
-const CustomListsScreen = () => import(/* webpackChunkName: "lists" */ "../components/CustomListsScreen.vue");
-const CustomListDetail = () => import(/* webpackChunkName: "lists" */ "../components/CustomListDetail.vue");
 const FriendComparison = () => import(/* webpackChunkName: "film-club" */ "../components/FriendComparison.vue");
 
 // Router
@@ -345,36 +343,6 @@ const routes = [
     path: '/watchlist',
     name: 'WatchlistScreen',
     component: WatchlistScreen,
-    meta: {
-      requiresLogin: true
-    },
-    beforeEnter: (to, from, next) => {
-      if (!loggedIn()) {
-        next('/login');
-      } else {
-        next();
-      }
-    }
-  },
-{
-    path: '/lists',
-    name: 'CustomListsScreen',
-    component: CustomListsScreen,
-    meta: {
-      requiresLogin: true
-    },
-    beforeEnter: (to, from, next) => {
-      if (!loggedIn()) {
-        next('/login');
-      } else {
-        next();
-      }
-    }
-  },
-{
-    path: '/lists/:listId',
-    name: 'CustomListDetail',
-    component: CustomListDetail,
     meta: {
       requiresLogin: true
     },

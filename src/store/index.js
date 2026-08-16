@@ -26,7 +26,6 @@ import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
 import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
-import { makeListId, sanitizeListName, normalizeLists, nextOrder } from "../assets/javascript/customLists.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -339,9 +338,6 @@ export default createStore({
     // matches the auth token's email.
     socialUserKey (state) {
       return state.databaseTopKey;
-    },
-    customLists (state) {
-      return normalizeLists(state.settings?.customLists);
     },
     socialSettings (state) {
       // Sharing is ON by default — the friend handshake is the real consent
@@ -1242,92 +1238,6 @@ export default createStore({
       );
     },
     // ------------------------------------------------------------------
-    // Custom Lists (Brian-survey B1). Every write is a durable LEAF write —
-    // never a whole-map set — so two devices editing different lists (or
-    // different movies in one list) can't clobber each other. See
-    // .claude/rules/data-writes.md.
-    async createCustomList (context, name) {
-      const clean = sanitizeListName(name);
-      if (!clean) return null;
-      const id = makeListId(clean, context.getters.customLists.map((list) => list.id));
-      const now = Date.now();
-      await context.dispatch('writeDurably', {
-        path: `settings/customLists/${id}`,
-        value: { name: clean, createdAt: now, updatedAt: now, sortMode: 'manual' }
-      });
-      return id;
-    },
-    async renameCustomList (context, { listId, name }) {
-      const clean = sanitizeListName(name);
-      if (!listId || !clean) return;
-      await context.dispatch('writeDurably', { path: `settings/customLists/${listId}/name`, value: clean });
-      await context.dispatch('touchCustomList', listId);
-    },
-    async setCustomListNote (context, { listId, note }) {
-      if (!listId) return;
-      await context.dispatch('writeDurably', {
-        path: `settings/customLists/${listId}/note`,
-        value: String(note || '').trim().slice(0, 280)
-      });
-      await context.dispatch('touchCustomList', listId);
-    },
-    async setCustomListSort (context, { listId, sortMode }) {
-      if (!listId || !sortMode) return;
-      await context.dispatch('writeDurably', { path: `settings/customLists/${listId}/sortMode`, value: sortMode });
-    },
-    async deleteCustomList (context, listId) {
-      if (!listId) return;
-      await context.dispatch('writeDurably', { path: `settings/customLists/${listId}`, value: null });
-    },
-    async addToCustomList (context, { listId, tmdbId }) {
-      if (!listId || tmdbId == null) return;
-      const list = context.getters.customLists.find((candidate) => candidate.id === listId);
-      await context.dispatch('writeDurably', {
-        path: `settings/customLists/${listId}/items/${tmdbId}`,
-        value: { at: Date.now(), order: nextOrder(list) }
-      });
-      await context.dispatch('touchCustomList', listId);
-    },
-    async removeFromCustomList (context, { listId, tmdbId }) {
-      if (!listId || tmdbId == null) return;
-      await context.dispatch('writeDurably', {
-        path: `settings/customLists/${listId}/items/${tmdbId}`,
-        value: null
-      });
-      await context.dispatch('touchCustomList', listId);
-    },
-    // Manual reorder: only the rows whose position actually changed are
-    // written (see reorderUpdates).
-    async applyCustomListOrder (context, { listId, updates }) {
-      if (!listId || !updates) return;
-      await Promise.all(Object.entries(updates).map(([tmdbId, order]) =>
-        context.dispatch('writeDurably', {
-          path: `settings/customLists/${listId}/items/${tmdbId}/order`,
-          value: order
-        })
-      ));
-    },
-    // Tidy-up for items whose movie has left the library (rated movies can
-    // be deleted). The UI reports the count; this clears them.
-    async pruneCustomList (context, { listId, tmdbIds }) {
-      if (!listId || !tmdbIds?.length) return;
-      await Promise.all(tmdbIds.map((tmdbId) =>
-        context.dispatch('writeDurably', {
-          path: `settings/customLists/${listId}/items/${tmdbId}`,
-          value: null
-        })
-      ));
-      await context.dispatch('touchCustomList', listId);
-    },
-    async touchCustomList (context, listId) {
-      if (!listId) return;
-      await context.dispatch('writeDurably', {
-        path: `settings/customLists/${listId}/updatedAt`,
-        value: Date.now()
-      });
-    },
-
-    // ------------------------------------------------------------------
     // Social layer. All writes land OUTSIDE the user's private branch, under
     // social/ — see src/assets/javascript/social.js and the database rules.
     attachSocialListeners (context) {
@@ -1355,8 +1265,7 @@ export default createStore({
       const profile = buildSocialProfile(entries, getRating, {
         name: social.displayName || 'A Cinema Roll user',
         shareRatings: Boolean(social.shareRatings),
-        shareCriteria: Boolean(social.shareRatings && social.shareCriteria),
-        lists: context.getters.customLists
+        shareCriteria: Boolean(social.shareRatings && social.shareCriteria)
       });
       await Promise.all([
         set(ref(db, `social/profiles/${me}`), profile),
