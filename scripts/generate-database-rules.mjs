@@ -115,6 +115,26 @@ const rules = {
       }
     },
 
+    // Cross-app connect inbox (2026-08-16). Lets someone on ANOTHER app ask
+    // to join your Film Club without having an account here.
+    //
+    // The path carries an invite code, so only someone you gave a link to
+    // can address you — and requests are CREATE-ONLY for strangers
+    // (`!data.exists()`), so a request can be dropped but nothing already
+    // in your inbox can be altered or wiped. Reading the inbox is yours
+    // alone. Rotate the code to cut off a leaked link.
+    clubInbox: {
+      $userKey: {
+        '.read': `auth != null && $userKey === ${sanitizedAuthEmail}`,
+        $inviteCode: {
+          $requestId: {
+            '.write': `!data.exists() || (auth != null && $userKey === ${sanitizedAuthEmail})`,
+            '.validate': "newData.hasChildren(['name', 'app', 'feedUrl']) && newData.child('feedUrl').isString() && newData.child('feedUrl').val().length < 500 && newData.child('name').isString() && newData.child('name').val().length < 120"
+          }
+        }
+      }
+    },
+
     // Film Club Interchange feed (2026-08-16). Lets a friend on ANOTHER
     // app (Brian's Movie Log) subscribe to this user's library without a
     // Cinema Roll account. Same secret-path shape as mirrorFeed below:

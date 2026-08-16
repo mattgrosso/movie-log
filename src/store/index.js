@@ -28,7 +28,7 @@ import { emailToDatabaseKey } from "../assets/javascript/databaseKey.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
 import { pendingUpdates, reconcilePending } from "../assets/javascript/recommendationStats.js";
-import { toInterchange, profileFromFeed } from "../assets/javascript/interchange.js";
+import { toInterchange, profileFromFeed, buildInvite, parseInvite, buildConnectRequest, normalizeInboxRequests } from "../assets/javascript/interchange.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -87,6 +87,9 @@ const removeNaNAndUndefined = (obj) => {
 // settles, so a stuck write becomes a recorded failure (retried on the next
 // trigger) instead of a silent permanent stall.
 const DATABASE_WRITE_TIMEOUT_MS = 15000;
+
+// Used to build absolute feed/inbox URLs for people on other apps.
+const DATABASE_URL = 'https://movie-log-8c4d5-default-rtdb.firebaseio.com';
 
 const withTimeout = (promise, ms, errorMessage) => {
   let timer;
@@ -271,6 +274,8 @@ export default createStore({
     // lives in settings/externalFriends.
     externalFriendProfiles: {},
     externalFriendErrors: {},
+    // Connect requests from people on other apps (see clubInbox rules).
+    clubInboxRequests: {},
     socialAttachedFor: null,
     // When the user last opened the Film Club — drives the rainbow chip's
     // new-updates badge. Mirrored to localStorage so it survives reloads.
@@ -375,6 +380,9 @@ export default createStore({
     // One list for the whole club: native mutual friends and friends on
     // other apps, in the same shape, so nothing downstream needs to care
     // which app someone uses.
+    clubInboxRequests (state) {
+      return normalizeInboxRequests(state.clubInboxRequests);
+    },
     filmClubFriends (state, getters) {
       const native = getters.socialFriendKeys.map((key) => ({
         key,
@@ -441,6 +449,9 @@ export default createStore({
     },
     setSocialDirectory (state, value) {
       state.socialDirectory = value || {};
+    },
+    setClubInboxRequests (state, value) {
+      state.clubInboxRequests = value || {};
     },
     setExternalFriendProfile (state, { id, profile }) {
       const next = { ...state.externalFriendProfiles };
@@ -1306,6 +1317,97 @@ export default createStore({
         name: context.getters.socialSettings.displayName || 'A Cinema Roll user'
       });
       await set(ref(db, `clubFeed/${me}/${secret}`), feed);
+    },
+    async ensureClubInviteCode (context) {
+      const existing = context.state.settings?.clubInviteCode;
+      if (typeof existing === 'string' && existing.length >= 8) return existing;
+      const bytes = new Uint8Array(8);
+      (window.crypto || window.msCrypto).getRandomValues(bytes);
+      const code = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+      await context.dispatch('writeDurably', { path: 'settings/clubInviteCode', value: code });
+      return code;
+    },
+    // Everything someone on another app needs: subscribe to me here, ask to
+    // be added there. Creates the feed and invite code on first use.
+    async createClubInvite (context) {
+      const accountKey = context.state.databaseTopKey;
+      if (!accountKey) return null;
+      await context.dispatch('ensureClubFeedKey');
+      await context.dispatch('publishClubFeed');
+      const inviteCode = await context.dispatch('ensureClubInviteCode');
+      return buildInvite({
+        accountKey,
+        inviteCode,
+        feedUrl: `${DATABASE_URL}/clubFeed/${accountKey}/${context.state.settings?.clubFeedKey}.json`,
+        name: context.getters.socialSettings.displayName,
+        databaseUrl: DATABASE_URL
+      });
+    },
+    watchClubInbox (context) {
+      const me = context.state.databaseTopKey;
+      const code = context.state.settings?.clubInviteCode;
+      if (!me || !code) return;
+      onValue(ref(db, `clubInbox/${me}/${code}`), (snapshot) => {
+        context.commit('setClubInboxRequests', snapshot.val());
+      }, (error) => console.warn('[film-club] inbox listener:', error.message));
+    },
+    // Accepting subscribes to them and, when they told us where to reply,
+    // posts our own feed back so they can subscribe to us without a second
+    // round of copy-and-paste.
+    async acceptClubRequest (context, request) {
+      if (!request?.feedUrl) return;
+      await context.dispatch('addExternalFriend', { name: request.name, feedUrl: request.feedUrl });
+      if (request.replyInboxUrl) {
+        const invite = await context.dispatch('createClubInvite');
+        if (invite) {
+          try {
+            await fetch(request.replyInboxUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(buildConnectRequest({
+                name: invite.name,
+                feedUrl: invite.feedUrl,
+                replyInboxUrl: invite.inboxUrl
+              }))
+            });
+          } catch (error) {
+            console.warn('[film-club] could not reply to invite:', error.message);
+          }
+        }
+      }
+      await context.dispatch('dismissClubRequest', request.id);
+    },
+    async dismissClubRequest (context, requestId) {
+      const me = context.state.databaseTopKey;
+      const code = context.state.settings?.clubInviteCode;
+      if (!me || !code || !requestId) return;
+      await set(ref(db, `clubInbox/${me}/${code}/${requestId}`), null);
+    },
+    // Ask someone on another app to add us, using the invite they sent.
+    async sendClubRequest (context, rawInvite) {
+      const invite = parseInvite(rawInvite);
+      if (!invite) return { ok: false, error: 'That invite could not be read.' };
+
+      await context.dispatch('addExternalFriend', { name: invite.name, feedUrl: invite.feedUrl });
+
+      if (!invite.inboxUrl) {
+        return { ok: true, replied: false, note: 'Subscribed. They will need your link to see you.' };
+      }
+      const mine = await context.dispatch('createClubInvite');
+      try {
+        await fetch(invite.inboxUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildConnectRequest({
+            name: mine.name,
+            feedUrl: mine.feedUrl,
+            replyInboxUrl: mine.inboxUrl
+          }))
+        });
+        return { ok: true, replied: true };
+      } catch (error) {
+        return { ok: true, replied: false, note: `Subscribed, but the request didn't send: ${error.message}` };
+      }
     },
     async addExternalFriend (context, { name, feedUrl }) {
       const clean = String(feedUrl || '').trim();

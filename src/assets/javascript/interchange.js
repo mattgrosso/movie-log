@@ -211,3 +211,83 @@ export function profileFromFeed (payload, { fallbackName } = {}) {
   if (format === 'movielog') return fromMovieLog(payload, { name: fallbackName });
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// CONNECT: a cross-app friend request. Cinema Roll's own friendships are a
+// two-edge handshake, but another app can't write into our database and we
+// can't write into theirs — so a request is a small message dropped into an
+// inbox whose URL the recipient handed out. Accepting stores the sender's
+// feed URL; from then on both sides simply pull.
+
+export const CONNECT_APP = 'cinemaroll';
+
+// The link you send someone on another app. Everything they need to both
+// subscribe to you AND ask you to subscribe to them.
+export function buildInvite ({ accountKey, inviteCode, feedUrl, name, databaseUrl }) {
+  if (!accountKey || !inviteCode || !feedUrl) return null;
+  return {
+    format: INTERCHANGE_FORMAT,
+    name: name || 'A Cinema Roll user',
+    app: CONNECT_APP,
+    // Subscribe to me here.
+    feedUrl,
+    // Ask to be added here: PUT/POST a request as a new child of this path.
+    inboxUrl: `${databaseUrl}/clubInbox/${accountKey}/${inviteCode}.json`
+  };
+}
+
+export function parseInvite (raw) {
+  let payload = raw;
+  if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (!text) return null;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      // A bare feed URL is a perfectly good invite: we can subscribe, we
+      // just can't ask them to subscribe back.
+      return /^https?:\/\//i.test(text) ? { feedUrl: text } : null;
+    }
+  }
+  if (!payload || typeof payload !== 'object' || !payload.feedUrl) return null;
+  return {
+    name: payload.name || null,
+    app: payload.app || null,
+    feedUrl: payload.feedUrl,
+    inboxUrl: payload.inboxUrl || null
+  };
+}
+
+// A request as it sits in an inbox. Kept deliberately small and boring so
+// another app can produce one with a single HTTP call.
+export function buildConnectRequest ({ name, feedUrl, replyInboxUrl, app = CONNECT_APP, now = Date.now() }) {
+  if (!name || !feedUrl) return null;
+  const request = { name: String(name).slice(0, 120), app, feedUrl: String(feedUrl).slice(0, 500), at: now };
+  if (replyInboxUrl) request.replyInboxUrl = String(replyInboxUrl).slice(0, 500);
+  return request;
+}
+
+// Anyone who knows the invite link can write here, so nothing from an inbox
+// is trusted until it has been through this.
+export function normalizeInboxRequests (raw, { now = Date.now(), maxAgeDays = 60 } = {}) {
+  const cutoff = now - maxAgeDays * 24 * 60 * 60 * 1000;
+  return Object.entries(raw || {})
+    .map(([id, request]) => {
+      const feedUrl = typeof request?.feedUrl === 'string' ? request.feedUrl.trim() : '';
+      if (!/^https:\/\//i.test(feedUrl)) return null;      // https only
+      const at = Number(request?.at) || 0;
+      if (at && at < cutoff) return null;
+      return {
+        id,
+        name: String(request?.name || 'Someone').slice(0, 120),
+        app: String(request?.app || 'another app').slice(0, 60),
+        feedUrl,
+        replyInboxUrl: typeof request?.replyInboxUrl === 'string' && /^https:\/\//i.test(request.replyInboxUrl)
+          ? request.replyInboxUrl
+          : null,
+        at
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.at - a.at);
+}

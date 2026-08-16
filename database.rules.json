@@ -37,6 +37,17 @@
         }
       }
     },
+    "clubInbox": {
+      "$userKey": {
+        ".read": "auth != null && $userKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-')",
+        "$inviteCode": {
+          "$requestId": {
+            ".write": "!data.exists() || (auth != null && $userKey === auth.token.email.replace('!', '-').replace('$', '-').replace('%', '-').replace('@', '-').replace('^', '-').replace('&', '-').replace('*', '-').replace('(', '-').replace(')', '-').replace('_', '-').replace('+', '-').replace('|', '-').replace('~', '-').replace('=', '-').replace('`', '-').replace('{', '-').replace('}', '-').replace('[', '-').replace(']', '-').replace(':', '-').replace('\"', '-').replace(';', '-').replace(\"'\", '-').replace('<', '-').replace('>', '-').replace('?', '-').replace(',', '-').replace('.', '-').replace('/', '-'))",
+            ".validate": "newData.hasChildren(['name', 'app', 'feedUrl']) && newData.child('feedUrl').isString() && newData.child('feedUrl').val().length < 500 && newData.child('name').isString() && newData.child('name').val().length < 120"
+          }
+        }
+      }
+    },
     "clubFeed": {
       "$userKey": {
         ".read": false,

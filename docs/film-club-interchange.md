@@ -106,6 +106,46 @@ secret path your database rules make readable, and send that URL. That's it
 — roughly five minutes of rules work, exposes nothing else, and Cinema Roll
 handles the rest.
 
+## Connecting (optional, but it's what makes it feel like one app)
+
+A feed lets you follow someone. The connect inbox lets someone *ask*.
+
+Each user exposes an inbox path carrying a per-user invite code:
+`…/clubInbox/<accountKey>/<inviteCode>/<requestId>`, with rules that let a
+stranger CREATE a request but never modify or delete one, and let only the
+owner read the inbox. Rotating the code cuts off a leaked link.
+
+A request:
+
+```jsonc
+{
+  "name": "Matt Grosso",
+  "app": "cinemaroll",
+  "feedUrl": "https://…/clubFeed/<key>/<secret>.json",
+  "replyInboxUrl": "https://…/clubInbox/<key>/<code>.json",   // optional
+  "at": 1786848790989
+}
+```
+
+An **invite** bundles both URLs so one message does everything:
+
+```jsonc
+{
+  "format": "film-club/1",
+  "name": "Matt Grosso",
+  "app": "cinemaroll",
+  "feedUrl": "https://…/clubFeed/<key>/<secret>.json",
+  "inboxUrl": "https://…/clubInbox/<key>/<code>.json"
+}
+```
+
+Accepting a request means: subscribe to their `feedUrl`, POST your own request
+to their `replyInboxUrl` if they gave one, then delete the request. The result
+is a two-sided friendship reached in one exchange.
+
+Treat everything from an inbox as untrusted: https-only URLs, length caps,
+ignore anything older than ~60 days, never render `name` as HTML.
+
 ## Privacy notes
 
 - The URL **is** the credential. Share it the way you'd share a private

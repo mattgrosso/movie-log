@@ -94,24 +94,33 @@
           Someone using a different movie app (like Movie Log) can join your club by sharing a feed link. They'll appear
           alongside everyone else — same comparisons, same picks.
         </p>
+        <!-- Requests from people on other apps -->
+        <div v-for="request in inboxRequests" :key="request.id" class="cs-row">
+          <span class="cs-row-name">{{ request.name }} <span class="cs-row-app">on {{ request.app }}</span></span>
+          <span class="cs-row-actions">
+            <button type="button" class="btn btn-warning btn-sm" @click="acceptRequest(request)">Accept</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" @click="dismissRequest(request.id)">Dismiss</button>
+          </span>
+        </div>
+
         <div class="cs-add-external">
-          <input v-model="externalName" type="text" class="form-control cs-input" placeholder="Their name" maxlength="40">
-          <input v-model="externalUrl" type="text" class="form-control cs-input" placeholder="Their feed URL (https://…)">
+          <input v-model="externalUrl" type="text" class="form-control cs-input" placeholder="Paste their invite link">
           <button type="button" class="btn btn-warning btn-sm" :disabled="!externalUrl.trim() || addingExternal" @click="addExternal">
-            {{ addingExternal ? 'Adding…' : 'Add' }}
+            {{ addingExternal ? 'Connecting…' : 'Connect' }}
           </button>
           <p v-if="externalError" class="cs-external-error">{{ externalError }}</p>
+          <p v-if="externalNote" class="cs-caption">{{ externalNote }}</p>
         </div>
 
         <div class="cs-share-own">
-          <p class="cs-caption">Your own feed, for a friend on another app to subscribe to:</p>
-          <button v-if="!clubFeedUrl" type="button" class="btn btn-outline-light btn-sm" @click="enableClubFeed">
-            Create my feed link
+          <p class="cs-caption">Your invite — send this to someone on another app and they can both follow you and ask to be added:</p>
+          <button v-if="!inviteJson" type="button" class="btn btn-outline-light btn-sm" :disabled="creatingInvite" @click="createInvite">
+            {{ creatingInvite ? 'Creating…' : 'Create my invite link' }}
           </button>
           <template v-else>
-            <input class="form-control cs-input mb-2" readonly :value="clubFeedUrl" @focus="$event.target.select()">
-            <button type="button" class="btn btn-outline-light btn-sm" @click="copyClubFeed">
-              {{ clubFeedCopied ? 'Copied' : 'Copy my feed link' }}
+            <textarea class="form-control cs-input cs-invite" readonly rows="4" :value="inviteJson" @focus="$event.target.select()"></textarea>
+            <button type="button" class="btn btn-outline-light btn-sm" @click="copyInvite">
+              {{ inviteCopied ? 'Copied' : 'Copy my invite' }}
             </button>
           </template>
         </div>
@@ -145,6 +154,9 @@ export default {
   computed: {
     socialSettings () {
       return this.$store.getters.socialSettings;
+    },
+    inboxRequests () {
+      return this.$store.getters.clubInboxRequests || [];
     },
     clubFeedUrl () {
       const account = this.$store.state.databaseTopKey;
@@ -211,39 +223,49 @@ export default {
     this.$store.dispatch('attachSocialListeners');
     this.$store.dispatch('fetchSocialDirectory');
     this.$store.dispatch('syncExternalFriends');
+    this.$store.dispatch('watchClubInbox');
     // Opening the club clears the rainbow chip's new-updates badge.
     this.$store.commit('markFilmClubSeen');
   },
   methods: {
     async addExternal () {
       this.externalError = '';
+      this.externalNote = '';
       this.addingExternal = true;
       try {
-        const id = await this.$store.dispatch('addExternalFriend', {
-          name: this.externalName,
-          feedUrl: this.externalUrl
-        });
-        if (!id) {
-          this.externalError = 'That doesn\'t look like a URL.';
+        const result = await this.$store.dispatch('sendClubRequest', this.externalUrl);
+        if (!result?.ok) {
+          this.externalError = result?.error || 'That invite could not be read.';
           return;
         }
-        if (this.$store.state.externalFriendErrors?.[id]) {
-          this.externalError = `Added, but the feed didn't load: ${this.$store.state.externalFriendErrors[id]}`;
-        }
-        this.externalName = '';
+        this.externalNote = result.replied
+          ? 'Connected — they have your invite too.'
+          : (result.note || 'Subscribed.');
         this.externalUrl = '';
       } finally {
         this.addingExternal = false;
       }
     },
-    async enableClubFeed () {
-      await this.$store.dispatch('ensureClubFeedKey');
-      await this.$store.dispatch('publishClubFeed');
+    async createInvite () {
+      this.creatingInvite = true;
+      try {
+        const invite = await this.$store.dispatch('createClubInvite');
+        this.inviteJson = invite ? JSON.stringify(invite, null, 2) : '';
+        this.$store.dispatch('watchClubInbox');
+      } finally {
+        this.creatingInvite = false;
+      }
     },
-    copyClubFeed () {
-      navigator.clipboard?.writeText(this.clubFeedUrl);
-      this.clubFeedCopied = true;
-      setTimeout(() => { this.clubFeedCopied = false; }, 2000);
+    copyInvite () {
+      navigator.clipboard?.writeText(this.inviteJson);
+      this.inviteCopied = true;
+      setTimeout(() => { this.inviteCopied = false; }, 2000);
+    },
+    async acceptRequest (request) {
+      await this.$store.dispatch('acceptClubRequest', request);
+    },
+    dismissRequest (id) {
+      this.$store.dispatch('dismissClubRequest', id);
     },
     nameFor (key) {
       return this.directory[key]?.name || key;
@@ -317,6 +339,8 @@ export default {
 }
 
 .cs-external-error { color: #e88; font-size: 0.75rem; margin: 0; }
+.cs-row-app { color: #ccc; font-size: 0.75rem; font-weight: 400; }
+.cs-invite { font-family: monospace; font-size: 0.65rem; }
 
 .cs-row {
   align-items: center;

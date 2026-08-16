@@ -191,3 +191,56 @@ describe('golden fixture: a real Movie Log record', () => {
     expect(movie.c).toEqual([2, 7, 1, 8, 8, 7, 6, 7])
   })
 })
+
+describe('cross-app connect', () => {
+  const DB = 'https://db.example.com'
+
+  it('an invite carries both a feed to subscribe to and an inbox to ask through', async () => {
+    const { buildInvite } = await import('@/assets/javascript/interchange.js')
+    const invite = buildInvite({
+      accountKey: 'matt-example-com',
+      inviteCode: 'abc123',
+      feedUrl: `${DB}/clubFeed/matt-example-com/secret.json`,
+      name: 'Matt',
+      databaseUrl: DB
+    })
+    expect(invite.app).toBe('cinemaroll')
+    expect(invite.inboxUrl).toBe(`${DB}/clubInbox/matt-example-com/abc123.json`)
+    expect(buildInvite({ accountKey: 'x' })).toBeNull()
+  })
+
+  it('parses an invite from JSON, and accepts a bare feed URL as a one-way invite', async () => {
+    const { parseInvite } = await import('@/assets/javascript/interchange.js')
+    const json = JSON.stringify({ name: 'Brian', app: 'movielog', feedUrl: `${DB}/f.json`, inboxUrl: `${DB}/i.json` })
+
+    expect(parseInvite(json)).toEqual({ name: 'Brian', app: 'movielog', feedUrl: `${DB}/f.json`, inboxUrl: `${DB}/i.json` })
+    expect(parseInvite(`${DB}/just-a-feed.json`)).toEqual({ feedUrl: `${DB}/just-a-feed.json` })
+    expect(parseInvite('not a url or json')).toBeNull()
+    expect(parseInvite('')).toBeNull()
+  })
+
+  it('normalizes inbox requests and refuses anything untrustworthy', async () => {
+    const { normalizeInboxRequests } = await import('@/assets/javascript/interchange.js')
+    const now = Date.UTC(2026, 7, 16)
+    const raw = {
+      good: { name: 'Brian', app: 'movielog', feedUrl: 'https://ok.example/f.json', at: now - 1000, replyInboxUrl: 'https://ok.example/i.json' },
+      insecure: { name: 'Bad', app: 'x', feedUrl: 'http://plain.example/f.json', at: now },
+      notAUrl: { name: 'Bad', app: 'x', feedUrl: 'javascript:alert(1)', at: now },
+      ancient: { name: 'Old', app: 'x', feedUrl: 'https://ok.example/old.json', at: now - 400 * 86400000 },
+      badReply: { name: 'Odd', app: 'x', feedUrl: 'https://ok.example/f2.json', at: now, replyInboxUrl: 'http://insecure' }
+    }
+    const rows = normalizeInboxRequests(raw, { now })
+
+    // Newest first (badReply is 1s newer), and the junk is gone.
+    expect(rows.map((r) => r.id)).toEqual(['badReply', 'good'])
+    expect(rows[1].replyInboxUrl).toBe('https://ok.example/i.json')
+    expect(rows[0].replyInboxUrl).toBeNull()                       // insecure reply URL ignored
+  })
+
+  it('builds a request another app can post with one call', async () => {
+    const { buildConnectRequest } = await import('@/assets/javascript/interchange.js')
+    const request = buildConnectRequest({ name: 'Matt', feedUrl: 'https://ok.example/f.json', replyInboxUrl: 'https://ok.example/i.json', now: 5 })
+    expect(request).toEqual({ name: 'Matt', app: 'cinemaroll', feedUrl: 'https://ok.example/f.json', at: 5, replyInboxUrl: 'https://ok.example/i.json' })
+    expect(buildConnectRequest({ name: 'Matt' })).toBeNull()
+  })
+})
