@@ -341,10 +341,10 @@
                 <!-- New friend ratings since the club was last opened: the
                      filled club hollows out and the count sits inside it. -->
                 <span v-if="filmClubNewUpdateCount" class="film-club-badge">
-                  <i class="bi bi-suit-club-fill"/>
+                  <i class="bi bi-suit-club-fill film-club-glyph"/>
                   <span class="film-club-badge-count">{{ filmClubNewUpdateCount > 9 ? '9+' : filmClubNewUpdateCount }}</span>
                 </span>
-                <i v-else class="bi bi-suit-club-fill"/>
+                <i v-else class="bi bi-suit-club-fill film-club-glyph"/>
               </button>
               <!-- Shuffle lives inside the quick-links panel now (feedback:
                    the extra watchlist button broke the rainbow); watchlist
@@ -5882,18 +5882,17 @@ export default {
   }
 }
 
-/* The Film Club chip's new-updates badge: outline club with the count
-   tucked into the glyph's open center. */
+/* The Film Club chip's glyph runs ~30% larger than the other rainbow
+   icons at ALL times, so nothing resizes when the new-updates count
+   appears inside it (Matt, tuned by eye over three rounds). */
+.film-club-glyph {
+  font-size: 1.32em;
+}
+
+/* The new-updates badge: solid club with a white count knocked out. */
 .film-club-badge {
   display: inline-flex;
   position: relative;
-
-  /* The badge club runs ~30% larger than the idle chip's glyph so the
-     count fits inside it (Matt, tuned by eye over two rounds). Solid
-     fill with a white count knocked out of it. */
-  .bi-suit-club-fill {
-    font-size: 1.32em;
-  }
 
   .film-club-badge-count {
     color: #fff;
