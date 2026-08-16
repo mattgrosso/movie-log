@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { expandNomineeFromMinimal, awardNameWithThe, awardNameWithoutThe, awardNameSingular, awardsYearThreshold } from '@/assets/javascript/personalAwards.js';
+import { expandNomineeFromMinimal, awardNameWithThe, awardNameWithoutThe, awardNameSingular, awardsYearThreshold, awardsYearsWithProgress } from '@/assets/javascript/personalAwards.js';
 
 function libraryEntry (id, title) {
   return { dbKey: `key-${id}`, movie: { id, title } };
@@ -133,3 +133,82 @@ describe('awardsYearThreshold', () => {
     expect(awardsYearThreshold({ awardsYearThreshold: 3.7 })).toBe(3)
   })
 })
+
+// Feeds the year strip on /awards (Matt, 2026-08-16: "I'm not sure how to get
+// to my awards view. If I wanna just look at a single year's awards").
+describe('awardsYearsWithProgress', () => {
+  const TOTAL = 13;
+
+  function moviesFor (year, count, runtime = 100) {
+    return Array.from({ length: count }, () => ({
+      movie: { release_date: `${year}-06-15`, runtime }
+    }));
+  }
+
+  function categories (completedCount) {
+    const built = {};
+    for (let i = 0; i < completedCount; i++) {
+      built[`category${i}`] = { nominees: [{ movieId: 1 }], winner: { movieId: 1 } };
+    }
+    return built;
+  }
+
+  it('includes only years that clear the threshold, oldest first', () => {
+    const entries = [...moviesFor(1997, 12), ...moviesFor(1994, 10), ...moviesFor(1998, 9)];
+
+    expect(awardsYearsWithProgress(entries, {}, TOTAL).map((y) => y.year)).toEqual([1994, 1997]);
+  });
+
+  it('honours a custom threshold', () => {
+    const entries = moviesFor(1997, 4);
+
+    expect(awardsYearsWithProgress(entries, { awardsYearThreshold: 3 }, TOTAL)).toHaveLength(1);
+    expect(awardsYearsWithProgress(entries, { awardsYearThreshold: 5 }, TOTAL)).toHaveLength(0);
+  });
+
+  it('does not let shorts push a year over the threshold', () => {
+    const entries = [...moviesFor(1997, 6), ...moviesFor(1997, 6, 22)];
+
+    expect(awardsYearsWithProgress(entries, {}, TOTAL)).toHaveLength(0);
+  });
+
+  // The whole reason this isn't the modal's `yearsEligibleForAwards`, which
+  // drops finished years because it answers a different question.
+  it('keeps a completed year in the list, so you can go back and look at it', () => {
+    const settings = { personalAwards: { 1997: { completed: true, categories: categories(13) } } };
+    const [year] = awardsYearsWithProgress(moviesFor(1997, 12), settings, TOTAL);
+
+    expect(year.completed).toBe(true);
+    expect(year.completedCategories).toBe(13);
+  });
+
+  it('reports partial progress, and counts a no-nominees category as done', () => {
+    const settings = {
+      personalAwards: {
+        1997: {
+          categories: {
+            ...categories(3),
+            bestAnimatedFeature: { noNominees: true },
+            bestScore: { nominees: [{ movieId: 2 }] } // nominated, no winner yet
+          }
+        }
+      }
+    };
+    const [year] = awardsYearsWithProgress(moviesFor(1997, 12), settings, TOTAL);
+
+    expect(year.completedCategories).toBe(4);
+    expect(year.started).toBe(true);
+    expect(year.completed).toBe(false);
+  });
+
+  it('marks an untouched year as neither started nor complete', () => {
+    const [year] = awardsYearsWithProgress(moviesFor(1997, 12), {}, TOTAL);
+
+    expect(year).toMatchObject({ year: 1997, completedCategories: 0, started: false, completed: false });
+  });
+
+  it('is null-safe', () => {
+    expect(awardsYearsWithProgress(null, null, TOTAL)).toEqual([]);
+    expect(awardsYearsWithProgress([{ movie: {} }, {}], {}, TOTAL)).toEqual([]);
+  });
+});

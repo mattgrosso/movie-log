@@ -123,3 +123,54 @@ export function awardsYearThreshold (settings) {
   const value = Number(settings?.awardsYearThreshold);
   return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 10;
 }
+
+// Every year the awards flow will offer, oldest first, each with how far
+// through its categories you are.
+//
+// Deliberately NOT the same list as the modal's `yearsEligibleForAwards`,
+// which drops finished years because it answers "what should I work on next".
+// This answers "which years can I look at", so a completed year stays in it —
+// that's the whole point of browsing back to one (Matt, 2026-08-16: "I'm not
+// sure how to get to my awards view. If I wanna just look at a single year's
+// awards").
+//
+// Ascending, matching the year scroller on the home screen.
+export function awardsYearsWithProgress (entries, settings, totalCategories) {
+  const threshold = awardsYearThreshold(settings);
+  const personalAwards = settings?.personalAwards || {};
+  const counts = {};
+
+  (entries || []).forEach((entry) => {
+    const releaseDate = entry?.movie?.release_date;
+    if (!releaseDate) return;
+    // Shorts don't compete, the same exclusion the modal applies.
+    if (entry.movie.runtime && entry.movie.runtime <= 40) return;
+
+    const year = new Date(releaseDate).getFullYear();
+    if (!Number.isFinite(year)) return;
+    counts[year] = (counts[year] || 0) + 1;
+  });
+
+  return Object.keys(counts)
+    .map(Number)
+    .filter((year) => Number.isFinite(year) && counts[year] >= threshold)
+    .sort((a, b) => a - b)
+    .map((year) => {
+      const awardData = personalAwards[year];
+      const categories = awardData?.categories ? Object.values(awardData.categories) : [];
+      // A category counts as done when it has a winner, or when it was
+      // explicitly marked as having no nominees.
+      const completedCategories = categories.filter(
+        (category) => (category?.nominees?.length > 0 && category.winner) || category?.noNominees === true
+      ).length;
+
+      return {
+        year,
+        movieCount: counts[year],
+        completedCategories,
+        totalCategories,
+        started: completedCategories > 0,
+        completed: completedCategories === totalCategories || awardData?.completed === true
+      };
+    });
+}

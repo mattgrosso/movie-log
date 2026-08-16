@@ -612,6 +612,25 @@ export default {
     }
   },
   watch: {
+    // The page's year strip changes ?year=, which changes this prop on an
+    // ALREADY-MOUNTED component — the route is the same, so nothing remounts
+    // and openModal() never runs again. Without this, tapping a year did
+    // nothing at all. Note it only reloads data; the modal never auto-closes.
+    selectedYear (year) {
+      if (year == null || year === this.currentYear) return;
+      this.currentYear = year;
+      this.selectedCategory = null;
+      this.optionsCache = {};
+      this.initializeAwardsData();
+    },
+    // Lets the page highlight the right pill, including on a bare /awards
+    // where the modal — not the URL — decides which year you land on.
+    currentYear: {
+      immediate: true,
+      handler (year) {
+        this.$emit('yearChanged', year);
+      }
+    },
     firstEligibleYear: {
       immediate: true,
       handler (newYear) {
