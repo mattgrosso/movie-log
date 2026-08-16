@@ -25,6 +25,8 @@
 //   - about a fifth left exactly as they are, so there is real agreement
 //   - the rest nudged, most of them slightly, roughly one in six by 3+ points
 //     in one direction or the other — enough to fill a disagreements list
+//   - a steady lean per criterion (story up, soundtrack down) so the
+//     criterion comparison has a real signal rather than eight zeroes
 //   - viewing dates spread across the last few weeks so the "3 hours ago /
 //     2 days ago / a date" feed has something to show at every stage
 //
@@ -40,6 +42,24 @@ import { getDatabase } from 'firebase-admin/database';
 const TESTER_KEY = 'cinemaroll-tester-example-com';
 const DEFAULT_SOURCE = 'mattgrosso-gmail-com';
 const CRITERIA = ['love', 'overall', 'stickiness', 'story', 'direction', 'imagery', 'performance', 'soundtrack'];
+
+// A steady lean per criterion, on top of the per-movie disagreement.
+//
+// Without this the fixture had nothing to say: shifting all eight criteria by
+// the same amount per movie, half up and half down, averages out to roughly
+// zero on every criterion — so "Where your tastes differ" correctly rendered
+// eight bars of +-0.04 and the panel couldn't be judged at all. A tester who
+// simply cares more about story and less about soundtrack exercises it.
+const CRITERION_BIAS = {
+  love: -0.4,
+  overall: 0,
+  stickiness: 0.5,
+  story: 1.4,
+  direction: 0.3,
+  imagery: -0.9,
+  performance: 0.2,
+  soundtrack: -1.6
+};
 
 loadEnvLocal();
 const keyPath = process.env.FIREBASE_ADMIN_KEY_PATH;
@@ -134,7 +154,7 @@ kept.forEach((key, index) => {
       const shifted = { ...rating };
       CRITERIA.forEach((criterion) => {
         if (Number.isFinite(Number(shifted[criterion]))) {
-          shifted[criterion] = clampScore(Number(shifted[criterion]) + delta);
+          shifted[criterion] = clampScore(Number(shifted[criterion]) + delta + CRITERION_BIAS[criterion]);
         }
       });
       if (Number.isFinite(Number(shifted.calculatedTotal))) {
