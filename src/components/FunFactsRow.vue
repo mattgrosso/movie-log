@@ -4,7 +4,7 @@
       <h2 class="fun-facts-title">Fun Facts</h2>
       <div class="fun-facts-actions">
         <button type="button" class="fun-facts-more" @click="$router.push('/circle')">
-          Your Circle <i class="bi bi-chevron-right"></i>
+          Film Club <i class="bi bi-chevron-right"></i>
         </button>
         <button type="button" class="fun-facts-more" @click="$router.push('/stats')">
           Deep Stats <i class="bi bi-chevron-right"></i>

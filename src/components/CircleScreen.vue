@@ -1,11 +1,11 @@
 <template>
   <div class="circle-screen">
     <BackLink label="Home" @click="$router.push('/')"/>
-    <h1 class="cs-title">Your Circle</h1>
+    <h1 class="cs-title">Film Club</h1>
     <p class="cs-subtitle">Friends on Cinema Roll — what they're watching and where your tastes meet.</p>
 
     <div v-if="!socialSettings.enabled" class="cs-section">
-      <p class="cs-empty">Sharing is off. Turn on "Share on Cinema Roll" in Settings to join the circle — nothing is shared until you do.</p>
+      <p class="cs-empty">Sharing is off. Turn on "Share on Cinema Roll" in Settings to join the club — nothing is shared until you do.</p>
     </div>
 
     <template v-else>
@@ -23,7 +23,7 @@
 
       <!-- The combined circle summary -->
       <section v-if="summary" class="cs-section">
-        <h2 class="cs-section-title">Around the circle</h2>
+        <h2 class="cs-section-title">Around the club</h2>
         <template v-if="summary.feed.length">
           <h3 class="cs-subhead">Recently watched</h3>
           <div class="cs-poster-row">
@@ -35,7 +35,7 @@
           </div>
         </template>
         <template v-if="summary.circleFavorites.length">
-          <h3 class="cs-subhead">Circle favorites</h3>
+          <h3 class="cs-subhead">Club favorites</h3>
           <p class="cs-caption">Rated by two or more of you, best average first.</p>
           <div v-for="movie in summary.circleFavorites" :key="`fav-${movie.id}`" class="cs-consensus-row" @click="goToTitle(movie)">
             <img v-if="movie.p" :src="poster(movie.p)" :alt="movie.t" class="cs-thumb">
@@ -50,7 +50,7 @@
         </template>
         <template v-if="summary.biggestDivides.length">
           <h3 class="cs-subhead">Most divisive</h3>
-          <p class="cs-caption">The widest spreads between anyone in the circle.</p>
+          <p class="cs-caption">The widest spreads between anyone in the club.</p>
           <div v-for="movie in summary.biggestDivides" :key="`div-${movie.id}`" class="cs-consensus-row" @click="goToTitle(movie)">
             <img v-if="movie.p" :src="poster(movie.p)" :alt="movie.t" class="cs-thumb">
             <div class="cs-consensus-info">

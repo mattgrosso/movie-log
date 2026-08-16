@@ -1,5 +1,7 @@
 <template>
-  <div class="home p-3 pt-4 mx-auto">
+  <!-- px/pb only — top padding is set in CSS so the header→input gap
+       exactly matches the input→rainbow gap (0.75rem). -->
+  <div class="home px-3 pb-3 mx-auto">
 
     <div v-if="$store.state.dbLoaded" class="search-bar mx-auto">
       <div class="input-group search-input-group mb-1 col-12 md-col-6">
@@ -47,6 +49,148 @@
            terms to attempt. -->
       <p v-if="didYouMeanLineSuggestions.length" class="did-you-mean-inline mb-1">Did you mean?: <template v-for="(suggestion, index) in didYouMeanLineSuggestions" :key="`${suggestion.typeLabel}-${suggestion.value}`"><a href="#" class="did-you-mean-link" @click.prevent="applyDidYouMeanSuggestion(suggestion)">{{ suggestion.value }}</a><span v-if="index < didYouMeanLineSuggestions.length - 1">, </span></template></p>
     </div>
+
+    <!-- Quick-links panel: expands here, between the search input and
+         the rainbow bar (Matt), triggered by the bolt inside the input. -->
+      <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap col-md-12">
+        <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
+          <div>
+            <span
+              class="badge mx-1 text-bg-secondary"
+              @click="findRandomSearchValue"
+            >
+              <i class="bi bi-shuffle"></i> Surprise me
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleAnnualBestFilter"
+            >
+              Annual Best
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleBestPicturesFilter"
+            >
+              Best Picture
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'thisYear' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleThisYearFilter"
+            >
+              This Year
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'lastYear' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleLastYearFilter"
+            >
+              Last Year
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'thisMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleThisMonthFilter"
+            >
+              This Month
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'lastMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleLastMonthFilter"
+            >
+              Last Month
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'notOnLetterboxd' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleNotOnLetterboxdFilter"
+            >
+              Not on Letterboxd
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleQuickLinksList('genre')"
+            >
+              Genres
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleQuickLinksList('keyword')"
+            >
+              Keywords
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleQuickLinksList('year')"
+            >
+              Years
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleQuickLinksList('director')"
+            >
+              Directors
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleQuickLinksList('cast/crew')"
+            >
+              Cast/Crew Members
+            </span>
+            <span
+              class="badge mx-1"
+              :class="activeQuickLinkList === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleQuickLinksList('studios')"
+            >
+              Studios
+            </span>
+            <hr>
+            <div class="tags-quicklinks">
+              <p data-bs-toggle="collapse" data-bs-target="#tagsCollapse" aria-expanded="false" aria-controls="tagsCollapse">
+                Tags
+                <i class="bi bi-caret-right-fill"/>
+              </p>
+              <div class="collapse" id="tagsCollapse">
+                <span
+                  v-for="(tag, index) in tags"
+                  :key="index"
+                  class="badge mx-1"
+                  :class="value === tag ? 'text-bg-success' : 'text-bg-secondary'"
+                  @click="toggleQuickLinksList(tag)"
+                >
+                  {{tag}}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div v-if="sortedDataForActiveQuickLinkList.length" class="quick-links-list-wrapper mt-2">
+            <div class="accordion-body col-12">
+              <button
+                class="quick-links-list-sort"
+                :class="darkOrLight"
+                @click="toggleQuickLinksSort"
+              >
+                {{quickLinksSortType}}
+              </button>
+              <ul class="quick-link-list p-0 col-12">
+                <li v-for="(value, index) in sortedDataForActiveQuickLinkList" :key="index" @click="updateSearchValue(value.name)">
+                  <span class="badge mx-1" :class="darkOrLight">
+                    {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
 
     <!-- Movies rated offline that still need to be matched to a real TMDB
          movie (see AddRating.js/ReconcilePlaceholder.vue). Only actionable
@@ -193,8 +337,8 @@
                    color; the quick-links trigger now lives inside the
                    search input's right edge (Matt: "the circle really
                    needs to be a first order page"). -->
-              <button class="results-actions-button btn btn-warning btn-sm" type="button" @click="$router.push('/circle')" title="Your Circle" aria-label="Go to your circle">
-                <i class="bi bi-people-fill"/>
+              <button class="results-actions-button btn btn-warning btn-sm" type="button" @click="$router.push('/circle')" title="Film Club" aria-label="Go to the Film Club">
+                <i class="bi bi-camera-reels"/>
               </button>
               <!-- Shuffle lives inside the quick-links panel now (feedback:
                    the extra watchlist button broke the rainbow); watchlist
@@ -277,145 +421,6 @@
                 </ul>
               </button>
             </div>
-            <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap col-md-12">
-              <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
-                <div>
-                  <span
-                    class="badge mx-1 text-bg-secondary"
-                    @click="findRandomSearchValue"
-                  >
-                    <i class="bi bi-shuffle"></i> Surprise me
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleAnnualBestFilter"
-                  >
-                    Annual Best
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleBestPicturesFilter"
-                  >
-                    Best Picture
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'thisYear' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleThisYearFilter"
-                  >
-                    This Year
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'lastYear' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleLastYearFilter"
-                  >
-                    Last Year
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'thisMonth' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleThisMonthFilter"
-                  >
-                    This Month
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'lastMonth' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleLastMonthFilter"
-                  >
-                    Last Month
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'notOnLetterboxd' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleNotOnLetterboxdFilter"
-                  >
-                    Not on Letterboxd
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'genre' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleQuickLinksList('genre')"
-                  >
-                    Genres
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'keyword' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleQuickLinksList('keyword')"
-                  >
-                    Keywords
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'year' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleQuickLinksList('year')"
-                  >
-                    Years
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'director' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleQuickLinksList('director')"
-                  >
-                    Directors
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'cast/crew' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleQuickLinksList('cast/crew')"
-                  >
-                    Cast/Crew Members
-                  </span>
-                  <span
-                    class="badge mx-1"
-                    :class="activeQuickLinkList === 'studios' ? 'text-bg-success' : 'text-bg-secondary'"
-                    @click="toggleQuickLinksList('studios')"
-                  >
-                    Studios
-                  </span>
-                  <hr>
-                  <div class="tags-quicklinks">
-                    <p data-bs-toggle="collapse" data-bs-target="#tagsCollapse" aria-expanded="false" aria-controls="tagsCollapse">
-                      Tags
-                      <i class="bi bi-caret-right-fill"/>
-                    </p>
-                    <div class="collapse" id="tagsCollapse">
-                      <span
-                        v-for="(tag, index) in tags"
-                        :key="index"
-                        class="badge mx-1"
-                        :class="value === tag ? 'text-bg-success' : 'text-bg-secondary'"
-                        @click="toggleQuickLinksList(tag)"
-                      >
-                        {{tag}}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="sortedDataForActiveQuickLinkList.length" class="quick-links-list-wrapper mt-2">
-                  <div class="accordion-body col-12">
-                    <button
-                      class="quick-links-list-sort"
-                      :class="darkOrLight"
-                      @click="toggleQuickLinksSort"
-                    >
-                      {{quickLinksSortType}}
-                    </button>
-                    <ul class="quick-link-list p-0 col-12">
-                      <li v-for="(value, index) in sortedDataForActiveQuickLinkList" :key="index" @click="updateSearchValue(value.name)">
-                        <span class="badge mx-1" :class="darkOrLight">
-                          {{ value.name }}<span v-if="quickLinksSortType === 'count' && value.count">&nbsp;({{value.count}})</span>
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
           <!-- Friend requests: same prompt slot as stickiness/tiebreaks so
                an incoming request is impossible to miss without adding a
@@ -429,7 +434,7 @@
               <i class="bi bi-people-fill me-2"></i>
               <span>
                 {{ friendRequestBannerText }}
-                <a class="alert-link" @click.stop="$router.push('/circle')">Review in your Circle.</a>
+                <a class="alert-link" @click.stop="$router.push('/circle')">Review in the Film Club.</a>
               </span>
             </div>
           </div>
@@ -509,7 +514,7 @@
 
               <SettingsSection title="Friends &amp; Sharing">
                 <small class="form-text text-white d-block mb-2">
-                  Friends see your ratings only after you both accept a request. Your Circle lives on the Insights page.
+                  Friends see your ratings only after you both accept a request. The Film Club lives in the rainbow bar.
                 </small>
                 <div class="form-check form-switch mb-3">
                   <input class="form-check-input" type="checkbox" id="socialEnabledToggle" :checked="socialSettings.enabled" @change="updateSocialEnabled">
@@ -5832,35 +5837,38 @@ export default {
   opacity: 0.8;
 }
 
-/* The quick-links bolt inside the search input. Same btn-warning identity
-   it had in the rainbow, shrunk to a corner chip; the input reserves
-   right padding so typed text never runs underneath it. */
+/* Header→input gap matched to the input→rainbow gap (Matt). */
+.home {
+  padding-top: 0.75rem;
+}
+
+/* The quick-links bolt inside the search input: a plain dark glyph on the
+   input's own background, no chrome (Matt: "it should just match the
+   input exactly"). The input reserves right padding so typed text never
+   runs underneath it. */
 .search-input-group {
   position: relative;
 
   .search-input-with-quick-links {
-    padding-right: 2.6rem;
+    padding-right: 2.4rem;
   }
 
   .search-quick-links-toggle {
     align-items: center;
-    background: #ffc107;
+    background: none;
     border: none;
-    border-radius: 6px;
     bottom: 0;
     color: #212529;
     display: flex;
     justify-content: center;
-    margin: auto 0;
     position: absolute;
-    right: 4px;
+    right: 0;
     top: 0;
-    height: calc(100% - 8px);
-    width: 32px;
+    width: 2.4rem;
     z-index: 5;
 
     &:active {
-      background: #d9a406;
+      opacity: 0.5;
     }
   }
 }

@@ -1,6 +1,6 @@
 <template>
   <div class="friend-comparison">
-    <BackLink label="Circle" @click="$router.push('/circle')"/>
+    <BackLink label="Film Club" @click="$router.push('/circle')"/>
 
     <div v-if="!profile" class="fc-section">
       <p class="fc-empty">No published profile from this friend yet — they may not have opened the app since accepting.</p>
