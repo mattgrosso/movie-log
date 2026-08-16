@@ -1,7 +1,8 @@
 // Removes the QA tester account's social footprint from the live database.
 //
-//   node scripts/purge-qa-social.mjs           # show what would go
-//   node scripts/purge-qa-social.mjs --delete  # actually delete
+//   node scripts/purge-qa-social.mjs                   # show what would go
+//   node scripts/purge-qa-social.mjs --delete          # actually delete
+//   node scripts/purge-qa-social.mjs --delete --edges  # friend edges too
 //
 // Why (Natalie, 2026-08-16): "In the film club, I can see the cinema test user
 // and I can invite them to be in my film club with me which shouldn't be
@@ -21,7 +22,7 @@ import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 
 const QA_KEYS = ['cinemaroll-tester-example-com'];
-const BRANCHES = ['social/directory', 'social/profiles', 'social/friends', 'clubDirectory', 'clubFeed', 'clubInbox'];
+const BRANCHES = ['social/directory', 'social/profiles', 'clubDirectory', 'clubFeed', 'clubInbox'];
 
 loadEnvLocal();
 const keyPath = process.env.FIREBASE_ADMIN_KEY_PATH;
@@ -37,6 +38,7 @@ initializeApp({
 
 const db = getDatabase();
 const doDelete = process.argv.includes('--delete');
+const doEdges = process.argv.includes('--edges');
 
 for (const qaKey of QA_KEYS) {
   for (const branch of BRANCHES) {
@@ -53,8 +55,12 @@ for (const qaKey of QA_KEYS) {
     }
   }
 
-  // Anyone who befriended the tester before the fix keeps a dead friend.
-  for (const branch of ['social/friends', 'social/requests']) {
+  // Friend edges are left alone unless asked for: `yarn link-qa-tester` puts a
+  // deliberate mutual edge there so the tester has someone to compare against,
+  // and the client hides QA accounts from real people anyway. Pass --edges to
+  // sweep those too (which undoes the link).
+  const branches = doEdges ? ['social/friends', 'social/requests'] : ['social/requests'];
+  for (const branch of branches) {
     const all = (await db.ref(branch).get()).val() || {};
     for (const [owner, entries] of Object.entries(all)) {
       if (!entries || !entries[qaKey]) continue;
