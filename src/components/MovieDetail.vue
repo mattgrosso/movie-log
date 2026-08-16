@@ -934,6 +934,17 @@ export default {
     },
   },
   methods: {
+    inList (list) {
+      return listContains(list, this.result?.movie?.id);
+    },
+    toggleList (list) {
+      const tmdbId = this.result?.movie?.id;
+      if (tmdbId == null) return;
+      this.$store.dispatch(
+        this.inList(list) ? 'removeFromCustomList' : 'addToCustomList',
+        { listId: list.id, tmdbId }
+      );
+    },
     async loadMovieData (tmdbId) {
       try {
         // Wait for database to be loaded if it isn't already
