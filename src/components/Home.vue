@@ -518,7 +518,7 @@
                               </div>
               </SettingsSection>
 
-              <SettingsSection title="Magic Mirror" collapsible :startOpen="false">
+              <SettingsSection v-if="isMatt" title="Magic Mirror" collapsible :startOpen="false">
                 <small class="form-text text-white d-block mb-2">
                   Publishes a few KB of display data (recent watches, this month's best, and your rated movie ids) for the Magic Mirror to read. Your library itself stays private. Paste this URL into the mirror's config.
                 </small>
