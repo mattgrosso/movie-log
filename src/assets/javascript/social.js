@@ -203,8 +203,8 @@ function round2 (n) {
 }
 
 // ---------------------------------------------------------------------------
-// The circle summary: every friend's profile combined.
-export function circleSummary (myEntries, getRatingFn, friendProfiles) {
+// The Film Club summary: every friend's profile combined.
+export function filmClubSummary (myEntries, getRatingFn, friendProfiles) {
   const profiles = Object.entries(friendProfiles || {}).filter(([, p]) => p);
   if (!profiles.length) return null;
 
@@ -213,7 +213,7 @@ export function circleSummary (myEntries, getRatingFn, friendProfiles) {
     (profile.recent || []).map((item) => ({ ...item, friendKey: key, friendName: profile.name }))
   ).filter((item) => item.at).sort((a, b) => b.at - a.at).slice(0, 30);
 
-  // Circle favorites: movies rated by 2+ people (me included), by average.
+  // Club favorites: movies rated by 2+ people (me included), by average.
   const mine = new Map();
   (myEntries || []).forEach((entry) => {
     const rating = getRatingFn(entry)?.calculatedTotal;
@@ -243,7 +243,7 @@ export function circleSummary (myEntries, getRatingFn, friendProfiles) {
   return {
     friendCount: profiles.length,
     feed,
-    circleFavorites: [...multi].sort((a, b) => (b.average - a.average) || (b.scores.length - a.scores.length)).slice(0, 12),
+    clubFavorites: [...multi].sort((a, b) => (b.average - a.average) || (b.scores.length - a.scores.length)).slice(0, 12),
     biggestDivides: [...multi].filter((m) => m.spread >= 2).sort((a, b) => b.spread - a.spread).slice(0, 12)
   };
 }

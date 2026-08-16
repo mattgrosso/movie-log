@@ -1,5 +1,5 @@
 <template>
-  <div class="circle-screen">
+  <div class="film-club-screen">
     <BackLink label="Home" @click="$router.push('/')"/>
     <h1 class="cs-title">Film Club</h1>
     <p class="cs-subtitle">Friends on Cinema Roll — what they're watching and where your tastes meet.</p>
@@ -21,7 +21,7 @@
         </div>
       </section>
 
-      <!-- The combined circle summary -->
+      <!-- The combined club summary -->
       <section v-if="summary" class="cs-section">
         <h2 class="cs-section-title">Around the club</h2>
         <template v-if="summary.feed.length">
@@ -34,10 +34,10 @@
             </div>
           </div>
         </template>
-        <template v-if="summary.circleFavorites.length">
+        <template v-if="summary.clubFavorites.length">
           <h3 class="cs-subhead">Club favorites</h3>
           <p class="cs-caption">Rated by two or more of you, best average first.</p>
-          <div v-for="movie in summary.circleFavorites" :key="`fav-${movie.id}`" class="cs-consensus-row" @click="goToTitle(movie)">
+          <div v-for="movie in summary.clubFavorites" :key="`fav-${movie.id}`" class="cs-consensus-row" @click="goToTitle(movie)">
             <img v-if="movie.p" :src="poster(movie.p)" :alt="movie.t" class="cs-thumb">
             <div class="cs-consensus-info">
               <span class="cs-row-name">{{ movie.t }}</span>
@@ -68,7 +68,7 @@
       <section class="cs-section">
         <h2 class="cs-section-title">Friends</h2>
         <p v-if="!friendRows.length" class="cs-empty">No friends yet — find people below and send a request.</p>
-        <div v-for="friend in friendRows" :key="friend.key" class="cs-row cs-row-tappable" @click="$router.push(`/circle/${friend.key}`)">
+        <div v-for="friend in friendRows" :key="friend.key" class="cs-row cs-row-tappable" @click="$router.push(`/film-club/${friend.key}`)">
           <span class="cs-row-name">{{ friend.name }}</span>
           <span class="cs-row-detail">
             {{ friend.titles != null ? `${friend.titles} titles` : 'no profile yet' }}
@@ -100,16 +100,16 @@
 </template>
 
 <script>
-// The Circle hub (/circle): requests inbox, the combined all-friends
+// The Film Club hub (/film-club): requests inbox, the combined all-friends
 // summary, the friends list (each row opens the per-friend comparison),
 // and the directory for sending requests. All set math is pure in
 // src/assets/javascript/social.js; this screen only renders and dispatches.
 import BackLink from './games/BackLink.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { circleSummary } from '../assets/javascript/social.js';
+import { filmClubSummary } from '../assets/javascript/social.js';
 
 export default {
-  name: 'CircleScreen',
+  name: 'FilmClubScreen',
   components: { BackLink },
   computed: {
     socialSettings () {
@@ -154,7 +154,7 @@ export default {
       this.friendKeys.forEach((key) => {
         if (this.profiles[key]) withProfiles[key] = this.profiles[key];
       });
-      return circleSummary(this.$store.getters.allMoviesAsArray || [], getRating, withProfiles);
+      return filmClubSummary(this.$store.getters.allMoviesAsArray || [], getRating, withProfiles);
     }
   },
   watch: {
@@ -202,7 +202,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.circle-screen {
+.film-club-screen {
   color: #eee;
   min-width: 0;
   padding: 0.75rem 1rem 2rem;

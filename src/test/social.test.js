@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSocialProfile, compareWithFriend, circleSummary, socialSettingsWithDefaults } from '@/assets/javascript/social.js'
+import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults } from '@/assets/javascript/social.js'
 
 const NOW = Date.UTC(2026, 7, 15)
 
@@ -133,7 +133,7 @@ describe('compareWithFriend', () => {
   })
 })
 
-describe('circleSummary', () => {
+describe('filmClubSummary', () => {
   const myLibrary = [entry(1, 'Consensus', 9), entry(2, 'Divisive', 9)]
   const friends = {
     'natalie-key': {
@@ -149,18 +149,18 @@ describe('circleSummary', () => {
   }
 
   it('merges the feed newest-first and surfaces consensus and divides', () => {
-    const summary = circleSummary(myLibrary, ratingOf, friends)
+    const summary = filmClubSummary(myLibrary, ratingOf, friends)
 
     expect(summary.friendCount).toBe(2)
     expect(summary.feed[0].t).toBe('Seth Recent')
     expect(summary.feed[0].friendName).toBe('Seth')
-    expect(summary.circleFavorites[0].t).toBe('Consensus')
-    expect(summary.circleFavorites[0].scores.length).toBe(3)
+    expect(summary.clubFavorites[0].t).toBe('Consensus')
+    expect(summary.clubFavorites[0].scores.length).toBe(3)
     expect(summary.biggestDivides[0].t).toBe('Divisive')
     expect(summary.biggestDivides[0].spread).toBe(6)
   })
 
   it('null with no friends', () => {
-    expect(circleSummary(myLibrary, ratingOf, {})).toBeNull()
+    expect(filmClubSummary(myLibrary, ratingOf, {})).toBeNull()
   })
 })

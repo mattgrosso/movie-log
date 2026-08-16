@@ -30,8 +30,8 @@ const WatchlistScreen = () => import(/* webpackChunkName: "watchlist" */ "../com
 const LibraryPoster = () => import(/* webpackChunkName: "library-poster" */ "../components/LibraryPoster.vue");
 const PersonalAwardsScreen = () => import(/* webpackChunkName: "awards" */ "../components/PersonalAwardsScreen.vue");
 const DeepStats = () => import(/* webpackChunkName: "deep-stats" */ "../components/DeepStats.vue");
-const CircleScreen = () => import(/* webpackChunkName: "circle" */ "../components/CircleScreen.vue");
-const FriendComparison = () => import(/* webpackChunkName: "circle" */ "../components/FriendComparison.vue");
+const FilmClubScreen = () => import(/* webpackChunkName: "film-club" */ "../components/FilmClubScreen.vue");
+const FriendComparison = () => import(/* webpackChunkName: "film-club" */ "../components/FriendComparison.vue");
 
 // Router
 const loggedIn = () => {
@@ -355,9 +355,9 @@ const routes = [
     }
   },
 {
-    path: '/circle',
-    name: 'CircleScreen',
-    component: CircleScreen,
+    path: '/film-club',
+    name: 'FilmClubScreen',
+    component: FilmClubScreen,
     meta: {
       requiresLogin: true
     },
@@ -370,7 +370,7 @@ const routes = [
     }
   },
 {
-    path: '/circle/:friendKey',
+    path: '/film-club/:friendKey',
     name: 'FriendComparison',
     component: FriendComparison,
     meta: {

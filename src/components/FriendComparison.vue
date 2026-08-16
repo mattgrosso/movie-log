@@ -1,6 +1,6 @@
 <template>
   <div class="friend-comparison">
-    <BackLink label="Film Club" @click="$router.push('/circle')"/>
+    <BackLink label="Film Club" @click="$router.push('/film-club')"/>
 
     <div v-if="!profile" class="fc-section">
       <p class="fc-empty">No published profile from this friend yet — they may not have opened the app since accepting.</p>
@@ -105,7 +105,7 @@
 </template>
 
 <script>
-// Per-friend comparison (/circle/:friendKey). Overlap math is pure in
+// Per-friend comparison (/film-club/:friendKey). Overlap math is pure in
 // social.js (compareWithFriend); the criterion drill-down renders only when
 // both sides have a breakdown — theirs exists only behind their own
 // shareCriteria opt-in.
@@ -188,7 +188,7 @@ export default {
     },
     unfriend () {
       this.$store.dispatch('removeFriend', this.friendKey);
-      this.$router.push('/circle');
+      this.$router.push('/film-club');
     }
   }
 };

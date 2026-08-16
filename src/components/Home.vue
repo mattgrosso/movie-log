@@ -333,12 +333,12 @@
               <button class="results-actions-button btn btn-info" type="button" @click="goToInsights" title="Insights" aria-label="Go to insights">
                 <i class="bi bi-lightbulb"/>
               </button>
-              <!-- The Circle takes the lightning bolt's rainbow slot and
+              <!-- The Film Club takes the lightning bolt's rainbow slot and
                    color; the quick-links trigger now lives inside the
-                   search input's right edge (Matt: "the circle really
+                   search input's right edge (Matt: "it really
                    needs to be a first order page"). -->
-              <button class="results-actions-button btn btn-warning btn-sm" type="button" @click="$router.push('/circle')" title="Film Club" aria-label="Go to the Film Club">
-                <i class="bi bi-camera-reels"/>
+              <button class="results-actions-button btn btn-warning btn-sm" type="button" @click="$router.push('/film-club')" title="Film Club" aria-label="Go to the Film Club">
+                <i class="bi bi-suit-club-fill"/>
               </button>
               <!-- Shuffle lives inside the quick-links panel now (feedback:
                    the extra watchlist button broke the rainbow); watchlist
@@ -424,17 +424,17 @@
           </div>
           <!-- Friend requests: same prompt slot as stickiness/tiebreaks so
                an incoming request is impossible to miss without adding a
-               new surface. Tapping goes to the Circle's inbox. -->
+               new surface. Tapping goes to the Film Club's inbox. -->
           <div
             v-if="incomingFriendRequests.length"
             class="friend-request-banner rounded p-3 mb-3"
-            @click="$router.push('/circle')"
+            @click="$router.push('/film-club')"
           >
             <div class="friend-request-content">
               <i class="bi bi-people-fill me-2"></i>
               <span>
                 {{ friendRequestBannerText }}
-                <a class="alert-link" @click.stop="$router.push('/circle')">Review in the Film Club.</a>
+                <a class="alert-link" @click.stop="$router.push('/film-club')">Review in the Film Club.</a>
               </span>
             </div>
           </div>
