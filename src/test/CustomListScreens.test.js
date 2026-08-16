@@ -172,6 +172,19 @@ describe('CustomListDetail', () => {
     expect(wrapper.text()).toContain('no longer in your library')
   })
 
+  it('offers to clear movies that have left the library, and clears exactly those', async () => {
+    const dispatch = vi.fn(() => Promise.resolve())
+    const withGhosts = { ...LIST, items: { ...LIST.items, 999: { at: 1, order: 5 }, 888: { at: 2, order: 6 } } }
+    const wrapper = mountDetail(withGhosts, { dispatch })
+
+    await wrapper.find('.ld-prune').trigger('click')
+    // Numeric-looking object keys iterate in ascending numeric order, so
+    // assert set-wise rather than pinning an order the engine chooses.
+    const call = dispatch.mock.calls.find((c) => c[0] === 'pruneCustomList')
+    expect(call[1].listId).toBe('comfort')
+    expect([...call[1].tmdbIds].sort()).toEqual(['888', '999'])
+  })
+
   it('a deleted list shows a message rather than crashing', () => {
     expect(mountDetail(null).text()).toContain('no longer exists')
   })

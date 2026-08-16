@@ -1307,6 +1307,18 @@ export default createStore({
         })
       ));
     },
+    // Tidy-up for items whose movie has left the library (rated movies can
+    // be deleted). The UI reports the count; this clears them.
+    async pruneCustomList (context, { listId, tmdbIds }) {
+      if (!listId || !tmdbIds?.length) return;
+      await Promise.all(tmdbIds.map((tmdbId) =>
+        context.dispatch('writeDurably', {
+          path: `settings/customLists/${listId}/items/${tmdbId}`,
+          value: null
+        })
+      ));
+      await context.dispatch('touchCustomList', listId);
+    },
     async touchCustomList (context, listId) {
       if (!listId) return;
       await context.dispatch('writeDurably', {

@@ -184,3 +184,14 @@ describe('list chips filter Home', () => {
     expect(applyFilter(movie, { type: 'list', value: 'Broken' })).toBe(false)
   })
 })
+
+describe('resolveListEntries reports which movies went missing', () => {
+  it('names the ids so they can be cleaned up, not just a count', () => {
+    const library = [entry(1, 'Alpha', 9)]
+    const list = { items: { 1: { at: 1, order: 0 }, 999: { at: 2, order: 1 } } }
+    const { rows, missing, missingIds } = resolveListEntries(list, library, ratingOf)
+    expect(rows.length).toBe(1)
+    expect(missing).toBe(1)
+    expect(missingIds).toEqual(['999'])
+  })
+})

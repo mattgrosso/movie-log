@@ -87,10 +87,10 @@ export function resolveListEntries (list, entries, getRatingFn, { sortMode = nul
   });
 
   const resolved = [];
-  let missing = 0;
+  const missingIds = [];
   Object.entries(list?.items || {}).forEach(([tmdbId, item]) => {
     const entry = byTmdbId.get(String(tmdbId));
-    if (!entry) { missing += 1; return; }
+    if (!entry) { missingIds.push(tmdbId); return; }
     resolved.push({
       entry,
       tmdbId,
@@ -113,7 +113,7 @@ export function resolveListEntries (list, entries, getRatingFn, { sortMode = nul
   };
   resolved.sort(sorters[mode] || sorters.manual);
 
-  return { rows: resolved, missing };
+  return { rows: resolved, missing: missingIds.length, missingIds };
 }
 
 // Headline numbers for a list card: how many, average score, and the

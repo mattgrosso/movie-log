@@ -58,6 +58,7 @@
 
       <p v-if="missing" class="ld-missing">
         {{ missing }} movie{{ missing === 1 ? ' is' : 's are' }} no longer in your library and won't show here.
+        <button type="button" class="ld-prune" @click="prune">Remove {{ missing === 1 ? 'it' : 'them' }}</button>
       </p>
 
       <p v-if="!rows.length" class="ld-empty">Nothing in this list yet — add something above.</p>
@@ -141,6 +142,9 @@ export default {
     missing () {
       return this.resolved.missing;
     },
+    missingIds () {
+      return this.resolved.missingIds || [];
+    },
     stats () {
       return listStats(this.rows);
     },
@@ -193,6 +197,10 @@ export default {
       this.$store.dispatch('addToCustomList', { listId: this.listId, tmdbId: entry.movie.id });
       this.query = '';
     },
+    prune () {
+      if (!this.missingIds.length) return;
+      this.$store.dispatch('pruneCustomList', { listId: this.listId, tmdbIds: this.missingIds });
+    },
     remove (row) {
       this.$store.dispatch('removeFromCustomList', { listId: this.listId, tmdbId: row.tmdbId });
     },
@@ -241,6 +249,14 @@ export default {
 
 .ld-stats { color: #ccc; font-size: 0.8rem; margin: 0.35rem 0 0.75rem; }
 .ld-empty { color: #ccc; font-size: 0.85rem; }
+
+.ld-prune {
+  background: none;
+  border: none;
+  color: #9ec5fe;
+  padding: 0 0 0 0.35rem;
+  text-decoration: underline;
+}
 .ld-missing { color: #ccc; font-size: 0.75rem; margin: 0.5rem 0 0; }
 
 .ld-add {
