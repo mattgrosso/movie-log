@@ -341,7 +341,7 @@
                 <!-- New friend ratings since the club was last opened: the
                      filled club hollows out and the count sits inside it. -->
                 <span v-if="filmClubNewUpdateCount" class="film-club-badge">
-                  <i class="bi bi-suit-club"/>
+                  <i class="bi bi-suit-club-fill"/>
                   <span class="film-club-badge-count">{{ filmClubNewUpdateCount > 9 ? '9+' : filmClubNewUpdateCount }}</span>
                 </span>
                 <i v-else class="bi bi-suit-club-fill"/>
@@ -5888,13 +5888,15 @@ export default {
   display: inline-flex;
   position: relative;
 
-  /* The outline club runs ~30% larger than its filled sibling so the
-     count fits inside the glyph (Matt, tuned by eye over two rounds). */
-  .bi-suit-club {
+  /* The badge club runs ~30% larger than the idle chip's glyph so the
+     count fits inside it (Matt, tuned by eye over two rounds). Solid
+     fill with a white count knocked out of it. */
+  .bi-suit-club-fill {
     font-size: 1.32em;
   }
 
   .film-club-badge-count {
+    color: #fff;
     font-size: 0.5rem;
     font-weight: 700;
     left: 50%;
