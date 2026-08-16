@@ -2,99 +2,59 @@ import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import YearlyAverage from '@/components/YearlyAverage.vue'
 
+// The 2026-08-15 rework: the bar chart became a "Best years of movies"
+// ranked list (RELEASE years by log score — watch years live in Deep
+// Stats). Ranking math is covered in ratingOutliers.test.js.
+
 vi.mock('@/assets/javascript/GetRating.js', () => ({
   getRating: vi.fn((result) => ({ calculatedTotal: result.ratings[0].calculatedTotal }))
 }))
 
-function movieResult (rating, releaseDate) {
-  return { movie: { release_date: releaseDate }, ratings: [{ calculatedTotal: rating }] }
+function movieResult (rating, releaseDate, title = 'Film') {
+  return { movie: { title, release_date: releaseDate }, ratings: [{ calculatedTotal: rating }] }
 }
 
-function tvResult (rating, firstAirDate) {
-  return { tvShow: { first_air_date: firstAirDate }, ratings: [{ calculatedTotal: rating }] }
+function library () {
+  return [
+    ...Array.from({ length: 6 }, (_, i) => movieResult(9, '1994-06-15', `Great ${i}`)),
+    ...Array.from({ length: 6 }, (_, i) => movieResult(5, '2010-06-15', `Meh ${i}`)),
+    // Too thin to qualify (minCount 4)
+    movieResult(10, '2005-06-15', 'Lone Gem')
+  ]
 }
 
-function factory (resultsWithRatings, { currentLog = 'movieLog' } = {}) {
+function factory (resultsWithRatings = library()) {
   return mount(YearlyAverage, {
     props: { resultsWithRatings },
-    global: {
-      stubs: { BarChart: true },
-      mocks: { $store: { state: { currentLog } } }
-    }
+    global: { mocks: { $store: { state: { settings: {} } } } }
   })
 }
 
-describe('YearlyAverage', () => {
-  it('uniqueYears derives distinct, ascending years from movie release dates', () => {
-    const results = [movieResult(5, '2020-06-10'), movieResult(7, '2018-06-01'), movieResult(6, '2020-09-01')]
-    const wrapper = factory(results)
-    expect(wrapper.vm.uniqueYears).toEqual([2018, 2020])
+describe('YearlyAverage (Best Years rework)', () => {
+  it('ranks release years best-first with score, count, and top film', () => {
+    const wrapper = factory()
+    const rows = wrapper.findAll('.year-row')
+    expect(rows[0].text()).toContain('1994')
+    expect(rows[0].text()).toContain('6 films')
+    expect(rows[0].text()).toContain('Great')
+    // 2005 has only 1 film — below the floor.
+    expect(wrapper.text()).not.toContain('2005')
   })
 
-  it('getYear reads tvShow.first_air_date when the current log is the TV log', () => {
-    const results = [tvResult(8, '2015-03-01')]
-    const wrapper = factory(results, { currentLog: 'tvLog' })
-    expect(wrapper.vm.uniqueYears).toEqual([2015])
+  it('tapping a year emits updateSearchValue with the year string', async () => {
+    const wrapper = factory()
+    await wrapper.findAll('.year-row')[0].trigger('click')
+    expect(wrapper.emitted('updateSearchValue')[0]).toEqual(['1994'])
   })
 
-  it('yearlyAverageData averages ratings per year and skips non-numeric ratings', () => {
-    const results = [
-      movieResult(8, '2020-06-10'),
-      movieResult(4, '2020-06-01'),
-      movieResult(NaN, '2020-09-01'),
-      movieResult(6, '2021-06-10'),
-    ]
-    const wrapper = factory(results)
-    expect(wrapper.vm.yearlyAverageData.labels).toEqual([2020, 2021])
-    expect(wrapper.vm.yearlyAverageData.datasets[0].data).toEqual(['6.00', '6.00'])
-  })
-
-  it('yearlyAverageData only includes the most recent numberOfYears', () => {
-    const results = [
-      movieResult(1, '2015-06-10'),
-      movieResult(2, '2016-06-10'),
-      movieResult(3, '2017-06-10'),
-    ]
-    const wrapper = factory(results)
-    wrapper.vm.numberOfYears = 2
-    expect(wrapper.vm.yearlyAverageData.labels).toEqual([2016, 2017])
-  })
-
-  describe('decreaseYears / increaseYears', () => {
-    it('decreaseYears halves numberOfYears while it can, then floors at 1', () => {
-      const wrapper = factory([])
-      wrapper.vm.numberOfYears = 4
-      wrapper.vm.decreaseYears()
-      expect(wrapper.vm.numberOfYears).toBe(2)
-      wrapper.vm.decreaseYears()
-      expect(wrapper.vm.numberOfYears).toBe(1)
-      // canDecreaseYears is false at 1 (1/2 = 0.5 < 1) -> floors, doesn't go below 1.
-      wrapper.vm.decreaseYears()
-      expect(wrapper.vm.numberOfYears).toBe(1)
-    })
-
-    it('increaseYears doubles numberOfYears while doubling still fits the data, then snaps to the full range', () => {
-      const results = Array.from({ length: 5 }, (_, i) => movieResult(5, `${2010 + i}-06-10`))
-      const wrapper = factory(results)
-      wrapper.vm.numberOfYears = 2
-      wrapper.vm.increaseYears()
-      // 2*2=4 <= 5 unique years -> doubles.
-      expect(wrapper.vm.numberOfYears).toBe(4)
-      wrapper.vm.increaseYears()
-      // 4*2=8 > 5, but 4 < 5 -> snaps to the full unique-years count.
-      expect(wrapper.vm.numberOfYears).toBe(5)
-      wrapper.vm.increaseYears()
-      // Already at the full range -> no-op (neither branch's condition holds).
-      expect(wrapper.vm.numberOfYears).toBe(5)
-    })
-  })
-
-  it('renders the current year count and wires the Fewer/More buttons', async () => {
-    const results = Array.from({ length: 5 }, (_, i) => movieResult(5, `${2010 + i}-06-10`))
-    const wrapper = factory(results)
-    expect(wrapper.text()).toContain('Average ratings for last 10 years.')
-
-    await wrapper.findAll('button')[0].trigger('click')
-    expect(wrapper.vm.numberOfYears).toBe(5)
+  it('caps at ten years with a show-all expander', async () => {
+    const many = []
+    for (let y = 1990; y < 2005; y++) {
+      for (let i = 0; i < 4; i++) many.push(movieResult(5 + (y % 5), `${y}-06-15`))
+    }
+    const wrapper = factory(many)
+    expect(wrapper.findAll('.year-row').length).toBe(10)
+    await wrapper.find('.year-more').trigger('click')
+    expect(wrapper.findAll('.year-row').length).toBe(15)
   })
 })

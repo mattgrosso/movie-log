@@ -100,7 +100,7 @@
     </InsightsPane>
 
     <InsightsPane>
-      <YearlyAverage :resultsWithRatings="resultsWithRatings"/>
+      <YearlyAverage :resultsWithRatings="resultsWithRatings" @updateSearchValue="updateSearchValue"/>
     </InsightsPane>
 
     <InsightsPane>
