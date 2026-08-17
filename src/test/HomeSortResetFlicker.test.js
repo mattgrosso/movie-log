@@ -53,7 +53,11 @@ function factory () {
 }
 
 describe('rainbow bar sort icon stays put during navigation', () => {
-  it('leaving to a non-detail page resets sort in the STORE only — live state untouched', () => {
+  // Leaving used to RESET the sort for anywhere that wasn't a movie or a
+  // game. It saves it now (Matt, 2026-08-16: "we need to maintain sort order
+  // and filters when we come back to the home page") — but the flicker rule
+  // this file exists for still holds: the live component is never touched.
+  it('leaving to a non-detail page saves sort in the STORE only — live state untouched', () => {
     const { wrapper, mockStore } = factory()
     wrapper.vm.sortValue = 'watched'
     wrapper.vm.sortOrder = 'worstOrOldestOnTop'
@@ -64,9 +68,9 @@ describe('rainbow bar sort icon stays put during navigation', () => {
     // The one-frame flicker was exactly this mutating to null:
     expect(wrapper.vm.sortValue).toBe('watched')
     expect(wrapper.vm.sortOrder).toBe('worstOrOldestOnTop')
-    // The intended effect survives, in the store:
-    expect(mockStore.commit).toHaveBeenCalledWith('setHomePageSortValue', null)
-    expect(mockStore.commit).toHaveBeenCalledWith('setDBSortValue', null)
+    // And the sort is kept for the trip back, rather than thrown away:
+    expect(mockStore.commit).toHaveBeenCalledWith('setHomePageSortValue', 'watched')
+    expect(mockStore.commit).toHaveBeenCalledWith('setHomePageSortOrder', 'worstOrOldestOnTop')
     expect(next).toHaveBeenCalled()
   })
 

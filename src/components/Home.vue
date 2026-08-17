@@ -1476,6 +1476,12 @@ export default {
     // Capture navigation intent at the start - needed for various logic below
     const navigationIntent = this.$store.state.homePageNavigationIntent;
 
+    // Set by the restore below, and read by the sort initialization further
+    // down — which used to key off `navigationIntent === 'close'`, a value
+    // only MovieDetail ever sets, and so happily overwrote a sort restored
+    // from anywhere else.
+    let restoredSort = false;
+
     // Check if we have any state to restore
     const hasStateToRestore = this.$store.state.homePageScrollPosition > 0 ||
                              this.$store.state.homePageSearchChips.length > 0 ||
@@ -1496,11 +1502,14 @@ export default {
         this.numberOfResultsToShow = this.$store.state.homePageNumberOfResults;
       }
 
-      // Restore sort values based on navigation intent
-      if (navigationIntent === 'close') {
-        // Only restore sort values for 'close' navigation, not 'search'
+      // Restore the sort for any return EXCEPT a search handoff, which is
+      // asking for a specific list and shouldn't inherit the old ordering.
+      // Previously this required intent === 'close', which only MovieDetail
+      // ever sets — so coming back from anywhere else silently dropped it.
+      if (navigationIntent !== 'search') {
         if (this.$store.state.homePageSortValue) {
           this.sortValue = this.$store.state.homePageSortValue;
+          restoredSort = true;
         }
         if (this.$store.state.homePageSortOrder) {
           this.sortOrder = this.$store.state.homePageSortOrder;
@@ -1583,8 +1592,12 @@ export default {
       this.$store.commit('setHomePageSearchValue', '');
     }
 
-    // Only initialize sort value if we're not restoring state from a 'close' navigation
-    if (navigationIntent !== 'close' || !hasStateToRestore) {
+    // Only pick a default sort when the restore above didn't already put one
+    // back. This used to ask whether the intent was 'close', which meant a
+    // sort restored from anywhere other than a movie page was immediately
+    // overwritten with the default — the actual reason sort didn't survive
+    // the trip.
+    if (!restoredSort) {
       if (this.DBSortValue) {
         this.setSortValue(this.DBSortValue)
       } else {
@@ -1593,8 +1606,9 @@ export default {
     }
 
     if (this.$route.query.movieDbKey) {
-      // Only override sort if this isn't a 'close' navigation with restored state
-      if (navigationIntent !== 'close' || !hasStateToRestore) {
+      // Arriving with a movie to highlight sorts by recency — unless a sort
+      // was restored, which is the more specific intent.
+      if (!restoredSort) {
         this.$store.commit("setDBSortValue", "watched");
         this.setSortValue("watched");
         this.sortOrder = "bestOrNewestOnTop";
@@ -1658,30 +1672,28 @@ export default {
 
   // Combined beforeRouteLeave method
   beforeRouteLeave (to, from, next) {
-    // Save state when navigating to movie detail page, or to a game (per bug
-    // report — popping over to Wordle and back should preserve whatever
-    // search was active, the same way returning from a movie's detail page
-    // already does; mounted()'s restore logic below is origin-agnostic, so
-    // widening the save side here is the only piece that was missing).
-    if (to.name === 'MovieDetail' || (to.path && to.path.startsWith('/games'))) {
-      this.$store.commit('setHomePageScrollPosition', window.pageYOffset);
-      this.$store.commit('setHomePageSearchChips', [...this.activeFilters]);
-      this.$store.commit('setHomePageSearchValue', this.inputValue);
-      this.$store.commit('setHomePageNumberOfResults', this.numberOfResultsToShow);
-      this.$store.commit('setHomePageSortValue', this.sortValue);
-      this.$store.commit('setHomePageSortOrder', this.sortOrder);
-    } else {
-      // Reset sorting for the NEXT Home visit — store commits only, never
-      // the live component state. Bug report ("the whole bar seems to
-      // shift a little bit to the right... the icon for the sort order is
-      // disappearing"): this used to call setSortValue(null) on the
-      // still-visible screen, which unmounted the sort icon's v-if for one
-      // frame before navigation and visibly reflowed the rainbow bar. The
-      // component is about to unmount; only the store needs resetting.
-      this.$store.commit('setHomePageSortValue', null);
-      this.$store.commit('setHomePageSortOrder', null);
-      this.$store.commit('setDBSortValue', null);
-    }
+    // Save wherever you're going. This used to save ONLY for MovieDetail and
+    // /games and deliberately reset sorting for everywhere else, which meant
+    // searching, sorting, tapping Insights and coming back lost the lot
+    // ("we need to maintain sort order and filters when we come back to the
+    // home page", Matt 2026-08-16).
+    //
+    // It became much more obvious once back actually returned you to Home
+    // instead of pushing a fresh one, but it was never right: popping over to
+    // Wordle kept your search while popping over to the watchlist didn't, and
+    // nothing about the destination explains the difference.
+    //
+    // Note this only ever touches the STORE, never the live component state.
+    // Bug report ("the whole bar seems to shift a little bit to the right...
+    // the icon for the sort order is disappearing"): an earlier version
+    // nulled the visible sortValue, which unmounted the sort icon's v-if for
+    // one frame before navigating and visibly reflowed the rainbow bar.
+    this.$store.commit('setHomePageScrollPosition', window.pageYOffset);
+    this.$store.commit('setHomePageSearchChips', [...this.activeFilters]);
+    this.$store.commit('setHomePageSearchValue', this.inputValue);
+    this.$store.commit('setHomePageNumberOfResults', this.numberOfResultsToShow);
+    this.$store.commit('setHomePageSortValue', this.sortValue);
+    this.$store.commit('setHomePageSortOrder', this.sortOrder);
     next();
   },
   computed: {

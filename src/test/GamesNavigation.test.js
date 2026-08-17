@@ -23,7 +23,7 @@ function entry (id, title) {
   }
 }
 
-function mountHome () {
+function mountHome (stateOverrides = {}) {
   const movies = [entry(1, 'A'), entry(2, 'B')]
   const mockStore = {
     state: {
@@ -44,7 +44,8 @@ function mountHome () {
       homePageNavigationIntent: null,
       homePageSortValue: null,
       homePageSortOrder: null,
-      homePagePromoteGroup: null
+      homePagePromoteGroup: null,
+      ...stateOverrides
     },
     getters: { allMediaAsArray: movies, allMoviesAsArray: movies, allMediaSortedByRating: movies },
     commit: vi.fn(),
@@ -143,14 +144,53 @@ describe('Home beforeRouteLeave — preserve search when going to a game (bug re
     expect(next).toHaveBeenCalled()
   })
 
-  it('still resets sorting (does not save search) when navigating elsewhere, e.g. RateMovie', () => {
+  // The round trip nobody was testing: leave Home with a search and a sort,
+  // come back, and find both still there.
+  it('restores the filters and sort a previous visit left behind', () => {
+    const { wrapper: leaving, mockStore } = mountHome()
+    leaving.vm.inputValue = 'spielberg'
+    leaving.vm.sortValue = 'watched'
+    leaving.vm.sortOrder = 'worstOrOldestOnTop'
+    leaving.vm.activeFilters = [{ id: 'g1', type: 'genre', value: 'Drama', display: 'Drama' }]
+
+    leaving.vm.$options.beforeRouteLeave.call(leaving.vm, { path: '/insights', name: 'Insights' }, {}, vi.fn());
+
+    // Whatever it saved is what the next visit finds waiting.
+    const saved = Object.fromEntries(
+      mockStore.commit.mock.calls
+        .filter(([name]) => name.startsWith('setHomePage'))
+        .map(([name, value]) => [name, value])
+    )
+    expect(saved.setHomePageSortValue).toBe('watched')
+    expect(saved.setHomePageSortOrder).toBe('worstOrOldestOnTop')
+    expect(saved.setHomePageSearchValue).toBe('spielberg')
+    expect(saved.setHomePageSearchChips).toHaveLength(1)
+
+    // Coming back: Home mounts with that state and adopts it.
+    const returning = mountHome({
+      homePageSearchChips: saved.setHomePageSearchChips,
+      homePageSearchValue: saved.setHomePageSearchValue,
+      homePageSortValue: saved.setHomePageSortValue,
+      homePageSortOrder: saved.setHomePageSortOrder
+    })
+
+    expect(returning.wrapper.vm.sortValue).toBe('watched')
+    expect(returning.wrapper.vm.sortOrder).toBe('worstOrOldestOnTop')
+    expect(returning.wrapper.vm.activeFilters).toHaveLength(1)
+  })
+
+  // Used to save for MovieDetail and /games only, and reset everywhere else.
+  // Nothing about the destination explained the difference: popping over to
+  // Wordle kept your search, popping over to the watchlist didn't. It saves
+  // for every destination now (Matt, 2026-08-16).
+  it('saves the search when navigating anywhere else too, e.g. RateMovie', () => {
     const { wrapper, mockStore } = mountHome()
     wrapper.vm.inputValue = 'spielberg'
 
     const next = vi.fn()
     wrapper.vm.$options.beforeRouteLeave.call(wrapper.vm, { path: '/rate-movie', name: 'RateMovie' }, {}, next)
 
-    expect(mockStore.commit).not.toHaveBeenCalledWith('setHomePageSearchValue', 'spielberg')
+    expect(mockStore.commit).toHaveBeenCalledWith('setHomePageSearchValue', 'spielberg')
     expect(next).toHaveBeenCalled()
   })
 })
