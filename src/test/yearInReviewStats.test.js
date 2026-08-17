@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  allViewings,
+  calendarCoverage,
   viewingsInYear,
   bookends,
   calendarGrid,
@@ -488,5 +490,70 @@ describe('scoreShape', () => {
     const shape = scoreShape([{ score: null }]);
     expect(shape.scored).toBe(0);
     expect(shape.buckets).toHaveLength(11);
+  });
+});
+
+describe('calendarCoverage', () => {
+  it('lays out all 366 calendar dates as twelve months', () => {
+    const coverage = calendarCoverage([]);
+
+    expect(coverage.months).toHaveLength(12);
+    expect(coverage.months[0].days).toHaveLength(31);
+    expect(coverage.months[1].days).toHaveLength(29); // Feb 29 has to exist.
+    expect(coverage.total).toBe(366);
+  });
+
+  it('collapses the same date across different years into one cell', () => {
+    const entries = [
+      watched(1, at(2021, 3, 7), 7),
+      watched(2, at(2024, 3, 7), 7),
+      watched(3, at(2026, 3, 7), 7)
+    ];
+
+    const coverage = calendarCoverage(allViewings(entries, getAllRatings));
+    const march7 = coverage.months[2].days[6];
+
+    expect(march7.count).toBe(3);
+    expect(coverage.covered).toBe(1);
+    expect(coverage.years).toBe(3);
+  });
+
+  // The whole point: which dates have you never once watched a film on.
+  it('reports every date you have never watched anything on', () => {
+    const entries = [watched(1, at(2024, 1, 1), 7)];
+    const coverage = calendarCoverage(allViewings(entries, getAllRatings));
+
+    expect(coverage.covered).toBe(1);
+    expect(coverage.missing).toHaveLength(365);
+    expect(coverage.missing.some((gap) => gap.month === 0 && gap.day === 1)).toBe(false);
+    expect(coverage.missing.some((gap) => gap.month === 0 && gap.day === 2)).toBe(true);
+  });
+
+  it('marks Feb 29 as rare, since an empty one means much less', () => {
+    const coverage = calendarCoverage([]);
+    const leapDay = coverage.missing.find((gap) => gap.month === 1 && gap.day === 29);
+
+    expect(leapDay.rare).toBe(true);
+    expect(coverage.missing.filter((gap) => gap.rare)).toHaveLength(1);
+  });
+
+  it('tracks the busiest date and the covered percentage', () => {
+    const entries = [
+      watched(1, at(2021, 6, 4), 7),
+      watched(2, at(2022, 6, 4), 7),
+      watched(3, at(2023, 9, 1), 7)
+    ];
+
+    const coverage = calendarCoverage(allViewings(entries, getAllRatings));
+    expect(coverage.busiest).toBe(2);
+    expect(coverage.covered).toBe(2);
+    expect(coverage.percent).toBe(1);
+  });
+
+  it('is safe with nothing watched at all', () => {
+    const coverage = calendarCoverage(null);
+    expect(coverage.covered).toBe(0);
+    expect(coverage.percent).toBe(0);
+    expect(coverage.missing).toHaveLength(366);
   });
 });

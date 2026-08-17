@@ -9,6 +9,10 @@
 // two viewings and belongs to both months it was seen in. The old page mixed
 // the two units — it counted films for the headline and viewings for the
 // monthly chart, so the bars could add up to more than the total above them.
+//
+// This module owns that viewing-level model, so anything else needing it
+// imports from here: Insights uses `allViewings` + `calendarCoverage` for the
+// all-time version of the heatmap.
 
 const SHORT_RUNTIME = 40;
 
@@ -428,4 +432,68 @@ export function scoreShape (viewings) {
 
   const peak = buckets.reduce((max, bucket) => Math.max(max, bucket.count), 0);
   return { buckets, scored, peak };
+}
+
+// ---------------------------------------------------------------------------
+// All-time calendar coverage
+// ---------------------------------------------------------------------------
+
+const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/**
+ * Every calendar DATE — Jan 1 through Dec 31 — collapsed across all the years
+ * you've been watching. Matt, 2026-08-17: "it'd be cool to see if there's any
+ * specific dates that I have yet to watch a movie on."
+ *
+ * So this is deliberately not the year heatmap's grid. That one is 7 rows of
+ * weekdays because it shows one real year; a date's weekday moves from year to
+ * year, so collapsing years onto a weekday grid would be meaningless. This is
+ * 12 rows of months by day-of-month, which is what "which dates" actually asks.
+ *
+ * Feb 29 is included and counted honestly: it only comes round every fourth
+ * year, so an empty one says much less than an empty March 3rd. `rare` marks it
+ * so the caller can say so rather than listing it as an ordinary gap.
+ */
+export function calendarCoverage (viewings) {
+  const counts = new Map();
+  const years = new Set();
+
+  (viewings || []).forEach((viewing) => {
+    const date = new Date(viewing.at);
+    counts.set(
+      `${date.getMonth()}-${date.getDate()}`,
+      (counts.get(`${date.getMonth()}-${date.getDate()}`) || 0) + 1
+    );
+    years.add(date.getFullYear());
+  });
+
+  let busiest = 0;
+  let covered = 0;
+  const missing = [];
+
+  const months = DAYS_IN_MONTH.map((length, month) => ({
+    month,
+    days: Array.from({ length }, (unused, index) => {
+      const day = index + 1;
+      const count = counts.get(`${month}-${day}`) || 0;
+      const rare = month === 1 && day === 29;
+
+      if (count > busiest) busiest = count;
+      if (count) covered += 1;
+      else missing.push({ month, day, rare });
+
+      return { month, day, count, rare };
+    })
+  }));
+
+  const total = DAYS_IN_MONTH.reduce((sum, length) => sum + length, 0);
+  return {
+    months,
+    busiest,
+    covered,
+    total,
+    missing,
+    years: years.size,
+    percent: Math.round((covered / total) * 100)
+  };
 }

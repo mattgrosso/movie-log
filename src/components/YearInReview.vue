@@ -608,10 +608,15 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/* No `position: relative` here, however tempting. BackLink is absolutely
+   positioned at top:6px and depends on there being NO positioned ancestor, so
+   it escapes to the page's initial containing block and lands up in the
+   header alongside every other screen's back link. A positioned root traps it
+   at the top of this component's own content instead, which is why this page
+   alone had its back link sitting below the header. */
 .year-in-review {
   color: #fff;
   padding-bottom: 4rem;
-  position: relative;
 }
 
 /* BackLink floats over the top-left. Padding stays symmetric — at phone width

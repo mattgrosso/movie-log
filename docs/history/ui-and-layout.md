@@ -221,3 +221,55 @@ was the test count moving by less than the number added. `rm` on the lowercase n
 deleted the uppercase file too. Both were recovered with `git checkout`, the pure-module
 tests went to `yearInReviewStats.test.js`, and `YearInReview.test.js` was rewritten
 against the new component's surface.
+
+## All-time calendar coverage, and the back-link that sat below the header (Aug 2026)
+
+Two follow-ups to the Year in Review rebuild. Matt: *"the back button on year in review is
+down below the header instead of up in the header like we did everywhere else"* and *"I
+really like your shape of the year graph... Can we add one of that graph to somewhere in
+our insights page where it shows all time days of the year? It'd be cool to see if there's
+any specific dates that I have yet to watch a movie on."*
+
+### `position: relative` on a routed root breaks BackLink
+
+BackLink is `position: absolute; top: 6px` and depends on there being **no positioned
+ancestor anywhere up the tree** — that's how it escapes to the page's initial containing
+block and lands up over the global header, which is documented in its own source comment.
+`.year-in-review { position: relative }` created exactly that ancestor and trapped the
+link at the top of the component's own content instead. It was the only routed root in the
+app doing this (the other four `position: relative` declarations are all on inner
+elements), and the rule predated the rebuild.
+
+### Why the Insights grid is a different shape
+
+The Year in Review heatmap is a contribution graph: 7 weekday rows by ~53 week columns,
+which is right for one real year. Collapsing *every* year onto that grid would be
+meaningless, because a given date's weekday moves from year to year. The all-time version
+is therefore **12 month rows by day-of-month**, which is what "which dates have I never
+watched on" actually asks.
+
+`calendarCoverage()` lives alongside `allViewings` in `yearInReview.js` — that module owns
+the viewing-level model, so Insights imports from it rather than growing a second one.
+Shorts are deliberately included here: the question is "did I watch *something* on this
+date", and a short counts.
+
+Details worth keeping:
+
+- **Feb 29 is `rare`, not a gap.** It comes round every fourth year, so an empty one says
+  far less than an empty March 3rd. It renders dimmed and is kept out of the "still to
+  claim" list.
+- **The gaps get the only outline.** A flat dark square reads as background rather than as
+  a date, so unwatched cells carry an inset border; watched ones ramp through the
+  Activity tab's `--accent`.
+- **A 31-column CSS grid, not a flex row.** Flexed cells would make February's wider than
+  January's and the columns — which are the dates — would stop lining up. The first
+  attempt was a fixed-size flex row that came to 396px against a 393px viewport: a 3px
+  overflow, which reads as a bug rather than as a scrollable graph.
+- The panel is hidden entirely until something has been watched; 366 hollow squares is a
+  bleak welcome.
+
+Adding a second import from `GetRating.js` broke four existing `Insights.test.js` tests:
+`vi.mock` with a partial factory **fails loudly** on a missing export rather than
+returning undefined, so a module mock has to keep pace with what the component imports.
+
+Against the real library: 203 of 366 dates covered across 7 years, 163 never claimed.

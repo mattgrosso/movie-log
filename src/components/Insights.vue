@@ -134,6 +134,44 @@
         <div class="glance-item alt"><span class="glance-label">{{ lastYear }} Total</span><span class="glance-value">{{ moviesWatchedLastYear }}</span></div>
       </div>
 
+      <!-- All-time calendar coverage. The Year in Review heatmap shows one
+           real year on a weekday grid; this collapses every year onto the
+           dates themselves, because a date's weekday moves year to year and
+           the question here is "which dates have I never watched on". -->
+      <div v-if="coverage.covered" class="coverage-box">
+        <h3 class="coverage-title">Every Date on the Calendar</h3>
+        <p class="coverage-caption">
+          {{ coverage.years }} years of watching, collapsed onto the calendar. You've seen
+          a film on <strong>{{ coverage.covered }}</strong> of {{ coverage.total }} dates.
+          <template v-if="coverage.missing.length">
+            The dark ones are the {{ coverage.missing.length }} you never have.
+          </template>
+        </p>
+
+        <div class="coverage-grid">
+            <div v-for="month in coverage.months" :key="`cov-${month.month}`" class="coverage-row">
+              <span class="coverage-month">{{ monthAbbreviations[month.month] }}</span>
+              <span
+                v-for="cell in month.days"
+                :key="`cov-${month.month}-${cell.day}`"
+                class="coverage-cell"
+                :class="coverageClass(cell)"
+                :title="`${monthAbbreviations[month.month]} ${cell.day}: ${cell.count} watched`"
+              ></span>
+          </div>
+        </div>
+
+        <p v-if="nextGapsToFill.length" class="coverage-gaps">
+          Still to claim: <strong>{{ nextGapsToFill.join(', ') }}</strong>
+          <template v-if="coverage.missing.length > nextGapsToFill.length">
+            and {{ coverage.missing.length - nextGapsToFill.length }} more
+          </template>
+        </p>
+        <p v-else-if="!coverage.missing.length" class="coverage-gaps">
+          Every date on the calendar, claimed. There is nothing left to fill in.
+        </p>
+      </div>
+
       <InsightsPane>
         <FullCalendarView :results="allEntriesWithFlatKeywordsAdded" :open="true" />
       </InsightsPane>
@@ -190,7 +228,8 @@ const PEOPLE_CATEGORIES = [
   { key: 'composers', label: 'Composers', component: FavoriteComposers },
   { key: 'producers', label: 'Producers', component: FavoriteProducers }
 ];
-import { getRating } from "../assets/javascript/GetRating.js";
+import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
+import { allViewings, calendarCoverage } from "../assets/javascript/yearInReview.js";
 
 import { Chart, registerables } from "chart.js";
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
@@ -228,6 +267,7 @@ export default {
       // Tabbed layout state; both persist across visits.
       activeTab: localStorage.getItem('cinemaRoll.insights.tab') || 'overview',
       peopleCategory: localStorage.getItem('cinemaRoll.insights.people') || 'directors',
+      monthAbbreviations: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
       tabs: [
         { key: 'overview', label: 'Overview' },
         { key: 'ratings', label: 'Ratings' },
@@ -279,6 +319,22 @@ export default {
     this.randomizeAxes();
   },
   computed: {
+    // Every viewing ever, for the all-time calendar coverage grid. Shorts are
+    // included here deliberately: the question is "did I watch something on
+    // this date", and a short absolutely counts as having watched something.
+    coverage () {
+      return calendarCoverage(
+        allViewings(this.$store.getters.allMediaAsArray, getAllRatings, { includeShorts: true })
+      );
+    },
+    // The first few gaps, named. The full list runs to hundreds early on and
+    // is useless as prose; a handful reads like a challenge.
+    nextGapsToFill () {
+      return this.coverage.missing
+        .filter((gap) => !gap.rare)
+        .slice(0, 6)
+        .map((gap) => `${this.monthAbbreviations[gap.month]} ${gap.day}`);
+    },
     peopleCategories () {
       return PEOPLE_CATEGORIES;
     },
@@ -917,6 +973,13 @@ export default {
     },
   },
   methods: {
+    coverageClass (cell) {
+      if (!cell.count) return cell.rare ? 'coverage-rare' : 'coverage-none';
+      // Four steps against the busiest date, so the grid still has contrast
+      // for someone with a handful of years rather than a decade of them.
+      const step = Math.ceil((cell.count / Math.max(1, this.coverage.busiest)) * 4);
+      return `coverage-${Math.min(4, Math.max(1, step))}`;
+    },
     setTab (key) {
       this.activeTab = key;
       localStorage.setItem('cinemaRoll.insights.tab', key);
@@ -2737,6 +2800,86 @@ export default {
       padding: 0 0.5rem 0.5rem;
     }
   }
+
+  /* All-time calendar coverage. Ramps use the tab's own --accent so this
+     belongs to Activity the way every other panel belongs to its tab. */
+  .coverage-box {
+    border: 1px solid white;
+    border-radius: 3px;
+    color: white;
+    margin-bottom: 0.75rem;
+    padding: 0.7rem;
+  }
+
+  .coverage-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+  }
+
+  .coverage-caption {
+    /* #b9b9b9 on this panel is ~8:1; .text-muted would fail here. */
+    color: #b9b9b9;
+    font-size: 0.75rem;
+    margin: 0 0 0.6rem;
+  }
+
+  .coverage-caption strong { color: var(--accent); }
+
+  .coverage-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  /* A 31-column grid rather than a flex row: months have 28 to 31 days, and
+     flexing the cells would make February's wider than January's, so the
+     columns — which are the dates — would stop lining up. Fixed columns keep
+     the 14th above the 14th, and 1fr means the whole thing fits any width
+     without a 3px overflow that reads as a bug. */
+  .coverage-row {
+    align-items: center;
+    display: grid;
+    gap: 2px;
+    grid-template-columns: 24px repeat(31, 1fr);
+  }
+
+  .coverage-month {
+    color: #b9b9b9;
+    font-size: 0.6rem;
+    text-align: right;
+  }
+
+  .coverage-cell {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    display: block;
+    min-width: 0;
+  }
+
+  /* The gaps are the point of the graph, so they get the only outline —
+     a flat dark square would read as background rather than as a date. */
+  .coverage-none {
+    background: #1b1b1b;
+    box-shadow: inset 0 0 0 1px #3d3d3d;
+  }
+
+  /* Feb 29 comes round once every four years; an empty one says much less
+     than an empty March 3rd, so it isn't dressed up as a real gap. */
+  .coverage-rare { background: #1b1b1b; opacity: 0.35; }
+
+  .coverage-1 { background: var(--accent-deep); }
+  .coverage-2 { background: var(--accent-deep); filter: brightness(1.45); }
+  .coverage-3 { background: var(--accent); filter: brightness(0.8); }
+  .coverage-4 { background: var(--accent); }
+
+  .coverage-gaps {
+    color: #b9b9b9;
+    font-size: 0.72rem;
+    margin: 0.5rem 0 0;
+  }
+
+  .coverage-gaps strong { color: #e6e6e6; }
 
   .scatter-reading {
     color: #e6e6e6;

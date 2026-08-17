@@ -9,7 +9,11 @@ vi.mock('@/assets/javascript/GetRating.js', () => ({
       ...r,
       calculatedTotal: r.calculatedTotal != null ? r.calculatedTotal : 0
     }
-  })
+  }),
+  // The all-time calendar coverage grid reads every rating, not just the
+  // most recent one. A partial mock of this module fails loudly rather than
+  // returning undefined, so it has to keep pace with what Insights imports.
+  getAllRatings: vi.fn((media) => media?.ratings || null)
 }))
 
 // Ratings record `date` as a real Date-derived value, not a bare "YYYY-MM-DD"
@@ -450,6 +454,54 @@ describe('Insights — what lives on which tab', () => {
     expect(wrapper.find('.pace-box').text()).toMatch(/on track for/)
     expect(tabLabels(wrapper).length).toBe(5) // week, this month, last month, and last year's pair
     expect(tabLabels(wrapper)[0]).toBe('This Week')
+  })
+
+  describe('all-time calendar coverage', () => {
+    it('lays every calendar date out on Activity and counts the ones you have', async () => {
+      const { wrapper } = mountInsights({
+        mediaEntries: [entry({ ratings: [{ calculatedTotal: 5, date: localDate(2026, 1, 15) }] })]
+      })
+      await showTab(wrapper, 'activity')
+
+      expect(wrapper.findAll('.coverage-row')).toHaveLength(12)
+      expect(wrapper.findAll('.coverage-cell')).toHaveLength(366)
+      expect(wrapper.find('.coverage-caption').text()).toMatch(/a film on 1 of 366 dates/)
+    })
+
+    // The gaps are the whole point — Matt wanted to see "if there's any
+    // specific dates that I have yet to watch a movie on".
+    it('marks the dates you have never watched anything on', async () => {
+      const { wrapper } = mountInsights({
+        mediaEntries: [entry({ ratings: [{ calculatedTotal: 5, date: localDate(2026, 1, 15) }] })]
+      })
+      await showTab(wrapper, 'activity')
+
+      // 366 dates, one of them watched, and Feb 29 called out separately.
+      expect(wrapper.findAll('.coverage-none')).toHaveLength(364)
+      expect(wrapper.findAll('.coverage-rare')).toHaveLength(1)
+      expect(wrapper.find('.coverage-gaps').text()).toMatch(/Still to claim/)
+    })
+
+    it('collapses the same date across years into one cell', async () => {
+      const { wrapper } = mountInsights({
+        mediaEntries: [
+          entry({ dbKey: 'a', ratings: [{ calculatedTotal: 5, date: localDate(2024, 1, 15) }] }),
+          entry({ dbKey: 'b', ratings: [{ calculatedTotal: 5, date: localDate(2026, 1, 15) }] })
+        ]
+      })
+      await showTab(wrapper, 'activity')
+
+      expect(wrapper.find('.coverage-caption').text()).toMatch(/a film on 1 of 366 dates/)
+      expect(wrapper.find('.coverage-caption').text()).toMatch(/2 years of watching/)
+    })
+
+    // 366 hollow squares is a bleak welcome.
+    it('stays hidden until there is something to show', async () => {
+      const { wrapper } = mountInsights({ mediaEntries: [] })
+      await showTab(wrapper, 'activity')
+
+      expect(wrapper.find('.coverage-box').exists()).toBe(false)
+    })
   })
 
   it('no longer repeats the rating figures on Ratings', async () => {
