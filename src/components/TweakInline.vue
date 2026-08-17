@@ -13,7 +13,7 @@
       </div>
 
       <!-- Tournament just completed: show final standings -->
-      <div v-else-if="tournamentIsComplete" key="results" class="tweak-container rounded p-3 mb-3">
+      <div v-else-if="tournamentIsComplete" key="results" class="tweak-container p-3 mb-3">
         <div class="text-center mb-3">
           <h5 class="text-light mb-0">Tournament Complete!</h5>
           <p class="text-light small mb-0">Final standings for this tie</p>
@@ -46,7 +46,7 @@
 
       <!-- Current match (guarded so a momentary null pair can never throw
            trying to render a poster for a movie that isn't there) -->
-      <div v-else-if="firstResult && secondResult" key="form" class="tweak-container rounded p-3 mb-3">
+      <div v-else-if="firstResult && secondResult" key="form" class="tweak-container p-3 mb-3">
         <!-- Title. Bug report: with a 2-way tie, progressLabel is empty (no
              subtitle line), which left the posters "pulled too tight" right
              under the header - mb-3 (was mb-2) gives consistent breathing
@@ -515,12 +515,20 @@ export default {
 // Tweak content styling
 .tweak-inline {
   .tweak-container {
-    background: #4a4a4a;
-    border: 1px solid #666;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
-    backdrop-filter: blur(10px);
+    /* Same surface as .prompt-card and every other panel in the app —
+       #161616 on a #2e2e2e hairline. This used to be flat #4a4a4a with a
+       #666 border, which is what the collapsed prompts looked like before
+       they were reworked; the expanded forms have to move with them or the
+       card changes colour the moment you tap it (2026-08-17).
+
+       The class stays put rather than being swapped for .prompt-panel: a lot
+       of form styling is nested under it, and .prompt-card's icon-plus-body
+       flex row is the wrong layout for a form anyway. */
+    background: #161616;
+    border: 1px solid #2e2e2e;
+    border-radius: 10px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease;
 
     .tweak-notice-content {
       color: #fff;

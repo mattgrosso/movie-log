@@ -375,6 +375,18 @@ needs stickiness updates. Click to add stickiness."
 `TweakInline`'s tests clicked `.tweak-container` to open the prompt, which is now
 `.prompt-card` — 15 selectors and one copy assertion moved with it.
 
+**The expanded panels had to move too.** The first pass restyled only the collapsed
+notices, which left the stickiness form, the tiebreak matchup and the tournament results
+still on `#4a4a4a` — so the card changed colour the moment you tapped it. Their container
+classes were *kept* rather than swapped for `.prompt-card`: a lot of form styling is
+nested under them, and `.prompt-card`'s icon-plus-body flex row is the wrong layout for a
+form. Only the surface rules changed. Bootstrap's `.rounded` utility then had to come off
+those elements, because at 6px it was overriding the container's own 10px and leaving the
+expanded panel a different shape from the collapsed prompt above it.
+
+Every colour inside those panels is `#fff` or `#ccc`, so the darker surface only improved
+contrast (white goes from ~14:1 to ~19:1).
+
 ### The rainbow bar
 
 - **The binoculars had no font-size of its own** and so ran visibly smaller than the club

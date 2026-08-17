@@ -16,7 +16,7 @@
       </div>
 
       <!-- Inline Content -->
-      <div v-else key="form" class="stickiness-container rounded p-3 mb-3">
+      <div v-else key="form" class="stickiness-container p-3 mb-3">
         <!-- Top section: Centered poster -->
         <div class="text-center mb-3">
           <img
@@ -348,12 +348,20 @@ export default {
 // Stickiness content styling
 .stickiness-inline {
   .stickiness-container {
-    background: #4a4a4a;
-    border: 1px solid #666;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
-    backdrop-filter: blur(10px);
+    /* Same surface as .prompt-card and every other panel in the app —
+       #161616 on a #2e2e2e hairline. This used to be flat #4a4a4a with a
+       #666 border, which is what the collapsed prompts looked like before
+       they were reworked; the expanded forms have to move with them or the
+       card changes colour the moment you tap it (2026-08-17).
+
+       The class stays put rather than being swapped for .prompt-panel: a lot
+       of form styling is nested under it, and .prompt-card's icon-plus-body
+       flex row is the wrong layout for a form anyway. */
+    background: #161616;
+    border: 1px solid #2e2e2e;
+    border-radius: 10px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease;
 
     .stickiness-notice-content {
       color: #fff;
