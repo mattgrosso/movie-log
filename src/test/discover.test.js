@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rewatchCandidates, rewatchCycleYears, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, tasteProfile, tasteBonus, nextPunt, isPunted, puntKeyFor } from '@/assets/javascript/discover.js';
+import { rewatchCandidates, rewatchCycleYears, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, tasteProfile, tasteBonus, nextPunt, isPunted, puntKeyFor , peopleYouRateHigher} from '@/assets/javascript/discover.js';
 
 const NOW = new Date('2026-08-15T00:00:00Z').getTime();
 const yearsAgo = (years) => NOW - years * 365.25 * 24 * 3600 * 1000;
@@ -299,3 +299,60 @@ describe('watchlist punts', () => {
     expect(isPunted({ dbKey: 'other' }, punts, NOW3)).toBe(false)
   })
 })
+
+// "A third one for actors and actresses combined, who I like more than most
+// people." (2026-08-17) A different question from favoritePeople, which finds
+// who you rate highly outright and so fills with people in great films.
+describe('peopleYouRateHigher', () => {
+  const rating = (entry) => ({ calculatedTotal: entry.ratings[0].calculatedTotal });
+
+  const film = (id, mine, world, cast) => ({
+    dbKey: `k${id}`,
+    ratings: [{ calculatedTotal: mine }],
+    movie: { id, title: `Film ${id}`, vote_average: world, cast: cast.map((name) => ({ name })) }
+  });
+
+  it('ranks by how far above the consensus you rate them', () => {
+    const entries = [
+      // Underappreciated: world says 5, you say 9.
+      film(1, 9, 5, ['Underrated']),
+      film(2, 9, 5, ['Underrated']),
+      film(3, 9, 5, ['Underrated']),
+      // Beloved by everyone, so no lift at all.
+      film(4, 9, 9, ['Consensus']),
+      film(5, 9, 9, ['Consensus']),
+      film(6, 9, 9, ['Consensus'])
+    ];
+
+    const people = peopleYouRateHigher(entries, rating);
+    expect(people[0].name).toBe('Underrated');
+    expect(people[0].avgLift).toBe(4);
+    expect(people.some((p) => p.name === 'Consensus')).toBe(false);
+  });
+
+  it('leaves out anyone you rate below the consensus', () => {
+    const entries = [
+      film(1, 3, 8, ['Overrated']),
+      film(2, 3, 8, ['Overrated']),
+      film(3, 3, 8, ['Overrated'])
+    ];
+
+    expect(peopleYouRateHigher(entries, rating)).toEqual([]);
+  });
+
+  // A missing vote_average is unknown, not zero — treating it as zero would
+  // invent an enormous lift.
+  it('skips films with no world score rather than scoring them as zero', () => {
+    const entries = [
+      film(1, 9, 0, ['Ghost']),
+      film(2, 9, null, ['Ghost']),
+      film(3, 9, undefined, ['Ghost'])
+    ];
+
+    expect(peopleYouRateHigher(entries, rating)).toEqual([]);
+  });
+
+  it('needs a few films before it will name anyone', () => {
+    expect(peopleYouRateHigher([film(1, 9, 4, ['Fluke'])], rating)).toEqual([]);
+  });
+});

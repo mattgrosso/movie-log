@@ -125,6 +125,53 @@ export function favoritePeople (entries, getRatingFn, { role = 'director', minMo
     .slice(0, cap);
 }
 
+/**
+ * People whose films you rate higher than the world does — "a third one for
+ * actors and actresses combined, who I like more than most people"
+ * (2026-08-17).
+ *
+ * Not the same question as favoritePeople, which asks who you rate highly
+ * outright and so fills up with people who happen to be in great films.
+ * This is a LIFT: your score against TMDB's `vote_average` on the very same
+ * films, so it surfaces the people you personally rate above the consensus.
+ *
+ * Both scales are 0-10 already. Ratings without a usable vote_average are
+ * skipped rather than treated as a zero, which would invent a huge lift.
+ */
+export function peopleYouRateHigher (entries, getRatingFn, { role = 'actor', minMovies = 3, cap = 3, castDepth = 5 } = {}) {
+  const byName = new Map();
+
+  (entries || []).forEach((entry) => {
+    const rating = getRatingFn(entry)?.calculatedTotal;
+    const world = entry?.movie?.vote_average;
+    if (!Number.isFinite(rating) || !Number.isFinite(world) || world <= 0) return;
+
+    const names = role === 'director'
+      ? (entry?.movie?.crew || []).filter((person) => person.job === 'Director').map((person) => person.name)
+      : (entry?.movie?.cast || []).slice(0, castDepth).map((person) => person.name);
+
+    new Set(names.filter(Boolean)).forEach((name) => {
+      if (!byName.has(name)) byName.set(name, { name, count: 0, lift: 0 });
+      const record = byName.get(name);
+      record.count += 1;
+      record.lift += rating - world;
+    });
+  });
+
+  return [...byName.values()]
+    .filter((person) => person.count >= minMovies)
+    .map((person) => ({
+      name: person.name,
+      count: person.count,
+      avgLift: person.lift / person.count,
+      // Same damping favoritePeople uses: three films shouldn't outrank ten.
+      score: (person.lift / person.count) * Math.log2(person.count + 1)
+    }))
+    .filter((person) => person.avgLift > 0)
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, cap);
+}
+
 // TMDB credit lists -> one watchlist. Drops movies already in the library
 // (by TMDB id), unreleased/undated ones, and low-signal entries (too few
 // votes to trust the score). Dedupes across people, keeping whichever copy

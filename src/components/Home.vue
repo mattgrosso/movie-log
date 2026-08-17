@@ -54,7 +54,7 @@
          the rainbow bar (Matt), triggered by the bolt inside the input. -->
       <div ref="quickLinkTypes" class="quick-link-types d-flex align-items-center flex-wrap col-md-12">
         <div id="quick-links-accordion" class="col-12 mt-1 accordion-collapse collapse">
-          <div>
+          <div class="quick-links-badges">
             <span
               class="badge mx-1 text-bg-secondary"
               @click="findRandomSearchValue"
@@ -152,24 +152,23 @@
             >
               Studios
             </span>
-            <hr>
-            <div class="tags-quicklinks">
-              <p data-bs-toggle="collapse" data-bs-target="#tagsCollapse" aria-expanded="false" aria-controls="tagsCollapse">
-                Tags
-                <i class="bi bi-caret-right-fill"/>
-              </p>
-              <div class="collapse" id="tagsCollapse">
-                <span
-                  v-for="(tag, index) in tags"
-                  :key="index"
-                  class="badge mx-1"
-                  :class="value === tag ? 'text-bg-success' : 'text-bg-secondary'"
-                  @click="toggleQuickLinksList(tag)"
-                >
-                  {{tag}}
-                </span>
-              </div>
-            </div>
+            <!-- Tags used to sit behind their own "Tags ▸" collapse below an
+                 <hr>. They're in the same flow now: "at some point in the past
+                 I separated out quick links from tags. I think I must've done
+                 that because sometimes someone can have a lot of tags and then
+                 the quick links become overwhelming. What if instead we
+                 combine them into one list, but we make it scrollable if it
+                 gets way too thick." (2026-08-17) The wrapper caps the height
+                 and scrolls, which is what made separating them unnecessary. -->
+            <span
+              v-for="(tag, index) in tags"
+              :key="`tag-${index}`"
+              class="badge mx-1"
+              :class="activeQuickLinkList === tag ? 'text-bg-success' : 'text-bg-secondary'"
+              @click="toggleQuickLinksList(tag)"
+            >
+              {{tag}}
+            </span>
           </div>
           <div v-if="sortedDataForActiveQuickLinkList.length" class="quick-links-list-wrapper mt-2">
             <div class="accordion-body col-12">
@@ -488,6 +487,21 @@
                    the pane had grown patchwork). Ordered by everyday
                    relevance; rarely-used groups collapse by default. -->
               <SettingsSection title="Library" hint="Short films, your rating curve, and personal awards" collapsible :startOpen="false">
+
+                <!-- "I should be able to set a default sort order somewhere in
+                     settings" (2026-08-17). Home already remembered a sort for
+                     the session; this is the one it opens on. -->
+                <h6 class="settings-subhead">Default sort</h6>
+                <div class="mb-3">
+                  <select class="form-select form-select-sm mb-2" :value="defaultSortValue" @change="updateDefaultSort($event.target.value, defaultSortOrder)">
+                    <option v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                  </select>
+                  <select class="form-select form-select-sm" :value="defaultSortOrder" @change="updateDefaultSort(defaultSortValue, $event.target.value)">
+                    <option value="bestOrNewestOnTop">Best / newest first</option>
+                    <option value="worstOrOldestOnTop">Worst / oldest first</option>
+                  </select>
+                  <p class="settings-note">Which order the library opens in.</p>
+                </div>
 
                 <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" id="shortsToggle" :checked="showShorts" @change="updateShowShorts">
@@ -1631,10 +1645,12 @@ export default {
     // overwritten with the default — the actual reason sort didn't survive
     // the trip.
     if (!restoredSort) {
+      // The session's last sort wins, then the saved default, then rating.
       if (this.DBSortValue) {
         this.setSortValue(this.DBSortValue)
       } else {
-        this.setSortValue("rating")
+        this.setSortValue(this.defaultSortValue)
+        this.sortOrder = this.defaultSortOrder;
       }
     }
 
@@ -1805,6 +1821,28 @@ export default {
     showShorts () {
       const value = this.$store.state.settings?.includeShorts;
       return typeof value === 'boolean' ? value : false;
+    },
+    // Every field the sort dropdown offers, in the order it offers them.
+    sortOptions () {
+      return [
+        { value: 'rating', label: 'Rating' },
+        { value: 'watched', label: 'Date watched' },
+        { value: 'release', label: 'Release date' },
+        { value: 'title', label: 'Title' },
+        { value: 'views', label: 'Times seen' },
+        { value: 'direction', label: 'Direction' },
+        { value: 'imagery', label: 'Imagery' },
+        { value: 'story', label: 'Story' },
+        { value: 'performance', label: 'Performance' },
+        { value: 'soundtrack', label: 'Soundtrack' },
+        { value: 'stickiness', label: 'Stickiness' }
+      ];
+    },
+    defaultSortValue () {
+      return this.$store.state.settings?.defaultSort?.value || 'rating';
+    },
+    defaultSortOrder () {
+      return this.$store.state.settings?.defaultSort?.order || 'bestOrNewestOnTop';
     },
     socialSettings () {
       return this.$store.getters.socialSettings || {};
@@ -3748,6 +3786,11 @@ export default {
     setSortOrder (order) {
       this.sortOrder = order;
     },
+    // Leaf writes, per the write-path rule — never the whole object.
+    updateDefaultSort (value, order) {
+      this.$store.dispatch('writeDurably', { path: 'settings/defaultSort/value', value });
+      this.$store.dispatch('writeDurably', { path: 'settings/defaultSort/order', value: order });
+    },
     setSortValue (value) {
       this.sortValue = value;
     },
@@ -5206,6 +5249,19 @@ export default {
 </script>
 
 <style lang="scss">
+/* Quick links and tags are one combined list now, capped and scrolling —
+   "what if instead we combine them into one list, but we make it scrollable
+   if it gets way too thick" (2026-08-17). The cap is exactly what made
+   separating tags out unnecessary in the first place.
+
+   Top level on purpose: #quick-links-accordion is a child of the search row,
+   NOT of .quick-link-types, so a rule nested in there never matches it. */
+#quick-links-accordion .quick-links-badges {
+  max-height: 40vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
   .home {
     width: 100%;
     max-width: 832px;

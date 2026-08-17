@@ -202,3 +202,39 @@ returned 0, which is why Matt "hadn't seen it in a while". Home now fetches prof
 watches `socialFriendKeys` to refetch when the edges land (the same watcher
 WatchlistScreen and FilmClubScreen already had — Home was the odd one out). The icon is
 also the outline club now, matching the binoculars and sort glyphs beside it.
+
+### Default sort, merged quick links, and splitting the performer watchlists
+
+The last three of the round.
+
+- **A default sort lives in settings** (`settings/defaultSort/{value,order}`, leaf writes).
+  Home already remembered a sort for the session via `DBSortValue`; this is the one it
+  opens on when there's nothing to restore. Precedence: restored sort → session sort →
+  saved default → rating.
+- **Quick links and tags are one list.** Tags used to sit behind their own "Tags ▸"
+  collapse below an `<hr>`, which existed because a long tag list drowned the quick links.
+  The combined list is capped at 40vh and scrolls, which is what made the separation
+  unnecessary. *The scroll rule had to go at the top level of the style block* —
+  `#quick-links-accordion` is a child of the search row, not of `.quick-link-types`, so
+  the first attempt nested inside there never matched and silently did nothing.
+- **Three performer watchlists instead of one**: actresses, actors, and "people you rate
+  higher than most".
+
+The last of those is a different question from the other two. `favoritePeople` finds who
+you rate highly outright, which fills with people who happen to be in great films.
+`peopleYouRateHigher` is a **lift** — your score against TMDB's `vote_average` on the very
+same films — so it surfaces people you personally rate above the consensus. Films without
+a usable `vote_average` are skipped rather than scored as zero, which would invent an
+enormous lift.
+
+**Gender isn't in the library** — `storedEntry.js` trims it — so the split needs TMDB, the
+same way FavoriteActors/FavoriteActresses get it. `resolvePerformers` runs the
+`/search/person` call and **keeps the id**, which `moviesFromPeople` then reuses instead
+of searching for the same name a second time (covered by test: sabotaging the reuse makes
+the call count go 1 → 2). A wide pool of twelve goes in before the split, because taking
+the top three overall could be three actors and leave the actresses row empty. TMDB
+reports 0 for "not specified"; those people appear in neither gendered row and the row
+simply doesn't render.
+
+The existing `WatchlistScreen` test mock returned `{ id: 777 }` with no gender, which is
+not a shape TMDB ever produces — it made every gendered row come back empty.

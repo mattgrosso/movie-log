@@ -43,7 +43,10 @@ function tmdbImpl (url) {
     });
   }
   if (url.includes('/search/person')) {
-    return Promise.resolve({ data: { results: [{ id: 777 }] } });
+    // TMDB always returns a gender (1 female, 2 male, 0 unspecified), and the
+    // performer rows are split on it — a mock without one made every gendered
+    // row come back empty.
+    return Promise.resolve({ data: { results: [{ id: 777, gender: 2 }] } });
   }
   if (url.includes('/person/777/movie_credits')) {
     return Promise.resolve({
@@ -226,5 +229,67 @@ describe('WatchlistScreen learning loop', () => {
     // The lists are assigned before the learning loop runs, so they survive.
     expect(wrapper.findAll('.watchlist-card').length).toBeGreaterThan(0);
     errors.mockRestore();
+  });
+});
+
+// "There should be a separate one for actors and actresses, and a third one
+// for actors and actresses combined who I like more than most people."
+// (2026-08-17) The library doesn't store gender — storedEntry.js trims it —
+// so it comes from the same /search/person call the credits lookup already
+// makes, and the id is reused rather than searched for twice.
+describe('WatchlistScreen performer sections', () => {
+  beforeEach(() => {
+    axios.get.mockReset();
+    axios.get.mockImplementation(tmdbImpl);
+  });
+
+  it('splits performers by the gender TMDB reports', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/search/person')) {
+        const female = url.includes('Fave%20Actor');
+        return Promise.resolve({ data: { results: [{ id: 777, gender: female ? 1 : 2 }] } });
+      }
+      return tmdbImpl(url);
+    });
+
+    const { wrapper } = factory();
+    await flushPromises();
+
+    // Non-empty first: `every` on an empty array passes vacuously and would
+    // have let a broken split through.
+    expect(wrapper.vm.actressNames.map((p) => p.name)).toEqual(['Fave Actor']);
+    expect(wrapper.vm.actressNames.every((p) => p.gender === 1)).toBe(true);
+    expect(wrapper.vm.actorNames).toEqual([]);
+  });
+
+  // TMDB reports 0 for "not specified", and such a person belongs in neither
+  // row. The row simply doesn't render rather than showing them wrongly.
+  it('leaves ungendered people out of both gendered rows', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/search/person')) {
+        return Promise.resolve({ data: { results: [{ id: 777, gender: 0 }] } });
+      }
+      return tmdbImpl(url);
+    });
+
+    const { wrapper } = factory();
+    await flushPromises();
+
+    expect(wrapper.vm.actressNames).toEqual([]);
+    expect(wrapper.vm.actorNames).toEqual([]);
+    expect(wrapper.text()).not.toContain('From actresses you love');
+  });
+
+  it('reuses the id it resolved instead of searching for the same name twice', async () => {
+    const { wrapper } = factory();
+    await flushPromises();
+
+    const searches = axios.get.mock.calls
+      .map(([url]) => url)
+      .filter((url) => url.includes('/search/person') && url.includes('Fave%20Actor'));
+
+    // One in the gender pass; the credits lookup takes the id from it.
+    expect(searches).toHaveLength(1);
+    expect(wrapper.vm.actorNames.every((p) => p.id === 777)).toBe(true);
   });
 });

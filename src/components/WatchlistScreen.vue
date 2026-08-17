@@ -79,7 +79,7 @@ import DrawFromHat from './DrawFromHat.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { friendsLoveUnseen } from '../assets/javascript/social.js';
 import { rankSections, sourceSummary } from '../assets/javascript/recommendationStats.js';
-import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds, tasteProfile, puntKeyFor, nextPunt, isPunted } from '../assets/javascript/discover.js';
+import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, peopleYouRateHigher, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds, tasteProfile, puntKeyFor, nextPunt, isPunted } from '../assets/javascript/discover.js';
 import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 
 // Long enough to read the "added to <hat>" confirmation before the card that
@@ -103,6 +103,11 @@ export default {
       yearsLoading: true,
       directorMovies: [],
       actorMovies: [],
+      actressMovies: [],
+      underratedMovies: [],
+      actorNames: [],
+      actressNames: [],
+      underratedNames: [],
       similarMovies: [],
       directorsLoading: true,
       actorsLoading: true,
@@ -172,6 +177,14 @@ export default {
     favoriteActors () {
       return favoritePeople(this.library, getRating, { role: 'actor' });
     },
+    // Wide, because the top three overall could be three actors and leave
+    // the actresses row empty. Split down to three each after gender lands.
+    favoritePerformerPool () {
+      return favoritePeople(this.library, getRating, { role: 'actor', cap: 12 });
+    },
+    underratedPerformers () {
+      return peopleYouRateHigher(this.library, getRating, { role: 'actor' });
+    },
     recommendationSeeds () {
       return topRatedSeeds(this.library, getRating);
     },
@@ -206,10 +219,26 @@ export default {
           loading: this.directorsLoading
         },
         {
+          key: 'actresses',
+          title: 'From actresses you love',
+          names: this.actressNames.map((p) => p.name),
+          movies: this.actressMovies,
+          loading: this.actorsLoading
+        },
+        {
           key: 'actors',
           title: 'From actors you love',
-          names: this.favoriteActors.map((p) => p.name),
+          names: this.actorNames.map((p) => p.name),
           movies: this.actorMovies,
+          loading: this.actorsLoading
+        },
+        {
+          // Not "who you rate highly" — who you rate higher than everyone
+          // else does, which fills with different people entirely.
+          key: 'underrated',
+          title: 'From people you rate higher than most',
+          names: this.underratedNames.map((p) => p.name),
+          movies: this.underratedMovies,
           loading: this.actorsLoading
         },
         {
@@ -236,7 +265,9 @@ export default {
       // so it says what Cinema Roll thought, not which code path ran.
       return {
         directors: 'From a director you love',
-        actors: 'Starring someone you love',
+        actors: 'Starring an actor you love',
+        actresses: 'Starring an actress you love',
+        underrated: 'Starring someone you rate higher than most people do',
         similar: 'Like one of your favorites',
         gems: 'A hidden gem'
       };
@@ -361,9 +392,20 @@ export default {
         return;
       }
       const rated = ratedTmdbIds(this.library);
-      const [directorMovies, actorMovies, similarMovies, yearSections, gemMovies] = await Promise.all([
+
+      // Resolve gender first so the performer list can be split three ways.
+      // A wide pool goes in, since taking the top three overall could turn
+      // out to be three actors and leave the actresses row empty.
+      const performers = await this.resolvePerformers(this.favoritePerformerPool);
+      this.actressNames = performers.filter((p) => p.gender === 1).slice(0, 3);
+      this.actorNames = performers.filter((p) => p.gender === 2).slice(0, 3);
+      this.underratedNames = await this.resolvePerformers(this.underratedPerformers);
+
+      const [directorMovies, actressMovies, actorMovies, underratedMovies, similarMovies, yearSections, gemMovies] = await Promise.all([
         this.moviesFromPeople(this.favoriteDirectors, 'crew', rated),
-        this.moviesFromPeople(this.favoriteActors, 'cast', rated),
+        this.moviesFromPeople(this.actressNames, 'cast', rated),
+        this.moviesFromPeople(this.actorNames, 'cast', rated),
+        this.moviesFromPeople(this.underratedNames, 'cast', rated),
         this.moviesLikeFavorites(this.recommendationSeeds, rated),
         this.moviesForNearYears(this.nearYears, rated),
         this.hiddenGems(this.topTasteGenres, rated)
@@ -374,7 +416,9 @@ export default {
       this.yearsLoading = false;
       this.directorMovies = directorMovies;
       this.directorsLoading = false;
+      this.actressMovies = actressMovies;
       this.actorMovies = actorMovies;
+      this.underratedMovies = underratedMovies;
       this.actorsLoading = false;
       this.similarMovies = similarMovies;
       this.similarLoading = false;
@@ -466,8 +510,13 @@ export default {
 
       await Promise.all(people.map(async (person) => {
         try {
-          const search = await axios.get(`https://api.themoviedb.org/3/search/person?api_key=${apiKey}&query=${encodeURIComponent(person.name)}`);
-          const personId = search.data?.results?.[0]?.id;
+          // The gender pass has usually already resolved this id — reuse it
+          // rather than searching for the same name twice.
+          let personId = person.id;
+          if (personId == null) {
+            const search = await axios.get(`https://api.themoviedb.org/3/search/person?api_key=${apiKey}&query=${encodeURIComponent(person.name)}`);
+            personId = search.data?.results?.[0]?.id;
+          }
           if (personId == null) return;
           const credits = await axios.get(`https://api.themoviedb.org/3/person/${personId}/movie_credits?api_key=${apiKey}`);
           const list = kind === 'crew'
@@ -481,6 +530,31 @@ export default {
       }));
 
       return rankWatchlistCandidates(allCredits, rated, Date.now(), { profile: this.taste });
+    },
+    /**
+     * Resolve gender (and id) for the top cast names, so the performer list
+     * can be split. "There should be a separate one for actors and actresses"
+     * (2026-08-17).
+     *
+     * The library doesn't carry gender — storedEntry.js trims it — so it has
+     * to come from TMDB, the same way FavoriteActors/FavoriteActresses get
+     * it. The id that comes back is kept and handed to moviesFromPeople, so
+     * this costs no extra requests overall.
+     */
+    async resolvePerformers (people) {
+      const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+
+      return (await Promise.all(people.map(async (person) => {
+        try {
+          const search = await axios.get(`https://api.themoviedb.org/3/search/person?api_key=${apiKey}&query=${encodeURIComponent(person.name)}`);
+          const match = search.data?.results?.[0];
+          if (!match) return null;
+          return { ...person, id: match.id, gender: match.gender };
+        } catch (error) {
+          console.error('Performer lookup failed for', person.name, error);
+          return null;
+        }
+      }))).filter(Boolean);
     },
     // Recommendations v1 (bug report: 'some kind of a recommendation
     // system you and I will work out together') — TMDB's own
