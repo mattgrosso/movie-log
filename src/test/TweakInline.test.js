@@ -58,9 +58,9 @@ describe('TweakInline', () => {
 
     it('shows the notice first, then the matchup after tapping it, with no contestant-count/progress narration for a single match', async () => {
       const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
-      expect(wrapper.text()).toContain('You have a tie to deal with')
+      expect(wrapper.text()).toContain('Two films are sitting on the same score')
 
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       expect(wrapper.findAll('.poster-container')).toHaveLength(2)
       // A 2-way tie is exactly one match — not really a "tournament", so no
       // "N contestants · match X of Y" ceremony (per bug report feedback).
@@ -70,7 +70,7 @@ describe('TweakInline', () => {
 
     it('picking a winner (the only match) applies the result and skips straight past the results screen — no "Done" tap needed', async () => {
       const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
 
       await wrapper.findAll('.poster-container')[0].trigger('click')
 
@@ -96,7 +96,7 @@ describe('TweakInline', () => {
       // here, regardless of whether another tied group exists; the next
       // scan (whenever the quota next allows) picks it up fresh.
       const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       await wrapper.findAll('.poster-container')[0].trigger('click')
 
       expect(wrapper.text()).not.toContain('Tournament Complete!')
@@ -106,7 +106,7 @@ describe('TweakInline', () => {
 
     it('does not offer "Save for later" for a single-match (2-way) tie', async () => {
       const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       expect(wrapper.find('.save-for-later-btn').exists()).toBe(false)
     })
   })
@@ -129,7 +129,7 @@ describe('TweakInline', () => {
 
     it('renders the checkmark only on the poster matching selectedDbKey', async () => {
       const { wrapper } = mountTweak([movie('a', 'A', 7), movie('b', 'B', 7), movie('c', 'C', 7), movie('d', 'D', 7)])
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       wrapper.vm.selectedDbKey = wrapper.vm.firstResult.dbKey
       await wrapper.vm.$nextTick()
 
@@ -191,14 +191,14 @@ describe('TweakInline', () => {
 
     it('schedules all 6 round-robin matches and shows progress', async () => {
       const { wrapper } = mountTweak(fourWayMovies())
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       expect(wrapper.text()).toContain('4 contestants')
       expect(wrapper.text()).toContain('match 1 of 6')
     })
 
     it('walks through all 6 matches then shows a full final ranking with score adjustments applied once', async () => {
       const { wrapper, dispatch } = mountTweak(fourWayMovies())
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
 
       // 'a' wins every match it's in; among the rest, whoever is posed first wins.
       for (let i = 0; i < 6; i++) {
@@ -218,7 +218,7 @@ describe('TweakInline', () => {
 
     it('does NOT reset the daily-quota clock between matches — the whole tournament runs in one sitting by default', async () => {
       const { wrapper, dispatch } = mountTweak(fourWayMovies())
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
 
       for (let i = 0; i < 5; i++) {
         await wrapper.findAll('.poster-container')[0].trigger('click')
@@ -240,7 +240,7 @@ describe('TweakInline', () => {
 
     it('offers "Save for later" mid-tournament — tapping it pauses without losing progress', async () => {
       const { wrapper, dispatch } = mountTweak(fourWayMovies())
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       await wrapper.findAll('.poster-container')[0].trigger('click') // 1 of 6 matches done
 
       const saveBtn = wrapper.find('.save-for-later-btn')
@@ -248,13 +248,13 @@ describe('TweakInline', () => {
       await saveBtn.trigger('click')
 
       // Collapses back to the notice, resets the quota clock...
-      expect(wrapper.find('.tweak-container').text()).toContain('You have a tie to deal with')
+      expect(wrapper.find('.prompt-card').text()).toContain('Two films are sitting on the same score')
       expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/lastTweak', value: expect.any(Number) })
       // ...but does NOT clear the tournament — progress is preserved.
       expect(dispatch).not.toHaveBeenCalledWith('writeDurably', { path: 'settings/tieBreakTournament', value: null })
 
       // Reopening resumes the SAME tournament, one match further along.
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       expect(wrapper.text()).toContain('match 2 of 6')
     })
 
@@ -284,7 +284,7 @@ describe('TweakInline', () => {
         props: { allEntriesWithFlatKeywordsAdded: movies, showTweakModal: true }
       })
 
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       for (let i = 0; i < 6; i++) {
         await wrapper.findAll('.poster-container')[0].trigger('click')
       }
@@ -384,7 +384,7 @@ describe('TweakInline', () => {
 
       expect(dispatch).not.toHaveBeenCalledWith('writeDurably', expect.objectContaining({ path: 'settings/tieBreakTournament' }))
 
-      const notice = wrapper.find('.tweak-container')
+      const notice = wrapper.find('.prompt-card')
       expect(notice.exists()).toBe(true)
     })
   })
@@ -404,7 +404,7 @@ describe('TweakInline', () => {
       const movies = [movie('a', 'A', 8), movie('b', 'B', 8), movie('c', 'C', 8)]
       const { wrapper, dispatch } = mountTweak(movies) // showTweakModal: true, fixed prop, never changes
 
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       for (let i = 0; i < 3; i++) {
         await wrapper.findAll('.poster-container')[0].trigger('click')
       }
@@ -420,7 +420,7 @@ describe('TweakInline', () => {
 
       // Tapping the notice must show an actual, playable matchup — not a
       // blank/crashed panel.
-      await wrapper.find('.tweak-container').trigger('click')
+      await wrapper.find('.prompt-card').trigger('click')
       expect(wrapper.findAll('.poster-container')).toHaveLength(2)
       expect(wrapper.text()).not.toContain('Tournament Complete!')
     })

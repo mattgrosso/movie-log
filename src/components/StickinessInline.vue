@@ -3,11 +3,16 @@
     <!-- Single container that changes its content -->
     <Transition name="stickiness-expand" mode="out-in">
       <!-- Prompt -->
-      <div v-if="!showStickinessInline" key="notice" class="stickiness-container rounded p-3 mb-3" @click="toggleStickinessInline">
-        <div class="stickiness-notice-content">
-          You have {{ resultsThatNeedStickiness.length }} movie{{ resultsThatNeedStickiness.length === 1 ? '' : 's' }} that need{{ resultsThatNeedStickiness.length === 1 ? 's' : '' }} stickiness updates.
-          <a class="alert-link" @click.stop="toggleStickinessInline">Click to add stickiness.</a>
-        </div>
+      <div v-if="!showStickinessInline" key="notice" class="prompt-card mb-3" @click="toggleStickinessInline">
+        <span class="prompt-badge prompt-badge-stickiness"><i class="bi bi-sticky-fill"></i></span>
+        <span class="prompt-body">
+          <span class="prompt-label">Stickiness</span>
+          <p class="prompt-text">
+            {{ resultsThatNeedStickiness.length }} movie{{ resultsThatNeedStickiness.length === 1 ? '' : 's' }}
+            you've had time to sit with.
+          </p>
+          <a class="prompt-action prompt-action-stickiness" @click.stop="toggleStickinessInline">Add stickiness</a>
+        </span>
       </div>
 
       <!-- Inline Content -->
@@ -316,6 +321,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@import '@/assets/scss/prompt-card';
+
 // Stickiness inline animation
 .stickiness-expand-enter-active,
 .stickiness-expand-leave-active {

@@ -3,11 +3,13 @@
     <!-- Single container that changes its content -->
     <Transition name="tweak-expand" mode="out-in">
       <!-- Prompt -->
-      <div v-if="!showTweakInline" key="notice" class="tweak-container rounded p-3 mb-3" @click="toggleTweakInline">
-        <div class="tweak-notice-content">
-          You have a tie to deal with.
-          <a class="alert-link" @click.stop="toggleTweakInline"><br/>Click to break the tie.</a>
-        </div>
+      <div v-if="!showTweakInline" key="notice" class="prompt-card mb-3" @click="toggleTweakInline">
+        <span class="prompt-badge prompt-badge-tiebreak"><i class="bi bi-signpost-split-fill"></i></span>
+        <span class="prompt-body">
+          <span class="prompt-label">Tiebreak</span>
+          <p class="prompt-text">Two films are sitting on the same score.</p>
+          <a class="prompt-action prompt-action-tiebreak" @click.stop="toggleTweakInline">Break the tie</a>
+        </span>
       </div>
 
       <!-- Tournament just completed: show final standings -->
@@ -486,6 +488,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@import '@/assets/scss/prompt-card';
+
 // Tweak inline animation
 .tweak-expand-enter-active,
 .tweak-expand-leave-active {

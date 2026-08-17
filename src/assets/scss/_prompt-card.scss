@@ -1,0 +1,100 @@
+// The Home screen's prompt slot — stickiness, tiebreaks, awards, friend
+// requests. Matt, 2026-08-17: "I really like the way that stickiness,
+// tiebreaks and awards prompts all show up on the home screen as prompts to
+// make sure that I do stuff, sort of like fun homework. I haven't really
+// reworked the visuals of those since I first made them — maybe there's a
+// chance now to spruce them up, make them match the rest of the app a little
+// bit more and look nicer."
+//
+// They were the oldest surface left in the app: flat #4a4a4a with a #666
+// border, from before the #161616 / #2e2e2e panels and the accent vocabulary
+// that Deep Stats, Insights, Year in Review and MovieDetail all share now.
+//
+// Each chore keeps its own accent, drawn from the SAME vocabulary rather than
+// invented here — the mistake MovieDetail's first pass made:
+//
+//   gold   #ffc107  awards        — wins everywhere in the app
+//   purple #cd7fe8  friends       — Insights' People tab
+//   blue   #1D8BF1  tiebreaks     — Insights' Ratings tab; a tiebreak is a
+//                                   rating decision
+//   green  #24d776  stickiness    — Insights' Activity tab; stickiness is
+//                                   the question of how a film holds up over
+//                                   time
+//
+// NO left-edge accent bar: "I'm not that into it" (2026-08-15). The colour
+// arrives as a badge behind the icon instead.
+
+.prompt-card {
+  align-items: flex-start;
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 10px;
+  color: #eee;
+  cursor: pointer;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  width: 100%;
+
+  // Mobile-first: press feedback is :active only. A tapped card on iOS keeps
+  // a :hover state forever, with no mouse to leave it.
+  &:active {
+    background: #1d1d1d;
+  }
+}
+
+.prompt-badge {
+  align-items: center;
+  border-radius: 50%;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 1rem;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+
+  // Dark glyph on a bright badge — every accent below is a light colour.
+  color: #101010;
+}
+
+.prompt-badge-awards { background: #ffc107; }
+.prompt-badge-friends { background: #cd7fe8; }
+.prompt-badge-tiebreak { background: #1d8bf1; }
+.prompt-badge-stickiness { background: #24d776; }
+
+.prompt-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.prompt-label {
+  color: #9a9a9a;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.prompt-text {
+  color: #eee;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  margin: 0;
+}
+
+// The call to action. Coloured rather than underlined, matching how links
+// read on MovieDetail.
+.prompt-action {
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-top: 0.15rem;
+  text-decoration: none;
+}
+
+.prompt-action-awards { color: #ffc107; }
+.prompt-action-friends { color: #cd7fe8; }
+.prompt-action-tiebreak { color: #4fa3e3; }
+.prompt-action-stickiness { color: #24d776; }

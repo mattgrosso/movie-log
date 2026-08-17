@@ -352,7 +352,7 @@
                    the extra watchlist button broke the rainbow); watchlist
                    takes shuffle's old slot and color. -->
               <button class="results-actions-button btn btn-info btn-sm" @click="$router.push('/watchlist')" title="Watchlist" aria-label="Go to watchlist">
-                <i class="bi bi-binoculars"/>
+                <i class="bi bi-binoculars watchlist-glyph"/>
               </button>
               <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Sort results" aria-label="Sort results">
                 <i v-if="sortValue === 'rating'" class="bi bi-123"/>
@@ -435,16 +435,15 @@
                new surface. Tapping goes to the Film Club's inbox. -->
           <div
             v-if="incomingFriendRequests.length"
-            class="friend-request-banner rounded p-3 mb-3"
+            class="prompt-card mb-3"
             @click="$router.push('/film-club')"
           >
-            <div class="friend-request-content">
-              <i class="bi bi-people-fill me-2"></i>
-              <span>
-                {{ friendRequestBannerText }}
-                <a class="alert-link" @click.stop="$router.push('/film-club')">Review in the Film Club.</a>
-              </span>
-            </div>
+            <span class="prompt-badge prompt-badge-friends"><i class="bi bi-people-fill"></i></span>
+            <span class="prompt-body">
+              <span class="prompt-label">Film Club</span>
+              <p class="prompt-text">{{ friendRequestBannerText }}</p>
+              <a class="prompt-action prompt-action-friends" @click.stop="$router.push('/film-club')">Review the request</a>
+            </span>
           </div>
           <!-- Stickiness Inline Content -->
           <StickinessInline
@@ -5249,6 +5248,8 @@ export default {
 </script>
 
 <style lang="scss">
+@import '@/assets/scss/prompt-card';
+
 /* Quick links and tags are one combined list now, capped and scrolling —
    "what if instead we combine them into one list, but we make it scrollable
    if it gets way too thick" (2026-08-17). The cap is exactly what made
@@ -5311,11 +5312,16 @@ export default {
             margin-right: 6px;
           }
 
+          /* Inline beside the glyph, not pinned to the chip's right edge.
+             Absolute positioning meant the glyph stayed centred while the
+             arrow sat against the edge, so widening the sort chip (flex-grow
+             1.6) pulled them apart: "when we adjusted the width of the
+             rainbow segments the icon and then the up or down arrow got
+             separated a little bit. I'd like them to tighten back up."
+             (2026-08-17) Inline, they travel together at any width. */
           .order-arrow {
-            position: absolute;
-            right: 7px;
-            top: 49%;
-            transform: translateY(-49%);
+            display: inline-flex;
+            margin-left: -2px;
           }
         }
 
@@ -6282,6 +6288,14 @@ export default {
 .film-club-glyph {
   /* White, not the chip's inherited black (bug report). */
   color: #fff;
+  font-size: 1.32em;
+}
+
+/* The binoculars had no size of its own and so ran visibly smaller than the
+   club beside it: "make it like 10% bigger or else maybe make it just match
+   the club icon next to it" (2026-08-17). Matching is the tidier of the two
+   options he offered — one number for both, and they stay level. */
+.watchlist-glyph {
   font-size: 1.32em;
 }
 

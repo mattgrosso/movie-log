@@ -1,9 +1,12 @@
 <template>
   <div class="personal-awards">
-    <div v-if="!pageMode && firstEligibleYear != null" class="awards-notice alert alert-warning my-2" role="alert">
-      <a class="alert-link" @click.stop="openModal">
-        {{ firstEligibleYear }} is ready for your {{ awardNameSingular }} choices
-      </a>
+    <div v-if="!pageMode && firstEligibleYear != null" class="prompt-card mb-3" role="alert" @click="openModal">
+      <span class="prompt-badge prompt-badge-awards"><i class="bi bi-trophy-fill"></i></span>
+      <span class="prompt-body">
+        <span class="prompt-label">{{ awardNameSingular }}</span>
+        <p class="prompt-text">{{ firstEligibleYear }} has enough films to hand out awards.</p>
+        <a class="prompt-action prompt-action-awards" @click.stop="openModal">Pick your winners</a>
+      </span>
     </div>
     <Modal :show="showModal" :page="pageMode" @close="closeModal">
       <template v-slot:header>
@@ -2234,6 +2237,8 @@ export default {
 </script>
 
 <style lang="scss">
+@import '@/assets/scss/prompt-card';
+
 .personal-awards {
   .awards-notice {
     text-align: center;

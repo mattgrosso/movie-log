@@ -342,3 +342,45 @@ Two things tried and pulled back inside the same pass:
 
 **If this gets reverted**, it is one commit and touches only MovieDetail.vue's style
 block plus this note.
+
+## The Home prompts, and two rainbow-bar nudges (Aug 2026)
+
+*"I really like the way that stickiness, tiebreaks and awards prompts all show up on the
+home screen as prompts to make sure that I do stuff, sort of like fun homework. I haven't
+really reworked the visuals of those since I first made them — maybe there's a chance now
+to spruce them up, make them match the rest of the app a little bit more."*
+
+They were the oldest surface left: flat `#4a4a4a` with a `#666` border, from before the
+`#161616` / `#2e2e2e` panels and the accent vocabulary that Deep Stats, Insights, Year in
+Review, Club Charts and MovieDetail now share. Four separate components each carried
+their own copy of that grey.
+
+`src/assets/scss/_prompt-card.scss` is now the one definition, imported the same way the
+games import `_game-buttons.scss`. Each chore keeps its own accent, and — the lesson from
+MovieDetail's first pass — every colour is taken from the app's existing vocabulary
+rather than invented:
+
+| Prompt | Accent | Why |
+|---|---|---|
+| Awards | gold `#ffc107` | wins everywhere in the app |
+| Film Club request | purple `#cd7fe8` | Insights' People tab |
+| Tiebreak | blue `#1D8BF1` | Insights' Ratings tab — a tiebreak is a rating decision |
+| Stickiness | green `#24d776` | Insights' Activity tab — stickiness is how a film holds up over time |
+
+The colour arrives as a badge behind the icon, **not** a left-edge accent bar ("I'm not
+that into it", 2026-08-15). Copy was rewritten to say what the chore is rather than to
+narrate the click: "1 movie you've had time to sit with" over "You have 1 movie that
+needs stickiness updates. Click to add stickiness."
+
+`TweakInline`'s tests clicked `.tweak-container` to open the prompt, which is now
+`.prompt-card` — 15 selectors and one copy assertion moved with it.
+
+### The rainbow bar
+
+- **The binoculars had no font-size of its own** and so ran visibly smaller than the club
+  beside it, which sets `1.32em`. Matched, which was the tidier of the two options Matt
+  offered ("10% bigger or else maybe just match the club icon next to it").
+- **The sort glyph and its up/down arrow had drifted apart.** `.order-arrow` was
+  `position: absolute; right: 7px` — pinned to the chip's right edge while the glyph
+  stayed centred, so giving the sort chip `flex-grow: 1.6` pulled them apart. Inline with
+  a small negative margin, they travel together at any width.
