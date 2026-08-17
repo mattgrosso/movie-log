@@ -17,7 +17,7 @@
 // The config below is Movie Hat's public web config, already shipped inside
 // its own bundle — there is nothing secret in it.
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCustomToken, signOut, onAuthStateChanged } from 'firebase/auth';
 
 const APP_NAME = 'movieHat';
 
@@ -111,6 +111,22 @@ export async function connectMovieHat () {
   provider.setCustomParameters({ prompt: 'select_account' });
 
   const result = await signInWithPopup(movieHatAuth(), provider);
+  return result?.user || null;
+}
+
+/**
+ * Sign in with a minted custom token instead of the Google popup.
+ *
+ * Since the lockdown, anything touching a hat needs a real signed-in member,
+ * and an automated browser cannot complete a Google popup — so verifying the
+ * integration at all needs this door. `yarn mint-hat-token` in the movie-hat
+ * repo produces the token and grants the account the Dev Hat, and nothing
+ * else: the rules stop it reading any other hat.
+ *
+ * Same reasoning as Cinema Roll's own `?testToken=` sign-in hook.
+ */
+export async function connectMovieHatWithToken (token) {
+  const result = await signInWithCustomToken(movieHatAuth(), token);
   return result?.user || null;
 }
 

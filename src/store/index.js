@@ -28,6 +28,7 @@ import { emailToDatabaseKey, isQaAccountKey } from "../assets/javascript/databas
 import { fetchAllHats, fetchMyHats, hatsForMember, fetchHat, toHatMovie, alreadyInHat, addMovieToHat, pickFromHat, commitDraw } from "../assets/javascript/movieHat.js";
 import {
   connectMovieHat as signIntoMovieHat,
+  connectMovieHatWithToken as signIntoMovieHatWithToken,
   disconnectMovieHat as signOutOfMovieHat,
   watchMovieHatAuth as observeMovieHatAuth
 } from "../assets/javascript/movieHatAuth.js";
@@ -1730,9 +1731,12 @@ export default createStore({
       return mine;
     },
 
-    /** The one popup. Connects Cinema Roll to Movie Hat's own project. */
-    async connectMovieHat (context) {
-      const user = await signIntoMovieHat();
+    /**
+     * The one popup — or a minted token, which is the only way an automated
+     * browser can get a Movie Hat session at all now the rules are on.
+     */
+    async connectMovieHat (context, token = null) {
+      const user = token ? await signIntoMovieHatWithToken(token) : await signIntoMovieHat();
       context.commit('setMovieHatUser', user);
       // Whichever account just signed in is the one whose hats to look for.
       if (user?.email) await context.dispatch('findMovieHats');

@@ -1459,6 +1459,16 @@ export default {
     },
   },
   mounted () {
+    // `?hatToken=` connects Movie Hat from a minted token instead of the
+    // Google popup, which an automated browser cannot complete. Mirrors the
+    // app's own ?testToken= sign-in hook; the token only ever grants the Dev
+    // Hat (see mint-hat-token.mjs in the movie-hat repo).
+    const hatToken = this.$route?.query?.hatToken;
+    if (hatToken) {
+      this.$store.dispatch('connectMovieHat', hatToken)
+        .catch((error) => ErrorLogService.error('Movie Hat token sign-in failed', error));
+    }
+
     // Social: keep the inbox live. Publishing happens via the
     // socialPublishReady watcher below once the library and settings are in.
     this.$store.dispatch('attachSocialListeners');
