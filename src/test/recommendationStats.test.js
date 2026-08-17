@@ -57,6 +57,24 @@ describe('reconcilePending', () => {
     const { expired } = reconcilePending({ 1: null, 2: { at: NOW } }, [], NOW)
     expect(expired.sort()).toEqual(['1', '2'])
   })
+
+  // The one real caller passes a Set: WatchlistScreen builds its rated ids
+  // with discover.js's ratedTmdbIds(), which returns a Set because every
+  // other consumer wants .has(). Every test above passes an array, which is
+  // why `(ratedTmdbIds || []).map(...)` throwing on a Set was never caught —
+  // it took down the whole learning loop on every visit after the first.
+  it('accepts the Set its only caller actually passes', () => {
+    const { hits, resolved } = reconcilePending(pending, new Set([100, 200, 300]), NOW)
+
+    expect(hits).toEqual({ directors: 2, gems: 1 })
+    expect(resolved.sort()).toEqual(['100', '200', '300'])
+  })
+
+  it('still handles no rated ids at all, however they arrive', () => {
+    expect(reconcilePending(pending, new Set(), NOW).hits).toEqual({})
+    expect(reconcilePending(pending, null, NOW).hits).toEqual({})
+    expect(reconcilePending(pending, undefined, NOW).hits).toEqual({})
+  })
 })
 
 describe('sourceScore', () => {

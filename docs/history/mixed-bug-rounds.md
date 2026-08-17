@@ -47,3 +47,50 @@ Replaced with a router-level `scrollBehavior` (`src/router/scrollBehavior.js`, w
 **And behind THAT was a second, independent bug in the same feature** — found because fixing the CSS issue still didn't make restoration work. `mounted()` deferred the restore into a `$nextTick` callback that read `this.$store.state.homePageScrollPosition`, but the "clear stored state after restoring" block a few lines below sets that to `0` **synchronously** — i.e. always before the deferred callback runs. So the `> 0` guard was false every single time and the page never moved. Fixed by capturing the value into a local const before the clear. **Net: Home's "put me back where I was in the grid" had two stacked defects and has apparently never worked**; either one alone was enough to break it, which is presumably why it went unnoticed for so long. Extracted as a pure function specifically so it's unit-testable — importing the real router pulls in `store/index.js` and initialises Firebase at module load, which is why nothing else in `router/index.js` has tests. Tests: `src/test/scrollBehavior.test.js` (hub, individual games, every other route left alone, malformed input); `GamesHub.test.js`'s old "scrolls to top before navigating" test inverted to assert the component does NOT scroll itself.
 
 Tests: `SixDegreesGame.test.js` — the scroll tests rewritten around a stub row exposing `querySelector`/`getBoundingClientRect` (asserting it scrolls just far enough, and NOT at all when the newest entry is already visible), and the old "does NOT offer it when they matched the optimum" test inverted to assert the button now shows with the "You found it" label.
+
+## The watchlist learning loop had been dead since its first run (Aug 2026)
+
+Spotted in the console while working on something else, then fixed on request:
+
+```
+TypeError: (t || []).map is not a function
+  at reconcileWatchlistLearning
+  at buildWatchlists (watchlist.js)
+```
+
+`reconcilePending` opens with `(ratedTmdbIds || []).map((id) => String(id))`. Its one
+real caller, `WatchlistScreen.buildWatchlists`, builds that argument with
+`discover.js`'s **`ratedTmdbIds()`, which returns a Set** — as it should, since every
+other consumer (`rankWatchlistCandidates`, `moviesFromPeople`, `hiddenGems`…) wants
+`.has()`. A Set has no `.map`.
+
+**Why it survived:** every existing test in `recommendationStats.test.js` passed an
+array. The module was well covered and the coverage was of a shape nothing in the app
+ever passes it.
+
+**Why it was worse than a console error.** The sequence:
+
+1. First ever watchlist visit — `pending` is empty, so `reconcileWatchlistLearning`
+   returns early at its `if (!learning?.pending) return` guard, never reaching the
+   crash. `recordWatchlistSuggestions` runs and writes `pending`.
+2. Every visit after — `pending` now exists, `reconcilePending` throws, `buildWatchlists`
+   rejects, and because the two dispatches were bare sequential `await`s,
+   **`recordWatchlistSuggestions` never ran again.**
+
+So the loop froze after one pass: no source was ever credited with a hit, and no new
+suggestion was ever recorded. The lists themselves were fine — they're assigned before
+the learning block — so there was nothing user-visible but the console entry, which is
+exactly why it sat there.
+
+Two fixes, because the type error and the fragility are separate bugs:
+
+- `Array.from(ratedTmdbIds || [], String)` in `reconcilePending` — works on a Set, an
+  array, or anything iterable.
+- **The two dispatches are now guarded independently** in `buildWatchlists`. This is
+  best-effort bookkeeping that runs after the page is already rendered; neither step
+  should be able to take the other down, or fail the screen.
+
+Verified live: the error is gone on the fixed bundle, and the loop immediately recorded
+103 pending suggestions with per-source `suggested` counts across all five sections —
+data it had never managed to write. (`hits` stay empty until one of those is rated,
+which is correct.)

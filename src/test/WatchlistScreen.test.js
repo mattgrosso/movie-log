@@ -62,7 +62,7 @@ function tmdbImpl (url) {
   return Promise.reject(new Error(`unexpected url ${url}`));
 }
 
-function factory ({ isOnline = true, movies = library() } = {}) {
+function factory ({ isOnline = true, movies = library(), dispatch = vi.fn() } = {}) {
   const pushSpy = vi.fn();
   const commitSpy = vi.fn();
   const wrapper = mount(WatchlistScreen, {
@@ -72,13 +72,13 @@ function factory ({ isOnline = true, movies = library() } = {}) {
           state: { isOnline },
           getters: { allMoviesAsArray: movies },
           commit: commitSpy,
-          dispatch: vi.fn()
+          dispatch
         },
         $router: { push: pushSpy }
       }
     }
   });
-  return { wrapper, pushSpy, commitSpy };
+  return { wrapper, pushSpy, commitSpy, dispatch };
 }
 
 // Cards are poster-only now, so a card's accessible name is where the title
@@ -170,5 +170,61 @@ describe('WatchlistScreen (request: watchlists from my ratings + movies to consi
     await flushPromises();
 
     expect(wrapper.text()).toContain('Unseen Perfor'); // actor section still built (grid truncates)
+  });
+});
+
+// The learning loop is best-effort bookkeeping that runs after the lists are
+// already on screen. It used to be two bare awaits in a row, so when
+// reconciling threw — it was handed a Set where it expected an array, on
+// every visit after the first — recording never ran again either, and the
+// whole loop silently froze.
+describe('WatchlistScreen learning loop', () => {
+  beforeEach(() => {
+    axios.get.mockReset();
+    axios.get.mockImplementation(tmdbImpl);
+  });
+
+  it('hands reconcile the rated ids and then records what it showed', async () => {
+    const { dispatch } = factory();
+    await flushPromises();
+
+    const actions = dispatch.mock.calls.map(([action]) => action);
+    expect(actions).toContain('reconcileWatchlistLearning');
+    expect(actions).toContain('recordWatchlistSuggestions');
+
+    // Whatever shape it is, reconcile has to be able to iterate it.
+    const [, rated] = dispatch.mock.calls.find(([a]) => a === 'reconcileWatchlistLearning');
+    expect(() => Array.from(rated)).not.toThrow();
+  });
+
+  it('still records suggestions when reconciling blows up', async () => {
+    const dispatch = vi.fn((action) => {
+      if (action === 'reconcileWatchlistLearning') return Promise.reject(new Error('boom'));
+      return Promise.resolve();
+    });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    factory({ dispatch });
+    await flushPromises();
+
+    expect(dispatch.mock.calls.map(([action]) => action)).toContain('recordWatchlistSuggestions');
+    expect(errors).toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
+  it('does not fail the page when recording blows up', async () => {
+    const dispatch = vi.fn((action) => (
+      action === 'recordWatchlistSuggestions'
+        ? Promise.reject(new Error('boom'))
+        : Promise.resolve()
+    ));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { wrapper } = factory({ dispatch });
+    await flushPromises();
+
+    // The lists are assigned before the learning loop runs, so they survive.
+    expect(wrapper.findAll('.watchlist-card').length).toBeGreaterThan(0);
+    errors.mockRestore();
   });
 });

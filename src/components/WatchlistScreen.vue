@@ -340,14 +340,31 @@ export default {
       // been rated, then record whatever is on screen now. Recording after
       // reconciling means a movie can't be credited in the same pass it was
       // first offered.
-      await this.$store.dispatch('reconcileWatchlistLearning', rated);
-      await this.$store.dispatch('recordWatchlistSuggestions', {
-        directors: directorMovies.map((movie) => movie.id),
-        actors: actorMovies.map((movie) => movie.id),
-        similar: similarMovies.map((movie) => movie.id),
-        gems: gemMovies.map((movie) => movie.id),
-        friends: this.friendPickMedia.map((movie) => movie.id)
-      });
+      //
+      // Each step is guarded separately, and neither is allowed to take the
+      // other down. Reconciling used to throw on every visit after the first
+      // (it was handed a Set where it expected an array), and because the
+      // dispatch is awaited, recording never ran again either — one type
+      // error froze the entire learning loop. This is best-effort
+      // bookkeeping; the lists are already on screen by this point, so
+      // nothing here is worth failing the page for.
+      try {
+        await this.$store.dispatch('reconcileWatchlistLearning', rated);
+      } catch (error) {
+        console.error('Watchlist learning: reconcile failed', error);
+      }
+
+      try {
+        await this.$store.dispatch('recordWatchlistSuggestions', {
+          directors: directorMovies.map((movie) => movie.id),
+          actors: actorMovies.map((movie) => movie.id),
+          similar: similarMovies.map((movie) => movie.id),
+          gems: gemMovies.map((movie) => movie.id),
+          friends: this.friendPickMedia.map((movie) => movie.id)
+        });
+      } catch (error) {
+        console.error('Watchlist learning: recording failed', error);
+      }
     },
     // Hidden Gems (Brian-survey D2): well-loved but little-seen — high
     // TMDB score, LOW vote count (the inverse of every popularity filter),

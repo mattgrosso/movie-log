@@ -43,7 +43,12 @@ export function pendingUpdates (existingPending, shownBySource, now = Date.now()
 // Anything now in the library is a hit for whichever source suggested it;
 // anything too old is dropped. Returns the writes to apply.
 export function reconcilePending (existingPending, ratedTmdbIds, now = Date.now(), { expiryDays = PENDING_EXPIRY_DAYS } = {}) {
-  const rated = new Set((ratedTmdbIds || []).map((id) => String(id)));
+  // Array.from, not .map: the only caller passes a Set (discover.js's
+  // ratedTmdbIds returns one, because every other consumer wants .has), and
+  // a Set has no .map. This threw on every watchlist visit after the first,
+  // which took the whole learning loop down with it — the dispatch is
+  // awaited, so recordWatchlistSuggestions never ran either.
+  const rated = new Set(Array.from(ratedTmdbIds || [], (id) => String(id)));
   const hits = {};
   const resolved = [];
   const expired = [];
