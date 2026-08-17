@@ -38,6 +38,7 @@ fine.
       "posterPath": "/tVeKscCm2fY1xDXZk8PgnZ87h9S.jpg",
       "year": 1995,
       "rating": 9.97,          // composite score, 0–10
+      "starRating": 5,         // optional: the SOURCE-assigned 0–5 stars
       "criteria": {            // optional, all fields optional
         "love": 10, "overall": 9, "stickiness": 5, "story": 9,
         "direction": 9, "imagery": 8, "performance": 7, "soundtrack": 6
@@ -54,7 +55,19 @@ fine.
 Rules of the road:
 
 - **`tmdbId` is the join key.** Titles and years are for display only.
-- **`rating` is 0–10.** If your app uses stars, scale it; don't send stars.
+- **`rating` is 0–10.** If your app rates in stars, scale it — don't send
+  stars as `rating`.
+- **`starRating` is the source-assigned 0–5 star value**, optional, added
+  2026-08-17 as a backward-compatible field of `film-club/1`. Send the stars
+  your app actually shows for the movie, in half-star steps; a consumer must
+  never derive stars from `rating` when `starRating` is present. Cinema Roll
+  publishes its normalized rating through its canonical half-star conversion
+  (`src/assets/javascript/starRating.js`) — a *library-relative* value, so it
+  can drift on a movie when other movies get rated or the owner's rating
+  curve changes. Emit it as a finite number, and omit it entirely (never
+  zero, never a string) when there is no assigned star value. It describes
+  the same latest viewing as the top-level `rating`. Consumers should ignore
+  values that are missing, non-numeric, negative, or above five.
 - **`criteria` are named, not positional**, and every one is optional — send
   what you have. `stickiness` is the criterion Movie Log calls `impression`.
 - **`watchedAt` is epoch milliseconds.** `medium` is free text ("Theater",

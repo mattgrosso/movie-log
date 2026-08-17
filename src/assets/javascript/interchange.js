@@ -12,6 +12,8 @@
 // directly — so the other app doesn't have to implement anything for us to
 // consume it. Everything here is pure; fetching and storage live elsewhere.
 
+import { normalizedRatingToStars } from './starRating.js';
+
 export const INTERCHANGE_FORMAT = 'film-club/1';
 
 // Deliberately named rather than positional: an interop payload should be
@@ -49,8 +51,15 @@ export function toInterchange (entries, getRatingFn, { name, source = 'cinemarol
 
   (entries || []).forEach((entry) => {
     const tmdbId = entry?.movie?.id;
-    const rating = num(getRatingFn(entry)?.calculatedTotal);
+    const scored = getRatingFn(entry);
+    const rating = num(scored?.calculatedTotal);
     if (tmdbId == null || rating === null) return;
+
+    // Stars are the source-assigned presentation of the NORMALIZED rating
+    // (library-relative, curve-adjusted — see starRating.js), never a
+    // rescaling of the composite. Optional: omitted when the entry has no
+    // normalized rating or it falls below half a star.
+    const starRating = normalizedRatingToStars(scored?.normalizedRating);
 
     const viewings = (entry.ratings || [])
       .map((row) => ({ watchedAt: timestamp(row?.date), medium: row?.medium || null }))
@@ -68,6 +77,7 @@ export function toInterchange (entries, getRatingFn, { name, source = 'cinemarol
       year: new Date(entry.movie.release_date ?? NaN).getFullYear() || null,
       rating: Math.round(rating * 100) / 100
     };
+    if (starRating !== null) movie.starRating = starRating;
     const criteria = criteriaFrom(latest);
     if (criteria) movie.criteria = criteria;
     if (viewings.length) movie.viewings = viewings;

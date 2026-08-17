@@ -1,3 +1,5 @@
+import { normalizedRatingToStars } from '../assets/javascript/starRating.js';
+
 class LetterboxdUrlService {
   /**
    * Convert movie title to Letterboxd URL slug (without year)
@@ -61,18 +63,11 @@ class LetterboxdUrlService {
   }
 
   /**
-   * Letterboxd's `rating` deep-link param is a 0.5–5 star value in 0.5 steps.
-   * Cinema Roll's normalized rating is 0–10, and the app shows stars as
-   * normalizedRating / 2 (see ToggleableRating.vue), so that same /2 value maps
-   * directly onto Letterboxd's scale. Returns null for anything that isn't a
-   * loggable star rating (0 / missing / non-numeric) so we simply omit the param.
+   * Letterboxd's `rating` deep-link param is a 0.5–5 star value in 0.5 steps —
+   * exactly Cinema Roll's canonical star conversion, so this simply delegates.
    */
   static normalizedRatingToStars (normalizedRating) {
-    const stars = parseFloat(normalizedRating) / 2;
-    if (!isFinite(stars) || stars < 0.5) return null;
-    const clamped = Math.min(5, stars);
-    // Snap to the nearest valid 0.5 increment Letterboxd accepts.
-    return Math.round(clamped * 2) / 2;
+    return normalizedRatingToStars(normalizedRating);
   }
 
   /**

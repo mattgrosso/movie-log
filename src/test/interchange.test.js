@@ -69,6 +69,62 @@ describe('toInterchange', () => {
     expect(feed.movies.length).toBe(1)
     expect(feed.movies[0].viewings).toEqual([{ watchedAt: NOW }])
   })
+
+  // starRating is the SOURCE-ASSIGNED star value: the normalized (library-
+  // relative, curve-adjusted) rating through Cinema Roll's canonical
+  // half-star conversion — never the composite score divided by two.
+  describe('starRating', () => {
+    const withNormalized = (normalizedRating) => (e) => ({
+      calculatedTotal: e.ratings[e.ratings.length - 1].calculatedTotal,
+      normalizedRating
+    })
+
+    it('publishes the assigned stars from the normalized rating, not the composite', () => {
+      // Composite 6.23 would naively divide to 3.0 stars; the assigned
+      // normalized rating of 7 gives 3.5 — the value the app shows.
+      const feed = toInterchange([entry(123, 'Example', 6.23)], withNormalized(7), { name: 'Matt', now: NOW })
+      expect(feed.movies[0].rating).toBe(6.23)
+      expect(feed.movies[0].starRating).toBe(3.5)
+    })
+
+    it('snaps to the same half-star steps as every other star surface', () => {
+      const starsFor = (normalized) =>
+        toInterchange([entry(1, 'M', 5)], withNormalized(normalized), { now: NOW }).movies[0].starRating
+      expect(starsFor(9.8)).toBe(5)     // 4.9 stars rounds up
+      expect(starsFor(6.7)).toBe(3.5)   // 3.35 stars rounds up
+      expect(starsFor(10)).toBe(5)
+      expect(starsFor(1)).toBe(0.5)
+    })
+
+    it('omits starRating rather than sending zero when there is no usable value', () => {
+      const feeds = [
+        toInterchange([entry(1, 'M', 5)], ratingOf, { now: NOW }),                       // no normalizedRating at all
+        toInterchange([entry(1, 'M', 5)], withNormalized(0), { now: NOW }),              // zero
+        toInterchange([entry(1, 'M', 5)], withNormalized('junk'), { now: NOW }),         // non-numeric
+        toInterchange([entry(1, 'M', 5)], withNormalized(0.9), { now: NOW })             // below half a star
+      ]
+      feeds.forEach((feed) => {
+        expect(feed.movies[0].rating).toBe(5)                       // composite still published
+        expect('starRating' in feed.movies[0]).toBe(false)
+      })
+    })
+
+    it('leaves every existing field of the payload unchanged', () => {
+      const criteria = { love: 10, overall: 9, stickiness: 5, story: 9 }
+      const plain = toInterchange([entry(568, 'Apollo 13', 9.97, { criteria })], ratingOf, { name: 'Matt', now: NOW })
+      const starred = toInterchange([entry(568, 'Apollo 13', 9.97, { criteria })], withNormalized(9), { name: 'Matt', now: NOW })
+      const { starRating, ...rest } = starred.movies[0]
+      expect(starRating).toBe(4.5)
+      expect(rest).toEqual(plain.movies[0])
+      expect({ ...starred, movies: null }).toEqual({ ...plain, movies: null })
+    })
+
+    it('round trip: a feed carrying starRating still consumes cleanly', () => {
+      const feed = toInterchange([entry(568, 'Apollo 13', 9.97)], withNormalized(9), { name: 'Matt', now: NOW })
+      const profile = fromInterchange(feed)
+      expect(profile.ratings[568].r).toBe(9.97)
+    })
+  })
 })
 
 describe('round trip', () => {

@@ -149,6 +149,7 @@ The document:
       "posterPath": "/l79VoTIPEXwo9zCTPTnpqdASvus.jpg",
       "year": 2014,
       "rating": 6.6965,                    // REQUIRED. 0–10 composite.
+      "starRating": 3.5,                   // optional. Your assigned 0–5 stars.
       "criteria": {                        // optional; any subset
         "love": 2, "overall": 7, "stickiness": 1, "story": 8,
         "direction": 8, "imagery": 7, "performance": 6, "soundtrack": 7
@@ -163,7 +164,9 @@ The document:
 ```
 
 Rules for producing it:
-- Use the **most recent** viewing for `rating` and `criteria`.
+- Use the **most recent** viewing for `rating`, `starRating` and `criteria`.
+- `starRating` is optional and **source-assigned**: send the star value your
+  app displays, don't rescale `rating`. Omit it (never zero) when absent.
 - Map `impression` → `stickiness`. Omit criteria you don't have rather than
   sending nulls.
 - `watchedAt` is epoch **milliseconds** (your `date` is ISO 8601 — convert).
