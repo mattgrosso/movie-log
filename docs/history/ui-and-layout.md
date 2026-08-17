@@ -298,15 +298,32 @@ padding. The page went from 2,146px to 2,105px — slightly shorter than it star
 
 The page was flat black with grey labels and a Bootstrap-Reboot underline under every
 name, which made the underline the loudest thing on it — a section listing fourteen
-editors was fourteen underlines. Colour now carries the meaning instead, one accent per
-family of section:
+editors was fourteen underlines. Colour now carries the meaning instead.
 
-| Family | Accent |
-|---|---|
-| People — directors, cast, writers, composers, editors, cinematographers, producers | `#79b0f2` |
-| Descriptors — genres, keywords, tags | `#6fd39b` |
-| Awards | `#ffc107` |
-| Facts — box office, made in, production companies | `#c191e8` |
+### The first palette was arbitrary, and Matt said so
+
+The first attempt invented a hue per family: blue for people, green for descriptors, gold
+for awards, violet for production facts. *"I like that it's more colorful, but the colors
+feel a little bit arbitrary."* Correct — and worse than arbitrary, because **blue already
+means Ratings** in this app (Insights' tab accents are overview `#FFD700`, ratings
+`#1D8BF1`, activity `#24d776`, people `#cd7fe8`), so using it for people actively
+contradicted the existing vocabulary.
+
+The palette is now the app's own, carrying the meanings it already carries:
+
+| Family | Accent | Why |
+|---|---|---|
+| People — directors, cast, writers, composers, editors, cinematographers, producers | `#cd7fe8` | Insights' **People** tab, where Favorite Directors/Actors/Composers live |
+| Ratings / Best since | `#1D8BF1` | Insights' **Ratings** tab |
+| Awards | `#ffc107` | wins throughout — Trophy Case, the Deep Stats crown, personal awards |
+| Genres, keywords, tags | `#6fd39b` | the vocabulary you search your own library by; the one house choice, kept in the family of Insights' Activity green |
+
+**Production facts — box office, country, companies — get no accent at all.** They're
+TMDB's facts about the film rather than anything in your library's vocabulary, and the
+absence of colour is the signal. The links among them keep their default underline, so
+they still read as tappable. Checking Home first confirmed there is no per-type chip
+colour to inherit, so Insights' four accents plus the award gold are the whole vocabulary
+available.
 
 `h4`s became uppercase micro-labels in the section's accent, matching `.standout-facet`
 on Deep Stats and `.coverage-month` on Insights (and slightly *smaller* than what they

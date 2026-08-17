@@ -1898,14 +1898,35 @@ export default {
   /* ---------------------------------------------------------------------
      Section accents (2026-08-17). The page was entirely flat black with grey
      labels and a Bootstrap-underlined link for every name, which made the
-     underline the loudest thing on it. Colour now carries meaning — each
-     family of section has its own — and every rule below is deliberately
+     underline the loudest thing on it. Every rule below is deliberately
      height-neutral: no new surfaces, no new padding, nothing removed. Matt:
      "I want all the information that's on there... I wouldn't want to get
      too much bulk here."
+
+     The colours are NOT chosen for this page. The first attempt invented a
+     hue per family and Matt read it exactly right — "the colors feel a
+     little bit arbitrary" — not least because it used blue for people while
+     blue already means Ratings elsewhere in the app. These are the app's own
+     accents, carrying the meanings they already carry:
+
+       purple  #cd7fe8  people   — Insights' People tab, where Favorite
+                                   Directors/Actors/Composers/etc. live
+       blue    #1D8BF1  ratings  — Insights' Ratings tab
+       gold    #ffc107  awards   — wins throughout: Trophy Case, the Deep
+                                   Stats crown, personal awards
+       green   #6fd39b  labels   — genres, keywords and tags: the vocabulary
+                                   you search your own library by. The one
+                                   house choice here, kept in the family of
+                                   Insights' Activity green.
+
+     Production facts — box office, country, companies — get NO accent on
+     purpose. They're TMDB's facts about the film rather than anything in
+     your library's vocabulary, and the absence of colour is the signal. The
+     links among them keep their default underline, so they still read as
+     tappable.
      --------------------------------------------------------------------- */
   .directors, .cast, .writers, .composers,
-  .editors, .cinematographers, .producers { --sec: #79b0f2; }
+  .editors, .cinematographers, .producers { --sec: #cd7fe8; }
 
   .genres, .keywords, .tags { --sec: #6fd39b; }
 
@@ -1916,7 +1937,16 @@ export default {
      nominated is a muted amber (#b9a06a, ~8:1 on this background). */
   .awards .nominees a.link { color: #b9a06a; }
 
-  .box-office, .production-countries, .production-companies { --sec: #c191e8; }
+  /* The ratings block is the Ratings tab's subject, so it takes that accent
+     — on the labels only, since the scores themselves are the point. */
+  .ratings-and-comparison-wrapper > .ratings-section > h4,
+  .ratings-and-comparison-wrapper > .comparison-poster-section > h4 {
+    color: #1D8BF1;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
 
   a {
     color: white;
@@ -1932,8 +1962,7 @@ export default {
   /* Micro-label, matching .standout-facet on Deep Stats and .coverage-month
      on Insights. Smaller than what it replaces, so it costs no height. */
   .directors, .cast, .writers, .composers, .editors, .cinematographers,
-  .producers, .genres, .keywords, .tags, .awards, .box-office,
-  .production-countries, .production-companies {
+  .producers, .genres, .keywords, .tags, .awards {
     > h4,
     > .tags-header > h4,
     > .keywords-header > h4 {
