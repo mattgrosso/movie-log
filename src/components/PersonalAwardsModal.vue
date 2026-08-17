@@ -8,7 +8,10 @@
     <Modal :show="showModal" :page="pageMode" @close="closeModal">
       <template v-slot:header>
         <div v-if="!selectedCategory" class="text-center awards-header">
-          <h2 class="mb-1">{{ awardNameWithThe }} {{ currentYear }}</h2>
+          <!-- "The 2026 Oscars", not "The Oscars 2026" — the award name is
+               explicitly shaped to read like the Oscars, so the year belongs
+               in front of it (2026-08-17). -->
+          <h2 class="mb-1">{{ awardHeading }}</h2>
           <p class="mb-0">Your own annual awards</p>
 
           <!-- New Movies Notification: dark card + poster row (house style:
@@ -435,6 +438,15 @@ export default {
     };
   },
   computed: {
+    // "The Oscars" + 2026 reads as "The 2026 Oscars": the leading article
+    // stays in front, the year slots between it and the name.
+    awardHeading () {
+      const name = this.awardNameWithThe || '';
+      const leading = /^(the)\s+/i.exec(name);
+      return leading
+        ? `${leading[1]} ${this.currentYear} ${name.slice(leading[0].length)}`
+        : `${name} ${this.currentYear}`;
+    },
     isMatt () {
       return this.$store.state.databaseTopKey === "mattgrosso-gmail-com" || !this.$store.state.databaseTopKey;
     },

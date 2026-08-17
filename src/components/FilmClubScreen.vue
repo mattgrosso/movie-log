@@ -301,7 +301,11 @@ export default {
           // A poster-less recent item would render a broken image.
           recent: snapshot.recent.filter((item) => item.p)
         };
-      });
+      })
+        // "My friends should be sorted based on who watched a movie most
+        // recently" (2026-08-17). Anyone with no profile yet sorts last
+        // rather than jumping to the top on a null.
+        .sort((a, b) => (b.lastWatchedAt || 0) - (a.lastWatchedAt || 0));
     },
     pendingRows () {
       return this.$store.getters.socialPendingSentKeys.map((key) => ({ key, name: this.nameFor(key) }));

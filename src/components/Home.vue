@@ -338,13 +338,16 @@
                    search input's right edge (Matt: "it really
                    needs to be a first order page"). -->
               <button class="results-actions-button btn btn-warning btn-sm" type="button" @click="$router.push('/film-club')" title="Film Club" aria-label="Go to the Film Club">
-                <!-- New friend ratings since the club was last opened: the
-                     filled club hollows out and the count sits inside it. -->
+                <!-- New friend ratings since the club was last opened. Always
+                     the OUTLINE club: "I basically wanted it to always be the
+                     outline icon not the solid one because that better matches
+                     the other icons on the list" (2026-08-17) — the binoculars
+                     and sort glyphs beside it are outlines. -->
                 <span v-if="filmClubNewUpdateCount" class="film-club-badge">
-                  <i class="bi bi-suit-club-fill film-club-glyph"/>
+                  <i class="bi bi-suit-club film-club-glyph"/>
                   <span class="film-club-badge-count">{{ filmClubNewUpdateCount > 9 ? '9+' : filmClubNewUpdateCount }}</span>
                 </span>
-                <i v-else class="bi bi-suit-club-fill film-club-glyph"/>
+                <i v-else class="bi bi-suit-club film-club-glyph"/>
               </button>
               <!-- Shuffle lives inside the quick-links panel now (feedback:
                    the extra watchlist button broke the rainbow); watchlist
@@ -1369,6 +1372,14 @@ export default {
     }
   },
   watch: {
+    // Edges arrive from the listener after mount, so the first fetch above
+    // can run against an empty friend list. Same watcher WatchlistScreen and
+    // FilmClubScreen use.
+    socialFriendKeys: {
+      handler (keys) {
+        if (keys?.length) this.$store.dispatch('fetchFriendProfiles');
+      }
+    },
     // Refresh the published social profile once the library and settings
     // have both arrived, at most every 6 hours. A component watcher (not
     // $store.watch) so mounted mock stores in tests don't need the API.
@@ -1473,6 +1484,12 @@ export default {
     // Social: keep the inbox live. Publishing happens via the
     // socialPublishReady watcher below once the library and settings are in.
     this.$store.dispatch('attachSocialListeners');
+    // The badge counts ratings in friends' PROFILES, and Home never fetched
+    // them — only the edges. So countNewFriendUpdates always ran over an empty
+    // object and the badge could never appear at all: "maybe we can add the
+    // number of updates... I'm not sure that's working. I haven't seen it in a
+    // while" (2026-08-17). Profiles are a few KB each.
+    this.$store.dispatch('fetchFriendProfiles');
 
     // Capture navigation intent at the start - needed for various logic below
     const navigationIntent = this.$store.state.homePageNavigationIntent;
@@ -1821,6 +1838,9 @@ export default {
       return Object.entries(requests)
         .filter(([key]) => !(edges[me]?.[key] && edges[key]?.[me]))
         .map(([key, request]) => ({ key, name: request?.name || key }));
+    },
+    socialFriendKeys () {
+      return this.$store.getters?.socialFriendKeys || [];
     },
     filmClubNewUpdateCount () {
       return this.$store.getters?.filmClubNewUpdateCount || 0;

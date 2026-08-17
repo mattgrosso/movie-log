@@ -178,3 +178,27 @@ Nine of twenty-one reports from one morning's sitting.
 the confirmation toast inside it with it — you got no confirmation at all. The punt is
 delayed four seconds so you read "X was added to Y" and then watch it leave, which reads
 as cause and effect. Timers are cleared on unmount.
+
+### Deep Stats, Awards, Insights and the Film Club badge (Aug 2026, same round)
+
+- **Standouts listed more than it showed.** A card read "11 rated" and rendered six —
+  `perFacet` capped the poster row at six while the count reported the whole bucket, which
+  reads as a bug. `perFacet` defaults to null now and the row carries every match; it
+  already scrolls sideways, so length is free.
+- **Marathon Club's biggest days show their posters**, small (30×45) — they're a reminder
+  of the day, not the subject. `biggestDays` already carried its entries.
+- **Rewatches gained "Longest waits"**, the other end of the list that already produced
+  "Quickest returns".
+- **Years can sort by rank as well as chronologically.**
+- **"The Oscars 2026" became "The 2026 Oscars."** The heading slots the year between a
+  leading article and the name. The regex requires whitespace after "the", so a name like
+  "Theatre Awards" isn't mangled — covered by test.
+- **The "Fun Facts" header is gone**, boxes kept.
+
+**The Film Club badge could never have worked.** The icon counts new ratings in friends'
+**profiles**, but `Home.vue` only ever dispatched `attachSocialListeners` — never
+`fetchFriendProfiles`. So `countNewFriendUpdates` always ran over an empty object and
+returned 0, which is why Matt "hadn't seen it in a while". Home now fetches profiles, and
+watches `socialFriendKeys` to refetch when the edges land (the same watcher
+WatchlistScreen and FilmClubScreen already had — Home was the odd one out). The icon is
+also the outline club now, matching the binoculars and sort glyphs beside it.

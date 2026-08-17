@@ -78,6 +78,15 @@
           <span class="ds-poster-note gold">{{ gapLabel(film.gapDays) }}</span>
         </div>
       </div>
+
+      <!-- The other end of the same list (2026-08-17). -->
+      <h3 v-if="rewatches.longestReturns.length" class="pantheon-label">Longest waits</h3>
+      <div v-if="rewatches.longestReturns.length" class="ds-poster-row">
+        <div v-for="film in rewatches.longestReturns" :key="`l-${film.entry.dbKey}`" class="ds-poster-card" @click="goToMovie(film.entry)">
+          <img v-if="film.entry.movie.poster_path" :src="poster(film.entry)" :alt="film.entry.movie.title" class="ds-poster">
+          <span class="ds-poster-note gold">{{ gapLabel(film.gapDays) }}</span>
+        </div>
+      </div>
     </section>
 
     <!-- Marathon Club -->
@@ -101,6 +110,22 @@
           <div class="top-day-info">
             <span class="top-day-date">{{ dayEntry.day }}</span>
             <span class="top-day-detail">{{ dayEntry.count }} movies · {{ duration(dayEntry.minutes) }}</span>
+            <!-- "Should show the posters of the movies I watched on the
+                 longest days. Make sure [they] be pretty small though."
+                 (2026-08-17) -->
+            <div class="day-posters">
+              <img
+                v-for="(watched, position) in dayEntry.entries"
+                :key="`${dayEntry.day}-${watched.dbKey}-${position}`"
+                v-show="watched.movie.poster_path"
+                :src="poster(watched)"
+                :alt="watched.movie.title"
+                :title="watched.movie.title"
+                class="day-poster"
+                loading="lazy"
+                @click="goToMovie(watched)"
+              >
+            </div>
           </div>
         </li>
       </ol>
@@ -113,6 +138,22 @@
         How good each year of watching was, by Log Score — quality and depth together, so a
         year of many good films beats a year of two great ones. The poster is that year's best.
       </p>
+      <!-- "I should be able to sort it chronologically, which you already
+           have, or I should be able to sort it by rank." (2026-08-17) -->
+      <div class="ds-sort">
+        <button
+          type="button"
+          class="ds-sort-btn"
+          :class="{ active: yearSort === 'chronological' }"
+          @click="yearSort = 'chronological'"
+        >Chronological</button>
+        <button
+          type="button"
+          class="ds-sort-btn"
+          :class="{ active: yearSort === 'rank' }"
+          @click="yearSort = 'rank'"
+        >By rank</button>
+      </div>
       <div class="ds-poster-row">
         <div
           v-for="year in years"
@@ -202,6 +243,12 @@ import { logScoreSettings } from '../assets/javascript/logScore.js';
 export default {
   name: 'DeepStats',
   components: { BackLink },
+  data () {
+    return {
+      // Years section ordering — see the Years block.
+      yearSort: 'chronological'
+    };
+  },
   computed: {
     library () {
       return this.$store.getters.allMoviesAsArray || [];
@@ -222,7 +269,10 @@ export default {
       return marathonStats(this.library, { includeShorts: Boolean(this.$store.state.settings?.includeShorts) });
     },
     years () {
-      return yearStats(this.library, getRating, this.weights);
+      const stats = yearStats(this.library, getRating, this.weights);
+      if (this.yearSort !== 'rank') return stats;
+      // A year with no score sorts last rather than to the top on a null.
+      return [...stats].sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity));
     },
     standoutList () {
       return standouts(this.library, getRating, this.weights);
@@ -424,6 +474,36 @@ export default {
    the label and the note under it disagree about where the card starts. */
 .ds-poster-note { color: #ccc; display: block; font-size: 0.7rem; line-height: 1.25; margin-top: 0.25rem; }
 .ds-poster-note.gold { color: #ffc107; }
+
+.ds-sort { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
+
+.ds-sort-btn {
+  background: #101010;
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
+  color: #ccc;
+  font-size: 0.7rem;
+  /* 40px minimum tap target. */
+  min-height: 40px;
+  padding: 0 0.85rem;
+}
+
+.ds-sort-btn.active { background: #ffc107; border-color: #ffc107; color: #101010; font-weight: 700; }
+.ds-sort-btn:active { opacity: 0.75; }
+
+.day-posters { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 0.3rem; }
+
+/* Small on purpose — they're a reminder of the day, not the subject. */
+.day-poster {
+  border-radius: 3px;
+  cursor: pointer;
+  display: block;
+  height: 45px;
+  object-fit: cover;
+  width: 30px;
+}
+
+.day-poster:active { opacity: 0.7; }
 
 .top-days { list-style: none; margin: 0; padding: 0; }
 .top-day { align-items: center; display: flex; gap: 0.75rem; padding: 0.35rem 0; }

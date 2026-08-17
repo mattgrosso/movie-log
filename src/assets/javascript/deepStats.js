@@ -140,7 +140,10 @@ export function rewatchStats (entries) {
     rewatchRate: revisited.length / totalFilms,
     medianReturnYears: medianGap / YEAR_MS,
     mostRewatched: revisited.sort((a, b) => b.viewings - a.viewings).slice(0, 12),
-    quickestReturns: quickest.sort((a, b) => a.gapMs - b.gapMs).slice(0, 12)
+    quickestReturns: [...quickest].sort((a, b) => a.gapMs - b.gapMs).slice(0, 12),
+    // "We should add one that has the longest times between re-watches. We
+    // already have shortest times." (2026-08-17) Same candidates, other end.
+    longestReturns: [...quickest].sort((a, b) => b.gapMs - a.gapMs).slice(0, 12)
   };
 }
 
@@ -285,7 +288,7 @@ export function genreStats (entries, getRatingFn, weights, { minCount = 3, cap =
  * The log score rides along for display, because "how good is this corner of
  * the library outright" is a fair second question.
  */
-export function standouts (entries, getRatingFn, weights, { minCount = 4, perFacet = 6, perType = 3, cap = 12 } = {}) {
+export function standouts (entries, getRatingFn, weights, { minCount = 4, perFacet = null, perType = 3, cap = 12 } = {}) {
   const globalAvg = globalAverage(entries, getRatingFn);
   if (!Number.isFinite(globalAvg)) return [];
 
@@ -345,10 +348,15 @@ export function standouts (entries, getRatingFn, weights, { minCount = 4, perFac
         score: logScore(ratings, globalAvg, weights),
         mean: Math.round((total / ratings.length) * 100) / 100,
         lift: Math.round((adjusted - globalAvg) * 100) / 100,
-        top: [...bucket.films]
-          .sort((a, b) => b.rating - a.rating)
-          .slice(0, perFacet)
-          .map((film) => film.entry)
+        // Every matching film, not a sample of them: the card says "11 rated"
+        // and then showed six, which reads as a bug — "you're listing more
+        // movies than you're showing. It should just be a horizontally
+        // scrolling list of all the movies that match that specific thing"
+        // (2026-08-17). The row already scrolls sideways, so length is free.
+        top: (perFacet
+          ? [...bucket.films].sort((a, b) => b.rating - a.rating).slice(0, perFacet)
+          : [...bucket.films].sort((a, b) => b.rating - a.rating)
+        ).map((film) => film.entry)
       };
     })
     .filter((bucket) => Number.isFinite(bucket.lift));

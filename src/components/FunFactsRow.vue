@@ -1,6 +1,8 @@
 <template>
   <section v-if="facts.length" class="fun-facts">
-    <h2 class="fun-facts-title">Fun Facts</h2>
+    <!-- No header: "we should just get rid of the header Fun Facts, leave the
+         boxes and all the information but we don't need that header"
+         (2026-08-17). The boxes say what they are. -->
     <div class="fun-facts-row">
       <div v-for="fact in facts" :key="fact.key" class="fun-fact-card">
         <span class="fun-fact-label">{{ fact.label }}</span>

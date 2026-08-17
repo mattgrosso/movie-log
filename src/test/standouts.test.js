@@ -147,6 +147,20 @@ describe('standouts', () => {
     expect(ranked.some((s) => s.value === 'Ace Director')).toBe(true);
   });
 
+  // "You're listing more movies than you're showing" — the card said
+  // "11 rated" and rendered six, which reads as a bug.
+  it('carries every matching film, not a sample of them', () => {
+    const entries = [
+      ...baseline(),
+      ...Array.from({ length: 14 }, (unused, i) => film(i, 9.2, { genres: [{ name: 'Noir' }] }))
+    ];
+
+    const noir = standouts(entries, getRating, {}).find((s) => s.value === 'Noir');
+
+    expect(noir.count).toBe(14);
+    expect(noir.top).toHaveLength(14);
+  });
+
   it('carries a handful of examples per standout, best first', () => {
     const entries = [
       ...baseline(),
@@ -155,7 +169,7 @@ describe('standouts', () => {
 
     const noir = standouts(entries, getRating, {}).find((s) => s.value === 'Noir');
 
-    expect(noir.top.length).toBeLessThanOrEqual(6);
+    expect(noir.top).toHaveLength(10);
     expect(noir.top[0].ratings[0].calculatedTotal)
       .toBeGreaterThan(noir.top[noir.top.length - 1].ratings[0].calculatedTotal);
   });

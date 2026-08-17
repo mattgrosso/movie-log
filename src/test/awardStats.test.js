@@ -298,3 +298,32 @@ describe('rankMovies', () => {
     expect(rankMovies(nominations, { minCount: 1 })[0]).toMatchObject({ movieId: 1, count: 2 });
   });
 });
+
+// "At the top of the awards page it says the name of the award and then the
+// year. Since the shape of the award name is explicitly set to match the
+// Oscars, we should make that header read the 2026 Oscars, not the Oscars
+// 2026." (2026-08-17)
+describe('award heading word order', () => {
+  // Mirrors PersonalAwardsModal.awardHeading.
+  const heading = (name, year) => {
+    const leading = /^(the)\s+/i.exec(name || '');
+    return leading
+      ? `${leading[1]} ${year} ${(name || '').slice(leading[0].length)}`
+      : `${name} ${year}`;
+  };
+
+  it('slots the year between the article and the name', () => {
+    expect(heading('The Oscars', 2026)).toBe('The 2026 Oscars');
+    expect(heading('The Groskers', 1999)).toBe('The 1999 Groskers');
+  });
+
+  it('keeps the article capitalised as the user wrote it', () => {
+    expect(heading('the Oscars', 2026)).toBe('the 2026 Oscars');
+  });
+
+  // A name that doesn't open with an article has nowhere to slot the year.
+  it('falls back to trailing the year for a name with no article', () => {
+    expect(heading('Groskers', 2026)).toBe('Groskers 2026');
+    expect(heading('Theatre Awards', 2026)).toBe('Theatre Awards 2026');
+  });
+});
