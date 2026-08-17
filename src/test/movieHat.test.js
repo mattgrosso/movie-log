@@ -223,22 +223,22 @@ describe('talking to the database', () => {
 
   // The heart of it: a draw MUST move the movie, not copy it. Getting this
   // wrong would quietly break the thing Matt uses to choose every film.
-  it('completes a draw by writing history and then removing from the hat', async () => {
+  // One atomic multi-path write, matching Movie Hat's own draw exactly.
+  it('completes a draw in a single atomic write', async () => {
     await commitDraw('Just Matt', 'hat-key', { id: 1, title: 'Heat', dbKey: 'm1' }, 999);
 
-    expect(calls).toHaveLength(2);
-
-    expect(calls[0].method).toBe('POST');
-    expect(calls[0].url).toContain('/history.json');
-    expect(JSON.parse(calls[0].body)).toEqual({ id: 1, title: 'Heat', dateDrawn: 999 });
-
-    expect(calls[1].method).toBe('DELETE');
-    expect(calls[1].url).toContain('/movies/m1.json');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('PATCH');
+    expect(calls[0].url).toContain('/hats/Just%20Matt/hat-key.json');
+    expect(JSON.parse(calls[0].body)).toEqual({
+      'history/drawn-999': { id: 1, title: 'Heat', dateDrawn: 999 },
+      'movies/m1': null
+    });
   });
 
-  // History first, deletion second: a failure in between leaves the movie in
-  // both places, which is recoverable. The other order loses it.
-  it('does not remove the movie when writing history fails', async () => {
+  // Atomic means atomic: a refused write leaves the movie in the hat and
+  // nothing in history, rather than half a draw.
+  it('leaves the hat untouched when the write fails', async () => {
     global.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 500, text: () => Promise.resolve('') }));
 
     await expect(commitDraw('Just Matt', 'hat-key', { id: 1, dbKey: 'm1' })).rejects.toThrow(/500/);

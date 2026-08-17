@@ -155,10 +155,19 @@ export async function fetchMyHats (email) {
   const mine = await hatRequest(`userHats/${memberKey}.json`);
   if (!mine) return [];
 
-  return Object.values(mine)
+  // Deduped by hatKey: Movie Hat re-keys these entries from a safe form of
+  // the TITLE to the hat's own key (2026-08-17), and a hat mid-re-key can
+  // appear under both for one read. Reading entries by VALUE like this is
+  // what makes that migration invisible here — don't start reading the key.
+  const byKey = new Map();
+  Object.values(mine)
     .filter((entry) => entry?.title)
-    .map((entry) => ({ title: entry.title, dbKey: entry.hatKey || null }))
-    .sort((a, b) => a.title.localeCompare(b.title));
+    .forEach((entry) => {
+      const key = entry.hatKey || `title:${entry.title}`;
+      if (!byKey.has(key)) byKey.set(key, { title: entry.title, dbKey: entry.hatKey || null });
+    });
+
+  return [...byKey.values()].sort((a, b) => a.title.localeCompare(b.title));
 }
 
 /** Every hat in the app. Only usable while the database is still open. */
@@ -171,8 +180,15 @@ export function fetchAllHats () {
  * key underneath, and takes the first key it finds — mirrored here.
  */
 export async function fetchHatKey (title) {
-  const data = await hatRequest(`hats/${encodeURIComponent(title)}.json?shallow=true`);
-  return data ? Object.keys(data)[0] : null;
+  // The title level is unreadable under the deployed rules — access is
+  // granted per hat — so this is a legacy path that now answers "no idea"
+  // instead of throwing. fetchMyHats supplies the key in normal use.
+  try {
+    const data = await hatRequest(`hats/${encodeURIComponent(title)}.json?shallow=true`);
+    return data ? Object.keys(data)[0] : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchHat (title, dbKey = null) {
@@ -199,21 +215,27 @@ export function addMovieToHat (title, dbKey, payload) {
 }
 
 /**
- * Complete a draw: history first, then remove from the hat. That order
- * matters — a failure between the two leaves the movie in both places, which
- * is recoverable, where the reverse loses it outright.
+ * Complete a draw: the movie lands in history and leaves the hat in ONE
+ * write, so no failure can strand it in both places (or, worse, neither).
+ *
+ * This used to be a POST followed by a DELETE, ordered so that a failure
+ * between them was at least recoverable. Movie Hat moved its own draw to a
+ * multi-path PATCH on 2026-08-17; this matches it exactly, down to the
+ * `drawn-<timestamp>` history key, so a draw looks the same whichever app
+ * performed it.
  */
 export async function commitDraw (title, dbKey, movie, now = Date.now()) {
-  await hatRequest(`hats/${encodeURIComponent(title)}/${dbKey}/history.json`, {
-    method: 'POST',
-    body: JSON.stringify(drawnRecord(movie, now))
-  });
+  const record = drawnRecord(movie, now);
+  const updates = { [`history/drawn-${record.dateDrawn}`]: record };
 
   if (movie.dbKey) {
-    await hatRequest(`hats/${encodeURIComponent(title)}/${dbKey}/movies/${movie.dbKey}.json`, {
-      method: 'DELETE'
-    });
+    updates[`movies/${movie.dbKey}`] = null;
   }
+
+  await hatRequest(`hats/${encodeURIComponent(title)}/${dbKey}.json`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates)
+  });
 
   return movie;
 }

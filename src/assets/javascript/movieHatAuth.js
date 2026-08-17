@@ -81,8 +81,15 @@ function movieHatAuthReady () {
  */
 export async function movieHatToken () {
   try {
-    // Wait for the session to be restored before concluding there isn't one.
-    const user = movieHatUser() || await movieHatAuthReady();
+    // Wait for the session to be restored before concluding there isn't
+    // one — but only ever as a "has auth settled yet" gate. The cached
+    // first result goes stale the moment somebody disconnects or connects
+    // a different account, so the user always comes from currentUser.
+    let user = movieHatUser();
+    if (!user) {
+      await movieHatAuthReady();
+      user = movieHatUser();
+    }
     return user ? await user.getIdToken() : null;
   } catch (error) {
     console.warn('Could not get a Movie Hat token', error);
