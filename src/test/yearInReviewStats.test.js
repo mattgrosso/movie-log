@@ -107,25 +107,26 @@ describe('bookends', () => {
 });
 
 describe('calendarGrid', () => {
-  it('lays the year out in whole weeks, every column seven days', () => {
-    const grid = calendarGrid([], 2026);
-    grid.weeks.forEach((week) => expect(week).toHaveLength(7));
+  // Deliberately no longer a 7-row contribution graph: it ran wider than a
+  // phone, and this matches the all-time grid on Insights.
+  const finished = at(2027, 6, 1);
+
+  it('lays the year out as twelve month rows by day-of-month', () => {
+    const grid = calendarGrid([], 2026, finished);
+
+    expect(grid.months).toHaveLength(12);
+    expect(grid.months[0].days).toHaveLength(31);
+    expect(grid.months[3].days).toHaveLength(30);
+    expect(grid.months.reduce((sum, month) => sum + month.days.length, 0)).toBe(365);
   });
 
-  it('covers every day of the year and marks the padding as outside it', () => {
-    const grid = calendarGrid([], 2026);
-    const inYear = grid.weeks.flat().filter((cell) => cell.inYear);
-
-    expect(inYear).toHaveLength(365);
-    expect(grid.weeks.flat().some((cell) => !cell.inYear)).toBe(true);
-    expect(grid.weeks.flat().find((cell) => !cell.inYear).count).toBe(null);
+  it('gives February its extra day in a leap year and not otherwise', () => {
+    expect(calendarGrid([], 2024, finished).months[1].days).toHaveLength(29);
+    expect(calendarGrid([], 2026, finished).months[1].days).toHaveLength(28);
+    expect(calendarGrid([], 2024, finished).months.reduce((sum, m) => sum + m.days.length, 0)).toBe(366);
   });
 
-  it('handles a leap year', () => {
-    expect(calendarGrid([], 2024).weeks.flat().filter((c) => c.inYear)).toHaveLength(366);
-  });
-
-  it('counts viewings per day and reports the busiest', () => {
+  it('counts viewings per date and reports the busiest', () => {
     const entries = [
       watched(1, at(2026, 5, 10), 7),
       watched(2, at(2026, 5, 10), 7),
@@ -133,12 +134,28 @@ describe('calendarGrid', () => {
       watched(4, at(2026, 8, 1), 7)
     ];
 
-    const grid = calendarGrid(viewingsInYear(entries, getAllRatings, 2026), 2026);
-    const busyDay = grid.weeks.flat().find((cell) => cell.day === '2026-05-10');
+    const grid = calendarGrid(viewingsInYear(entries, getAllRatings, 2026), 2026, finished);
 
-    expect(busyDay.count).toBe(3);
+    expect(grid.months[4].days[9].count).toBe(3);
     expect(grid.busiest).toBe(3);
     expect(grid.watchedDays).toBe(2);
+  });
+
+  // In August, an empty November is not a fact about your viewing.
+  it('marks days that have not happened yet rather than counting them empty', () => {
+    const midYear = at(2026, 8, 15);
+    const grid = calendarGrid([], 2026, midYear);
+
+    expect(grid.months[10].days[0].future).toBe(true);
+    expect(grid.months[0].days[0].future).toBe(false);
+    // The 15th has arrived; the 16th has not.
+    expect(grid.months[7].days[14].future).toBe(false);
+    expect(grid.months[7].days[15].future).toBe(true);
+  });
+
+  it('marks nothing as future once the year is over', () => {
+    const grid = calendarGrid([], 2026, finished);
+    expect(grid.months.flatMap((month) => month.days).some((day) => day.future)).toBe(false);
   });
 });
 

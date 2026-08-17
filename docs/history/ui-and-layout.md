@@ -242,11 +242,23 @@ elements), and the rule predated the rebuild.
 
 ### Why the Insights grid is a different shape
 
-The Year in Review heatmap is a contribution graph: 7 weekday rows by ~53 week columns,
-which is right for one real year. Collapsing *every* year onto that grid would be
+The Year in Review heatmap started as a contribution graph: 7 weekday rows by ~53 week
+columns, which is right for one real year. Collapsing *every* year onto that grid would be
 meaningless, because a given date's weekday moves from year to year. The all-time version
 is therefore **12 month rows by day-of-month**, which is what "which dates have I never
 watched on" actually asks.
+
+**Both grids are that shape now.** Matt, seeing the Insights one: *"I like how you got the
+whole calendar on the one screen without scrolling... let's do that also on the Year in
+Review and imitate that shape"* (2026-08-17). The contribution graph was the conventional
+layout and it was accurate, but it ran wider than the screen. `calendarGrid` was rewritten
+to return month rows and its four tests replaced; the week-column code is gone rather than
+left dead. `new Date(year, month + 1, 0).getDate()` gives each month its length, which
+handles February in a leap year with no special case.
+
+A single year adds one thing the all-time grid doesn't need: days that **haven't happened
+yet** are marked `future` and render as absent rather than as empty squares. In August, an
+empty November is not a fact about your viewing.
 
 `calendarCoverage()` lives alongside `allViewings` in `yearInReview.js` — that module owns
 the viewing-level model, so Insights imports from it rather than growing a second one.

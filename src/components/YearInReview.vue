@@ -67,29 +67,19 @@
         <section class="yir-section">
           <h3 class="yir-title">The Shape of the Year</h3>
           <p class="yir-caption">
-            Every day of {{ selectedYear }}. The brighter the square, the more you watched.
+            Every day of {{ selectedYear }}, a row per month. The brighter the square, the
+            more you watched that day.
           </p>
-          <div class="yir-heatmap-scroll">
-            <div class="yir-heatmap">
-              <div class="yir-heat-months">
-                <span
-                  v-for="label in monthLabels"
-                  :key="`m-${label.month}`"
-                  class="yir-heat-month"
-                  :style="{ gridColumnStart: label.column + 1 }"
-                >{{ label.name }}</span>
-              </div>
-              <div class="yir-heat-grid">
-                <div v-for="(week, wi) in calendar.weeks" :key="`w-${wi}`" class="yir-heat-week">
-                  <div
-                    v-for="cell in week"
-                    :key="cell.day"
-                    class="yir-heat-cell"
-                    :class="heatClass(cell)"
-                    :title="cell.inYear ? `${cell.day}: ${cell.count} watched` : ''"
-                  ></div>
-                </div>
-              </div>
+          <div class="yir-heat-grid">
+            <div v-for="row in calendar.months" :key="`hm-${row.month}`" class="yir-heat-row">
+              <span class="yir-heat-month">{{ monthNames[row.month] }}</span>
+              <span
+                v-for="cell in row.days"
+                :key="`h-${row.month}-${cell.day}`"
+                class="yir-heat-cell"
+                :class="heatClass(cell)"
+                :title="`${monthNames[row.month]} ${cell.day}: ${cell.count} watched`"
+              ></span>
             </div>
           </div>
           <div class="yir-heat-key">
@@ -430,19 +420,6 @@ export default {
     calendar () {
       return calendarGrid(this.viewings, this.selectedYear);
     },
-    monthLabels () {
-      // One label per month, positioned at the first week column that month
-      // appears in — the standard contribution-graph treatment.
-      const labels = [];
-      this.calendar.weeks.forEach((week, column) => {
-        const first = week.find((cell) => cell.inYear);
-        if (!first) return;
-        if (!labels.some((label) => label.month === first.month)) {
-          labels.push({ month: first.month, name: MONTH_NAMES[first.month], column });
-        }
-      });
-      return labels;
-    },
     ends () {
       return bookends(this.viewings);
     },
@@ -567,7 +544,8 @@ export default {
         .toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     },
     heatClass (cell) {
-      if (!cell.inYear) return 'yir-heat-out';
+      // A day that hasn't happened yet is not a day you watched nothing.
+      if (cell.future) return 'yir-heat-future';
       if (!cell.count) return 'yir-heat-0';
       // Four steps, scaled to the year's own busiest day so a quiet year
       // still shows contrast rather than a uniform dim wash.
@@ -713,35 +691,36 @@ export default {
 .yir-delta-value.down { color: #ff9a8b; }
 .yir-delta-label { color: #b9b9b9; font-size: 0.7rem; }
 
-/* Heatmap */
-.yir-heatmap-scroll { overflow-x: auto; padding-bottom: 0.3rem; -webkit-overflow-scrolling: touch; }
-.yir-heatmap { display: inline-block; min-width: 100%; }
+/* Heatmap: twelve month rows by day-of-month, matching the all-time grid on
+   Insights' Activity tab. A 31-column grid rather than a flex row, because
+   flexed cells would make February's wider than January's and the columns —
+   which are the dates — would stop lining up. 1fr means it fits any width
+   without scrolling sideways. */
+.yir-heat-grid { display: flex; flex-direction: column; gap: 2px; }
 
-.yir-heat-months {
+.yir-heat-row {
+  align-items: center;
   display: grid;
-  grid-auto-columns: 13px;
-  grid-auto-flow: column;
-  margin-bottom: 0.2rem;
+  gap: 2px;
+  grid-template-columns: 24px repeat(31, 1fr);
 }
 
 .yir-heat-month {
   color: #b9b9b9;
   font-size: 0.6rem;
-  grid-row: 1;
-  white-space: nowrap;
+  text-align: right;
 }
-
-.yir-heat-grid { display: flex; gap: 3px; }
-.yir-heat-week { display: flex; flex-direction: column; gap: 3px; }
 
 .yir-heat-cell {
+  aspect-ratio: 1;
   border-radius: 2px;
   display: block;
-  height: 10px;
-  width: 10px;
+  min-width: 0;
 }
 
-.yir-heat-out { background: transparent; }
+/* A date that hasn't arrived yet isn't a day you watched nothing, so it
+   reads as absent rather than as an empty square. */
+.yir-heat-future { background: #1b1b1b; opacity: 0.4; }
 .yir-heat-0 { background: #242424; }
 .yir-heat-1 { background: #5c451a; }
 .yir-heat-2 { background: #8a6415; }
@@ -757,6 +736,10 @@ export default {
   justify-content: flex-end;
   margin-top: 0.5rem;
 }
+
+/* The swatches are outside the grid, so they need an explicit size — 1fr
+   and aspect-ratio give them nothing to size against in a flex row. */
+.yir-heat-key .yir-heat-cell { height: 10px; width: 10px; }
 
 .yir-heat-key-label { margin: 0 0.3rem; }
 

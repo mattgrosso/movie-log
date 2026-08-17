@@ -93,47 +93,48 @@ export function bookends (viewings) {
 }
 
 /**
- * A day-by-day grid for the calendar heatmap: 7 rows (Sun-Sat) by however
- * many weeks the year spans, each cell null (outside the year) or a count.
+ * One year laid out as twelve month rows by day-of-month — the same shape as
+ * `calendarCoverage`'s all-time grid, so both heatmaps read alike and both
+ * fit a phone without scrolling sideways.
+ *
+ * This replaced a 7-row-by-53-column contribution graph. That layout is the
+ * conventional one and it was accurate, but it ran wider than the screen, and
+ * Matt preferred the Insights shape once he'd seen it: "I like how you got the
+ * whole calendar on the one screen without scrolling... let's do that also on
+ * the Year in Review and imitate that shape" (2026-08-17).
+ *
+ * Days that haven't happened yet are marked `future` rather than counted as
+ * days you watched nothing — in August, an empty November is not a fact about
+ * your viewing.
  */
-export function calendarGrid (viewings, year) {
+export function calendarGrid (viewings, year, now = Date.now()) {
   const counts = new Map();
   (viewings || []).forEach((viewing) => {
     counts.set(viewing.day, (counts.get(viewing.day) || 0) + 1);
   });
 
-  const start = new Date(year, 0, 1);
-  const end = new Date(year, 11, 31);
-  // Back up to the Sunday on or before Jan 1 so every column is a full week.
-  const cursor = new Date(year, 0, 1 - start.getDay());
-
-  const weeks = [];
-  let week = [];
+  const today = new Date(now);
   let busiest = 0;
 
-  while (cursor <= end || week.length) {
-    const inYear = cursor.getFullYear() === year;
-    const key = dayKey(cursor.getTime());
-    const count = inYear ? (counts.get(key) || 0) : null;
-    if (count > busiest) busiest = count;
+  const months = Array.from({ length: 12 }, (unused, month) => {
+    // Day 0 of the next month is the last day of this one, which gets
+    // February right in a leap year without a special case.
+    const length = new Date(year, month + 1, 0).getDate();
 
-    week.push({
-      day: key,
-      date: new Date(cursor.getTime()),
-      month: cursor.getMonth(),
-      count,
-      inYear
-    });
+    return {
+      month,
+      days: Array.from({ length }, (unused2, index) => {
+        const day = index + 1;
+        const date = new Date(year, month, day);
+        const count = counts.get(dayKey(date.getTime())) || 0;
+        if (count > busiest) busiest = count;
 
-    if (week.length === 7) {
-      weeks.push(week);
-      week = [];
-    }
-    cursor.setDate(cursor.getDate() + 1);
-    if (cursor > end && !week.length) break;
-  }
+        return { month, day, count, future: date > today };
+      })
+    };
+  });
 
-  return { weeks, busiest, watchedDays: counts.size };
+  return { months, busiest, watchedDays: counts.size };
 }
 
 /** Twelve months, each with its count and the best thing you saw in it. */
