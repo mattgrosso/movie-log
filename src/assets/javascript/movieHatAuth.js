@@ -50,6 +50,29 @@ export function movieHatUser () {
   }
 }
 
+// Firebase restores a persisted session ASYNCHRONOUSLY, so `currentUser` is
+// null for the first few hundred milliseconds after a page load even for
+// somebody who is connected. Anything asking for a token in that window gets
+// none and is refused — which took Movie Hat down on 2026-08-17.
+let firstAuthResult = null;
+
+function movieHatAuthReady () {
+  if (!firstAuthResult) {
+    firstAuthResult = new Promise((resolve) => {
+      try {
+        const unsubscribe = onAuthStateChanged(
+          movieHatAuth(),
+          (user) => { unsubscribe(); resolve(user || null); },
+          () => resolve(null)
+        );
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+  return firstAuthResult;
+}
+
 /**
  * The ID token for Movie Hat requests, or null when not connected.
  *
@@ -58,7 +81,8 @@ export function movieHatUser () {
  */
 export async function movieHatToken () {
   try {
-    const user = movieHatUser();
+    // Wait for the session to be restored before concluding there isn't one.
+    const user = movieHatUser() || await movieHatAuthReady();
     return user ? await user.getIdToken() : null;
   } catch (error) {
     console.warn('Could not get a Movie Hat token', error);
