@@ -4,45 +4,44 @@
     <h1 class="ds-title">Deep Stats</h1>
     <p class="ds-subtitle">Your library, interrogated.</p>
 
-    <div class="ds-strip">
-      <div class="ds-strip-item"><span class="ds-strip-value">{{ library.length }}</span><span class="ds-strip-label">titles</span></div>
-      <div v-if="marathon" class="ds-strip-item"><span class="ds-strip-value">{{ marathon.admissions }}</span><span class="ds-strip-label">viewings</span></div>
-      <div v-if="marathon" class="ds-strip-item"><span class="ds-strip-value">{{ duration(marathon.screenMinutes) }}</span><span class="ds-strip-label">screen time</span></div>
-    </div>
-
     <!-- The Crown -->
     <section v-if="crown.length" class="ds-section">
       <h2 class="ds-section-title">The Crown</h2>
       <p class="ds-section-caption">Starting from the oldest release you've rated, each new high score starts a reign.</p>
-      <div class="crown-timeline">
-        <div v-for="reign in crown" :key="reign.entry.dbKey" class="crown-reign" :class="{ current: reign.current }">
-          <img v-if="reign.entry.movie.poster_path" :src="poster(reign.entry)" :alt="reign.entry.movie.title" class="crown-poster">
-          <div class="crown-info">
-            <span class="crown-year">{{ reign.year }}<span v-if="reign.current" class="crown-current-tag">reigning</span></span>
-            <span class="crown-name">{{ reign.entry.movie.title }}</span>
-            <span class="crown-detail">{{ reign.current ? `${reign.reignYears} years on top — through today` : `Reigned until ${reign.until} — ${reign.reignYears} year${reign.reignYears === 1 ? '' : 's'}` }}</span>
-          </div>
-          <span class="crown-score">{{ reign.rating.toFixed(2) }}</span>
+      <!-- Sideways: as a vertical list this was the tallest thing on the
+           page by a distance, and it reads better as a succession anyway. -->
+      <div class="ds-poster-row">
+        <div
+          v-for="reign in crown"
+          :key="reign.entry.dbKey"
+          class="ds-poster-card crown-card"
+          :class="{ current: reign.current }"
+          role="button"
+          :aria-label="reign.entry.movie.title"
+          @click="goToMovie(reign.entry)"
+        >
+          <img v-if="reign.entry.movie.poster_path" :src="poster(reign.entry)" :alt="reign.entry.movie.title" class="ds-poster">
+          <span class="crown-card-year">
+            {{ reign.year }}
+            <span v-if="reign.current" class="crown-current-tag">now</span>
+          </span>
+          <span class="ds-poster-note">{{ reign.rating.toFixed(2) }} · {{ reign.reignYears }}y</span>
         </div>
       </div>
     </section>
 
     <!-- The Pantheon -->
-    <section v-if="pantheonData.categories.length" class="ds-section">
+    <section v-if="pantheonData.constellations.length" class="ds-section">
       <h2 class="ds-section-title">The Pantheon</h2>
       <p class="ds-section-caption">
         Perfection, category by category — {{ pantheonData.perfectFilms }} film{{ pantheonData.perfectFilms === 1 ? '' : 's' }},
         {{ pantheonData.totalMarks }} perfect marks.
       </p>
-      <div v-for="category in pantheonData.categories" :key="category.key" class="pantheon-category">
-        <h3 class="pantheon-label">{{ category.label }} <span class="pantheon-count">{{ category.films.length }}</span></h3>
-        <div class="ds-poster-row">
-          <div v-for="film in category.films" :key="film.entry.dbKey" class="ds-poster-card" @click="goToMovie(film.entry)">
-            <img v-if="film.entry.movie.poster_path" :src="poster(film.entry)" :alt="film.entry.movie.title" class="ds-poster">
-            <span class="ds-poster-note">{{ film.entry.movie.title }}</span>
-          </div>
-        </div>
-      </div>
+      <!-- The per-category lists are gone: with this many perfect marks in
+           each one they were long without being interesting ("I have too many
+           movies in each of these categories for it to be really
+           fascinating"). Constellations survive because scoring perfectly in
+           more than one category at once still means something. -->
       <div v-if="pantheonData.constellations.length" class="pantheon-category">
         <h3 class="pantheon-label">Constellations <span class="pantheon-count">{{ pantheonData.constellations.length }}</span></h3>
         <p class="ds-section-caption">Perfect in more than one category at once.</p>
@@ -84,14 +83,18 @@
     <!-- Marathon Club -->
     <section v-if="marathon" class="ds-section">
       <h2 class="ds-section-title">Marathon Club</h2>
-      <p class="ds-section-caption">Your greatest movie runs.</p>
+      <p class="ds-section-caption">
+        How much you've packed into a single stretch — the most films you've watched in one
+        day, one week and one month, and how many days you've watched anything at all.
+        Not consecutive days; the biggest ones.
+      </p>
       <div class="ds-strip">
         <div class="ds-strip-item"><span class="ds-strip-value">{{ marathon.dayRecord.count }}</span><span class="ds-strip-label">day record · {{ duration(marathon.dayRecord.minutes) }}</span></div>
         <div class="ds-strip-item"><span class="ds-strip-value">{{ marathon.weekRecord.count }}</span><span class="ds-strip-label">week record · {{ duration(marathon.weekRecord.minutes) }}</span></div>
         <div class="ds-strip-item"><span class="ds-strip-value">{{ marathon.monthRecord.count }}</span><span class="ds-strip-label">month record · {{ duration(marathon.monthRecord.minutes) }}</span></div>
         <div class="ds-strip-item"><span class="ds-strip-value">{{ marathon.movieDays }}</span><span class="ds-strip-label">movie days</span></div>
       </div>
-      <h3 class="pantheon-label">Top days</h3>
+      <h3 class="pantheon-label">Biggest days</h3>
       <ol class="top-days">
         <li v-for="(dayEntry, index) in marathon.topDays" :key="dayEntry.day" class="top-day">
           <span class="top-day-rank">{{ index + 1 }}</span>
@@ -106,16 +109,62 @@
     <!-- Years -->
     <section v-if="years.length" class="ds-section">
       <h2 class="ds-section-title">Years</h2>
-      <p class="ds-section-caption">Each year of watching, log-scored.</p>
-      <div class="year-cards">
-        <div v-for="year in years" :key="year.year" class="year-card">
-          <span class="year-label">{{ year.year }}</span>
-          <div class="year-numbers">
-            <span class="year-stat"><strong>{{ year.watched }}</strong> watched</span>
-            <span class="year-stat"><strong>{{ year.fromYear }}</strong> from {{ year.year }}</span>
-            <span class="year-stat gold"><strong>{{ year.score ?? '—' }}</strong> log score</span>
+      <p class="ds-section-caption">
+        How good each year of watching was, by Log Score — quality and depth together, so a
+        year of many good films beats a year of two great ones. The poster is that year's best.
+      </p>
+      <div class="ds-poster-row">
+        <div
+          v-for="year in years"
+          :key="year.year"
+          class="ds-poster-card"
+          role="button"
+          :aria-label="`${year.year}: ${year.watched} watched`"
+          @click="year.top && goToMovie(year.top)"
+        >
+          <img v-if="year.top && year.top.movie.poster_path" :src="poster(year.top)" :alt="year.top.movie.title" class="ds-poster">
+          <div v-else class="ds-poster ds-poster-blank">{{ year.year }}</div>
+          <span class="crown-card-year">{{ year.year }}</span>
+          <span class="ds-poster-note gold">{{ year.score ?? '—' }}</span>
+          <span class="ds-poster-note">{{ year.watched }} watched</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Standouts -->
+    <section v-if="standoutList.length" class="ds-section">
+      <h2 class="ds-section-title">Standouts</h2>
+      <p class="ds-section-caption">
+        The corners of your library you rate unusually well, ranked against each other — genres,
+        keywords, directors, actors, studios, decades. The number is how far above your own average
+        each one sits, pulled back toward that average when there's little evidence, so eight films
+        can beat four hundred but one lucky film can't beat anything.
+      </p>
+      <div class="standouts">
+        <div v-for="standout in standoutList" :key="`${standout.facet}-${standout.value}`" class="standout">
+          <div class="standout-head">
+            <span class="standout-facet">{{ standout.facet }}</span>
+            <span class="standout-value">{{ standout.value }}</span>
+            <span class="standout-score" :class="{ gold: standout.lift > 0 }">
+              {{ standout.lift > 0 ? '+' : '' }}{{ standout.lift.toFixed(2) }}
+            </span>
           </div>
-          <img v-if="year.top && year.top.movie.poster_path" :src="poster(year.top)" :alt="year.top.movie.title" class="year-top-poster" @click="goToMovie(year.top)">
+          <p class="standout-detail">
+            {{ standout.count }} rated · {{ standout.mean.toFixed(2) }} average · {{ standout.score }} log score
+          </p>
+          <div class="ds-poster-row">
+            <div
+              v-for="film in standout.top"
+              :key="`${standout.value}-${film.dbKey}`"
+              class="ds-poster-card"
+              role="button"
+              :aria-label="film.movie.title"
+              @click="goToMovie(film)"
+            >
+              <img v-if="film.movie.poster_path" :src="poster(film)" :alt="film.movie.title" class="ds-poster">
+              <div v-else class="ds-poster ds-poster-blank">{{ film.movie.title }}</div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -147,7 +196,7 @@
 // logScore.js; this screen only renders. Fully offline.
 import BackLink from './games/BackLink.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { crownTimeline, pantheon, rewatchStats, marathonStats, yearStats, genreStats } from '../assets/javascript/deepStats.js';
+import { crownTimeline, pantheon, rewatchStats, marathonStats, yearStats, genreStats, standouts } from '../assets/javascript/deepStats.js';
 import { logScoreSettings } from '../assets/javascript/logScore.js';
 
 export default {
@@ -175,6 +224,9 @@ export default {
     years () {
       return yearStats(this.library, getRating, this.weights);
     },
+    standoutList () {
+      return standouts(this.library, getRating, this.weights);
+    },
     genres () {
       return genreStats(this.library, getRating, this.weights);
     }
@@ -196,8 +248,14 @@ export default {
     },
     gapLabel (days) {
       if (days < 1) return 'same day';
-      if (days < 60) return `${Math.round(days)} days`;
-      if (days < 700) return `${Math.round(days / 30.4)} months`;
+      if (days < 60) {
+        const whole = Math.round(days);
+        return `${whole} ${whole === 1 ? 'day' : 'days'}`;
+      }
+      if (days < 700) {
+        const months = Math.round(days / 30.4);
+        return `${months} ${months === 1 ? 'month' : 'months'}`;
+      }
       return `${(days / 365.25).toFixed(1)} years`;
     }
   }
@@ -242,6 +300,81 @@ export default {
 }
 
 .ds-section-title { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.25rem; }
+
+/* Sideways rows carry most of this page now: a section is one row tall
+   however much is in it. */
+.crown-card-year {
+  color: #fff;
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-top: 0.2rem;
+}
+
+.crown-card.current .crown-card-year { color: #ffd700; }
+
+.crown-current-tag {
+  background: #ffd700;
+  border-radius: 3px;
+  color: #000;
+  font-size: 0.58rem;
+  margin-left: 0.25rem;
+  padding: 0 3px;
+  text-transform: uppercase;
+}
+
+.ds-poster-blank {
+  align-items: center;
+  background: #2b2b2b;
+  color: #ccc;
+  display: flex;
+  font-size: 0.68rem;
+  justify-content: center;
+  padding: 0.3rem;
+  text-align: center;
+}
+
+.standouts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.standout-head {
+  align-items: baseline;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.standout-facet {
+  /* #9a9a9a on this background is ~7:1. */
+  color: #9a9a9a;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.standout-value {
+  color: #fff;
+  flex: 1 1 auto;
+  font-size: 0.95rem;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.standout-score {
+  color: #b9b9b9;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.standout-score.gold { color: #ffc107; }
+
+.standout-detail {
+  color: #b9b9b9;
+  font-size: 0.72rem;
+  margin: 0.1rem 0 0.3rem;
+}
 .ds-section-caption { color: #ccc; font-size: 0.78rem; margin: 0 0 0.75rem; }
 
 .crown-timeline { display: flex; flex-direction: column; row-gap: 0.75rem; }
@@ -287,7 +420,9 @@ export default {
 
 .ds-poster-card { cursor: pointer; flex: 0 0 92px; width: 92px; }
 .ds-poster { border-radius: 6px; display: block; height: 138px; object-fit: cover; width: 92px; }
-.ds-poster-note { color: #ccc; display: block; font-size: 0.7rem; line-height: 1.25; margin-top: 0.25rem; text-align: center; }
+/* Left, not centred: these sit under a fixed-width poster, and centring made
+   the label and the note under it disagree about where the card starts. */
+.ds-poster-note { color: #ccc; display: block; font-size: 0.7rem; line-height: 1.25; margin-top: 0.25rem; }
 .ds-poster-note.gold { color: #ffc107; }
 
 .top-days { list-style: none; margin: 0; padding: 0; }

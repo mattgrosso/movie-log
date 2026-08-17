@@ -108,3 +108,61 @@ Fixed by wrapping `<router-view>` in `<main class="app-main">` (`display: flex; 
 - long content → total is the natural height, scrolls only as far as it needs
 
 Checked before shipping: the three surviving `height: 100%` rules in those components are all on images inside fixed-size parents (a timeline gap, the backdrop container, a poster box), so none relied on the page being a viewport tall; and every routed component is single-root, so `.app-main > *` can't split space between siblings.
+
+## Deep Stats reworked, and the Standouts pantheon (Aug 2026)
+
+Matt's review of the page: *"the first three cards are all repeats of things that are
+already on the overview page… I like the idea of the crown, but it's taking up too much
+vertical space… The Pantheon is interesting, but I have too many movies in each of these
+categories for it to be really fascinating… I do like the idea of constellations… The
+Marathon Club, I don't really know what these things mean… there's having eight top days
+is too much… for each of the years, what is it actually telling me?… by genre, I like
+that we have these genres, but I don't think I need the top twelve of them… we should
+maybe just have each genre listed with a few examples and then a log score."*
+
+The cuts, all of them vertical-space-driven: the top strip (titles / viewings / screen
+time) deleted outright as an Overview repeat; the Crown turned from a vertical timeline
+into a sideways poster row; the Pantheon's per-category lists dropped, keeping only
+Constellations; Marathon Club's top days cut 8 → 3 and its caption rewritten to actually
+say what it measures ("Not consecutive days; the biggest ones"); Years compressed into a
+poster row; Genres cut to 8 with 5 examples each. The page went from ~9,100px to ~6,700px.
+
+### Standouts: why ranking by Log Score was wrong
+
+The new idea was Matt's: *"it'd be cool to find outliers around, like, things that have
+unusually high log scores. Not just genres, but keywords and directors and all that
+stuff… that would be an interesting pantheon to find."*
+
+`standouts()` buckets the library by every facet at once — genre, keyword, studio,
+director, composer, cinematographer, top-5 cast, decade — and ranks them against each
+other. The first implementation ranked by Log Score, which read as the obvious choice and
+was wrong. Against the real 1,374-film library it returned:
+
+    Drama · Comedy · 1990s · hilarious · 2010s · Crime · based on novel or book · Pixar
+
+That is a list of the biggest categories, i.e. a restatement of the library's shape. The
+mechanism is Log Score's **rank weighting**: `rankWeight / (rankWeight + i)` means a
+group is scored mostly by its best few films, and your biggest genre is also where all
+your favourites live. So a huge, thoroughly average genre scores high for a reason that
+has nothing to do with being a standout.
+
+Ranking is now by **lift**: a Bayesian-adjusted mean minus the global average, using the
+same prior Log Score uses (`bayesianWeight`, default 7). Shrinkage does the work Log
+Score's rank weighting was mistakenly being asked to do — eight films at 9.5 survives it,
+one film at 10 does not — without also rewarding size. Log Score still displays alongside,
+because "how good is this corner outright" is a fair second question. The same library
+then returns:
+
+    Pixar · hilarious · Michael Giacchino · Joel Coen · Roger Deakins · Eddie Murphy
+
+### The keyword flood
+
+Ranked purely by lift, **16 of 24 slots came back as TMDB keywords** and no director,
+actor or studio appeared at all — TMDB tags films with far more keywords than anything
+else, so keywords simply have more chances to win. A `perType` cap (3 per facet type,
+12 overall) restores the variety that was the whole point of ranging across facets.
+
+Both failures are covered by tests that were checked against the broken code first
+(`src/test/standouts.test.js`) — the log-score fixture is specifically shaped so the big
+category wins on Log Score (7.99) and loses on lift (-0.06), because an earlier version of
+that test passed under both rankings and guarded nothing.

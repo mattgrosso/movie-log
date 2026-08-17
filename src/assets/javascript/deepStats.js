@@ -155,7 +155,7 @@ function periodKeys (time) {
   return { day, week, month };
 }
 
-export function marathonStats (entries, { includeShorts = false } = {}) {
+export function marathonStats (entries, { includeShorts = false, topDays = 3 } = {}) {
   const byDay = new Map();
   const byWeek = new Map();
   const byMonth = new Map();
@@ -182,10 +182,10 @@ export function marathonStats (entries, { includeShorts = false } = {}) {
   if (!admissions) return null;
 
   const recordOf = (map) => [...map.values()].sort((a, b) => (b.count - a.count) || (b.minutes - a.minutes))[0];
-  const topDays = [...byDay.entries()]
+  const biggestDays = [...byDay.entries()]
     .map(([day, bucket]) => ({ day, ...bucket }))
     .sort((a, b) => (b.count - a.count) || (b.minutes - a.minutes))
-    .slice(0, 8);
+    .slice(0, topDays);
 
   return {
     admissions,
@@ -196,7 +196,7 @@ export function marathonStats (entries, { includeShorts = false } = {}) {
     dayRecord: recordOf(byDay),
     weekRecord: recordOf(byWeek),
     monthRecord: recordOf(byMonth),
-    topDays
+    topDays: biggestDays
   };
 }
 
@@ -235,7 +235,7 @@ export function yearStats (entries, getRatingFn, weights) {
 
 // ---------------------------------------------------------------------------
 // Genres, ranked by log score.
-export function genreStats (entries, getRatingFn, weights, { minCount = 3, cap = 12 } = {}) {
+export function genreStats (entries, getRatingFn, weights, { minCount = 3, cap = 8, perGenre = 5 } = {}) {
   const globalAvg = globalAverage(entries, getRatingFn);
   const byGenre = new Map();
 
@@ -256,8 +256,115 @@ export function genreStats (entries, getRatingFn, weights, { minCount = 3, cap =
       name,
       count: films.length,
       score: logScore(films.map((f) => f.rating), globalAvg, weights),
-      top: [...films].sort((a, b) => b.rating - a.rating).slice(0, 8).map((f) => f.entry)
+      top: [...films].sort((a, b) => b.rating - a.rating).slice(0, perGenre).map((f) => f.entry)
     }))
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, cap);
+}
+// ---------------------------------------------------------------------------
+// Standouts
+// ---------------------------------------------------------------------------
+
+/**
+ * The things you rate unusually highly — across every facet at once, not just
+ * genres. Matt, 2026-08-16: "it'd be cool to find outliers around, like,
+ * things that have unusually high log scores. Not just genres, but keywords
+ * and directors and all that stuff... that would be an interesting pantheon."
+ *
+ * Ranked by LIFT, not by log score. Log score rewards depth, so ranking by it
+ * puts Drama, Comedy and "the 1990s" on top — which is just a restatement of
+ * which categories are biggest, and tells you nothing you didn't know. What
+ * makes something a standout is that you rate it unusually WELL.
+ *
+ * Lift is a Bayesian-adjusted mean minus your global average: each facet's
+ * average is pulled toward the global one in proportion to how little
+ * evidence there is, so eight films at 9.5 survives the adjustment while one
+ * film at 10 does not. That is the same shrinkage Log Score uses for the same
+ * reason — it just isn't also rewarding size here.
+ *
+ * The log score rides along for display, because "how good is this corner of
+ * the library outright" is a fair second question.
+ */
+export function standouts (entries, getRatingFn, weights, { minCount = 4, perFacet = 6, perType = 3, cap = 12 } = {}) {
+  const globalAvg = globalAverage(entries, getRatingFn);
+  if (!Number.isFinite(globalAvg)) return [];
+
+  // "facet value" -> { facet, value, films: [{ entry, rating }] }
+  const buckets = new Map();
+  const add = (facet, value, entry, rating) => {
+    if (!value) return;
+    const key = facet + ' ' + value;
+    const bucket = buckets.get(key) || { facet, value, films: [] };
+    bucket.films.push({ entry, rating });
+    buckets.set(key, bucket);
+  };
+
+  (entries || []).forEach((entry) => {
+    const rating = getRatingFn(entry)?.calculatedTotal;
+    if (!Number.isFinite(rating)) return;
+    const movie = entry?.movie || {};
+
+    (movie.genres || []).forEach((genre) => add('genre', genre?.name, entry, rating));
+    (movie.keywords || []).forEach((keyword) => add('keyword', keyword?.name, entry, rating));
+    (movie.production_companies || []).forEach((company) => add('studio', company?.name, entry, rating));
+
+    // Crew is matched by JOB, never by position: TMDB orders crew by
+    // department, so a composer routinely sits well past index ten.
+    (movie.crew || []).forEach((person) => {
+      if (!person?.name) return;
+      if (person.job === 'Director') add('director', person.name, entry, rating);
+      else if (person.job === 'Original Music Composer' || person.job === 'Music') add('composer', person.name, entry, rating);
+      else if (person.job === 'Director of Photography') add('cinematographer', person.name, entry, rating);
+    });
+
+    // Top billing only: the whole cast list would make every big film's
+    // twentieth-billed actor a facet of its own.
+    (movie.cast || []).slice(0, 5).forEach((person) => add('actor', person?.name, entry, rating));
+
+    const year = new Date(movie.release_date ?? NaN).getFullYear();
+    if (Number.isFinite(year)) add('decade', String(Math.floor(year / 10) * 10) + 's', entry, rating);
+  });
+
+  // The same prior Log Score uses: how many films of evidence it takes before
+  // a facet's own average outweighs your global one.
+  const prior = Number.isFinite(weights?.bayesianWeight) && weights.bayesianWeight > 0
+    ? weights.bayesianWeight
+    : 7;
+
+  const scored = [...buckets.values()]
+    .filter((bucket) => bucket.films.length >= minCount)
+    .map((bucket) => {
+      const ratings = bucket.films.map((film) => film.rating);
+      const total = ratings.reduce((sum, value) => sum + value, 0);
+      const adjusted = (globalAvg * prior + total) / (prior + ratings.length);
+
+      return {
+        facet: bucket.facet,
+        value: bucket.value,
+        count: bucket.films.length,
+        score: logScore(ratings, globalAvg, weights),
+        mean: Math.round((total / ratings.length) * 100) / 100,
+        lift: Math.round((adjusted - globalAvg) * 100) / 100,
+        top: [...bucket.films]
+          .sort((a, b) => b.rating - a.rating)
+          .slice(0, perFacet)
+          .map((film) => film.entry)
+      };
+    })
+    .filter((bucket) => Number.isFinite(bucket.lift));
+
+  // Capped per facet type, because TMDB tags films with far more keywords
+  // than anything else: ranked purely by lift, sixteen of twenty-four slots
+  // came back as keywords and the directors, actors and studios never
+  // surfaced at all. The variety is the point of ranging over every facet.
+  const perTypeCount = new Map();
+  return scored
+    .sort((a, b) => b.lift - a.lift)
+    .filter((bucket) => {
+      const seen = perTypeCount.get(bucket.facet) || 0;
+      if (seen >= perType) return false;
+      perTypeCount.set(bucket.facet, seen + 1);
+      return true;
+    })
     .slice(0, cap);
 }
