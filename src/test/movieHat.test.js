@@ -251,3 +251,27 @@ describe('talking to the database', () => {
     await expect(addMovieToHat('Just Matt', 'hat-key', { id: 1 })).rejects.toThrow(/401/);
   });
 });
+
+// "The order of my hats should be based on which hat I most recently added
+// to, so they should get sorted by how recently I used them." (2026-08-17)
+// The getter lives in the store, so this covers the ordering rule itself.
+describe('hat ordering by recent use', () => {
+  const order = (hats) => [...hats]
+    .sort((a, b) => (Number(b.lastUsedAt) || 0) - (Number(a.lastUsedAt) || 0))
+    .map((hat) => hat.title);
+
+  it('puts the most recently used hat first', () => {
+    expect(order([
+      { title: 'Old', lastUsedAt: 100 },
+      { title: 'Newest', lastUsedAt: 900 },
+      { title: 'Middle', lastUsedAt: 500 }
+    ])).toEqual(['Newest', 'Middle', 'Old']);
+  });
+
+  it('leaves never-used hats behind the ones that have been', () => {
+    expect(order([
+      { title: 'Never' },
+      { title: 'Used', lastUsedAt: 5 }
+    ])).toEqual(['Used', 'Never']);
+  });
+});

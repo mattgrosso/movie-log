@@ -20,13 +20,13 @@
         <div v-else class="watchlist-poster watchlist-poster-blank">{{ item.title }}</div>
 
         <div class="watchlist-card-actions">
-          <SendToHat variant="icon" :movies="item.source" :note="hatNote"/>
+          <SendToHat variant="icon" :movies="item.source" :note="hatNote" @added="onAdded"/>
           <button
             v-if="puntable"
             type="button"
             class="punt-btn"
-            title="Not yet"
-            aria-label="Not yet"
+            title="Not yet — back in a couple of months"
+            aria-label="Not yet — back in a couple of months"
             @click.stop="$emit('punt', item.source)"
           >
             <i class="bi bi-x"></i>
@@ -42,7 +42,7 @@
     <!-- Quiet, and after the list: the per-poster buttons are the everyday
          action, this is the bulk one. -->
     <div v-if="items.length" class="watchlist-row-bulk">
-      <SendToHat :movies="items.map((item) => item.source)" :note="hatNote"/>
+      <SendToHat :movies="items.map((item) => item.source)" :note="hatNote" @added="onAdded"/>
     </div>
   </div>
 </template>
@@ -84,7 +84,18 @@ export default {
     // from a director you love.
     hatNote: { type: String, default: null }
   },
-  emits: ['select', 'punt']
+  emits: ['select', 'punt', 'hatted'],
+  methods: {
+    // Hand back the ORIGINAL sources, not the hat payloads: the screen punts
+    // by dbKey where it has one, and toHatMovie has already thrown that away.
+    onAdded (added, sources) {
+      const addedIds = new Set(added.map((movie) => movie.id));
+      this.$emit('hatted', (sources || []).filter((source) => {
+        const id = source?.movie?.id ?? source?.id;
+        return addedIds.has(id);
+      }));
+    }
+  }
 };
 </script>
 

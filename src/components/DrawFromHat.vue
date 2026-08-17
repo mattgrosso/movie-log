@@ -37,6 +37,31 @@
             <span v-else>Draw</span>
           </button>
         </div>
+
+        <!-- Everything this hat has ever given up, not just the newest —
+             "I'd rather just see the whole history from that hat because
+             that's all available... let's make it another scrollable list
+             [and] maintain the draw button somewhere" (2026-08-17). -->
+        <div v-if="hat.history && hat.history.length > 1" class="hat-history">
+          <p class="hat-history-title">Everything it's drawn</p>
+          <div class="hat-history-row">
+            <div
+              v-for="(drawnMovie, index) in hat.history"
+              :key="`${hat.title}-${drawnMovie.id}-${index}`"
+              class="hat-history-card"
+            >
+              <img
+                v-if="drawnMovie.poster_path"
+                :src="historyPoster(drawnMovie)"
+                :alt="drawnMovie.title"
+                class="hat-history-poster"
+                loading="lazy"
+              >
+              <div v-else class="hat-history-poster hat-history-blank">{{ drawnMovie.title }}</div>
+              <span class="hat-history-when">{{ drawnAt(drawnMovie) }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -115,6 +140,12 @@ export default {
     },
     drawnAgo (hat) {
       return timeAgo(hat.lastDrawn?.dateDrawn);
+    },
+    historyPoster (drawnMovie) {
+      return `https://image.tmdb.org/t/p/w185${drawnMovie.poster_path}`;
+    },
+    drawnAt (drawnMovie) {
+      return timeAgo(drawnMovie?.dateDrawn) || '—';
     },
     async draw (hat) {
       this.drawing = hat.title;
@@ -309,4 +340,50 @@ export default {
 .draw-message-error {
   color: #ff9f9f;
 }
+.hat-history {
+  border-top: 1px solid #2e2e2e;
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  width: 100%;
+}
+
+.hat-history-title {
+  color: #b9b9b9;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+}
+
+.hat-history-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hat-history-card { flex: 0 0 52px; width: 52px; }
+
+.hat-history-poster {
+  border-radius: 4px;
+  display: block;
+  height: 78px;
+  object-fit: cover;
+  width: 52px;
+}
+
+.hat-history-blank {
+  align-items: center;
+  background: #2b2b2b;
+  color: #ccc;
+  display: flex;
+  font-size: 0.55rem;
+  justify-content: center;
+  padding: 0.2rem;
+  text-align: center;
+}
+
+.hat-history-when { color: #9a9a9a; display: block; font-size: 0.58rem; line-height: 1.2; }
 </style>

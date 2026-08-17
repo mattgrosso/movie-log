@@ -23,12 +23,14 @@
         <p class="cc-caption">
           Everyone placed by what they gave the films you've both seen, against what you gave them.
           The line is perfect agreement: above it they run hotter than you, below it cooler.
+          Both axes are zoomed to the scores actually in play, so the dots spread out.
         </p>
 
         <div class="cc-scatter">
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="cc-scatter-svg">
             <line x1="0" y1="100" x2="100" y2="0" class="cc-diagonal"/>
           </svg>
+          <span class="cc-scatter-domain">{{ mapDomain.min.toFixed(1) }}–{{ mapDomain.max.toFixed(1) }}</span>
           <div
             v-for="point in map"
             :key="point.key"
@@ -98,6 +100,7 @@
                   :style="{ width: sliceWidth(friend.alignment), background: colorFor(friend.key) }"
                   :title="`${friend.name}: ${friend.alignment} over ${friend.films} films`"
                 >
+                  <span class="cc-slice-who">{{ friend.name }}</span>
                   <span class="cc-slice-value">{{ friend.alignment.toFixed(1) }}</span>
                 </div>
               </div>
@@ -118,6 +121,7 @@
                   :style="{ width: sliceWidth(friend.alignment), background: colorFor(friend.key) }"
                   :title="`${friend.name}: ${friend.alignment} over ${friend.films} films`"
                 >
+                  <span class="cc-slice-who">{{ friend.name }}</span>
                   <span class="cc-slice-value">{{ friend.alignment.toFixed(1) }}</span>
                 </div>
               </div>
@@ -161,7 +165,8 @@
         </p>
         <div v-for="row in outliers.board" :key="`c-${row.key}`" class="cc-board-row">
           <span class="cc-board-name">
-            <span class="cc-swatch" :style="{ background: colorFor(row.key) }"></span>{{ row.name }}
+            <span class="cc-swatch" :style="{ background: colorFor(row.key) }"></span>
+            <span class="cc-board-label">{{ row.name }}</span>
           </span>
           <div class="cc-board-track">
             <div class="cc-board-fill" :style="{ width: `${row.rate}%`, background: colorFor(row.key) }"></div>
@@ -358,6 +363,21 @@ export default {
     radar () {
       return criterionRadar(this.overlaps, CRITERIA);
     },
+    mapDomain () {
+      const values = this.map.flatMap((point) => [point.mine, point.theirs]);
+      if (!values.length) return { min: 0, max: 10 };
+
+      const low = Math.min(...values);
+      const high = Math.max(...values);
+      // A floor on the span keeps a single point (or a very tight club) off
+      // the walls, and the padding stops any dot sitting exactly on an edge.
+      const span = Math.max(high - low, 1.5);
+      const mid = (low + high) / 2;
+      return {
+        min: Math.max(0, mid - span * 0.85),
+        max: Math.min(10, mid + span * 0.85)
+      };
+    },
     sliceDomain () {
       const values = [...this.byDecade, ...this.byGenre]
         .flatMap((row) => row.friends.map((friend) => friend.alignment));
@@ -387,10 +407,21 @@ export default {
       return { id: spot.id, title: spot.title, poster_path: spot.poster, release_date: '', overview: '' };
     },
     // Scores run 0-10 on both axes; y is inverted because SVG counts down.
+    // "We should try to adjust the scale of it so it zooms in on the relevant
+    // data... I just want you to zoom in on the data." (2026-08-17) Averages
+    // cluster hard around the middle of a 0-10 grid, so at full scale every
+    // dot sat in the same square inch.
+    //
+    // ONE domain drives BOTH axes on purpose: the diagonal is the line y = x,
+    // and it only stays corner-to-corner while the axes match. Zooming them
+    // independently would leave the "perfect agreement" line lying about
+    // where perfect agreement is.
     pointStyle (point) {
+      const { min, max } = this.mapDomain;
+      const span = max - min;
       return {
-        left: `${point.mine * 10}%`,
-        bottom: `${point.theirs * 10}%`,
+        left: `${((point.mine - min) / span) * 100}%`,
+        bottom: `${((point.theirs - min) / span) * 100}%`,
         background: this.colorFor(point.key)
       };
     },
@@ -482,6 +513,7 @@ export default {
 }
 
 .cc-scatter-svg { height: 100%; position: absolute; width: 100%; }
+.cc-scatter-domain { bottom: 3px; color: #5f5f5f; font-size: 0.55rem; left: 6px; position: absolute; }
 .cc-diagonal { stroke: #3a3a3a; stroke-dasharray: 3 3; stroke-width: 0.5; }
 
 .cc-point {
@@ -546,10 +578,24 @@ export default {
   align-items: center;
   border-radius: 3px;
   display: flex;
-  height: 14px;
-  justify-content: flex-end;
+  gap: 0.3rem;
+  height: 15px;
+  justify-content: space-between;
   min-width: 2px;
-  padding-right: 4px;
+  overflow: hidden;
+  padding: 0 4px;
+}
+
+/* "The colors are not quite enough for me to identify who's who yet so we
+   should probably label those" (2026-08-17). Dark text, because every bar is
+   a light accent colour. */
+.cc-slice-who {
+  color: #101010;
+  font-size: 0.58rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cc-slice-value { color: #101010; font-size: 0.58rem; font-weight: 700; }
@@ -575,7 +621,24 @@ export default {
 
 /* Contrarians */
 .cc-board-row { align-items: center; display: flex; gap: 0.5rem; padding: 0.25rem 0; }
-.cc-board-name { align-items: center; color: #eee; display: flex; flex: 0 0 90px; font-size: 0.78rem; }
+/* Fixed width and clipped, so every bar starts at the same x however long a
+   name is — "we need to make sure that the left edge of each of the bars all
+   lineup" (2026-08-17). */
+.cc-board-name {
+  align-items: center;
+  color: #eee;
+  display: flex;
+  flex: 0 0 96px;
+  font-size: 0.78rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cc-board-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .cc-board-track { background: #101010; border-radius: 999px; flex: 1 1 auto; height: 10px; overflow: hidden; }
 .cc-board-fill { height: 100%; }
 .cc-board-rate { color: #b9b9b9; flex: 0 0 34px; font-size: 0.72rem; text-align: right; }

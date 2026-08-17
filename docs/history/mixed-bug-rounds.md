@@ -138,3 +138,43 @@ love", "Filling out 2019", "Loved by the film club", "Brian watched this (8.3)".
   of it discarded by a row; this walks the overlap once for the two numbers shown. It
   reuses the same alignment definition (10 − mean absolute gap) so a row and the page it
   opens can't disagree.
+
+## Charts review + the Movie Hat cluster (Aug 2026)
+
+Nine of twenty-one reports from one morning's sitting.
+
+### Club Charts, reviewed within the hour of shipping
+
+- **The taste map plotted 0–10 and every dot sat in the same square inch.** Averages
+  cluster hard around the middle. Both axes now zoom to the scores in play (4.6–7.2 on
+  the real club). **One domain drives both axes on purpose**: the diagonal is the line
+  y = x and only stays corner-to-corner while the axes match — zooming them independently
+  would leave the "perfect agreement" line lying about where perfect agreement is.
+- **Colour alone didn't say who was who**, so every bar in the agreement chart carries its
+  friend's name as well as the figure.
+- **Contrarian bars started at different x** because names have different lengths. Fixed
+  width, clipped with an ellipsis.
+
+### Movie Hat
+
+- **The picker was clipped by the poster scroller.** It was `position: absolute` inside an
+  `overflow-x: auto` row, so it was cut off and dragged the row's layout sideways. It is a
+  **teleported bottom sheet** now — escapes every overflow and clipping context there will
+  ever be, and gives each hat a full-width 48px row instead of a cramped chip. The result
+  message had exactly the same problem and became a teleported toast.
+- **"Heat is in Just Matt"** read as a status, and sat too close to "is already in" — now
+  "was added to".
+- **Hats sort by most recent use.** `lastUsedAt` is stamped on a successful add. The
+  storage key comes from raw settings, never the getter's index — the getter is sorted
+  now, so its positions stop matching stored ones the moment any hat is used, and Firebase
+  hands a sparse array back as an object map.
+- **A hat card shows its whole draw history**, newest first, as a scrolling poster row.
+- **A magic wand became a hat.** Drawn inline as SVG; bootstrap-icons has no hat.
+- **Adding from the watchlist takes the movie off it**, reusing the existing punt
+  machinery (60 days, doubling) rather than inventing a second kind of hidden. The X
+  button's label now says what a punt actually does, which was the other report.
+
+**A bug I introduced and caught live:** punting immediately unmounted the card, which took
+the confirmation toast inside it with it — you got no confirmation at all. The punt is
+delayed four seconds so you read "X was added to Y" and then watch it leave, which reads
+as cause and effect. Timers are cleared on unmount.

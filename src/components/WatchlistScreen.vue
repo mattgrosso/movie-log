@@ -8,7 +8,7 @@
          long time. -->
     <section v-if="rewatchList.length" class="watchlist-section">
       <h2 class="section-title">Worth a rewatch</h2>
-      <WatchlistRow :items="rewatchItems" puntable hat-note="Worth a rewatch" @select="goToMovie" @punt="punt"/>
+      <WatchlistRow :items="rewatchItems" puntable hat-note="Worth a rewatch" @select="goToMovie" @punt="punt" @hatted="puntAll"/>
     </section>
 
     <!-- Local, always available: movies the world loves more than you did
@@ -20,7 +20,7 @@
            Natalie (2026-08-16) — she took it as "I liked these and everyone
            else didn't". Say which way round it is in plain words. -->
       <p class="section-caption">You rated these low. Almost everyone else loves them.</p>
-      <WatchlistRow :items="anotherShotItems" puntable hat-note="Worth a second look — rated low here, loved elsewhere" @select="goToMovie" @punt="punt"/>
+      <WatchlistRow :items="anotherShotItems" puntable hat-note="Worth a second look — rated low here, loved elsewhere" @select="goToMovie" @punt="punt" @hatted="puntAll"/>
     </section>
 
     <!-- TMDB-fed: well-regarded movies from years sitting just under the
@@ -30,7 +30,7 @@
       <h2 class="section-title">Get {{ section.year }} to {{ awardsThreshold }}</h2>
       <p class="section-caption">{{ section.count }} rated — {{ section.missing }} to go for awards.</p>
       <p v-if="yearsLoading" class="section-loading">Looking up {{ section.year }}&hellip;</p>
-      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" :hat-note="sectionHatNote(section)" @select="rateMedia"/>
+      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" :hat-note="sectionHatNote(section)" @select="rateMedia" @hatted="puntAll"/>
       <p v-else class="section-loading">Nothing well-regarded found that you haven't already rated.</p>
     </section>
 
@@ -42,7 +42,7 @@
     <section v-if="friendPickMedia.length" class="watchlist-section">
       <h2 class="section-title">Your Film Club loves these</h2>
       <p class="section-caption">Rated 8 or better by friends, never rated by you. Agreement sorts first.</p>
-      <WatchlistRow :items="mediaItems(friendPickMedia)" hat-note="Loved by the film club" @select="rateMedia"/>
+      <WatchlistRow :items="mediaItems(friendPickMedia)" hat-note="Loved by the film club" @select="rateMedia" @hatted="puntAll"/>
     </section>
 
     <section v-for="section in rankedSections" :key="section.key" class="watchlist-section">
@@ -52,7 +52,7 @@
         <span v-if="section.record" class="section-record">{{ section.record.hits }} of {{ section.record.suggested }} watched</span>
       </p>
       <p v-if="section.loading" class="section-loading">Looking up filmographies&hellip;</p>
-      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" :hat-note="sectionHatNote(section)" @select="rateMedia"/>
+      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" :hat-note="sectionHatNote(section)" @select="rateMedia" @hatted="puntAll"/>
       <p v-else class="section-loading">Nothing new found — you've seen the good ones.</p>
     </section>
 
@@ -82,6 +82,10 @@ import { rankSections, sourceSummary } from '../assets/javascript/recommendation
 import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds, tasteProfile, puntKeyFor, nextPunt, isPunted } from '../assets/javascript/discover.js';
 import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 
+// Long enough to read the "added to <hat>" confirmation before the card that
+// owns it leaves the list.
+const PUNT_AFTER_HAT_MS = 4000;
+
 export default {
   name: 'WatchlistScreen',
   components: {
@@ -91,6 +95,8 @@ export default {
   },
   data () {
     return {
+      // Pending hat-punts, cleared on unmount — see puntAll.
+      puntTimers: [],
       yearSections: [], // { year, count, missing, movies }
       gemMovies: [],
       gemsLoading: true,
@@ -243,6 +249,11 @@ export default {
       }));
     }
   },
+  beforeUnmount () {
+    // A pending punt must not fire into a torn-down component.
+    this.puntTimers.forEach((timer) => clearTimeout(timer));
+    this.puntTimers = [];
+  },
   created () {
     // Film Club picks need friends' published profiles; the watchlist is
     // reachable without ever visiting the club, so bootstrap them here too.
@@ -288,6 +299,23 @@ export default {
     },
     // Not-yet punt: snoozes the item (60d, doubling per repeat punt) and
     // records it — the punt history is future threshold-tuning signal.
+    // A movie you've put in a hat is a decision made; it shouldn't keep
+    // showing up as a suggestion. Reuses the punt machinery rather than
+    // inventing a second kind of hidden: it snoozes for 60 days and comes
+    // back if you never got round to watching it.
+    //
+    // Deliberately delayed. The confirmation toast lives inside SendToHat,
+    // which lives inside the card — so punting immediately unmounted the card,
+    // took the toast with it, and you got no confirmation at all that
+    // anything had happened. Waiting lets you read "X was added to Y" and
+    // then watch it leave, which reads as cause and effect.
+    puntAll (items) {
+      const timer = setTimeout(() => {
+        (items || []).forEach((item) => this.punt(item));
+        this.puntTimers = this.puntTimers.filter((pending) => pending !== timer);
+      }, PUNT_AFTER_HAT_MS);
+      this.puntTimers.push(timer);
+    },
     punt (item) {
       const key = puntKeyFor(item);
       if (!key) return;

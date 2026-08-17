@@ -447,10 +447,18 @@ export default createStore({
     /** Hats this account has linked, as [{ title, dbKey }]. */
     linkedMovieHats (state) {
       const hats = state.settings?.movieHat?.hats;
-      if (Array.isArray(hats)) return hats.filter((hat) => hat && hat.title);
-      // Firebase turns a sparse array back into an object map.
-      if (hats && typeof hats === 'object') return Object.values(hats).filter((hat) => hat && hat.title);
-      return [];
+      const list = Array.isArray(hats)
+        ? hats.filter((hat) => hat && hat.title)
+        // Firebase turns a sparse array back into an object map.
+        : (hats && typeof hats === 'object'
+          ? Object.values(hats).filter((hat) => hat && hat.title)
+          : []);
+
+      // Most recently used first: "the order of my hats should be based on
+      // which hat [I] most recently added to, so they should get sorted by
+      // how recently I used them" (2026-08-17). A hat never used yet keeps
+      // its configured position behind the ones that have been.
+      return [...list].sort((a, b) => (Number(b.lastUsedAt) || 0) - (Number(a.lastUsedAt) || 0));
     },
     socialPendingSentKeys (state, getters) {
       const me = getters.socialUserKey;
@@ -1843,6 +1851,27 @@ export default createStore({
         added.push(payload);
       }
 
+      // Stamp it so linkedMovieHats can order by recent use. Derived state,
+      // not user-authored, so setDBValue is the right write here.
+      //
+      // The storage key comes from the RAW settings, never from the getter's
+      // index: the getter is now sorted by recency, so its positions stop
+      // matching the stored ones the moment any hat is used. Firebase also
+      // hands a sparse array back as an object map, so the key can be either.
+      if (added.length) {
+        const stored = context.state.settings?.movieHat?.hats;
+        const key = Array.isArray(stored)
+          ? stored.findIndex((linked) => linked?.title === hat.title)
+          : Object.keys(stored || {}).find((k) => stored[k]?.title === hat.title);
+
+        if (key !== undefined && key !== -1 && key !== null) {
+          context.dispatch('setDBValue', {
+            path: `settings/movieHat/hats/${key}/lastUsedAt`,
+            value: Date.now()
+          });
+        }
+      }
+
       return { added, skipped, hat: hat.title };
     },
 
@@ -1863,7 +1892,20 @@ export default createStore({
           const lastDrawn = [...loaded.history]
             .sort((a, b) => (b?.dateDrawn || 0) - (a?.dateDrawn || 0))[0] || null;
 
-          return { title: loaded.title, dbKey: loaded.dbKey, waiting: loaded.movies.length, lastDrawn };
+          // The whole history, not just the newest: "I'd rather just see the
+          // whole history from that hat because that's all available"
+          // (2026-08-17). Newest first, since that's the reading order.
+          const history = [...loaded.history]
+            .filter(Boolean)
+            .sort((a, b) => (b?.dateDrawn || 0) - (a?.dateDrawn || 0));
+
+          return {
+            title: loaded.title,
+            dbKey: loaded.dbKey,
+            waiting: loaded.movies.length,
+            lastDrawn,
+            history
+          };
         } catch (error) {
           return { ...hat, error: true };
         }

@@ -12,23 +12,52 @@
     >
       <span v-if="sending" class="spinner-border spinner-border-sm" role="status"></span>
       <template v-else>
-        <i class="bi bi-magic"></i>
+        <!-- A top hat with a plus, rather than Bootstrap's magic wand: "I'd
+             much rather be hat related... maybe like a top hat with a little
+             plus symbol" (2026-08-17). Drawn here because bootstrap-icons has
+             no hat at all. -->
+        <svg class="hat-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M8 3.2h8v10.2H8z" class="hat-crown"/>
+          <rect x="3.2" y="13.2" width="17.6" height="2.4" rx="1.2" class="hat-brim"/>
+          <path d="M12 17.4v5M9.5 19.9h5" class="hat-plus"/>
+        </svg>
         <span v-if="variant !== 'icon'">{{ buttonLabel }}</span>
       </template>
     </button>
 
-    <!-- One hat: no picker needed. More than one: choose. -->
-    <div v-if="open && !sending" class="hat-picker" @click.stop>
-      <button
-        v-for="hat in hats"
-        :key="hat.title"
-        type="button"
-        class="hat-choice"
-        @click="send(hat)"
-      >{{ hat.title }}</button>
-    </div>
+    <!-- One hat: no picker needed. More than one: choose.
+         Teleported to <body> as a sheet rather than dropped in place. The
+         icon variant sits on a poster inside a horizontal `overflow-x: auto`
+         row, so an absolutely-positioned dropdown was clipped by the scroller
+         and dragged its layout sideways — "it is stuck inside of that
+         scrolling container so it just kind of breaks the scroll layout...
+         maybe there must be another way to show all my hats without making it
+         feel cramped and inaccessible" (2026-08-17). A sheet escapes every
+         overflow and clipping context there will ever be, and gives each hat
+         a full-width row instead of a cramped chip. -->
+    <Teleport to="body">
+      <div v-if="open && !sending" class="hat-sheet-backdrop" @click.stop="open = false">
+        <div class="hat-sheet" @click.stop>
+          <p class="hat-sheet-title">Add to which hat?</p>
+          <button
+            v-for="hat in hats"
+            :key="hat.title"
+            type="button"
+            class="hat-sheet-choice"
+            @click="send(hat)"
+          >
+            <span>{{ hat.title }}</span>
+            <i class="bi bi-chevron-right"></i>
+          </button>
+          <button type="button" class="hat-sheet-cancel" @click="open = false">Cancel</button>
+        </div>
+      </div>
+    </Teleport>
 
-    <p v-if="result" class="hat-result" :class="{ 'hat-result-error': result.error }">{{ result.message }}</p>
+    <!-- Same clipping problem, same answer. -->
+    <Teleport to="body">
+      <p v-if="result" class="hat-toast" :class="{ 'hat-toast-error': result.error }">{{ result.message }}</p>
+    </Teleport>
   </div>
 </template>
 
@@ -56,6 +85,7 @@ export default {
     // Movie Hat renders it on the drawn-movie screen.
     note: { type: String, default: null }
   },
+  emits: ['added'],
   data () {
     return {
       open: false,
@@ -103,6 +133,12 @@ export default {
           note: this.note
         });
         this.report({ message: this.summarize(added, skipped, hat.title) });
+        // Lists use this to take a movie off themselves: "when I add a movie
+        // to a hat from my watchlist, it should be removed from the watchlist
+        // because I have essentially decided OK, I will watch that"
+        // (2026-08-17). Only what was genuinely added — a skip means it was
+        // already in the hat and the list already knew about it.
+        if (added.length) this.$emit('added', added, this.list);
       } catch (error) {
         ErrorLogService.error('Adding to a movie hat failed', error);
         this.report({ message: `Couldn't reach ${hat.title}.`, error: true });
@@ -123,7 +159,9 @@ export default {
         return `Added ${movies(added.length)} to ${hatTitle}; ${skipped.length} already there.`;
       }
       if (added.length === 1) {
-        return `${added[0].title} is in ${hatTitle}.`;
+        // "is in X" read as a status rather than as something that just
+        // happened, and sat too close to "is already in X" (2026-08-17).
+        return `${added[0].title} was added to ${hatTitle}.`;
       }
       return added.length
         ? `Added ${movies(added.length)} to ${hatTitle}.`
@@ -177,7 +215,7 @@ export default {
   width: 40px;
 }
 
-.hat-icon-button i {
+.hat-icon-button .hat-glyph {
   align-items: center;
   background: rgba(0, 0, 0, 0.66);
   border: 1px solid rgba(255, 255, 255, 0.45);
@@ -189,34 +227,15 @@ export default {
   width: 26px;
 }
 
-.hat-icon-button:active i {
+.hat-icon-button:active .hat-glyph {
   background: rgba(0, 0, 0, 0.9);
 }
 
-/* The picker has to escape the poster it is anchored to. */
-.send-to-hat-icon .hat-picker {
-  background: #1b1b1b;
-  border: 1px solid #4a4a4a;
-  border-radius: 8px;
-  flex-direction: column;
-  left: 0;
-  min-width: 140px;
-  padding: 0.3rem;
-  position: absolute;
-  top: 44px;
-  z-index: 20;
-}
-
-.send-to-hat-icon .hat-result {
-  background: rgba(0, 0, 0, 0.85);
-  border-radius: 6px;
-  left: 0;
-  padding: 0.3rem 0.4rem;
-  position: absolute;
-  top: 44px;
-  width: 150px;
-  z-index: 20;
-}
+/* The sheet is teleported to <body>, so it is styled unscoped. */
+.hat-glyph { height: 15px; width: 15px; }
+.hat-glyph .hat-crown { fill: currentColor; }
+.hat-glyph .hat-brim { fill: currentColor; }
+.hat-glyph .hat-plus { stroke: currentColor; stroke-width: 2; stroke-linecap: round; fill: none; }
 
 .hat-picker {
   display: flex;
@@ -250,4 +269,84 @@ export default {
 .hat-result-error {
   color: #ff9f9f;
 }
+</style>
+
+<!-- Unscoped: the sheet is teleported to <body>, outside this component's
+     scope attribute. -->
+<style lang="scss">
+.hat-sheet-backdrop {
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0.6);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 2000;
+}
+
+.hat-sheet {
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 14px 14px 0 0;
+  max-height: 70vh;
+  max-width: 520px;
+  overflow-y: auto;
+  padding: 0.9rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  width: 100%;
+}
+
+.hat-sheet-title {
+  color: #b9b9b9;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.6rem;
+  text-transform: uppercase;
+}
+
+.hat-sheet-choice {
+  align-items: center;
+  background: #101010;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  color: #eee;
+  display: flex;
+  justify-content: space-between;
+  /* 40px minimum touch target. */
+  min-height: 48px;
+  margin-bottom: 0.4rem;
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  width: 100%;
+}
+
+.hat-sheet-choice:active { background: #1d1d1d; }
+
+.hat-sheet-cancel {
+  background: none;
+  border: none;
+  color: #b9b9b9;
+  min-height: 44px;
+  width: 100%;
+}
+
+.hat-toast {
+  background: #1b1b1b;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  color: #eee;
+  font-size: 0.8rem;
+  left: 50%;
+  margin: 0;
+  max-width: 90vw;
+  padding: 0.55rem 0.9rem;
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 2001;
+}
+
+.hat-toast-error { border-color: #a5474a; color: #ffb3b3; }
 </style>
