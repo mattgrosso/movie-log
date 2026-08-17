@@ -239,3 +239,39 @@ Design notes for whoever picks this up:
 - **Not urgent.** After the trim, the free tier allows ~1,079 cold launches/month against a handful of real users. This is insurance against growth.
 
 Tests: `src/test/syncStamp.test.js` (24, pure — path classification, all four write shapes, the no-stamp-on-deletion guard, batch stamping incl. the overlapping-path avoidance, backfill collection). `src/test/flushPendingWrites.test.js`'s `change tracking on every library write` block (8, against the real store — the actual Firebase call shapes, including that queued offline writes are stamped at flush time and that the sentinel survives the scrubber). Note every `vi.mock('firebase/database')` factory now needs a `serverTimestamp` export or the store import fails.
+
+## Where the money actually went — billing audit (2026-08-17)
+
+Matt's GCP statements looked scary (July 2026: $78.62 vs a ~$40 baseline), so the
+Cloud Console billing reports were read directly. Findings:
+
+- **100% of all 2026 spend ($380 YTD) is one SKU: Realtime Database "Outgoing
+  Bandwidth"** (~$1/GB) on `movie-log`. No other Google service bills at all.
+- **Statements lag usage** — June's statement was $7.70 and July's $78.62 only
+  because of payment timing; real usage was ~$52 (June) / ~$74 (July). Read
+  Billing → Reports, not the statement/invoice list.
+- **Cost tracks development activity, not users.** July (142 commits) ran a flat
+  ~$2.40/day; January–March ran ~$1.30/day. Every dev-server reload and QA
+  session re-downloads a full library.
+- **The Aug 15 backup system immediately became the biggest line item**: a full
+  124 MB download per `predeploy`, × 36 deploys on Aug 15 / 56 on Aug 16 under
+  deploy-per-stopping-point ≈ $4–7/day. The Aug 2026 cost-control pass's real
+  savings (awards cache, 38% trim) were invisible under it.
+- **`testing-database` was a pre-prune clone of Matt's account** — 70 MB, 56% of
+  the whole DB, most of it the same dead `tvLog` (39.6 MB) + `sharedDBSearches`
+  (24.9 MB) pruned from the real account on Aug 15. Every backup re-bought it.
+
+Fixes shipped same day:
+- `predeploy` now passes `--skip-if-fresh=6` to `backup-database.mjs`: skip the
+  backup when a snapshot under 6 h old exists (filename timestamps only — no DB
+  read). Manual `yarn backup-db` and `prune-legacy-branches.mjs`'s safety backup
+  still always run. Pure logic in `scripts/snapshotFreshness.mjs`, tested in
+  `src/test/snapshotFreshness.test.js`.
+- `prune-legacy-branches.mjs` takes `--account=<db-key>` (required) so the
+  sandbox could be pruned the same way Matt's account was.
+
+Still open, smallest first: natalierosegrosso (7.8 MB `sharedDBSearches` +
+1.1 MB `tvLog`) and hopper-seth (4.3 MB `sharedDBSearches`) carry the same dead
+branches — real users' accounts, so not touched without Matt's say-so; pennies
+once backups are throttled. The structural fix for the per-launch download
+remains delta sync phase 2/3 above.

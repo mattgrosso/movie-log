@@ -1,5 +1,8 @@
-// One-time (2026-08-15, Matt-approved) removal of dead data from Matt's
-// account, discovered while measuring the trim:
+// Removal of dead data from one account (--account=<db-key>, required).
+// First run 2026-08-15 (Matt-approved) against mattgrosso-gmail-com;
+// 2026-08-17 against testing-database, whose pre-prune clone of Matt's
+// account was still 56% of the whole DB and re-downloaded by every backup.
+// The dead branches, discovered while measuring the trim:
 //   - tvLog (38MB): the TV experiment; `currentLog` no longer exists in the
 //     store, so every `=== "tvLog"` gate in the app is permanently false.
 //   - sharedDBSearches (33MB): share-a-search snapshots; the writing code
@@ -27,7 +30,12 @@ initializeApp({
 });
 const db = getDatabase();
 
-const ACCOUNT = 'mattgrosso-gmail-com';
+const accountArg = process.argv.find((a) => a.startsWith('--account='));
+if (!accountArg || !accountArg.split('=')[1]) {
+  console.error('Usage: node scripts/prune-legacy-branches.mjs --account=<db-key>');
+  process.exit(1);
+}
+const ACCOUNT = accountArg.split('=')[1];
 const TARGETS = [
   `${ACCOUNT}/tvLog`,
   `${ACCOUNT}/sharedDBSearches`,

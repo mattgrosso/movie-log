@@ -12,7 +12,7 @@
     "test:run": "vitest run",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
-    "predeploy": "node scripts/backup-database.mjs --quiet || echo backup-skipped",
+    "predeploy": "node scripts/backup-database.mjs --quiet --skip-if-fresh=6 || echo backup-skipped",
     "deploy": "node scripts/bump-and-build.mjs && aws s3 sync dist/ s3://cinemaroll --delete --profile personal-deploy && aws cloudfront create-invalidation --distribution-id ETF4I2E64GQSC --paths '/*' --profile personal-deploy > invalidation_output.txt",
     "account-maintenance": "node scripts/account-maintenance.mjs",
     "backup-db": "node scripts/backup-database.mjs",

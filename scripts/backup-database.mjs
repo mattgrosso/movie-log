@@ -3,6 +3,13 @@
 //   yarn backup-db                # snapshot -> ~/cinemaroll-backups/ + S3
 //   yarn backup-db --local-only   # skip the S3 upload
 //   yarn backup-db --quiet        # one-line output (used by predeploy)
+//   --skip-if-fresh[=hours]       # no-op if a snapshot newer than N hours
+//                                 # (default 6) exists. Used by predeploy:
+//                                 # every full read of the DB is billed RTDB
+//                                 # egress, and deploy-per-stopping-point was
+//                                 # producing 36-56 full downloads a day
+//                                 # (~$4-7/day) in Aug 2026. Manual
+//                                 # `yarn backup-db` never skips.
 //
 // Why this exists (Matt, 2026-08-15): "when we're messing with this...
 // we're always a little bit nervous that we're gonna lose real data."
@@ -17,18 +24,24 @@
 // missing or the upload fails, the local snapshot still stands and the
 // failure is reported, never thrown.
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { gzipSync } from 'zlib';
 import { homedir } from 'os';
 import { join } from 'path';
 import { execFileSync } from 'child_process';
 import { loadEnvLocal } from './loadEnvLocal.mjs';
+import { freshSnapshot } from './snapshotFreshness.mjs';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 
 const quiet = process.argv.includes('--quiet');
 const localOnly = process.argv.includes('--local-only');
 const log = (...args) => { if (!quiet) console.log(...args); };
+
+const skipIfFreshArg = process.argv.find((a) => a === '--skip-if-fresh' || a.startsWith('--skip-if-fresh='));
+const skipIfFreshHours = skipIfFreshArg
+  ? Number(skipIfFreshArg.split('=')[1] ?? 6) || 6
+  : null;
 
 loadEnvLocal();
 const keyPath = process.env.FIREBASE_ADMIN_KEY_PATH;
@@ -77,6 +90,15 @@ export function pruneLocal (dir, now = Date.now()) {
 }
 
 async function main () {
+  if (skipIfFreshHours !== null) {
+    let existing = [];
+    try { existing = readdirSync(BACKUP_DIR); } catch { /* no backups yet */ }
+    const fresh = freshSnapshot(existing, skipIfFreshHours * 60 * 60 * 1000);
+    if (fresh) {
+      console.log(`db backup: skipped, ${fresh} is under ${skipIfFreshHours}h old`);
+      process.exit(0);
+    }
+  }
   log('Reading full database…');
   const snapshot = await db.ref('/').once('value');
   const data = snapshot.val() || {};
