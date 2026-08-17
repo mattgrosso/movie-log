@@ -69,3 +69,22 @@ Where a pure function can be extracted, test it directly rather than through a m
 - Tests that exercise the real store (`OfflineDataFallback`, `flushPendingWrites`) import
   `store/index.js` for real and mock Firebase/axios/router/Sentry — prefer that over a
   hand-rolled mock store, which drifts from the real shape.
+
+## The filesystem is case-insensitive — check before creating a test file
+
+`src/test/YearInReview.test.js` existed; writing `src/test/yearInReview.test.js`
+**overwrote it in place**, keeping the original's casing, and a later `rm` on the
+lowercase name deleted it. APFS is case-insensitive by default: the two paths are one
+file. `ls src/test/ | grep -i <name>` before creating one.
+
+The full-suite output hides this — the *file* count stays the same, so it still reads
+"144 files passed". The tell is the **test count** moving by less than the number you
+added. `find src -name "*.test.js" | wc -l` is the honest file count.
+
+## A test that changes state the fix doesn't need is not a guard
+
+The Year in Review headshot fix (fetch on a watcher, not in `mounted()`) had a test that
+set `selectedYear` after the library arrived. It passed against the broken code, because
+changing the year triggered the old `selectedYear` watcher and refetched. The real
+sequence is the data landing while the year stays put. Reproduce the bug's actual
+sequence, not a convenient neighbour of it.

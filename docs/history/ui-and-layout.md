@@ -166,3 +166,58 @@ Both failures are covered by tests that were checked against the broken code fir
 (`src/test/standouts.test.js`) — the log-score fixture is specifically shaped so the big
 category wins on Log Score (7.99) and loses on lift (-0.06), because an earlier version of
 that test passed under both rankings and guarded nothing.
+
+## Year in Review rebuilt (Aug 2026)
+
+Matt, having approved Trophy Case as-is: *"The year review looks nice, but I feel like we
+could add a lot more information to it. Can you go in there and try and come up with a
+bunch of clever things to throw in to make it look... keep it looking nice, but make it
+way cooler?"*
+
+The old page showed five things: two hero counts, a time total, a bar chart of films per
+month, top actors and top directors. It also **computed eight more that were never
+rendered** — `topGenres`, `bestRatedMovies`, `longestMovie`, `shortestMovie`,
+`oldestMovie`, `busiestMonth`, `averageRating`, `mostCommonDecade` all existed as
+computeds with nothing in the template referencing them.
+
+The logic now lives in `src/assets/javascript/yearInReview.js` (pure, store-free,
+`getAllRatingsFn` injected) with `src/test/yearInReviewStats.test.js` covering it
+directly, per the house preference. Eleven sections: the shape of the year as a
+contribution-graph heatmap, bookends, best-of-each-month, rhythm (streaks, droughts,
+day-of-week), the extremes, what was different about the year, new releases vs
+catalogue, discoveries vs revisits, the score distribution, faces, and directors.
+
+### The unit is a viewing, not a film
+
+The old page mixed the two: `moviesWatchedCount` counted entries while `moviesByMonth`
+counted ratings, so a film watched twice made the monthly bars add up to more than the
+headline above them. Everything now derives from one `allViewings()` pass — which also
+matters for cost, because `getAllRatings` re-normalizes every rating it touches and the
+page needs this year, last year and all-time.
+
+### Three things that were quietly wrong
+
+- **Comparing a year in progress against a complete one.** The first version had August
+  2026 down 5 films, down 16 hours, down 0.19 average — every delta negative, purely
+  because 2025 had twelve months in it and 2026 has eight. Trimming last year to the same
+  point on the calendar (`throughDate`) turned that into **+30 films, +52h, +0.11**. The
+  label says "so far" when the trim applies.
+- **`percentOfYear` divided by 365 always**, so any current year read as a fraction of
+  what it actually was. It now divides by the days elapsed.
+- **The headshot fetch fired from `mounted()`**, which runs before the library arrives,
+  so it asked TMDB for the top actors of an empty list and never retried. Every face on
+  the page was a placeholder icon. Now driven by an immediate watcher on the names. This
+  is the same trap as DrawFromHat's hat summaries — **`mounted()` is not "when the data
+  is ready"** — and the test for it only became a real guard after the first version was
+  written in a way that changed `selectedYear`, which masks the bug entirely.
+
+### A macOS filesystem trap worth knowing
+
+`src/test/YearInReview.test.js` already existed with 24 component tests. Writing to
+`src/test/yearInReview.test.js` **silently overwrote it** — APFS is case-insensitive by
+default, so the two paths are one file, and it keeps the original's casing. The full
+suite still reported "144 files passed", because the file count didn't change; the tell
+was the test count moving by less than the number added. `rm` on the lowercase name then
+deleted the uppercase file too. Both were recovered with `git checkout`, the pure-module
+tests went to `yearInReviewStats.test.js`, and `YearInReview.test.js` was rewritten
+against the new component's surface.
