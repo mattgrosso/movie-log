@@ -7,43 +7,52 @@
 
     <div class="hat-cards">
       <div v-for="hat in cards" :key="hat.title" class="hat-card">
-        <!-- The last thing this hat gave you, as a poster. -->
-        <img
-          v-if="lastPoster(hat)"
-          :src="lastPoster(hat)"
-          :alt="hat.lastDrawn.title"
-          class="hat-card-poster"
-          loading="lazy"
-        >
-        <div v-else class="hat-card-poster hat-card-poster-blank">
-          <i class="bi bi-magic"></i>
-        </div>
-
-        <div class="hat-card-body">
-          <p class="hat-card-title">{{ hat.title }}</p>
-          <p class="hat-card-count">
+        <!-- Rebuilt as a vertical block (2026-08-17). It used to be a flex ROW
+             of poster + body, and the history strip was appended as a third
+             flex child, so it was squeezed into a narrow column beside the
+             text — "the layout on the hat displays where you're showing the
+             history is all busted". A row can't hold a full-width strip; this
+             stacks instead. -->
+        <div class="hat-head">
+          <span class="hat-name">{{ hat.title }}</span>
+          <span class="hat-waiting">
             <template v-if="hat.error">couldn't load</template>
             <template v-else-if="hat.waiting == null">&hellip;</template>
             <template v-else>{{ hat.waiting }} waiting</template>
-          </p>
-          <p v-if="hat.lastDrawn" class="hat-card-last">
-            Last drew <strong>{{ hat.lastDrawn.title }}</strong>
-            <span v-if="drawnAgo(hat)"> · {{ drawnAgo(hat) }}</span>
-          </p>
-          <p v-else-if="!hat.error" class="hat-card-last">Nothing drawn yet.</p>
+          </span>
+        </div>
 
-          <button type="button" class="hat-card-draw" :disabled="drawing" @click="draw(hat)">
+        <div class="hat-last">
+          <img
+            v-if="lastPoster(hat)"
+            :src="lastPoster(hat)"
+            :alt="hat.lastDrawn.title"
+            class="hat-last-poster"
+            loading="lazy"
+          >
+          <div v-else class="hat-last-poster hat-last-poster-blank">
+            <i class="bi bi-question-lg"></i>
+          </div>
+
+          <div class="hat-last-text">
+            <template v-if="hat.lastDrawn">
+              <span class="hat-last-label">Last drew</span>
+              <span class="hat-last-title">{{ hat.lastDrawn.title }}</span>
+              <span v-if="drawnAgo(hat)" class="hat-last-when">{{ drawnAgo(hat) }}</span>
+            </template>
+            <span v-else-if="!hat.error" class="hat-last-label">Nothing drawn yet.</span>
+          </div>
+
+          <button type="button" class="hat-draw" :disabled="drawing" @click="draw(hat)">
             <span v-if="drawing === hat.title" class="spinner-border spinner-border-sm" role="status"></span>
             <span v-else>Draw</span>
           </button>
         </div>
 
-        <!-- Everything this hat has ever given up, not just the newest —
-             "I'd rather just see the whole history from that hat because
-             that's all available... let's make it another scrollable list
-             [and] maintain the draw button somewhere" (2026-08-17). -->
+        <!-- Full width, which is the whole reason the card had to stop being
+             a row. Everything this hat has ever given up, newest first. -->
         <div v-if="hat.history && hat.history.length > 1" class="hat-history">
-          <p class="hat-history-title">Everything it's drawn</p>
+          <p class="hat-history-title">Everything it's drawn · {{ hat.history.length }}</p>
           <div class="hat-history-row">
             <div
               v-for="(drawnMovie, index) in hat.history"
@@ -54,6 +63,7 @@
                 v-if="drawnMovie.poster_path"
                 :src="historyPoster(drawnMovie)"
                 :alt="drawnMovie.title"
+                :title="drawnMovie.title"
                 class="hat-history-poster"
                 loading="lazy"
               >
@@ -205,25 +215,43 @@ export default {
   gap: 0.5rem;
 }
 
+/* A vertical block. It was a flex row, which had no place to put a full-width
+   history strip — appended there it became a squeezed third column. */
 .hat-card {
   background: #1f1f1f;
   border: 1px solid #3a3a3a;
   border-radius: 8px;
   display: flex;
-  gap: 0.6rem;
-  overflow: hidden;
-  padding: 0.5rem;
+  flex-direction: column;
+  padding: 0.6rem 0.7rem;
 }
 
-.hat-card-poster {
+.hat-head {
+  align-items: baseline;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.hat-name { color: #fff; font-size: 0.95rem; font-weight: 700; min-width: 0; }
+.hat-waiting { color: #b9b9b9; font-size: 0.72rem; white-space: nowrap; }
+
+.hat-last {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.hat-last-poster {
   border-radius: 4px;
   flex: 0 0 auto;
-  height: 84px;
+  height: 66px;
   object-fit: cover;
-  width: 56px;
+  width: 44px;
 }
 
-.hat-card-poster-blank {
+.hat-last-poster-blank {
   align-items: center;
   background: #2b2b2b;
   color: #7a7a7a;
@@ -231,55 +259,33 @@ export default {
   justify-content: center;
 }
 
-.hat-card-body {
+.hat-last-text {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
 }
 
-.hat-card-title {
-  color: #fff;
-  font-size: 0.92rem;
-  font-weight: 700;
-  margin: 0;
-}
+.hat-last-label { color: #9a9a9a; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.hat-last-title { color: #eee; font-size: 0.85rem; font-weight: 600; line-height: 1.25; }
+.hat-last-when { color: #b9b9b9; font-size: 0.7rem; }
 
-.hat-card-count {
-  color: #b9b9b9;
-  font-size: 0.72rem;
-  margin: 0 0 0.15rem;
-}
-
-.hat-card-last {
-  color: #ccc;
-  font-size: 0.72rem;
-  line-height: 1.3;
-  margin: 0 0 0.35rem;
-}
-
-.hat-card-last strong { color: #eee; font-weight: 600; }
-
-.hat-card-draw {
-  align-self: flex-start;
+.hat-draw {
   background: #33383d;
   border: 1px solid #555c63;
   border-radius: 8px;
   color: #eee;
+  flex: 0 0 auto;
   font-size: 0.78rem;
   font-weight: 600;
-  margin-top: auto;
+  /* 40px minimum touch target. */
   min-height: 40px;
   padding: 0.3rem 1.1rem;
 }
 
 /* Mobile-first: press feedback is :active only, never :hover. */
-.hat-card-draw:active {
-  background: #23272b;
-}
-
-.hat-card-draw:disabled {
-  opacity: 0.6;
-}
+.hat-draw:active { background: #23272b; }
+.hat-draw:disabled { opacity: 0.6; }
 
 .drawn {
   display: flex;
@@ -340,17 +346,17 @@ export default {
 .draw-message-error {
   color: #ff9f9f;
 }
+/* Full width inside the stacked card. */
 .hat-history {
   border-top: 1px solid #2e2e2e;
   margin-top: 0.6rem;
   padding-top: 0.5rem;
-  width: 100%;
 }
 
 .hat-history-title {
-  color: #b9b9b9;
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
+  color: #9a9a9a;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
   margin: 0 0 0.35rem;
   text-transform: uppercase;
 }
@@ -364,14 +370,14 @@ export default {
   -webkit-overflow-scrolling: touch;
 }
 
-.hat-history-card { flex: 0 0 52px; width: 52px; }
+.hat-history-card { flex: 0 0 48px; width: 48px; }
 
 .hat-history-poster {
   border-radius: 4px;
   display: block;
-  height: 78px;
+  height: 72px;
   object-fit: cover;
-  width: 52px;
+  width: 48px;
 }
 
 .hat-history-blank {
@@ -379,11 +385,11 @@ export default {
   background: #2b2b2b;
   color: #ccc;
   display: flex;
-  font-size: 0.55rem;
+  font-size: 0.5rem;
   justify-content: center;
   padding: 0.2rem;
   text-align: center;
 }
 
-.hat-history-when { color: #9a9a9a; display: block; font-size: 0.58rem; line-height: 1.2; }
+.hat-history-when { color: #9a9a9a; display: block; font-size: 0.56rem; line-height: 1.2; }
 </style>

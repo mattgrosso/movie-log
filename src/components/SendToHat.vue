@@ -17,9 +17,15 @@
              plus symbol" (2026-08-17). Drawn here because bootstrap-icons has
              no hat at all. -->
         <svg class="hat-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M8 3.2h8v10.2H8z" class="hat-crown"/>
-          <rect x="3.2" y="13.2" width="17.6" height="2.4" rx="1.2" class="hat-brim"/>
-          <path d="M12 17.4v5M9.5 19.9h5" class="hat-plus"/>
+          <!-- Upside down, opening upward — it's a hat you draw OUT of — with
+               the plus ON the crown rather than floating below it: "the hat
+               should be flipped upside down and the + needs to be on the hat,
+               not below the hat" (2026-08-17).
+               The crown is outlined rather than filled so the plus inside it
+               reads; a filled crown swallowed a same-coloured plus whole. -->
+          <rect x="3" y="3.4" width="18" height="2.6" rx="1.3" class="hat-brim"/>
+          <path d="M7.8 6.6h8.4v9.6a2 2 0 0 1-2 2H9.8a2 2 0 0 1-2-2z" class="hat-crown"/>
+          <path d="M12 9.4v5.4M9.3 12.1h5.4" class="hat-plus"/>
         </svg>
         <span v-if="variant !== 'icon'">{{ buttonLabel }}</span>
       </template>
@@ -233,9 +239,10 @@ export default {
 
 /* The sheet is teleported to <body>, so it is styled unscoped. */
 .hat-glyph { height: 15px; width: 15px; }
-.hat-glyph .hat-crown { fill: currentColor; }
 .hat-glyph .hat-brim { fill: currentColor; }
-.hat-glyph .hat-plus { stroke: currentColor; stroke-width: 2; stroke-linecap: round; fill: none; }
+/* Outlined, so the plus sitting inside it stays visible. */
+.hat-glyph .hat-crown { fill: none; stroke: currentColor; stroke-width: 1.7; }
+.hat-glyph .hat-plus { stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; fill: none; }
 
 .hat-picker {
   display: flex;

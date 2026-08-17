@@ -238,3 +238,18 @@ simply doesn't render.
 
 The existing `WatchlistScreen` test mock returned `{ id: 777 }` with no gender, which is
 not a shape TMDB ever produces — it made every gendered row come back empty.
+
+### Two follow-ups on the hat work, both mine to fix
+
+- **The hat card layout was busted, and it was a structural mistake.** `.hat-card` was
+  `display: flex` — a ROW of poster plus body — and the history strip was appended as a
+  third flex child, so a full-width scrolling strip got squeezed into a narrow third
+  column. A row has nowhere to put a full-width element. Rebuilt as a vertical block:
+  header (name, count), a last-drawn row (poster, title, Draw button), then the strip
+  spanning the card. The regression test asserts `.hat-card > .hat-history` and *not*
+  `.hat-last .hat-history` — putting the strip back inside the row fails it.
+- **The hat icon was the right idea upside down.** "The hat should be flipped upside down
+  and the + needs to be on the hat, not below the hat." It's a hat you draw *out* of, so
+  the brim sits on top and the crown hangs below, opening upward, with the plus on the
+  crown. The crown had to become an outline rather than a fill — a same-coloured plus
+  drawn on a filled crown is invisible.

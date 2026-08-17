@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import DrawFromHat from '@/components/DrawFromHat.vue';
 
 vi.mock('@/services/ErrorLogService.js', () => ({ default: { error: vi.fn() } }));
@@ -24,7 +24,7 @@ function factory ({ hats = HATS, result = null, summaries = [] } = {}) {
 }
 
 async function drawFrom (wrapper, index = 0) {
-  await wrapper.findAll('.hat-card-draw')[index].trigger('click');
+  await wrapper.findAll('.hat-draw')[index].trigger('click');
   await wrapper.vm.$nextTick();
   await wrapper.vm.$nextTick();
 }
@@ -41,7 +41,7 @@ describe('DrawFromHat', () => {
       result: { movie: { id: 550, title: 'Fight Club' }, hat: 'Whole family', remaining: 12 }
     });
 
-    expect(wrapper.findAll('.hat-card-title').map((title) => title.text()))
+    expect(wrapper.findAll('.hat-name').map((title) => title.text()))
       .toEqual(['Just Matt', 'Whole family']);
 
     await drawFrom(wrapper, 1);
@@ -61,10 +61,10 @@ describe('DrawFromHat', () => {
     });
     const card = wrapper.findAll('.hat-card')[0];
 
-    expect(card.find('.hat-card-count').text()).toBe('128 waiting');
-    expect(card.find('.hat-card-last').text()).toContain('Heat');
-    expect(card.find('.hat-card-last').text()).toContain('3 hours ago');
-    expect(card.find('.hat-card-poster').attributes('alt')).toBe('Heat');
+    expect(card.find('.hat-waiting').text()).toBe('128 waiting');
+    expect(card.find('.hat-last-text').text()).toContain('Heat');
+    expect(card.find('.hat-last-text').text()).toContain('3 hours ago');
+    expect(card.find('.hat-last-poster').attributes('alt')).toBe('Heat');
   });
 
   it('asks for the hat summaries when it appears', () => {
@@ -96,7 +96,7 @@ describe('DrawFromHat', () => {
   it('says so when a hat could not be loaded, rather than showing a wrong count', () => {
     const { wrapper } = factory({ summaries: [{ title: 'Just Matt', dbKey: 'k1', error: true }] });
 
-    expect(wrapper.findAll('.hat-card-count')[0].text()).toBe("couldn't load");
+    expect(wrapper.findAll('.hat-waiting')[0].text()).toBe("couldn't load");
   });
 
   it('shows what was drawn, who put it in, and what is left', async () => {
@@ -157,5 +157,66 @@ describe('DrawFromHat', () => {
     expect(wrapper.find('.draw-message').text()).toBe("Couldn't reach Just Matt.");
     expect(wrapper.find('.draw-message').classes()).toContain('draw-message-error');
     expect(wrapper.find('.drawn').exists()).toBe(false);
+  });
+});
+
+// "I'd rather just see the whole history from that hat because that's all
+// available... let's make it another scrollable list [and] maintain the draw
+// button somewhere." (2026-08-17)
+//
+// The first cut appended the strip to a card that was a flex ROW of poster +
+// body, so it landed as a squeezed third column — "the layout on the hat
+// displays where you're showing the history is all busted". The card is a
+// vertical block now, and the strip is a full-width sibling of the last-drawn
+// row rather than a third item beside it.
+describe('DrawFromHat history strip', () => {
+  const HOUR = 60 * 60 * 1000;
+
+  const withHistory = [{
+    title: 'Dev Hat',
+    dbKey: 'k1',
+    waiting: 12,
+    lastDrawn: { title: 'Newest', poster_path: '/n.jpg', dateDrawn: Date.now() - HOUR },
+    history: [
+      { id: 1, title: 'Newest', poster_path: '/n.jpg', dateDrawn: Date.now() - HOUR },
+      { id: 2, title: 'Older', poster_path: '/o.jpg', dateDrawn: Date.now() - 50 * HOUR },
+      { id: 3, title: 'Oldest', poster_path: null, dateDrawn: Date.now() - 900 * HOUR }
+    ]
+  }];
+
+  it('shows every drawn movie, and says how many', async () => {
+    const { wrapper } = factory({ hats: [{ title: 'Dev Hat', dbKey: 'k1' }], summaries: withHistory });
+    await flushPromises();
+
+    expect(wrapper.findAll('.hat-history-card')).toHaveLength(3);
+    expect(wrapper.find('.hat-history-title').text()).toContain('3');
+  });
+
+  it('keeps the strip out of the last-drawn row so it can run full width', async () => {
+    const { wrapper } = factory({ hats: [{ title: 'Dev Hat', dbKey: 'k1' }], summaries: withHistory });
+    await flushPromises();
+
+    // A child of the card, a sibling of .hat-last — not inside it.
+    expect(wrapper.find('.hat-card > .hat-history').exists()).toBe(true);
+    expect(wrapper.find('.hat-last .hat-history').exists()).toBe(false);
+  });
+
+  it('still offers the draw button alongside the history', async () => {
+    const { wrapper } = factory({ hats: [{ title: 'Dev Hat', dbKey: 'k1' }], summaries: withHistory });
+    await flushPromises();
+
+    expect(wrapper.find('.hat-draw').exists()).toBe(true);
+  });
+
+  // One draw is the lastDrawn card already shown above it; a strip of one is
+  // just the same poster twice.
+  it('stays hidden until there is more than one draw to show', async () => {
+    const { wrapper } = factory({
+      hats: [{ title: 'Dev Hat', dbKey: 'k1' }],
+      summaries: [{ ...withHistory[0], history: [withHistory[0].history[0]] }]
+    });
+    await flushPromises();
+
+    expect(wrapper.find('.hat-history').exists()).toBe(false);
   });
 });
