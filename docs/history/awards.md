@@ -172,3 +172,53 @@ Two things that made the data actually useful:
 - A second pass then re-ran every acting nominee through the real `isEligibleForActingCategory`, swapping 59 mis-gendered picks for genuinely eligible castmates from the same film (0 dropped, 0 remaining violations). It imports the app's own helper rather than reimplementing the rule, so the fixtures can't drift from the shipped logic.
 
 Scripts were one-off and not committed. **Gotcha for any future admin-SDK script**: it must live INSIDE the repo — Node resolves `firebase-admin` relative to the importing file, so a script in the scratchpad fails with `ERR_MODULE_NOT_FOUND`. A backup of the pre-change awards is in the session scratchpad.
+
+## Club Charts (Aug 2026)
+
+Matt: *"It seems like there must be some more fun graphs we could build around film club
+relationships. What sort of visualizations can we come up with?"* — then, on the
+proposals: *"be creative, make them fun, make them pretty"* and *"I'd rather you add
+something, and then later I decide to take it out as opposed to you not adding it at
+all."* So: nine charts on their own screen at `/club-charts`, reached from a card on the
+Film Club page. They'd have doubled that page's length inline.
+
+### What the data allows, which shaped every chart
+
+A published profile carries `ratings: { [tmdbId]: {r, at, t, p, c?} }` — a score, when
+they watched it, title, poster, and the eight-criterion breakdown only behind the
+`shareCriteria` opt-in. **There is no genre and no release date on a friend's rating.**
+
+So anything cut by genre or decade can only be computed across the OVERLAP, joined to
+your own library for those fields. That isn't a limitation worth fighting: every chart
+here is about a relationship, and a relationship only exists where two libraries meet.
+`buildOverlaps` does that join once and nearly every chart reads it.
+
+### The nine
+
+| Chart | What it answers |
+|---|---|
+| The Taste Map | scatter of each friend's average against yours on shared films, with the agreement diagonal — who runs hotter or cooler |
+| How Much You Share | shared / only-theirs / only-yours, and what share of their library you've covered |
+| Where You Agree | alignment sliced by decade and by genre |
+| Who's Generous | everyone's score distribution side by side |
+| The Contrarian Scoreboard | across films 3+ of you rated, how often each person is furthest from the group |
+| Watched at the Same Time | films you and a friend landed on within a week, unplanned |
+| Who's Been Watching | viewings a month per member over the last year |
+| Your Blind Spots | the club's shared canon, minus you — each with an add-to-hat button |
+| Where the Disagreement Lives | per-criterion, for friends who share their breakdown |
+
+**Colour identifies a person, everywhere.** `memberColors` assigns from a curated palette
+by sorted key rather than by hash — a hash gives no control over two friends landing on
+near-identical hues, and the club is small. You are always `#f0f0f0`.
+
+### Two things the first cut got wrong
+
+- **Alignment bars on a 0–10 scale said nothing.** Against a real club every value came
+  out between 8.6 and 9.7, so ten bars rendered identically. They're scaled to the range
+  actually present now, with the true figure on every bar and the domain stated above
+  them ("Bars are scaled to 8.6–9.7"). Scaled, the shape appears: 1930s highest, 2020s
+  lowest, Science Fiction the weakest genre.
+- The taste map's y-axis label was `their score →`, a right arrow on a vertical axis.
+
+Contrarians needs three raters and Blind Spots needs two friends, so both correctly hide
+themselves on a one-friend club rather than rendering something meaningless.

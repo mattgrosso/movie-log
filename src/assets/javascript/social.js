@@ -37,7 +37,7 @@ function viewingsFrom (entry) {
     .map((viewing) => (viewing.m ? { at: viewing.at, m: viewing.m } : { at: viewing.at }));
 }
 
-function criteriaArrayFrom (rating) {
+export function criteriaArrayFrom (rating) {
   if (!rating) return null;
   const values = CRITERIA.map((key) => {
     let raw = rating[key];

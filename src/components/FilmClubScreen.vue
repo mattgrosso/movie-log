@@ -90,6 +90,17 @@
         </div>
       </section>
 
+      <!-- The charts are their own screen: they're the interesting half of
+           the club once there are a few people in it, and they would double
+           the length of this page. -->
+      <button type="button" class="cs-charts-link" @click="$router.push('/club-charts')">
+        <span>
+          <strong>Club Charts</strong>
+          <em>Taste maps, blind spots, who's the contrarian</em>
+        </span>
+        <i class="bi bi-chevron-right"></i>
+      </button>
+
       <!-- Both of these lists run long and pushed everything else off the
            screen; they scroll in place instead ("it feels like it takes up
            too much space vertically... its own little section in a
@@ -416,6 +427,24 @@ export default {
   padding: 0.75rem 1rem 2rem;
   width: 100%;
 }
+
+.cs-charts-link {
+  align-items: center;
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 10px;
+  color: #eee;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  width: 100%;
+}
+
+.cs-charts-link:active { opacity: 0.75; }
+.cs-charts-link strong { display: block; font-size: 0.95rem; }
+.cs-charts-link em { color: #b9b9b9; font-size: 0.72rem; font-style: normal; }
 
 /* A friend row was a name, a count and a chevron. It now says how much you
    overlap, how closely you agree and what they've just been watching
