@@ -1166,6 +1166,14 @@ export default createStore({
             console.warn('[delta-shadow] DIVERGENCE:', report);
             ErrorLogService.error('[delta-shadow] delta reconstruction diverged from full download:', report);
           }
+
+          // Shadow mode existed to answer "is delta reconstruction safe to
+          // switch on", and the answer was only ever visible in localStorage
+          // error logs on the device that ran the check — so the decision
+          // depended on somebody reading their own phone. Each reading is
+          // recorded in the account now, so the question can be settled from
+          // the data (scripts/delta-shadow-report.mjs).
+          context.dispatch('recordDeltaShadowReading', report);
         }
 
         // Either way, this launch's full download is the new baseline.
@@ -1175,6 +1183,45 @@ export default createStore({
       } catch (error) {
         // Shadow mode must never affect the real load path.
         console.warn('[delta-shadow] check skipped:', error);
+      }
+    },
+    /**
+     * A compact record of one shadow check, kept in the account so the
+     * phase-2 decision can be made from readings rather than recollection.
+     *
+     * Diagnostic and re-derivable, so it uses the plain write path rather
+     * than the durable queue — losing one costs nothing.
+     */
+    async recordDeltaShadowReading (context, report) {
+      const topKey = context.getters.databaseTopKey;
+      if (!topKey || !report) return;
+
+      try {
+        const reading = {
+          at: report.checkedAt || Date.now(),
+          identical: Boolean(report.identical),
+          compared: report.compared ?? null,
+          deltaEntries: report.deltaEntryCount ?? null,
+          // Counts only: the keys themselves say nothing useful later, and
+          // this should stay small.
+          missing: report.missing?.length || 0,
+          stale: report.stale?.length || 0,
+          extra: report.extra?.length || 0
+        };
+
+        const readings = context.state.settings?.deltaShadowReadings || {};
+        const keys = Object.keys(readings).sort();
+        const updates = { [`settings/deltaShadowReadings/${reading.at}`]: reading };
+
+        // A rolling window: enough to see a trend, not enough to grow.
+        keys.slice(0, Math.max(0, keys.length - 29)).forEach((old) => {
+          updates[`settings/deltaShadowReadings/${old}`] = null;
+        });
+
+        await context.dispatch('updateDatabaseEntriesNow', updates);
+      } catch (error) {
+        // Diagnostics must never affect the load path.
+        console.warn('[delta-shadow] could not record the reading:', error);
       }
     },
     // Re-applies every still-queued durable write for `root` ('movieLog' or

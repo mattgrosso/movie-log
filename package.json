@@ -19,6 +19,7 @@
     "restore-db": "node scripts/restore-database.mjs",
     "mint-test-token": "node scripts/mint-test-token.mjs",
     "fetch-bug-reports": "node scripts/fetch-bug-reports.mjs",
+    "delta-shadow-report": "node scripts/delta-shadow-report.mjs",
     "resolve-bug-report": "node scripts/resolve-bug-report.mjs",
     "purge-qa-social": "node scripts/purge-qa-social.mjs",
     "link-qa-tester": "node scripts/link-qa-tester.mjs",
