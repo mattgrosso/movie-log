@@ -186,8 +186,11 @@ new section, offline support); MAJOR only for a breaking change. When in doubt, 
 - **Tightened Firebase database rules deployed 2026-08-14** (supervised). Unauthenticated
   reads are denied everywhere; the `updatedAt` index is live. The unauthenticated
   `testing-database` sandbox trick no longer works — see `.claude/rules/auth-and-db-rules.md`.
-- **Delta sync phases 1–3 are parked.** Phase 0 (recording `updatedAt` + tombstones)
-  shipped; nothing reads it yet. Design notes in `docs/history/data-and-offline.md`.
+- **Delta sync is fully live (phases 2/3, 2026-08-17).** Launches normally download
+  only changes since `lastSync`; full download + shadow comparison every 3 days per
+  device. Watch `yarn delta-shadow-report` and the in-app error log for `[delta-shadow]`
+  divergences. Details in `.claude/rules/data-writes.md` and
+  `docs/history/data-and-offline.md`.
 - **Locations/maps was built and removed.** Read `docs/history/geography-removed.md`
   before any second attempt — the research is expensive to redo.
 - Known issues: rating a perfect 10, database sharding as the library grows.

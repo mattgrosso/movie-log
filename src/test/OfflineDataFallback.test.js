@@ -120,6 +120,9 @@ describe('initializeDB offline snapshot fallback', () => {
     })
 
     await store.dispatch('initializeDB')
+    // Listener attach is async since phase 2 (the launch plan reads
+    // deltaSyncMeta first), so give it a tick.
+    await flushMicrotasks()
 
     // Live listener responds first.
     const movieLogCall = onValueMock.mock.calls.find((call) => call[0] === 'testing-database/movieLog')
@@ -160,6 +163,7 @@ describe('initializeDB offline snapshot fallback', () => {
     it('a cancelled listener sets dbReadDenied and settles dbLoaded instead of hanging', async () => {
       loadSnapshotMock.mockResolvedValue(null)
       await store.dispatch('initializeDB')
+      await flushMicrotasks()
 
       movieLogListener().cancel(new Error('permission_denied'))
 
@@ -191,6 +195,7 @@ describe('initializeDB offline snapshot fallback', () => {
 
       // The login flow re-dispatches initializeDB once a session exists.
       await store.dispatch('initializeDB')
+      await flushMicrotasks()
       const movieLogCalls = onValueMock.mock.calls.filter(([path]) => path === 'testing-database/movieLog')
       expect(movieLogCalls.length).toBe(listenersBefore + 1)
 
@@ -211,6 +216,7 @@ describe('initializeDB offline snapshot fallback', () => {
     it('first launch records a lastSync baseline (max updatedAt received) without querying anything', async () => {
       loadSnapshotMock.mockResolvedValue(null)
       await store.dispatch('initializeDB')
+      await flushMicrotasks()
 
       fireMovieLog({ a: stamped('A', 100), b: stamped('B', 250) })
       await flushMicrotasks()
@@ -518,5 +524,96 @@ describe('initializeDB: full Academy Awards dataset (feature: "pull it down and 
     await store.dispatch('resetLocalDB')
 
     expect(store.state.allAcademyAwards).toEqual(populated)
+  })
+})
+
+describe('delta sync phase 2: the delta listener is the launch path', () => {
+  const stamped = (title, updatedAt) => ({ movie: { id: title, title }, updatedAt })
+  const SNAPSHOT = { a: stamped('A', 50), b: stamped('B old', 100) }
+  const freshMeta = () => ({ lastSync: 100, savedAt: Date.now(), lastFullSyncAt: Date.now() - 60_000 })
+
+  function mockStoredBaseline (meta, movieLog = SNAPSHOT) {
+    loadSnapshotMock.mockImplementation((topKey, kind) => Promise.resolve(
+      kind === 'deltaSyncMeta' ? meta : kind === 'movieLog' ? movieLog : null
+    ))
+  }
+  const fullListenerCalls = () => onValueMock.mock.calls.filter(([target]) => target === 'testing-database/movieLog')
+  const deltaListenerCall = () => onValueMock.mock.calls.find(([target]) => target?.__query === 'testing-database/movieLog')
+  const deletionsListenerCall = () => onValueMock.mock.calls.find(([target]) => target === 'testing-database/movieLogDeletions')
+
+  it('with a fresh baseline it attaches a startAt(lastSync) query, NOT the full download', async () => {
+    mockStoredBaseline(freshMeta())
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    expect(fullListenerCalls()).toHaveLength(0)
+    const deltaCall = deltaListenerCall()
+    expect(deltaCall).toBeTruthy()
+    expect(deltaCall[0].clauses).toEqual([{ orderByChild: 'updatedAt' }, { startAt: 100 }])
+    expect(deletionsListenerCall()).toBeTruthy()
+  })
+
+  it('reconstructs snapshot + delta + tombstones, persists both halves together, and advances lastSync', async () => {
+    const meta = freshMeta()
+    mockStoredBaseline(meta)
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    deletionsListenerCall()[1]({ val: () => ({ a: 999 }) }) // tombstone newer than a's stamp
+    deltaListenerCall()[1]({ val: () => ({ b: stamped('B new', 300) }) })
+    await flushMicrotasks()
+
+    expect(store.state.movieLog.b.movie.title).toBe('B new')
+    expect(store.state.movieLog.a).toBeUndefined()
+    expect(store.state.dbLoaded).toBe(true)
+    expect(store.state.dbReadDenied).toBe(false)
+    // Snapshot and lastSync advance in the same pass (the invariant that
+    // makes the NEXT launch's startAt sound), lastFullSyncAt preserved.
+    expect(saveSnapshotMock).toHaveBeenCalledWith('testing-database', 'movieLog',
+      expect.objectContaining({ b: expect.objectContaining({ updatedAt: 300 }) }))
+    expect(saveSnapshotMock).toHaveBeenCalledWith('testing-database', 'deltaSyncMeta',
+      expect.objectContaining({ lastSync: 300, lastFullSyncAt: meta.lastFullSyncAt }))
+  })
+
+  it('a nothing-changed launch (empty delta result) still settles the library from the snapshot', async () => {
+    mockStoredBaseline(freshMeta())
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    deletionsListenerCall()[1]({ val: () => null })
+    deltaListenerCall()[1]({ val: () => null })
+    await flushMicrotasks()
+
+    expect(store.state.movieLog).toEqual(SNAPSHOT)
+    expect(store.state.dbLoaded).toBe(true)
+  })
+
+  it('falls back to the full download when the resync interval has passed', async () => {
+    mockStoredBaseline({ lastSync: 100, savedAt: Date.now(), lastFullSyncAt: Date.now() - 30 * 24 * 60 * 60 * 1000 })
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    expect(deltaListenerCall()).toBeUndefined()
+    expect(fullListenerCalls()).toHaveLength(1)
+  })
+
+  it('falls back to the full download when the snapshot is missing despite a surviving lastSync', async () => {
+    mockStoredBaseline(freshMeta(), null)
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    expect(deltaListenerCall()).toBeUndefined()
+    expect(fullListenerCalls()).toHaveLength(1)
+  })
+
+  it('a cancelled delta listener surfaces dbReadDenied exactly like the full one', async () => {
+    mockStoredBaseline(freshMeta())
+    await store.dispatch('initializeDB')
+    await flushMicrotasks()
+
+    deltaListenerCall()[2](new Error('permission_denied'))
+
+    expect(store.state.dbReadDenied).toBe(true)
+    expect(store.state.dbLoaded).toBe(true)
   })
 })

@@ -224,11 +224,37 @@ Verified with a throwaway Firebase Admin SDK probe (written into `scripts/`, run
 ### Backfill
 Settings → **"Add change timestamps"** (`Home.backfillSyncStamps`, batches of 100 through `updateDatabaseEntriesNow`). Strictly optional — an unstamped entry is simply never returned by a delta query, which is correct as long as the local snapshot already holds it — but a uniform library removes a whole category of "why is this movie invisible to sync" reasoning. Local state is deliberately NOT committed: the real timestamps arrive via the `onValue` listener, and committing the placeholder would put a value in state that was never stored.
 
-### Phases 1-3 — deliberately NOT built
-Parked at Matt's request until he's at his desk (~2026-08-18). **The reason for staging is that the failure mode here is invisible**: a bug doesn't throw, it shows a stale rating or silently omits a movie — the same shape as the Jul 2026 data-loss scare. Phase 0 was safe to ship precisely because nothing reads it, so a mistake costs a stray field.
-- **Phase 1 — shadow mode.** After the index deploys, run the delta query AND the full download on launch, compare, report divergence, act on neither. Proof before trust.
-- **Phase 2 — enable** behind a setting, with a "force full refresh" button and an automatic full resync every N days so staleness can't accumulate unboundedly.
-- **Phase 3 — default on.**
+### Phases 2/3 — shipped together, default on for everyone (2026-08-17)
+Phase 1 (shadow mode) ran Aug 14–17: 15 clean launches for Matt, a handful for others,
+and one real catch — the Aug 15 "Dune" divergence (entry stale on every boot, stamp
+exactly equal to lastSync, cause never conclusively named; `describeStaleEntry`
+instrumentation was added so a recurrence explains itself). Matt then called it:
+evidence thin but the failure mode bounded, ship the whole thing with revert paths.
+
+How it works (`launchPlan` in `deltaSync.js` + `initializeDB`):
+- A launch with a baseline (`deltaSyncMeta.lastSync`), a non-empty IndexedDB snapshot,
+  and a full sync within 3 days attaches a `startAt(lastSync)` **query listener** —
+  which serves both the catch-up set at attach and every live change for the session,
+  since every write's `serverTimestamp()` stamp is >= the baseline. A second (tiny)
+  listener on `movieLogDeletions` applies tombstones by the newer-stamp-wins rule.
+- Anything else — first run, lost snapshot, resync due, meta predating phase 2, any
+  error in the plan — attaches the old full listener, where the shadow comparison
+  still runs and records a reading. **Verification continues at resync cadence.**
+- Snapshot and `lastSync` are persisted together in the same reconstruction pass —
+  the invariant that keeps the next launch's `startAt` sound.
+- Escape hatch: "Refresh library from server" (Settings → Maintenance) clears the
+  baseline and reloads into a guaranteed full download.
+
+Known accepted risks, and what bounds them:
+- **Unstamped changes don't propagate via delta** (the Dune class). Healed by the
+  3-day full resync; detected by the shadow reading that resync records.
+- **Stale read → user edit → stale write-back** on multi-device use. Bounded by the
+  resync interval; recoverable from `~/cinemaroll-backups`.
+- A local serverTimestamp echo can overstate lastSync by client clock skew, which
+  could skip another device's near-simultaneous write until resync. Same bound.
+
+Revert: `git revert` + deploy (the meta/snapshot machinery is
+backward-compatible in both directions — a full-download build simply ignores it).
 
 Design notes for whoever picks this up:
 - **Tombstones are advisory, compared by time, not applied blindly.** Apply a deletion only when `movieLogDeletions/<key> > movieLog/<key>/updatedAt`. That way re-rating a previously deleted movie wins naturally on its newer timestamp, so nothing ever has to clear a tombstone — which would otherwise need to be atomic with the entry write and can't be, given `set()` is what that path uses.

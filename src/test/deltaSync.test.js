@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { maxUpdatedAt, reconstructFromDelta, diffLibraries, describeStaleEntry } from '@/assets/javascript/deltaSync.js';
+import { maxUpdatedAt, reconstructFromDelta, diffLibraries, describeStaleEntry, launchPlan, FULL_RESYNC_INTERVAL_MS } from '@/assets/javascript/deltaSync.js';
 
 function entry (title, updatedAt) {
   return { movie: { id: title, title }, ratings: [{ calculatedTotal: 7 }], updatedAt };
@@ -162,3 +162,36 @@ describe('diffLibraries ignores runtime-injected fields', () => {
     expect(detail.diffPaths.length).toBeGreaterThan(0) // the real rating diff survives
   })
 })
+
+describe('launchPlan (phase 2: which listener a launch attaches)', () => {
+  const NOW = 1_800_000_000_000;
+  const DAY = 24 * 60 * 60 * 1000;
+  const meta = (overrides) => ({ lastSync: 500, lastFullSyncAt: NOW - DAY, ...overrides });
+  const snapshot = { a: { movie: { id: 1 }, updatedAt: 500 } };
+
+  it('goes delta only when baseline, snapshot, and a recent full sync all exist', () => {
+    expect(launchPlan(meta(), snapshot, NOW)).toEqual({ mode: 'delta' });
+  });
+
+  it('full on a missing or lastSync-less baseline', () => {
+    expect(launchPlan(null, snapshot, NOW)).toEqual({ mode: 'full', reason: 'no-meta' });
+    expect(launchPlan({ savedAt: NOW }, snapshot, NOW)).toEqual({ mode: 'full', reason: 'no-meta' });
+  });
+
+  it('full when the snapshot is missing or empty — a lost snapshot with a surviving lastSync must never produce a near-empty library', () => {
+    expect(launchPlan(meta(), null, NOW)).toEqual({ mode: 'full', reason: 'no-snapshot' });
+    expect(launchPlan(meta(), {}, NOW)).toEqual({ mode: 'full', reason: 'no-snapshot' });
+  });
+
+  it('full when the periodic resync is due, or the meta predates phase 2 (no lastFullSyncAt)', () => {
+    expect(launchPlan(meta({ lastFullSyncAt: NOW - FULL_RESYNC_INTERVAL_MS - 1 }), snapshot, NOW))
+      .toEqual({ mode: 'full', reason: 'resync-due' });
+    expect(launchPlan({ lastSync: 500, savedAt: NOW }, snapshot, NOW))
+      .toEqual({ mode: 'full', reason: 'resync-due' });
+  });
+
+  it('a full sync exactly at the interval edge still counts as fresh', () => {
+    expect(launchPlan(meta({ lastFullSyncAt: NOW - FULL_RESYNC_INTERVAL_MS }), snapshot, NOW))
+      .toEqual({ mode: 'delta' });
+  });
+});

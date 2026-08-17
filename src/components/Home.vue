@@ -773,6 +773,19 @@
                 <h6 class="settings-subhead">Maintenance</h6>
 
                 <div class="mb-3">
+                                <label class="form-label d-block">Library sync</label>
+                                <small class="form-text text-white d-block mb-2">
+                                  The app normally downloads only what changed since your last visit. If a movie ever looks stale or missing, this re-downloads the whole library fresh from the server.
+                                </small>
+                                <button
+                                  class="btn btn-outline-info btn-sm"
+                                  @click="refreshLibraryFromServer"
+                                >
+                                  <i class="bi bi-arrow-repeat"></i> Refresh library from server
+                                </button>
+                              </div>
+
+                <div class="mb-3">
                                 <label class="form-label d-block">Box office data</label>
                                 <small class="form-text text-white d-block mb-2">
                                   Fetches budget/box office numbers for movies rated before that data started being saved automatically. Safe to run again anytime — it only fetches whatever's still missing.
@@ -4146,6 +4159,9 @@ export default {
         // batch write fails.
         await this.$store.dispatch('updateDatabaseEntriesNow', updates);
       }
+    },
+    refreshLibraryFromServer () {
+      this.$store.dispatch('forceFullLibraryRefresh');
     },
     async backfillBoxOfficeData () {
       if (this.boxOfficeBackfill.status === 'running') {

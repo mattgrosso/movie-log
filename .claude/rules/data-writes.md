@@ -91,9 +91,16 @@ failure). A deletion becomes an atomic `update()` writing a tombstone at
 `movieLogDeletions/<key>`. **Never stamp a deletion** — overlapping paths are rejected
 outright by Firebase.
 
-**Phases 1–3 are parked.** Nothing reads `updatedAt` yet. See
-`docs/history/data-and-offline.md` for the shadow-mode plan and the design notes
-(tombstones compared by time, `lastSync` as max received stamp, snapshot invalidation).
+**Phases 2/3 are LIVE for everyone (2026-08-17).** `launchPlan` (`deltaSync.js`)
+decides per launch: a `startAt(lastSync)` query listener normally, a full download on
+first run / lost snapshot / every 3 days / forced refresh — and the full launches still
+run the shadow comparison and record readings (`yarn delta-shadow-report`). Consequences
+for write code: **an unstamped `movieLog` write will not propagate to other devices
+until their next full resync** — `syncStamp.js` must keep covering every write path.
+The "Refresh library from server" button (Settings → Maintenance) and
+`forceFullLibraryRefresh` are the escape hatch. Design notes in
+`docs/history/data-and-offline.md` (tombstones compared by time, `lastSync` as max
+received stamp, snapshot + lastSync persisted together).
 
 ## Stored-entry shape
 

@@ -1,10 +1,12 @@
-// Delta sync phase 1 — SHADOW MODE. Pure, store-free logic for
-// reconstructing "what the library should look like" from the cached
-// snapshot plus a changes-since-lastSync query, and diffing that against
-// the full download the app still actually runs on. Nothing here alters
-// what any user sees: the full download remains the source of truth, and
-// this exists purely to prove (or disprove) that the delta path produces
-// an identical library before phase 2 ever trusts it.
+// Delta sync — pure, store-free logic for reconstructing the library from
+// the cached snapshot plus a changes-since-lastSync query.
+//
+// Phase 2/3 (2026-08-17): reconstruction is now the normal launch path for
+// everyone (see launchPlan). Every FULL_RESYNC_INTERVAL_MS each device does
+// a full download instead, which both heals anything the delta path can't
+// see and runs the shadow comparison (diffLibraries) against a fresh delta
+// reconstruction, recording the reading — so verification continues at
+// resync cadence even though the per-launch full download is gone.
 //
 // Design rules carried in from docs/history/data-and-offline.md:
 //   - lastSync is the maximum updatedAt actually RECEIVED, never a local
@@ -14,6 +16,35 @@
 //     previously deleted movie wins naturally on its newer stamp.
 
 export const UPDATED_AT_FIELD = 'updatedAt';
+
+// Phase 2/3: how often a launch does a FULL download anyway. The full
+// download is what heals anything the delta path can't see (an entry
+// changed without a restamp — the unexplained Dune divergence class), and
+// its onValue callback is where the shadow comparison runs, so every
+// resync is also a recorded verification. Three days: staleness stays
+// bounded tightly while costing one library download per device per
+// three days (~pennies).
+export const FULL_RESYNC_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000;
+
+// Decides how this launch loads the library. Delta requires BOTH the meta
+// (lastSync) and a non-empty prior snapshot — the design notes' "stored
+// and invalidated together" rule enforced by construction: if either half
+// is missing or the snapshot was somehow lost, fall back to a full
+// download rather than showing a near-empty library.
+// Returns { mode: 'delta' } or { mode: 'full', reason } where reason is
+// 'no-meta' | 'no-snapshot' | 'resync-due'.
+export function launchPlan (meta, snapshot, now = Date.now()) {
+  if (meta?.lastSync == null) return { mode: 'full', reason: 'no-meta' };
+  if (!snapshot || !Object.keys(snapshot).length) return { mode: 'full', reason: 'no-snapshot' };
+  // Meta written before phase 2 has no lastFullSyncAt — treat as due, so
+  // every device's first phase-2 launch is a full download that runs the
+  // shadow check and stamps a fresh baseline.
+  const lastFull = meta.lastFullSyncAt;
+  if (!Number.isFinite(lastFull) || now - lastFull > FULL_RESYNC_INTERVAL_MS) {
+    return { mode: 'full', reason: 'resync-due' };
+  }
+  return { mode: 'delta' };
+}
 
 // The maximum finite updatedAt across a library — the next lastSync after a
 // full download. Null when nothing is stamped (nothing to delta from).

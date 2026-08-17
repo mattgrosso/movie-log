@@ -20,7 +20,7 @@ import { getRating } from "../assets/javascript/GetRating";
 import router from '@/router';
 import ErrorLogService from "../services/ErrorLogService.js";
 import { saveSnapshot, loadSnapshot } from "../utils/offlineStore.js";
-import { maxUpdatedAt, reconstructFromDelta, diffLibraries, describeStaleEntry } from "../assets/javascript/deltaSync.js";
+import { maxUpdatedAt, reconstructFromDelta, diffLibraries, describeStaleEntry, launchPlan } from "../assets/javascript/deltaSync.js";
 import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite } from "../utils/pendingWriteQueue.js";
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
@@ -923,7 +923,28 @@ export default createStore({
           return null;
         }).catch(() => {});
 
-        onValue(ref(db, `${topKey}/movieLog`), (snapshot) => {
+        // Shared by both load modes: a cancelled listener means permission
+        // denied under the locked-down rules — a dead/wrong session, or dev
+        // mode pointing at a database this account can't read. The library
+        // isn't empty, this device just can't see it — surface that
+        // (LibraryAccessBanner) instead of leaving a silent empty grid.
+        const onMovieLogCancelled = (error) => {
+          console.error('movieLog listener cancelled:', error);
+          ErrorLogService.error('movieLog listener cancelled:', error);
+          context.commit('setDbReadDenied', true);
+          // Whatever the snapshot fallback managed to show is all there is;
+          // stop any loading state so the banner + cached view take over.
+          context.commit('setDbLoaded', true);
+        };
+
+        // Delta sync phase 2/3 (2026-08-17): which listener attaches decides
+        // what this launch downloads. launchPlan picks delta only when the
+        // lastSync baseline AND a non-empty snapshot both exist and a full
+        // resync isn't due; anything else — first run, lost snapshot, stale
+        // baseline, any error below — lands on the full listener, which is
+        // also where the shadow comparison keeps running (and recording
+        // readings) at resync cadence.
+        const attachFullListener = () => onValue(ref(db, `${topKey}/movieLog`), (snapshot) => {
           const data = snapshot.val();
 
           if (data) {
@@ -951,19 +972,77 @@ export default createStore({
           }
           context.commit('setDbReadDenied', false);
           context.commit('setDbLoaded', true);
-        }, (error) => {
-          // The listener was CANCELLED — under the locked-down rules that
-          // means permission denied: a dead/wrong session, or dev mode
-          // pointing at a database this account can't read. The library
-          // isn't empty, this device just can't see it — surface that
-          // (LibraryAccessBanner) instead of leaving a silent empty grid.
-          console.error('movieLog listener cancelled:', error);
-          ErrorLogService.error('movieLog listener cancelled:', error);
-          context.commit('setDbReadDenied', true);
-          // Whatever the snapshot fallback managed to show is all there is;
-          // stop any loading state so the banner + cached view take over.
-          context.commit('setDbLoaded', true);
-        });
+        }, onMovieLogCancelled);
+
+        // The delta path: a startAt(lastSync) query listener. Every write
+        // stamps updatedAt with serverTimestamp(), which is always >= the
+        // baseline, so the one query delivers BOTH the catch-up set at
+        // attach AND every live change for the rest of the session — the
+        // full listener's job at a fraction of the download. Deletions
+        // can't appear in a "what changed" query, so the (tiny) tombstone
+        // node is listened to alongside and applied by
+        // reconstructFromDelta's newer-stamp-wins rule.
+        const attachDeltaListener = (meta, priorSnapshot) => {
+          let latestDelta = null; // null = query hasn't fired; {} = fired, nothing changed
+          let latestTombstones = {};
+
+          const applyReconstruction = () => {
+            if (latestDelta === null) return;
+            const reconstructed = reconstructFromDelta(priorSnapshot, latestDelta, latestTombstones);
+            // Same in-flight + durable-queue re-tops as the full listener:
+            // the snapshot half of the reconstruction predates this
+            // session's writes by definition.
+            context.commit('setMovieLog', reapplyInFlightWrites(context.state, 'movieLog', reconstructed));
+            saveSnapshot(topKey, 'movieLog', reconstructed);
+            // Snapshot and lastSync advance TOGETHER in this same pass —
+            // the invariant that makes next launch's startAt(lastSync)
+            // sound. (A local serverTimestamp echo can briefly overstate
+            // lastSync by clock skew; the periodic full resync bounds it.)
+            const newLastSync = maxUpdatedAt(reconstructed);
+            if (newLastSync != null && newLastSync !== meta.lastSync) {
+              saveSnapshot(topKey, 'deltaSyncMeta', { ...meta, lastSync: newLastSync, savedAt: Date.now() });
+            }
+            context.dispatch('replayPendingWrites', 'movieLog');
+            context.commit('setDbReadDenied', false);
+            context.commit('setDbLoaded', true);
+          };
+
+          onValue(ref(db, `${topKey}/movieLogDeletions`), (snap) => {
+            latestTombstones = snap.val() || {};
+            applyReconstruction();
+          }, (error) => {
+            // Tombstones are advisory; a denied read here (same rules gate
+            // as movieLog, so this shouldn't happen alone) costs deletions
+            // propagating until the next full resync, not the library.
+            console.warn('movieLogDeletions listener cancelled:', error);
+          });
+
+          onValue(query(ref(db, `${topKey}/movieLog`), orderByChild('updatedAt'), startAt(meta.lastSync)), (snap) => {
+            latestDelta = snap.val() || {};
+            applyReconstruction();
+          }, onMovieLogCancelled);
+        };
+
+        (async () => {
+          try {
+            const meta = await loadSnapshot(topKey, 'deltaSyncMeta').catch(() => null);
+            // Only a launch that MIGHT go delta waits on the (big) snapshot
+            // read; with no baseline the full listener attaches without
+            // gating network on IndexedDB.
+            if (meta?.lastSync != null) {
+              const priorSnapshot = await priorSnapshotPromise;
+              const plan = launchPlan(meta, priorSnapshot);
+              if (plan.mode === 'delta') {
+                attachDeltaListener(meta, priorSnapshot);
+                return;
+              }
+              console.info(`[delta-sync] full download this launch: ${plan.reason}`);
+            }
+          } catch (error) {
+            console.warn('[delta-sync] falling back to full download:', error);
+          }
+          attachFullListener();
+        })();
 
         loadSnapshot(topKey, 'settings').then(async (cached) => {
           // settingsLoaded (not key-counting) decides whether the snapshot
@@ -1128,11 +1207,25 @@ export default createStore({
 
       await performDatabaseWrite(context, dbEntry);
     },
-    // Delta sync phase 1 — SHADOW MODE. Runs the real delta machinery on
-    // every launch and reports whether it would have produced the same
-    // library the full download did, while the app continues to run
-    // entirely on the full download. Divergence is the thing this exists to
-    // catch BEFORE phase 2 trusts the delta path — it logs loudly (console
+    // The phase-2 escape hatch ("Refresh library from server", Settings →
+    // Maintenance): wipe the delta baseline and reload, so the next launch
+    // is a guaranteed full download (launchPlan: 'no-meta') that rebuilds
+    // snapshot + lastSync from scratch. For the invisible failure mode —
+    // "this movie looks stale/missing and I don't trust it".
+    async forceFullLibraryRefresh (context) {
+      const topKey = context.getters.databaseTopKey;
+      try {
+        if (topKey) await saveSnapshot(topKey, 'deltaSyncMeta', null);
+      } catch (error) {
+        console.warn('forceFullLibraryRefresh: could not clear baseline:', error);
+      }
+      window.location.reload();
+    },
+    // Delta sync shadow comparison. In phase 1 it ran on every launch; since
+    // phase 2/3 (2026-08-17) it runs on every FULL launch (first run, lost
+    // snapshot, periodic resync, forced refresh) — the launches that still
+    // have both sides to compare. Divergence is the thing this exists to
+    // catch — it logs loudly (console
     // + ErrorLogService, visible in the in-app error log) and stashes a
     // report in state; agreement logs quietly. Never throws: any failure
     // here (offline probe, missing meta, first run) just means "no
@@ -1184,9 +1277,10 @@ export default createStore({
           context.dispatch('recordDeltaShadowReading', report);
         }
 
-        // Either way, this launch's full download is the new baseline.
+        // Either way, this launch's full download is the new baseline, and
+        // counts as the periodic full resync (launchPlan's lastFullSyncAt).
         if (newLastSync != null) {
-          await saveSnapshot(topKey, 'deltaSyncMeta', { lastSync: newLastSync, savedAt: Date.now() });
+          await saveSnapshot(topKey, 'deltaSyncMeta', { lastSync: newLastSync, savedAt: Date.now(), lastFullSyncAt: Date.now() });
         }
       } catch (error) {
         // Shadow mode must never affect the real load path.
