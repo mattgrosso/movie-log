@@ -4,8 +4,8 @@ A personal movie rating and tracking app (Vue 3, Options API). Users rate movies
 weighted criteria, track viewing history, and get insights into their patterns.
 
 **Live**: [cinemaroll.org](https://www.cinemaroll.org/) — S3 + CloudFront, via `yarn deploy`.
-(Old hosts surge.sh and Vercel are dead — the Vercel project was an abandoned
-June 2024 experiment; ignore its emails, don't resurrect either host.)
+(Old hosts surge.sh and Vercel are dead — the stray Vercel project from a
+June 2024 experiment was deleted in Aug 2026. Don't resurrect either host.)
 
 ## How this documentation is organised
 
