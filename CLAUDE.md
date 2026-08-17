@@ -3,7 +3,9 @@
 A personal movie rating and tracking app (Vue 3, Options API). Users rate movies across
 weighted criteria, track viewing history, and get insights into their patterns.
 
-**Live**: [cinema-roll.surge.sh](https://cinema-roll.surge.sh/)
+**Live**: [cinemaroll.org](https://www.cinemaroll.org/) — S3 + CloudFront, via `yarn deploy`.
+(Old hosts surge.sh and Vercel are dead — the Vercel project was an abandoned
+June 2024 experiment; ignore its emails, don't resurrect either host.)
 
 ## How this documentation is organised
 
