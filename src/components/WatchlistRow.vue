@@ -20,7 +20,7 @@
         <div v-else class="watchlist-poster watchlist-poster-blank">{{ item.title }}</div>
 
         <div class="watchlist-card-actions">
-          <SendToHat variant="icon" :movies="item.source"/>
+          <SendToHat variant="icon" :movies="item.source" :note="hatNote"/>
           <button
             v-if="puntable"
             type="button"
@@ -42,7 +42,7 @@
     <!-- Quiet, and after the list: the per-poster buttons are the everyday
          action, this is the bulk one. -->
     <div v-if="items.length" class="watchlist-row-bulk">
-      <SendToHat :movies="items.map((item) => item.source)"/>
+      <SendToHat :movies="items.map((item) => item.source)" :note="hatNote"/>
     </div>
   </div>
 </template>
@@ -77,7 +77,12 @@ export default {
     // [{ key, title, poster, meta, source }] — `source` is handed back on
     // select and passed to the hat.
     items: { type: Array, required: true },
-    puntable: { type: Boolean, default: false }
+    puntable: { type: Boolean, default: false },
+    // Plain-language provenance for the hat: "use plain language to label why
+    // that movie went into the hat" (2026-08-17). Every list on this screen
+    // supplies its own, so a draw can say it came from the rewatch pile or
+    // from a director you love.
+    hatNote: { type: String, default: null }
   },
   emits: ['select', 'punt']
 };

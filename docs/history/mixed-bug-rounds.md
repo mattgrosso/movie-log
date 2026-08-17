@@ -94,3 +94,47 @@ Verified live: the error is gone on the fixed bundle, and the loop immediately r
 103 pending suggestions with per-source `suggested` counts across all five sections —
 data it had never managed to write. (`hits` stay empty until one of those is rated,
 which is correct.)
+
+## Film Club round, the morning Brian's interop landed (Aug 2026)
+
+Five reports, all from one sitting on `/film-club` — Movie Log users had just started
+appearing in Cinema Roll. Four fixed here; the fifth ("what sort of visualizations can we
+come up with?") is a design question, not a defect.
+
+### The feed dead-ended on anything you hadn't seen
+
+*"Clicking a poster on the recent friends feed takes me to that movie in my db. But if I
+haven't seen that movie, it should instead take me nowhere. But we should have the
+universal 'add to hat' button on it."*
+
+MovieDetail is a **pure local lookup** — deliberately, see
+`.claude/rules/detail-and-insights.md` — so a friend's film you've never rated rendered
+an empty page. Now the tap is gated on `ratedTmdbIds`, and anything outside your library
+carries a `SendToHat` icon and a "Not in your library" label instead. A feed item is a
+bare `{id,t,p}` rather than a library entry, so `hatMovieFor` maps it onto the TMDB field
+names `toHatMovie` reads.
+
+### Hat movies now say where they came from
+
+*"We should include a note on that hat movie that explains where it came from so it could
+be a friendly recommendation... use plain language to label why that movie went into the
+hat."*
+
+`toHatMovie` had accepted a `note` since the integration landed and **nothing ever passed
+one**. Threaded through: `SendToHat` gained a `note` prop, `addToMovieHat` forwards it,
+and every call site supplies plain language — "Worth a rewatch", "From a director you
+love", "Filling out 2019", "Loved by the film club", "Brian watched this (8.3)".
+`addedBy` already says who; the note says why.
+
+### The other two
+
+- **Feed size**: published `recent` 20 → 40, the merged feed 30 → 60, and the feed row's
+  posters run larger than the other rows' (116px against 92px). Friends only get the
+  longer feed once they republish.
+- **Friend rows**: were a name, a title count and a chevron. Now titles, how many films
+  you've both rated, how closely you agree, when they last watched something, and four
+  posters of what that was. `friendSnapshot` is deliberately **not** `compareWithFriend`
+  — that returns twelve-item disagreement lists, shared loves and per-criterion gaps, all
+  of it discarded by a row; this walks the overlap once for the two numbers shown. It
+  reuses the same alignment definition (10 − mean absolute gap) so a row and the page it
+  opens can't disagree.

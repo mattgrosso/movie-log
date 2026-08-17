@@ -8,7 +8,7 @@
 // Published profile shape (social/profiles/<userKey>):
 //   { name, updatedAt, counts: {titles, viewings},
 //     topShelf: [{id,t,p,r} x10], crown: {t,p,r,year}|null,
-//     recent: [{id,t,p,r,at} x20],
+//     recent: [{id,t,p,r,at} x40],
 //     ratings: { [tmdbId]: {r, at, t, p, c?} } }
 // `c` is the eight-criterion breakdown as a fixed-order array (see CRITERIA)
 // and is published ONLY behind its own opt-in (shareCriteria) — the default
@@ -115,7 +115,10 @@ export function buildSocialProfile (entries, getRatingFn, { name, shareRatings =
     updatedAt: now,
     counts: { titles: rated.length, viewings },
     topShelf: byRating.slice(0, 10).map(({ id, t, p, r }) => ({ id, t, p, r })),
-    recent: byRecency.slice(0, 20).map(({ id, t, p, r, at, v }) => ({
+    // 40, not 20: "the recent feed on my film club could be larger"
+    // (2026-08-17). Each item is a handful of fields, so the profile stays a
+    // few KB. Friends only get the longer feed once they republish.
+    recent: byRecency.slice(0, 40).map(({ id, t, p, r, at, v }) => ({
       id, t, p, r, at, ...(v?.[0]?.m ? { m: v[0].m } : {})
     })),
     crown
@@ -283,7 +286,7 @@ export function filmClubSummary (myEntries, getRatingFn, friendProfiles) {
   // Merged recent-activity feed, newest first.
   const feed = profiles.flatMap(([key, profile]) =>
     (profile.recent || []).map((item) => ({ ...item, friendKey: key, friendName: profile.name }))
-  ).filter((item) => item.at).sort((a, b) => b.at - a.at).slice(0, 30);
+  ).filter((item) => item.at).sort((a, b) => b.at - a.at).slice(0, 60);
 
   // Club favorites: movies rated by 2+ people (me included), by average.
   const mine = new Map();
@@ -318,4 +321,50 @@ export function filmClubSummary (myEntries, getRatingFn, friendProfiles) {
     clubFavorites: [...multi].sort((a, b) => (b.average - a.average) || (b.scores.length - a.scores.length)).slice(0, 12),
     biggestDivides: [...multi].filter((m) => m.spread >= 2).sort((a, b) => b.spread - a.spread).slice(0, 12)
   };
+}
+
+// ---------------------------------------------------------------------------
+// A friend row on the Film Club screen. "The list of friends in my film club
+// is a bit sparse. Can we spruce it up a bit?" (2026-08-17) — it was a name,
+// a title count and a chevron.
+//
+// Deliberately NOT compareWithFriend: that returns twelve-item disagreement
+// and shared-love lists and per-criterion gaps, all of it thrown away here.
+// This walks the overlap once for the two numbers a row actually shows.
+export function friendSnapshot (myRatingsById, profile, { recentCount = 4 } = {}) {
+  const theirs = profile?.ratings || {};
+  let shared = 0;
+  let gapTotal = 0;
+
+  Object.entries(theirs).forEach(([id, their]) => {
+    const mine = myRatingsById?.get(Number(id));
+    if (!Number.isFinite(mine) || !Number.isFinite(their?.r)) return;
+    shared += 1;
+    gapTotal += Math.abs(mine - their.r);
+  });
+
+  const recent = (profile?.recent || []).filter((item) => item?.at)
+    .sort((a, b) => b.at - a.at);
+
+  return {
+    titles: profile?.counts?.titles ?? null,
+    viewings: profile?.counts?.viewings ?? null,
+    sharedCount: shared,
+    // Same definition the comparison page uses, so a row and the page it
+    // opens can't disagree: 10 minus the average absolute disagreement.
+    alignment: shared ? round2(Math.max(0, 10 - gapTotal / shared)) : null,
+    lastWatchedAt: recent[0]?.at ?? null,
+    recent: recent.slice(0, recentCount)
+  };
+}
+
+/** Ratings keyed by TMDB id, built once and shared across every friend row. */
+export function myRatingsById (myEntries, getRatingFn) {
+  const map = new Map();
+  (myEntries || []).forEach((entry) => {
+    const rating = getRatingFn(entry)?.calculatedTotal;
+    const id = entry?.movie?.id;
+    if (Number.isFinite(rating) && id != null) map.set(id, rating);
+  });
+  return map;
 }

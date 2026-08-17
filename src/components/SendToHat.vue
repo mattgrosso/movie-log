@@ -50,7 +50,11 @@ export default {
     // A Cinema Roll library entry, a TMDB movie, or a list of either.
     movies: { type: [Array, Object], required: true },
     label: { type: String, default: null },
-    variant: { type: String, default: 'button' }
+    variant: { type: String, default: 'button' },
+    // Plain-language provenance written onto the hat movie, so a draw can
+    // say where it came from ("Worth a rewatch", "Natalie watched this").
+    // Movie Hat renders it on the drawn-movie screen.
+    note: { type: String, default: null }
   },
   data () {
     return {
@@ -95,7 +99,8 @@ export default {
         const { added, skipped } = await this.$store.dispatch('addToMovieHat', {
           title: hat.title,
           dbKey: hat.dbKey,
-          entries: this.list
+          entries: this.list,
+          note: this.note
         });
         this.report({ message: this.summarize(added, skipped, hat.title) });
       } catch (error) {

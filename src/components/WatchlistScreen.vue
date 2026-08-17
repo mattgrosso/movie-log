@@ -8,7 +8,7 @@
          long time. -->
     <section v-if="rewatchList.length" class="watchlist-section">
       <h2 class="section-title">Worth a rewatch</h2>
-      <WatchlistRow :items="rewatchItems" puntable @select="goToMovie" @punt="punt"/>
+      <WatchlistRow :items="rewatchItems" puntable hat-note="Worth a rewatch" @select="goToMovie" @punt="punt"/>
     </section>
 
     <!-- Local, always available: movies the world loves more than you did
@@ -20,7 +20,7 @@
            Natalie (2026-08-16) — she took it as "I liked these and everyone
            else didn't". Say which way round it is in plain words. -->
       <p class="section-caption">You rated these low. Almost everyone else loves them.</p>
-      <WatchlistRow :items="anotherShotItems" puntable @select="goToMovie" @punt="punt"/>
+      <WatchlistRow :items="anotherShotItems" puntable hat-note="Worth a second look — rated low here, loved elsewhere" @select="goToMovie" @punt="punt"/>
     </section>
 
     <!-- TMDB-fed: well-regarded movies from years sitting just under the
@@ -30,7 +30,7 @@
       <h2 class="section-title">Get {{ section.year }} to {{ awardsThreshold }}</h2>
       <p class="section-caption">{{ section.count }} rated — {{ section.missing }} to go for awards.</p>
       <p v-if="yearsLoading" class="section-loading">Looking up {{ section.year }}&hellip;</p>
-      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" @select="rateMedia"/>
+      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" :hat-note="sectionHatNote(section)" @select="rateMedia"/>
       <p v-else class="section-loading">Nothing well-regarded found that you haven't already rated.</p>
     </section>
 
@@ -42,7 +42,7 @@
     <section v-if="friendPickMedia.length" class="watchlist-section">
       <h2 class="section-title">Your Film Club loves these</h2>
       <p class="section-caption">Rated 8 or better by friends, never rated by you. Agreement sorts first.</p>
-      <WatchlistRow :items="mediaItems(friendPickMedia)" @select="rateMedia"/>
+      <WatchlistRow :items="mediaItems(friendPickMedia)" hat-note="Loved by the film club" @select="rateMedia"/>
     </section>
 
     <section v-for="section in rankedSections" :key="section.key" class="watchlist-section">
@@ -52,7 +52,7 @@
         <span v-if="section.record" class="section-record">{{ section.record.hits }} of {{ section.record.suggested }} watched</span>
       </p>
       <p v-if="section.loading" class="section-loading">Looking up filmographies&hellip;</p>
-      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" @select="rateMedia"/>
+      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" :hat-note="sectionHatNote(section)" @select="rateMedia"/>
       <p v-else class="section-loading">Nothing new found — you've seen the good ones.</p>
     </section>
 
@@ -225,6 +225,16 @@ export default {
     // Order by what has actually earned watches (recommendationStats.js).
     // Sources with no history sit at the neutral prior, so a new section
     // still gets a fair showing rather than being buried.
+    sectionHatNoteMap () {
+      // Plain language, readable by whoever draws it out of a shared hat —
+      // so it says what Cinema Roll thought, not which code path ran.
+      return {
+        directors: 'From a director you love',
+        actors: 'Starring someone you love',
+        similar: 'Like one of your favorites',
+        gems: 'A hidden gem'
+      };
+    },
     rankedSections () {
       const sources = this.$store.state.settings?.watchlistLearning?.sources || {};
       return rankSections(this.peopleSections, sources).map((section) => ({
@@ -299,6 +309,11 @@ export default {
       const rounded = Math.round(years);
       if (rounded < 1) return 'a while ago';
       return rounded === 1 ? 'a year ago' : `${rounded} years ago`;
+    },
+    // Year sections carry the year; the people sections carry their key.
+    sectionHatNote (section) {
+      if (section?.year) return `Filling out ${section.year}`;
+      return this.sectionHatNoteMap[section?.key] || 'From your Cinema Roll watchlist';
     },
     goToMovie (entry) {
       if (entry?.movie?.id == null) return;

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults, countNewFriendUpdates, friendsLoveUnseen } from '@/assets/javascript/social.js'
+import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults, countNewFriendUpdates, friendsLoveUnseen ,
+  friendSnapshot,
+  myRatingsById
+} from '@/assets/javascript/social.js'
 
 const NOW = Date.UTC(2026, 7, 15)
 
@@ -264,3 +267,62 @@ describe('published viewings (where and when)', () => {
     expect(profile.ratings[1].v).toBeUndefined()
   })
 })
+
+describe('friendSnapshot', () => {
+  const mine = myRatingsById(
+    [
+      { movie: { id: 1 }, ratings: [{ calculatedTotal: 9 }] },
+      { movie: { id: 2 }, ratings: [{ calculatedTotal: 4 }] },
+      { movie: { id: 3 }, ratings: [{ calculatedTotal: 7 }] }
+    ],
+    (entry) => ({ calculatedTotal: entry.ratings[0].calculatedTotal })
+  );
+
+  const profile = {
+    counts: { titles: 120, viewings: 200 },
+    ratings: { 1: { r: 8 }, 2: { r: 6 }, 9: { r: 10 } },
+    recent: [
+      { id: 9, t: 'Newest', p: '/9.jpg', at: 300 },
+      { id: 1, t: 'Older', p: '/1.jpg', at: 100 },
+      { id: 2, t: 'Middle', p: '/2.jpg', at: 200 }
+    ]
+  };
+
+  it('counts only the movies you have both rated', () => {
+    // 3 is mine alone, 9 is theirs alone.
+    expect(friendSnapshot(mine, profile).sharedCount).toBe(2);
+  });
+
+  it('scores alignment the same way the comparison page does', () => {
+    // Gaps of 1 and 2 across two shared films: 10 - 1.5.
+    expect(friendSnapshot(mine, profile).alignment).toBe(8.5);
+  });
+
+  it('has no alignment to report when nothing overlaps', () => {
+    const snapshot = friendSnapshot(mine, { ratings: { 99: { r: 5 } } });
+
+    expect(snapshot.sharedCount).toBe(0);
+    expect(snapshot.alignment).toBe(null);
+  });
+
+  it('surfaces the most recent watches, newest first', () => {
+    const snapshot = friendSnapshot(mine, profile);
+
+    expect(snapshot.recent.map((item) => item.t)).toEqual(['Newest', 'Middle', 'Older']);
+    expect(snapshot.lastWatchedAt).toBe(300);
+  });
+
+  it('caps how many recent posters a row asks for', () => {
+    const many = { recent: Array.from({ length: 20 }, (unused, i) => ({ id: i, at: i })) };
+
+    expect(friendSnapshot(mine, many, { recentCount: 4 }).recent).toHaveLength(4);
+  });
+
+  it('survives a friend with no profile at all', () => {
+    const snapshot = friendSnapshot(mine, null);
+
+    expect(snapshot.titles).toBe(null);
+    expect(snapshot.sharedCount).toBe(0);
+    expect(snapshot.recent).toEqual([]);
+  });
+});

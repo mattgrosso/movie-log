@@ -116,3 +116,72 @@ describe('FilmClubScreen', () => {
     expect(wrapper.findAll('.cs-section-title').map((t) => t.text())).toContain('Friends');
   });
 });
+
+// "Clicking a poster on the recent friends feed takes me to that movie in my
+// db. But if I haven't seen that movie, it should instead take me nowhere.
+// But we should have the universal 'add to hat' button on it so I can add it
+// to a hat." (2026-08-17)
+//
+// MovieDetail is a pure lookup in YOUR library, so a friend's film you've
+// never rated rendered an empty page rather than saying anything useful.
+describe('FilmClubScreen feed taps', () => {
+  const seenAndUnseen = {
+    brian: {
+      name: 'Brian',
+      counts: { titles: 2 },
+      ratings: { 1: { r: 9 }, 7: { r: 8 } },
+      recent: [
+        { id: 1, t: 'Heat', p: '/1.jpg', r: 9, at: Date.now() - 2 * HOUR },
+        { id: 7, t: 'Unseen By Me', p: '/7.jpg', r: 8, at: Date.now() - 3 * HOUR }
+      ]
+    }
+  };
+
+  function feedScreen () {
+    return factory({ profiles: seenAndUnseen, myEntries: [myMovie(1, 'Heat', 8)] });
+  }
+
+  it('opens a movie that is in your library', () => {
+    const wrapper = feedScreen();
+    const push = wrapper.vm.$router.push;
+
+    wrapper.vm.openFeedItem({ id: 1, t: 'Heat' });
+
+    expect(push).toHaveBeenCalledWith('/movie/1');
+  });
+
+  it('goes nowhere for a movie you have never rated', () => {
+    const wrapper = feedScreen();
+    const push = wrapper.vm.$router.push;
+
+    wrapper.vm.openFeedItem({ id: 7, t: 'Unseen By Me' });
+
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('knows which feed items are in your library', () => {
+    const wrapper = feedScreen();
+
+    expect(wrapper.vm.inMyLibrary(1)).toBe(true);
+    expect(wrapper.vm.inMyLibrary(7)).toBe(false);
+    expect(wrapper.vm.inMyLibrary(null)).toBe(false);
+  });
+
+  // A feed item is a bare {id,t,p}, not a library entry — toHatMovie takes
+  // either, but it reads TMDB field names.
+  it('converts a feed item into something the hat understands', () => {
+    const wrapper = feedScreen();
+
+    expect(wrapper.vm.hatMovieFor({ id: 7, t: 'Unseen By Me', p: '/7.jpg' }))
+      .toMatchObject({ id: 7, title: 'Unseen By Me', poster_path: '/7.jpg' });
+  });
+
+  it('labels the hat note with who watched it and what they gave it', () => {
+    const wrapper = feedScreen();
+
+    expect(wrapper.vm.feedNote({ friendName: 'Brian', r: 8.25 }))
+      .toBe('Brian watched this (8.3)');
+    expect(wrapper.vm.feedNote({ friendName: 'Brian', r: null }))
+      .toBe('Brian watched this');
+  });
+});

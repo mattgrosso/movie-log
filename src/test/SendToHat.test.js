@@ -9,10 +9,10 @@ const HATS = [
   { title: 'Whole family', dbKey: 'k2' }
 ];
 
-function factory ({ movies, hats = HATS, result = { added: [], skipped: [] } } = {}) {
+function factory ({ movies, hats = HATS, note, result = { added: [], skipped: [] } } = {}) {
   const dispatch = vi.fn(() => (result instanceof Error ? Promise.reject(result) : Promise.resolve(result)));
   const wrapper = mount(SendToHat, {
-    props: { movies },
+    props: note === undefined ? { movies } : { movies, note },
     global: {
       mocks: { $store: { getters: { linkedMovieHats: hats }, dispatch } }
     }
@@ -64,6 +64,7 @@ describe('SendToHat', () => {
     expect(dispatch).toHaveBeenCalledWith('addToMovieHat', {
       title: 'Whole family',
       dbKey: 'k2',
+      note: null,
       entries: [movie(1, 'Heat')]
     });
   });
@@ -114,3 +115,34 @@ describe('SendToHat', () => {
     });
   });
 });
+
+// "We should include a note on that hat movie that explains where it came
+// from so it could be a friendly recommendation... use plain language to
+// label why that movie went into the hat." (2026-08-17)
+describe('SendToHat provenance note', () => {
+  it('passes the note through to the hat', async () => {
+    const { wrapper, dispatch } = factory({
+      movies: [movie(1, 'Heat')],
+      hats: [HATS[0]],
+      note: 'Worth a rewatch'
+    });
+
+    await wrapper.find('.hat-button').trigger('click');
+
+    expect(dispatch).toHaveBeenCalledWith(
+      'addToMovieHat',
+      expect.objectContaining({ note: 'Worth a rewatch' })
+    );
+  });
+
+  it('sends null when there is nothing to say, rather than an empty string', async () => {
+    const { wrapper, dispatch } = factory({ movies: [movie(1, 'Heat')], hats: [HATS[0]] });
+
+    await wrapper.find('.hat-button').trigger('click');
+
+    expect(dispatch).toHaveBeenCalledWith(
+      'addToMovieHat',
+      expect.objectContaining({ note: null })
+    );
+  });
+})

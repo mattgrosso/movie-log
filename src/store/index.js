@@ -1813,7 +1813,12 @@ export default createStore({
      * the screen can say "3 added, 1 was already in there" — Matt asked for
      * exactly that rather than Cinema Roll tracking hat contents itself.
      */
-    async addToMovieHat (context, { title, dbKey = null, entries = [] }) {
+    // `note` is plain-language provenance shown on the hat movie — "not sure
+    // you've noticed but there's a way to put a note on any movie you [pull]
+    // out of the hat so we have to make sure that's possible from Cinema Roll
+    // as well" (2026-08-17). It says WHY the movie went in; `addedBy` already
+    // says who put it there.
+    async addToMovieHat (context, { title, dbKey = null, entries = [], note = null }) {
       const hat = await fetchHat(title, dbKey);
       if (!hat) throw new Error(`Couldn't find a hat called "${title}"`);
 
@@ -1825,7 +1830,7 @@ export default createStore({
       const seen = [...hat.movies];
 
       for (const entry of entries) {
-        const payload = toHatMovie(entry, { addedBy });
+        const payload = toHatMovie(entry, { addedBy, note });
         if (!payload) continue;
 
         if (alreadyInHat(seen, payload.id)) {

@@ -25,12 +25,30 @@
            top, now with how long ago each viewing was. -->
       <section v-if="summary && summary.feed.length" class="cs-section">
         <h2 class="cs-section-title">Recently watched</h2>
-        <div class="cs-poster-row">
-          <div v-for="item in summary.feed" :key="`${item.friendKey}-${item.id}-${item.at}`" class="cs-poster-card" @click="goToMovie(item.id)">
-            <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="cs-poster">
-            <div v-else class="cs-poster cs-poster-blank">{{ item.t }}</div>
+        <div class="cs-poster-row cs-feed-row">
+          <div
+            v-for="item in summary.feed"
+            :key="`${item.friendKey}-${item.id}-${item.at}`"
+            class="cs-poster-card"
+            :class="{ 'cs-poster-tappable': inMyLibrary(item.id) }"
+            @click="openFeedItem(item)"
+          >
+            <div class="cs-poster-frame">
+              <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="cs-poster">
+              <div v-else class="cs-poster cs-poster-blank">{{ item.t }}</div>
+              <!-- Haven't seen it: tapping the poster would dead-end on an
+                   empty detail page, so the only action offered is the hat. -->
+              <SendToHat
+                v-if="!inMyLibrary(item.id)"
+                class="cs-poster-hat"
+                variant="icon"
+                :movies="hatMovieFor(item)"
+                :note="feedNote(item)"
+              />
+            </div>
             <span class="cs-poster-note">{{ item.friendName }} · {{ item.r != null ? item.r.toFixed(1) : '—' }}</span>
             <span v-if="watchedAgo(item.at)" class="cs-poster-when">{{ watchedAgo(item.at) }}</span>
+            <span v-if="!inMyLibrary(item.id)" class="cs-poster-unseen">Not in your library</span>
           </div>
         </div>
       </section>
@@ -41,13 +59,34 @@
       <section class="cs-section">
         <h2 class="cs-section-title">Friends</h2>
         <p v-if="!friendRows.length" class="cs-empty">No friends yet — open "Find people" below and send a request.</p>
-        <div v-for="friend in friendRows" :key="friend.key" class="cs-row cs-row-tappable" @click="$router.push(`/film-club/${friend.key}`)">
-          <span class="cs-row-name">{{ friend.name }}</span>
-          <span class="cs-row-detail">
+        <div v-for="friend in friendRows" :key="friend.key" class="cs-friend cs-row-tappable" @click="$router.push(`/film-club/${friend.key}`)">
+          <div class="cs-friend-head">
+            <span class="cs-friend-name">{{ friend.name }}</span>
+            <span class="cs-friend-chevron"><i class="bi bi-chevron-right"></i></span>
+          </div>
+
+          <p class="cs-friend-line">
             <span v-if="friend.error" class="cs-row-error">feed unreachable</span>
-            <template v-else>{{ friend.titles != null ? `${friend.titles} titles` : 'no profile yet' }}</template>
-            <i class="bi bi-chevron-right"></i>
-          </span>
+            <template v-else-if="friend.titles == null">no profile yet</template>
+            <template v-else>
+              <strong>{{ friend.titles }}</strong> titles
+              <template v-if="friend.sharedCount"> · <strong>{{ friend.sharedCount }}</strong> in common</template>
+              <template v-if="friend.alignment != null"> · <strong>{{ friend.alignment.toFixed(1) }}</strong> aligned</template>
+              <template v-if="friend.lastWatchedAt"> · last watched {{ watchedAgo(friend.lastWatchedAt) }}</template>
+            </template>
+          </p>
+
+          <!-- What they've been watching, rather than a bare count. -->
+          <div v-if="friend.recent.length" class="cs-friend-posters">
+            <img
+              v-for="item in friend.recent"
+              :key="`${friend.key}-${item.id}-${item.at}`"
+              :src="poster(item.p)"
+              :alt="item.t"
+              class="cs-friend-poster"
+              loading="lazy"
+            >
+          </div>
         </div>
       </section>
 
@@ -165,16 +204,23 @@
 // src/assets/javascript/social.js; this screen only renders and dispatches.
 import BackLink from './games/BackLink.vue';
 import SettingsSection from './SettingsSection.vue';
+import SendToHat from './SendToHat.vue';
+import { ratedTmdbIds } from '../assets/javascript/discover.js';
 import { timeAgo } from '../assets/javascript/timeAgo.js';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { filmClubSummary } from '../assets/javascript/social.js';
+import { filmClubSummary, friendSnapshot, myRatingsById } from '../assets/javascript/social.js';
 import { filterDirectory } from '../assets/javascript/interchange.js';
 import { omitQaAccounts, isQaAccountKey } from '../assets/javascript/databaseKey.js';
 
 export default {
   name: 'FilmClubScreen',
-  components: { BackLink, SettingsSection },
+  components: { BackLink, SettingsSection, SendToHat },
   computed: {
+    // TMDB ids of everything you've rated, for telling a friend's watch you
+    // can open from one you can't.
+    myTmdbIds () {
+      return ratedTmdbIds(this.$store.getters.allMoviesAsArray);
+    },
     socialSettings () {
       return this.$store.getters.socialSettings;
     },
@@ -226,15 +272,25 @@ export default {
         .filter(([key]) => !isQaAccountKey(key))
         .map(([key, request]) => ({ key, name: request?.name || this.nameFor(key) }));
     },
+    // Built once and shared by every friend row, rather than walking the
+    // library per friend.
+    myRatings () {
+      return myRatingsById(this.$store.getters.allMoviesAsArray || [], getRating);
+    },
     friendRows () {
-      return (this.$store.getters.filmClubFriends || []).map((friend) => ({
-        key: friend.key,
-        name: friend.name,
-        titles: friend.profile?.counts?.titles ?? null,
-        external: friend.external,
-        source: friend.source,
-        error: friend.error
-      }));
+      return (this.$store.getters.filmClubFriends || []).map((friend) => {
+        const snapshot = friendSnapshot(this.myRatings, friend.profile);
+        return {
+          key: friend.key,
+          name: friend.name,
+          external: friend.external,
+          source: friend.source,
+          error: friend.error,
+          ...snapshot,
+          // A poster-less recent item would render a broken image.
+          recent: snapshot.recent.filter((item) => item.p)
+        };
+      });
     },
     pendingRows () {
       return this.$store.getters.socialPendingSentKeys.map((key) => ({ key, name: this.nameFor(key) }));
@@ -320,6 +376,32 @@ export default {
       if (tmdbId == null) return;
       this.$router.push(`/movie/${tmdbId}`);
     },
+    inMyLibrary (tmdbId) {
+      return tmdbId != null && this.myTmdbIds.has(tmdbId);
+    },
+    // "Clicking a poster on the recent friends feed takes me to that movie in
+    // my db. But if I haven't seen that movie, it should instead take me
+    // nowhere" (2026-08-17). MovieDetail is a pure lookup in YOUR library, so
+    // a friend's film you've never rated rendered an empty page.
+    openFeedItem (item) {
+      if (!this.inMyLibrary(item?.id)) return;
+      this.goToMovie(item.id);
+    },
+    // A friend's feed item is a bare {id,t,p,...}, not a library entry —
+    // toHatMovie takes either, but it wants TMDB field names.
+    hatMovieFor (item) {
+      return {
+        id: item.id,
+        title: item.t,
+        poster_path: item.p || null,
+        release_date: '',
+        overview: ''
+      };
+    },
+    feedNote (item) {
+      const score = item.r != null ? ` (${item.r.toFixed(1)})` : '';
+      return `${item.friendName} watched this${score}`;
+    },
     goToTitle (movie) {
       this.goToMovie(movie.id);
     }
@@ -334,6 +416,70 @@ export default {
   padding: 0.75rem 1rem 2rem;
   width: 100%;
 }
+
+/* A friend row was a name, a count and a chevron. It now says how much you
+   overlap, how closely you agree and what they've just been watching
+   (2026-08-17: "the list of friends in my film club is a bit sparse"). */
+.cs-friend {
+  border-bottom: 1px solid #242424;
+  padding: 0.6rem 0;
+}
+
+.cs-friend:last-child { border-bottom: none; }
+
+.cs-friend-head {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+}
+
+.cs-friend-name { color: #fff; font-size: 1rem; font-weight: 700; }
+.cs-friend-chevron { color: #9a9a9a; }
+
+.cs-friend-line {
+  color: #b9b9b9;
+  font-size: 0.72rem;
+  margin: 0.15rem 0 0.4rem;
+}
+
+.cs-friend-line strong { color: #eee; }
+
+.cs-friend-posters { display: flex; gap: 0.35rem; }
+
+.cs-friend-poster {
+  border-radius: 4px;
+  display: block;
+  height: 66px;
+  object-fit: cover;
+  width: 44px;
+}
+
+/* The feed is the part Matt likes most and it read as a thin strip, so its
+   posters run larger than the other rows' (2026-08-17: "the recent feed on
+   my film club could be larger"). */
+.cs-feed-row .cs-poster-card { flex: 0 0 116px; width: 116px; }
+.cs-feed-row .cs-poster { height: 174px; width: 116px; }
+
+/* Feed posters carry an add-to-hat button for anything not in your library,
+   so an unopenable card still has something to do. */
+.cs-poster-frame { position: relative; }
+
+.cs-poster-hat {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+}
+
+.cs-poster-unseen {
+  color: #9a9a9a;
+  display: block;
+  font-size: 0.62rem;
+  line-height: 1.2;
+}
+
+/* Only the ones that go somewhere look like they do. */
+.cs-poster-tappable { cursor: pointer; }
+.cs-poster-tappable:active { transform: scale(0.97); }
 
 .cs-title { margin: 0.25rem 0 0; }
 .cs-subtitle { color: #ccc; font-size: 0.85rem; margin: 0.25rem 0 1rem; }
