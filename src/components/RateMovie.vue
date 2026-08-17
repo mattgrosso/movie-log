@@ -385,11 +385,10 @@ export default {
     }
   },
   mounted () {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-
+    // No scroll-to-top here any more: the router's scrollBehavior does it for
+    // every route (2026-08-17), instantly rather than smoothly, and doing it
+    // in both places produced a visible double movement. Same removal
+    // GamesHub's own workaround got when that policy first landed.
     this.$store.commit("setShowHeader", false);
     this.title = this.movieToRate.title;
     // An offline placeholder (see AddRating.js/placeholderId.js) has no

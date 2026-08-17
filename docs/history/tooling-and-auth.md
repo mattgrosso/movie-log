@@ -131,3 +131,48 @@ Automated sessions can't sign in, but they *can* run the app against `testing-da
 Used this to close the one gap the unit tests couldn't: that a real whole-entry write through the live client SDK stamps `updatedAt` with a server number, advances it past the prior value, and leaves `ratings` an array / `crew` intact / no `dbKey`-`_search` junk written back.
 
 **This stops working the moment the locked-down rules deploy** — `testing-database` then requires `auth.token.email` sanitized to equal the branch name, so it needs a real session plus the in-app dev-mode toggle. Worth doing any authenticated-write verification BEFORE that deploy.
+
+## Blanket scroll-to-top, with one exception (Aug 2026)
+
+Matt, once the navigation rework had made the rest of routing consistent: *"I would like
+to enforce a blanket policy that whenever you navigate to a new page, it should scroll to
+the top. One exception to this rule: if you start on the Home Screen, click a poster to go
+to a movie detail page, and then click back, it should return you to where it was scrolled
+on the home page."*
+
+The router's `scrollBehavior` was previously the inverse — scoped to `/games` and
+`/trophy-case`, returning `false` everywhere else — precisely because Home does its own
+restoration and a blanket rule would fight it. So every other route inherited whatever
+scroll position the previous page had.
+
+### Why it keys off `from`, not the navigation intent
+
+The obvious lever is `homePageNavigationIntent`, and it doesn't work. There are two paths
+back from MovieDetail to Home: the explicit close button pushes `/` with intent
+`'close'`, while BackLink calls `router.back()` and sets no intent at all. So `null` means
+both "came back from a movie via BackLink" and "arrived at Home from Insights", and Home
+restored its scroll for both — which is why returning from Insights used to drop you into
+the middle of the grid.
+
+The previous *route* separates them cleanly, and `scrollBehavior(to, from)` already
+receives it. `shouldRestoreHomeScroll` is exported and shared, so the router and Home
+can't drift into disagreeing about when the exception applies.
+
+### The ordering problem
+
+`scrollBehavior` runs **after** the target component mounts; Home needs the answer *in*
+`mounted()`. A `router.beforeEach` guard — which runs before — records it via
+`rememberNavigationSource`, and Home reads `arrivedFromMovieDetail()`. Home still scrolls
+itself as well as the router doing it, deliberately: Home renders its grid
+asynchronously, so the page can grow taller after the router has already scrolled.
+
+`behavior: 'instant'` remains mandatory. `<html>` has `scroll-behavior: smooth`, which
+makes a plain `window.scrollTo({top: 0})` a silent no-op in this app.
+
+`RateMovie.mounted`'s own `window.scrollTo` came out — the same per-component workaround
+GamesHub's did when the scoped policy first landed, now redundant and producing a visible
+double movement (instant from the router, then smooth from the component).
+
+Verified live: Home scrolled to 659 → open a movie → detail opens at 0 → back → Home
+returns to exactly 659; and Insights, Deep Stats, Watchlist, Year in Review, Trophy Case,
+the games hub and Home-from-Insights all land at 0.

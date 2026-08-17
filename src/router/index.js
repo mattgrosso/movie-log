@@ -1,6 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import store from "../store";
-import { gameAwareScrollBehavior } from "./scrollBehavior.js";
+import { appScrollBehavior, rememberNavigationSource } from "./scrollBehavior.js";
 import { handleRouterChunkError } from "../utils/staleChunkReload.js";
 
 const Home = () => import(/* webpackChunkName: "home" */ "../components/Home.vue");
@@ -602,9 +602,17 @@ const routes = [
 const router = createRouter({
   history: createWebHashHistory(),
   routes,
-  // Scoped to game routes only — see scrollBehavior.js for why this isn't
-  // a blanket scroll-to-top.
-  scrollBehavior: gameAwareScrollBehavior
+  // Blanket scroll-to-top on every navigation, with one exception for Home
+  // returning from a movie detail page — see scrollBehavior.js.
+  scrollBehavior: appScrollBehavior
+})
+
+// scrollBehavior runs AFTER the target component mounts, so it can't tell
+// Home whether this was the one navigation that restores a scroll position.
+// This guard runs before, and records it.
+router.beforeEach((to, from) => {
+  rememberNavigationSource(to, from);
+  return true;
 })
 
 // Safety net for scroll-lock leaks. Modals/overlays across the app lock body

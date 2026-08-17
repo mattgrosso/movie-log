@@ -1195,6 +1195,7 @@
 <script>
 import axios from 'axios';
 import { scrollWindowTo } from '../utils/scrollWindowTo.js';
+import { arrivedFromMovieDetail } from '../router/scrollBehavior.js';
 import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
 import cloneDeep from 'lodash/cloneDeep';
@@ -1528,17 +1529,32 @@ export default {
       // utils/scrollWindowTo.js.)
       const scrollPositionToRestore = this.$store.state.homePageScrollPosition;
 
-      // Restore scroll position after DOM updates and result rendering
+      // Restore scroll position after DOM updates and result rendering.
+      //
+      // Gated on having actually come back from a movie's detail page
+      // (2026-08-17). Every navigation now lands at the top of its page, and
+      // this is the single exception: "if you start on the Home Screen, click
+      // a poster to go to a movie detail page, and then click back, it should
+      // return you to where it was scrolled on the home page."
+      //
+      // The navigation intent alone can't carry that. `beforeRouteLeave`
+      // saves the scroll position on the way out to ANY screen, and both
+      // 'close' and null reach here — null covering both BackLink's
+      // router.back() from a movie AND arriving at Home from Insights. So
+      // returning from Insights used to drop you into the middle of the grid.
+      // The router knows the previous route; it records the answer for us.
       this.$nextTick(() => {
-        // Use captured navigation intent
-        if (navigationIntent === 'search') {
-          // For search navigation, always scroll to top
+        const restoring = arrivedFromMovieDetail() &&
+          navigationIntent !== 'search' &&
+          scrollPositionToRestore > 0;
+
+        if (restoring) {
+          scrollWindowTo(scrollPositionToRestore);
+        } else {
+          // Belt and braces with the router's own scroll-to-top: Home renders
+          // its grid asynchronously, so the page can grow taller after the
+          // router has already scrolled.
           scrollWindowTo(0);
-        } else if (navigationIntent === 'close' || navigationIntent === null) {
-          // For close navigation or normal restoration, restore saved position
-          if (scrollPositionToRestore > 0) {
-            scrollWindowTo(scrollPositionToRestore);
-          }
         }
       });
 
