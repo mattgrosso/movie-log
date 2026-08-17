@@ -285,3 +285,43 @@ Adding a second import from `GetRating.js` broke four existing `Insights.test.js
 returning undefined, so a module mock has to keep pace with what the component imports.
 
 Against the real library: 203 of 366 dates covered across 7 years, 163 never claimed.
+
+## MovieDetail: colour by section family (Aug 2026)
+
+Matt: *"I'm pretty happy with the movie detail page... see if you can get it to match some
+of our more recent styles, maybe a little more color, but I want all the information
+that's on there. I like it... I wouldn't want to get too much bulk here. So take a pass,
+but there's a good chance I'm gonna tell you to undo it."*
+
+So: a restrained, **height-neutral** pass. Nothing removed, no new surfaces, no new
+padding. The page went from 2,146px to 2,105px — slightly shorter than it started.
+
+The page was flat black with grey labels and a Bootstrap-Reboot underline under every
+name, which made the underline the loudest thing on it — a section listing fourteen
+editors was fourteen underlines. Colour now carries the meaning instead, one accent per
+family of section:
+
+| Family | Accent |
+|---|---|
+| People — directors, cast, writers, composers, editors, cinematographers, producers | `#79b0f2` |
+| Descriptors — genres, keywords, tags | `#6fd39b` |
+| Awards | `#ffc107` |
+| Facts — box office, made in, production companies | `#c191e8` |
+
+`h4`s became uppercase micro-labels in the section's accent, matching `.standout-facet`
+on Deep Stats and `.coverage-month` on Insights (and slightly *smaller* than what they
+replaced). `a.link` drops the underline and takes the accent, with `:active` for press
+feedback. Count bubbles went 0.5rem → 0.62rem, still inside the 1rem line box.
+
+Two things tried and pulled back inside the same pass:
+
+- **A hairline border on `.long-list`.** It reads well around a scrolling Cast or
+  Keywords list, but `.long-list` also wraps Box Office and Made In, which are one line
+  each — bordered, they looked like text inputs. Reverted to the original inset shadow.
+- **Awards all in gold** came out as a solid wall of it, which is exactly what Matt
+  objected to on Insights ("we need to figure out how to break up the wall of yellow").
+  Gold now means *won*; nominations drop to a muted amber `#b9a06a` (~8:1 on this
+  background), so the colour distinguishes them rather than just saying "award".
+
+**If this gets reverted**, it is one commit and touches only MovieDetail.vue's style
+block plus this note.

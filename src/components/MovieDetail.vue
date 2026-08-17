@@ -1895,6 +1895,29 @@ export default {
   max-width: 650px;
   padding: 1rem;
 
+  /* ---------------------------------------------------------------------
+     Section accents (2026-08-17). The page was entirely flat black with grey
+     labels and a Bootstrap-underlined link for every name, which made the
+     underline the loudest thing on it. Colour now carries meaning — each
+     family of section has its own — and every rule below is deliberately
+     height-neutral: no new surfaces, no new padding, nothing removed. Matt:
+     "I want all the information that's on there... I wouldn't want to get
+     too much bulk here."
+     --------------------------------------------------------------------- */
+  .directors, .cast, .writers, .composers,
+  .editors, .cinematographers, .producers { --sec: #79b0f2; }
+
+  .genres, .keywords, .tags { --sec: #6fd39b; }
+
+  .awards { --sec: #ffc107; }
+
+  /* Every award name in gold was a wall of it — "we need to figure out how to
+     break up the wall of yellow" (Insights, 2026-08-16). Gold now means won;
+     nominated is a muted amber (#b9a06a, ~8:1 on this background). */
+  .awards .nominees a.link { color: #b9a06a; }
+
+  .box-office, .production-countries, .production-companies { --sec: #c191e8; }
+
   a {
     color: white;
     cursor: pointer;
@@ -1904,6 +1927,40 @@ export default {
     font-size: 0.75rem;
     margin-bottom: 2px;
     color: #fff;
+  }
+
+  /* Micro-label, matching .standout-facet on Deep Stats and .coverage-month
+     on Insights. Smaller than what it replaces, so it costs no height. */
+  .directors, .cast, .writers, .composers, .editors, .cinematographers,
+  .producers, .genres, .keywords, .tags, .awards, .box-office,
+  .production-countries, .production-companies {
+    > h4,
+    > .tags-header > h4,
+    > .keywords-header > h4 {
+      color: var(--sec);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* The underline was Bootstrap Reboot's, not a decision. Colour carries
+       the "this is tappable" signal instead, and it reads far quieter across
+       a list of fourteen editors. */
+    a.link {
+      color: var(--sec);
+      text-decoration: none;
+    }
+
+    /* Mobile-first: press feedback is :active only — a tapped link on iOS
+       keeps a :hover state forever, with no mouse to leave it. */
+    a.link:active {
+      opacity: 0.6;
+    }
+
+    .small-count-bubble {
+      color: #9a9a9a;
+    }
   }
 
   p {
@@ -2363,7 +2420,9 @@ export default {
 
   .small-count-bubble {
     bottom: 3px;
-    font-size: 0.5rem;
+    /* 0.5rem was under the legibility floor; 0.62rem still sits inside the
+       1rem line box, so lines don't grow. */
+    font-size: 0.62rem;
     position: relative;
   }
 
