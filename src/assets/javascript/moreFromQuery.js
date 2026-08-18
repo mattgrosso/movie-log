@@ -20,16 +20,19 @@
 // constraints are applied to its results however they can be — locally for
 // genre and year, and by intersecting with a discover call for the rest.
 
-/** Chip types /discover can express directly. */
-const DISCOVERABLE = new Set(['genre', 'person', 'company', 'keyword', 'year', 'yearRange']);
+import { FILTER_KINDS } from './filterKinds.js';
 
 /**
  * Sort the active chips into what can be asked of TMDB, what has to lead as
  * a text search, and what is ours alone.
  *
- * `tag` is a Cinema Roll concept — your own labels on your own library — so
- * TMDB has nothing to say about it. It filters the results list as always;
- * it simply cannot narrow a suggestion of something you have never seen.
+ * Which slot a chip fills is the kind's own knowledge — its discoverGroup in
+ * the registry (Phase 3). `tag` and its relatives declare 'local': your own
+ * labels on your own library, which TMDB has nothing to say about. They
+ * filter the results list as always; they simply cannot narrow a suggestion
+ * of something you have never seen. A type the registry doesn't know lands
+ * in 'local' too, which is the conservative direction — never widen a fetch
+ * over a chip we don't understand.
  */
 export function partitionFilters (filters) {
   const groups = {
@@ -39,24 +42,15 @@ export function partitionFilters (filters) {
 
   (filters || []).forEach((filter) => {
     if (!filter?.type) return;
-
-    switch (filter.type) {
-      case 'genre': groups.genres.push(filter); break;
-      case 'person': groups.people.push(filter); break;
-      case 'company': groups.companies.push(filter); break;
-      case 'keyword': groups.keywords.push(filter); break;
-      case 'year': groups.years.push(filter); break;
-      case 'yearRange': groups.ranges.push(filter); break;
-      case 'general': groups.texts.push(filter); break;
-      default: groups.local.push(filter); break;
-    }
+    const group = FILTER_KINDS[filter.type]?.discoverGroup || 'local';
+    groups[group].push(filter);
   });
 
   return groups;
 }
 
 export function hasDiscoverableFilters (groups) {
-  return DISCOVERABLE.size > 0 && (
+  return (
     groups.genres.length || groups.people.length || groups.companies.length ||
     groups.keywords.length || groups.years.length || groups.ranges.length
   ) > 0;
