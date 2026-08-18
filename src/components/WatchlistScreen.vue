@@ -81,6 +81,7 @@ import { friendsLoveUnseen } from '../assets/javascript/social.js';
 import { rankSections, sourceSummary } from '../assets/javascript/recommendationStats.js';
 import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, peopleYouRateHigher, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds, tasteProfile, puntKeyFor, nextPunt, isPunted } from '../assets/javascript/discover.js';
 import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
+import { formatScore } from '../assets/javascript/formatScore.js';
 
 // Long enough to read the "added to <hat>" confirmation before the card that
 // owns it leaves the list.
@@ -123,7 +124,7 @@ export default {
         title: candidate.entry.movie.title,
         poster: this.posterUrl(candidate.entry),
         // The poster already says which film it is; this says why it's here.
-        meta: `${candidate.rating.toFixed(1)} · ${this.yearsAgoLabel(candidate.yearsSince)}`,
+        meta: `${formatScore(candidate.rating)} · ${this.yearsAgoLabel(candidate.yearsSince)}`,
         source: candidate.entry
       }));
     },
@@ -132,7 +133,7 @@ export default {
         key: candidate.entry.dbKey,
         title: candidate.entry.movie.title,
         poster: this.posterUrl(candidate.entry),
-        meta: `You ${candidate.yours.toFixed(1)} · World ${candidate.community.toFixed(1)}`,
+        meta: `You ${formatScore(candidate.yours)} · World ${formatScore(candidate.community)}`,
         source: candidate.entry
       }));
     },
@@ -204,8 +205,8 @@ export default {
         title: pick.title,
         poster_path: pick.poster_path,
         note: pick.fanCount > 1
-          ? `${pick.fanCount} friends · ${pick.average.toFixed(1)} avg`
-          : `${pick.fans[0].name} · ${pick.fans[0].rating.toFixed(1)}`
+          ? `${pick.fanCount} friends · ${formatScore(pick.average)} avg`
+          : `${pick.fans[0].name} · ${formatScore(pick.fans[0].rating)}`
       }));
     },
     peopleSections () {

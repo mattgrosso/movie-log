@@ -15,7 +15,7 @@
            it's telling me two different numbers"). -->
       <div v-if="comparison && comparison.sharedCount" class="fc-strip">
         <div class="fc-strip-item">
-          <span class="fc-strip-value">{{ comparison.alignment.toFixed(1) }}</span>
+          <span class="fc-strip-value">{{ formatScore(comparison.alignment) }}</span>
           <span class="fc-strip-label">alignment</span>
         </div>
         <div class="fc-strip-item">
@@ -29,7 +29,7 @@
       </div>
       <p v-if="comparison && comparison.sharedCount" class="fc-strip-note">
         <strong>Alignment</strong> is 10 minus how far apart your scores usually are — you two
-        typically land {{ comparison.averageGap.toFixed(1) }} apart on the {{ comparison.sharedCount }}
+        typically land {{ formatScoreGap(comparison.averageGap) }} apart on the {{ comparison.sharedCount }}
         {{ comparison.sharedCount === 1 ? 'movie' : 'movies' }} you've both rated, so 10 would mean identical scores every time.
       </p>
       <p v-if="comparison && comparison.myLogScore != null" class="fc-strip-note">
@@ -47,7 +47,7 @@
           <div v-for="item in recentViews" :key="`recent-${item.id}-${item.at}`" class="fc-poster-card" @click="goToMovie(item.id)">
             <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="fc-poster">
             <div v-else class="fc-poster fc-poster-blank">{{ item.t }}</div>
-            <span class="fc-poster-note">{{ item.r != null ? item.r.toFixed(1) : '—' }}</span>
+            <span class="fc-poster-note">{{ formatScore(item.r) }}</span>
             <span v-if="watchedAgo(item.at)" class="fc-poster-when">{{ watchedAgo(item.at) }}</span>
           </div>
         </div>
@@ -59,7 +59,7 @@
         <div class="fc-poster-row">
           <div v-for="item in comparison.sharedLoves" :key="item.entry.dbKey" class="fc-poster-card" @click="goToMovie(item.entry.movie.id)">
             <img v-if="item.entry.movie.poster_path" :src="poster(item.entry.movie.poster_path)" :alt="item.entry.movie.title" class="fc-poster">
-            <span class="fc-poster-note">{{ item.mine.toFixed(1) }} · {{ item.theirs.toFixed(1) }}</span>
+            <span class="fc-poster-note">{{ formatScore(item.mine) }} · {{ formatScore(item.theirs) }}</span>
           </div>
         </div>
       </section>
@@ -71,7 +71,7 @@
           <div v-for="item in comparison.theyLoveUnseen" :key="item.id" class="fc-poster-card" @click="goToMovie(item.id)">
             <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="fc-poster">
             <div v-else class="fc-poster fc-poster-blank">{{ item.t }}</div>
-            <span class="fc-poster-note">{{ item.r.toFixed(1) }}</span>
+            <span class="fc-poster-note">{{ formatScore(item.r) }}</span>
           </div>
         </div>
       </section>
@@ -101,9 +101,9 @@
             <img v-if="item.entry.movie.poster_path" :src="poster(item.entry.movie.poster_path)" :alt="item.entry.movie.title" class="fc-thumb">
             <div class="fc-versus-info">
               <span class="fc-row-name">{{ item.entry.movie.title }}</span>
-              <span class="fc-versus-scores">You {{ item.mine.toFixed(1) }} · {{ profile.name }} {{ item.theirs.toFixed(1) }}</span>
+              <span class="fc-versus-scores">You {{ formatScore(item.mine) }} · {{ profile.name }} {{ formatScore(item.theirs) }}</span>
             </div>
-            <span class="fc-gap-badge">{{ Math.abs(item.gap).toFixed(1) }}</span>
+            <span class="fc-gap-badge">{{ formatScoreGap(item.gap) }}</span>
           </div>
           <div v-if="expandedKey === item.entry.dbKey" class="fc-detail">
             <div v-if="item.myViewings?.length || item.theirViewings?.length" class="fc-viewings">
@@ -115,8 +115,8 @@
             <div class="fc-detail-head"><span></span><span>You</span><span>{{ profile.name }}</span></div>
             <div v-for="row in detailFor(item)" :key="row.criterion" class="fc-detail-row">
               <span class="fc-detail-name">{{ criterionLabel(row.criterion) }}</span>
-              <span :class="{ 'fc-detail-win': row.mine > row.theirs }">{{ row.mine.toFixed(1) }}</span>
-              <span :class="{ 'fc-detail-win': row.theirs > row.mine }">{{ row.theirs.toFixed(1) }}</span>
+              <span :class="{ 'fc-detail-win': row.mine > row.theirs }">{{ formatScore(row.mine) }}</span>
+              <span :class="{ 'fc-detail-win': row.theirs > row.mine }">{{ formatScore(row.theirs) }}</span>
             </div>
           </div>
         </div>
@@ -131,7 +131,7 @@
           <div v-for="item in profile.topShelf" :key="item.id" class="fc-poster-card" @click="goToMovie(item.id)">
             <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="fc-poster">
             <div v-else class="fc-poster fc-poster-blank">{{ item.t }}</div>
-            <span class="fc-poster-note">{{ item.r.toFixed(1) }}</span>
+            <span class="fc-poster-note">{{ formatScore(item.r) }}</span>
           </div>
         </div>
       </section>
@@ -157,6 +157,7 @@ import { timeAgo } from '../assets/javascript/timeAgo.js';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { compareWithFriend, CRITERIA } from '../assets/javascript/social.js';
 import { logScoreSettings } from '../assets/javascript/logScore.js';
+import { formatScore, formatScoreGap } from '../assets/javascript/formatScore.js';
 
 export default {
   name: 'FriendComparison',
@@ -207,6 +208,9 @@ export default {
     }
   },
   methods: {
+    // Template-exposed; two decimals on every score (bug report).
+    formatScore,
+    formatScoreGap,
     watchedAgo (at) {
       return timeAgo(at);
     },

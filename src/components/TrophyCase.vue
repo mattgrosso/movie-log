@@ -138,14 +138,14 @@
               <div class="versus-side">
                 <img v-if="upset.robbed.movie.poster_path" :src="`https://image.tmdb.org/t/p/w185${upset.robbed.movie.poster_path}`" :alt="upset.robbed.movie.title" class="versus-poster">
                 <div v-else class="versus-poster versus-poster-placeholder">?</div>
-                <span class="versus-tag robbed">robbed · {{ upset.robbedRating.toFixed(1) }}</span>
+                <span class="versus-tag robbed">robbed · {{ formatScore(upset.robbedRating) }}</span>
                 <span class="versus-title">{{ upset.robbed.name || upset.robbed.movie.title }}</span>
               </div>
               <span class="versus-vs">vs</span>
               <div class="versus-side">
                 <img v-if="upset.winner.movie.poster_path" :src="`https://image.tmdb.org/t/p/w185${upset.winner.movie.poster_path}`" :alt="upset.winner.movie.title" class="versus-poster">
                 <div v-else class="versus-poster versus-poster-placeholder">?</div>
-                <span class="versus-tag you">your pick · {{ upset.winnerRating.toFixed(1) }}</span>
+                <span class="versus-tag you">your pick · {{ formatScore(upset.winnerRating) }}</span>
                 <span class="versus-title">{{ upset.winner.name || upset.winner.movie.title }}</span>
               </div>
             </div>
@@ -162,6 +162,7 @@ import { expandNomineeFromMinimal } from '../assets/javascript/personalAwards.js
 import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins, rankSweeps, winStreaks, categoryOwners, longestWaits, rankUpsets } from '../assets/javascript/awardStats.js';
 import { getRating } from '../assets/javascript/GetRating.js';
 import BackLink from './games/BackLink.vue';
+import { formatScore } from '../assets/javascript/formatScore.js';
 
 export default {
   components: { BackLink },
@@ -405,6 +406,8 @@ export default {
     }
   },
   methods: {
+    // Template-exposed; two decimals on every score (bug report).
+    formatScore,
     toggleFilms (shelfKey, person) {
       const already = this.isExpanded(shelfKey, person.cardKey);
       this.expandedCard = already

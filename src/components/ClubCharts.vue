@@ -30,7 +30,7 @@
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="cc-scatter-svg">
             <line x1="0" y1="100" x2="100" y2="0" class="cc-diagonal"/>
           </svg>
-          <span class="cc-scatter-domain">{{ mapDomain.min.toFixed(1) }}–{{ mapDomain.max.toFixed(1) }}</span>
+          <span class="cc-scatter-domain">{{ formatScore(mapDomain.min) }}–{{ formatScore(mapDomain.max) }}</span>
           <div
             v-for="point in map"
             :key="point.key"
@@ -48,7 +48,7 @@
           <li v-for="point in map" :key="`r-${point.key}`">
             <span class="cc-swatch" :style="{ background: colorFor(point.key) }"></span>
             <strong>{{ point.name }}</strong>
-            {{ leanPhrase(point) }} · {{ point.shared }} shared · {{ point.alignment.toFixed(1) }} aligned
+            {{ leanPhrase(point) }} · {{ point.shared }} shared · {{ formatScore(point.alignment) }} aligned
           </li>
         </ul>
       </section>
@@ -85,7 +85,7 @@
           genre, across the films you've both rated.
         </p>
 
-        <p class="cc-scale-note">Bars are scaled to {{ sliceDomain.min.toFixed(1) }}–{{ sliceDomain.max.toFixed(1) }}, the range actually in play.</p>
+        <p class="cc-scale-note">Bars are scaled to {{ formatScore(sliceDomain.min) }}–{{ formatScore(sliceDomain.max) }}, the range actually in play.</p>
 
         <div v-if="byDecade.length" class="cc-slice">
           <h3 class="cc-slice-title">By decade</h3>
@@ -101,7 +101,7 @@
                   :title="`${friend.name}: ${friend.alignment} over ${friend.films} films`"
                 >
                   <span class="cc-slice-who">{{ friend.name }}</span>
-                  <span class="cc-slice-value">{{ friend.alignment.toFixed(1) }}</span>
+                  <span class="cc-slice-value">{{ formatScore(friend.alignment) }}</span>
                 </div>
               </div>
             </div>
@@ -122,7 +122,7 @@
                   :title="`${friend.name}: ${friend.alignment} over ${friend.films} films`"
                 >
                   <span class="cc-slice-who">{{ friend.name }}</span>
-                  <span class="cc-slice-value">{{ friend.alignment.toFixed(1) }}</span>
+                  <span class="cc-slice-value">{{ formatScore(friend.alignment) }}</span>
                 </div>
               </div>
             </div>
@@ -186,8 +186,8 @@
           >
             <img v-if="moment.poster" :src="poster(moment.poster)" :alt="moment.title" class="cc-poster">
             <div v-else class="cc-poster cc-poster-blank">{{ moment.title }}</div>
-            <span class="cc-poster-note" :style="{ color: colorFor(moment.whoKey) }">{{ moment.who }} {{ moment.score.toFixed(1) }}</span>
-            <span class="cc-poster-sub">club {{ moment.groupAverage.toFixed(1) }}</span>
+            <span class="cc-poster-note" :style="{ color: colorFor(moment.whoKey) }">{{ moment.who }} {{ formatScore(moment.score) }}</span>
+            <span class="cc-poster-sub">club {{ formatScore(moment.groupAverage) }}</span>
           </div>
         </div>
       </section>
@@ -249,10 +249,10 @@
                 class="cc-poster-hat"
                 variant="icon"
                 :movies="hatMovieFor(spot)"
-                :note="`A club blind spot — ${spot.friends} friends rated it ${spot.average.toFixed(1)}`"
+                :note="`A club blind spot — ${spot.friends} friends rated it ${formatScore(spot.average)}`"
               />
             </div>
-            <span class="cc-poster-note">{{ spot.average.toFixed(1) }}</span>
+            <span class="cc-poster-note">{{ formatScore(spot.average) }}</span>
             <span class="cc-poster-sub">{{ spot.friends }} friends</span>
           </div>
         </div>
@@ -287,6 +287,7 @@ import BackLink from './games/BackLink.vue';
 import SendToHat from './SendToHat.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { CRITERIA } from '../assets/javascript/social.js';
+import { formatScore, formatScoreGap } from '../assets/javascript/formatScore.js';
 import {
   memberColors,
   YOU_COLOR,
@@ -391,6 +392,9 @@ export default {
     this.$store.dispatch('fetchFriendProfiles');
   },
   methods: {
+    // Template-exposed; two decimals on every score (bug report).
+    formatScore,
+    formatScoreGap,
     colorFor (key) {
       return key === 'you' ? YOU_COLOR : (this.colors[key] || '#9a9a9a');
     },
@@ -427,7 +431,7 @@ export default {
     },
     leanPhrase (point) {
       if (Math.abs(point.lean) < 0.25) return 'rates them just like you';
-      const amount = Math.abs(point.lean).toFixed(1);
+      const amount = formatScoreGap(point.lean);
       return point.lean > 0 ? `runs ${amount} hotter` : `runs ${amount} cooler`;
     },
     apartPhrase (days) {

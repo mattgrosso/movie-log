@@ -176,11 +176,13 @@ describe('FilmClubScreen feed taps', () => {
       .toMatchObject({ id: 7, title: 'Unseen By Me', poster_path: '/7.jpg' });
   });
 
+  // Two decimals, always (bug report 2026-08-18). 8.25 used to render as
+  // "8.3" here, which is a score Brian never gave anything.
   it('labels the hat note with who watched it and what they gave it', () => {
     const wrapper = feedScreen();
 
     expect(wrapper.vm.feedNote({ friendName: 'Brian', r: 8.25 }))
-      .toBe('Brian watched this (8.3)');
+      .toBe('Brian watched this (8.25)');
     expect(wrapper.vm.feedNote({ friendName: 'Brian', r: null }))
       .toBe('Brian watched this');
   });

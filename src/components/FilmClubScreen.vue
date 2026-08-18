@@ -46,7 +46,7 @@
                 :note="feedNote(item)"
               />
             </div>
-            <span class="cs-poster-note">{{ item.friendName }} · {{ item.r != null ? item.r.toFixed(1) : '—' }}</span>
+            <span class="cs-poster-note">{{ item.friendName }} · {{ formatScore(item.r) }}</span>
             <span v-if="watchedAgo(item.at)" class="cs-poster-when">{{ watchedAgo(item.at) }}</span>
             <span v-if="!inMyLibrary(item.id)" class="cs-poster-unseen">Not in your library</span>
           </div>
@@ -71,7 +71,7 @@
             <template v-else>
               <strong>{{ friend.titles }}</strong> titles
               <template v-if="friend.sharedCount"> · <strong>{{ friend.sharedCount }}</strong> in common</template>
-              <template v-if="friend.alignment != null"> · <strong>{{ friend.alignment.toFixed(1) }}</strong> aligned</template>
+              <template v-if="friend.alignment != null"> · <strong>{{ formatScore(friend.alignment) }}</strong> aligned</template>
               <template v-if="friend.lastWatchedAt"> · last watched {{ watchedAgo(friend.lastWatchedAt) }}</template>
             </template>
           </p>
@@ -114,7 +114,7 @@
             <div class="cs-consensus-info">
               <span class="cs-row-name">{{ movie.t }}</span>
               <span class="cs-scores">
-                <span v-for="score in movie.scores" :key="score.who" class="cs-score-chip">{{ score.who }} {{ score.r.toFixed(1) }}</span>
+                <span v-for="score in movie.scores" :key="score.who" class="cs-score-chip">{{ score.who }} {{ formatScore(score.r) }}</span>
               </span>
             </div>
             <span class="cs-average">{{ movie.average.toFixed(2) }}</span>
@@ -131,10 +131,10 @@
             <div class="cs-consensus-info">
               <span class="cs-row-name">{{ movie.t }}</span>
               <span class="cs-scores">
-                <span v-for="score in movie.scores" :key="score.who" class="cs-score-chip">{{ score.who }} {{ score.r.toFixed(1) }}</span>
+                <span v-for="score in movie.scores" :key="score.who" class="cs-score-chip">{{ score.who }} {{ formatScore(score.r) }}</span>
               </span>
             </div>
-            <span class="cs-average cs-spread">±{{ movie.spread.toFixed(1) }}</span>
+            <span class="cs-average cs-spread">±{{ formatScoreGap(movie.spread) }}</span>
           </div>
         </div>
       </section>
@@ -222,6 +222,7 @@ import { getRating } from '../assets/javascript/GetRating.js';
 import { filmClubSummary, friendSnapshot, myRatingsById } from '../assets/javascript/social.js';
 import { filterDirectory } from '../assets/javascript/interchange.js';
 import { omitQaAccounts, isQaAccountKey } from '../assets/javascript/databaseKey.js';
+import { formatScore, formatScoreGap } from '../assets/javascript/formatScore.js';
 
 export default {
   name: 'FilmClubScreen',
@@ -344,6 +345,11 @@ export default {
     this.$store.commit('markFilmClubSeen');
   },
   methods: {
+    // Exposed so the template can call them — an Options API template can't
+    // reach module scope. Two decimals on every score (bug report); see
+    // assets/javascript/formatScore.js.
+    formatScore,
+    formatScoreGap,
     watchedAgo (at) {
       return timeAgo(at);
     },
@@ -414,7 +420,7 @@ export default {
       };
     },
     feedNote (item) {
-      const score = item.r != null ? ` (${item.r.toFixed(1)})` : '';
+      const score = item.r != null ? ` (${formatScore(item.r)})` : '';
       return `${item.friendName} watched this${score}`;
     },
     goToTitle (movie) {

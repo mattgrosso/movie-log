@@ -6,6 +6,7 @@
 // Deliberately UI-less: Insights.vue is large and untested, so where these
 // end up (a new Insights section, the Watchlist screen, Year in Review) is
 // a design decision this module doesn't prejudge.
+import { formatScore } from './formatScore.js';
 
 function watchTimes (entry) {
   return (entry?.ratings || [])
@@ -103,7 +104,7 @@ export function genreSplit (entries, getRatingFn, { minCount = 5 } = {}) {
     label: 'Genre of the house',
     value: most[0],
     detail: rated && rated[0] !== most[0]
-      ? `Most watched — but ${rated[0]} is what you score highest (${rated[1].toFixed(1)} average).`
+      ? `Most watched — but ${rated[0]} is what you score highest (${formatScore(rated[1])} average).`
       : `Most watched and best rated.`
   };
 }
