@@ -47,7 +47,22 @@
            space once it was cut down to that. The CSS ellipsis is the real
            guarantee against overflow; the fit-count just decides how many
            terms to attempt. -->
-      <p v-if="didYouMeanLineSuggestions.length" class="did-you-mean-inline mb-1">Did you mean?: <template v-for="(suggestion, index) in didYouMeanLineSuggestions" :key="`${suggestion.typeLabel}-${suggestion.value}`"><a href="#" class="did-you-mean-link" @click.prevent="applyDidYouMeanSuggestion(suggestion)">{{ suggestion.value }}</a><span v-if="index < didYouMeanLineSuggestions.length - 1">, </span></template></p>
+      <!-- Typeahead over the dimensions of your own library — the director,
+           genre, studio or keyword you're part-way through typing. A line
+           rather than a floating dropdown on purpose: every keystroke already
+           rewrites a temp chip and re-filters the results below, and a panel
+           overlaying live-changing results above a phone keyboard would fight
+           the thing it's meant to help with. mousedown.prevent keeps the tap
+           from blurring the input first, which would otherwise commit the
+           half-typed term as a general chip before the tap ever landed.
+
+           It takes the line ahead of "Did you mean?" when it has anything to
+           say: both can be up at once (a part-typed genre has no results, so
+           the fuzzy line is already showing), and of the two, a prefix match
+           is the surer read of what you're typing. A genuine typo has no
+           prefix match, so it falls through to the line below. -->
+      <p v-if="typeaheadLineSuggestions.length" class="typeahead-inline mb-1">Filter by: <template v-for="(suggestion, index) in typeaheadLineSuggestions" :key="`${suggestion.kind}-${suggestion.value}`"><a href="#" class="did-you-mean-link" @mousedown.prevent @click.prevent="applyTypeaheadSuggestion(suggestion)">{{ suggestion.value }}</a><span class="typeahead-kind"> {{ suggestion.kind }}</span><span v-if="index < typeaheadLineSuggestions.length - 1">, </span></template></p>
+      <p v-else-if="didYouMeanLineSuggestions.length" class="did-you-mean-inline mb-1">Did you mean?: <template v-for="(suggestion, index) in didYouMeanLineSuggestions" :key="`${suggestion.typeLabel}-${suggestion.value}`"><a href="#" class="did-you-mean-link" @click.prevent="applyDidYouMeanSuggestion(suggestion)">{{ suggestion.value }}</a><span v-if="index < didYouMeanLineSuggestions.length - 1">, </span></template></p>
     </div>
 
     <!-- Quick-links panel: expands here, between the search input and
@@ -1293,6 +1308,12 @@ import {
   looseSearchText
 } from '../assets/javascript/searchFiltering.js';
 import {
+  buildTypeaheadIndex,
+  rankTypeahead,
+  countTypeaheadSuggestionsThatFit,
+  TYPEAHEAD_MIN_CHARS
+} from '../assets/javascript/searchSuggestions.js';
+import {
   awardNameWithThe,
   awardNameWithoutThe,
   awardNameSingular
@@ -1383,6 +1404,12 @@ export default {
       didYouMeanFitCount: 1,
       debouncedUpdateDidYouMeanFitCount: debounce(function () {
         this.updateDidYouMeanFitCount();
+      }, 200),
+      // Same measurement, for the typeahead line — kept separate because the
+      // two lines have different labels and never show at once.
+      typeaheadFitCount: 1,
+      debouncedUpdateTypeaheadFitCount: debounce(function () {
+        this.updateTypeaheadFitCount();
       }, 200),
       // True while the current sort is only the default as it looked at
       // mount — nobody has chosen one. Lets the saved default be applied
@@ -1563,6 +1590,9 @@ export default {
       // Candidate terms changed (new search value) - re-measure since
       // different terms have different lengths, so how many fit will vary.
       this.$nextTick(() => this.updateDidYouMeanFitCount());
+    },
+    typeaheadSuggestions () {
+      this.$nextTick(() => this.updateTypeaheadFitCount());
     },
     // Watches EVERY active chip, not just the highest-priority one.
     // effectiveSearchFilter returns the first chip by type priority, so
@@ -1807,9 +1837,12 @@ export default {
     // state) once mounted, and again on resize (e.g. rotating a phone).
     this.$nextTick(() => this.updateDidYouMeanFitCount());
     window.addEventListener('resize', this.debouncedUpdateDidYouMeanFitCount);
+    this.$nextTick(() => this.updateTypeaheadFitCount());
+    window.addEventListener('resize', this.debouncedUpdateTypeaheadFitCount);
   },
   beforeUnmount () {
     window.removeEventListener('resize', this.debouncedUpdateDidYouMeanFitCount);
+    window.removeEventListener('resize', this.debouncedUpdateTypeaheadFitCount);
 
     // Clean up error log refresh interval
     this.stopErrorLogRefresh();
@@ -2523,6 +2556,51 @@ export default {
     // of up to 5 since the blur-guard and tests rely on its full shape.
     didYouMeanLineSuggestions () {
       return this.didYouMeanSuggestions.slice(0, this.didYouMeanFitCount);
+    },
+    typeaheadIndex () {
+      // The dimensions of your own library you could filter by. Deliberately
+      // NOT titles — the results list below the bar is already matching those
+      // live, so the row would be spent telling you what is already on screen
+      // (see searchSuggestions.js). Order is priority order: a director is
+      // also crew, and both build the same `person` chip, so the duplicate is
+      // dropped and the more specific word survives.
+      //
+      // Reuses the count maps the counts/filtering features already compute,
+      // so the only new work is normalizing each term once per library change
+      // — which Vue memoizes here, and which is what keeps a keystroke at
+      // ~3ms instead of ~16ms.
+      return buildTypeaheadIndex([
+        { counts: this.countDirectors, expectedType: 'director', kind: 'director' },
+        { counts: this.countedGenres, expectedType: 'genre', kind: 'genre' },
+        { counts: this.countStudios, expectedType: 'studios', kind: 'studio' },
+        { counts: this.countCastCrew, expectedType: 'cast/crew', kind: 'cast' },
+        { counts: this.countedKeywords, expectedType: 'keyword', kind: 'keyword' }
+      ]);
+    },
+    typeaheadSuggestions () {
+      // Gated on inputValue (synchronous) but SEARCHED on searchValue (300ms
+      // debounced): the scan stays debounced while typing, and the line still
+      // disappears the instant a suggestion is tapped rather than lingering
+      // for the length of one more debounce.
+      if (this.inputValue.trim().length < TYPEAHEAD_MIN_CHARS) {
+        return [];
+      }
+
+      // Deliberately NOT gated on didYouMeanSuggestions. A part-typed genre or
+      // keyword returns zero results — `general` matches those by exact
+      // equality (see applyFilter), so "thril" finds nothing until the "ler"
+      // arrives — which means the fuzzy line is already up. Both lines would
+      // then offer "Thriller" and both would build the same genre chip; the
+      // template picks which one shows, and it picks this one, because a
+      // prefix match is a stronger signal than a fuzzy one and "Filter by:
+      // Thriller genre" says what a tap will do. didYouMeanSuggestions itself
+      // is left exactly as it was, since blurSearchBar's guard depends on it.
+      return rankTypeahead(this.typeaheadIndex, this.searchValue, {
+        exclude: this.activeFilters.filter((filter) => !filter.temp).map((filter) => filter.value)
+      });
+    },
+    typeaheadLineSuggestions () {
+      return this.typeaheadSuggestions.slice(0, this.typeaheadFitCount);
     },
     groupOrder () {
       // Returns the active group hierarchy. Uses the user's daily override from
@@ -4738,6 +4816,24 @@ export default {
       const maxWidth = input ? input.offsetWidth : 0;
       this.didYouMeanFitCount = countDidYouMeanSuggestionsThatFit(this.didYouMeanSuggestions, maxWidth);
     },
+    updateTypeaheadFitCount () {
+      // Nothing to measure when there's nothing to show — and leaving the
+      // previous count alone matters: dropping it to 0 means the next
+      // suggestion can't render until a second tick, which is a visible
+      // stutter on a line that appears mid-keystroke.
+      if (!this.typeaheadSuggestions.length) {
+        return;
+      }
+      const input = this.$refs.searchInput;
+      const maxWidth = input ? input.offsetWidth : 0;
+      this.typeaheadFitCount = countTypeaheadSuggestionsThatFit(this.typeaheadSuggestions, maxWidth);
+    },
+    applyTypeaheadSuggestion (suggestion) {
+      // The whole point: commit the chip the term actually IS, rather than
+      // letting detectFilterType's exact-match cascade fall through to a
+      // `general` chip because you typed a surname instead of a full name.
+      this.addSearchFilter(suggestion.value, false, suggestion.expectedType);
+    },
     clearAllFilters () {
       // Blur the search input first to prevent layout shifts
       if (this.$refs.searchInput) {
@@ -6009,6 +6105,22 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.typeahead-inline {
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+  /* Same ellipsis guarantee as .did-you-mean-inline: the fit count only
+     decides how many terms to attempt, this is what actually holds the line. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.typeahead-kind {
+  /* Quieter than the term itself — it's the answer to "what kind of chip
+     will this make", not something to read first. */
+  color: #6c757d;
+  font-size: 0.68rem;
 }
 .did-you-mean-link {
   color: #adb5bd;
