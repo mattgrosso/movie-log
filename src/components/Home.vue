@@ -91,49 +91,49 @@
             </span>
             <span
               class="badge mx-1"
-              :class="activeQuickLinkList === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
+              :class="activeListChip?.value === 'annual' ? 'text-bg-success' : 'text-bg-secondary'"
               @click="toggleAnnualBestFilter"
             >
               Annual Best
             </span>
             <span
               class="badge mx-1"
-              :class="activeQuickLinkList === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
+              :class="activeListChip?.value === 'bestPicture' ? 'text-bg-success' : 'text-bg-secondary'"
               @click="toggleBestPicturesFilter"
             >
               Best Picture
             </span>
             <span
               class="badge mx-1"
-              :class="activeQuickLinkList === 'thisYear' ? 'text-bg-success' : 'text-bg-secondary'"
+              :class="activeListChip?.value === 'thisYear' ? 'text-bg-success' : 'text-bg-secondary'"
               @click="toggleThisYearFilter"
             >
               This Year
             </span>
             <span
               class="badge mx-1"
-              :class="activeQuickLinkList === 'lastYear' ? 'text-bg-success' : 'text-bg-secondary'"
+              :class="activeListChip?.value === 'lastYear' ? 'text-bg-success' : 'text-bg-secondary'"
               @click="toggleLastYearFilter"
             >
               Last Year
             </span>
             <span
               class="badge mx-1"
-              :class="activeQuickLinkList === 'thisMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+              :class="activeListChip?.value === 'thisMonth' ? 'text-bg-success' : 'text-bg-secondary'"
               @click="toggleThisMonthFilter"
             >
               This Month
             </span>
             <span
               class="badge mx-1"
-              :class="activeQuickLinkList === 'lastMonth' ? 'text-bg-success' : 'text-bg-secondary'"
+              :class="activeListChip?.value === 'lastMonth' ? 'text-bg-success' : 'text-bg-secondary'"
               @click="toggleLastMonthFilter"
             >
               Last Month
             </span>
             <span
               class="badge mx-1"
-              :class="activeQuickLinkList === 'notOnLetterboxd' ? 'text-bg-success' : 'text-bg-secondary'"
+              :class="activeListChip?.value === 'notOnLetterboxd' ? 'text-bg-success' : 'text-bg-secondary'"
               @click="toggleNotOnLetterboxdFilter"
             >
               Not on Letterboxd
@@ -192,7 +192,7 @@
               v-for="(tag, index) in tags"
               :key="`tag-${index}`"
               class="badge mx-1"
-              :class="activeQuickLinkList === tag ? 'text-bg-success' : 'text-bg-secondary'"
+              :class="activeFilters.some((filter) => filter.type === 'tag' && filter.value === tag) ? 'text-bg-success' : 'text-bg-secondary'"
               @click="toggleQuickLinksList(tag)"
             >
               {{tag}}
@@ -274,7 +274,10 @@
              activeFiltersMinusTemps unfiltered, so this behaves exactly
              as the plain chip row always has. -->
         <transition-group name="chip-fade" tag="div" class="d-inline-flex flex-wrap align-items-center">
-          <span v-for="filter in otherActiveFilters" :key="filter.id" class="badge text-bg-secondary me-2 my-1 d-inline-flex align-items-center chip-transition" style="padding: 0.25rem 0.4rem; font-weight: normal; font-size: 0.75rem; line-height: 1.2;">
+          <!-- A list chip keeps the primary colour the quick-link badge
+               always wore: a curated view reads differently from a filter,
+               even now that it lives in the same row. -->
+          <span v-for="filter in otherActiveFilters" :key="filter.id" class="badge me-2 my-1 d-inline-flex align-items-center chip-transition" :class="filter.type === 'list' ? 'text-bg-primary' : 'text-bg-secondary'" style="padding: 0.25rem 0.4rem; font-weight: normal; font-size: 0.75rem; line-height: 1.2;">
             {{ filter.display }}
             <button
               class="btn-close btn-close-white ms-1"
@@ -354,7 +357,7 @@
                   <span class="average-label">(log)</span>
                   <span class="average-value">{{filteredLogScore}}</span>
                 </span>
-                <span v-else-if="activeQuickLinkList === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{unifiedFilteredResults.length}}</span>
+                <span v-else-if="quickLinkContext === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{unifiedFilteredResults.length}}</span>
                 <span v-else>{{displayedResults.length}}</span>
               </button>
               <button class="results-actions-button btn btn-info" type="button" @click="goToInsights" title="Insights" aria-label="Go to insights">
@@ -1053,7 +1056,7 @@
                   :index="index"
                   :resultsAreFiltered="resultsAreFiltered"
                   :sortValue="sortValue"
-                  :activeQuickLinkList="activeQuickLinkList"
+                  :activeQuickLinkList="quickLinkContext"
                   @updateSearchValue="updateSearchValue"
                 />
               </ul>
@@ -1070,7 +1073,7 @@
               :index="index"
               :resultsAreFiltered="resultsAreFiltered"
               :sortValue="sortValue"
-              :activeQuickLinkList="activeQuickLinkList"
+              :activeQuickLinkList="quickLinkContext"
               @updateSearchValue="updateSearchValue"
             />
           </ul>
@@ -1624,7 +1627,7 @@ export default {
     // from list for more than one chip?" (2026-08-18).
     moreFromSignature (newVal, oldVal) {
       if (newVal && newVal !== oldVal) {
-        this.debouncedFetchUnratedMoviesForFilters(this.allActiveFilters);
+        this.debouncedFetchUnratedMoviesForFilters(this.moreFromFilters);
       } else if (!newVal) {
         this.unratedMovies = [];
         this.unratedMoviesError = null;
@@ -1928,7 +1931,7 @@ export default {
     // Diagnostic only - see the liveDebugState watcher above.
     liveDebugState () {
       return {
-        quickLink: this.activeQuickLinkList,
+        quickLink: this.quickLinkContext,
         typedSearch: this.inputValue || '',
         chips: this.activeFilters.map((filter) => `${filter.type}:${filter.value}`),
         resultsRendered: this.paginatedSortedResults.length,
@@ -2119,11 +2122,17 @@ export default {
     otherActiveFilters () {
       return this.activeFiltersMinusTemps.filter((filter) => filter.type !== 'year');
     },
-    // Every active chip, in a stable string — both the watch trigger for the
-    // suggestions row and its cache key. Sorted, so re-adding the same two
-    // chips in the other order is recognised as the same question.
+    // The chips More from can answer: every active chip except a curated
+    // list. TMDB cannot be asked about "Best Picture", and a heading that
+    // named it while the fetch ignored it would lie about the row below.
+    moreFromFilters () {
+      return this.allActiveFilters.filter((filter) => filter?.type !== 'list');
+    },
+    // Every answerable chip, in a stable string — both the watch trigger for
+    // the suggestions row and its cache key. Sorted, so re-adding the same
+    // two chips in the other order is recognised as the same question.
     moreFromSignature () {
-      return this.allActiveFilters
+      return this.moreFromFilters
         .map((filter) => {
           const value = filter?.value && typeof filter.value === 'object'
             ? `${filter.value.startYear ?? ''}-${filter.value.endYear ?? ''}`
@@ -2425,7 +2434,7 @@ export default {
     // One heading instead of seven near-identical spans — and it now names
     // every chip, because the row below it answers all of them.
     moreFromTitle () {
-      const filters = this.allActiveFilters;
+      const filters = this.moreFromFilters;
       if (filters.length > 1) {
         return `More from ${describeFilters(filters)}`;
       }
@@ -2532,7 +2541,7 @@ export default {
       // Only suggest when there are no local results to show. (showResultsList
       // is false here, which is the same branch that renders the "Search TMDB"
       // button — suggestions sit above it, never replacing it.)
-      if (this.paginatedSortedResults.length > 0 || this.activeQuickLinkList !== 'title') {
+      if (this.paginatedSortedResults.length > 0 || this.activeListChip || this.activeQuickLinkList !== 'title') {
         return [];
       }
       const fuse = this.fuzzyIndex;
@@ -2650,7 +2659,8 @@ export default {
 
       // Only show grouped results when we have a simple search term
       // Skip if we have multiple chips or quick links active
-      if (this.activeFilters.filter(f => !f.temp).length > 1 || this.activeQuickLinkList !== 'title') {
+      if (this.activeFilters.filter(f => !f.temp && f.type !== 'list').length > 1 ||
+        this.activeListChip || this.activeQuickLinkList !== 'title') {
         return null;
       }
 
@@ -2992,11 +3002,6 @@ export default {
         "count-more-than-4-remainder-3": count > 4 & count % 4 === 3
       }
     },
-    matchingTags () {
-      return this.allEntriesWithFlatKeywordsAdded.filter((result) => {
-        return result.ratings.map((rating) => rating.tags || []).flat().map((tag) => tag.title).includes(this.activeQuickLinkList);
-      });
-    },
     notOnLetterboxdMovies () {
       if (!this.$store.state.settings.letterboxdConnected || !this.$store.state.settings.letterboxdUsername) {
         return [];
@@ -3037,13 +3042,30 @@ export default {
       return !this.groupedByAllCategories && this.sortedResults.length > this.numberOfResultsToShow;
     },
     placeholder () {
-      if (this.activeQuickLinkList === 'annual') {
+      if (this.quickLinkContext === 'annual') {
         return "The best of each year";
-      } else if (this.activeQuickLinkList === 'bestPicture') {
+      } else if (this.quickLinkContext === 'bestPicture') {
         return "The Best Picture winners";
       } else {
         return "Search...";
       }
+    },
+    // Phase 4: a curated view (Best Picture, This Month…) is a CHIP, not a
+    // parallel mode. One at a time — two base sets at once has no meaning —
+    // so toggling one on replaces another, exactly as the old single-valued
+    // mode did. Living in activeFilters buys everything chips already have:
+    // the chip row renders it, removeFilter clears it, navigation restore
+    // brings it back, and it composes with other chips ("Best Picture +
+    // horror") instead of awkwardly coexisting with them.
+    activeListChip () {
+      return this.activeFilters.find((filter) => filter.type === 'list' && !filter.temp) || null;
+    },
+    // What curated context the results are being shown in — the list chip's
+    // value, or a browse-mode picker still tracked in activeQuickLinkList.
+    // DBGridLayoutSearchResult and the counts line read this where they used
+    // to read activeQuickLinkList directly.
+    quickLinkContext () {
+      return this.activeListChip?.value ?? this.activeQuickLinkList;
     },
     resultsAreFiltered () {
       return this.activeFilters.length > 0 || this.activeQuickLinkList !== 'title';
@@ -3127,7 +3149,7 @@ export default {
       return this.$store.state.currentLog === "tvLog";
     },
     showResultsList () {
-      return Boolean(this.paginatedSortedResults.length) || this.activeQuickLinkList !== "title";
+      return Boolean(this.paginatedSortedResults.length) || Boolean(this.activeListChip) || this.activeQuickLinkList !== "title";
     },
     // Determine which modal should be active (eliminates circular dependencies)
     activeModalType () {
@@ -3394,29 +3416,22 @@ export default {
       return this.unifiedFilteredResults;
     },
     unifiedFilteredResults () {
-      // Step 1: Get base results (from quick links or all entries)
-      let results;
+      // Step 1: the base result set. A list CHIP selects it (Phase 4) —
+      // lists aggregate or add placeholder entries, which no per-movie
+      // predicate can express, so they act here, before the chip loop, and
+      // are neutral inside it (see filterKinds.js's `list`). Everything
+      // else starts from the whole library.
+      const baseSets = {
+        annual: () => this.bestMovieFromEachYear,
+        bestPicture: () => this.bestPictures,
+        thisYear: () => this.thisYearsMovies,
+        lastYear: () => this.lastYearsMovies,
+        thisMonth: () => this.thisMonthsMovies,
+        lastMonth: () => this.lastMonthsMovies,
+        notOnLetterboxd: () => this.notOnLetterboxdMovies
+      };
 
-      if (this.activeQuickLinkList === "annual") {
-        results = this.bestMovieFromEachYear;
-      } else if (this.activeQuickLinkList === "bestPicture") {
-        results = this.bestPictures;
-      } else if (this.activeQuickLinkList === "thisYear") {
-        results = this.thisYearsMovies;
-      } else if (this.activeQuickLinkList === "lastYear") {
-        results = this.lastYearsMovies;
-      } else if (this.activeQuickLinkList === "thisMonth") {
-        results = this.thisMonthsMovies;
-      } else if (this.activeQuickLinkList === "lastMonth") {
-        results = this.lastMonthsMovies;
-      } else if (this.activeQuickLinkList === "notOnLetterboxd") {
-        results = this.notOnLetterboxdMovies;
-      } else if (this.tags.includes(this.activeQuickLinkList)) {
-        results = this.matchingTags;
-      } else {
-        // No quick link active - start with all entries
-        results = this.allEntriesWithFlatKeywordsAdded;
-      }
+      let results = baseSets[this.activeListChip?.value]?.() ?? this.allEntriesWithFlatKeywordsAdded;
 
       // Step 2: Apply all filters from allActiveFilters (input + chips)
       if (this.allActiveFilters.length > 0) {
@@ -3931,8 +3946,28 @@ export default {
       }
     },
     toggleQuickLinksList (value) {
+      // A curated list is a chip now — route it through the chip toggle so
+      // this entry point and the dedicated handlers cannot disagree.
+      const listSorts = {
+        annual: 'release',
+        bestPicture: 'release',
+        thisYear: 'rating',
+        lastYear: 'rating',
+        thisMonth: 'rating',
+        lastMonth: 'rating',
+        notOnLetterboxd: 'rating'
+      };
+      if (value && listSorts[value]) {
+        this.toggleListChip(value, listSorts[value]);
+        return;
+      }
+
       if (this.activeQuickLinkList === value || !value) {
         this.activeQuickLinkList = "title";
+        // Clearing the quick-filter panel also clears its list chip.
+        if (!value && this.activeListChip) {
+          this.activeFilters = this.activeFilters.filter((filter) => filter.type !== 'list');
+        }
         this.updateSearchValue("");
         this.$refs.QuickLinksAccordion?.classList.remove("show");
       } else if (this.tags?.includes(value)) {
@@ -3950,76 +3985,50 @@ export default {
         this.$refs.QuickLinksAccordion?.classList.add("show");
       }
     },
-    toggleAnnualBestFilter () {
+    // One toggle for every curated list (Phase 4). Toggling the active one
+    // removes its chip; toggling another replaces it — a single list at a
+    // time, exactly the semantics the old single-valued mode had. Other
+    // chips are left alone, which is the point: "Best Picture + horror" is
+    // now just two chips.
+    toggleListChip (value, sortValue) {
       this.clearInput();
 
-      if (this.activeQuickLinkList === "annual") {
-        this.activeQuickLinkList = "title";
-      } else {
-        this.activeQuickLinkList = "annual";
-        this.$store.commit("setDBSortValue", "release");
+      const wasActive = this.activeListChip?.value === value;
+      this.activeFilters = this.activeFilters.filter((filter) => filter.type !== 'list');
+
+      if (!wasActive) {
+        this.activeFilters.push({
+          id: `list-${value}-${Date.now()}`,
+          type: 'list',
+          value,
+          display: this.getQuickLinkDisplayName(value)
+        });
+        this.$store.commit("setDBSortValue", sortValue);
       }
+    },
+    toggleAnnualBestFilter () {
+      this.toggleListChip('annual', 'release');
     },
     toggleBestPicturesFilter () {
-      this.clearInput();
-
-      if (this.activeQuickLinkList === "bestPicture") {
-        this.activeQuickLinkList = "title";
-      } else {
-        this.activeQuickLinkList = "bestPicture";
-        this.$store.commit("setDBSortValue", "release");
-      }
+      this.toggleListChip('bestPicture', 'release');
     },
     toggleThisYearFilter () {
-      this.clearInput();
-
-      if (this.activeQuickLinkList === "thisYear") {
-        this.activeQuickLinkList = "title";
-      } else {
-        this.activeQuickLinkList = "thisYear";
-        this.$store.commit("setDBSortValue", "rating");
-      }
+      this.toggleListChip('thisYear', 'rating');
     },
     toggleLastYearFilter () {
-      this.clearInput();
-
-      if (this.activeQuickLinkList === "lastYear") {
-        this.activeQuickLinkList = "title";
-      } else {
-        this.activeQuickLinkList = "lastYear";
-        this.$store.commit("setDBSortValue", "rating");
-      }
+      this.toggleListChip('lastYear', 'rating');
     },
     toggleThisMonthFilter () {
-      this.clearInput();
-
-      if (this.activeQuickLinkList === "thisMonth") {
-        this.activeQuickLinkList = "title";
-      } else {
-        this.activeQuickLinkList = "thisMonth";
-        this.$store.commit("setDBSortValue", "rating");
-      }
+      this.toggleListChip('thisMonth', 'rating');
     },
     toggleLastMonthFilter () {
-      this.clearInput();
-
-      if (this.activeQuickLinkList === "lastMonth") {
-        this.activeQuickLinkList = "title";
-      } else {
-        this.activeQuickLinkList = "lastMonth";
-        this.$store.commit("setDBSortValue", "rating");
-      }
+      this.toggleListChip('lastMonth', 'rating');
     },
     async toggleNotOnLetterboxdFilter () {
-      this.clearInput();
+      this.toggleListChip('notOnLetterboxd', 'rating');
 
-      if (this.activeQuickLinkList === "notOnLetterboxd") {
-        this.activeQuickLinkList = "title";
-      } else {
-        this.activeQuickLinkList = "notOnLetterboxd";
-        this.$store.commit("setDBSortValue", "rating");
-
-        // Fetch Letterboxd data if we don't have it yet
+      // Fetch Letterboxd data if we don't have it yet
+      if (this.activeListChip?.value === 'notOnLetterboxd') {
         await this.fetchLetterboxdData();
       }
     },

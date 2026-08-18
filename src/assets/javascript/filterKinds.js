@@ -153,6 +153,20 @@ export const FILTER_KINDS = {
       const value = normalizeSearchText(filter.value);
       return s.cast.some(name => name.includes(value));
     }
+  },
+
+  // A curated view — Best Picture, Annual Best, This Month… (Phase 4: quick
+  // links are chips now, not a parallel mode). A list is not a per-movie
+  // predicate: it selects the BASE result set (it can aggregate, like the
+  // best of each year, or add unrated placeholder entries, like unwatched
+  // winners), which happens in unifiedFilteredResults before the chip loop
+  // runs. So in the AND loop it is neutral, and TMDB is never asked about
+  // it.
+  list: {
+    discoverGroup: 'local',
+    matchLocal () {
+      return true;
+    }
   }
 };
 

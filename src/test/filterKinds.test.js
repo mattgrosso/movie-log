@@ -24,9 +24,18 @@ describe('the registry contract', () => {
     // Home.vue's filterTypes list, plus the specific crew types MovieDetail
     // links create. A type missing here silently matches nothing.
     ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'tag',
-      'title', 'director', 'producer', 'cast'].forEach((type) => {
+      'title', 'director', 'producer', 'cast', 'list'].forEach((type) => {
       expect(kindFor(type), type).not.toBeNull();
     });
+  });
+
+  it('a list chip is neutral in the AND loop and invisible to TMDB', () => {
+    // A curated list selects the BASE result set (it can aggregate or add
+    // placeholder entries), which no per-movie predicate can express — so
+    // in the chip loop it must pass everything, and More from must never
+    // try to ask /discover about it.
+    expect(FILTER_KINDS.list.matchLocal({}, { type: 'list', value: 'bestPicture' })).toBe(true);
+    expect(FILTER_KINDS.list.discoverGroup).toBe('local');
   });
 
   it('returns null, not a crash, for a type nothing defines', () => {

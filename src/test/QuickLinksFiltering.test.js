@@ -203,38 +203,51 @@ describe('Quick Links Filtering System', () => {
     await wrapper.vm.$nextTick()
   })
 
+  // Phase 4 of the filter redesign: a curated list is a CHIP (type 'list'),
+  // not a parallel mode. activeListChip is the single source of which list
+  // is active; activeQuickLinkList remains only for the browse pickers.
   describe('Quick Links State Management', () => {
-    it('should start with default activeQuickLinkList as "title"', () => {
+    it('should start with no list chip active', () => {
+      expect(wrapper.vm.activeListChip).toBeNull()
       expect(wrapper.vm.activeQuickLinkList).toBe('title')
     })
 
-    it('should toggle quick link on and off', () => {
-      // Activate Annual Best
+    it('should toggle a list chip on and off', () => {
       wrapper.vm.toggleQuickLinksList('annual')
-      expect(wrapper.vm.activeQuickLinkList).toBe('annual')
+      expect(wrapper.vm.activeListChip).toMatchObject({ type: 'list', value: 'annual', display: 'Annual Best' })
 
-      // Toggle same link should deactivate
       wrapper.vm.toggleQuickLinksList('annual')
-      expect(wrapper.vm.activeQuickLinkList).toBe('title')
+      expect(wrapper.vm.activeListChip).toBeNull()
     })
 
-    it('should switch between different quick links', () => {
+    it('should switch between lists, one chip at a time', () => {
       wrapper.vm.toggleQuickLinksList('annual')
-      expect(wrapper.vm.activeQuickLinkList).toBe('annual')
+      expect(wrapper.vm.activeListChip.value).toBe('annual')
 
       wrapper.vm.toggleQuickLinksList('bestPicture')
-      expect(wrapper.vm.activeQuickLinkList).toBe('bestPicture')
+      expect(wrapper.vm.activeListChip.value).toBe('bestPicture')
+      // Replaced, not stacked: two base sets at once has no meaning.
+      expect(wrapper.vm.activeFilters.filter(f => f.type === 'list')).toHaveLength(1)
 
       wrapper.vm.toggleQuickLinksList('thisYear')
-      expect(wrapper.vm.activeQuickLinkList).toBe('thisYear')
+      expect(wrapper.vm.activeListChip.value).toBe('thisYear')
     })
 
-    it('should clear quick link when passed null', () => {
+    it('should clear the list chip when passed null', () => {
       wrapper.vm.toggleQuickLinksList('annual')
-      expect(wrapper.vm.activeQuickLinkList).toBe('annual')
+      expect(wrapper.vm.activeListChip.value).toBe('annual')
 
       wrapper.vm.toggleQuickLinksList(null)
-      expect(wrapper.vm.activeQuickLinkList).toBe('title')
+      expect(wrapper.vm.activeListChip).toBeNull()
+    })
+
+    it('removes the chip through removeFilter, like any other chip', () => {
+      wrapper.vm.toggleQuickLinksList('bestPicture')
+      const chip = wrapper.vm.activeListChip
+
+      wrapper.vm.removeFilter(chip.id)
+      expect(wrapper.vm.activeListChip).toBeNull()
+      expect(wrapper.vm.unifiedFilteredResults).toHaveLength(4) // back to everything
     })
   })
 
@@ -253,7 +266,7 @@ describe('Quick Links Filtering System', () => {
     })
 
     it('should filter to annual best when activeQuickLinkList is "annual"', () => {
-      wrapper.vm.activeQuickLinkList = 'annual'
+      wrapper.vm.toggleQuickLinksList('annual')
 
       const result = wrapper.vm.unifiedFilteredResults
 
@@ -291,7 +304,7 @@ describe('Quick Links Filtering System', () => {
     })
 
     it('should filter to Best Pictures when activeQuickLinkList is "bestPicture"', () => {
-      wrapper.vm.activeQuickLinkList = 'bestPicture'
+      wrapper.vm.toggleQuickLinksList('bestPicture')
 
       const result = wrapper.vm.unifiedFilteredResults
 
@@ -315,7 +328,7 @@ describe('Quick Links Filtering System', () => {
     })
 
     it('should filter to this year when activeQuickLinkList is "thisYear"', () => {
-      wrapper.vm.activeQuickLinkList = 'thisYear'
+      wrapper.vm.toggleQuickLinksList('thisYear')
 
       const result = wrapper.vm.unifiedFilteredResults
 
@@ -360,7 +373,7 @@ describe('Quick Links Filtering System', () => {
     })
 
     it('should filter to this month when activeQuickLinkList is "thisMonth"', () => {
-      wrapper.vm.activeQuickLinkList = 'thisMonth'
+      wrapper.vm.toggleQuickLinksList('thisMonth')
 
       const result = wrapper.vm.unifiedFilteredResults
 
@@ -412,22 +425,17 @@ describe('Quick Links Filtering System', () => {
   })
 
   describe('Quick Link Clearing', () => {
-    it('should clear quick link using clearQuickLink method', () => {
-      wrapper.vm.activeQuickLinkList = 'annual'
-      expect(wrapper.vm.activeQuickLinkList).toBe('annual')
-
+    it('should clear a browse picker using clearQuickLink method', () => {
+      wrapper.vm.activeQuickLinkList = 'genre'
       wrapper.vm.clearQuickLink()
       expect(wrapper.vm.activeQuickLinkList).toBe('title')
     })
 
-    it('should clear search values when toggling off quick links', () => {
-      // Mock the updateSearchValue method
-      wrapper.vm.updateSearchValue = vi.fn()
-
+    it('should clear the typed input when toggling a list', () => {
+      wrapper.vm.inputValue = 'half typed'
       wrapper.vm.toggleQuickLinksList('annual')
-      wrapper.vm.toggleQuickLinksList('annual') // Toggle off
 
-      expect(wrapper.vm.updateSearchValue).toHaveBeenCalledWith('')
+      expect(wrapper.vm.inputValue).toBe('')
     })
   })
 
@@ -514,17 +522,16 @@ describe('Quick Links Filtering System', () => {
       expect(result).toHaveLength(4) // All test movies
     })
 
-    it('should properly combine quick links with additional filters', () => {
-      // Set quick link
-      wrapper.vm.activeQuickLinkList = 'thisYear'
+    it('should properly combine a list chip with additional filters', () => {
+      wrapper.vm.toggleQuickLinksList('thisYear')
 
-      // Add additional filter
-      wrapper.vm.activeFilters = [{
+      // The whole point of lists-as-chips: they compose.
+      wrapper.vm.activeFilters.push({
         id: 'genre-1',
         type: 'genre',
         value: 'Drama',
         display: 'Drama'
-      }]
+      })
 
       const result = wrapper.vm.unifiedFilteredResults
 
