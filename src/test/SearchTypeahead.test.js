@@ -28,11 +28,12 @@ const makeMovies = () => ([
       id: 1,
       title: 'Arrival',
       release_date: '2016-11-11',
-      genres: [{ name: 'Science Fiction' }],
+      genres: [{ id: 878, name: 'Science Fiction' }],
       cast: [{ name: 'Amy Adams' }],
       crew: [{ name: 'Denis Villeneuve', job: 'Director' }],
-      production_companies: [{ name: 'FilmNation Entertainment' }],
-      keywords: [{ name: 'aliens' }]
+      // Ids as AddRating stores them — the catalog carries these onto chips.
+      production_companies: [{ id: 84092, name: 'FilmNation Entertainment' }],
+      keywords: [{ id: 9951, name: 'aliens' }, { id: 381074, name: 'spiderman' }]
     },
     ratings: [{ calculatedTotal: 9.0, date: '2023-02-01' }],
     dbKey: 'movie-1'
@@ -42,11 +43,11 @@ const makeMovies = () => ([
       id: 2,
       title: 'Sicario',
       release_date: '2015-09-18',
-      genres: [{ name: 'Thriller' }],
+      genres: [{ id: 53, name: 'Thriller' }],
       cast: [{ name: 'Emily Blunt' }],
       crew: [{ name: 'Denis Villeneuve', job: 'Director' }],
-      production_companies: [{ name: 'Lionsgate' }],
-      keywords: [{ name: 'cartel' }]
+      production_companies: [{ id: 1632, name: 'Lionsgate' }],
+      keywords: [{ id: 10391, name: 'cartel' }]
     },
     ratings: [{ calculatedTotal: 8.5, date: '2023-03-01' }],
     dbKey: 'movie-2'
@@ -182,13 +183,38 @@ describe('search bar typeahead', () => {
       expect(chip.value).toBe('Denis Villeneuve')
     })
 
-    it('builds a genre chip carrying the word More from needs', async () => {
+    it('builds a genre chip carrying the id More from needs', async () => {
       await type(wrapper, 'thril')
       wrapper.vm.applyTypeaheadSuggestion(wrapper.vm.typeaheadSuggestions[0])
 
       const chip = wrapper.vm.activeFilters.find((filter) => !filter.temp)
       expect(chip.type).toBe('genre')
       expect(chip.value).toBe('Thriller')
+      // Phase 2: identity is decided at creation and carried on the chip.
+      // The old push rebuilt chips from four named fields, which silently
+      // stripped genreId — only a fetch-time fallback ever saved it.
+      expect(chip.genreId).toBe(53)
+    })
+
+    it('carries the catalog id on a keyword chip, so no /search is ever needed for it', async () => {
+      await type(wrapper, 'spider')
+
+      const suggestion = wrapper.vm.typeaheadSuggestions.find((entry) => entry.value === 'spiderman')
+      expect(suggestion.tmdbId).toBe(381074) // stored on the library film
+      wrapper.vm.applyTypeaheadSuggestion(suggestion)
+
+      const chip = wrapper.vm.activeFilters.find((filter) => !filter.temp)
+      expect(chip).toMatchObject({ type: 'keyword', value: 'spiderman', tmdbId: 381074 })
+    })
+
+    it('resolves a typed exact term to the same identity a tapped row gets', async () => {
+      // Typing "thriller" in full commits through detectFilterType, not the
+      // panel — the chip must not know less because of the path it took.
+      wrapper.vm.addSearchFilter('Thriller')
+
+      const chip = wrapper.vm.activeFilters.find((filter) => !filter.temp)
+      expect(chip.type).toBe('genre')
+      expect(chip.genreId).toBe(53)
     })
 
     it('clears the input so the row does not survive its own tap', async () => {

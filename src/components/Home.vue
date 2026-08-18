@@ -4730,13 +4730,13 @@ export default {
       this.activeFilters = this.activeFilters.filter(filter => !filter.temp);
 
       if (value.trim()) {
-        // Detect filter type while typing for consistent results
-        const searchType = this.detectFilterType(value.trim());
+        // Detect filter type while typing for consistent results. Same
+        // identity resolution as a committed chip — a temp chip drives the
+        // same fetches, so it deserves the same certainty about itself.
+        const searchType = this.resolveChipIdentity(this.detectFilterType(value.trim()));
         const tempFilter = {
+          ...searchType,
           id: `temp-${Date.now()}`,
-          type: searchType.type,
-          value: searchType.value,
-          display: searchType.display,
           temp: true // Mark as temporary
         };
 
@@ -4782,7 +4782,23 @@ export default {
       // Add the chip immediately and clear the input
       this.addSearchFilter(searchTerm);
     },
-    addSearchFilter (searchTerm, isAutoRandom = false, expectedType = null) {
+    // Phase 2 of the redesign: a chip's identity is decided HERE, at
+    // creation, and carried on the chip — never re-derived downstream. The
+    // old push rebuilt the chip from four named fields, which silently
+    // stripped anything else a detector attached (detectGenreTypes' genreId
+    // never actually survived onto the chip; only a fetch-time fallback
+    // saved the horror fix). Now the resolved chip is spread whole.
+    resolveChipIdentity (searchType) {
+      if (!searchType || searchType.tmdbId != null) return searchType;
+
+      const kindByType = { genre: 'genre', company: 'company', keyword: 'keyword' };
+      const kind = kindByType[searchType.type];
+      if (!kind) return searchType;
+
+      const tmdbId = this.libraryCatalog.idFor(kind, searchType.value);
+      return tmdbId != null ? { ...searchType, tmdbId } : searchType;
+    },
+    addSearchFilter (searchTerm, isAutoRandom = false, expectedType = null, knownTmdbId = null) {
       if (!searchTerm || !searchTerm.trim()) return;
 
       const trimmedTerm = searchTerm.trim();
@@ -4805,12 +4821,15 @@ export default {
         return;
       }
 
-      // Add the appropriate filter chip
+      if (knownTmdbId != null) {
+        searchType = { ...searchType, tmdbId: knownTmdbId };
+      }
+
+      // Add the appropriate filter chip, with everything its detector and
+      // the catalog know about what it refers to.
       this.activeFilters.push({
-        id: `${searchType.type}-${Date.now()}`,
-        type: searchType.type,
-        value: searchType.value,
-        display: searchType.display
+        ...this.resolveChipIdentity(searchType),
+        id: `${searchType.type}-${Date.now()}`
       });
 
       this.clearInput();
@@ -4851,7 +4870,8 @@ export default {
       // The whole point: commit the chip the term actually IS, rather than
       // letting detectFilterType's exact-match cascade fall through to a
       // `general` chip because you typed a surname instead of a full name.
-      this.addSearchFilter(suggestion.value, false, suggestion.expectedType);
+      // The row carries the id from the catalog, so the chip does too.
+      this.addSearchFilter(suggestion.value, false, suggestion.expectedType, suggestion.tmdbId ?? null);
     },
     clearAllFilters () {
       // Blur the search input first to prevent layout shifts
@@ -5003,7 +5023,9 @@ export default {
         case "keyword":
           return { type: 'keyword', value: trimmed, display: trimmed };
         case "genre":
-          return { type: 'genre', value: trimmed, display: trimmed };
+          // Same identity as the typed path (detectGenreTypes): a genre chip
+          // carries its id however it was created.
+          return { type: 'genre', genreId: genreIdFor(trimmed), value: trimmed, display: trimmed };
         case "year":
           return { type: 'year', value: trimmed, display: trimmed };
         case "director":
