@@ -35,7 +35,7 @@ import {
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
 import { pendingUpdates, reconcilePending } from "../assets/javascript/recommendationStats.js";
-import { toInterchange, profileFromFeed, buildInvite, parseInvite, buildConnectRequest, normalizeInboxRequests, buildDirectoryEntry, normalizeDirectory, FEDERATED_APPS } from "../assets/javascript/interchange.js";
+import { toInterchange, profileFromFeed, buildInvite, parseInvite, buildConnectRequest, normalizeInboxRequests, buildDirectoryEntry, normalizeDirectory, findSubscription, dedupeExternalFriends, FEDERATED_APPS } from "../assets/javascript/interchange.js";
 
 const sortByVoteCount = (a, b) => {
   if (a.vote_count < b.vote_count) {
@@ -425,7 +425,10 @@ export default createStore({
         profile: state.socialFriendProfiles?.[key] || null,
         external: false
       }));
-      const external = Object.entries(state.settings?.externalFriends || {}).map(([id, friend]) => ({
+      // Deduped on the way out as well as on the way in, so a club that was
+      // already doubled reads correctly straight away rather than waiting
+      // for anyone to prune their settings.
+      const external = Object.entries(dedupeExternalFriends(state.settings?.externalFriends)).map(([id, friend]) => ({
         key: id,
         name: state.externalFriendProfiles?.[id]?.name || friend?.name || 'A friend',
         profile: state.externalFriendProfiles?.[id] || null,
@@ -1700,6 +1703,18 @@ export default createStore({
     async addExternalFriend (context, { name, feedUrl }) {
       const clean = String(feedUrl || '').trim();
       if (!clean || !/^https?:\/\//i.test(clean)) return null;
+
+      // Already in the club? Accepting a connect request and accepting an
+      // invite both land here, and each used to mint a fresh id — which is
+      // how one friend's feed ended up subscribed twice and every one of
+      // his movies appeared twice (report -P-H-twP5kUjwuEanKMm). Re-adding
+      // now just refreshes the friend you already have.
+      const existingId = findSubscription(context.state.settings?.externalFriends, clean);
+      if (existingId) {
+        await context.dispatch('syncExternalFriends');
+        return existingId;
+      }
+
       const id = `ext-${Date.now().toString(36)}`;
       await context.dispatch('writeDurably', {
         path: `settings/externalFriends/${id}`,

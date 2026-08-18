@@ -233,6 +233,73 @@ export const CONNECT_APP = 'cinemaroll';
 
 // The link you send someone on another app. Everything they need to both
 // subscribe to you AND ask you to subscribe to them.
+/**
+ * Are these two subscription URLs the same feed?
+ *
+ * Bug report -P-H-twP5kUjwuEanKMm (2026-08-17): "I appear to have doubled
+ * the amount of Brian's feed that I'm receiving... I see all of his movies
+ * twice." He was subscribed to one identical URL under two ids, added
+ * twelve hours apart — accepting a connect request and accepting an invite
+ * both call addExternalFriend, and each minted a fresh `ext-<time>` id
+ * without ever checking whether that feed was already in the club.
+ *
+ * Compared loosely on purpose: the same feed reached by a link that
+ * happens to carry a trailing slash, different capitalisation of the host,
+ * or a cache-busting query is still the same friend.
+ */
+export function sameFeedUrl (a, b) {
+  const normalize = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    try {
+      const url = new URL(raw);
+      return `${url.protocol}//${url.host.toLowerCase()}${url.pathname.replace(/\/+$/, '')}`;
+    } catch {
+      return raw.toLowerCase().replace(/\/+$/, '');
+    }
+  };
+
+  const left = normalize(a);
+  return Boolean(left) && left === normalize(b);
+}
+
+/**
+ * The id of an already-subscribed friend with this feed, or null.
+ * `friends` is the settings/externalFriends map.
+ */
+export function findSubscription (friends, feedUrl) {
+  const match = Object.entries(friends || {})
+    .find(([, friend]) => sameFeedUrl(friend?.feedUrl, feedUrl));
+  return match ? match[0] : null;
+}
+
+/**
+ * Collapse a friends map that already contains duplicates, keeping the
+ * entry that was added first. Repairs a club that got doubled before the
+ * check above existed, without needing anybody to go tidy their settings.
+ */
+export function dedupeExternalFriends (friends) {
+  const byFeed = new Map();
+
+  Object.entries(friends || {})
+    .sort(([, a], [, b]) => (a?.addedAt || 0) - (b?.addedAt || 0))
+    .forEach(([id, friend]) => {
+      const key = friend?.feedUrl ? `feed:${normalizeForKey(friend.feedUrl)}` : `id:${id}`;
+      if (!byFeed.has(key)) byFeed.set(key, [id, friend]);
+    });
+
+  return Object.fromEntries(byFeed.values());
+}
+
+function normalizeForKey (feedUrl) {
+  try {
+    const url = new URL(String(feedUrl).trim());
+    return `${url.protocol}//${url.host.toLowerCase()}${url.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return String(feedUrl).trim().toLowerCase().replace(/\/+$/, '');
+  }
+}
+
 export function buildInvite ({ accountKey, inviteCode, feedUrl, name, databaseUrl }) {
   if (!accountKey || !inviteCode || !feedUrl) return null;
   return {
