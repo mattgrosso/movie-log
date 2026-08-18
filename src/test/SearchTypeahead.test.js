@@ -110,9 +110,11 @@ const mountHome = () => {
   return { wrapper, mockStore }
 }
 
-// The component gates on inputValue (synchronous) and searches searchValue
-// (debounced), so a realistic keystroke sets both.
+// The panel opens only while the input has focus, gates on inputValue
+// (synchronous) and searches searchValue (300ms debounced) — so a realistic
+// keystroke focuses the field and sets both.
 const type = async (wrapper, text) => {
+  await wrapper.find('#search').trigger('focus')
   wrapper.vm.inputValue = text
   wrapper.vm.searchValue = text
   await wrapper.vm.$nextTick()
@@ -209,26 +211,28 @@ describe('search bar typeahead', () => {
       expect(wrapper.find('.did-you-mean-inline').exists()).toBe(true)
     })
 
-    it('takes the line when a part-typed genre has both lines to offer', async () => {
+    it('takes precedence when a part-typed genre gives both something to say', async () => {
       // "thril" returns zero results — `general` matches genres by exact
       // equality — so the fuzzy line is up too, offering the same word. The
-      // prefix match is the surer read, and it names the chip it will build.
+      // prefix match is the surer read, and it names the chip it will build,
+      // so the panel shows and the line below stays down.
       await type(wrapper, 'thril')
 
       expect(wrapper.vm.didYouMeanSuggestions.map((entry) => entry.value)).toContain('Thriller')
       expect(wrapper.vm.typeaheadSuggestions[0].value).toBe('Thriller')
 
       await wrapper.vm.$nextTick()
-      expect(wrapper.find('.typeahead-inline').exists()).toBe(true)
+      expect(wrapper.find('.typeahead-panel').exists()).toBe(true)
       expect(wrapper.find('.did-you-mean-inline').exists()).toBe(false)
     })
 
-    it('renders the kind beside each term', async () => {
+    it('renders the kind and reach beside each term', async () => {
       await type(wrapper, 'villen')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.find('.typeahead-inline').text()).toContain('Denis Villeneuve')
-      expect(wrapper.find('.typeahead-inline').text()).toContain('director')
+      const row = wrapper.find('.typeahead-row')
+      expect(row.text()).toContain('Denis Villeneuve')
+      expect(row.text()).toContain('director · 2 films')
     })
 
     it('keeps the blur guard working off the fuzzy suggestions, untouched', async () => {
@@ -250,15 +254,77 @@ describe('search bar typeahead', () => {
       await type(wrapper, 'villen')
       await wrapper.vm.$nextTick()
 
-      const link = wrapper.find('.typeahead-inline a')
-      expect(link.exists()).toBe(true)
+      const row = wrapper.find('.typeahead-row')
+      expect(row.exists()).toBe(true)
 
-      await link.trigger('click')
+      await row.trigger('click')
       await wrapper.vm.$nextTick()
 
       const chips = wrapper.vm.activeFilters.filter((filter) => !filter.temp)
       expect(chips).toHaveLength(1)
       expect(chips[0]).toMatchObject({ type: 'person', value: 'Denis Villeneuve' })
+    })
+  })
+
+  describe('opening and closing', () => {
+    it('opens over the header only while the input has focus', async () => {
+      await type(wrapper, 'villen')
+      expect(wrapper.vm.typeaheadOpen).toBe(true)
+
+      // A panel floating over the header with nothing focused behind it is a
+      // dropdown that has lost its input. The typo guard means blurring on
+      // "villenueve" leaves the text in place, so focus is the thing that
+      // has to close it.
+      wrapper.vm.blurSearchBar({ target: { classList: { remove: () => {} }, style: {} } })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.typeaheadOpen).toBe(false)
+      expect(wrapper.find('.typeahead-panel').exists()).toBe(false)
+    })
+
+    it('closes on escape without clearing the search', async () => {
+      await type(wrapper, 'villen')
+
+      await wrapper.find('#search').trigger('keydown.esc')
+      expect(wrapper.vm.typeaheadOpen).toBe(false)
+      expect(wrapper.vm.inputValue).toBe('villen')
+    })
+
+    it('reopens on the next keystroke after escape', async () => {
+      await type(wrapper, 'villen')
+      await wrapper.find('#search').trigger('keydown.esc')
+
+      wrapper.vm.onInput({ target: { value: 'villene' } })
+      wrapper.vm.searchValue = 'villene'
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.typeaheadOpen).toBe(true)
+    })
+
+    it('never opens taller than the room above the input', async () => {
+      // The panel opens upward over the banner, whose height depends on the
+      // phone. Rows that open off the top of the screen cannot be tapped.
+      wrapper.vm.$refs.searchInput.getBoundingClientRect = () => ({ top: 120 })
+      await type(wrapper, 'villen')
+
+      expect(wrapper.vm.typeaheadMaxHeight).toBe(112)
+      expect(wrapper.find('.typeahead-panel').attributes('style')).toContain('112px')
+    })
+
+    it('keeps at least a couple of rows when there is barely any room', async () => {
+      wrapper.vm.$refs.searchInput.getBoundingClientRect = () => ({ top: 20 })
+      await type(wrapper, 'villen')
+
+      expect(wrapper.vm.typeaheadMaxHeight).toBe(96)
+    })
+
+    it('offers a full panel of rows, not just what fits on a line', async () => {
+      await type(wrapper, 'a')
+      expect(wrapper.vm.typeaheadSuggestions.length).toBe(0)
+
+      await type(wrapper, 'de')
+      expect(wrapper.vm.typeaheadSuggestions.length).toBeGreaterThan(0)
+      expect(wrapper.vm.typeaheadSuggestions.length).toBeLessThanOrEqual(6)
     })
   })
 })

@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildTypeaheadIndex,
   rankTypeahead,
-  countTypeaheadSuggestionsThatFit,
+  describeSuggestion,
   TYPEAHEAD_MIN_CHARS
 } from '../assets/javascript/searchSuggestions.js';
 
@@ -132,39 +132,21 @@ describe('rankTypeahead', () => {
   });
 });
 
-describe('countTypeaheadSuggestionsThatFit', () => {
-  const suggestion = (value, kind) => ({ value, kind });
-
-  it('fits several short terms on a wide line', () => {
-    const candidates = [suggestion('Drama', 'genre'), suggestion('Comedy', 'genre')];
-    expect(countTypeaheadSuggestionsThatFit(candidates, 600)).toBe(2);
+describe('describeSuggestion', () => {
+  it('says what kind of chip a row will build and how much it covers', () => {
+    expect(describeSuggestion({ kind: 'director', count: 6 })).toBe('director · 6 films');
   });
 
-  it('cuts back to what a phone-width line can hold', () => {
-    const candidates = [
-      suggestion('Amblin Entertainment', 'studio'),
-      suggestion('Denis Villeneuve', 'director'),
-      suggestion('Steven Spielberg', 'director')
-    ];
-
-    expect(countTypeaheadSuggestionsThatFit(candidates, 260)).toBeLessThan(3);
+  it('counts one film as a film', () => {
+    expect(describeSuggestion({ kind: 'genre', count: 1 })).toBe('genre · 1 film');
   });
 
-  it('always attempts at least one, leaving the ellipsis to do the rest', () => {
-    expect(countTypeaheadSuggestionsThatFit([suggestion('Amblin Entertainment', 'studio')], 20)).toBe(1);
-    expect(countTypeaheadSuggestionsThatFit([suggestion('Drama', 'genre')], 0)).toBe(1);
+  it('falls back to the kind alone rather than saying "0 films"', () => {
+    expect(describeSuggestion({ kind: 'keyword', count: 0 })).toBe('keyword');
   });
 
-  it('counts nothing when there is nothing to show', () => {
-    expect(countTypeaheadSuggestionsThatFit([], 400)).toBe(0);
-    expect(countTypeaheadSuggestionsThatFit(null, 400)).toBe(0);
-  });
-
-  it('accounts for the kind word, not just the term', () => {
-    const withKind = [suggestion('Steven Spielberg', 'director'), suggestion('Drama', 'genre')];
-    const withoutKind = [suggestion('Steven Spielberg', ''), suggestion('Drama', '')];
-
-    expect(countTypeaheadSuggestionsThatFit(withKind, 190))
-      .toBeLessThanOrEqual(countTypeaheadSuggestionsThatFit(withoutKind, 190));
+  it('has nothing to say about a row with no kind', () => {
+    expect(describeSuggestion(null)).toBe('');
+    expect(describeSuggestion({})).toBe('');
   });
 });

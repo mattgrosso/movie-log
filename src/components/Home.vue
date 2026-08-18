@@ -19,6 +19,7 @@
           @focus="focusOnSearchBar"
           @blur="blurSearchBar"
           @input="onInput"
+          @keydown.esc="dismissTypeahead"
           :value="inputValue"
         >
         <!-- The quick-links lightning bolt, relocated from the rainbow bar
@@ -38,6 +39,33 @@
           <i class="bi bi-lightning-charge"/>
         </button>
       </div>
+      <!-- Typeahead over the dimensions of your own library — the director,
+           genre, studio or keyword you're part-way through typing — in the
+           same panel shape the games use. It opens UPWARD, over the header
+           image, for the reason CineplexityGame's does: on a phone the
+           keyboard owns everything below the field, and here the results are
+           re-filtering on every keystroke right underneath.
+
+           A sibling of .input-group rather than a child of it: Bootstrap
+           squares off the left corners of any non-first child of an
+           .input-group, which would quietly flatten the panel's radius.
+
+           mousedown.prevent keeps the tap from blurring the input first,
+           which would otherwise commit the half-typed term as a general chip
+           before the tap ever landed. -->
+      <div v-if="typeaheadOpen" class="typeahead-panel" :style="{ maxHeight: `${typeaheadMaxHeight}px` }">
+        <button
+          v-for="suggestion in typeaheadSuggestions"
+          :key="`${suggestion.kind}-${suggestion.value}`"
+          type="button"
+          class="typeahead-row"
+          @mousedown.prevent
+          @click="applyTypeaheadSuggestion(suggestion)"
+        >
+          <span class="typeahead-term">{{ suggestion.value }}</span>
+          <span class="typeahead-meta">{{ describeSuggestion(suggestion) }}</span>
+        </button>
+      </div>
       <!-- Typo-tolerant "Did you mean...?" fallback from the user's own rated
            data. As many ranked suggestions as fit on one line (see
            didYouMeanFitCount/updateDidYouMeanFitCount) - a full row of chips
@@ -47,22 +75,7 @@
            space once it was cut down to that. The CSS ellipsis is the real
            guarantee against overflow; the fit-count just decides how many
            terms to attempt. -->
-      <!-- Typeahead over the dimensions of your own library — the director,
-           genre, studio or keyword you're part-way through typing. A line
-           rather than a floating dropdown on purpose: every keystroke already
-           rewrites a temp chip and re-filters the results below, and a panel
-           overlaying live-changing results above a phone keyboard would fight
-           the thing it's meant to help with. mousedown.prevent keeps the tap
-           from blurring the input first, which would otherwise commit the
-           half-typed term as a general chip before the tap ever landed.
-
-           It takes the line ahead of "Did you mean?" when it has anything to
-           say: both can be up at once (a part-typed genre has no results, so
-           the fuzzy line is already showing), and of the two, a prefix match
-           is the surer read of what you're typing. A genuine typo has no
-           prefix match, so it falls through to the line below. -->
-      <p v-if="typeaheadLineSuggestions.length" class="typeahead-inline mb-1">Filter by: <template v-for="(suggestion, index) in typeaheadLineSuggestions" :key="`${suggestion.kind}-${suggestion.value}`"><a href="#" class="did-you-mean-link" @mousedown.prevent @click.prevent="applyTypeaheadSuggestion(suggestion)">{{ suggestion.value }}</a><span class="typeahead-kind"> {{ suggestion.kind }}</span><span v-if="index < typeaheadLineSuggestions.length - 1">, </span></template></p>
-      <p v-else-if="didYouMeanLineSuggestions.length" class="did-you-mean-inline mb-1">Did you mean?: <template v-for="(suggestion, index) in didYouMeanLineSuggestions" :key="`${suggestion.typeLabel}-${suggestion.value}`"><a href="#" class="did-you-mean-link" @click.prevent="applyDidYouMeanSuggestion(suggestion)">{{ suggestion.value }}</a><span v-if="index < didYouMeanLineSuggestions.length - 1">, </span></template></p>
+      <p v-if="!typeaheadOpen && didYouMeanLineSuggestions.length" class="did-you-mean-inline mb-1">Did you mean?: <template v-for="(suggestion, index) in didYouMeanLineSuggestions" :key="`${suggestion.typeLabel}-${suggestion.value}`"><a href="#" class="did-you-mean-link" @click.prevent="applyDidYouMeanSuggestion(suggestion)">{{ suggestion.value }}</a><span v-if="index < didYouMeanLineSuggestions.length - 1">, </span></template></p>
     </div>
 
     <!-- Quick-links panel: expands here, between the search input and
@@ -1310,7 +1323,7 @@ import {
 import {
   buildTypeaheadIndex,
   rankTypeahead,
-  countTypeaheadSuggestionsThatFit,
+  describeSuggestion,
   TYPEAHEAD_MIN_CHARS
 } from '../assets/javascript/searchSuggestions.js';
 import {
@@ -1405,12 +1418,19 @@ export default {
       debouncedUpdateDidYouMeanFitCount: debounce(function () {
         this.updateDidYouMeanFitCount();
       }, 200),
-      // Same measurement, for the typeahead line — kept separate because the
-      // two lines have different labels and never show at once.
-      typeaheadFitCount: 1,
-      debouncedUpdateTypeaheadFitCount: debounce(function () {
-        this.updateTypeaheadFitCount();
-      }, 200),
+      // The typeahead panel is only ever open while the input has focus — a
+      // panel floating over the header with nothing focused behind it is a
+      // dropdown that has lost its input.
+      searchInputFocused: false,
+      // Escape closes the panel without closing the search, and stays closed
+      // until the next keystroke says otherwise.
+      typeaheadDismissed: false,
+      // How tall the panel may be. It opens upward, so its ceiling is however
+      // much room there is above the input — a full six rows is taller than
+      // some banners, and rows that open off the top of the screen cannot be
+      // tapped. Measured when it opens rather than assumed, since the banner
+      // is a natural-aspect image whose height depends on the phone.
+      typeaheadMaxHeight: 220,
       // True while the current sort is only the default as it looked at
       // mount — nobody has chosen one. Lets the saved default be applied
       // when settings finally load, without ever overriding a real choice.
@@ -1591,8 +1611,10 @@ export default {
       // different terms have different lengths, so how many fit will vary.
       this.$nextTick(() => this.updateDidYouMeanFitCount());
     },
-    typeaheadSuggestions () {
-      this.$nextTick(() => this.updateTypeaheadFitCount());
+    typeaheadOpen (isOpen) {
+      if (isOpen) {
+        this.measureTypeaheadRoom();
+      }
     },
     // Watches EVERY active chip, not just the highest-priority one.
     // effectiveSearchFilter returns the first chip by type priority, so
@@ -1837,12 +1859,9 @@ export default {
     // state) once mounted, and again on resize (e.g. rotating a phone).
     this.$nextTick(() => this.updateDidYouMeanFitCount());
     window.addEventListener('resize', this.debouncedUpdateDidYouMeanFitCount);
-    this.$nextTick(() => this.updateTypeaheadFitCount());
-    window.addEventListener('resize', this.debouncedUpdateTypeaheadFitCount);
   },
   beforeUnmount () {
     window.removeEventListener('resize', this.debouncedUpdateDidYouMeanFitCount);
-    window.removeEventListener('resize', this.debouncedUpdateTypeaheadFitCount);
 
     // Clean up error log refresh interval
     this.stopErrorLogRefresh();
@@ -2599,8 +2618,10 @@ export default {
         exclude: this.activeFilters.filter((filter) => !filter.temp).map((filter) => filter.value)
       });
     },
-    typeaheadLineSuggestions () {
-      return this.typeaheadSuggestions.slice(0, this.typeaheadFitCount);
+    typeaheadOpen () {
+      return this.searchInputFocused &&
+        !this.typeaheadDismissed &&
+        this.typeaheadSuggestions.length > 0;
     },
     groupOrder () {
       // Returns the active group hierarchy. Uses the user's daily override from
@@ -4224,6 +4245,8 @@ export default {
       );
     },
     focusOnSearchBar (event) {
+      this.searchInputFocused = true;
+      this.typeaheadDismissed = false;
       event.target.classList.add('font-size-increased');
       event.target.style.fontSize = '16px';
 
@@ -4247,6 +4270,7 @@ export default {
       }
     },
     blurSearchBar (event) {
+      this.searchInputFocused = false;
       this.convertSearchToChip();
       event.target.classList.remove('font-size-increased');
       event.target.style.fontSize = '12px';
@@ -4702,6 +4726,10 @@ export default {
       // stale term until the user explicitly hit "Try Another Search".
       this.noResults = false;
 
+      // A new keystroke is a new question, so a panel closed by Escape comes
+      // back rather than staying shut for the rest of the search.
+      this.typeaheadDismissed = false;
+
       this.overwriteCurrentlyTypingSearchFilter(newVal);
       this.inputValue = newVal;
       this.setSearchValue(newVal);
@@ -4816,17 +4844,17 @@ export default {
       const maxWidth = input ? input.offsetWidth : 0;
       this.didYouMeanFitCount = countDidYouMeanSuggestionsThatFit(this.didYouMeanSuggestions, maxWidth);
     },
-    updateTypeaheadFitCount () {
-      // Nothing to measure when there's nothing to show — and leaving the
-      // previous count alone matters: dropping it to 0 means the next
-      // suggestion can't render until a second tick, which is a visible
-      // stutter on a line that appears mid-keystroke.
-      if (!this.typeaheadSuggestions.length) {
-        return;
-      }
+    describeSuggestion,
+    dismissTypeahead () {
+      this.typeaheadDismissed = true;
+    },
+    measureTypeaheadRoom () {
       const input = this.$refs.searchInput;
-      const maxWidth = input ? input.offsetWidth : 0;
-      this.typeaheadFitCount = countTypeaheadSuggestionsThatFit(this.typeaheadSuggestions, maxWidth);
+      if (!input) return;
+      // 8px of breathing room above, and never so short that the panel
+      // becomes a one-row peephole.
+      const room = input.getBoundingClientRect().top - 8;
+      this.typeaheadMaxHeight = Math.max(96, Math.min(220, room));
     },
     applyTypeaheadSuggestion (suggestion) {
       // The whole point: commit the chip the term actually IS, rather than
@@ -5402,6 +5430,10 @@ export default {
     .search-bar {
       width: 100%;
       max-width: 416px;
+      /* The containing block for the typeahead panel, which opens upward out
+         of the input. Anchored here rather than on .input-group so Bootstrap
+         doesn't square off its corners as a non-first input-group child. */
+      position: relative;
 
       input#search {
         border-bottom-right-radius: .375rem;
@@ -6106,20 +6138,60 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.typeahead-inline {
-  font-size: 0.75rem;
-  margin-top: 0.35rem;
-  /* Same ellipsis guarantee as .did-you-mean-inline: the fit count only
-     decides how many terms to attempt, this is what actually holds the line. */
-  max-width: 100%;
+/* Same panel the games use (CineplexityGame's, which also opens upward). */
+.typeahead-panel {
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  /* Above the input: the keyboard owns the bottom of a phone, and the
+     results below are re-filtering on every keystroke. Over the header
+     image is the empty space this can have. */
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  /* Overridden inline by measureTypeaheadRoom with the room actually above
+     the input; this is the ceiling and the value before it is measured. */
+  max-height: 220px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  position: absolute;
+  right: 0;
+  /* Clears the header (position: relative, z-index auto) without going
+     anywhere near the modals at 1050+. */
+  z-index: 20;
+}
+.typeahead-row {
+  align-items: baseline;
+  background: none;
+  border: none;
+  color: #eee;
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.5rem;
+  justify-content: space-between;
+  /* A finger-sized target, matching the games' rows. */
+  min-height: 40px;
+  padding: 0.4rem 0.8rem;
+  text-align: left;
+  width: 100%;
+}
+.typeahead-row:active {
+  /* Mobile-first press feedback, flat rather than nested: this style block
+     is plain CSS (see .did-you-mean-link:active beside it), so an `&` here
+     compiles to a literal ampersand and the rule silently never applies. */
+  background: #1f1f1f;
+}
+.typeahead-term {
+  /* A long studio name truncates rather than pushing the kind off the row. */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.typeahead-kind {
-  /* Quieter than the term itself — it's the answer to "what kind of chip
-     will this make", not something to read first. */
-  color: #6c757d;
+.typeahead-meta {
+  /* Quieter than the term — it answers "what kind of chip will this make,
+     and why is it this high up", not something to read first. */
+  color: #8b8b8b;
+  flex-shrink: 0;
   font-size: 0.68rem;
 }
 .did-you-mean-link {

@@ -29,6 +29,10 @@
 //    normalized strings. On a phone that difference is a stutter while
 //    typing versus nothing at all. Fuzzy matching stays exactly where it
 //    was, on the zero-results path, where one 40ms hit is invisible.
+//
+// The results are shown in a panel opening upward out of the input, the same
+// shape the games use (CineplexityGame's is the closest — it opens upward for
+// the same reason: on a phone the keyboard owns everything below the field).
 
 import { normalizeSearchText } from './searchFiltering.js';
 
@@ -36,9 +40,9 @@ import { normalizeSearchText } from './searchFiltering.js';
 // before you've typed the hard part of a name.
 export const TYPEAHEAD_MIN_CHARS = 2;
 
-// A ranked shortlist; how many of them actually render is a width question
-// (see countTypeaheadSuggestionsThatFit).
-export const TYPEAHEAD_MAX_SUGGESTIONS = 4;
+// A panel above the input holds a real list, so this is what fits in one
+// without scrolling rather than what fits on one line of text.
+export const TYPEAHEAD_MAX_SUGGESTIONS = 6;
 
 /**
  * Flatten the library's count maps into one prefix-searchable index.
@@ -143,31 +147,13 @@ export function rankTypeahead (index, rawTerm, { limit = TYPEAHEAD_MAX_SUGGESTIO
 }
 
 /**
- * How many suggestions fit on the one line under the search bar.
- *
- * The sibling of countDidYouMeanSuggestionsThatFit, with a different label
- * and a kind word ("director", "genre") after each term. Same bargain: the
- * CSS ellipsis is the real guarantee against overflow, and this only decides
- * how many are worth attempting.
+ * The right-hand label on a suggestion row: what kind of thing this is, and
+ * how much of your library it accounts for — which is also why it is ranked
+ * where it is.
  */
-export function countTypeaheadSuggestionsThatFit (candidates, maxWidthPx, avgCharWidthPx = 6) {
-  if (!candidates?.length || !maxWidthPx) {
-    return candidates?.length ? 1 : 0;
-  }
-
-  let used = 'Filter by: '.length * avgCharWidthPx;
-  let count = 0;
-
-  for (const candidate of candidates) {
-    const separatorChars = count > 0 ? 2 : 0; // ", "
-    const kindChars = candidate.kind ? candidate.kind.length + 1 : 0; // " director"
-    const width = (candidate.value.length + kindChars + separatorChars) * avgCharWidthPx;
-    if (count > 0 && used + width > maxWidthPx) {
-      break;
-    }
-    used += width;
-    count += 1;
-  }
-
-  return Math.max(count, 1);
+export function describeSuggestion (suggestion) {
+  if (!suggestion?.kind) return '';
+  const films = Number(suggestion.count) || 0;
+  if (!films) return suggestion.kind;
+  return `${suggestion.kind} · ${films} ${films === 1 ? 'film' : 'films'}`;
 }
