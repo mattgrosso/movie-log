@@ -1103,20 +1103,36 @@
       </div>
       <InsetBrowserModal :show="showInsetBrowserModal" :url="insetBrowserUrl" @close="showInsetBrowserModal = false" />
     </div>
-    <!-- Unrated movies section -->
-    <div v-if="displayableUnratedMovies.length && !unratedMoviesError && paginatedSortedResults.length" class="unrated-movies-grid">
-      <h3 class="bg-dark">
-        <span v-if="unratedMoviesSearchType === 'person'">More from {{ effectiveSearchTerm }}:</span>
-        <span v-else-if="unratedMoviesSearchType === 'year'">More from {{ effectiveSearchTerm }}:</span>
-        <span v-else-if="unratedMoviesSearchType === 'yearRange'">More from this time period:</span>
-        <span v-else-if="unratedMoviesSearchType === 'genre'">More {{ effectiveSearchTerm.toLowerCase() }} movies:</span>
-        <span v-else-if="unratedMoviesSearchType === 'company'">More from {{ effectiveSearchTerm }}:</span>
-        <span v-else-if="unratedMoviesSearchType === 'search'">Movies matching "{{ effectiveSearchTerm }}":</span>
-        <span v-else>More from {{ effectiveSearchTerm }}:</span>
-      </h3>
-      <div class="d-flex flex-wrap">
-        <div v-for="movie in unratedMovies" :key="movie.id" class="unrated-movie-card col-3" @click="showMovieInfo(movie)">
-          <img v-if="movie.poster_path" :src="'https://image.tmdb.org/t/p/w185' + movie.poster_path" :alt="movie.title" class="unrated-movie-poster col-12 p-1" style="cursor: pointer;"/>
+    <!-- "More from…": things matching the current filter that aren't in the
+         library yet. Rebuilt 2026-08-18 — "I've never been that pleased with
+         how that section was built but I like the concept. Let's bring that
+         section into our modern styles and make it possible to add movies
+         from there to a hat" (report -P-HV1bfduJBFvmSGM-b).
+         Now the same language as the watchlist rows: one sideways row of
+         poster cards however many there are, each with a hat button, rather
+         than a wall of bare col-3 posters under a bg-dark bar. -->
+    <div v-if="displayableUnratedMovies.length && !unratedMoviesError && paginatedSortedResults.length" class="more-from">
+      <h3 class="more-from-title">{{ moreFromTitle }}</h3>
+      <div class="more-from-row">
+        <div
+          v-for="movie in displayableUnratedMovies"
+          :key="movie.id"
+          class="more-from-card"
+          role="button"
+          :aria-label="movie.title"
+          @click="showMovieInfo(movie)"
+        >
+          <img
+            :src="'https://image.tmdb.org/t/p/w185' + movie.poster_path"
+            :alt="movie.title"
+            class="more-from-poster"
+            loading="lazy"
+          >
+          <div class="more-from-actions" @click.stop>
+            <SendToHat variant="icon" :movies="movie" :note="moreFromHatNote"/>
+          </div>
+          <!-- The poster says the title; the year is what it can't. -->
+          <span v-if="movie.release_date" class="more-from-meta">{{ movie.release_date.slice(0, 4) }}</span>
         </div>
       </div>
     </div>
@@ -1238,6 +1254,7 @@ import SettingsSection from "./SettingsSection.vue";
 import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
+import SendToHat from './SendToHat.vue';
 import { getRating } from "../assets/javascript/GetRating.js";
 import { awardsYearThreshold } from "../assets/javascript/personalAwards.js";
 import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
@@ -1321,6 +1338,7 @@ export default {
     SettingsSection,
     NoResults,
     ThreeStateToggle,
+    SendToHat,
   },
   data () {
     return {
@@ -2273,6 +2291,23 @@ export default {
     displayableUnratedMovies () {
       const filtered = this.unratedMovies.filter(movie => movie.id && movie.poster_path);
       return filtered;
+    },
+    // One heading instead of seven near-identical spans.
+    moreFromTitle () {
+      const term = this.effectiveSearchTerm;
+
+      switch (this.unratedMoviesSearchType) {
+        case 'yearRange': return 'More from this time period';
+        case 'genre': return `More ${String(term || '').toLowerCase()} movies`;
+        case 'search': return `Movies matching “${term}”`;
+        default: return `More from ${term}`;
+      }
+    },
+    // Provenance written onto the hat movie, so a draw can say where it came
+    // from months later — Movie Hat shows it on the drawn-movie screen.
+    moreFromHatNote () {
+      const term = this.effectiveSearchTerm;
+      return term ? `Found under ${term}` : 'Found in Cinema Roll';
     },
     effectiveSearchFilter () {
       const typePriority = this.filterTypes;
@@ -5753,20 +5788,61 @@ export default {
       }
     }
 
-    .unrated-movies-grid {
-      border-top: 1px solid white;
-      padding: 16px 0 50px;
-      position: relative;
+    // "More from…" — the watchlist-row language rather than the old
+    // centred-label-on-a-rule treatment, which needed absolute positioning
+    // and a bg-dark bar to punch a hole in its own border.
+    .more-from {
+      border-top: 1px solid rgba(255, 255, 255, 0.25);
+      margin-top: 1.5rem;
+      padding: 1rem 0 3rem;
+    }
 
-      h3 {
-        font-size: 1rem;
-        left: 50%;
-        padding: 0 16px;
-        position: absolute;
-        top: 0;
-        transform: translate(-50%, -50%);
-        white-space: nowrap;
-      }
+    .more-from-title {
+      color: #eee;
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0 0 0.6rem;
+    }
+
+    .more-from-row {
+      display: flex;
+      gap: 0.5rem;
+      // Sideways rather than a wall: the section is one row tall however
+      // many movies match.
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .more-from-card {
+      cursor: pointer;
+      flex: 0 0 auto;
+      position: relative;
+      width: 104px;
+    }
+
+    .more-from-poster {
+      border-radius: 4px;
+      display: block;
+      // Fixed height at the poster's own ratio, so the row lines up top and
+      // bottom whatever TMDB returns.
+      height: 156px;
+      object-fit: cover;
+      width: 104px;
+    }
+
+    .more-from-actions {
+      left: 4px;
+      position: absolute;
+      top: 4px;
+    }
+
+    .more-from-meta {
+      color: #bbb;
+      display: block;
+      font-size: 0.7rem;
+      padding-top: 0.2rem;
+      text-align: center;
     }
 
     .no-results-buffer {
@@ -6278,19 +6354,6 @@ export default {
 }
 
 /* Unrated Movie Posters */
-.unrated-movie-card {
-  cursor: pointer;
-}
-
-.unrated-movie-poster {
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
-
-.unrated-movie-poster:hover {
-  opacity: 0.8;
-}
-
 /* Header→input gap matched to the input→rainbow gap (Matt). */
 .home {
   padding-top: 0.75rem;
