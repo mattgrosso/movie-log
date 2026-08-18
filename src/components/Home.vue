@@ -6565,6 +6565,19 @@ export default {
    runs underneath it. */
 .search-input-group {
   position: relative;
+  /* Confines the bolt's z-index to this group (bug report: "the lightning
+     bolt has a z-index that's too high so it's appearing over some other
+     things — the sort order dropdown can pop up and be in that same spot
+     but the lightning bolt is still visible on top of it").
+
+     position: relative with z-index auto does NOT create a stacking
+     context, so the bolt's z-index: 5 was competing page-wide and painting
+     over any overlay that stacks below 5 — everything with z-index auto
+     included. Isolating means the bolt only ever stacks against the input
+     beside it, which is all it needed the 5 for. The typeahead panel is a
+     sibling of this group (on .search-bar) at z-index 20, so it still opens
+     above the input. */
+  isolation: isolate;
 
   .search-input-with-quick-links {
     padding-right: 2.4rem;
