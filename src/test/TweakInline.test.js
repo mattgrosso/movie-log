@@ -247,8 +247,10 @@ describe('TweakInline', () => {
       expect(saveBtn.exists()).toBe(true)
       await saveBtn.trigger('click')
 
-      // Collapses back to the notice, resets the quota clock...
-      expect(wrapper.find('.prompt-card').text()).toContain('Two films are sitting on the same score')
+      // Collapses back to the notice, resets the quota clock... and the
+      // notice names the real size of THIS tie. It used to read "Two films"
+      // even here, in a 4-way tie (report -P-FN61DdMmTJ0J9XJWy).
+      expect(wrapper.find('.prompt-card').text()).toContain('Four films are sitting on the same score')
       expect(dispatch).toHaveBeenCalledWith('writeDurably', { path: 'settings/lastTweak', value: expect.any(Number) })
       // ...but does NOT clear the tournament — progress is preserved.
       expect(dispatch).not.toHaveBeenCalledWith('writeDurably', { path: 'settings/tieBreakTournament', value: null })

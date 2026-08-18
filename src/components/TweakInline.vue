@@ -7,7 +7,7 @@
         <span class="prompt-badge prompt-badge-tiebreak"><i class="bi bi-signpost-split-fill"></i></span>
         <span class="prompt-body">
           <span class="prompt-label">Tiebreak</span>
-          <p class="prompt-text">Two films are sitting on the same score.</p>
+          <p class="prompt-text">{{ tiedPromptText }}</p>
           <a class="prompt-action prompt-action-tiebreak" @click.stop="toggleTweakInline">Break the tie</a>
         </span>
       </div>
@@ -116,6 +116,8 @@ import { getRating } from "../assets/javascript/GetRating.js";
 import { sortResultsFast } from "../assets/javascript/searchFiltering.js";
 import {
   findTiedGroup,
+  tiedContestantCount,
+  countWord,
   createRoundRobinTournament,
   currentMatch,
   isComplete,
@@ -202,6 +204,18 @@ export default {
     secondResult () {
       if (!this.currentMatchup) return null;
       return this.allMoviesRanked.find((movie) => movie.dbKey === this.currentMatchup.b) || null;
+    },
+    // How many films this prompt is really about — the frozen contestant
+    // list if a tournament is already under way, otherwise the tied group
+    // that tapping through would enter.
+    tiedCount () {
+      return tiedContestantCount(this.currentTournament, this.tiedGroupDbKeys);
+    },
+    tiedPromptText () {
+      // Was a fixed "Two films are sitting on the same score", which was
+      // wrong every time a tie ran deeper than two (report
+      // -P-FN61DdMmTJ0J9XJWy).
+      return `${countWord(this.tiedCount)} films are sitting on the same score.`;
     },
     progressLabel () {
       if (!this.currentTournament) return '';

@@ -15,6 +15,35 @@
 // first adjacent tie in `sortedEntries` (works regardless of best-first or
 // worst-first order, since a tied group is contiguous either way).
 // `getScore` extracts the comparable score from an entry.
+/**
+ * How many films the tiebreak prompt is actually about.
+ *
+ * Report -P-FN61DdMmTJ0J9XJWy (2026-08-17): "The new ties dialogue always
+ * says there are two movies tied where in fact, they are often more than
+ * two." The copy was a fixed "Two films"; this is the real number — the
+ * frozen contestant list once a tournament exists, otherwise the tied
+ * group that opening it would enter.
+ */
+export function tiedContestantCount (tournament, tiedGroup) {
+  const frozen = tournament?.contestantIds?.length;
+  if (frozen) return frozen;
+  return (tiedGroup || []).length;
+}
+
+const SMALL_NUMBERS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+
+/** `3` → 'Three', `14` → '14'. Keeps the prompt's written-out voice. */
+export function countWord (count) {
+  // Not "Zero": Number(null) is 0, and an absent count should say nothing
+  // at all rather than narrate a tie between no films.
+  if (count === null || count === undefined || count === '') return '';
+  const number = Number(count);
+  if (!Number.isFinite(number) || number < 0) return '';
+  const word = SMALL_NUMBERS[number];
+  if (!word) return String(number);
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
 export function findTiedGroup (sortedEntries, getScore) {
   const firstTiedIndex = sortedEntries.findIndex((entry, index) => {
     const next = sortedEntries[index + 1];
