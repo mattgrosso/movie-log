@@ -1255,6 +1255,7 @@ import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
 import SendToHat from './SendToHat.vue';
+import { rankMoreFrom, genreAffinity } from "../assets/javascript/moreFromRanking.js";
 import { getRating } from "../assets/javascript/GetRating.js";
 import { awardsYearThreshold } from "../assets/javascript/personalAwards.js";
 import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
@@ -2316,6 +2317,15 @@ export default {
     displayableUnratedMovies () {
       const filtered = this.unratedMovies.filter(movie => movie.id && movie.poster_path);
       return filtered;
+    },
+    // How you rate each genre against your own average — the part of a
+    // suggestion TMDB can't know. Computed from the whole library, so it is
+    // cached here rather than rebuilt per filter change.
+    genreTaste () {
+      return genreAffinity(
+        this.allEntriesWithFlatKeywordsAdded,
+        (entry) => getRating(entry)?.calculatedTotal
+      );
     },
     // One heading instead of seven near-identical spans.
     moreFromTitle () {
@@ -5204,52 +5214,22 @@ export default {
           relevantList = [];
         }
 
-        // Filter out already rated movies and remove duplicates
-        const ratedIds = new Set(this.allEntriesWithFlatKeywordsAdded.map(r => r.movie.id));
-        const seenIds = new Set();
-        const unrated = [];
+        // Everything already accounted for: rated, or waiting in a hat.
+        // Suggesting something you have already decided to watch is the one
+        // thing a per-filter watchlist must not do.
+        const exclude = new Set(this.allEntriesWithFlatKeywordsAdded.map(r => r.movie.id));
+        Object.keys(this.$store.state.movieHatMovieIds || {}).forEach((id) => {
+          exclude.add(Number(id));
+        });
 
-        for (const m of relevantList) {
-          if (!ratedIds.has(m.id) && !seenIds.has(m.id)) {
-            unrated.push(m);
-            seenIds.add(m.id);
-          }
-        }
-
-        // Sort by popularity and apply filtering
-        if (unrated.length > 0) {
-          unrated.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-
-          const popularities = unrated.map(m => m.popularity).filter(p => typeof p === 'number');
-          if (popularities.length > 0) {
-            const max = Math.max(...popularities);
-            const min = Math.min(...popularities);
-
-            // Use more lenient filtering for different search types
-            let cutoffPercentage = 0.4; // Default to 60% for general searches
-            if (this.unratedMoviesSearchType === 'year' || this.unratedMoviesSearchType === 'yearRange') {
-              cutoffPercentage = 0.2; // Keep movies in top 80% for year searches
-            } else if (this.unratedMoviesSearchType === 'genre') {
-              cutoffPercentage = 0.3; // Keep movies in top 70% for genre searches
-            }
-
-            const cutoff = min + (max - min) * cutoffPercentage;
-            let filtered = unrated.filter(m => m.popularity >= cutoff);
-
-            // Show more movies for different search types
-            const targetCount = 12;
-
-            if (filtered.length < targetCount && unrated.length > targetCount) {
-              filtered = unrated.slice(0, targetCount);
-            }
-
-            this.unratedMovies = filtered;
-          } else {
-            this.unratedMovies = unrated.slice(0, 12);
-          }
-        } else {
-          this.unratedMovies = [];
-        }
+        // Ranked on quality, your own genre taste, and a little reach —
+        // see moreFromRanking.js for why the old popularity cutoff had to
+        // go.
+        this.unratedMovies = rankMoreFrom(relevantList, {
+          exclude,
+          affinity: this.genreTaste,
+          limit: 18
+        });
       } catch (err) {
         console.error('Error fetching unrated movies:', err);
         ErrorLogService.error('Failed to fetch unrated movies', {
