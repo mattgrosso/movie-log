@@ -1256,6 +1256,7 @@ import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
 import SendToHat from './SendToHat.vue';
 import { rankMoreFrom, genreAffinity } from "../assets/javascript/moreFromRanking.js";
+import { genreIdFor } from "../assets/javascript/tmdbGenres.js";
 import { getRating } from "../assets/javascript/GetRating.js";
 import { awardsYearThreshold } from "../assets/javascript/personalAwards.js";
 import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
@@ -4781,29 +4782,11 @@ export default {
         genre.name && normalizeSearchText(genre.name) === lowerValue
       );
       if (exactGenreMatch) {
-        // Find the genre ID for TMDB API
-        const commonGenres = {
-          action: 28,
-          adventure: 12,
-          animation: 16,
-          comedy: 35,
-          crime: 80,
-          documentary: 99,
-          drama: 18,
-          family: 10751,
-          fantasy: 14,
-          history: 36,
-          horror: 27,
-          music: 10402,
-          mystery: 9648,
-          romance: 10749,
-          'sci-fi': 878,
-          'science fiction': 878,
-          thriller: 53,
-          war: 10752,
-          western: 37
-        };
-        const genreId = commonGenres[exactGenreMatch.name.toLowerCase()] || 18; // Default to drama
+        // One shared map (assets/javascript/tmdbGenres.js), so chip
+        // detection and the TMDB fetch can never disagree about what
+        // "horror" means. Null for a genre TMDB doesn't have, rather than
+        // the old silent default to 18 (Drama).
+        const genreId = genreIdFor(exactGenreMatch.name);
         return { type: 'genre', genreId, value: exactGenreMatch.name, display: `${exactGenreMatch.name}` };
       }
 
@@ -5219,7 +5202,15 @@ export default {
           relevantList = await this.fetchUnratedMoviesByYearRange(searchFilter.value);
         } else if (searchFilter.type === 'genre') {
           // Fetch movies from specific genre
-          relevantList = await this.fetchUnratedMoviesByGenre(searchFilter.genreId);
+          // Resolved from the genre's NAME rather than trusting the chip to
+          // be carrying an id. addSearchFilter builds chips from type/value/
+          // display only, so `genreId` never survived onto the chip — every
+          // genre chip arrived here undefined, which is what made "horror"
+          // return TMDB's most popular films overall (and, once that was
+          // guarded, nothing at all).
+          relevantList = await this.fetchUnratedMoviesByGenre(
+            searchFilter.genreId ?? genreIdFor(searchFilter.value)
+          );
         } else if (searchFilter.type === 'company') {
           // Fetch movies from specific production company
           relevantList = await this.fetchUnratedMoviesByCompany(searchFilter.value);
