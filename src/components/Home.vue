@@ -1368,6 +1368,10 @@ export default {
       // mount — nobody has chosen one. Lets the saved default be applied
       // when settings finally load, without ever overriding a real choice.
       sortCameFromDefault: false,
+      // Sequence number for the "More from…" fetches, so a slow earlier
+      // filter can't paint over a newer one (see
+      // fetchUnratedMoviesBySearchFilter).
+      unratedRequestId: 0,
       filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'tag'],
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
 
@@ -4964,6 +4968,12 @@ export default {
       return allResults;
     },
     async fetchUnratedMoviesByGenre (genreId) {
+      // Without this, axios simply omits `with_genres` and /discover
+      // happily returns the most popular films on TMDB — Spider-Man, Harry
+      // Potter, superheroes — under whatever genre heading you picked. An
+      // empty row is the honest answer.
+      if (genreId == null || genreId === '') return [];
+
       const allResults = [];
 
       // Filter out movies newer than 2 years to avoid current buzz
@@ -5183,6 +5193,20 @@ export default {
       this.unratedMoviesError = null;
       this.unratedMovies = [];
 
+      // Only the NEWEST filter may write results.
+      //
+      // Matt, 2026-08-18: "the next one I tried was just horror... mostly
+      // what it gave me was actually some more Spiderman, but then some
+      // Harry Potter and some other superhero stuff." Neither the genre nor
+      // the keyword path returns anything like that for horror — the
+      // results were the PREVIOUS filter's, arriving late. Each of these
+      // fetches is several sequential TMDB pages, so switching filters
+      // leaves two in flight and whichever finishes last used to win,
+      // regardless of which filter you were actually looking at.
+      const requestId = (this.unratedRequestId || 0) + 1;
+      this.unratedRequestId = requestId;
+      const isStale = () => this.unratedRequestId !== requestId;
+
       try {
         this.unratedMoviesSearchType = searchFilter.type;
         let relevantList = [];
@@ -5214,6 +5238,10 @@ export default {
           relevantList = [];
         }
 
+        // A filter the user has already moved on from must not paint over
+        // the one they are looking at now.
+        if (isStale()) return;
+
         // Everything already accounted for: rated, or waiting in a hat.
         // Suggesting something you have already decided to watch is the one
         // thing a per-filter watchlist must not do.
@@ -5237,6 +5265,7 @@ export default {
           error: err.message,
           stack: err.stack
         });
+        if (isStale()) return;
         this.unratedMoviesError = 'Error fetching from TMDB.';
       }
     },

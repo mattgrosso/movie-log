@@ -167,3 +167,64 @@ describe('rankMoreFrom', () => {
     expect(rankMoreFrom([], {})).toEqual([]);
   });
 });
+
+// Matt, 2026-08-18: "the next one I tried was just horror... mostly what it
+// gave me was actually some more Spiderman, but then some Harry Potter and
+// some other superhero stuff."
+//
+// Neither the genre nor the keyword path returns anything like that for
+// horror — those were the PREVIOUS filter's results arriving late. Each
+// fetch is several sequential TMDB pages, so switching filters leaves two
+// in flight, and whichever finished last used to win. The guard is a
+// sequence number; this is the property it has to hold.
+describe('only the newest filter may write results', () => {
+  // A miniature of fetchUnratedMoviesBySearchFilter's guard.
+  function makeSection () {
+    return {
+      results: [],
+      requestId: 0,
+      async run (label, finishAfterMs, clock) {
+        const id = ++this.requestId;
+        await clock(finishAfterMs);
+        if (this.requestId !== id) return; // superseded
+        this.results = [label];
+      }
+    };
+  }
+
+  const clock = (waits) => (ms) => new Promise((resolve) => waits.push({ ms, resolve }));
+
+  it('discards a slow earlier filter that lands after a newer one', async () => {
+    const section = makeSection();
+    const waits = [];
+    const tick = clock(waits);
+
+    const spiderman = section.run('spiderman', 300, tick); // three pages
+    const horror = section.run('horror', 100, tick); // lands first
+
+    waits.find((w) => w.ms === 100).resolve();
+    await horror;
+    expect(section.results).toEqual(['horror']);
+
+    // The older request finally answers — and must be ignored.
+    waits.find((w) => w.ms === 300).resolve();
+    await spiderman;
+    expect(section.results).toEqual(['horror']);
+  });
+
+  it('still shows the newest filter when responses arrive in order', async () => {
+    const section = makeSection();
+    const waits = [];
+    const tick = clock(waits);
+
+    const first = section.run('spiderman', 100, tick);
+    waits[0].resolve();
+    await first;
+    expect(section.results).toEqual(['spiderman']);
+
+    const second = section.run('horror', 100, tick);
+    waits[1].resolve();
+    await second;
+    expect(section.results).toEqual(['horror']);
+  });
+});
