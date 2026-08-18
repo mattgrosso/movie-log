@@ -281,6 +281,14 @@ export default createStore({
     socialFriendProfiles: {},
     // Hats this account belongs to, from the one-off Movie Hat lookup.
     availableMovieHats: [],
+    // TMDB ids of everything currently WAITING in a linked hat, so a "send
+    // to hat" button can hide itself for a movie that is already in one
+    // ("it would be nice if the hat icon button only appeared on movies
+    // that aren't already in one of my hats", 2026-08-17). Drawn movies are
+    // deliberately not counted: they have left the hat and are fair game
+    // to put back in.
+    movieHatMovieIds: {},
+    movieHatContentsAt: 0,
     // Per-hat cards for the watchlist's draw section.
     movieHatSummaries: [],
     // The Google address signed into Movie Hat's project, if any.
@@ -503,6 +511,17 @@ export default createStore({
     },
     setAvailableMovieHats (state, value) {
       state.availableMovieHats = value || [];
+    },
+    setMovieHatContents (state, { ids, at } = {}) {
+      state.movieHatMovieIds = ids || {};
+      state.movieHatContentsAt = at || 0;
+    },
+    // Sent successfully: hide those buttons now rather than after the next
+    // refresh of the cache.
+    noteMoviesInHat (state, ids) {
+      (ids || []).forEach((id) => {
+        if (id != null) state.movieHatMovieIds[id] = true;
+      });
     },
     setMovieHatUser (state, user) {
       state.movieHatEmail = user?.email || null;
@@ -1982,6 +2001,42 @@ export default createStore({
       }
 
       return { added, skipped, hat: hat.title };
+    },
+
+    /**
+     * Which movies are already waiting in a linked hat.
+     *
+     * One request per linked hat, cached for `maxAgeMs` — a hat's contents
+     * change rarely and every read is billed egress on Movie Hat's
+     * database, so this deliberately does NOT refetch per screen. A hat
+     * that fails to load simply contributes nothing: the button then shows
+     * when it might not need to, and sending still reports "already in
+     * there", which is the safe way round.
+     */
+    async ensureMovieHatContents (context, { maxAgeMs = 10 * 60 * 1000, force = false } = {}) {
+      const hats = context.getters.linkedMovieHats;
+
+      if (!hats.length) {
+        context.commit('setMovieHatContents', { ids: {}, at: Date.now() });
+        return;
+      }
+
+      const age = Date.now() - (context.state.movieHatContentsAt || 0);
+      if (!force && context.state.movieHatContentsAt && age < maxAgeMs) return;
+
+      const ids = {};
+      await Promise.all(hats.map(async (hat) => {
+        try {
+          const loaded = await fetchHat(hat.title, hat.dbKey);
+          (loaded?.movies || []).forEach((movie) => {
+            if (movie?.id != null) ids[movie.id] = true;
+          });
+        } catch (error) {
+          console.warn('[movie-hat] could not read hat contents', hat.title, error.message);
+        }
+      }));
+
+      context.commit('setMovieHatContents', { ids, at: Date.now() });
     },
 
     /**

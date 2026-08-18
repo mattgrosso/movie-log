@@ -1,5 +1,5 @@
 <template>
-  <div v-if="hats.length" class="send-to-hat" :class="`send-to-hat-${variant}`">
+  <div v-if="hats.length && !everythingAlreadyInAHat" class="send-to-hat" :class="`send-to-hat-${variant}`">
     <!-- On a poster the control is an icon in the corner; under a list it is
          a labelled button. Same behaviour either way. -->
     <button
@@ -74,11 +74,16 @@
 // hat from a list is kind of the same as send to a hat. It just iterates
 // through the list."
 //
-// Cinema Roll does NOT track what's in a hat: "we don't really need to keep
-// track of that. We should just be... if you try to add something to a hat,
-// it should just notify you back that it's already in there." So the hat is
-// read at the moment of sending and the result is reported back, rather than
-// mirrored in Cinema Roll's own state.
+// Cinema Roll originally did NOT track what's in a hat — "we don't really
+// need to keep track of that... if you try to add something to a hat, it
+// should just notify you back that it's already in there" (2026-08-16).
+// That changed on 2026-08-17: "it would be nice if the hat icon button only
+// appeared on movies that aren't already in one of my hats", which can only
+// be known before the tap. So the store now keeps a cached set of the ids
+// waiting in linked hats (ensureMovieHatContents) and this button hides
+// itself for them. The send-time check stays exactly as it was — it is
+// still the authority, and still reports "already in there" if the cache
+// was stale or a hat could not be read.
 import ErrorLogService from '../services/ErrorLogService.js';
 
 export default {
@@ -111,10 +116,33 @@ export default {
     list () {
       return Array.isArray(this.movies) ? this.movies : [this.movies];
     },
+    // A Cinema Roll entry wraps its TMDB movie; a raw TMDB result is the
+    // movie. Both shapes arrive here.
+    tmdbIds () {
+      return this.list
+        .map((item) => item?.movie?.id ?? item?.id)
+        .filter((id) => id != null);
+    },
+    // Hidden once every movie it offers is already waiting in a hat. For a
+    // whole-list button that means the list is fully accounted for; if even
+    // one is missing there is still something to send.
+    everythingAlreadyInAHat () {
+      // Same guard as `hats` above: a screen mounted with a partial store
+      // must not take the button down with it.
+      const inHats = this.$store?.state?.movieHatMovieIds || {};
+      if (!this.tmdbIds.length) return false;
+      return this.tmdbIds.every((id) => inHats[id]);
+    },
     buttonLabel () {
       if (this.label) return this.label;
       return this.list.length > 1 ? `Add ${this.list.length} to a hat` : 'Add to hat';
     }
+  },
+  mounted () {
+    // Fills the "already in a hat" set the first time any of these buttons
+    // renders. Cached in the store, so a screen full of them costs one
+    // round trip per hat, not one per button.
+    if (this.hats.length) this.$store?.dispatch?.('ensureMovieHatContents');
   },
   beforeUnmount () {
     if (this.resultTimer) clearTimeout(this.resultTimer);
@@ -141,6 +169,11 @@ export default {
           note: this.note
         });
         this.report({ message: this.summarize(added, skipped, hat.title) });
+        // Everything the hat now holds — freshly added, or skipped because
+        // it was already there — so the button disappears straight away
+        // rather than waiting for the cache to age out.
+        this.$store?.commit?.('noteMoviesInHat', [...(added || []), ...(skipped || [])]
+          .map((item) => item?.movie?.id ?? item?.id));
         // Lists use this to take a movie off themselves: "when I add a movie
         // to a hat from my watchlist, it should be removed from the watchlist
         // because I have essentially decided OK, I will watch that"
