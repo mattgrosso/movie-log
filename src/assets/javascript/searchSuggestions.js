@@ -44,38 +44,10 @@ export const TYPEAHEAD_MIN_CHARS = 2;
 // without scrolling rather than what fits on one line of text.
 export const TYPEAHEAD_MAX_SUGGESTIONS = 6;
 
-/**
- * Flatten the library's count maps into one prefix-searchable index.
- *
- * `sources` are given in priority order, each `{ counts, expectedType, kind }`
- * where `counts` is a `{ name: filmCount }` map. Order matters because a
- * director is also crew: "Denis Villeneuve" appears in both countDirectors
- * and countCastCrew, and both build the same `person` chip, so the entry is
- * deduped by value and the first source wins the label.
- *
- * Normalized forms are precomputed here rather than per keystroke — the whole
- * build costs about as much as the Fuse index it sits beside (~56ms for
- * 25,000 terms) and Vue memoizes it until the library changes, which turns a
- * 16ms-per-keystroke cost into a 3ms one.
- */
-export function buildTypeaheadIndex (sources) {
-  const index = [];
-  const seen = new Set();
-
-  (sources || []).forEach(({ counts, expectedType, kind }) => {
-    Object.keys(counts || {}).forEach((value) => {
-      if (!value) return;
-
-      const norm = normalizeSearchText(value);
-      if (!norm || seen.has(norm)) return;
-
-      seen.add(norm);
-      index.push({ value, norm, count: counts[value] || 0, expectedType, kind });
-    });
-  });
-
-  return index;
-}
+// The index itself is the catalog's typeahead projection — see catalog.js's
+// typeaheadEntries. This module only ranks and describes: normalized forms
+// arrive precomputed, which is what keeps a keystroke at ~3ms instead of
+// ~16ms (measured over 25,000 terms).
 
 /**
  * Is `candidate` a better suggestion than `against`?
@@ -100,7 +72,7 @@ function outranks (candidate, against) {
  * and sorting: a two-letter term can match thousands of names, and there is
  * no reason to allocate an array of them to show four.
  *
- * @param {Array} index from buildTypeaheadIndex
+ * @param {Array} index from catalog.js's typeaheadEntries
  * @param {string} rawTerm exactly what is in the input
  * @param {{ limit?: number, exclude?: string[] }} options `exclude` is the
  *   values already committed as chips — suggesting one of those does nothing.

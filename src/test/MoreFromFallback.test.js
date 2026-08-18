@@ -34,11 +34,12 @@ const ratedLibrary = () => ([
       id: 1,
       title: 'Sicario',
       release_date: '2015-09-18',
-      genres: [{ name: 'Thriller' }],
+      genres: [{ id: 53, name: 'Thriller' }],
       cast: [{ name: 'Emily Blunt' }],
       crew: [{ name: 'Denis Villeneuve', job: 'Director' }],
-      production_companies: [{ name: 'Lionsgate' }],
-      keywords: [{ name: 'spiderman' }]
+      // Ids present, as AddRating stores them — the catalog reads these.
+      production_companies: [{ id: 1632, name: 'Lionsgate' }],
+      keywords: [{ id: 10391, name: 'mexico' }]
     },
     ratings: [{ calculatedTotal: 8.5, date: '2023-03-01' }],
     dbKey: 'movie-1'
@@ -194,6 +195,38 @@ describe('More from, when a typed chip resolves to nothing useful', () => {
     await wrapper.vm.fetchUnratedMoviesForFilters([keywordChip('qzxwvkj')])
 
     expect(wrapper.vm.unratedMovies).toEqual([])
+  })
+
+  it('answers a library keyword from the catalog, with no /search round trip', async () => {
+    // Phase 1 of the redesign: "mexico" is stored on Sicario WITH its TMDB
+    // id, so resolution is a lookup, not a request. The /search endpoint
+    // returning garbage (the Spiderland shape) must not even be consulted.
+    respondWith({
+      keywordSearch: [{ id: 999999, name: 'mexico city' }], // would be wrong if used
+      discover: [candidate(338766, 'Hell or High Water')]
+    })
+
+    await wrapper.vm.fetchUnratedMoviesForFilters([keywordChip('mexico')])
+
+    expect(wrapper.vm.unratedMovies.map((movie) => movie.id)).toEqual([338766])
+    expect(axios.get.mock.calls.filter(([url]) => url.includes('/search/keyword'))).toHaveLength(0)
+
+    const discoverCall = axios.get.mock.calls.find(([url]) => url.includes('/discover/movie'))
+    expect(discoverCall[1].params.with_keywords).toBe('10391') // the stored id, exactly
+  })
+
+  it('answers a library studio from the catalog the same way', async () => {
+    respondWith({ discover: [candidate(273481, 'Sicario: Day of the Soldado')] })
+
+    await wrapper.vm.fetchUnratedMoviesForFilters([
+      { id: 'c-1', type: 'company', value: 'Lionsgate', display: 'Lionsgate' }
+    ])
+
+    expect(wrapper.vm.unratedMovies.map((movie) => movie.id)).toEqual([273481])
+    expect(axios.get.mock.calls.filter(([url]) => url.includes('/search/company'))).toHaveLength(0)
+
+    const discoverCall = axios.get.mock.calls.find(([url]) => url.includes('/discover/movie'))
+    expect(discoverCall[1].params.with_companies).toBe('1632')
   })
 
   it('excludes what is already rated, however the candidates were found', async () => {

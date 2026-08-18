@@ -1322,11 +1322,11 @@ import {
   looseSearchText
 } from '../assets/javascript/searchFiltering.js';
 import {
-  buildTypeaheadIndex,
   rankTypeahead,
   describeSuggestion,
   TYPEAHEAD_MIN_CHARS
 } from '../assets/javascript/searchSuggestions.js';
+import { buildCatalog, typeaheadEntries, CATALOG_KINDS } from '../assets/javascript/catalog.js';
 import {
   awardNameWithThe,
   awardNameWithoutThe,
@@ -2472,20 +2472,13 @@ export default {
       // (NOT the internal applyFilter type), so a tapped suggestion builds the
       // correct chip. Titles have no expectedType and commit as a general chip,
       // matching how a typed title behaves today.
-      const terms = [];
-      const pushKeys = (countMap, expectedType, typeLabel) => {
-        Object.keys(countMap || {}).forEach((value) => {
-          if (value) {
-            terms.push({ value, expectedType, typeLabel });
-          }
-        });
-      };
-
-      pushKeys(this.countDirectors, 'director', 'director');
-      pushKeys(this.countCastCrew, 'cast/crew', 'cast/crew');
-      pushKeys(this.countedKeywords, 'keyword', 'keyword');
-      pushKeys(this.countedGenres, 'genre', 'genre');
-      pushKeys(this.countStudios, 'studios', 'company');
+      // Entity terms come from the catalog — the same index the typeahead
+      // ranks — so the two features can never know different libraries.
+      const terms = this.libraryCatalog.entries.map((entry) => ({
+        value: entry.name,
+        expectedType: CATALOG_KINDS[entry.kind]?.expectedType ?? null,
+        typeLabel: entry.kind
+      }));
 
       // Titles: distinct, committed as general (expectedType null).
       const seenTitles = new Set();
@@ -2577,25 +2570,22 @@ export default {
     didYouMeanLineSuggestions () {
       return this.didYouMeanSuggestions.slice(0, this.didYouMeanFitCount);
     },
+    libraryCatalog () {
+      // THE index of everything filterable — names, counts, and crucially
+      // the TMDB ids the library already stores (see catalog.js). Memoized
+      // per library change; every consumer that used to build its own
+      // index (typeahead, fuzzy terms, More from's id resolution) reads
+      // this one, so they can no longer drift apart.
+      return buildCatalog(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
+    },
     typeaheadIndex () {
       // The dimensions of your own library you could filter by. Deliberately
       // NOT titles — the results list below the bar is already matching those
       // live, so the row would be spent telling you what is already on screen
-      // (see searchSuggestions.js). Order is priority order: a director is
-      // also crew, and both build the same `person` chip, so the duplicate is
-      // dropped and the more specific word survives.
-      //
-      // Reuses the count maps the counts/filtering features already compute,
-      // so the only new work is normalizing each term once per library change
-      // — which Vue memoizes here, and which is what keeps a keystroke at
-      // ~3ms instead of ~16ms.
-      return buildTypeaheadIndex([
-        { counts: this.countDirectors, expectedType: 'director', kind: 'director' },
-        { counts: this.countedGenres, expectedType: 'genre', kind: 'genre' },
-        { counts: this.countStudios, expectedType: 'studios', kind: 'studio' },
-        { counts: this.countCastCrew, expectedType: 'cast/crew', kind: 'cast' },
-        { counts: this.countedKeywords, expectedType: 'keyword', kind: 'keyword' }
-      ]);
+      // (see searchSuggestions.js). The catalog projection dedupes a
+      // director out of the cast bucket and carries the tmdbId the eventual
+      // chip will need.
+      return typeaheadEntries(this.libraryCatalog);
     },
     typeaheadSuggestions () {
       // Gated on inputValue (synchronous) but SEARCHED on searchValue (300ms
@@ -5224,14 +5214,30 @@ export default {
             return;
           }
 
+          // Identity comes from the chip itself, then the catalog, and only
+          // then from a /search round trip. A chip built from the library
+          // carries an id that is attached to at least the film it came
+          // from, so the Spiderland failure mode (search leading with a
+          // similarly-named orphan) cannot arise for anything the library
+          // already knows. /search remains only for people — stored
+          // name-only, deliberately — and for hand-typed names from outside
+          // the library.
+          const catalog = this.libraryCatalog;
+          const resolveChip = async (kind, searchKind, chip) => {
+            if (chip.tmdbId != null) return chip.tmdbId;
+            const known = catalog.idFor(kind, chip.value);
+            if (known != null) return known;
+            return this.resolveTmdbId(searchKind, chip.value);
+          };
+
           const genreIds = groups.genres
-            .map((chip) => chip.genreId ?? genreIdFor(chip.value))
+            .map((chip) => chip.genreId ?? catalog.idFor('genre', chip.value))
             .filter((id) => id != null);
 
           const [personIds, companyIds, keywordIds] = await Promise.all([
             Promise.all(groups.people.map((chip) => this.resolveTmdbId('person', chip.value))),
-            Promise.all(groups.companies.map((chip) => this.resolveTmdbId('company', chip.value))),
-            Promise.all(groups.keywords.map((chip) => this.resolveTmdbId('keyword', chip.value)))
+            Promise.all(groups.companies.map((chip) => resolveChip('company', 'company', chip))),
+            Promise.all(groups.keywords.map((chip) => resolveChip('keyword', 'keyword', chip)))
           ]).then((sets) => sets.map((ids) => ids.filter((id) => id != null)));
 
           // A chip we couldn't resolve would silently widen the search to
