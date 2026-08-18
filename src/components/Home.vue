@@ -1345,6 +1345,10 @@ export default {
       debouncedUpdateDidYouMeanFitCount: debounce(function () {
         this.updateDidYouMeanFitCount();
       }, 200),
+      // True while the current sort is only the default as it looked at
+      // mount — nobody has chosen one. Lets the saved default be applied
+      // when settings finally load, without ever overriding a real choice.
+      sortCameFromDefault: false,
       filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'tag'],
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
 
@@ -1398,6 +1402,26 @@ export default {
     }
   },
   watch: {
+    // Report -P-HHWRf-WATy1lEwdYP: "We set up the default viewing order for
+    // the homepage, but it doesn't seem to be respected. I chose to have it
+    // be based on recent watch, but it's still showing me in order by
+    // rating."
+    //
+    // mounted() reads defaultSortValue, but settings load from Firebase
+    // AFTER mount — so it saw the 'rating' fallback rather than the saved
+    // choice, and nothing re-applied it when the real value arrived. These
+    // watchers do, and only while the current sort is still the untouched
+    // default: an explicit sort this session sets DBSortValue, and that
+    // must never be overridden.
+    defaultSortValue (value) {
+      if (!this.sortCameFromDefault || this.DBSortValue || !value) return;
+      this.setSortValue(value);
+      this.sortOrder = this.defaultSortOrder;
+    },
+    defaultSortOrder (order) {
+      if (!this.sortCameFromDefault || this.DBSortValue || !order) return;
+      this.sortOrder = order;
+    },
     // Edges arrive from the listener after mount, so the first fetch above
     // can run against an empty friend list. Same watcher WatchlistScreen and
     // FilmClubScreen use.
@@ -1663,6 +1687,11 @@ export default {
       } else {
         this.setSortValue(this.defaultSortValue)
         this.sortOrder = this.defaultSortOrder;
+        // Remember that nobody asked for this sort — it is just the default
+        // as it looked at mount. Settings arrive from Firebase a moment
+        // later, and the watcher below uses this to swap in the real saved
+        // default once it lands.
+        this.sortCameFromDefault = true;
       }
     }
 
