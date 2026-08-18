@@ -78,4 +78,15 @@ for (const [id, report] of entries) {
 
 console.log('='.repeat(72));
 console.log(`${entries.length} report(s) shown${showAll ? '' : ` (${resolvedCount} resolved report(s) hidden — rerun with --all to see them)`}.`);
+
+// Flush stdout before the hard exit. process.exit() tears the process down
+// without draining async stream writes, and stdout to a PIPE is async (to a
+// TTY it's synchronous) - so `yarn fetch-bug-reports | grep/awk/less` was
+// silently truncated at the ~64KB pipe buffer while plain terminal runs
+// looked complete. A zero-length write's callback only fires after every
+// previously queued write has drained (stream writes are ordered), making
+// this a reliable flush barrier. The hard exit itself stays: the Admin
+// SDK's open RTDB connection otherwise keeps the event loop alive for
+// minutes after the work is done.
+await new Promise((resolve) => { process.stdout.write('', resolve); });
 process.exit(0);
