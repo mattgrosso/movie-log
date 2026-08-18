@@ -12,20 +12,22 @@
     >
       <span v-if="sending" class="spinner-border spinner-border-sm" role="status"></span>
       <template v-else>
-        <!-- A top hat with a plus, rather than Bootstrap's magic wand: "I'd
-             much rather be hat related... maybe like a top hat with a little
-             plus symbol" (2026-08-17). Drawn here because bootstrap-icons has
-             no hat at all. -->
+        <!-- A top hat, rather than Bootstrap's magic wand: "I'd much rather
+             be hat related" (2026-08-17). Drawn here because bootstrap-icons
+             has no hat at all. -->
         <svg class="hat-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <!-- Upside down, opening upward — it's a hat you draw OUT of — with
-               the plus ON the crown rather than floating below it: "the hat
-               should be flipped upside down and the + needs to be on the hat,
-               not below the hat" (2026-08-17).
-               The crown is outlined rather than filled so the plus inside it
-               reads; a filled crown swallowed a same-coloured plus whole. -->
-          <rect x="3" y="3.4" width="18" height="2.6" rx="1.3" class="hat-brim"/>
-          <path d="M7.8 6.6h8.4v9.6a2 2 0 0 1-2 2H9.8a2 2 0 0 1-2-2z" class="hat-crown"/>
-          <path d="M12 9.4v5.4M9.3 12.1h5.4" class="hat-plus"/>
+          <!-- No plus any more: "let's get rid of the + and then give another
+               really careful try on that hat icon. Let's make it cuter and
+               more like a hat" (2026-08-17). Losing the plus is what makes
+               this possible — the crown had to be OUTLINED before so a
+               same-coloured plus wouldn't be swallowed inside it, and an
+               outline is exactly what stopped it reading as a hat at 15px.
+               Solid shapes, a flared crown (what makes a top hat a TOP hat),
+               a clear band gap, and a slight tilt for a bit of life. -->
+          <g transform="rotate(-8 12 12)">
+            <path class="hat-crown" d="M6.6 4.1a1.3 1.3 0 0 1 1.3-1.3h8.2a1.3 1.3 0 0 1 1.3 1.3l-.55 9.4H7.15Z"/>
+            <ellipse class="hat-brim" cx="12" cy="16.6" rx="9.8" ry="2.5"/>
+          </g>
         </svg>
         <span v-if="variant !== 'icon'">{{ buttonLabel }}</span>
       </template>
@@ -239,10 +241,10 @@ export default {
 
 /* The sheet is teleported to <body>, so it is styled unscoped. */
 .hat-glyph { height: 15px; width: 15px; }
-.hat-glyph .hat-brim { fill: currentColor; }
-/* Outlined, so the plus sitting inside it stays visible. */
-.hat-glyph .hat-crown { fill: none; stroke: currentColor; stroke-width: 1.7; }
-.hat-glyph .hat-plus { stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; fill: none; }
+/* Both solid: with no plus to keep visible, a filled silhouette is what
+   actually reads as a hat at this size. */
+.hat-glyph .hat-brim,
+.hat-glyph .hat-crown { fill: currentColor; }
 
 .hat-picker {
   display: flex;
