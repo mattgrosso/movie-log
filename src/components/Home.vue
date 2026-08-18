@@ -1257,11 +1257,25 @@ import ThreeStateToggle from './ThreeStateToggle.vue';
 import SendToHat from './SendToHat.vue';
 import { rankMoreFrom, genreAffinity } from "../assets/javascript/moreFromRanking.js";
 import { genreIdFor } from "../assets/javascript/tmdbGenres.js";
-import { createCache, keyFor } from "../assets/javascript/moreFromCache.js";
+import { createCache } from "../assets/javascript/moreFromCache.js";
+import {
+  partitionFilters,
+  hasDiscoverableFilters,
+  releaseWindow,
+  discoverParams,
+  matchesLocalConstraints,
+  intersectById,
+  describeFilters
+} from "../assets/javascript/moreFromQuery.js";
 
 // One cache for the app, not one per Home mount — navigating away and back
 // should not throw away what TMDB already told us.
 const moreFromCache = createCache();
+
+// Name → TMDB id, for people, companies and keywords. These answers don't
+// change, so they outlive the candidate cache and cost one request each,
+// once.
+const tmdbIdCache = new Map();
 import { getRating } from "../assets/javascript/GetRating.js";
 import { awardsYearThreshold } from "../assets/javascript/personalAwards.js";
 import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
@@ -1550,10 +1564,14 @@ export default {
       // different terms have different lengths, so how many fit will vary.
       this.$nextTick(() => this.updateDidYouMeanFitCount());
     },
-    effectiveSearchFilter (newVal, oldVal) {
-      // Fetch unrated movies for any non-empty search term (from input or chips)
-      if (newVal && (!oldVal || newVal.value !== oldVal.value)) {
-        this.debouncedFetchUnratedMoviesBySearchFilter(newVal);
+    // Watches EVERY active chip, not just the highest-priority one.
+    // effectiveSearchFilter returns the first chip by type priority, so
+    // filtering by horror and comedy used to fetch horror and ignore the
+    // rest — "sometimes I have more than one chip... can we filter the more
+    // from list for more than one chip?" (2026-08-18).
+    moreFromSignature (newVal, oldVal) {
+      if (newVal && newVal !== oldVal) {
+        this.debouncedFetchUnratedMoviesForFilters(this.allActiveFilters);
       } else if (!newVal) {
         this.unratedMovies = [];
         this.unratedMoviesError = null;
@@ -2048,6 +2066,20 @@ export default {
     otherActiveFilters () {
       return this.activeFiltersMinusTemps.filter((filter) => filter.type !== 'year');
     },
+    // Every active chip, in a stable string — both the watch trigger for the
+    // suggestions row and its cache key. Sorted, so re-adding the same two
+    // chips in the other order is recognised as the same question.
+    moreFromSignature () {
+      return this.allActiveFilters
+        .map((filter) => {
+          const value = filter?.value && typeof filter.value === 'object'
+            ? `${filter.value.startYear ?? ''}-${filter.value.endYear ?? ''}`
+            : String(filter?.value ?? '').trim().toLowerCase();
+          return `${filter?.type}|${value}`;
+        })
+        .sort()
+        .join('&');
+    },
     // Any narrowing at all — a chip or typed text. Watched above, because
     // a filtered list wants rating order and a whole library doesn't.
     hasActiveFilters () {
@@ -2337,8 +2369,14 @@ export default {
         (entry) => getRating(entry)?.calculatedTotal
       );
     },
-    // One heading instead of seven near-identical spans.
+    // One heading instead of seven near-identical spans — and it now names
+    // every chip, because the row below it answers all of them.
     moreFromTitle () {
+      const filters = this.allActiveFilters;
+      if (filters.length > 1) {
+        return `More from ${describeFilters(filters)}`;
+      }
+
       const term = this.effectiveSearchTerm;
 
       switch (this.unratedMoviesSearchType) {
@@ -4713,10 +4751,11 @@ export default {
       // Clear search values
       this.inputValue = '';
     },
-    debouncedFetchUnratedMoviesBySearchFilter (searchFilter) {
+    debouncedFetchUnratedMoviesForFilters (filters) {
       clearTimeout(this.unratedMoviesDebounceTimeout);
+      const snapshot = [...(filters || [])];
       this.unratedMoviesDebounceTimeout = setTimeout(() => {
-        this.fetchUnratedMoviesBySearchFilter(searchFilter);
+        this.fetchUnratedMoviesForFilters(snapshot);
       }, 800);
     },
     detectYearTypes (searchValue) {
@@ -4902,155 +4941,6 @@ export default {
       // For everything else, use general search
       return { type: 'general', value: trimmed, display: `${trimmed}` };
     },
-    async fetchUnratedMoviesByYear (year) {
-      // Fetch multiple pages to get more variety
-      const allResults = [];
-
-      for (let page = 1; page <= 3; page++) { // Get first 3 pages (60 movies)
-        const response = await axios.get('https://api.themoviedb.org/3/discover/movie', {
-          params: {
-            api_key: process.env.VUE_APP_TMDB_API_KEY,
-            language: 'en-US',
-            primary_release_year: year,
-            sort_by: 'popularity.desc',
-            page,
-            'vote_count.gte': 25, // Further lowered to include more movies
-            include_adult: false, // Explicitly exclude adult content
-          }
-        });
-
-        if (response.data.results) {
-          allResults.push(...response.data.results);
-        }
-
-        // Stop if we've reached the end
-        if (page >= response.data.total_pages) break;
-      }
-      return allResults;
-    },
-    async fetchUnratedMoviesByYearRange (yearRange) {
-      const allResults = [];
-
-      for (let page = 1; page <= 2; page++) { // Get first 2 pages (40 movies) for ranges
-        const response = await axios.get('https://api.themoviedb.org/3/discover/movie', {
-          params: {
-            api_key: process.env.VUE_APP_TMDB_API_KEY,
-            language: 'en-US',
-            'primary_release_date.gte': `${yearRange.startYear}-01-01`,
-            'primary_release_date.lte': `${yearRange.endYear}-12-31`,
-            sort_by: 'popularity.desc',
-            page,
-            'vote_count.gte': 25,
-            include_adult: false, // Explicitly exclude adult content
-          }
-        });
-
-        if (response.data.results) {
-          allResults.push(...response.data.results);
-        }
-
-        // Stop if we've reached the end
-        if (page >= response.data.total_pages) break;
-      }
-
-      return allResults;
-    },
-    async fetchUnratedMoviesByGenre (genreId) {
-      // Without this, axios simply omits `with_genres` and /discover
-      // happily returns the most popular films on TMDB — Spider-Man, Harry
-      // Potter, superheroes — under whatever genre heading you picked. An
-      // empty row is the honest answer.
-      if (genreId == null || genreId === '') return [];
-
-      const allResults = [];
-
-      // Filter out movies newer than 2 years to avoid current buzz
-      const maxDate = new Date();
-      maxDate.setFullYear(maxDate.getFullYear() - 2);
-      const maxDateString = maxDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-      for (let page = 1; page <= 3; page++) { // Get first 3 pages (60 movies)
-        const response = await axios.get('https://api.themoviedb.org/3/discover/movie', {
-          params: {
-            api_key: process.env.VUE_APP_TMDB_API_KEY,
-            language: 'en-US',
-            with_genres: genreId,
-            sort_by: 'popularity.desc',
-            page,
-            'vote_count.gte': 50, // Increased vote threshold for better quality
-            'primary_release_date.lte': maxDateString, // No movies newer than 2 years
-            include_adult: false, // Explicitly exclude adult content
-          }
-        });
-
-        if (response.data.results) {
-          allResults.push(...response.data.results);
-        }
-
-        // Stop if we've reached the end
-        if (page >= response.data.total_pages) break;
-      }
-
-      return allResults;
-    },
-    async fetchUnratedMoviesByPerson (personName) {
-      try {
-        // First, search for the person (director)
-        const personResp = await axios.get('https://api.themoviedb.org/3/search/person', {
-          params: {
-            api_key: process.env.VUE_APP_TMDB_API_KEY,
-            language: 'en-US',
-            query: personName,
-          }
-        });
-
-        if (!personResp.data.results || personResp.data.results.length === 0) {
-          return [];
-        }
-
-        // Take the first (most relevant) person result
-        const person = personResp.data.results[0];
-
-        // Get their movie credits
-        const creditsResp = await axios.get(`https://api.themoviedb.org/3/person/${person.id}/movie_credits`, {
-          params: {
-            api_key: process.env.VUE_APP_TMDB_API_KEY,
-            language: 'en-US',
-          }
-        });
-
-        const cast = creditsResp.data.cast || [];
-        const crew = creditsResp.data.crew || [];
-
-        // Combine and dedupe by movie ID
-        const seenIds = new Set();
-        const combinedResults = [...cast, ...crew].filter(movie => {
-          if (seenIds.has(movie.id)) {
-            return false;
-          }
-          seenIds.add(movie.id);
-          return true;
-        });
-
-        const castAndCrew = combinedResults.sort((a, b) => {
-          // Sort by popularity first, then by release date
-          if (b.popularity !== a.popularity) {
-            return b.popularity - a.popularity;
-          }
-          return new Date(b.release_date || 0) - new Date(a.release_date || 0);
-        });
-
-        return castAndCrew;
-      } catch (error) {
-        console.error('Error fetching movies by director:', error);
-        ErrorLogService.error('Failed to fetch movies by director', {
-          director: personName,
-          error: error.message,
-          stack: error.stack
-        });
-        return [];
-      }
-    },
     async fetchUnratedMoviesByKeyword (keyword) {
       // Filter out movies newer than 6 months to avoid current buzz, but be more lenient
       const maxDate = new Date();
@@ -5114,134 +5004,154 @@ export default {
 
       return allResults;
     },
-    async fetchUnratedMoviesByCompany (companyName) {
+    /** TMDB id for a name, looked up once and remembered. */
+    async resolveTmdbId (kind, name) {
+      const key = `${kind}:${String(name || '').trim().toLowerCase()}`;
+      if (!key.split(':')[1]) return null;
+      if (tmdbIdCache.has(key)) return tmdbIdCache.get(key);
+
       try {
-        // First, search for the company to get its ID
-        const companySearchResp = await axios.get('https://api.themoviedb.org/3/search/company', {
-          params: {
-            api_key: process.env.VUE_APP_TMDB_API_KEY,
-            query: companyName,
-          }
+        const response = await axios.get(`https://api.themoviedb.org/3/search/${kind}`, {
+          params: { api_key: process.env.VUE_APP_TMDB_API_KEY, language: 'en-US', query: name }
         });
-
-        if (!companySearchResp.data.results || companySearchResp.data.results.length === 0) {
-          return [];
-        }
-
-        const companyId = companySearchResp.data.results[0].id;
-
-        // Use discover API to find movies by this production company
-        const allResults = [];
-        const maxPages = 3; // Fetch multiple pages for variety
-
-        for (let page = 1; page <= maxPages; page++) {
-          const discoverResp = await axios.get('https://api.themoviedb.org/3/discover/movie', {
-            params: {
-              api_key: process.env.VUE_APP_TMDB_API_KEY,
-              language: 'en-US',
-              with_companies: companyId,
-              'primary_release_date.lte': new Date().toISOString().split('T')[0], // Only released movies
-              sort_by: 'popularity.desc',
-              page,
-              include_adult: false,
-              'vote_count.gte': 20, // Minimum vote threshold
-            }
-          });
-
-          if (discoverResp.data.results) {
-            allResults.push(...discoverResp.data.results);
-          }
-
-          // If we got fewer results than expected, no point in fetching more pages
-          if (!discoverResp.data.results || discoverResp.data.results.length < 20) {
-            break;
-          }
-        }
-
-        return allResults;
+        const id = response.data?.results?.[0]?.id ?? null;
+        tmdbIdCache.set(key, id);
+        return id;
       } catch (error) {
-        console.error('Error fetching movies by company:', error);
-        ErrorLogService.error('Failed to fetch movies by company', {
-          company: companyName,
-          error: error.message,
-          stack: error.stack
-        });
-        return [];
+        return null;
       }
     },
-    async fetchUnratedMoviesBySearchFilter (searchFilter) {
-      // Offline: skip the whole discover fan-out (up to ~7 TMDB requests per
-      // debounced filter change) instead of letting every one fail
-      // individually (2026-08-15 offline audit). The suggestions section
-      // simply doesn't render, same as having no matches.
+
+    /** Pages of /discover for one set of parameters. */
+    async discoverMovies (params, pages = 3) {
+      const results = [];
+
+      for (let page = 1; page <= pages; page++) {
+        const response = await axios.get('https://api.themoviedb.org/3/discover/movie', {
+          params: { ...params, api_key: process.env.VUE_APP_TMDB_API_KEY, page }
+        });
+
+        results.push(...(response.data?.results || []));
+        if (page >= (response.data?.total_pages || 0)) break;
+      }
+
+      return results;
+    },
+
+    /**
+     * Candidates for EVERY active chip at once.
+     *
+     * The combined question goes to /discover in a single call, because its
+     * parameters AND natively — `with_genres=27,35` is horror AND comedy.
+     * Fetching each chip separately and intersecting would usually come back
+     * empty: horror's top 60 by popularity and comedy's top 60 rarely
+     * overlap, even though TMDB knows hundreds of horror-comedies.
+     *
+     * Free text is the exception, since /discover has no text search. There
+     * the title search leads and the rest narrows it — locally for genre and
+     * release date (both ride along on search results), and by intersecting
+     * with a discover call for cast, company and keyword, which do not.
+     */
+    async fetchUnratedMoviesForFilters (filters) {
+      // Offline: skip the whole fan-out rather than letting every request
+      // fail individually (2026-08-15 offline audit).
       if (!this.$store.state.isOnline) {
         this.unratedMovies = [];
         return;
       }
+
+      const active = (filters || []).filter((filter) => filter?.type);
+      if (!active.length) {
+        this.unratedMovies = [];
+        this.unratedMoviesError = null;
+        return;
+      }
+
       this.unratedMoviesError = null;
       this.unratedMovies = [];
 
-      // Only the NEWEST filter may write results.
-      //
-      // Matt, 2026-08-18: "the next one I tried was just horror... mostly
-      // what it gave me was actually some more Spiderman, but then some
-      // Harry Potter and some other superhero stuff." Neither the genre nor
-      // the keyword path returns anything like that for horror — the
-      // results were the PREVIOUS filter's, arriving late. Each of these
-      // fetches is several sequential TMDB pages, so switching filters
-      // leaves two in flight and whichever finishes last used to win,
-      // regardless of which filter you were actually looking at.
+      // Only the NEWEST set of chips may write results. These fetches are
+      // several sequential TMDB pages, so switching filters leaves two in
+      // flight; without this, whichever finished last won regardless of
+      // what you were looking at ("I tried horror... it gave me Spiderman").
       const requestId = (this.unratedRequestId || 0) + 1;
       this.unratedRequestId = requestId;
       const isStale = () => this.unratedRequestId !== requestId;
 
-      const cacheKey = keyFor(searchFilter);
+      const cacheKey = this.moreFromSignature;
 
       try {
-        this.unratedMoviesSearchType = searchFilter.type;
+        const groups = partitionFilters(active);
+        // Kept for the heading's wording when a single chip is in play.
+        this.unratedMoviesSearchType = active.length === 1 ? active[0].type : 'multiple';
 
-        // Already know the candidates for this filter? Skip the requests
-        // entirely. Only the raw TMDB list is cached — everything below
-        // (exclusions, ranking) still runs, so a film rated or hatted since
-        // then is gone from the row immediately.
         const cached = moreFromCache.get(cacheKey);
         let relevantList = cached || [];
 
-        if (cached) {
-          // Nothing to do — relevantList is already the cached pool.
-        } else if (searchFilter.type === 'year') {
-          // Fetch movies from specific year
-          relevantList = await this.fetchUnratedMoviesByYear(searchFilter.value);
-        } else if (searchFilter.type === 'yearRange') {
-          // Fetch movies from year range
-          relevantList = await this.fetchUnratedMoviesByYearRange(searchFilter.value);
-        } else if (searchFilter.type === 'genre') {
-          // Fetch movies from specific genre
-          // Resolved from the genre's NAME rather than trusting the chip to
-          // be carrying an id. addSearchFilter builds chips from type/value/
-          // display only, so `genreId` never survived onto the chip — every
-          // genre chip arrived here undefined, which is what made "horror"
-          // return TMDB's most popular films overall (and, once that was
-          // guarded, nothing at all).
-          relevantList = await this.fetchUnratedMoviesByGenre(
-            searchFilter.genreId ?? genreIdFor(searchFilter.value)
-          );
-        } else if (searchFilter.type === 'company') {
-          // Fetch movies from specific production company
-          relevantList = await this.fetchUnratedMoviesByCompany(searchFilter.value);
-        } else if (searchFilter.type === 'person') {
-          // Fetch movies from specific person (actor/director)
-          relevantList = await this.fetchUnratedMoviesByPerson(searchFilter.value);
-        } else if (searchFilter.type === 'keyword') {
-          // Fetch movies from specific keyword
-          relevantList = await this.fetchUnratedMoviesByKeyword(searchFilter.value);
-          this.unratedMoviesSearchType = 'keyword';
-        } else if (searchFilter.type === 'general') {
-          // Try keyword/general search first
-          relevantList = await this.fetchUnratedMoviesByKeyword(searchFilter.value);
-        } else {
-          // This shouldn't happen with our current logic, but keep as fallback
-          relevantList = [];
+        if (!cached) {
+          const window = releaseWindow(groups);
+
+          // Chips that cannot all be true at once — 1994 AND 1997 — have no
+          // answer, and saying so beats quietly honouring one of them.
+          if (window.impossible) {
+            if (isStale()) return;
+            this.unratedMovies = [];
+            return;
+          }
+
+          const genreIds = groups.genres
+            .map((chip) => chip.genreId ?? genreIdFor(chip.value))
+            .filter((id) => id != null);
+
+          const [personIds, companyIds, keywordIds] = await Promise.all([
+            Promise.all(groups.people.map((chip) => this.resolveTmdbId('person', chip.value))),
+            Promise.all(groups.companies.map((chip) => this.resolveTmdbId('company', chip.value))),
+            Promise.all(groups.keywords.map((chip) => this.resolveTmdbId('keyword', chip.value)))
+          ]).then((sets) => sets.map((ids) => ids.filter((id) => id != null)));
+
+          // A chip we couldn't resolve would silently widen the search to
+          // everything, which is how "horror" once returned Spider-Man.
+          const unresolved =
+            genreIds.length !== groups.genres.length ||
+            personIds.length !== groups.people.length ||
+            companyIds.length !== groups.companies.length ||
+            keywordIds.length !== groups.keywords.length;
+
+          if (unresolved) {
+            if (isStale()) return;
+            this.unratedMovies = [];
+            return;
+          }
+
+          // "Nothing too new" still applies to plain genre browsing, where
+          // it exists to keep current buzz out — but never over an explicit
+          // year chip, and not when you asked about a person or a studio,
+          // where their latest is the interesting part.
+          const genreOnly = Boolean(genreIds.length) &&
+            !personIds.length && !companyIds.length && !keywordIds.length &&
+            !groups.years.length && !groups.ranges.length;
+          const notNewerThan = genreOnly ? this.twoYearsAgoDate() : null;
+
+          if (groups.texts.length) {
+            // Text leads; everything else narrows it.
+            const text = groups.texts[0].value;
+            relevantList = await this.fetchUnratedMoviesByKeyword(text);
+            relevantList = relevantList.filter((movie) =>
+              matchesLocalConstraints(movie, { genreIds, window }));
+
+            if (personIds.length || companyIds.length || keywordIds.length) {
+              const constrained = await this.discoverMovies(
+                discoverParams({ genreIds, personIds, companyIds, keywordIds, window }), 2);
+              relevantList = intersectById(relevantList, constrained);
+            }
+          } else if (hasDiscoverableFilters(groups)) {
+            relevantList = await this.discoverMovies(discoverParams({
+              genreIds, personIds, companyIds, keywordIds, window, notNewerThan
+            }));
+          } else {
+            // Only chips TMDB knows nothing about (your own tags).
+            relevantList = [];
+          }
         }
 
         // A filter the user has already moved on from must not paint over
@@ -5258,9 +5168,6 @@ export default {
           exclude.add(Number(id));
         });
 
-        // Ranked on quality, your own genre taste, and a little reach —
-        // see moreFromRanking.js for why the old popularity cutoff had to
-        // go.
         this.unratedMovies = rankMoreFrom(relevantList, {
           exclude,
           affinity: this.genreTaste,
@@ -5269,13 +5176,19 @@ export default {
       } catch (err) {
         console.error('Error fetching unrated movies:', err);
         ErrorLogService.error('Failed to fetch unrated movies', {
-          searchFilter,
+          filters: active.map((filter) => `${filter.type}:${filter.value}`),
           error: err.message,
           stack: err.stack
         });
         if (isStale()) return;
         this.unratedMoviesError = 'Error fetching from TMDB.';
       }
+    },
+    /** The section's "nothing too new" line, as YYYY-MM-DD. */
+    twoYearsAgoDate () {
+      const date = new Date();
+      date.setFullYear(date.getFullYear() - 2);
+      return date.toISOString().split('T')[0];
     },
     // Test function for error logging (for development)
     testErrorLogging () {
