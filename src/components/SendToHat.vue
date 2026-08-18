@@ -142,7 +142,13 @@ export default {
     // Fills the "already in a hat" set the first time any of these buttons
     // renders. Cached in the store, so a screen full of them costs one
     // round trip per hat, not one per button.
-    if (this.hats.length) this.$store?.dispatch?.('ensureMovieHatContents');
+    // Deliberately not awaited — but a promise nobody awaits still needs a
+    // rejection handler, or a failed lookup surfaces as an unhandled
+    // rejection (in the browser, and loudly enough in Vitest to fail the
+    // whole run with an "Unhandled Rejection" while every test passes).
+    // Nothing to do on failure: the set stays empty and the buttons simply
+    // don't know what's already hatted.
+    if (this.hats.length) this.$store?.dispatch?.('ensureMovieHatContents')?.catch?.(() => {});
   },
   beforeUnmount () {
     if (this.resultTimer) clearTimeout(this.resultTimer);
