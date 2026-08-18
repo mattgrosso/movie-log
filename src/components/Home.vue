@@ -1293,6 +1293,7 @@ import {
   discoverParams,
   matchesLocalConstraints,
   intersectById,
+  pickResolvedId,
   describeFilters
 } from "../assets/javascript/moreFromQuery.js";
 
@@ -5138,7 +5139,7 @@ export default {
         const response = await axios.get(`https://api.themoviedb.org/3/search/${kind}`, {
           params: { api_key: process.env.VUE_APP_TMDB_API_KEY, language: 'en-US', query: name }
         });
-        const id = response.data?.results?.[0]?.id ?? null;
+        const id = pickResolvedId(response.data?.results, name, normalizeSearchText);
         tmdbIdCache.set(key, id);
         return id;
       } catch (error) {
@@ -5241,7 +5242,20 @@ export default {
             companyIds.length !== groups.companies.length ||
             keywordIds.length !== groups.keywords.length;
 
-          if (unresolved) {
+          // One chip, looked up by name, and TMDB either doesn't know the
+          // name or knows an entity with nothing attached to it: ask the
+          // same question as free text instead of showing an empty section.
+          // This is not the widening that broke "horror" — the term is still
+          // the whole question, it is just being asked of /search/movie
+          // rather than of an id. Only for a lone chip: quietly turning one
+          // half of "horror + comedy" into a title search would be a lie
+          // about what is on screen.
+          const soleSearchChip = active.length === 1 && !groups.texts.length &&
+            (groups.people.length + groups.companies.length + groups.keywords.length) === 1
+            ? active[0]
+            : null;
+
+          if (unresolved && !soleSearchChip) {
             if (isStale()) return;
             this.unratedMovies = [];
             return;
@@ -5256,7 +5270,9 @@ export default {
             !groups.years.length && !groups.ranges.length;
           const notNewerThan = genreOnly ? this.twoYearsAgoDate() : null;
 
-          if (groups.texts.length) {
+          if (unresolved) {
+            relevantList = await this.fetchUnratedMoviesByKeyword(soleSearchChip.value);
+          } else if (groups.texts.length) {
             // Text leads; everything else narrows it.
             const text = groups.texts[0].value;
             relevantList = await this.fetchUnratedMoviesByKeyword(text);
@@ -5275,6 +5291,14 @@ export default {
           } else {
             // Only chips TMDB knows nothing about (your own tags).
             relevantList = [];
+          }
+
+          // Resolved to a real id that simply has no films behind it — the
+          // other half of the "spiderman" report, since /search/keyword
+          // happily returns keywords no film carries. Indistinguishable from
+          // a genuine empty until you ask the question the other way.
+          if (!relevantList.length && soleSearchChip && !unresolved) {
+            relevantList = await this.fetchUnratedMoviesByKeyword(soleSearchChip.value);
           }
         }
 

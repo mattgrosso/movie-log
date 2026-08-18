@@ -12,6 +12,7 @@ import {
   discoverParams,
   matchesLocalConstraints,
   intersectById,
+  pickResolvedId,
   describeFilters
 } from '../assets/javascript/moreFromQuery.js';
 
@@ -162,6 +163,60 @@ describe('intersectById', () => {
 
   it('is empty when nothing satisfies both', () => {
     expect(intersectById([{ id: 1 }], [{ id: 2 }])).toEqual([]);
+  });
+});
+
+describe('pickResolvedId', () => {
+  // "I just typed Spiderman and I click the first one, and I'm not getting
+  // any more from suggestions at the bottom at all" (Matt, 2026-08-18).
+  // Verified against TMDB: /search/company?query=spiderman leads with
+  // "Spiderland", /search/person leads with an extra credited on nothing.
+  // Both resolve to an id, and an id with no films looks exactly like a
+  // filter with no unrated matches by the time it reaches the section.
+  it('refuses a result that is merely named similarly', () => {
+    expect(pickResolvedId([{ id: 234446, name: 'Spiderland' }], 'spiderman')).toBeNull();
+  });
+
+  it('takes the exact match over a more highly ranked near-miss', () => {
+    const results = [
+      { id: 381075, name: 'spider-man', popularity: 9 },
+      { id: 381074, name: 'spiderman', popularity: 1 }
+    ];
+
+    expect(pickResolvedId(results, 'spiderman')).toBe(381074);
+  });
+
+  it('prefers the exact match with films behind it', () => {
+    const results = [
+      { id: 1, name: 'Spiderman', known_for: [], popularity: 5 },
+      { id: 2, name: 'Spiderman', known_for: [{ id: 99 }], popularity: 1 }
+    ];
+
+    expect(pickResolvedId(results, 'Spiderman')).toBe(2);
+  });
+
+  it('falls back to popularity when neither has known_for', () => {
+    const results = [
+      { id: 1, name: 'Lionsgate', popularity: 2 },
+      { id: 2, name: 'Lionsgate', popularity: 40 }
+    ];
+
+    expect(pickResolvedId(results, 'Lionsgate')).toBe(2);
+  });
+
+  it('resolves the ordinary case unchanged', () => {
+    expect(pickResolvedId([{ id: 137427, name: 'Denis Villeneuve' }], 'Denis Villeneuve')).toBe(137427);
+  });
+
+  it('uses the caller\'s normalizer, so an accent is not a miss', () => {
+    const normalize = (value) => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    expect(pickResolvedId([{ id: 7, name: 'Penélope Cruz' }], 'penelope cruz', normalize)).toBe(7);
+  });
+
+  it('says nothing about nothing', () => {
+    expect(pickResolvedId([], 'spiderman')).toBeNull();
+    expect(pickResolvedId(null, 'spiderman')).toBeNull();
+    expect(pickResolvedId([{ id: 1, name: 'x' }], '')).toBeNull();
   });
 });
 

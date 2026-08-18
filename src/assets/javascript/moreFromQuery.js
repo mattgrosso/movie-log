@@ -148,6 +148,41 @@ export function matchesLocalConstraints (movie, { genreIds = [], window: release
   return true;
 }
 
+/**
+ * Which of TMDB's search results is actually the thing we named?
+ *
+ * Taking results[0] is what turned a tapped "spiderman" into nothing at all
+ * (Matt, 2026-08-18: "I just typed Spiderman and I click the first one, and
+ * I'm not getting any more from suggestions at the bottom at all"). TMDB's
+ * search does not rank by usage, so `/search/company?query=spiderman` leads
+ * with **Spiderland**, and `/search/person` leads with an extra credited on
+ * nothing. Both resolve to an id, and an id with no films is indistinguishable
+ * downstream from a filter that genuinely has no unrated matches.
+ *
+ * So: the name has to match. Every term we look up came out of TMDB's own
+ * data in the first place — a director, a production company, a keyword on a
+ * film in the library — so an exact match is the normal case, and its absence
+ * means we are looking at something else with a similar name. Among equals,
+ * prefer whichever shows evidence of actually being attached to films.
+ */
+export function pickResolvedId (results, name, normalize = (value) => String(value || '').trim().toLowerCase()) {
+  const wanted = normalize(name);
+  if (!wanted) return null;
+
+  const exact = (results || []).filter((result) => normalize(result?.name) === wanted);
+  if (!exact.length) return null;
+
+  const evidence = (result) => (result.known_for?.length || 0);
+  const best = exact.reduce((winner, candidate) => {
+    if (evidence(candidate) !== evidence(winner)) {
+      return evidence(candidate) > evidence(winner) ? candidate : winner;
+    }
+    return (candidate.popularity || 0) > (winner.popularity || 0) ? candidate : winner;
+  });
+
+  return best?.id ?? null;
+}
+
 /** Everything in `list` that also appears in `keep`, by TMDB id. */
 export function intersectById (list, keep) {
   const ids = new Set((keep || []).map((movie) => movie?.id).filter((id) => id != null));
