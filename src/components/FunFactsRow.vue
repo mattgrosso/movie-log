@@ -33,7 +33,13 @@ export default {
 
 <style lang="scss" scoped>
 .fun-facts {
-  margin: 0 0 1rem;
+  /* Top margin is the point: with none, this sat flush against the link
+     cards above it — "I need some more padding between the fun facts and
+     the buttons above them. They just are touching immediately on each
+     other" (report -P-HGwQj9ZJAeXY5mqTk). A little more than the 0.75rem
+     the link grid gives itself, because this is a change of section
+     rather than another row of the same thing. */
+  margin: 1.25rem 0 1rem;
   /* Never let the rigid card row dictate an ancestor's min-content width. */
   max-width: 100%;
   min-width: 0;
