@@ -50,21 +50,31 @@ describe('DrawFromHat', () => {
 
   // "A section lower down that shows each hat with the most recently drawn
   // movie, the total number of movies in the hat, and a button to draw."
-  it('shows how many are waiting and what came out last', () => {
+  // The card used to carry a "Last drew" poster + title above the history
+  // strip. Removed 2026-08-18 (bug report): the strip is newest-first, so its
+  // first card was always that same movie — "the most recently drawn is just
+  // the most recent one in the history we don't need both". What the card
+  // still owes you at a glance is the waiting count; the newest draw is now
+  // read off the front of the strip.
+  it('shows how many are waiting, and does not restate the newest draw', () => {
+    const drawn = { title: 'Heat', id: 1, poster_path: '/h.jpg', dateDrawn: Date.now() - 3 * 60 * 60 * 1000 };
     const { wrapper } = factory({
       summaries: [{
         title: 'Just Matt',
         dbKey: 'k1',
         waiting: 128,
-        lastDrawn: { title: 'Heat', poster_path: '/h.jpg', dateDrawn: Date.now() - 3 * 60 * 60 * 1000 }
+        lastDrawn: drawn,
+        history: [drawn]
       }]
     });
     const card = wrapper.findAll('.hat-card')[0];
 
     expect(card.find('.hat-waiting').text()).toBe('128 waiting');
-    expect(card.find('.hat-last-text').text()).toContain('Heat');
-    expect(card.find('.hat-last-text').text()).toContain('3 hours ago');
-    expect(card.find('.hat-last-poster').attributes('alt')).toBe('Heat');
+    // Exactly one Heat on the card, in the strip — not one here and one there.
+    expect(card.findAll('.hat-history-card')).toHaveLength(1);
+    expect(card.find('.hat-history-poster').attributes('alt')).toBe('Heat');
+    expect(card.find('.hat-last-poster').exists()).toBe(false);
+    expect(card.find('.hat-last-text').text()).not.toContain('Heat');
   });
 
   it('asks for the hat summaries when it appears', () => {
@@ -208,15 +218,79 @@ describe('DrawFromHat history strip', () => {
     expect(wrapper.find('.hat-draw').exists()).toBe(true);
   });
 
-  // One draw is the lastDrawn card already shown above it; a strip of one is
-  // just the same poster twice.
-  it('stays hidden until there is more than one draw to show', async () => {
+  // It used to need more than one entry, because a lone entry would have
+  // restated the "Last drew" block standing above it. That block is gone, so
+  // a single-draw hat has to show its one card here or show nothing at all.
+  it('shows from the very first draw', async () => {
     const { wrapper } = factory({
       hats: [{ title: 'Dev Hat', dbKey: 'k1' }],
       summaries: [{ ...withHistory[0], history: [withHistory[0].history[0]] }]
     });
     await flushPromises();
 
+    expect(wrapper.find('.hat-history').exists()).toBe(true);
+    expect(wrapper.findAll('.hat-history-card')).toHaveLength(1);
+  });
+
+  it('says so when a hat has never been drawn from', async () => {
+    const { wrapper } = factory({
+      hats: [{ title: 'Dev Hat', dbKey: 'k1' }],
+      summaries: [{ title: 'Dev Hat', dbKey: 'k1', waiting: 4, lastDrawn: null, history: [] }]
+    });
+    await flushPromises();
+
     expect(wrapper.find('.hat-history').exists()).toBe(false);
+    expect(wrapper.find('.hat-last-text').text()).toContain('Nothing drawn yet.');
+    expect(wrapper.find('.hat-draw').exists()).toBe(true);
+  });
+
+  // "I could click on a poster in one of those lists and it would pop up a
+  // list of where I can watch that movie" (bug report, 2026-08-18).
+  describe('where to watch', () => {
+    it('opens the sheet on the movie whose poster was tapped', async () => {
+      const { wrapper } = factory({ hats: [{ title: 'Dev Hat', dbKey: 'k1' }], summaries: withHistory });
+      await flushPromises();
+
+      expect(wrapper.findComponent({ name: 'WhereToWatch' }).props('movie')).toBe(null);
+
+      await wrapper.findAll('.hat-history-card')[1].trigger('click');
+
+      // The SECOND poster, not simply the first or the newest.
+      expect(wrapper.findComponent({ name: 'WhereToWatch' }).props('movie'))
+        .toEqual({ id: 2, title: 'Older' });
+    });
+
+    it('closes again, and can then open on a different poster', async () => {
+      const { wrapper } = factory({ hats: [{ title: 'Dev Hat', dbKey: 'k1' }], summaries: withHistory });
+      await flushPromises();
+      const sheet = () => wrapper.findComponent({ name: 'WhereToWatch' });
+
+      await wrapper.findAll('.hat-history-card')[0].trigger('click');
+      sheet().vm.$emit('close');
+      await wrapper.vm.$nextTick();
+      expect(sheet().props('movie')).toBe(null);
+
+      await wrapper.findAll('.hat-history-card')[2].trigger('click');
+      expect(sheet().props('movie')).toEqual({ id: 3, title: 'Oldest' });
+    });
+
+    it('offers the poster as a real button, not a bare div', async () => {
+      const { wrapper } = factory({ hats: [{ title: 'Dev Hat', dbKey: 'k1' }], summaries: withHistory });
+      await flushPromises();
+
+      const card = wrapper.findAll('.hat-history-card')[0];
+      expect(card.element.tagName).toBe('BUTTON');
+      expect(card.attributes('aria-label')).toBe('Where to watch Newest');
+    });
+
+    it('does not draw from the hat when a history poster is tapped', async () => {
+      const { wrapper, dispatch } = factory({ hats: [{ title: 'Dev Hat', dbKey: 'k1' }], summaries: withHistory });
+      await flushPromises();
+      dispatch.mockClear();
+
+      await wrapper.findAll('.hat-history-card')[0].trigger('click');
+
+      expect(dispatch).not.toHaveBeenCalledWith('drawFromMovieHat', expect.anything());
+    });
   });
 });

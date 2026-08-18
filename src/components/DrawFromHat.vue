@@ -22,25 +22,16 @@
           </span>
         </div>
 
+        <!-- The "Last drew" poster and title used to sit here, above the
+             history strip. Removed (bug report): the strip below is sorted
+             newest-first by the same dateDrawn, so its very first card was
+             always this exact movie — "the most recently drawn is just the
+             most recent one in the history we don't need both". The row is
+             now just the Draw button, plus the empty state for a hat that
+             has never given anything up. -->
         <div class="hat-last">
-          <img
-            v-if="lastPoster(hat)"
-            :src="lastPoster(hat)"
-            :alt="hat.lastDrawn.title"
-            class="hat-last-poster"
-            loading="lazy"
-          >
-          <div v-else class="hat-last-poster hat-last-poster-blank">
-            <i class="bi bi-question-lg"></i>
-          </div>
-
           <div class="hat-last-text">
-            <template v-if="hat.lastDrawn">
-              <span class="hat-last-label">Last drew</span>
-              <span class="hat-last-title">{{ hat.lastDrawn.title }}</span>
-              <span v-if="drawnAgo(hat)" class="hat-last-when">{{ drawnAgo(hat) }}</span>
-            </template>
-            <span v-else-if="!hat.error" class="hat-last-label">Nothing drawn yet.</span>
+            <span v-if="!hat.error && !hatHasHistory(hat)" class="hat-last-label">Nothing drawn yet.</span>
           </div>
 
           <button type="button" class="hat-draw" :disabled="drawing" @click="draw(hat)">
@@ -50,14 +41,25 @@
         </div>
 
         <!-- Full width, which is the whole reason the card had to stop being
-             a row. Everything this hat has ever given up, newest first. -->
-        <div v-if="hat.history && hat.history.length > 1" class="hat-history">
+             a row. Everything this hat has ever given up, newest first.
+             Shown from the FIRST draw now: it used to need more than one
+             entry, because a lone entry would just have restated the "Last
+             drew" block that stood above it. That block is gone, so a
+             single-draw hat would otherwise show nothing at all. -->
+        <div v-if="hatHasHistory(hat)" class="hat-history">
           <p class="hat-history-title">Everything it's drawn · {{ hat.history.length }}</p>
           <div class="hat-history-row">
-            <div
+            <!-- A button, not a div (bug report): "I could click on a poster
+                 in one of those lists and it would pop up a list of where I
+                 can watch that movie". Being a real button also makes it
+                 reachable by keyboard and announced as an action. -->
+            <button
               v-for="(drawnMovie, index) in hat.history"
               :key="`${hat.title}-${drawnMovie.id}-${index}`"
+              type="button"
               class="hat-history-card"
+              :aria-label="`Where to watch ${drawnMovie.title}`"
+              @click="showWhereToWatch(drawnMovie)"
             >
               <img
                 v-if="drawnMovie.poster_path"
@@ -69,7 +71,7 @@
               >
               <div v-else class="hat-history-poster hat-history-blank">{{ drawnMovie.title }}</div>
               <span class="hat-history-when">{{ drawnAt(drawnMovie) }}</span>
-            </div>
+            </button>
           </div>
         </div>
       </div>
@@ -93,6 +95,11 @@
     </div>
 
     <p v-if="message" class="draw-message" :class="{ 'draw-message-error': messageIsError }">{{ message }}</p>
+
+    <!-- One instance for every poster in every hat: it is driven by which
+         movie is set, so tapping along a strip re-targets it rather than
+         mounting and tearing down a sheet per poster. -->
+    <WhereToWatch :movie="whereToWatch" @close="whereToWatch = null"/>
   </section>
 </template>
 
@@ -110,15 +117,19 @@
 // the movie first." The only follow-on offered is looking the film up.
 import ErrorLogService from '../services/ErrorLogService.js';
 import { timeAgo } from '../assets/javascript/timeAgo.js';
+import WhereToWatch from './WhereToWatch.vue';
 
 export default {
   name: 'DrawFromHat',
+  components: { WhereToWatch },
   data () {
     return {
       drawing: null,
       drawn: null,
       message: null,
-      messageIsError: false
+      messageIsError: false,
+      // The history poster whose availability sheet is open, or null.
+      whereToWatch: null
     };
   },
   computed: {
@@ -143,13 +154,11 @@ export default {
     }
   },
   methods: {
-    lastPoster (hat) {
-      return hat.lastDrawn?.poster_path
-        ? `https://image.tmdb.org/t/p/w185${hat.lastDrawn.poster_path}`
-        : null;
+    hatHasHistory (hat) {
+      return Boolean(hat.history && hat.history.length);
     },
-    drawnAgo (hat) {
-      return timeAgo(hat.lastDrawn?.dateDrawn);
+    showWhereToWatch (drawnMovie) {
+      this.whereToWatch = { id: drawnMovie.id, title: drawnMovie.title };
     },
     historyPoster (drawnMovie) {
       return `https://image.tmdb.org/t/p/w185${drawnMovie.poster_path}`;
@@ -243,22 +252,6 @@ export default {
   margin-top: 0.5rem;
 }
 
-.hat-last-poster {
-  border-radius: 4px;
-  flex: 0 0 auto;
-  height: 66px;
-  object-fit: cover;
-  width: 44px;
-}
-
-.hat-last-poster-blank {
-  align-items: center;
-  background: #2b2b2b;
-  color: #7a7a7a;
-  display: flex;
-  justify-content: center;
-}
-
 .hat-last-text {
   display: flex;
   flex: 1 1 auto;
@@ -267,8 +260,6 @@ export default {
 }
 
 .hat-last-label { color: #9a9a9a; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; }
-.hat-last-title { color: #eee; font-size: 0.85rem; font-weight: 600; line-height: 1.25; }
-.hat-last-when { color: #b9b9b9; font-size: 0.7rem; }
 
 .hat-draw {
   background: #33383d;
@@ -370,7 +361,21 @@ export default {
   -webkit-overflow-scrolling: touch;
 }
 
-.hat-history-card { flex: 0 0 48px; width: 48px; }
+/* A <button> now, so it needs the chrome stripped back to what the div had.
+   :active only — a tapped element on iOS keeps :hover with no mouse to leave
+   it, which has shipped as a visible bug here before (.claude/rules/vue-ui.md).
+   The poster is 48x72 and the timestamp sits under it, so the tap target
+   clears 40px without any extra padding. */
+.hat-history-card {
+  background: none;
+  border: none;
+  flex: 0 0 48px;
+  padding: 0;
+  text-align: center;
+  width: 48px;
+}
+
+.hat-history-card:active { opacity: 0.6; }
 
 .hat-history-poster {
   border-radius: 4px;
