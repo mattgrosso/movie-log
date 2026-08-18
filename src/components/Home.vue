@@ -1257,6 +1257,11 @@ import ThreeStateToggle from './ThreeStateToggle.vue';
 import SendToHat from './SendToHat.vue';
 import { rankMoreFrom, genreAffinity } from "../assets/javascript/moreFromRanking.js";
 import { genreIdFor } from "../assets/javascript/tmdbGenres.js";
+import { createCache, keyFor } from "../assets/javascript/moreFromCache.js";
+
+// One cache for the app, not one per Home mount — navigating away and back
+// should not throw away what TMDB already told us.
+const moreFromCache = createCache();
 import { getRating } from "../assets/javascript/GetRating.js";
 import { awardsYearThreshold } from "../assets/javascript/personalAwards.js";
 import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
@@ -5190,11 +5195,21 @@ export default {
       this.unratedRequestId = requestId;
       const isStale = () => this.unratedRequestId !== requestId;
 
+      const cacheKey = keyFor(searchFilter);
+
       try {
         this.unratedMoviesSearchType = searchFilter.type;
-        let relevantList = [];
 
-        if (searchFilter.type === 'year') {
+        // Already know the candidates for this filter? Skip the requests
+        // entirely. Only the raw TMDB list is cached — everything below
+        // (exclusions, ranking) still runs, so a film rated or hatted since
+        // then is gone from the row immediately.
+        const cached = moreFromCache.get(cacheKey);
+        let relevantList = cached || [];
+
+        if (cached) {
+          // Nothing to do — relevantList is already the cached pool.
+        } else if (searchFilter.type === 'year') {
           // Fetch movies from specific year
           relevantList = await this.fetchUnratedMoviesByYear(searchFilter.value);
         } else if (searchFilter.type === 'yearRange') {
@@ -5232,6 +5247,8 @@ export default {
         // A filter the user has already moved on from must not paint over
         // the one they are looking at now.
         if (isStale()) return;
+
+        if (!cached) moreFromCache.set(cacheKey, relevantList);
 
         // Everything already accounted for: rated, or waiting in a hat.
         // Suggesting something you have already decided to watch is the one
