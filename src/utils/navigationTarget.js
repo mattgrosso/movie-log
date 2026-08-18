@@ -33,7 +33,8 @@ export function navigationTarget ({
   currentPath,
   parentPath = '/',
   titleFor = () => 'Back',
-  avoid = []
+  avoid = [],
+  preferParent = false
 } = {}) {
   const back = pathOf(backPath);
   const current = pathOf(currentPath);
@@ -41,7 +42,26 @@ export function navigationTarget ({
 
   // Going "back" to the page you're already on is a no-op that looks broken;
   // so is being sent back to the login screen you just came through.
-  const usable = Boolean(back) && back !== current && !avoided.includes(back);
+  let usable = Boolean(back) && back !== current && !avoided.includes(back);
+
+  // Some screens are somewhere you go INTO, and leaving means going back up
+  // — a game is entered from the games hub, and the way out is the hub
+  // however you happened to arrive. Report -P-HzO9KhUYIpmhe-uQ8: "The way
+  // you get stuck in six degrees is if you go from six degrees to the Home
+  // Screen and back again, you have no way to get back to the games
+  // screen." History said Home, so the hub became unreachable from inside
+  // the game.
+  //
+  // Only routes that ask for it (meta.exitToParent) behave this way. Game
+  // Stats deliberately does NOT: it is a destination in its own right, and
+  // returning to Insights when you came from Insights is the whole point of
+  // an earlier fix.
+  //
+  // A real history pop is still preferred when the previous entry IS the
+  // parent, because that restores the hub's scroll position.
+  if (preferParent && back !== parentPath) {
+    usable = false;
+  }
 
   const path = usable ? back : parentPath;
 

@@ -1440,6 +1440,26 @@ export default {
       if (!this.sortCameFromDefault || this.DBSortValue || !order) return;
       this.sortOrder = order;
     },
+    // Report -P-Hzqoq_yUQjNnqtc2-: "I find that I want the default sort to
+    // be watch order but if I filter the results at all I want it to sort
+    // by rating."
+    //
+    // Filtering is asking "which of these is best"; an unfiltered library
+    // is a diary, and reads best in the order you saved. So narrowing the
+    // list switches to rating and clearing it goes back to the default —
+    // but only while the sort is still one nobody asked for. An explicit
+    // sort always wins, filtered or not.
+    hasActiveFilters (filtered) {
+      if (!this.sortCameFromDefault || this.DBSortValue) return;
+
+      if (filtered) {
+        this.setSortValue('rating');
+        this.sortOrder = 'bestOrNewestOnTop';
+      } else {
+        this.setSortValue(this.defaultSortValue);
+        this.sortOrder = this.defaultSortOrder;
+      }
+    },
     // Edges arrive from the listener after mount, so the first fetch above
     // can run against an empty friend list. Same watcher WatchlistScreen and
     // FilmClubScreen use.
@@ -2016,6 +2036,11 @@ export default {
     // preserved exactly in that case.
     otherActiveFilters () {
       return this.activeFiltersMinusTemps.filter((filter) => filter.type !== 'year');
+    },
+    // Any narrowing at all — a chip or typed text. Watched above, because
+    // a filtered list wants rating order and a whole library doesn't.
+    hasActiveFilters () {
+      return this.allActiveFilters.length > 0;
     },
     allActiveFilters () {
       const filters = [];

@@ -71,8 +71,19 @@
                   <span class="category-no-nominees" v-else-if="isCategoryMarkedAsNoNominees(category.key)">
                     No nominees
                   </span>
-                  <span class="category-meta" v-else-if="!category.disabled">
-                    {{ getCategoryNomineeCount(category.key) }} nominees
+                  <!-- Shown for EVERY category, not just the ones still
+                       undecided: "it would be nice if the nominee count was
+                       visible for each category" (report
+                       -P-HyPlss8uUwGJzLgN4). It used to be the third branch
+                       of the same v-if chain, so the moment a category had a
+                       winner its count disappeared — which is most of them,
+                       once you've been through. -->
+                  <span
+                    v-if="!category.disabled && !isCategoryMarkedAsNoNominees(category.key)"
+                    class="category-meta"
+                  >
+                    {{ getCategoryNomineeCount(category.key) }}
+                    {{ getCategoryNomineeCount(category.key) === 1 ? 'nominee' : 'nominees' }}
                   </span>
                 </span>
                 <span class="category-row-side">

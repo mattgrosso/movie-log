@@ -124,3 +124,53 @@ describe('goBackFrom', () => {
     expect(instance.back).not.toHaveBeenCalled();
   });
 });
+
+// Report -P-HzO9KhUYIpmhe-uQ8: "The way you get stuck in six degrees is if
+// you go from six degrees to the Home Screen and back again, you have no way
+// to get back to the games screen." History said Home, so the hub was
+// unreachable from inside the game.
+describe('screens you exit upward from (preferParent)', () => {
+  const gameTarget = (backPath) => navigationTarget({
+    backPath,
+    currentPath: '/games/six-degrees',
+    parentPath: '/games',
+    titleFor: (path) => ({ '/games': 'Games', '/': 'Home' })[path],
+    preferParent: true
+  })
+
+  it('leaves a game for its hub even when history says somewhere else', () => {
+    const target = gameTarget('/')
+
+    expect(target.path).toBe('/games')
+    expect(target.label).toBe('Games')
+    // A push, because history's previous entry is Home, not the hub.
+    expect(target.useBack).toBe(false)
+  })
+
+  it('still pops history when the previous entry IS the hub', () => {
+    // The ordinary route in: hub → game → back. A real pop restores the
+    // hub's scroll position, which a push would lose.
+    const target = gameTarget('/games')
+
+    expect(target.path).toBe('/games')
+    expect(target.useBack).toBe(true)
+  })
+
+  it('goes to the hub on a cold start with no history at all', () => {
+    expect(gameTarget(null).path).toBe('/games')
+  })
+
+  it('leaves ordinary screens following history, as before', () => {
+    // Game Stats is a destination in its own right: arriving from Insights
+    // and going back to Insights is a fix in its own right, not a bug.
+    const target = navigationTarget({
+      backPath: '/insights',
+      currentPath: '/games/stats',
+      parentPath: '/games',
+      titleFor: (path) => ({ '/insights': 'Insights', '/games': 'Games' })[path]
+    })
+
+    expect(target.path).toBe('/insights')
+    expect(target.useBack).toBe(true)
+  })
+})

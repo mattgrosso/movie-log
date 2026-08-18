@@ -252,6 +252,9 @@ const routes = [
     name: 'HigherLowerGame',
     component: HigherLowerGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Higher or Lower',
@@ -271,6 +274,9 @@ const routes = [
     name: 'ReelWordleGame',
     component: ReelWordleGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Reel Wordle',
@@ -290,6 +296,9 @@ const routes = [
     name: 'ConnectionsGame',
     component: ConnectionsGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Connections',
@@ -309,6 +318,9 @@ const routes = [
     name: 'SixDegreesGame',
     component: SixDegreesGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Six Degrees',
@@ -328,6 +340,9 @@ const routes = [
     name: 'TimelineGame',
     component: TimelineGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Timeline',
@@ -347,6 +362,9 @@ const routes = [
     name: 'ClueBudgetGame',
     component: ClueBudgetGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Clue Budget',
@@ -366,6 +384,9 @@ const routes = [
     name: 'TaglineQuizGame',
     component: TaglineQuizGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Tagline Quiz',
@@ -537,6 +558,9 @@ const routes = [
     name: 'StampGame',
     component: StampGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Stamp',
@@ -556,6 +580,9 @@ const routes = [
     name: 'CineplexityGame',
     component: CineplexityGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Cineplexity',
@@ -575,6 +602,9 @@ const routes = [
     name: 'TriviaGame',
     component: TriviaGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Trivia',
@@ -594,6 +624,9 @@ const routes = [
     name: 'PosterZoomGame',
     component: PosterZoomGame,
     meta: {
+      // A game is entered from the hub, so the way out is the hub —
+      // history-based back stranded you when you'd been elsewhere between.
+      exitToParent: true,
       // Back-link identity: what this screen is called, and where back
       // goes when there is no history to go back to.
       title: 'Poster Zoom',

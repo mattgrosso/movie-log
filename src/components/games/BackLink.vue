@@ -72,7 +72,11 @@ export default {
         parentPath: this.$route?.meta?.parent || '/',
         titleFor: (path) => this.$router?.resolve?.(path)?.meta?.title,
         // Nobody wants "back" to mean "sign in again".
-        avoid: ['/login']
+        avoid: ['/login'],
+        // A game is somewhere you go INTO from the hub; the way out is the
+        // hub however you got here. Without this, wandering off to Home and
+        // coming back left no route to the games screen at all.
+        preferParent: Boolean(this.$route?.meta?.exitToParent)
       });
     },
     resolvedLabel () {
