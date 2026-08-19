@@ -2,7 +2,20 @@ import {
   describe, it, expect, vi
 } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import WatchlistRow from '@/components/WatchlistRow.vue';
+
+const rowSource = readFileSync(join(process.cwd(), 'src/components/WatchlistRow.vue'), 'utf8');
+
+// The declarations directly on a selector, comments stripped so the rule
+// can't be satisfied by its own prose.
+const ruleFor = (selector) => {
+  const start = rowSource.indexOf(`${selector} {`);
+  expect(start, `${selector} should exist in WatchlistRow.vue`).toBeGreaterThan(-1);
+  const body = rowSource.slice(start, rowSource.indexOf('}', start));
+  return body.replace(/\/\*[\s\S]*?\*\//g, '');
+};
 
 // Bug report, 2026-08-19: "sometimes a poster has an add to hat button.
 // Sometimes it has an X button sometimes it has both... It should always be in
@@ -74,6 +87,24 @@ describe('watchlist poster controls', () => {
     await wrapper.find('.punt-btn').trigger('click');
 
     expect(wrapper.emitted('select')).toBeUndefined();
+  });
+
+  it('keeps the X tap target clear of the poster above it', () => {
+    // jsdom performs no layout (.claude/rules/testing.md), so this asserts
+    // the declaration that governs the outcome, read from the stylesheet —
+    // the same approach searchBoltStacking.test.js takes for a paint-order
+    // rule that can only be expressed in CSS.
+    //
+    // Measured live on 1.88.1: centring the 40px target on the caption with
+    // -12px top and bottom put it over the poster's bottom 8px, an invisible
+    // control sitting on the artwork. That is the BackLink edge-strip bug
+    // (an unseen overlay eating real taps) rebuilt by hand.
+    const puntRule = ruleFor('.punt-btn');
+
+    expect(puntRule).toContain('height: 40px');
+    // A negative TOP margin is what climbed onto the poster.
+    expect(puntRule).not.toMatch(/margin-top:\s*-/);
+    expect(puntRule).not.toMatch(/margin:\s*-/);
   });
 
   it('still renders the meta line when a puntable item has no meta text', () => {

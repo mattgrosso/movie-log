@@ -166,9 +166,15 @@ export default {
 /* In the meta line now, not over the artwork. Same "small to look at, big to
    tap" split the poster buttons use: a 40px target (the house minimum — see
    .claude/rules/vue-ui.md) around a glyph small enough to read as part of the
-   caption. Negative margins keep the oversized target from padding the row
-   out; it overhangs the card's own gutter, not the poster above, so it can't
-   swallow a tap meant for the artwork. */
+   caption.
+
+   The horizontal margin pulls the target into the card's own gutter, but
+   there is deliberately NO vertical one. A first attempt centred the 40px box
+   on the caption with -12px top and bottom, which measured live on the
+   deployed page as the target overlapping the poster's bottom 8px — an
+   invisible control sitting on the artwork, which is the BackLink edge-strip
+   bug (an unseen overlay eating real taps) rebuilt by hand. The card simply
+   gets taller instead, which is the house rule for text under a poster. */
 .punt-btn {
   align-items: center;
   background: none;
@@ -178,7 +184,7 @@ export default {
   flex: 0 0 auto;
   height: 40px;
   justify-content: center;
-  margin: -12px -10px -12px 0;
+  margin-right: -10px;
   padding: 0;
   width: 40px;
 }
