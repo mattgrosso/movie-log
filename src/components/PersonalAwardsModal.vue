@@ -4,8 +4,8 @@
       <span class="prompt-badge prompt-badge-awards"><i class="bi bi-trophy-fill"></i></span>
       <span class="prompt-body">
         <span class="prompt-label">{{ awardNameSingular }}</span>
-        <p class="prompt-text">{{ firstEligibleYear }} has enough films to hand out awards.</p>
-        <a class="prompt-action prompt-action-awards" @click.stop="openModal">Pick your winners</a>
+        <p class="prompt-text">{{ promptCopy.text }}</p>
+        <a class="prompt-action prompt-action-awards" @click.stop="openModal">{{ promptCopy.action }}</a>
       </span>
     </div>
     <Modal :show="showModal" :page="pageMode" @close="closeModal">
@@ -378,7 +378,7 @@ import Modal from './Modal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { pickEligibleAwardsYear } from '../utils/awards.js';
-import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
+import { awardsYearThreshold, awardsPromptCopy } from '../assets/javascript/personalAwards.js';
 import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
 import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
 import { expandNomineeFromMinimal as expandNomineeFromMinimalShared, actingSiblingConflict } from '../assets/javascript/personalAwards.js';
@@ -585,6 +585,32 @@ export default {
         ErrorLogService.error('Error in incompleteYears:', error);
         return [];
       }
+    },
+    /**
+     * Films rated for the prompt's year since its awards were last updated —
+     * the number the "you've rated more films" wording quotes. Mirrors the
+     * same check incompleteYears makes; 0 for a year that was never completed.
+     */
+    newFilmsSinceAwards () {
+      const year = this.firstEligibleYear;
+      const existing = this.$store.state.settings?.personalAwards?.[year];
+      if (year == null || !existing?.lastUpdated) return 0;
+
+      return (this.allEntriesWithFlatKeywordsAdded || []).filter((entry) => {
+        const releaseDate = entry?.movie?.release_date;
+        if (!releaseDate) return false;
+        if (new Date(releaseDate).getFullYear() !== year) return false;
+        const ratedAt = new Date(entry.ratings?.[0]?.date || releaseDate).getTime();
+        return ratedAt > existing.lastUpdated;
+      }).length;
+    },
+    // Wording matched to WHY this year is being offered (bug report) — a
+    // first-time year, one part-way through, and one revisited because more
+    // films were rated are three different messages.
+    promptCopy () {
+      const year = this.firstEligibleYear;
+      const existing = this.$store.state.settings?.personalAwards?.[year];
+      return awardsPromptCopy(year, existing, this.newFilmsSinceAwards);
     },
     firstEligibleYear () {
       try {

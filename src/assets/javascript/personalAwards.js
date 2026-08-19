@@ -155,3 +155,55 @@ export function awardsBrowsableYears (entries, settings) {
     .filter((year) => Number.isFinite(year) && counts[year] >= threshold)
     .sort((a, b) => a - b);
 }
+
+/**
+ * Which of the three reasons a year is sitting in the awards prompt.
+ *
+ * Bug report, 2026-08-19: "The language for the prompt that tells me to work
+ * on a year for my personal awards needs to be specific to if I am doing
+ * those awards for the first time because I've just rated my 10th movie or if
+ * I'm doing those awards because I've just rated an additional movie. We
+ * should make sure the language is appropriate to those situations."
+ *
+ * Matt named two, and there are in fact three — a year can also be part-way
+ * through, which this codebase already treats as its own state (the modal must
+ * keep offering years with partial progress; see .claude/rules/awards.md).
+ * Telling someone a year "has enough films" when they are halfway through
+ * picking its winners is the same wrongness he is reporting, one step along.
+ *
+ *   'first-time'  — no awards recorded for the year at all.
+ *   'in-progress' — started, never marked complete.
+ *   'new-films'   — completed, and films have been rated for it since.
+ */
+export function awardsPromptReason (existingAwards) {
+  if (!existingAwards) return 'first-time';
+  if (!existingAwards.completed) return 'in-progress';
+  return 'new-films';
+}
+
+/**
+ * The prompt's wording for a year, matched to why it is being offered.
+ *
+ * `newFilmCount` only colours the 'new-films' case; the others ignore it.
+ */
+export function awardsPromptCopy (year, existingAwards, newFilmCount = 0) {
+  const reason = awardsPromptReason(existingAwards);
+
+  if (reason === 'in-progress') {
+    return { reason, text: `Your ${year} awards are part-way done.`, action: 'Finish picking' };
+  }
+
+  if (reason === 'new-films') {
+    const films = newFilmCount === 1 ? 'another film' : `${newFilmCount} more films`;
+    // A count of 0 shouldn't happen (the year wouldn't be offered), but read
+    // it as the general case rather than printing "0 more films".
+    const what = newFilmCount > 0 ? films : 'more films';
+    return {
+      reason,
+      text: `You've rated ${what} from ${year} since handing out its awards.`,
+      action: 'Take another look'
+    };
+  }
+
+  return { reason, text: `${year} has enough films to hand out awards.`, action: 'Pick your winners' };
+}
