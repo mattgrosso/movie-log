@@ -26,20 +26,26 @@
         <template v-else>
           <div v-for="group in groups" :key="group.key" class="wtw-group">
             <p class="wtw-group-label">{{ group.label }}</p>
+            <!-- Icons only (bug report: "way too big and spread out. Just the
+                 icons would be fine in the various categories"). The name
+                 still reaches anyone who needs it via alt/title — a logo is
+                 recognisable, a screen reader's user is not looking at it. -->
             <div class="wtw-providers">
-              <div v-for="provider in group.providers" :key="provider.id" class="wtw-provider">
+              <template v-for="provider in group.providers" :key="provider.id">
                 <img
                   v-if="provider.logo"
                   :src="provider.logo"
                   :alt="provider.name"
+                  :title="provider.name"
                   class="wtw-logo"
                   loading="lazy"
                 >
-                <div v-else class="wtw-logo wtw-logo-blank"><i class="bi bi-play-fill"></i></div>
-                <!-- Never clamped: a long service name just wraps and the
-                     card gets taller (Matt's poster-row rule). -->
-                <span class="wtw-provider-name">{{ provider.name }}</span>
-              </div>
+                <!-- A provider with no artwork still has to be visible, so it
+                     falls back to its initial rather than disappearing. -->
+                <span v-else class="wtw-logo wtw-logo-blank" :title="provider.name">
+                  {{ provider.name ? provider.name.slice(0, 1) : '?' }}
+                </span>
+              </template>
             </div>
           </div>
 
@@ -80,18 +86,66 @@ export default {
   },
   emits: ['close'],
   data () {
-    return { loading: false, error: false, groups: [], link: null };
+    return {
+      loading: false,
+      error: false,
+      groups: [],
+      link: null,
+      // The body's own inline overflow, saved while the sheet holds it at
+      // 'hidden'. null means "we are not currently holding it".
+      previousBodyOverflow: null
+    };
   },
   watch: {
     movie: {
       immediate: true,
       handler (movie) {
+        this.lockBackgroundScroll(Boolean(movie));
         if (!movie) return;
         this.load(movie);
       }
     }
   },
+  // Never leave the page locked because this was torn down while open (the
+  // watchlist screen unmounting mid-sheet, say) — the whole app would become
+  // unscrollable with nothing on screen to explain why.
+  beforeUnmount () {
+    this.lockBackgroundScroll(false);
+  },
   methods: {
+    /**
+     * Stops the page behind the sheet scrolling while it is open.
+     *
+     * Bug report, 2026-08-19: "it appears to be like a modal like a slide up
+     * modal, but I can still scroll the content behind it so it should
+     * probably prevent that."
+     *
+     * The sheet is teleported to <body> and the backdrop covers the viewport,
+     * but a fixed overlay does not stop the document underneath from
+     * scrolling — on a touch screen a drag that starts on the backdrop, or
+     * continues past the sheet's own scroll extent, moves the page.
+     *
+     * The previous inline value is restored rather than assumed to be '',
+     * since something else may legitimately have set it.
+     */
+    lockBackgroundScroll (locked) {
+      if (typeof document === 'undefined') return;
+      const { body } = document;
+      if (!body) return;
+
+      if (locked) {
+        if (this.previousBodyOverflow === null) {
+          this.previousBodyOverflow = body.style.overflow;
+        }
+        body.style.overflow = 'hidden';
+        return;
+      }
+
+      if (this.previousBodyOverflow !== null) {
+        body.style.overflow = this.previousBodyOverflow;
+        this.previousBodyOverflow = null;
+      }
+    },
     async load (movie) {
       if (movie.id == null) {
         this.error = true;
@@ -200,35 +254,28 @@ export default {
   margin: 0.9rem 0;
 }
 
-.wtw-group { margin-top: 0.9rem; }
+.wtw-group { margin-top: 0.7rem; }
 
 .wtw-group-label {
   color: #9a9a9a;
   font-size: 0.62rem;
   letter-spacing: 0.06em;
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.3rem;
   text-transform: uppercase;
 }
 
-/* Logos edge-aligned, names flow below and may wrap to any height. */
+/* Just the logos, packed (bug report: "way too big and spread out"). Dropping
+   the name captions took each provider from a 62px column with a wrapping
+   label to a 40px tile, so a group of five fits one row instead of two. */
 .wtw-providers {
-  align-items: flex-start;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.7rem;
-}
-
-.wtw-provider {
-  align-items: center;
-  display: flex;
-  flex: 0 0 62px;
-  flex-direction: column;
-  gap: 0.25rem;
-  width: 62px;
+  gap: 0.4rem;
 }
 
 .wtw-logo {
   border-radius: 8px;
+  flex: 0 0 auto;
   height: 40px;
   object-fit: cover;
   width: 40px;
@@ -237,16 +284,11 @@ export default {
 .wtw-logo-blank {
   align-items: center;
   background: #2b2b2b;
-  color: #7a7a7a;
-  display: flex;
-  justify-content: center;
-}
-
-.wtw-provider-name {
   color: #ccc;
-  font-size: 0.6rem;
-  line-height: 1.2;
-  text-align: center;
+  display: flex;
+  font-size: 0.9rem;
+  justify-content: center;
+  text-transform: uppercase;
 }
 
 .wtw-link {

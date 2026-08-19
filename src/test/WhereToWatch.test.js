@@ -53,7 +53,7 @@ describe('WhereToWatch', () => {
 
     expect(wrapper.find('.wtw-title').text()).toBe('Heat');
     expect(wrapper.findAll('.wtw-group-label').map((l) => l.text())).toEqual(['Streaming', 'Rent']);
-    expect(wrapper.findAll('.wtw-provider-name').map((n) => n.text())).toEqual(['Netflix', 'Apple TV']);
+    expect(wrapper.findAll('.wtw-logo').map((n) => n.attributes('alt'))).toEqual(['Netflix', 'Apple TV']);
     expect(wrapper.find('.wtw-link').attributes('href'))
       .toBe('https://www.themoviedb.org/movie/101/watch?locale=US');
   });
@@ -73,7 +73,7 @@ describe('WhereToWatch', () => {
     await flushPromises();
 
     expect(wrapper.find('.wtw-status').text()).toContain('Not streaming, renting or selling anywhere');
-    expect(wrapper.findAll('.wtw-provider')).toHaveLength(0);
+    expect(wrapper.findAll('.wtw-logo')).toHaveLength(0);
   });
 
   it('reports a failed lookup instead of claiming nothing carries it', async () => {
@@ -98,7 +98,7 @@ describe('WhereToWatch', () => {
     await flushPromises();
 
     expect(axios.get).toHaveBeenCalledTimes(2);
-    expect(wrapper.findAll('.wtw-provider-name').map((n) => n.text())).toEqual(['Netflix']);
+    expect(wrapper.findAll('.wtw-logo').map((n) => n.attributes('alt'))).toEqual(['Netflix']);
   });
 
   it('only asks once for a movie it has already looked up', async () => {
@@ -111,7 +111,7 @@ describe('WhereToWatch', () => {
     await flushPromises();
 
     expect(axios.get).toHaveBeenCalledTimes(1);
-    expect(wrapper.findAll('.wtw-provider-name').map((n) => n.text())).toEqual(['Netflix']);
+    expect(wrapper.findAll('.wtw-logo').map((n) => n.attributes('alt'))).toEqual(['Netflix']);
   });
 
   it('ignores a slow answer for a poster you have already moved on from', async () => {
@@ -129,7 +129,109 @@ describe('WhereToWatch', () => {
     await flushPromises();
 
     expect(wrapper.find('.wtw-title').text()).toBe('Second one');
-    expect(wrapper.findAll('.wtw-provider-name').map((n) => n.text())).toEqual(['Second answer']);
+    expect(wrapper.findAll('.wtw-logo').map((n) => n.attributes('alt'))).toEqual(['Second answer']);
+  });
+
+  // Bug report, 2026-08-19: "It shows me the streaming platforms is good but
+  // it's way too big and spread out. Just the icons would be fine in the
+  // various categories and it's a appears to be like a modal like a slide up
+  // modal, but I can still scroll the content behind it so it should probably
+  // prevent that."
+  describe('compact icon layout', () => {
+    it('shows logos without the name captions under them', async () => {
+      respondWith({ flatrate: [provider(8, 'Netflix', 0), provider(9, 'Hulu', 1)] });
+      const wrapper = factory({ id: 201, title: 'Heat' });
+      await flushPromises();
+
+      expect(wrapper.findAll('.wtw-logo')).toHaveLength(2);
+      expect(wrapper.find('.wtw-provider-name').exists()).toBe(false);
+    });
+
+    it('keeps the name reachable on the icon itself', async () => {
+      respondWith({ flatrate: [provider(8, 'Netflix', 0)] });
+      const wrapper = factory({ id: 202, title: 'Heat' });
+      await flushPromises();
+
+      const logo = wrapper.find('.wtw-logo');
+      expect(logo.attributes('alt')).toBe('Netflix');
+      expect(logo.attributes('title')).toBe('Netflix');
+    });
+
+    it('still keeps the category labels', async () => {
+      respondWith({ flatrate: [provider(8, 'Netflix', 0)], rent: [provider(2, 'Apple TV', 1)] });
+      const wrapper = factory({ id: 203, title: 'Heat' });
+      await flushPromises();
+
+      expect(wrapper.findAll('.wtw-group-label').map((l) => l.text())).toEqual(['Streaming', 'Rent']);
+    });
+
+    it('shows a provider that has no logo rather than dropping it', async () => {
+      axios.get.mockResolvedValue({
+        data: {
+          results: {
+            US: {
+              flatrate: [{ provider_id: 42, provider_name: 'Obscure Channel', logo_path: null, display_priority: 0 }]
+            }
+          }
+        }
+      });
+      const wrapper = factory({ id: 204, title: 'Heat' });
+      await flushPromises();
+
+      const blank = wrapper.find('.wtw-logo-blank');
+      expect(blank.exists()).toBe(true);
+      expect(blank.text()).toBe('O');
+      expect(blank.attributes('title')).toBe('Obscure Channel');
+    });
+  });
+
+  describe('background scroll', () => {
+    it('locks the page while the sheet is open and releases it after', async () => {
+      document.body.style.overflow = '';
+      respondWith({ flatrate: [provider(8, 'Netflix', 0)] });
+      const wrapper = factory({ id: 205, title: 'Heat' });
+      await flushPromises();
+
+      expect(document.body.style.overflow).toBe('hidden');
+
+      await wrapper.setProps({ movie: null });
+
+      expect(document.body.style.overflow).toBe('');
+    });
+
+    it('restores whatever the page had set, not a blanket empty string', async () => {
+      document.body.style.overflow = 'scroll';
+      respondWith({ flatrate: [provider(8, 'Netflix', 0)] });
+      const wrapper = factory({ id: 206, title: 'Heat' });
+      await flushPromises();
+      expect(document.body.style.overflow).toBe('hidden');
+
+      await wrapper.setProps({ movie: null });
+
+      expect(document.body.style.overflow).toBe('scroll');
+      document.body.style.overflow = '';
+    });
+
+    it('does not leave the app locked if it unmounts while open', async () => {
+      document.body.style.overflow = '';
+      respondWith({ flatrate: [provider(8, 'Netflix', 0)] });
+      const wrapper = factory({ id: 207, title: 'Heat' });
+      await flushPromises();
+      expect(document.body.style.overflow).toBe('hidden');
+
+      // The watchlist screen going away mid-sheet would otherwise leave the
+      // whole app unscrollable with nothing on screen to explain it.
+      wrapper.unmount();
+
+      expect(document.body.style.overflow).toBe('');
+    });
+
+    it('never locks for a sheet that was never opened', () => {
+      document.body.style.overflow = '';
+      factory(null);
+
+      expect(document.body.style.overflow).toBe('');
+    });
   });
 
   it('emits close from the close button', async () => {
