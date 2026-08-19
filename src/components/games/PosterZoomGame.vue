@@ -563,7 +563,7 @@ export default {
   /* Pinned to the stage's top and bottom, so its height is DEFINITE —
      the stage's height, whatever that turns out to be — and the aspect
      ratio derives the width from it.
-     
+
      This replaces a JS measurement loop (resize + orientationchange +
      focusout + two ResizeObservers) that tried to compute this height in
      pixels. Every bug that loop produced came from the same place: the

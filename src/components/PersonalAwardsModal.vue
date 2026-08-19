@@ -2334,7 +2334,6 @@ export default {
         padding: 0 4px;
 
 
-
         .category-btn {
           align-items: center;
           background: #161616;

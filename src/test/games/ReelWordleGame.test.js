@@ -83,7 +83,7 @@ describe('ReelWordleGame', () => {
     // better at this... let's get rid of that whole concept").
     expect(wrapper.find('.target-clues').exists()).toBe(false);
   })
-;
+  ;
 
   it('a win reports the guess count, with no score arithmetic', async () => {
     const wrapper = factory(20);

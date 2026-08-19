@@ -90,12 +90,84 @@ function shuffle (array, rng) {
   return result;
 }
 
+/**
+ * Reorders a schedule so consecutive matches share no contestant, wherever
+ * that is possible.
+ *
+ * Matt, 2026-08-19, on posters being slow to swap between rounds: "I think we
+ * could solve a lot by just not letting the same movie be in two consecutive
+ * matchups, then it wouldn't be as confusing."
+ *
+ * Right: when a film carries over, the screen changes only on one side, and a
+ * half-loaded swap is indistinguishable from no swap at all. Two entirely
+ * different posters can't be misread that way.
+ *
+ * Greedy, and it cannot always succeed — for the smallest ties the maths
+ * forbids it:
+ *
+ *   3 films → 3 matches (ab, ac, bc). Every pair shares a film with every
+ *     other pair, so both transitions repeat no matter the order.
+ *   4 films → 6 matches. Each match has exactly ONE other it is disjoint
+ *     from (its complement), so at most 3 of the 5 transitions can be clean
+ *     and 2 repeats are forced.
+ *   5+ films → 0 repeats, always achievable and achieved.
+ *
+ * Both small cases here hit the proven optimum, verified by brute force
+ * against every permutation. They are also the common tie sizes, which is
+ * why the loading gate in TweakInline is the other half of this fix rather
+ * than a belt-and-braces extra: with three or four films tied, some
+ * carry-over is unavoidable.
+ *
+ * Among the disjoint candidates it takes the one whose films have the most
+ * matches still to play, which is what lifts 5+ from "nearly always clean"
+ * to "always clean": it spends the constrained films while options remain,
+ * instead of leaving them stranded together at the end. Ties keep the
+ * earliest candidate, so a shuffled schedule keeps its shuffled character.
+ */
+export function spreadSchedule (schedule) {
+  const remaining = [...schedule];
+  const spread = [];
+  let previous = null;
+
+  while (remaining.length) {
+    // How many matches each film still has left to play.
+    const matchesLeft = {};
+    remaining.forEach((match) => {
+      matchesLeft[match.a] = (matchesLeft[match.a] || 0) + 1;
+      matchesLeft[match.b] = (matchesLeft[match.b] || 0) + 1;
+    });
+
+    const disjoint = (match) => !previous
+      || (match.a !== previous.a && match.a !== previous.b
+        && match.b !== previous.a && match.b !== previous.b);
+
+    const indexed = remaining.map((match, index) => ({ match, index }));
+    const eligible = indexed.filter(({ match }) => disjoint(match));
+    // Nothing disjoint left — a forced repeat, so consider everything.
+    const pool = eligible.length ? eligible : indexed;
+
+    const busiest = (entry) => matchesLeft[entry.match.a] + matchesLeft[entry.match.b];
+    // Stable sort, so equal-pressure candidates keep their existing order.
+    const chosen = [...pool].sort((x, y) => busiest(y) - busiest(x))[0];
+
+    previous = chosen.match;
+    spread.push(previous);
+    remaining.splice(chosen.index, 1);
+  }
+
+  return spread;
+}
+
 // `rng`, when supplied, randomizes match order so play doesn't run through
 // every one of one contestant's matches before moving to the next (bug
 // report). Defaults to `null` (schedule left in buildSchedule's stable
 // order) rather than `Math.random` so existing/new callers that care about a
 // deterministic order — mainly this file's own tests — don't have to fight
 // randomness; TweakInline.vue's real call site passes Math.random.
+//
+// spreadSchedule runs in BOTH cases: it is a legibility constraint, not a
+// randomization, and an unshuffled schedule is the one that most needs it
+// (buildSchedule emits every one of contestant 0's matches back to back).
 export function createRoundRobinTournament (contestantIds, rng = null) {
   const wins = {};
   contestantIds.forEach((id) => { wins[id] = 0; });
@@ -104,7 +176,7 @@ export function createRoundRobinTournament (contestantIds, rng = null) {
 
   return {
     contestantIds: [...contestantIds],
-    schedule: rng ? shuffle(schedule, rng) : schedule,
+    schedule: spreadSchedule(rng ? shuffle(schedule, rng) : schedule),
     nextIndex: 0,
     wins,
     // Filled by recordMatchResult. Firebase drops an empty array on the way

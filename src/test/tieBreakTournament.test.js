@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   findTiedGroup,
   createRoundRobinTournament,
+  spreadSchedule,
   currentMatch,
   isComplete,
   recordMatchResult,
@@ -54,11 +55,11 @@ describe('createRoundRobinTournament', () => {
   it('builds a schedule of every unique pair (N choose 2)', () => {
     const t = createRoundRobinTournament(['a', 'b', 'c', 'd'])
     expect(t.schedule).toHaveLength(6)
-    expect(t.schedule).toEqual([
-      { a: 'a', b: 'b' }, { a: 'a', b: 'c' }, { a: 'a', b: 'd' },
-      { a: 'b', b: 'c' }, { a: 'b', b: 'd' },
-      { a: 'c', b: 'd' }
-    ])
+    // The SET of pairs is the contract; their order is spreadSchedule's job
+    // (no film in two consecutive matches), asserted separately below.
+    expect(t.schedule.map((m) => `${m.a}${m.b}`).sort()).toEqual(
+      ['ab', 'ac', 'ad', 'bc', 'bd', 'cd']
+    )
   })
 
   it('a 2-contestant tournament is a single match, matching the old pairwise behavior', () => {
@@ -82,13 +83,10 @@ describe('createRoundRobinTournament', () => {
   })
 
   describe('match order (bug report: matches ran through one contestant at a time instead of randomly)', () => {
-    it('with no rng passed, keeps the stable "one contestant at a time" order (unchanged default)', () => {
-      const t = createRoundRobinTournament(['a', 'b', 'c', 'd'])
-      expect(t.schedule).toEqual([
-        { a: 'a', b: 'b' }, { a: 'a', b: 'c' }, { a: 'a', b: 'd' },
-        { a: 'b', b: 'c' }, { a: 'b', b: 'd' },
-        { a: 'c', b: 'd' }
-      ])
+    it('with no rng passed, is still deterministic — same input, same schedule', () => {
+      const a = createRoundRobinTournament(['a', 'b', 'c', 'd']).schedule
+      const b = createRoundRobinTournament(['a', 'b', 'c', 'd']).schedule
+      expect(a).toEqual(b)
     })
 
     it('with an rng passed, shuffles match order while keeping the exact same set of pairs', () => {
@@ -157,6 +155,76 @@ describe('recordMatchResult / currentMatch / isComplete', () => {
     expect(isComplete(t)).toBe(true)
     expect(t.finalRanking.map((r) => r.dbKey)).toEqual(['a', 'b', 'c', 'd'])
     expect(t.finalRanking.map((r) => r.wins)).toEqual([3, 2, 1, 0])
+  })
+})
+
+// Matt, 2026-08-19: "I think we could solve a lot by just not letting the same
+// movie be in two consecutive matchups, then it wouldn't be as confusing."
+describe('spreadSchedule', () => {
+  const sharesAFilm = (x, y) => x.a === y.a || x.a === y.b || x.b === y.a || x.b === y.b
+  const repeats = (schedule) => schedule.filter((match, i) => i > 0 && sharesAFilm(schedule[i - 1], match))
+
+  it('never repeats a film back to back from five films up', () => {
+    // Five and above is always achievable, and achieved.
+    expect(repeats(createRoundRobinTournament(['a', 'b', 'c', 'd', 'e']).schedule)).toEqual([])
+    expect(repeats(createRoundRobinTournament(['a', 'b', 'c', 'd', 'e', 'f']).schedule)).toEqual([])
+  })
+
+  it('hits the forced minimum for four films, where zero is impossible', () => {
+    // Each of K4's six matches is disjoint from exactly one other, so at most
+    // three of the five transitions can be clean. Two repeats is the proven
+    // optimum (brute-forced over every permutation), not a shortfall.
+    const t = createRoundRobinTournament(['a', 'b', 'c', 'd'])
+    expect(repeats(t.schedule)).toHaveLength(2)
+  })
+
+  it('hits the forced minimum for three films, where every pair overlaps', () => {
+    // ab, ac, bc — any two of them share a film, so both transitions repeat.
+    const t = createRoundRobinTournament(['a', 'b', 'c'])
+    expect(repeats(t.schedule)).toHaveLength(2)
+  })
+
+  it('is a real improvement on the unspread order', () => {
+    const raw = [
+      { a: 'a', b: 'b' }, { a: 'a', b: 'c' }, { a: 'a', b: 'd' },
+      { a: 'b', b: 'c' }, { a: 'b', b: 'd' }, { a: 'c', b: 'd' }
+    ]
+    // 4 repeats before, 2 after — the guard against a "fix" that does nothing.
+    expect(repeats(raw)).toHaveLength(4)
+    expect(repeats(spreadSchedule(raw))).toHaveLength(2)
+  })
+
+  it('keeps every match exactly once, dropping and duplicating nothing', () => {
+    const original = [
+      { a: 'a', b: 'b' }, { a: 'a', b: 'c' }, { a: 'a', b: 'd' },
+      { a: 'b', b: 'c' }, { a: 'b', b: 'd' }, { a: 'c', b: 'd' }
+    ]
+    const spread = spreadSchedule(original)
+
+    expect(spread).toHaveLength(original.length)
+    expect(spread.map((m) => `${m.a}${m.b}`).sort()).toEqual(
+      original.map((m) => `${m.a}${m.b}`).sort()
+    )
+  })
+
+  it('still terminates when a repeat is unavoidable', () => {
+    // Three contestants is ab, ac, bc — every pair shares a film with every
+    // other pair, so a repeat is forced no matter the order. It must degrade,
+    // not hang or drop a match.
+    const t = createRoundRobinTournament(['a', 'b', 'c'])
+
+    expect(t.schedule).toHaveLength(3)
+    expect(t.schedule.map((m) => `${m.a}${m.b}`).sort()).toEqual(['ab', 'ac', 'bc'])
+  })
+
+  it('handles an empty or single-match schedule', () => {
+    expect(spreadSchedule([])).toEqual([])
+    expect(spreadSchedule([{ a: 'a', b: 'b' }])).toEqual([{ a: 'a', b: 'b' }])
+  })
+
+  it('applies to a shuffled schedule as well', () => {
+    const t = createRoundRobinTournament(['a', 'b', 'c', 'd', 'e'], makeSeededRng(3))
+    expect(repeats(t.schedule)).toEqual([])
   })
 })
 

@@ -410,7 +410,6 @@ describe('Insights', () => {
       wrapper.vm.updateSearchValue('Denis Villeneuve')
       expect(pushSpy).toHaveBeenCalledWith({ name: 'Home', query: { search: encodeURIComponent('Denis Villeneuve') } })
     })
-
   })
 })
 

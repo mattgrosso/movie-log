@@ -458,7 +458,7 @@ const routes = [
       }
     }
   },
-{
+  {
     path: '/film-club',
     name: 'FilmClubScreen',
     component: FilmClubScreen,
@@ -477,7 +477,7 @@ const routes = [
       }
     }
   },
-{
+  {
     path: '/club-charts',
     name: 'ClubCharts',
     component: ClubCharts,
@@ -496,7 +496,7 @@ const routes = [
       }
     }
   },
-{
+  {
     path: '/film-club/:friendKey',
     name: 'FriendComparison',
     component: FriendComparison,
@@ -515,7 +515,7 @@ const routes = [
       }
     }
   },
-{
+  {
     path: '/stats',
     name: 'DeepStats',
     component: DeepStats,
@@ -575,7 +575,7 @@ const routes = [
       }
     }
   },
-{
+  {
     path: '/games/cineplexity',
     name: 'CineplexityGame',
     component: CineplexityGame,

@@ -40,6 +40,30 @@ function lastDispatchTo (dispatch, path) {
   return call ? call[1].value : undefined
 }
 
+
+// The posters are gated on both images having loaded (bug report: a
+// half-swapped pair was tappable and you hit the wrong film). jsdom never
+// loads images and so never fires `load`, so tests have to say when the pair
+// is on screen — exactly what a browser does for real.
+async function postersLoaded (wrapper) {
+  const images = wrapper.findAll('.poster-image')
+  for (const image of images) {
+    await image.trigger('load')
+  }
+  await wrapper.vm.$nextTick()
+}
+
+
+// For tests that call chooseWinner() on the vm directly rather than tapping:
+// the same gate applies, so say the pair is on screen first.
+async function markPostersLoaded (wrapper) {
+  // The matchKey watcher clears the gate on a "pre" flush, i.e. AFTER the
+  // tournament is created and not synchronously with it — so settle first,
+  // or this gets wiped a tick later and the tap is refused.
+  await wrapper.vm.$nextTick()
+  wrapper.vm.loadedPosterKeys = [wrapper.vm.firstResult?.dbKey, wrapper.vm.secondResult?.dbKey].filter(Boolean)
+}
+
 describe('TweakInline', () => {
   describe('no ties present', () => {
     it('renders nothing', () => {
@@ -61,6 +85,7 @@ describe('TweakInline', () => {
       expect(wrapper.text()).toContain('Two films are sitting on the same score')
 
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
       expect(wrapper.findAll('.poster-container')).toHaveLength(2)
       // A 2-way tie is exactly one match — not really a "tournament", so no
       // "N contestants · match X of Y" ceremony (per bug report feedback).
@@ -71,8 +96,10 @@ describe('TweakInline', () => {
     it('picking a winner (the only match) applies the result and skips straight past the results screen — no "Done" tap needed', async () => {
       const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
 
       await wrapper.findAll('.poster-container')[0].trigger('click')
+      await postersLoaded(wrapper)
 
       // Winner (rank 0) untouched, loser (rank 1) gets the -0.05 penalty —
       // matching the old single-pair tiebreak's behavior exactly for N=2.
@@ -97,7 +124,9 @@ describe('TweakInline', () => {
       // scan (whenever the quota next allows) picks it up fresh.
       const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
       await wrapper.findAll('.poster-container')[0].trigger('click')
+      await postersLoaded(wrapper)
 
       expect(wrapper.text()).not.toContain('Tournament Complete!')
       expect(wrapper.vm.showTweakInline).toBe(false)
@@ -107,29 +136,105 @@ describe('TweakInline', () => {
     it('does not offer "Save for later" for a single-match (2-way) tie', async () => {
       const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
       expect(wrapper.find('.save-for-later-btn').exists()).toBe(false)
     })
   })
 
+  // Bug report, 2026-08-19: "the posters are a little bit slow to load and so
+  // sometimes while I'm trying to go through the rounds quickly a poster
+  // won't seem to swap, but then it suddenly changes something else and it's
+  // awkward. We need to make some kind of indication that we're swapping and
+  // then only show both posters when both posters are fully loaded."
+  describe('poster loading gate', () => {
+    const openMatchup = async (movies) => {
+      const { wrapper, dispatch } = mountTweak(movies)
+      await wrapper.find('.prompt-card').trigger('click')
+      return { wrapper, dispatch }
+    }
+
+    it('shows a swapping indicator and hides the pair until both have loaded', async () => {
+      const { wrapper } = await openMatchup([movie('a', 'A', 8), movie('b', 'B', 8)])
+
+      // v-show asserted via the style it writes, per .claude/rules/testing.md
+      // (isVisible() gives contradictory answers on a detached mount).
+      const pair = () => wrapper.find('.d-flex.justify-content-center.gap-4')
+      expect(wrapper.find('.posters-swapping').exists()).toBe(true)
+      expect(pair().element.style.display).toBe('none')
+
+      await postersLoaded(wrapper)
+
+      expect(wrapper.find('.posters-swapping').exists()).toBe(false)
+      expect(pair().element.style.display).toBe('')
+    })
+
+    it('refuses a tap while only ONE poster has loaded — the actual misfire', async () => {
+      const { wrapper, dispatch } = await openMatchup([movie('a', 'A', 8), movie('b', 'B', 8)])
+      const before = dispatch.mock.calls.length
+
+      await wrapper.findAll('.poster-image')[0].trigger('load')
+      await wrapper.vm.$nextTick()
+      await wrapper.findAll('.poster-container')[0].trigger('click')
+
+      expect(wrapper.vm.postersReady).toBe(false)
+      expect(wrapper.vm.selectedDbKey).toBeNull()
+      expect(dispatch.mock.calls.length).toBe(before)
+    })
+
+    it('re-closes the gate on the next matchup, so the second pair cannot be tapped early either', async () => {
+      const { wrapper } = await openMatchup([
+        movie('a', 'A', 7), movie('b', 'B', 7), movie('c', 'C', 7), movie('d', 'D', 7)
+      ])
+      await postersLoaded(wrapper)
+      expect(wrapper.vm.postersReady).toBe(true)
+
+      await wrapper.findAll('.poster-container')[0].trigger('click')
+
+      // A new matchup is up; nothing has loaded for it yet.
+      expect(wrapper.vm.postersReady).toBe(false)
+      expect(wrapper.find('.posters-swapping').exists()).toBe(true)
+    })
+
+    it('lifts the gate on a broken poster rather than hanging forever', async () => {
+      const { wrapper } = await openMatchup([movie('a', 'A', 8), movie('b', 'B', 8)])
+
+      for (const image of wrapper.findAll('.poster-image')) {
+        await image.trigger('error')
+      }
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.postersReady).toBe(true)
+    })
+  })
+
   describe('selection checkmark (bug report: "I do want an indication that I have clicked on one")', () => {
-    it('sets selectedDbKey to the tapped poster synchronously, driving the checkmark badge before the save resolves', () => {
+    it('sets selectedDbKey to the tapped poster synchronously, driving the checkmark badge before the save resolves', async () => {
       const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       wrapper.vm.showTweakInline = true
+      await markPostersLoaded(wrapper)
       const winner = wrapper.vm.firstResult
       wrapper.vm.chooseWinner(winner) // deliberately not awaited
       expect(wrapper.vm.selectedDbKey).toBe(winner.dbKey)
     })
 
     it('clears selectedDbKey once the winner has been fully processed', async () => {
-      const { wrapper } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
+      const { wrapper, dispatch } = mountTweak([movie('a', 'A', 8), movie('b', 'B', 8)])
       wrapper.vm.showTweakInline = true
-      await wrapper.vm.chooseWinner(wrapper.vm.firstResult)
+      await markPostersLoaded(wrapper)
+      const winner = wrapper.vm.firstResult
+      const dispatchesBefore = dispatch.mock.calls.length
+      await wrapper.vm.chooseWinner(winner)
+
       expect(wrapper.vm.selectedDbKey).toBeNull()
+      // Not vacuous: a REFUSED tap also leaves selectedDbKey null, so prove
+      // the pick was actually processed rather than silently dropped.
+      expect(dispatch.mock.calls.length).toBeGreaterThan(dispatchesBefore)
     })
 
     it('renders the checkmark only on the poster matching selectedDbKey', async () => {
       const { wrapper } = mountTweak([movie('a', 'A', 7), movie('b', 'B', 7), movie('c', 'C', 7), movie('d', 'D', 7)])
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
       wrapper.vm.selectedDbKey = wrapper.vm.firstResult.dbKey
       await wrapper.vm.$nextTick()
 
@@ -192,6 +297,7 @@ describe('TweakInline', () => {
     it('schedules all 6 round-robin matches and shows progress', async () => {
       const { wrapper } = mountTweak(fourWayMovies())
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
       expect(wrapper.text()).toContain('4 contestants')
       expect(wrapper.text()).toContain('match 1 of 6')
     })
@@ -199,11 +305,13 @@ describe('TweakInline', () => {
     it('walks through all 6 matches then shows a full final ranking with score adjustments applied once', async () => {
       const { wrapper, dispatch } = mountTweak(fourWayMovies())
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
 
       // 'a' wins every match it's in; among the rest, whoever is posed first wins.
       for (let i = 0; i < 6; i++) {
         expect(wrapper.text()).not.toContain('Tournament Complete!')
         await wrapper.findAll('.poster-container')[0].trigger('click')
+        await postersLoaded(wrapper)
       }
 
       expect(wrapper.text()).toContain('Tournament Complete!')
@@ -219,9 +327,11 @@ describe('TweakInline', () => {
     it('does NOT reset the daily-quota clock between matches — the whole tournament runs in one sitting by default', async () => {
       const { wrapper, dispatch } = mountTweak(fourWayMovies())
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
 
       for (let i = 0; i < 5; i++) {
         await wrapper.findAll('.poster-container')[0].trigger('click')
+        await postersLoaded(wrapper)
       }
       // 5 of 6 matches done — tournament still in progress.
       expect(wrapper.text()).not.toContain('Tournament Complete!')
@@ -230,6 +340,7 @@ describe('TweakInline', () => {
       // The 6th (final) match completes the tournament but still doesn't
       // stamp the clock — that only happens once the results are acknowledged.
       await wrapper.findAll('.poster-container')[0].trigger('click')
+      await postersLoaded(wrapper)
       expect(wrapper.text()).toContain('Tournament Complete!')
       expect(dispatch).not.toHaveBeenCalledWith('writeDurably', { path: 'settings/lastTweak', value: expect.any(Number) })
 
@@ -241,7 +352,9 @@ describe('TweakInline', () => {
     it('offers "Save for later" mid-tournament — tapping it pauses without losing progress', async () => {
       const { wrapper, dispatch } = mountTweak(fourWayMovies())
       await wrapper.find('.prompt-card').trigger('click')
-      await wrapper.findAll('.poster-container')[0].trigger('click') // 1 of 6 matches done
+      await postersLoaded(wrapper)
+      await wrapper.findAll('.poster-container')[0].trigger('click')
+      await postersLoaded(wrapper) // 1 of 6 matches done
 
       const saveBtn = wrapper.find('.save-for-later-btn')
       expect(saveBtn.exists()).toBe(true)
@@ -257,6 +370,7 @@ describe('TweakInline', () => {
 
       // Reopening resumes the SAME tournament, one match further along.
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
       expect(wrapper.text()).toContain('match 2 of 6')
     })
 
@@ -287,8 +401,10 @@ describe('TweakInline', () => {
       })
 
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
       for (let i = 0; i < 6; i++) {
         await wrapper.findAll('.poster-container')[0].trigger('click')
+        await postersLoaded(wrapper)
       }
 
       // The results screen renders immediately (finalRanking is local/sync)...
@@ -407,8 +523,10 @@ describe('TweakInline', () => {
       const { wrapper, dispatch } = mountTweak(movies) // showTweakModal: true, fixed prop, never changes
 
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
       for (let i = 0; i < 3; i++) {
         await wrapper.findAll('.poster-container')[0].trigger('click')
+        await postersLoaded(wrapper)
       }
       expect(wrapper.text()).toContain('Tournament Complete!')
 
@@ -423,6 +541,7 @@ describe('TweakInline', () => {
       // Tapping the notice must show an actual, playable matchup — not a
       // blank/crashed panel.
       await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
       expect(wrapper.findAll('.poster-container')).toHaveLength(2)
       expect(wrapper.text()).not.toContain('Tournament Complete!')
     })

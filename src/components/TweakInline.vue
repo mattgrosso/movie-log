@@ -56,14 +56,27 @@
           <p v-if="progressLabel" class="text-light small mb-0">{{ progressLabel }}</p>
         </div>
 
-        <!-- Two posters side by side -->
-        <div class="d-flex justify-content-center gap-4">
+        <!-- Swapping indicator: shown until BOTH posters for this matchup
+             have loaded, so a half-swapped pair is never tappable. -->
+        <div v-if="!postersReady" class="posters-swapping text-center">
+          <span class="spinner-border spinner-border-sm text-light" role="status" aria-hidden="true"></span>
+          <span class="text-light ms-2">Loading the next pair&hellip;</span>
+        </div>
+
+        <!-- Two posters side by side. v-show, not v-if: the <img> elements
+             have to be in the DOM and loading for their load events to be
+             what lifts the gate. -->
+        <div v-show="postersReady" class="d-flex justify-content-center gap-4">
           <div class="poster-container text-center" @click="chooseWinner(firstResult)">
             <div class="poster-wrapper">
               <img
+                :key="`first-${firstResult.dbKey}`"
+                ref="firstPoster"
                 class="rounded poster-image"
                 :src="`https://image.tmdb.org/t/p/w500${topStructure(firstResult).poster_path}`"
                 :alt="topStructure(firstResult).title"
+                @load="markPosterLoaded(firstResult.dbKey)"
+                @error="markPosterLoaded(firstResult.dbKey)"
               >
               <!-- Bug report: a stuck :hover on iOS (no real mouse to leave)
                    made the tapped poster look like it "got a little larger"
@@ -83,9 +96,13 @@
           <div class="poster-container text-center" @click="chooseWinner(secondResult)">
             <div class="poster-wrapper">
               <img
+                :key="`second-${secondResult.dbKey}`"
+                ref="secondPoster"
                 class="rounded poster-image"
                 :src="`https://image.tmdb.org/t/p/w500${topStructure(secondResult).poster_path}`"
                 :alt="topStructure(secondResult).title"
+                @load="markPosterLoaded(secondResult.dbKey)"
+                @error="markPosterLoaded(secondResult.dbKey)"
               >
               <div v-if="selectedDbKey === secondResult.dbKey" class="selected-checkmark">
                 <i class="bi bi-check-lg"></i>
@@ -155,7 +172,11 @@ export default {
       // dispatch and the listener catching up. A fresh mount (no local copy
       // yet) just reads straight from the store, which is how a
       // days-spanning tournament survives across sessions.
-      localTournament: null
+      localTournament: null,
+      // dbKeys whose poster has finished loading (or failed) for the match
+      // currently on screen. Reset on every change of matchup — see
+      // postersReady, and the bug report behind it.
+      loadedPosterKeys: []
     }
   },
   computed: {
@@ -243,6 +264,32 @@ export default {
     // and there's a fresh group to start one for.
     needsNewTournament () {
       return this.showTweakModal && !this.currentTournament && this.tiedGroupDbKeys.length >= 2;
+    },
+    // Identifies the matchup on screen. Changing it is what resets the
+    // loading gate below.
+    matchKey () {
+      return `${this.firstResult?.dbKey || ''}|${this.secondResult?.dbKey || ''}`;
+    },
+    /**
+     * Both posters for the CURRENT match have finished (or failed) loading.
+     *
+     * Bug report, 2026-08-19: "the posters are a little bit slow to load and
+     * so sometimes while I'm trying to go through the rounds quickly a poster
+     * won't seem to swap, but then it suddenly changes something else and
+     * it's awkward. We need to make some kind of indication that we're
+     * swapping and then only show both posters when both posters are fully
+     * loaded."
+     *
+     * Showing one new poster beside one stale one is what makes a fast tap
+     * land on the wrong film. Until both are ready the pair is hidden behind
+     * a swapping indicator and taps are refused outright, so there is no
+     * window in which the screen is lying about what it is asking.
+     */
+    postersReady () {
+      const first = this.firstResult?.dbKey;
+      const second = this.secondResult?.dbKey;
+      if (!first || !second) return false;
+      return this.loadedPosterKeys.includes(first) && this.loadedPosterKeys.includes(second);
     }
   },
   created () {
@@ -254,6 +301,16 @@ export default {
     if (this.currentTournament) this.prefetchTournamentPosters(this.currentTournament);
   },
   watch: {
+    // Every new matchup re-closes the loading gate, then re-opens it as each
+    // poster reports in. `immediate` covers the first match of a tournament
+    // and a resumed mid-tournament mount alike.
+    matchKey: {
+      immediate: true,
+      handler () {
+        this.loadedPosterKeys = [];
+        this.$nextTick(() => this.syncLoadedFromDom());
+      }
+    },
     // Reacts to the STATE, not to showTweakModal merely changing value — with
     // "force tiebreak to show" enabled in settings, showTweakModal is pinned
     // true throughout, so a watcher on showTweakModal itself only ever fires
@@ -349,8 +406,27 @@ export default {
       this.localTournament = null;
       this.$store.dispatch('writeDurably', { path: 'settings/tieBreakTournament', value: null });
     },
+    markPosterLoaded (dbKey) {
+      if (!dbKey || this.loadedPosterKeys.includes(dbKey)) return;
+      this.loadedPosterKeys = [...this.loadedPosterKeys, dbKey];
+    },
+    // A poster already in the browser cache can finish loading before Vue
+    // attaches the load listener, and then the event never comes and the gate
+    // never lifts. `complete` is the state, not the event, so checking it
+    // after the swap catches exactly that case — which is the COMMON one
+    // here, since prefetchTournamentPosters deliberately warms every
+    // contestant's poster upfront.
+    syncLoadedFromDom () {
+      [['firstPoster', this.firstResult], ['secondPoster', this.secondResult]]
+        .forEach(([ref, result]) => {
+          const img = this.$refs[ref];
+          if (img && img.complete && result?.dbKey) this.markPosterLoaded(result.dbKey);
+        });
+    },
     async chooseWinner (winnerResult) {
       if (!winnerResult || !this.currentTournament) return;
+      // Refuse a tap aimed at a pair that isn't fully on screen yet.
+      if (!this.postersReady) return;
       this.submitting = true;
       this.selectedDbKey = winnerResult.dbKey;
 
@@ -562,6 +638,16 @@ export default {
     &:has(.poster-container) {
       cursor: default;
     }
+  }
+
+  // Holds the pair's place while they load, so the panel doesn't collapse
+  // and jump back open as each matchup swaps.
+  .posters-swapping {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    // Roughly the height of a poster row, keeping the layout still.
+    min-height: 180px;
   }
 
   .poster-container {

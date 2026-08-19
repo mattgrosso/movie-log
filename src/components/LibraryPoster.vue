@@ -143,7 +143,7 @@ export default {
       mosaicTarget: null, // library entry whose poster the mosaic recreates
       // classic: bigger tiles you can still recognize up close.
       // fine: ~3x the cells — sharper image, posters become texture.
-      mosaicDetail: 'classic' 
+      mosaicDetail: 'classic'
     };
   },
   computed: {

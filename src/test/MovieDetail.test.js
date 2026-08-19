@@ -362,7 +362,6 @@ describe('MovieDetail geography sections', () => {
       expect(wrapper.vm.productionCountries).toEqual(['France'])
     })
   })
-
 })
 
 
