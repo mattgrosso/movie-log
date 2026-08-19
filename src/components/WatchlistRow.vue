@@ -164,13 +164,14 @@ export default {
   text-align: center;
 }
 
-/* Top-right, the same corner as every other hat button in the app. */
+/* Flush into the top-right corner, the same as every other hat button in
+   the app. No inset: the control is a corner ribbon now, so it has to meet
+   both edges to read as one. */
 .watchlist-card-actions {
   display: flex;
-  gap: 0.25rem;
   position: absolute;
-  right: 4px;
-  top: 4px;
+  right: 0;
+  top: 0;
 }
 
 /* In the meta line now, not over the artwork. Same "small to look at, big to

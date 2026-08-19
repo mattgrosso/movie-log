@@ -503,10 +503,11 @@ export default {
    so an unopenable card still has something to do. */
 .cs-poster-frame { position: relative; }
 
+/* Flush: the hat control is a corner ribbon. */
 .cs-poster-hat {
   position: absolute;
-  right: 4px;
-  top: 4px;
+  right: 0;
+  top: 0;
 }
 
 .cs-poster-unseen {

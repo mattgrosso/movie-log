@@ -6038,10 +6038,11 @@ export default {
     /* Top-RIGHT, matching every other hat button (bug report: "It should
        always be in the top right corner no matter where that is in the
        app"). This one was the odd corner out. */
+    /* Flush: the hat control is a corner ribbon. */
     .more-from-actions {
       position: absolute;
-      right: 4px;
-      top: 4px;
+      right: 0;
+      top: 0;
     }
 
     .more-from-meta {

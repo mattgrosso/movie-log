@@ -249,34 +249,58 @@ export default {
 
 /* Sitting on a poster: dark enough to read against any artwork, small
    enough not to be the point, and still a 40px target. */
+/* A corner ribbon rather than a floating disc.
+ *
+ * Bug report, 2026-08-19: "it feels like it's too low and too close to the
+ * center like on some of these small posters it's position covers a lot of
+ * the poster, including the title sometimes I wonder if there isn't a better
+ * way to position that so that it's always hard in the top right corner maybe
+ * it's not a circle maybe it's like a diagonal ribbon that takes up that top
+ * right corner and has a little hat in it."
+ *
+ * A 26px disc inset 4px from the corner had its centre ~17px into the poster,
+ * which on a small one is most of the way to the middle. A right triangle
+ * hugging the corner keeps the same 44px tap area while its mass sits in the
+ * corner the artwork can most afford to lose, and the diagonal edge falls
+ * AWAY from the centre — so the deeper into the poster you go, the less of it
+ * the control covers. Titles, which sit centred or low, stay clear.
+ */
 .hat-icon-button {
-  align-items: center;
+  align-items: flex-start;
   background: none;
   border: none;
   color: #fff;
   display: flex;
-  /* 40px of tappable area, 26px of visible disc — the poster is the point. */
-  height: 40px;
-  justify-content: center;
+  /* Still comfortably past the 40px house minimum. */
+  height: 44px;
+  justify-content: flex-end;
   padding: 0;
-  width: 40px;
+  position: relative;
+  width: 44px;
 }
 
+/* The wedge itself, behind the glyph. */
+.hat-icon-button::before {
+  background: rgba(0, 0, 0, 0.62);
+  clip-path: polygon(100% 0, 0 0, 100% 100%);
+  content: '';
+  inset: 0;
+  position: absolute;
+}
+
+.hat-icon-button:active::before {
+  background: rgba(0, 0, 0, 0.88);
+}
+
+/* Sits in the thick of the wedge, near the corner — not centred in the
+   button's box, which would put it out on the thin diagonal edge. */
 .hat-icon-button .hat-glyph {
-  align-items: center;
-  background: rgba(0, 0, 0, 0.66);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 999px;
-  display: flex;
-  font-size: 0.72rem;
-  height: 26px;
-  justify-content: center;
-  width: 26px;
+  height: 15px;
+  margin: 4px 4px 0 0;
+  position: relative;
+  width: 15px;
 }
 
-.hat-icon-button:active .hat-glyph {
-  background: rgba(0, 0, 0, 0.9);
-}
 
 /* The sheet is teleported to <body>, so it is styled unscoped. */
 .hat-glyph { height: 15px; width: 15px; }

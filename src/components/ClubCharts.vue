@@ -685,7 +685,8 @@ export default {
 .cc-poster-card:active { transform: scale(0.97); }
 .cc-poster-frame { position: relative; }
 .cc-poster { border-radius: 6px; display: block; height: 138px; object-fit: cover; width: 92px; }
-.cc-poster-hat { position: absolute; right: 4px; top: 4px; }
+/* Flush: the hat control is a corner ribbon. */
+.cc-poster-hat { position: absolute; right: 0; top: 0; }
 
 .cc-poster-blank {
   align-items: center;
