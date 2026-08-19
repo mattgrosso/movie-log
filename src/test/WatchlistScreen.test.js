@@ -65,14 +65,14 @@ function tmdbImpl (url) {
   return Promise.reject(new Error(`unexpected url ${url}`));
 }
 
-function factory ({ isOnline = true, movies = library(), dispatch = vi.fn() } = {}) {
+function factory ({ isOnline = true, movies = library(), dispatch = vi.fn(), movieHatMovieIds = {} } = {}) {
   const pushSpy = vi.fn();
   const commitSpy = vi.fn();
   const wrapper = mount(WatchlistScreen, {
     global: {
       mocks: {
         $store: {
-          state: { isOnline },
+          state: { isOnline, movieHatMovieIds },
           getters: { allMoviesAsArray: movies },
           commit: commitSpy,
           dispatch
@@ -291,5 +291,59 @@ describe('WatchlistScreen performer sections', () => {
     // One in the gender pass; the credits lookup takes the id from it.
     expect(searches).toHaveLength(1);
     expect(wrapper.vm.actorNames.every((p) => p.id === 777)).toBe(true);
+  });
+});
+
+
+// Bug report, 2026-08-19: "In any watchlist, if a movie is already present in
+// one of my hats, it should not appear as a suggestion so that includes the
+// rewatch watchlist. That includes any recommendations we have who includes
+// all the years anything where we have a watchlist if I've already put it in a
+// hat I don't need to be suggested that movie anymore."
+describe('films already in a hat are not suggested again', () => {
+  beforeEach(() => {
+    axios.get.mockReset();
+    axios.get.mockImplementation(tmdbImpl);
+  });
+
+  it('drops a hatted film from the rewatch row', async () => {
+    const before = factory({});
+    await flushPromises();
+    expect(cardNames(before.wrapper)).toContain('Old Favorite A');
+
+    // Same library, but that film is now sitting in a hat.
+    const after = factory({ movieHatMovieIds: { 1: true } });
+    await flushPromises();
+
+    expect(cardNames(after.wrapper)).not.toContain('Old Favorite A');
+    // The rest of the row is untouched.
+    expect(cardNames(after.wrapper)).toContain('Old Favorite B');
+  });
+
+  it('drops a hatted film from the TMDB-derived rows too', async () => {
+    const before = factory({});
+    await flushPromises();
+    expect(cardNames(before.wrapper)).toContain('Similar Pick');
+
+    // 95 is the recommendation's TMDB id, not a library dbKey — the rule has
+    // to work on raw TMDB results as well as rated entries.
+    const after = factory({ movieHatMovieIds: { 95: true } });
+    await flushPromises();
+
+    expect(cardNames(after.wrapper)).not.toContain('Similar Pick');
+  });
+
+  it('loads the hat contents itself rather than waiting for a button to mount', () => {
+    const dispatch = vi.fn();
+    factory({ dispatch });
+
+    expect(dispatch).toHaveBeenCalledWith('ensureMovieHatContents');
+  });
+
+  it('suggests everything as normal when no hats hold anything', async () => {
+    const { wrapper } = factory({ movieHatMovieIds: {} });
+    await flushPromises();
+
+    expect(cardNames(wrapper)).toContain('Old Favorite A');
   });
 });

@@ -146,17 +146,33 @@ export default {
     taste () {
       return tasteProfile(this.library, getRating);
     },
-    // Punted films are excluded INSIDE the candidate builders, before their
-    // cap is applied — filtering the capped list here instead is what left
-    // these rows permanently short after a few punts (bug report).
-    puntedEntry () {
-      return (entry) => isPunted(entry, this.punts);
+    // TMDB ids already sitting in one of your hats.
+    hattedIds () {
+      return this.$store.state.movieHatMovieIds || {};
+    },
+    /**
+     * Everything a suggestion row should skip.
+     *
+     * Punted films are excluded INSIDE the candidate builders, before their
+     * cap is applied — filtering the capped list afterwards is what left
+     * these rows permanently short after a few punts (bug report).
+     *
+     * Hatted films join them, 2026-08-19: "In any watchlist, if a movie is
+     * already present in one of my hats, it should not appear as a
+     * suggestion so that includes the rewatch watchlist... anything where we
+     * have a watchlist if I've already put it in a hat I don't need to be
+     * suggested that movie anymore." Putting a film in a hat is a decision
+     * made — the same reasoning that already punts a film when you hat it
+     * from one of these rows, applied to hats filled anywhere else too.
+     */
+    skipFromSuggestions () {
+      return (entry) => isPunted(entry, this.punts) || this.isHatted(entry);
     },
     rewatchList () {
-      return rewatchCandidates(this.library, getRating, Date.now(), { exclude: this.puntedEntry });
+      return rewatchCandidates(this.library, getRating, Date.now(), { exclude: this.skipFromSuggestions });
     },
     anotherShotList () {
-      return anotherShotCandidates(this.library, getRating, Date.now(), { exclude: this.puntedEntry });
+      return anotherShotCandidates(this.library, getRating, Date.now(), { exclude: this.skipFromSuggestions });
     },
     // Your two strongest genre affinities, named (for Hidden Gems).
     topTasteGenres () {
@@ -296,6 +312,11 @@ export default {
     this.$store.dispatch('attachSocialListeners');
     this.$store.dispatch('fetchFriendProfiles');
     this.$store.dispatch('syncExternalFriends');
+    // Every row on this screen now hides films already in a hat, so the
+    // contents have to be loaded for the screen itself — not left to whenever
+    // the first SendToHat button happens to mount. Cached for ten minutes by
+    // the action, so arriving here repeatedly costs nothing.
+    this.$store.dispatch('ensureMovieHatContents')?.catch?.(() => {});
   },
   watch: {
     // Friend edges arrive asynchronously from the listener, so refetch when
@@ -360,8 +381,19 @@ export default {
         value: nextPunt(this.punts[key])
       });
     },
+    // A TMDB id, from either shape this screen handles: a library entry
+    // ({ movie: { id } }) or a raw TMDB result ({ id }).
+    tmdbIdOf (media) {
+      return media?.movie?.id ?? media?.id ?? null;
+    },
+    isHatted (media) {
+      const id = this.tmdbIdOf(media);
+      return id != null && Boolean(this.hattedIds[id]);
+    },
+    // Named for what it does now: drops punted AND already-hatted films, so
+    // every discover row obeys the same rule as the two derived ones.
     notPunted (movies) {
-      return (movies || []).filter((movie) => !isPunted(movie, this.punts));
+      return (movies || []).filter((movie) => !isPunted(movie, this.punts) && !this.isHatted(movie));
     },
     dueLabel (candidate) {
       // Cycle-based (discover.js): 1.0 = exactly due.
