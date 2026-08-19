@@ -2664,6 +2664,31 @@ export default {
         return null;
       }
 
+      // Grouping is a FREE-TEXT feature. It answers "where did this word
+      // match?" — Title, Director, Cast, Producer, Production Companies,
+      // Keywords & Genres — by taking the search term and re-searching it
+      // across all six. A typed chip has already answered that question, and
+      // grouping throws its type away (effectiveSearchTerm is just the chip's
+      // VALUE), so the grouped view stops being a filter at all: it shows
+      // whatever contains the word in any field, including movies the chip
+      // itself excludes.
+      //
+      // Natalie, 2026-08-19: "I just tried to click on a tag on a movie and it
+      // brought me back to the home screen, but it didn't actually filter
+      // correctly. It didn't show me other movies with that tag." Her chip was
+      // tag:DARK; the flat filter found her five tagged movies, and the
+      // grouped view she was looking at showed whatever had "dark" in its
+      // title instead.
+      //
+      // Tags are the worst case, having no group at all, but this is NOT
+      // tag-specific — verified with a genre chip on a two-movie library: the
+      // Horror film rendered nowhere and a Comedy called "Horror Story Night"
+      // rendered instead. Every typed chip leaks this way, because Title is
+      // always one of the groups being searched.
+      if (this.effectiveSearchFilter && this.effectiveSearchFilter.type !== 'general') {
+        return null;
+      }
+
       // Skip if the search term is too short or too generic
       if (normalizedSearchTerm.length < 3) {
         return null;
