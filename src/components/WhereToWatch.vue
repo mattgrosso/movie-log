@@ -91,9 +91,9 @@ export default {
       error: false,
       groups: [],
       link: null,
-      // The body's own inline overflow, saved while the sheet holds it at
-      // 'hidden'. null means "we are not currently holding it".
-      previousBodyOverflow: null
+      // The inline overflow of <html> and <body>, saved while the sheet holds
+      // them at 'hidden'. null means "we are not currently holding them".
+      previousOverflow: null
     };
   },
   watch: {
@@ -125,25 +125,33 @@ export default {
      * scrolling — on a touch screen a drag that starts on the backdrop, or
      * continues past the sheet's own scroll extent, moves the page.
      *
-     * The previous inline value is restored rather than assumed to be '',
-     * since something else may legitimately have set it.
+     * BOTH <html> and <body> are held, and that is not belt-and-braces. In
+     * this app document.scrollingElement is <html>, so an overflow: hidden on
+     * <body> alone changes nothing: verified on the deployed page, where the
+     * sheet was open, body.style.overflow read 'hidden', and the page still
+     * scrolled to 500px on demand. A unit test asserting the body style
+     * passed against exactly that broken behaviour, because it checked the
+     * implementation rather than the effect.
+     *
+     * Previous inline values are restored rather than assumed to be '', since
+     * something else may legitimately have set them.
      */
     lockBackgroundScroll (locked) {
       if (typeof document === 'undefined') return;
-      const { body } = document;
-      if (!body) return;
+      const targets = [document.documentElement, document.body].filter(Boolean);
+      if (!targets.length) return;
 
       if (locked) {
-        if (this.previousBodyOverflow === null) {
-          this.previousBodyOverflow = body.style.overflow;
+        if (this.previousOverflow === null) {
+          this.previousOverflow = targets.map((el) => el.style.overflow);
         }
-        body.style.overflow = 'hidden';
+        targets.forEach((el) => { el.style.overflow = 'hidden'; });
         return;
       }
 
-      if (this.previousBodyOverflow !== null) {
-        body.style.overflow = this.previousBodyOverflow;
-        this.previousBodyOverflow = null;
+      if (this.previousOverflow !== null) {
+        targets.forEach((el, index) => { el.style.overflow = this.previousOverflow[index] ?? ''; });
+        this.previousOverflow = null;
       }
     },
     async load (movie) {

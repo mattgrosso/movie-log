@@ -186,51 +186,68 @@ describe('WhereToWatch', () => {
   });
 
   describe('background scroll', () => {
-    it('locks the page while the sheet is open and releases it after', async () => {
+    // <html> is the scrolling element in this app, so locking <body> alone
+    // does nothing — verified on the deployed page, where the sheet was open,
+    // body.style.overflow read 'hidden', and the page still scrolled to 500px
+    // on demand. The first version of these tests asserted only the body and
+    // passed against exactly that. jsdom cannot scroll, so the closest honest
+    // assertion is that BOTH elements are held.
+    const overflows = () => ({
+      html: document.documentElement.style.overflow,
+      body: document.body.style.overflow
+    });
+    const clearOverflows = () => {
+      document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
+    };
+
+    it('locks the real scrolling element, not just the body', async () => {
+      clearOverflows();
       respondWith({ flatrate: [provider(8, 'Netflix', 0)] });
       const wrapper = factory({ id: 205, title: 'Heat' });
       await flushPromises();
 
-      expect(document.body.style.overflow).toBe('hidden');
+      expect(overflows()).toEqual({ html: 'hidden', body: 'hidden' });
 
       await wrapper.setProps({ movie: null });
 
-      expect(document.body.style.overflow).toBe('');
+      expect(overflows()).toEqual({ html: '', body: '' });
     });
 
     it('restores whatever the page had set, not a blanket empty string', async () => {
+      clearOverflows();
+      document.documentElement.style.overflow = 'auto';
       document.body.style.overflow = 'scroll';
       respondWith({ flatrate: [provider(8, 'Netflix', 0)] });
       const wrapper = factory({ id: 206, title: 'Heat' });
       await flushPromises();
-      expect(document.body.style.overflow).toBe('hidden');
+      expect(overflows()).toEqual({ html: 'hidden', body: 'hidden' });
 
       await wrapper.setProps({ movie: null });
 
-      expect(document.body.style.overflow).toBe('scroll');
-      document.body.style.overflow = '';
+      expect(overflows()).toEqual({ html: 'auto', body: 'scroll' });
+      clearOverflows();
     });
 
     it('does not leave the app locked if it unmounts while open', async () => {
-      document.body.style.overflow = '';
+      clearOverflows();
       respondWith({ flatrate: [provider(8, 'Netflix', 0)] });
       const wrapper = factory({ id: 207, title: 'Heat' });
       await flushPromises();
-      expect(document.body.style.overflow).toBe('hidden');
+      expect(overflows()).toEqual({ html: 'hidden', body: 'hidden' });
 
       // The watchlist screen going away mid-sheet would otherwise leave the
       // whole app unscrollable with nothing on screen to explain it.
       wrapper.unmount();
 
-      expect(document.body.style.overflow).toBe('');
+      expect(overflows()).toEqual({ html: '', body: '' });
     });
 
     it('never locks for a sheet that was never opened', () => {
-      document.body.style.overflow = '';
+      clearOverflows();
       factory(null);
 
-      expect(document.body.style.overflow).toBe('');
+      expect(overflows()).toEqual({ html: '', body: '' });
     });
   });
 
