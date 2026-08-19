@@ -146,13 +146,17 @@ export default {
     taste () {
       return tasteProfile(this.library, getRating);
     },
+    // Punted films are excluded INSIDE the candidate builders, before their
+    // cap is applied — filtering the capped list here instead is what left
+    // these rows permanently short after a few punts (bug report).
+    puntedEntry () {
+      return (entry) => isPunted(entry, this.punts);
+    },
     rewatchList () {
-      return rewatchCandidates(this.library, getRating)
-        .filter((candidate) => !isPunted(candidate.entry, this.punts));
+      return rewatchCandidates(this.library, getRating, Date.now(), { exclude: this.puntedEntry });
     },
     anotherShotList () {
-      return anotherShotCandidates(this.library, getRating)
-        .filter((candidate) => !isPunted(candidate.entry, this.punts));
+      return anotherShotCandidates(this.library, getRating, Date.now(), { exclude: this.puntedEntry });
     },
     // Your two strongest genre affinities, named (for Hidden Gems).
     topTasteGenres () {

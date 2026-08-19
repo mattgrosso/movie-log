@@ -356,3 +356,60 @@ describe('peopleYouRateHigher', () => {
     expect(peopleYouRateHigher([film(1, 9, 4, ['Fluke'])], rating)).toEqual([]);
   });
 });
+
+// Bug report, 2026-08-19: "we have a method now for me to like hit the X and
+// sort of punt on some, but I would've expected those to refill themselves,
+// but my watchlist have just remained with fewer movies in them."
+describe('punting refills the list rather than shrinking it', () => {
+  // More candidates than the cap, so there is always someone waiting.
+  const many = Array.from({ length: 30 }, (_, i) => entry(i + 1, `Film ${i + 1}`, { rating: 9, watched: yearsAgo(10) }));
+
+  it('keeps a full list after punting, promoting the next candidate in', () => {
+    const full = rewatchCandidates(many, ratingOf, NOW, { cap: 5 });
+    expect(full).toHaveLength(5);
+
+    const puntedKey = full[0].entry.dbKey;
+    const after = rewatchCandidates(many, ratingOf, NOW, {
+      cap: 5,
+      exclude: (candidate) => candidate.dbKey === puntedKey
+    });
+
+    // Still five — not four.
+    expect(after).toHaveLength(5);
+    expect(after.map((c) => c.entry.dbKey)).not.toContain(puntedKey);
+    // And the newcomer is one that the capped list didn't previously include.
+    const before = new Set(full.map((c) => c.entry.dbKey));
+    expect(after.some((c) => !before.has(c.entry.dbKey))).toBe(true);
+  });
+
+  it('shrinks only once the genuine candidates run out', () => {
+    const three = many.slice(0, 3);
+    const after = rewatchCandidates(three, ratingOf, NOW, {
+      cap: 5,
+      exclude: (candidate) => candidate.dbKey === three[0].dbKey
+    });
+
+    expect(after).toHaveLength(2);
+  });
+
+  it('applies to the second-look row too', () => {
+    const shotEntries = Array.from({ length: 30 }, (_, i) => ({
+      dbKey: `shot-${i + 1}`,
+      movie: {
+        id: 1000 + i, title: `Cool ${i}`, poster_path: '/p.jpg', vote_average: 8.5, vote_count: 5000, crew: [], cast: []
+      },
+      ratings: [{ calculatedTotal: 5, date: yearsAgo(4) }]
+    }));
+
+    const full = anotherShotCandidates(shotEntries, ratingOf, NOW, { cap: 5 });
+    expect(full).toHaveLength(5);
+
+    const after = anotherShotCandidates(shotEntries, ratingOf, NOW, {
+      cap: 5,
+      exclude: (candidate) => candidate.dbKey === full[0].entry.dbKey
+    });
+
+    expect(after).toHaveLength(5);
+    expect(after.map((c) => c.entry.dbKey)).not.toContain(full[0].entry.dbKey);
+  });
+});

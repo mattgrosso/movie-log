@@ -39,8 +39,19 @@ export function rewatchCycleYears (rating) {
   return tier ? tier.years : null;
 }
 
-export function rewatchCandidates (entries, getRatingFn, now = Date.now(), { dueThreshold = 1, cap = 24 } = {}) {
+// `exclude` drops entries BEFORE the cap is applied.
+//
+// Bug report, 2026-08-19: "we have a method now for me to like hit the X and
+// sort of punt on some, but I would've expected those to refill themselves,
+// but my watchlist have just remained with fewer movies in them."
+//
+// They didn't refill because the caller filtered punted films out of the
+// already-capped list: cap to 24, then remove 3, leaves 21, and candidate 25
+// never moved up. Excluding here means the cap is filled with what a viewer
+// can actually be shown, so punting one promotes the next in line.
+export function rewatchCandidates (entries, getRatingFn, now = Date.now(), { dueThreshold = 1, cap = 24, exclude = null } = {}) {
   return (entries || [])
+    .filter((entry) => !exclude || !exclude(entry))
     .map((entry) => {
       const rating = getRatingFn(entry)?.calculatedTotal;
       const watchedAt = lastWatchedAt(entry);
@@ -70,9 +81,12 @@ export function anotherShotCandidates (entries, getRatingFn, now = Date.now(), {
   minCommunity = 7.4,
   minVotes = 200,
   minYears = 1,
-  cap = 24
+  cap = 24,
+  // Same as rewatchCandidates: excluded before the cap, so punting refills.
+  exclude = null
 } = {}) {
   return (entries || [])
+    .filter((entry) => !exclude || !exclude(entry))
     .map((entry) => {
       const yours = getRatingFn(entry)?.calculatedTotal;
       const community = entry?.movie?.vote_average;
