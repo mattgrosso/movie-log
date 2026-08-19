@@ -19,8 +19,28 @@
         <!-- No artwork is the ONE case where the title has to carry it. -->
         <div v-else class="watchlist-poster watchlist-poster-blank">{{ item.title }}</div>
 
+        <!-- Hat button alone, pinned top-right, matching every other poster
+             in the app (bug report: "It should always be in the top right
+             corner no matter where that is in the app"). It used to share
+             this strip with the punt X under justify-content: space-between,
+             which meant the hat sat LEFT when the X was present and RIGHT
+             when it wasn't — "it's awkward that the X button is sometimes on
+             the right and sometimes on the left and sometimes it's a hat
+             button sometimes it's an X button". -->
         <div class="watchlist-card-actions">
           <SendToHat variant="icon" :movies="item.source" :note="hatNote" @added="onAdded"/>
+        </div>
+
+        <!-- Kept because a poster can't tell you your own score or how long
+             it's been. The TITLE is what the poster already says.
+
+             The punt X now lives here rather than over the artwork: "let's
+             move that down lower make it very small, but make it part of the
+             text below the poster where we have like a rating and a year".
+             Visibly tiny, but the tap target keeps the house 40px minimum —
+             the same split the buttons over the poster already used. -->
+        <span v-if="item.meta || puntable" class="watchlist-meta">
+          <span v-if="item.meta" class="watchlist-meta-text">{{ item.meta }}</span>
           <button
             v-if="puntable"
             type="button"
@@ -31,11 +51,7 @@
           >
             <i class="bi bi-x"></i>
           </button>
-        </div>
-
-        <!-- Kept because a poster can't tell you your own score or how long
-             it's been. The TITLE is what the poster already says. -->
-        <span v-if="item.meta" class="watchlist-meta">{{ item.meta }}</span>
+        </span>
       </div>
     </div>
 
@@ -138,62 +154,62 @@ export default {
   text-align: center;
 }
 
+/* Top-right, the same corner as every other hat button in the app. */
 .watchlist-card-actions {
   display: flex;
   gap: 0.25rem;
-  left: 4px;
   position: absolute;
+  right: 4px;
   top: 4px;
 }
 
-/* "Don't make the buttons ugly": the tappable area stays the house 40px
-   minimum, but what you SEE is a 26px disc, so two controls sit on a 104px
-   poster without burying the artwork. Same trick as the people chips. */
+/* In the meta line now, not over the artwork. Same "small to look at, big to
+   tap" split the poster buttons use: a 40px target (the house minimum — see
+   .claude/rules/vue-ui.md) around a glyph small enough to read as part of the
+   caption. Negative margins keep the oversized target from padding the row
+   out; it overhangs the card's own gutter, not the poster above, so it can't
+   swallow a tap meant for the artwork. */
 .punt-btn {
   align-items: center;
   background: none;
   border: none;
+  color: #8a8a8a;
   display: flex;
+  flex: 0 0 auto;
   height: 40px;
   justify-content: center;
+  margin: -12px -10px -12px 0;
   padding: 0;
   width: 40px;
 }
 
 .punt-btn i {
-  align-items: center;
-  background: rgba(0, 0, 0, 0.66);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 999px;
-  color: #fff;
-  display: flex;
-  font-size: 0.78rem;
-  height: 26px;
-  justify-content: center;
-  width: 26px;
+  font-size: 0.8rem;
+  line-height: 1;
 }
 
 /* Mobile-first: press feedback only, never a hover state that sticks. */
-.punt-btn:active i {
-  background: rgba(0, 0, 0, 0.9);
-}
-
-/* The two controls overlap the poster's top corners rather than stacking
-   inside it. */
-.watchlist-card-actions {
-  justify-content: space-between;
-  left: -6px;
-  right: -6px;
-  top: -6px;
+.punt-btn:active {
+  color: #fff;
 }
 
 .watchlist-meta {
+  align-items: flex-start;
   /* #b9b9b9 on the page background is ~8:1. */
   color: #b9b9b9;
-  display: block;
+  display: flex;
   font-size: 0.68rem;
+  gap: 0.2rem;
+  justify-content: space-between;
   line-height: 1.25;
   margin-top: 0.25rem;
+}
+
+/* Never clamped — a long meta line just wraps and the card gets taller
+   (Matt's poster-row rule). min-width: 0 so it can actually wrap instead of
+   forcing the flex row wider than the card. */
+.watchlist-meta-text {
+  min-width: 0;
 }
 
 .watchlist-row-bulk {

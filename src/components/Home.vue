@@ -6035,9 +6035,12 @@ export default {
       width: 104px;
     }
 
+    /* Top-RIGHT, matching every other hat button (bug report: "It should
+       always be in the top right corner no matter where that is in the
+       app"). This one was the odd corner out. */
     .more-from-actions {
-      left: 4px;
       position: absolute;
+      right: 4px;
       top: 4px;
     }
 
