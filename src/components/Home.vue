@@ -3194,6 +3194,41 @@ export default {
       const tieBreakDisabled = this.tieBreakPromptState === 'disabled';
       const awardsDisabled = this.awardsPromptState === 'disabled';
 
+      // Bug report, 2026-08-19: "Sometimes the prompt on the home screen will
+      // tell me that I need to do some tiebreakers and then as soon as I
+      // choose the first one in the tournament, it hides itself, and then the
+      // prompt turns into a stickiness rating instead of a tiebreaker rating
+      // and then once I do the stickiness resume the tournament it's awkward
+      // like this."
+      //
+      // Matt's two acceptable outcomes, and both are implemented because they
+      // fix different halves of it: "either for the tiebreak prompt to not
+      // even have shown up if there was also a stickiness prompt, which is
+      // what I would have expected, or else if I start in the tiebreak
+      // prompt, then it should let me go through the whole tournament before
+      // it replaces itself with a stickiness prompt."
+      //
+      // FIRST HALF — stickiness already outranks tiebreak below, so the
+      // ordering was never the problem. The problem is that this is decided
+      // before the library has arrived: with no entries loaded,
+      // shouldShowStickiness is false no matter how many films are waiting,
+      // so a tiebreak wins a race it would lose a moment later. Deciding
+      // nothing until there is something to decide from removes the flip at
+      // its source.
+      if (!this.allEntriesWithFlatKeywordsAdded.length) {
+        return null;
+      }
+
+      // SECOND HALF — once a tournament exists, it is a piece of work the
+      // user is in the middle of, and nothing may take the screen from it.
+      // The record is created only when the prompt is actually opened and is
+      // cleared on "Done" (or automatically for a 2-way tie), so this pins
+      // the prompt for exactly as long as there are matches left to play.
+      // A disabled tiebreak still wins, since that is an explicit choice.
+      if (!tieBreakDisabled && this.$store.state.settings?.tieBreakTournament) {
+        return 'tieBreak';
+      }
+
       // Check if stickiness should show (highest priority in normal mode)
       const shouldShowStickiness = !stickinessDisabled &&
         Boolean(this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
