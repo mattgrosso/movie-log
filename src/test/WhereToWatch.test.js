@@ -187,11 +187,11 @@ describe('WhereToWatch', () => {
 
   describe('background scroll', () => {
     // <html> is the scrolling element in this app, so locking <body> alone
-    // does nothing — verified on the deployed page, where the sheet was open,
-    // body.style.overflow read 'hidden', and the page still scrolled to 500px
-    // on demand. The first version of these tests asserted only the body and
+    // left the computed overflow-y on <html> at `visible` — the element a
+    // finger actually scrolls was never constrained. Measured on the deployed
+    // page; the first version of these tests asserted only the body style and
     // passed against exactly that. jsdom cannot scroll, so the closest honest
-    // assertion is that BOTH elements are held.
+    // assertion here is that BOTH elements are held.
     const overflows = () => ({
       html: document.documentElement.style.overflow,
       body: document.body.style.overflow

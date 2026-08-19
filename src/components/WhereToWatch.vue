@@ -126,12 +126,17 @@ export default {
      * continues past the sheet's own scroll extent, moves the page.
      *
      * BOTH <html> and <body> are held, and that is not belt-and-braces. In
-     * this app document.scrollingElement is <html>, so an overflow: hidden on
-     * <body> alone changes nothing: verified on the deployed page, where the
-     * sheet was open, body.style.overflow read 'hidden', and the page still
-     * scrolled to 500px on demand. A unit test asserting the body style
-     * passed against exactly that broken behaviour, because it checked the
-     * implementation rather than the effect.
+     * this app document.scrollingElement is <html>: measured on the deployed
+     * page, holding <body> alone left the computed overflow-y on <html> at
+     * `visible`, so the element a finger actually scrolls was never
+     * constrained. With both held it reads `hidden` while the sheet is open
+     * and returns to `visible` on close.
+     *
+     * Note for anyone re-checking this: window.scrollTo() is NOT a valid
+     * probe. An overflow: hidden box is still programmatically scrollable by
+     * spec, so scrollTo moves the page either way — it "failed" for the fixed
+     * version too. Read the computed overflow, or use a real wheel/touch
+     * gesture.
      *
      * Previous inline values are restored rather than assumed to be '', since
      * something else may legitimately have set them.
