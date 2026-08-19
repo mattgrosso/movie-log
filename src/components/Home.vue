@@ -325,6 +325,32 @@
     <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount > 0 && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center mt-2 mb-1">
       <button class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
     </div>
+    <!-- Friend requests, at the top level of the page ON PURPOSE.
+         Bug report, 2026-08-19: "I need a more prominent notification when
+         somebody wants to be my friend either via movie log or from
+         cinnamon roll directly because I see them when I go look for them
+         at the bottom of my film club, but not more prominently. I decided
+         unless I think to look there I won't ever know that they're
+         pending."
+         It WAS on Home already — but nested three levels inside
+         `results-exist`, so it only rendered while a results list happened
+         to be on screen. A search with no matches, or the start-suggestions
+         state, hid it completely. Whether someone is waiting on you has
+         nothing to do with what the results area is doing, so it now
+         renders in every state of this page. -->
+    <div
+      v-if="incomingFriendRequests.length"
+      class="prompt-card mb-3"
+      @click="$router.push('/film-club')"
+    >
+      <span class="prompt-badge prompt-badge-friends"><i class="bi bi-people-fill"></i></span>
+      <span class="prompt-body">
+        <span class="prompt-label">Film Club</span>
+        <p class="prompt-text">{{ friendRequestBannerText }}</p>
+        <a class="prompt-action prompt-action-friends" @click.stop="$router.push('/film-club')">Review the request</a>
+      </span>
+    </div>
+
     <NoResults
       v-if="shouldShowStartSuggestions"
       :value="searchValue || effectiveSearchTerm"
@@ -460,21 +486,6 @@
                 </ul>
               </button>
             </div>
-          </div>
-          <!-- Friend requests: same prompt slot as stickiness/tiebreaks so
-               an incoming request is impossible to miss without adding a
-               new surface. Tapping goes to the Film Club's inbox. -->
-          <div
-            v-if="incomingFriendRequests.length"
-            class="prompt-card mb-3"
-            @click="$router.push('/film-club')"
-          >
-            <span class="prompt-badge prompt-badge-friends"><i class="bi bi-people-fill"></i></span>
-            <span class="prompt-body">
-              <span class="prompt-label">Film Club</span>
-              <p class="prompt-text">{{ friendRequestBannerText }}</p>
-              <a class="prompt-action prompt-action-friends" @click.stop="$router.push('/film-club')">Review the request</a>
-            </span>
           </div>
           <!-- Stickiness Inline Content -->
           <StickinessInline
@@ -1286,6 +1297,7 @@ import NoResults from "./NoResults.vue";
 import InsetBrowserModal from './InsetBrowserModal.vue';
 import ThreeStateToggle from './ThreeStateToggle.vue';
 import SendToHat from './SendToHat.vue';
+import { isQaAccountKey } from '../assets/javascript/databaseKey.js';
 import { rankMoreFrom, genreAffinity } from "../assets/javascript/moreFromRanking.js";
 import { genreIdFor } from "../assets/javascript/tmdbGenres.js";
 import { createCache } from "../assets/javascript/moreFromCache.js";
@@ -2036,9 +2048,12 @@ export default {
       const me = this.$store.getters?.socialUserKey;
       const edges = this.$store.state.socialEdges || {};
       // A request from someone already befriended is stale noise, same
-      // filter the Circle inbox applies.
+      // filter the Circle inbox applies — as is hiding the QA tester, which
+      // this banner was missing, so it could have announced a request the
+      // Film Club screen then refused to show.
       return Object.entries(requests)
         .filter(([key]) => !(edges[me]?.[key] && edges[key]?.[me]))
+        .filter(([key]) => !isQaAccountKey(key))
         .map(([key, request]) => ({ key, name: request?.name || key }));
     },
     socialFriendKeys () {
