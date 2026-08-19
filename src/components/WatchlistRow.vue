@@ -39,8 +39,14 @@
              text below the poster where we have like a rating and a year".
              Visibly tiny, but the tap target keeps the house 40px minimum —
              the same split the buttons over the poster already used. -->
-        <span v-if="item.meta || puntable" class="watchlist-meta">
-          <span v-if="item.meta" class="watchlist-meta-text">{{ item.meta }}</span>
+        <span v-if="metaLines(item).length || puntable" class="watchlist-meta">
+          <!-- Deliberate lines, not a wrap. Bug report: "since now it always
+               stacks the two lines no matter how wide the content might be
+               let's have the X on the right and then have two lines of text
+               separated by a hard return". -->
+          <span v-if="metaLines(item).length" class="watchlist-meta-text">
+            <span v-for="(line, index) in metaLines(item)" :key="index" class="watchlist-meta-line">{{ line }}</span>
+          </span>
           <button
             v-if="puntable"
             type="button"
@@ -90,8 +96,9 @@ export default {
   name: 'WatchlistRow',
   components: { SendToHat },
   props: {
-    // [{ key, title, poster, meta, source }] — `source` is handed back on
-    // select and passed to the hat.
+    // [{ key, title, poster, metaLines, source }] — `source` is handed back
+    // on select and passed to the hat; metaLines is an array of caption
+    // lines, each rendered on its own row beside the punt X.
     items: { type: Array, required: true },
     puntable: { type: Boolean, default: false },
     // Plain-language provenance for the hat: "use plain language to label why
@@ -102,6 +109,9 @@ export default {
   },
   emits: ['select', 'punt', 'hatted'],
   methods: {
+    metaLines (item) {
+      return (item?.metaLines || []).filter(Boolean);
+    },
     // Hand back the ORIGINAL sources, not the hat payloads: the screen punts
     // by dbKey where it has one, and toHatMovie has already thrown that away.
     onAdded (added, sources) {
@@ -200,7 +210,9 @@ export default {
 }
 
 .watchlist-meta {
-  align-items: flex-start;
+  /* Centred against the caption block rather than pinned to its first line,
+     so the X sits level with two lines of text instead of riding high. */
+  align-items: center;
   /* #b9b9b9 on the page background is ~8:1. */
   color: #b9b9b9;
   display: flex;
@@ -211,11 +223,17 @@ export default {
   margin-top: 0.25rem;
 }
 
-/* Never clamped — a long meta line just wraps and the card gets taller
-   (Matt's poster-row rule). min-width: 0 so it can actually wrap instead of
-   forcing the flex row wider than the card. */
+/* Never clamped — a long line still wraps and the card gets taller (Matt's
+   poster-row rule). min-width: 0 so it can actually wrap instead of forcing
+   the flex row wider than the card. */
 .watchlist-meta-text {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+}
+
+.watchlist-meta-line {
+  display: block;
 }
 
 .watchlist-row-bulk {

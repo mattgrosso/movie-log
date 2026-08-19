@@ -32,7 +32,7 @@ const item = (key, title) => ({
   key,
   title,
   poster: `https://image.tmdb.org/t/p/w342/${key}.jpg`,
-  meta: '8.44 · 3 years ago',
+  metaLines: ['8.44', '3 years ago'],
   source: { dbKey: key, movie: { id: 1, title } }
 });
 
@@ -69,6 +69,8 @@ describe('watchlist poster controls', () => {
 
     expect(wrapper.find('.punt-btn').exists()).toBe(false);
     expect(wrapper.find('.watchlist-meta').text()).toContain('8.44');
+    // Two deliberate lines, not one string left to wrap.
+    expect(wrapper.findAll('.watchlist-meta-line').map((n) => n.text())).toEqual(['8.44', '3 years ago']);
   });
 
   it('still emits punt with the original source when the X is tapped', async () => {
@@ -107,9 +109,57 @@ describe('watchlist poster controls', () => {
     expect(puntRule).not.toMatch(/margin:\s*-/);
   });
 
+  // Bug report, 2026-08-19: "I like the new position for the X on the
+  // watchlist posters, but... since now it always stacks the two lines no
+  // matter how wide the content might be let's have the X on the right and
+  // then have two lines of text separated by a hard return."
+  describe('the caption', () => {
+    it('renders each line as its own row rather than one wrapping string', () => {
+      const wrapper = factory({ puntable: true });
+
+      expect(wrapper.findAll('.watchlist-meta-line').map((n) => n.text()))
+        .toEqual(['8.44', '3 years ago']);
+    });
+
+    it('keeps the X beside the caption block, not inside a line of it', () => {
+      const wrapper = factory({ puntable: true });
+
+      expect(wrapper.find('.watchlist-meta > .punt-btn').exists()).toBe(true);
+      expect(wrapper.find('.watchlist-meta-line .punt-btn').exists()).toBe(false);
+    });
+
+    it('handles a single-line caption without inventing a blank second line', () => {
+      const wrapper = mount(WatchlistRow, {
+        props: { items: [{ ...item('c', 'C Film'), metaLines: ['92% match'] }], puntable: false },
+        global: {
+          mocks: {
+            $store: { getters: { linkedMovieHats: [{ title: 'Just Matt', dbKey: 'k1' }] }, dispatch: vi.fn() }
+          },
+          stubs: { teleport: true }
+        }
+      });
+
+      expect(wrapper.findAll('.watchlist-meta-line').map((n) => n.text())).toEqual(['92% match']);
+    });
+
+    it('drops empty lines rather than rendering gaps', () => {
+      const wrapper = mount(WatchlistRow, {
+        props: { items: [{ ...item('d', 'D Film'), metaLines: ['8.10', null, ''] }], puntable: false },
+        global: {
+          mocks: {
+            $store: { getters: { linkedMovieHats: [{ title: 'Just Matt', dbKey: 'k1' }] }, dispatch: vi.fn() }
+          },
+          stubs: { teleport: true }
+        }
+      });
+
+      expect(wrapper.findAll('.watchlist-meta-line')).toHaveLength(1);
+    });
+  });
+
   it('still renders the meta line when a puntable item has no meta text', () => {
     const wrapper = mount(WatchlistRow, {
-      props: { items: [{ ...item('b', 'B Film'), meta: null }], puntable: true },
+      props: { items: [{ ...item('b', 'B Film'), metaLines: [] }], puntable: true },
       global: {
         mocks: {
           $store: { getters: { linkedMovieHats: [{ title: 'Just Matt', dbKey: 'k1' }] }, dispatch: vi.fn() }

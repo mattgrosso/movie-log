@@ -123,8 +123,10 @@ export default {
         key: candidate.entry.dbKey,
         title: candidate.entry.movie.title,
         poster: this.posterUrl(candidate.entry),
-        // The poster already says which film it is; this says why it's here.
-        meta: `${formatScore(candidate.rating)} · ${this.yearsAgoLabel(candidate.yearsSince)}`,
+        // The poster already says which film it is; these say why it's here.
+        // Two deliberate lines rather than one string left to wrap around the
+        // X (bug report) — see WatchlistRow.
+        metaLines: [formatScore(candidate.rating), this.yearsAgoLabel(candidate.yearsSince)],
         source: candidate.entry
       }));
     },
@@ -133,7 +135,7 @@ export default {
         key: candidate.entry.dbKey,
         title: candidate.entry.movie.title,
         poster: this.posterUrl(candidate.entry),
-        meta: `You ${formatScore(candidate.yours)} · World ${formatScore(candidate.community)}`,
+        metaLines: [`You ${formatScore(candidate.yours)}`, `World ${formatScore(candidate.community)}`],
         source: candidate.entry
       }));
     },
@@ -346,7 +348,7 @@ export default {
         poster: media.poster_path ? `https://image.tmdb.org/t/p/w342${media.poster_path}` : null,
         // Only ever a reason to be here — never the title, which the poster
         // is already carrying.
-        meta: media.note || (media.matchPct ? `${media.matchPct}% match` : null),
+        metaLines: [media.note || (media.matchPct ? `${media.matchPct}% match` : null)].filter(Boolean),
         source: media
       }));
     },
