@@ -161,11 +161,114 @@ describe('recordMatchResult / currentMatch / isComplete', () => {
 })
 
 describe('rankContestants — tie-of-ties fallback', () => {
-  it('falls back to original contestant order when win counts are equal (e.g. a rock-paper-scissors cycle: a beats b, b beats c, c beats a — everyone 1-1)', () => {
+  it('falls back to original contestant order when win counts are equal and no match records exist at all (a tournament started before head-to-head shipped)', () => {
     const base = createRoundRobinTournament(['a', 'b', 'c'])
     const cycle = rankContestants({ ...base, wins: { a: 1, b: 1, c: 1 } })
     expect(cycle.map((r) => r.dbKey)).toEqual(['a', 'b', 'c'])
     expect(cycle.map((r) => r.rank)).toEqual([0, 1, 2])
+  })
+})
+
+// Matt, 2026-08-19: "are you breaking ties with the head-to-head matchups? It
+// seems like the way to go... I suppose that still could lead to a transitive
+// property problem where things work in a circle."
+describe('rankContestants — head-to-head', () => {
+  // Plays a full tournament through the real recorder, so these exercise the
+  // stored shape rather than a hand-written one.
+  const playOut = (ids, pickWinner) => {
+    let tournament = createRoundRobinTournament(ids)
+    while (!isComplete(tournament)) {
+      const match = currentMatch(tournament)
+      tournament = recordMatchResult(tournament, pickWinner(match))
+    }
+    return tournament
+  }
+
+  it('separates two contestants on equal wins by the match between them', () => {
+    // a beats b; b and c beat each other's other match so all three finish 1-1.
+    // Schedule for [a,b,c] is a-b, a-c, b-c.
+    const tournament = playOut(['a', 'b', 'c'], (match) => {
+      if (match.a === 'a' && match.b === 'b') return 'b'   // b beats a
+      if (match.a === 'a' && match.b === 'c') return 'a'   // a beats c
+      return 'c'                                           // c beats b
+    })
+
+    // Everyone is 1-1, and it IS a cycle (b>a, a>c, c>b) — nothing can order
+    // it, so original order stands.
+    expect(tournament.wins).toEqual({ a: 1, b: 1, c: 1 })
+    expect(rankContestants(tournament).map((r) => r.dbKey)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('puts the head-to-head winner first even when it started later in the list', () => {
+    // Four contestants; 'd' and 'a' both finish on 2 wins, and d beat a.
+    // Without head-to-head, 'a' would rank above 'd' purely for being first
+    // in contestantIds — which is the arbitrariness being fixed.
+    const tournament = playOut(['a', 'b', 'c', 'd'], (match) => {
+      const pair = `${match.a}-${match.b}`
+      const winners = {
+        'a-b': 'a', 'a-c': 'a', 'a-d': 'd', 'b-c': 'b', 'b-d': 'd', 'c-d': 'c'
+      }
+      return winners[pair]
+    })
+
+    expect(tournament.wins).toEqual({ a: 2, b: 1, c: 1, d: 2 })
+
+    const ranking = rankContestants(tournament)
+    expect(ranking.map((r) => r.dbKey)).toEqual(['d', 'a', 'b', 'c'])
+    expect(ranking[0].dbKey).toBe('d')
+  })
+
+  it('orders a three-way tie by the mini-league among just those three', () => {
+    // b, c, d all finish on 1 win each from the wider draw; among themselves
+    // c beat both, d beat b, b beat nobody in the group.
+    const tournament = {
+      contestantIds: ['b', 'c', 'd'],
+      schedule: [],
+      nextIndex: 0,
+      wins: { b: 1, c: 1, d: 1 },
+      matchResults: [
+        { a: 'b', b: 'c', winnerId: 'c' },
+        { a: 'c', b: 'd', winnerId: 'c' },
+        { a: 'b', b: 'd', winnerId: 'd' }
+      ],
+      finalRanking: null,
+      completedAt: null
+    }
+
+    // c: 2 in-group wins, d: 1, b: 0 — a real ordering, not a coin flip.
+    expect(rankContestants(tournament).map((r) => r.dbKey)).toEqual(['c', 'd', 'b'])
+  })
+
+  it('leaves a genuine cycle in original order rather than inventing a winner', () => {
+    const tournament = playOut(['x', 'y', 'z'], (match) => {
+      if (match.a === 'x' && match.b === 'y') return 'x'  // x > y
+      if (match.a === 'y' && match.b === 'z') return 'y'  // y > z
+      return 'z'                                          // z > x
+    })
+
+    expect(tournament.wins).toEqual({ x: 1, y: 1, z: 1 })
+    expect(rankContestants(tournament).map((r) => r.dbKey)).toEqual(['x', 'y', 'z'])
+  })
+
+  it('records who beat whom, not just how many', () => {
+    const tournament = playOut(['a', 'b'], () => 'b')
+
+    expect(tournament.matchResults).toEqual([{ a: 'a', b: 'b', winnerId: 'b' }])
+  })
+
+  it('ranks an in-flight tournament from before this change exactly as it used to', () => {
+    // No matchResults key at all — the shape already sitting in Firebase.
+    const legacy = {
+      contestantIds: ['a', 'b', 'c'],
+      schedule: [],
+      nextIndex: 3,
+      wins: { a: 2, b: 1, c: 0 },
+      finalRanking: null,
+      completedAt: null
+    }
+
+    expect(() => rankContestants(legacy)).not.toThrow()
+    expect(rankContestants(legacy).map((r) => r.dbKey)).toEqual(['a', 'b', 'c'])
   })
 })
 

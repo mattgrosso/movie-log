@@ -107,6 +107,9 @@ export function createRoundRobinTournament (contestantIds, rng = null) {
     schedule: rng ? shuffle(schedule, rng) : schedule,
     nextIndex: 0,
     wins,
+    // Filled by recordMatchResult. Firebase drops an empty array on the way
+    // out, so every reader treats a missing one as [].
+    matchResults: [],
     startedAt: Date.now(),
     finalRanking: null,
     completedAt: null
@@ -121,16 +124,85 @@ export function isComplete (tournament) {
   return tournament.nextIndex >= tournament.schedule.length;
 }
 
-// Ranks contestants by win count descending. Ties-within-the-tiebreak (equal
-// win counts) fall back to original contestantIds order — good enough for
-// "settle a group of equally-rated movies into *some* order," not a claim of
-// a perfect ranking.
-export function rankContestants (tournament) {
-  return tournament.contestantIds
-    .map((id, originalIndex) => ({ dbKey: id, wins: tournament.wins[id] || 0, originalIndex }))
-    .sort((a, b) => b.wins - a.wins || a.originalIndex - b.originalIndex)
-    .map(({ dbKey, wins }, index) => ({ dbKey, wins, rank: index }));
+/**
+ * Wins counted ONLY against a given set of opponents — a mini-league table.
+ *
+ * For two contestants that's literally their head-to-head match: the winner
+ * scores 1, the loser 0. For three or more it generalizes the same way league
+ * tables do, which is what makes it able to say anything at all about a
+ * three-way tie.
+ *
+ * Reads `matchResults`, which older tournaments (already in flight when this
+ * shipped, or persisted before it) simply don't have — hence the `|| []`. A
+ * tournament with no records produces an all-zero table, every contestant
+ * stays tied, and ranking falls through to the original order exactly as it
+ * did before.
+ */
+function miniLeagueWins (tournament, ids) {
+  const inGroup = new Set(ids);
+  const table = {};
+  ids.forEach((id) => { table[id] = 0; });
+
+  (tournament.matchResults || []).forEach((result) => {
+    if (!result) return;
+    const { a, b, winnerId } = result;
+    // Only matches BETWEEN two members of this group say anything about how
+    // they compare with each other.
+    if (!inGroup.has(a) || !inGroup.has(b)) return;
+    if (winnerId === a || winnerId === b) table[winnerId] += 1;
+  });
+
+  return table;
 }
+
+/**
+ * Ranks contestants by win count descending, breaking equal-win ties on
+ * head-to-head.
+ *
+ * Matt, 2026-08-19: "are you breaking ties with the head-to-head matchups? It
+ * seems like the way to go. If two things are tied they ought to be separated
+ * by their own head-to-head matchup I suppose that still could lead to a
+ * transitive property problem where things work in a circle."
+ *
+ * He's right on both counts. Head-to-head settles the overwhelmingly common
+ * case — two movies on equal wins, one of which beat the other. And it cannot
+ * settle a cycle: with A>B, B>C, C>A every one of them has exactly one win
+ * inside the group, the mini-league is level, and there is no ordering the
+ * results actually support. That case falls back to the original contestant
+ * order, deliberately: with the evidence genuinely circular, inventing a
+ * winner would be dressing up a coin flip as a judgement. It stays stable and
+ * predictable instead.
+ */
+export function rankContestants (tournament) {
+  const entries = tournament.contestantIds
+    .map((id, originalIndex) => ({ dbKey: id, wins: tournament.wins[id] || 0, originalIndex }));
+
+  // Group by overall wins, then order within each group by the mini-league
+  // among exactly those contestants.
+  const byWins = new Map();
+  entries.forEach((entry) => {
+    if (!byWins.has(entry.wins)) byWins.set(entry.wins, []);
+    byWins.get(entry.wins).push(entry);
+  });
+
+  const ordered = [];
+  [...byWins.keys()].sort((a, b) => b - a).forEach((winCount) => {
+    const group = byWins.get(winCount);
+
+    if (group.length === 1) {
+      ordered.push(group[0]);
+      return;
+    }
+
+    const table = miniLeagueWins(tournament, group.map((entry) => entry.dbKey));
+    group
+      .sort((a, b) => (table[b.dbKey] - table[a.dbKey]) || (a.originalIndex - b.originalIndex))
+      .forEach((entry) => ordered.push(entry));
+  });
+
+  return ordered.map(({ dbKey, wins }, index) => ({ dbKey, wins, rank: index }));
+}
+
 
 // Immutable — returns a NEW tournament state with the match recorded and
 // nextIndex advanced. If that was the last scheduled match, also attaches
@@ -141,7 +213,12 @@ export function recordMatchResult (tournament, winnerId) {
 
   const wins = { ...tournament.wins, [winnerId]: (tournament.wins[winnerId] || 0) + 1 };
   const nextIndex = tournament.nextIndex + 1;
-  const updated = { ...tournament, wins, nextIndex };
+  // WHO beat whom, not just how many — win counts alone can't break a tie
+  // between two contestants who finish level (see rankContestants).
+  const matchResults = [...(tournament.matchResults || []), { a: match.a, b: match.b, winnerId }];
+  const updated = {
+    ...tournament, wins, matchResults, nextIndex
+  };
 
   if (nextIndex >= updated.schedule.length) {
     updated.finalRanking = rankContestants(updated);
