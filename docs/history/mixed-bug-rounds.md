@@ -350,3 +350,66 @@ step now.
 The six-hour publish throttle also gets a name-change bypass. Friends see you by whatever
 was last published, so waiting up to six hours to stop calling you by your email handle
 would be this same report, still on screen.
+
+## Three more, later the same day (2026-08-20)
+
+### The awards detail pane never said which category you were in
+
+"When I click into a category on my personal awards, it doesn't actually say
+anywhere what category I'm working on on that page so if I look away and forget, I have
+to exit and come back."
+
+The modal's header slot is `v-if="!selectedCategory"`, so drilling in hid the only
+heading on screen and nothing replaced it. The tell was in the stylesheet: a
+`.category-header h5` rule still sat there, pointing at a wrapper that no longer
+existed — a dead rule left behind when the title was removed, and `getCurrentCategoryName()`
+was still defined and called from nowhere.
+
+The name goes in the **sticky** section, not the panel bar above it. The bar scrolls
+away, and a name you lose the moment you scroll down a grid of nominees is the same bug
+again.
+
+### "You've had time to sit with"
+
+"I don't like the language on the stickiness prompt like 'you've had time to sit with'
+isn't that great? Can you reword that to me a bit more direct?"
+
+Now "N movies are ready for a stickiness score." Every other prompt card states a plain
+fact and leaves the verb to the action link — "2021 has enough films to hand out awards",
+"Three films are sitting on the same score" — so this one does too, and says what is
+actually wanted rather than narrating the passage of time.
+
+### An unrated poster went straight to rating, or nowhere at all
+
+"If a movie is presented in a watchlist or in film club and it's one that I have not yet
+rated then... just clicking the poster should pull up some kind of a summary of the movie
+so that I can investigate further."
+
+Two different wrong answers to the same tap. On the watchlist, an unrated suggestion
+dropped straight into the rating flow — which only makes sense for a film you have
+already seen, and these rows are explicitly films you haven't. In Film Club, `openFeedItem`
+returned early for anything not in your library, so the poster was simply inert: MovieDetail
+is a pure local lookup and would have rendered an empty page.
+
+`MoviePreview.vue` is the answer to both. Poster, year, runtime, genres, TMDB score,
+overview, and the JustWatch availability inline rather than behind a second tap — "can I
+actually watch it" is half of deciding whether to bother. Rating is a button inside the
+sheet, the deliberate second step it should always have been.
+
+Everything is fetched by TMDB id rather than threaded through from the row. The sources
+feeding these rows carry wildly different shapes — discover results, person credits, a
+friend's published profile with single-letter keys — and the id is the only thing common
+to all of them.
+
+Rated rows are untouched: "Worth a rewatch" and "Give these another shot" still go to
+your own detail page, which is richer than any summary sheet.
+
+Two things extracted on the way through:
+
+- **`src/mixins/backgroundScrollLock.js`.** WhereToWatch's scroll lock holds BOTH `<html>`
+  and `<body>`, and the comment explaining why (and why `window.scrollTo` is not a valid
+  probe) was expensive to establish. A second sheet needed the same behaviour; copying
+  that block would have been the start of it drifting.
+- **`FilmClubScreen` had no `data()` at all**, so `v-model="directorySearch"` on the
+  "Search people on other apps" box had nothing to write to and the filter never applied.
+  Noticed while adding `previewing`; declared alongside it.
