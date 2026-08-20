@@ -390,27 +390,30 @@ describe('SixDegreesGame', () => {
     it('is hidden while playing - only the hint actions show (bug report: "too many buttons... hide the new game buttons until someone clicks give up")', () => {
       const wrapper = factory(buildConnectedLibrary());
       expect(wrapper.vm.status).toBe('playing');
-      expect(wrapper.find('.new-game-panel').exists()).toBe(false);
+      expect(wrapper.find('.end-actions').exists()).toBe(false);
       expect(wrapper.find('.hint-actions').exists()).toBe(true);
     });
 
-    it('swaps in for the hint actions once the round ends, labeled "New game:" with Easy/Medium/Hard segments', async () => {
+    // Bug report, 2026-08-20: "When I complete a six degrees, let's lose the
+    // difficulty buttons and just have a new game button and a back to games
+    // button. Just like we do in other games." The tier picker that used to
+    // occupy this spot is gone; only the gate below still offers one.
+    it('ends the round on the standard two-button row, with no difficulty segments in sight', async () => {
       const wrapper = factory(buildConnectedLibrary());
       wrapper.vm.revealPath();
       await wrapper.vm.$nextTick();
 
       expect(wrapper.find('.hint-actions').exists()).toBe(false);
-      const panel = wrapper.find('.new-game-panel');
-      expect(panel.exists()).toBe(true);
-      expect(panel.find('.difficulty-picker-label').text()).toBe('New game:');
-      const segments = panel.findAll('.difficulty-segment');
-      expect(segments.map((s) => s.text())).toEqual(['Easy', 'Medium', 'Hard']);
+      expect(wrapper.find('.new-game-panel').exists()).toBe(false);
+      expect(wrapper.findAll('.difficulty-segment')).toHaveLength(0);
+
+      const actions = wrapper.find('.end-actions');
+      expect(actions.exists()).toBe(true);
+      expect(actions.findAll('.btn-game').map((b) => b.text())).toEqual(['New Game', 'Back to Games']);
     });
 
-    it('tapping a difficulty segment selects it and immediately starts a new pair matching that difficulty', async () => {
+    it('"New Game" starts a fresh pair at whatever tier was last chosen', async () => {
       const wrapper = factory(buildConnectedLibrary());
-      wrapper.vm.revealPath();
-      await wrapper.vm.$nextTick();
       // Difficulty is a weighted score (hops + billing order + year gap +
       // age - see scorePathDifficulty), not pure hop count, so which exact
       // pair/hop-count comes back isn't asserted here - only that whatever
@@ -418,17 +421,29 @@ describe('SixDegreesGame', () => {
       // "Hard") is used because this fixture's own real ceiling, precisely:
       // only its single longest (5-hop) pair reaches 'medium' - everything
       // shorter stays 'easy', and nothing in it reaches 'hard' at all.
-      const mediumSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Medium');
+      wrapper.vm.selectedDifficulty = 'medium';
+      wrapper.vm.revealPath();
+      await wrapper.vm.$nextTick();
 
-      await mediumSegment.trigger('click');
+      await wrapper.findAll('.end-actions .btn-game')[0].trigger('click');
 
-      expect(wrapper.vm.selectedDifficulty).toBe('medium');
       expect(wrapper.vm.pair).not.toBeNull();
       expect(wrapper.vm.pair.difficulty).toBe('medium');
       // Starting fresh resets progress back to just the source movie, which
-      // also flips status back to 'playing' - swapping the panel back out.
+      // also flips status back to 'playing' - swapping the row back out.
       expect(wrapper.vm.chain).toHaveLength(1);
       expect(wrapper.vm.status).toBe('playing');
+      expect(wrapper.find('.end-actions').exists()).toBe(false);
+    });
+
+    it('"Back to Games" returns to the hub', async () => {
+      const wrapper = factory(buildConnectedLibrary());
+      wrapper.vm.revealPath();
+      await wrapper.vm.$nextTick();
+
+      await wrapper.findAll('.end-actions .btn-game')[1].trigger('click');
+
+      expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/games');
     });
 
     it('falls back to the not-enough-movies gate when no pair exists at the requested difficulty', async () => {
@@ -436,11 +451,9 @@ describe('SixDegreesGame', () => {
       const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
       const wrapper = factory(sparse);
       expect(wrapper.vm.pair).not.toBeNull(); // unconstrained finds the 2-hop pair fine
-      wrapper.vm.revealPath();
-      await wrapper.vm.$nextTick();
 
-      const hardSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Hard');
-      await hardSegment.trigger('click');
+      wrapper.vm.selectDifficulty('hard');
+      await wrapper.vm.$nextTick();
 
       expect(wrapper.vm.pair).toBeNull();
       expect(wrapper.find('.not-enough-movies').exists()).toBe(true);
@@ -452,11 +465,9 @@ describe('SixDegreesGame', () => {
       // the recovery pick since "Any"/unconstrained is no longer a UI option.
       const sparse = [entry(1, ['A']), entry(2, ['A', 'B']), entry(3, ['B'])];
       const wrapper = factory(sparse);
-      wrapper.vm.revealPath();
-      await wrapper.vm.$nextTick();
 
-      const hardSegment = wrapper.findAll('.difficulty-segment').find((b) => b.text() === 'Hard');
-      await hardSegment.trigger('click');
+      wrapper.vm.selectDifficulty('hard');
+      await wrapper.vm.$nextTick();
       expect(wrapper.vm.pair).toBeNull();
 
       const gatePanel = wrapper.find('.not-enough-movies .new-game-panel');

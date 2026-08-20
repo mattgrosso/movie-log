@@ -141,23 +141,16 @@
         <button type="button" class="hint-segment give-up" @click="revealPath">Give up</button>
       </div>
 
-      <!-- New game controls - back to a single "New game:" labeled row
-           (bug report: "let's go back to having 'new game' as a label and
-           then three buttons for difficulty") - tapping a segment picks
-           AND immediately starts a fresh pair, so there's no separate
-           confirm button anymore. -->
-      <div v-else class="new-game-panel">
-        <span class="difficulty-picker-label">New game:</span>
-        <div class="difficulty-segments">
-          <button
-            v-for="level in difficultyOptions"
-            :key="level.key"
-            type="button"
-            class="difficulty-segment"
-            :class="[level.key, { active: selectedDifficulty === level.key }]"
-            @click="selectDifficulty(level.key)"
-          >{{ level.label }}</button>
-        </div>
+      <!-- End of round: the same two-button row every other game ends on
+           (bug report, 2026-08-20: "When I complete a six degrees, let's
+           lose the difficulty buttons and just have a new game button and a
+           back to games button. Just like we do in other games").
+           A tier-picking row used to live here; "New Game" now just replays
+           whatever tier was last chosen (`selectedDifficulty`, still set
+           from the not-enough-movies panel or a previous round). -->
+      <div v-else class="end-actions">
+        <button type="button" class="btn-game btn-game-primary" @click="start">New Game</button>
+        <button type="button" class="btn-game btn-game-secondary" @click="$router.push('/games')">Back to Games</button>
       </div>
     </template>
   </div>
