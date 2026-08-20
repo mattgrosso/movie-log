@@ -60,12 +60,12 @@
         </span>
       </div>
     </div>
-
-    <!-- Quiet, and after the list: the per-poster buttons are the everyday
-         action, this is the bulk one. -->
-    <div v-if="items.length" class="watchlist-row-bulk">
-      <SendToHat :movies="items.map((item) => item.source)" :note="hatNote" @added="onAdded"/>
-    </div>
+    <!-- There was a bulk "add the whole list to a hat" button under every row
+         here. Removed 2026-08-20: "The button we have for adding a whole
+         watchlist to a hat it takes up more room than it actually has value.
+         Let's just get rid of it then we can tighten up those layouts a
+         little bit." The per-poster hat button is the everyday action and is
+         the only one now. -->
   </div>
 </template>
 
@@ -235,13 +235,5 @@ export default {
 
 .watchlist-meta-line {
   display: block;
-}
-
-.watchlist-row-bulk {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 0.4rem;
-  /* Demoted: the per-poster buttons are the everyday action. */
-  opacity: 0.75;
 }
 </style>

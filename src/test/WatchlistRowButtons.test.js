@@ -47,6 +47,19 @@ const factory = (props = {}) => mount(WatchlistRow, {
 });
 
 describe('watchlist poster controls', () => {
+  // Bug report, 2026-08-20: "The button we have for adding a whole watchlist
+  // to a hat it takes up more room than it actually has value. Let's just get
+  // rid of it then we can tighten up those layouts a little bit."
+  it('adds no bulk "whole list to a hat" control after the row — one hat button per poster, and that is all', () => {
+    const wrapper = factory({ items: [item('a', 'A Film'), item('b', 'B Film'), item('c', 'C Film')] });
+
+    expect(wrapper.find('.watchlist-row-bulk').exists()).toBe(false);
+    // Three posters, three hat buttons: a fourth would be the bulk one.
+    expect(wrapper.findAll('.watchlist-card')).toHaveLength(3);
+    expect(wrapper.findAllComponents({ name: 'SendToHat' })).toHaveLength(3);
+    expect(wrapper.findAll('.watchlist-card-actions')).toHaveLength(3);
+  });
+
   it('keeps the hat button in the same strip whether or not the row is puntable', () => {
     const withX = factory({ puntable: true });
     const withoutX = factory({ puntable: false });
