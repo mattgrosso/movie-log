@@ -6,16 +6,24 @@ vi.mock('@/services/ErrorLogService.js', () => ({ default: { error: vi.fn() } })
 
 const HATS = [{ title: 'Just Matt', dbKey: 'k1' }, { title: 'Whole family', dbKey: 'k2' }];
 
-function factory ({ hats = HATS, result = null, summaries = [] } = {}) {
+function factory ({ hats = HATS, result = null, summaries = [], accessError = null, connect = null } = {}) {
   const push = vi.fn();
   const dispatch = vi.fn((action) => {
     if (action === 'loadMovieHatSummaries') return Promise.resolve(summaries);
+    if (action === 'ensureMovieHatContents') return Promise.resolve();
+    if (action === 'connectMovieHat') {
+      return connect instanceof Error ? Promise.reject(connect) : Promise.resolve(connect);
+    }
     return result instanceof Error ? Promise.reject(result) : Promise.resolve(result);
   });
   const wrapper = mount(DrawFromHat, {
     global: {
       mocks: {
-        $store: { state: { movieHatSummaries: summaries }, getters: { linkedMovieHats: hats }, dispatch },
+        $store: {
+          state: { movieHatSummaries: summaries, movieHatAccessError: accessError },
+          getters: { linkedMovieHats: hats },
+          dispatch
+        },
         $router: { push }
       }
     }
@@ -292,5 +300,83 @@ describe('DrawFromHat history strip', () => {
 
       expect(dispatch).not.toHaveBeenCalledWith('drawFromMovieHat', expect.anything());
     });
+  });
+});
+
+// Bug report: the Movie Hat integration answered 401 and the section just
+// showed "couldn't load" on every card — no statement of what was wrong and
+// nothing to press. Movie Hat is a separate Firebase project whose rules
+// refuse anonymous reads, so a lapsed session takes the whole section out.
+describe('when Movie Hat refuses the hats', () => {
+  it('says nothing is wrong when the reads worked', () => {
+    const { wrapper } = factory();
+
+    expect(wrapper.find('.hat-access').exists()).toBe(false);
+  });
+
+  it('explains a missing session and offers to connect', () => {
+    const { wrapper } = factory({ accessError: { reason: 'not-connected', email: null } });
+
+    const banner = wrapper.find('.hat-access');
+    expect(banner.exists()).toBe(true);
+    expect(banner.text()).toContain("isn't signed in to Movie Hat");
+    expect(banner.find('.hat-access-btn').text()).toBe('Connect Movie Hat');
+  });
+
+  it('says a session expired rather than claiming you were never signed in', () => {
+    const { wrapper } = factory({ accessError: { reason: 'token-failed', email: 'matt@example.com' } });
+
+    const banner = wrapper.find('.hat-access');
+    expect(banner.text()).toContain('expired');
+    expect(banner.text()).toContain('matt@example.com');
+    expect(banner.find('.hat-access-btn').text()).toBe('Reconnect');
+  });
+
+  // The failure that actually happened: a perfectly good session belonging to
+  // an account that isn't a member of these hats. Naming it is the whole
+  // difference between "it's broken" and "oh, wrong Google account".
+  it('names the connected account when the rules refused it', () => {
+    const { wrapper } = factory({
+      accessError: { reason: 'denied', email: 'movie-hat-tester@example.com' }
+    });
+
+    const banner = wrapper.find('.hat-access');
+    expect(banner.text()).toContain('movie-hat-tester@example.com');
+    expect(banner.text()).toContain("isn't a member of these hats");
+  });
+
+  it('reconnects and refetches both caches from the banner itself', async () => {
+    const { wrapper, dispatch } = factory({ accessError: { reason: 'denied', email: 'wrong@example.com' } });
+    await flushPromises();
+    dispatch.mockClear();
+
+    await wrapper.find('.hat-access-btn').trigger('click');
+    await flushPromises();
+
+    expect(dispatch).toHaveBeenCalledWith('connectMovieHat');
+    expect(dispatch).toHaveBeenCalledWith('loadMovieHatSummaries');
+    // Forced: the ten-minute cache would otherwise hold the old, failed read.
+    expect(dispatch).toHaveBeenCalledWith('ensureMovieHatContents', { force: true });
+  });
+
+  it('stays quiet when the Google chooser is simply dismissed', async () => {
+    const dismissed = Object.assign(new Error('closed'), { code: 'auth/popup-closed-by-user' });
+    const { wrapper } = factory({ accessError: { reason: 'not-connected' }, connect: dismissed });
+    await flushPromises();
+
+    await wrapper.find('.hat-access-btn').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.hat-access-failed').exists()).toBe(false);
+  });
+
+  it('reports a sign-in that actually failed', async () => {
+    const { wrapper } = factory({ accessError: { reason: 'not-connected' }, connect: new Error('nope') });
+    await flushPromises();
+
+    await wrapper.find('.hat-access-btn').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.hat-access-failed').text()).toContain("Couldn't sign in");
   });
 });

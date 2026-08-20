@@ -80,20 +80,52 @@ function movieHatAuthReady () {
  * itself as the hour-long token nears expiry.
  */
 export async function movieHatToken () {
+  return (await movieHatSession()).token;
+}
+
+/**
+ * The session behind a request: `{ token, email, reason }`.
+ *
+ * `reason` is null when there's a usable token, and otherwise says WHICH
+ * failure this is:
+ *
+ *   'not-connected' — nobody has signed in to Movie Hat on this device.
+ *   'token-failed'  — there is a session, but the token couldn't be minted
+ *                     (a revoked refresh token, or simply being offline).
+ *
+ * These used to collapse into a bare `null`, which every caller then turned
+ * into an unexplained 401 — and a 401 that tells nobody anything is what left
+ * the hats section dead for days with no way to tell a lapsed session apart
+ * from being signed in as the wrong account. `email` rides along so the UI
+ * can name the account that's actually connected.
+ */
+export async function movieHatSession () {
+  // Wait for the session to be restored before concluding there isn't
+  // one — but only ever as a "has auth settled yet" gate. The cached
+  // first result goes stale the moment somebody disconnects or connects
+  // a different account, so the user always comes from currentUser.
+  let user;
   try {
-    // Wait for the session to be restored before concluding there isn't
-    // one — but only ever as a "has auth settled yet" gate. The cached
-    // first result goes stale the moment somebody disconnects or connects
-    // a different account, so the user always comes from currentUser.
-    let user = movieHatUser();
+    user = movieHatUser();
     if (!user) {
       await movieHatAuthReady();
       user = movieHatUser();
     }
-    return user ? await user.getIdToken() : null;
   } catch (error) {
+    console.warn('Could not reach the Movie Hat session', error);
+    return { token: null, email: null, reason: 'not-connected' };
+  }
+
+  if (!user) return { token: null, email: null, reason: 'not-connected' };
+
+  try {
+    return { token: await user.getIdToken(), email: user.email || null, reason: null };
+  } catch (error) {
+    // Deliberately NOT 'not-connected': a signed-in account whose token can't
+    // be refreshed needs re-connecting, and telling someone they were never
+    // signed in when they plainly were sends them looking in the wrong place.
     console.warn('Could not get a Movie Hat token', error);
-    return null;
+    return { token: null, email: user.email || null, reason: 'token-failed' };
   }
 }
 

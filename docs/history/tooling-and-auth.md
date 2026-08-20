@@ -176,3 +176,49 @@ double movement (instant from the router, then smooth from the component).
 Verified live: Home scrolled to 659 → open a movie → detail opens at 0 → back → Home
 returns to exactly 659; and Insights, Deep Stats, Watchlist, Year in Review, Trophy Case,
 the games hub and Home-from-Insights all land at 0.
+
+## The Movie Hat 401, run to ground (2026-08-20)
+
+Standing ⚠️ since 2026-08-18: "the Movie Hat integration is returning 401 — 'Dev Hat'
+can't load, so the whole hats section is empty." It had sat there because nothing in the
+app could say *which* 401 it was.
+
+**What was checked, and found correct.** Movie Hat's deployed rules, the `hats` data, the
+`userHats` index, and Matt's membership of all six linked hats. Minting a custom token
+for his own Movie Hat account, exchanging it at
+`identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken` and hitting the REST
+API returned **200 on every one of his six hats**; the tester account reached Dev Hat and
+was correctly refused everything else. So: not the rules, not the data, not the paths.
+
+The clincher came from the data itself. `settings/movieHat/hats` had
+`lastUsedAt` on "Just Matt" stamped ten minutes earlier, and that field is only written
+*after* a successful add — and sure enough, "The Exorcist" was sitting in the hat, noted
+"Filling out 1973", from the year picker shipped that morning. **Matt's session was
+working.** The 401 in the note was a testing browser signed into Cinema Roll as Matt and
+into Movie Hat as `movie-hat-tester@example.com`, which is a member of Dev Hat and
+nothing else — so Matt's six linked hats all answered "Permission denied" and every card
+read "couldn't load".
+
+**So the bug was never the 401. It was that a 401 was unreadable.** Firebase answers a
+rules refusal with 401 *and* `{"error": "Permission denied"}`, the same status as an
+unusable token; `hatRequest` discarded the body and threw
+`Movie Hat responded 401` for a lapsed session, a wrong account, and a genuine refusal
+alike. `ensureMovieHatContents` swallowed that into a `console.warn`, and the section
+rendered "couldn't load" with nothing to press. Three different fixes, one useless
+message, and no route to any of them — which is exactly why it stayed open for days.
+
+Now: `MovieHatAccessError` carries `reason` (`not-connected` / `token-failed` /
+`denied`), the connected `email`, and the database's own words. A tokenless request isn't
+sent at all — it can only 401 now the rules are on. And `DrawFromHat` says which case it
+is and puts the fix beside it, naming the account when a good token was refused, because
+"connected as the wrong Google account" is invisible otherwise.
+
+Two things fell out of the investigation:
+
+- **The network tests were all exercising the one path that can't work.** They mocked no
+  auth at all, so every one ran down the tokenless branch — green against a code path
+  production refuses. They mock a session now.
+- **`ensureMovieHatContents` was downloading whole hats to read ids.** Six hats, history
+  and all, ~1.9MB (one is 882KB), every ten minutes, billed as egress on Movie Hat's
+  database. `fetchHatMovies` reads the `movies` child; the read rule is at the hat level,
+  so no rules change was needed.

@@ -89,3 +89,40 @@ file, so a script in a scratchpad fails with `ERR_MODULE_NOT_FOUND`. Use
 pinned to 18.18). **If an admin script hangs for minutes with no output, check the
 `databaseURL` first** — a wrong one doesn't error, it retries forever. The project is
 `movie-log-8c4d5`.
+
+## Movie Hat is a second, independent sign-in — and its 401s have three causes
+
+`movieHat.js` / `movieHatAuth.js`. Movie Hat is a **different Firebase project**, so a
+Cinema Roll ID token is worthless there: Cinema Roll holds its own session in a named
+Firebase app (`movieHat`) with its own Google popup. Since Movie Hat's rules went on
+2026-08-17 an unauthenticated hat request is refused outright, so **never fall back to a
+tokenless request** — it can only 401.
+
+Firebase answers a rules refusal with **401 and `{"error": "Permission denied"}`**, the
+same status as an unusable token. Three very different problems, one status code, and
+the old code threw the body away and reported `Movie Hat responded 401` for all of them.
+`MovieHatAccessError.reason` is what separates them:
+
+- `not-connected` — no Movie Hat session on this device. Sign in.
+- `token-failed` — a session exists but `getIdToken()` failed (revoked, or offline).
+  Distinct from the above on purpose: telling someone they were never signed in when
+  they plainly were sends them looking in the wrong place.
+- `denied` — a good token the rules still refused. **Almost always the wrong Google
+  account**: hat access is per member address, so being connected as a second account
+  (or as `movie-hat-tester@example.com`) is indistinguishable from being signed out
+  unless you name the account. `DrawFromHat` names it.
+
+Verify with the real thing before theorising — the rules, data and membership have all
+been checked correct: `yarn mint-hat-token` in the movie-hat repo, exchange it at
+`identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken`, then hit the REST
+API with `?auth=<idToken>`. The tester reaches Dev Hat and nothing else, which also
+demonstrates the rules working.
+
+**Read only what you need.** The hat read rule sits at `hats/$title/$hatKey`, so a child
+path like `.../movies.json` needs no rule change. `ensureMovieHatContents` wants TMDB ids
+only and used to call `fetchHat`, pulling whole hat nodes — history included, ~1.9MB
+across Matt's six hats, one of them 882KB alone — every ten minutes, billed as egress on
+Movie Hat's database. Use `fetchHatMovies`.
+
+Note the client's `emailToMemberKey` **mirrors** `src/store/memberKey.mjs` in the
+movie-hat repo, which also generates that project's rules. Change one, change both.

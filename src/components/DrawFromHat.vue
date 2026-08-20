@@ -5,6 +5,20 @@
       A real draw — the movie leaves the hat and lands in its history, exactly as it would in Movie Hat.
     </p>
 
+    <!-- Movie Hat is a separate Firebase project with its own sign-in, and
+         its rules refuse anonymous reads. When that session lapses (or is a
+         different Google account) every hat here answers 401 and the cards
+         all read "couldn't load" — which says nothing about what to do about
+         it. Say which of the three it is, and put the fix next to it. -->
+    <div v-if="accessError" class="hat-access">
+      <p class="hat-access-text">{{ accessMessage }}</p>
+      <button type="button" class="hat-access-btn" :disabled="reconnecting" @click="reconnect">
+        <span v-if="reconnecting" class="spinner-border spinner-border-sm" role="status"></span>
+        <span v-else>{{ accessError.reason === 'not-connected' ? 'Connect Movie Hat' : 'Reconnect' }}</span>
+      </button>
+      <p v-if="reconnectError" class="hat-access-failed">{{ reconnectError }}</p>
+    </div>
+
     <div class="hat-cards">
       <div v-for="hat in cards" :key="hat.title" class="hat-card">
         <!-- Rebuilt as a vertical block (2026-08-17). It used to be a flex ROW
@@ -128,6 +142,8 @@ export default {
       drawn: null,
       message: null,
       messageIsError: false,
+      reconnecting: false,
+      reconnectError: null,
       // The history poster whose availability sheet is open, or null.
       whereToWatch: null
     };
@@ -141,6 +157,25 @@ export default {
     cards () {
       const summaries = this.$store.state.movieHatSummaries || [];
       return this.hats.map((hat) => summaries.find((summary) => summary.title === hat.title) || { ...hat, waiting: null });
+    },
+    accessError () {
+      return this.$store.state.movieHatAccessError;
+    },
+    // Each reason needs a different action, so each gets its own sentence.
+    // 'denied' is the one worth naming the account for: a good token that the
+    // rules still refuse almost always means the wrong Google account is
+    // connected, and hat membership is per address.
+    accessMessage () {
+      const { reason, email } = this.accessError || {};
+      if (reason === 'not-connected') {
+        return 'Cinema Roll isn\'t signed in to Movie Hat, so it can\'t read your hats. Movie Hat is a separate app with its own sign-in.';
+      }
+      if (reason === 'token-failed') {
+        return `Your Movie Hat session${email ? ` (${email})` : ''} has expired and needs renewing.`;
+      }
+      return email
+        ? `Movie Hat is connected as ${email}, which isn't a member of these hats. Reconnect with the account that owns them.`
+        : 'Movie Hat refused these hats. Reconnect with the account that owns them.';
     }
   },
   watch: {
@@ -154,6 +189,29 @@ export default {
     }
   },
   methods: {
+    // The whole point of the banner: the fix is one tap from the thing that
+    // failed, rather than somewhere in Settings that nobody was told to open.
+    async reconnect () {
+      this.reconnecting = true;
+      this.reconnectError = null;
+      try {
+        await this.$store.dispatch('connectMovieHat');
+        // Both caches are keyed off a session that just changed; force the
+        // contents refresh past its ten-minute window so the cards refill now.
+        await Promise.all([
+          this.$store.dispatch('loadMovieHatSummaries'),
+          this.$store.dispatch('ensureMovieHatContents', { force: true })
+        ]);
+      } catch (error) {
+        // Dismissing the Google chooser is a choice, not a failure.
+        if (error?.code !== 'auth/popup-closed-by-user') {
+          this.reconnectError = "Couldn't sign in to Movie Hat.";
+          ErrorLogService.error('Movie Hat reconnect failed', error);
+        }
+      } finally {
+        this.reconnecting = false;
+      }
+    },
     hatHasHistory (hat) {
       return Boolean(hat.history && hat.history.length);
     },
@@ -216,6 +274,53 @@ export default {
   font-size: 0.75rem;
   line-height: 1.35;
   margin: 0 0 0.7rem;
+}
+
+/* Same neutral surface as .hat-card rather than a coloured alert — this is
+   an explanation with an action, not an error to recoil from. No left accent
+   bar (see .claude/rules/vue-ui.md). */
+.hat-access {
+  background: #1f1f1f;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  margin-bottom: 0.7rem;
+  padding: 0.7rem;
+}
+
+.hat-access-text {
+  /* #ccc on #1f1f1f, ~6:1. */
+  color: #ccc;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin: 0 0 0.6rem;
+}
+
+.hat-access-btn {
+  background: #ffc107;
+  border: none;
+  border-radius: 6px;
+  color: #1a1a1a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  /* House minimum tap target. */
+  min-height: 40px;
+  padding: 0 1rem;
+  width: 100%;
+}
+
+/* Mobile-first: press feedback only, never a hover state that sticks. */
+.hat-access-btn:active {
+  background: #e0a800;
+}
+
+.hat-access-btn:disabled {
+  opacity: 0.6;
+}
+
+.hat-access-failed {
+  color: #ff8a80;
+  font-size: 0.75rem;
+  margin: 0.5rem 0 0;
 }
 
 .hat-cards {

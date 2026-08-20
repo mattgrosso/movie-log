@@ -7,12 +7,31 @@ import {
   pickFromHat,
   drawnRecord,
   fetchHat,
+  fetchHatMovies,
   addMovieToHat,
-  commitDraw
+  commitDraw,
+  isMovieHatAccessError
 } from '@/assets/javascript/movieHat.js';
+import { movieHatSession } from '@/assets/javascript/movieHatAuth.js';
 
 // Movie Hat stays its own app (Matt, 2026-08-16: "I love that it's a
 // standalone app"); this is the seam Cinema Roll reaches it through.
+
+// Every request carries a Movie Hat ID token now — the rules went on
+// 2026-08-17 and an unauthenticated read is refused outright. These tests
+// used to run with no mock at all, i.e. entirely down the no-token path,
+// which is the one branch that can no longer succeed in production.
+vi.mock('@/assets/javascript/movieHatAuth.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  movieHatSession: vi.fn(async () => ({ token: 'hat-token', email: 'matt@example.com', reason: null }))
+}));
+
+const connectedAs = (email = 'matt@example.com') =>
+  movieHatSession.mockResolvedValue({ token: 'hat-token', email, reason: null });
+const notConnected = () =>
+  movieHatSession.mockResolvedValue({ token: null, email: null, reason: 'not-connected' });
+const tokenFailed = (email = 'matt@example.com') =>
+  movieHatSession.mockResolvedValue({ token: null, email, reason: 'token-failed' });
 
 describe('asArray', () => {
   it('turns a Firebase object-map into an array carrying each key', () => {
@@ -172,6 +191,7 @@ describe('talking to the database', () => {
   let calls;
 
   beforeEach(() => {
+    connectedAs();
     calls = [];
     global.fetch = vi.fn((url, options = {}) => {
       calls.push({ url, method: options.method || 'GET', body: options.body });
@@ -183,6 +203,14 @@ describe('talking to the database', () => {
       }
       if (options.method === 'POST') {
         return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({ name: 'new-key' })) });
+      }
+      // A request for one child gets that child, the way the database
+      // answers it — not the whole hat.
+      if (url.includes('/movies.json')) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(JSON.stringify({ m1: { id: 1, title: 'Heat' } }))
+        });
       }
       return Promise.resolve({
         ok: true,
@@ -246,9 +274,90 @@ describe('talking to the database', () => {
   });
 
   it('surfaces a failed request rather than pretending it worked', async () => {
-    global.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 401, text: () => Promise.resolve('') }));
+    global.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 500, text: () => Promise.resolve('') }));
 
-    await expect(addMovieToHat('Just Matt', 'hat-key', { id: 1 })).rejects.toThrow(/401/);
+    await expect(addMovieToHat('Just Matt', 'hat-key', { id: 1 })).rejects.toThrow(/500/);
+  });
+
+  it('sends the token on every request, since an anonymous one is always refused now', async () => {
+    await fetchHat('Just Matt', 'hat-key');
+
+    expect(calls[0].url).toContain('auth=hat-token');
+  });
+
+  // Reading only what it needs: ensureMovieHatContents wants TMDB ids, and
+  // fetchHat pulls the whole hat — history is the bulk of it, and one of
+  // Matt's runs to 882KB.
+  it('reads just the movies node when only the contents are wanted', async () => {
+    const movies = await fetchHatMovies('Just Matt', 'hat-key');
+
+    expect(calls[0].url).toContain('/hats/Just%20Matt/hat-key/movies.json');
+    expect(calls[0].url).not.toContain('history');
+    expect(movies).toEqual([{ id: 1, title: 'Heat', dbKey: 'm1' }]);
+  });
+});
+
+// Bug report: the integration answered 401 and nobody could tell whether the
+// session had lapsed, the wrong Google account was connected, or the rules
+// were refusing — three different fixes behind one useless message.
+describe('why a hat request was refused', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: true, text: () => Promise.resolve(JSON.stringify({ movies: {} }))
+    }));
+  });
+
+  afterEach(() => {
+    delete global.fetch;
+    connectedAs();
+  });
+
+  it('does not spend a request it knows will be refused', async () => {
+    notConnected();
+
+    await expect(fetchHat('Just Matt', 'hat-key')).rejects.toMatchObject({ reason: 'not-connected' });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps "signed in but the token failed" apart from "never signed in"', async () => {
+    tokenFailed('matt@example.com');
+
+    await expect(fetchHat('Just Matt', 'hat-key')).rejects.toMatchObject({
+      reason: 'token-failed',
+      email: 'matt@example.com'
+    });
+  });
+
+  // The one that actually bit: a valid session for an account that isn't a
+  // member of the hat reads exactly like being signed out.
+  it('reports a rules refusal as denied, naming the account that was refused', async () => {
+    connectedAs('movie-hat-tester@example.com');
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: false,
+      status: 401,
+      text: () => Promise.resolve(JSON.stringify({ error: 'Permission denied' }))
+    }));
+
+    const error = await fetchHat('Just Matt', 'hat-key').catch((e) => e);
+
+    expect(isMovieHatAccessError(error)).toBe(true);
+    expect(error.reason).toBe('denied');
+    expect(error.email).toBe('movie-hat-tester@example.com');
+    // The database's own words, which used to be thrown away.
+    expect(error.detail).toBe('Permission denied');
+    expect(error.message).toContain('movie-hat-tester@example.com');
+  });
+
+  it('leaves a non-auth failure as an ordinary error, carrying what the server said', async () => {
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: false, status: 500, text: () => Promise.resolve('boom')
+    }));
+
+    const error = await fetchHat('Just Matt', 'hat-key').catch((e) => e);
+
+    expect(isMovieHatAccessError(error)).toBe(false);
+    expect(error.message).toContain('500');
+    expect(error.message).toContain('boom');
   });
 });
 

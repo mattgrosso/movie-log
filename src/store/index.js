@@ -25,7 +25,7 @@ import { enqueueWrite, listPendingWrites, removePendingWrite, updatePendingWrite
 import { setValueAtPath } from "../utils/statePath.js";
 import { stampPlanForWrite, stampUpdatesForBatch } from "../assets/javascript/syncStamp.js";
 import { emailToDatabaseKey, isQaAccountKey } from "../assets/javascript/databaseKey.js";
-import { fetchAllHats, fetchMyHats, hatsForMember, fetchHat, toHatMovie, alreadyInHat, addMovieToHat, pickFromHat, commitDraw } from "../assets/javascript/movieHat.js";
+import { fetchAllHats, fetchMyHats, hatsForMember, fetchHat, fetchHatMovies, toHatMovie, alreadyInHat, addMovieToHat, pickFromHat, commitDraw, isMovieHatAccessError } from "../assets/javascript/movieHat.js";
 import {
   connectMovieHat as signIntoMovieHat,
   connectMovieHatWithToken as signIntoMovieHatWithToken,
@@ -302,6 +302,12 @@ export default createStore({
     movieHatSummaries: [],
     // The Google address signed into Movie Hat's project, if any.
     movieHatEmail: null,
+    // Why the linked hats couldn't be read, when they couldn't:
+    // { reason: 'not-connected' | 'token-failed' | 'denied', email }.
+    // Null when the last read worked. Movie Hat's rules refuse anonymous
+    // reads outright, so without this the whole section just renders empty
+    // or "couldn't load" and nothing anywhere says to sign back in.
+    movieHatAccessError: null,
     // Friends on other apps (Movie Log), translated into the same profile
     // shape as native friends. Held in memory; the subscription itself
     // lives in settings/externalFriends.
@@ -542,6 +548,12 @@ export default createStore({
     },
     setMovieHatUser (state, user) {
       state.movieHatEmail = user?.email || null;
+      // Connecting (or disconnecting) makes any previous refusal stale — the
+      // next read is the only thing that can say whether it still applies.
+      state.movieHatAccessError = null;
+    },
+    setMovieHatAccessError (state, value) {
+      state.movieHatAccessError = value || null;
     },
     setMovieHatSummaries (state, value) {
       state.movieHatSummaries = value || [];
@@ -2064,17 +2076,27 @@ export default createStore({
       if (!force && context.state.movieHatContentsAt && age < maxAgeMs) return;
 
       const ids = {};
+      let accessError = null;
       await Promise.all(hats.map(async (hat) => {
         try {
-          const loaded = await fetchHat(hat.title, hat.dbKey);
-          (loaded?.movies || []).forEach((movie) => {
+          // Only the movies: this used to call fetchHat, which downloads the
+          // whole hat — history included — for six hats every ten minutes,
+          // to read nothing but the ids.
+          const movies = await fetchHatMovies(hat.title, hat.dbKey);
+          movies.forEach((movie) => {
             if (movie?.id != null) ids[movie.id] = true;
           });
         } catch (error) {
+          // One refusal explains all of them (they share a session), so the
+          // first is kept rather than the last-to-land of six racing reads.
+          if (isMovieHatAccessError(error)) {
+            accessError = accessError || { reason: error.reason, email: error.email };
+          }
           console.warn('[movie-hat] could not read hat contents', hat.title, error.message);
         }
       }));
 
+      context.commit('setMovieHatAccessError', accessError);
       context.commit('setMovieHatContents', { ids, at: Date.now() });
     },
 
@@ -2085,6 +2107,7 @@ export default createStore({
      */
     async loadMovieHatSummaries (context) {
       const hats = context.getters.linkedMovieHats;
+      let accessError = null;
       const summaries = await Promise.all(hats.map(async (hat) => {
         try {
           const loaded = await fetchHat(hat.title, hat.dbKey);
@@ -2110,10 +2133,14 @@ export default createStore({
             history
           };
         } catch (error) {
+          if (isMovieHatAccessError(error)) {
+            accessError = accessError || { reason: error.reason, email: error.email };
+          }
           return { ...hat, error: true };
         }
       }));
 
+      context.commit('setMovieHatAccessError', accessError);
       context.commit('setMovieHatSummaries', summaries);
       return summaries;
     },

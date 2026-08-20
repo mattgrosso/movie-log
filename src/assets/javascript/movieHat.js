@@ -24,9 +24,51 @@
 // It is destructive on purpose — that is what makes it a hat and not a
 // shuffle button — so anything here that draws must do all three.
 
-import { movieHatToken, emailToMemberKey } from './movieHatAuth.js';
+import { movieHatSession, emailToMemberKey } from './movieHatAuth.js';
 
 export const HAT_DATABASE_URL = 'https://movie-hat-9c418-default-rtdb.firebaseio.com';
+
+/**
+ * A hat request refused for an auth reason, with the reason kept.
+ *
+ * Movie Hat's rules went on 2026-08-17 and every refusal since has surfaced
+ * as the same unexplained "Movie Hat responded 401" — which is how the hats
+ * section spent days dead without anyone being able to say whether the
+ * session had lapsed, the wrong Google account was connected, or the database
+ * was simply saying no. Three very different fixes; one indistinguishable
+ * message. `reason` is what tells them apart:
+ *
+ *   'not-connected' — no Movie Hat session on this device.
+ *   'token-failed'  — signed in, but no usable token (revoked, or offline).
+ *   'denied'        — a good token, and the database still said no. Almost
+ *                     always the wrong account: hat access is per member, so
+ *                     being signed in as someone who isn't in this hat
+ *                     (the automated tester, or a second Google account)
+ *                     reads exactly like being signed out.
+ *
+ * `email` is whoever IS connected, so the UI can name them rather than making
+ * the user go and look.
+ */
+export class MovieHatAccessError extends Error {
+  constructor (reason, { email = null, status = null, detail = null } = {}) {
+    super(MovieHatAccessError.messageFor(reason, email, detail));
+    this.name = 'MovieHatAccessError';
+    this.reason = reason;
+    this.email = email;
+    this.status = status;
+    this.detail = detail;
+  }
+
+  static messageFor (reason, email, detail) {
+    if (reason === 'not-connected') return 'Not signed in to Movie Hat.';
+    if (reason === 'token-failed') return `Signed in to Movie Hat as ${email || 'someone'}, but the session needs renewing.`;
+    return `Movie Hat refused the request${email ? ` for ${email}` : ''}${detail ? `: ${detail}` : '.'}`;
+  }
+}
+
+export function isMovieHatAccessError (error) {
+  return Boolean(error) && error.name === 'MovieHatAccessError';
+}
 
 /** Firebase object-maps → arrays, carrying each child's key. Arrays pass through. */
 export function asArray (map) {
@@ -121,18 +163,33 @@ export function drawnRecord (movie, now = Date.now()) {
 
 async function hatRequest (path, options = {}) {
   // Movie Hat is a different Firebase project, so this is ITS token, from
-  // the second sign-in — a Cinema Roll token means nothing there. Null while
-  // the rules are still open, which is why everything below keeps working
-  // before anyone connects.
-  const token = await movieHatToken();
+  // the second sign-in — a Cinema Roll token means nothing there.
+  const { token, email, reason } = await movieHatSession();
+
+  // No token can only ever 401 now the rules are on, so don't spend the round
+  // trip to be told so. Before the lockdown this fell through to an
+  // unauthenticated request, which is why the call was still being made.
+  if (!token) throw new MovieHatAccessError(reason || 'not-connected', { email });
+
   const separator = path.includes('?') ? '&' : '?';
-  const url = token
-    ? `${HAT_DATABASE_URL}/${path}${separator}auth=${encodeURIComponent(token)}`
-    : `${HAT_DATABASE_URL}/${path}`;
+  const url = `${HAT_DATABASE_URL}/${path}${separator}auth=${encodeURIComponent(token)}`;
 
   const response = await fetch(url, options);
   if (!response.ok) {
-    const error = new Error(`Movie Hat responded ${response.status}`);
+    // Keep what the database actually said. Firebase answers a rules refusal
+    // with 401 and `{"error": "Permission denied"}` — the body is the only
+    // thing separating "the rules said no" from "that token is unusable", and
+    // throwing it away is what made this undiagnosable.
+    const detail = await response.text().then(
+      (text) => { try { return JSON.parse(text)?.error || null; } catch { return text?.slice(0, 200) || null; } },
+      () => null
+    );
+
+    if (response.status === 401 || response.status === 403) {
+      throw new MovieHatAccessError('denied', { email, status: response.status, detail });
+    }
+
+    const error = new Error(`Movie Hat responded ${response.status}${detail ? `: ${detail}` : ''}`);
     error.status = response.status;
     throw error;
   }
@@ -205,6 +262,25 @@ export async function fetchHat (title, dbKey = null) {
     history: asArray(data.history),
     members: Object.values(data.members || {})
   };
+}
+
+/**
+ * Just the movies waiting in a hat — no history, no members.
+ *
+ * `ensureMovieHatContents` only wants TMDB ids, and was calling `fetchHat`,
+ * which downloads the WHOLE hat node. Matt's six linked hats come to roughly
+ * 1.9MB that way, most of it history (one hat is 882KB on its own), re-read
+ * every ten minutes and billed as egress on Movie Hat's database. The read
+ * rule sits at the hat level, so asking for one child needs no rule change.
+ */
+export async function fetchHatMovies (title, dbKey) {
+  // No key means no readable hat: the title level is unreadable under the
+  // rules, so the fetchHat/fetchHatKey route would spend a request only to
+  // be refused and return null anyway. Contributing nothing is what the
+  // caller already does with a hat it can't read.
+  if (!dbKey) return [];
+  const data = await hatRequest(`hats/${encodeURIComponent(title)}/${dbKey}/movies.json`);
+  return asArray(data);
 }
 
 export function addMovieToHat (title, dbKey, payload) {
