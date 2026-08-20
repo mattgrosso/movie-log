@@ -140,7 +140,12 @@ describe('WatchlistScreen (request: watchlists from my ratings + movies to consi
     expect(names).not.toContain('Already Rated');
   });
 
-  it('selecting a watchlist movie hands off to the normal rating flow', async () => {
+  // Bug report, 2026-08-20: "If a movie is presented in a watchlist or in film
+  // club and it's one that I have not yet rated then... just clicking the
+  // poster should pull up some kind of a summary of the movie so that I can
+  // investigate further." These rows suggest films you HAVEN'T seen, so
+  // dropping straight into the rating flow only made sense if you had.
+  it('opens a summary for an unrated suggestion instead of jumping into rating', async () => {
     const { wrapper, pushSpy, commitSpy } = factory();
     await flushPromises();
 
@@ -148,8 +153,41 @@ describe('WatchlistScreen (request: watchlists from my ratings + movies to consi
       .find((candidate) => candidate.attributes('aria-label') === 'Unseen Gem');
     await card.trigger('click');
 
+    expect(wrapper.vm.previewing).toMatchObject({ id: 90, title: 'Unseen Gem' });
+    expect(commitSpy).not.toHaveBeenCalledWith('setMovieToRate', expect.anything());
+    expect(pushSpy).not.toHaveBeenCalledWith('/rate-movie');
+  });
+
+  it('still hands off to the rating flow from inside the summary', async () => {
+    const { wrapper, pushSpy, commitSpy } = factory();
+    await flushPromises();
+
+    const card = wrapper.findAll('.watchlist-card')
+      .find((candidate) => candidate.attributes('aria-label') === 'Unseen Gem');
+    await card.trigger('click');
+    // What MoviePreview emits when "I've seen it — rate it" is pressed.
+    wrapper.vm.rateFromPreview(wrapper.vm.previewing.source);
+
     expect(commitSpy).toHaveBeenCalledWith('setMovieToRate', expect.objectContaining({ id: 90 }));
     expect(pushSpy).toHaveBeenCalledWith('/rate-movie');
+    // And the sheet closes on the way out, rather than sitting over the
+    // rating screen it just navigated to.
+    expect(wrapper.vm.previewing).toBeNull();
+  });
+
+  // The rewatch and "another shot" rows are films you HAVE rated, so their
+  // posters still go where they always did: your own detail page, which is
+  // richer than anything a summary sheet could show.
+  it('leaves an already-rated row going straight to its detail page', async () => {
+    const { wrapper, pushSpy } = factory();
+    await flushPromises();
+
+    const card = wrapper.findAll('.watchlist-card')
+      .find((candidate) => candidate.attributes('aria-label') === 'Old Favorite A');
+    await card.trigger('click');
+
+    expect(pushSpy).toHaveBeenCalledWith(expect.stringMatching(/^\/movie\//));
+    expect(wrapper.vm.previewing).toBeNull();
   });
 
   it('offline: keeps the rewatch list, hides the TMDB sections, says why, and fetches nothing', async () => {

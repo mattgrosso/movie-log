@@ -29,15 +29,15 @@
           <div
             v-for="item in summary.feed"
             :key="`${item.friendKey}-${item.id}-${item.at}`"
-            class="cs-poster-card"
-            :class="{ 'cs-poster-tappable': inMyLibrary(item.id) }"
+            class="cs-poster-card cs-poster-tappable"
             @click="openFeedItem(item)"
           >
             <div class="cs-poster-frame">
               <img v-if="item.p" :src="poster(item.p)" :alt="item.t" class="cs-poster">
               <div v-else class="cs-poster cs-poster-blank">{{ item.t }}</div>
-              <!-- Haven't seen it: tapping the poster would dead-end on an
-                   empty detail page, so the only action offered is the hat. -->
+              <!-- Haven't seen it: the hat button is still the quick action,
+                   but the poster itself is no longer inert — it opens the
+                   summary sheet (bug report, 2026-08-20). -->
               <SendToHat
                 v-if="!inMyLibrary(item.id)"
                 class="cs-poster-hat"
@@ -205,6 +205,11 @@
         </div>
       </SettingsSection>
     </template>
+
+    <!-- One instance for the whole screen: driven by which movie is set, so
+         tapping along the feed re-targets it rather than mounting and tearing
+         down a sheet per poster. -->
+    <MoviePreview :movie="previewing" @close="previewing = null" @rate="rateFromPreview"/>
   </div>
 </template>
 
@@ -216,6 +221,7 @@
 import BackLink from './games/BackLink.vue';
 import SettingsSection from './SettingsSection.vue';
 import SendToHat from './SendToHat.vue';
+import MoviePreview from './MoviePreview.vue';
 import { ratedTmdbIds } from '../assets/javascript/discover.js';
 import { timeAgo } from '../assets/javascript/timeAgo.js';
 import { getRating } from '../assets/javascript/GetRating.js';
@@ -226,7 +232,17 @@ import { formatScore, formatScoreGap } from '../assets/javascript/formatScore.js
 
 export default {
   name: 'FilmClubScreen',
-  components: { BackLink, SettingsSection, SendToHat },
+  components: { BackLink, SettingsSection, SendToHat, MoviePreview },
+  data () {
+    return {
+      // The unrated film whose summary sheet is open, or null.
+      previewing: null,
+      // Was never declared, so `v-model` on the "Search people on other apps"
+      // box had nothing to write to and the filter never applied. Noticed
+      // while adding `previewing`; the component had no data() at all.
+      directorySearch: ''
+    };
+  },
   computed: {
     // TMDB ids of everything you've rated, for telling a friend's watch you
     // can open from one you can't.
@@ -404,9 +420,24 @@ export default {
     // my db. But if I haven't seen that movie, it should instead take me
     // nowhere" (2026-08-17). MovieDetail is a pure lookup in YOUR library, so
     // a friend's film you've never rated rendered an empty page.
+    // In your library: straight to your own detail page, which is the richer
+    // destination. Not in it: MovieDetail is a pure local lookup and would
+    // render an empty page, so this used to do NOTHING at all — a dead poster.
+    // Bug report, 2026-08-20: "if it's one that I have not yet rated... just
+    // clicking the poster should pull up some kind of a summary of the movie
+    // so that I can investigate further."
     openFeedItem (item) {
-      if (!this.inMyLibrary(item?.id)) return;
-      this.goToMovie(item.id);
+      if (item?.id == null) return;
+      if (this.inMyLibrary(item.id)) {
+        this.goToMovie(item.id);
+        return;
+      }
+      this.previewing = { id: item.id, title: item.t || '', poster_path: item.p || null, source: this.hatMovieFor(item) };
+    },
+    rateFromPreview (media) {
+      this.previewing = null;
+      this.$store.commit('setMovieToRate', media);
+      this.$router.push('/rate-movie');
     },
     // A friend's feed item is a bare {id,t,p,...}, not a library entry —
     // toHatMovie takes either, but it wants TMDB field names.

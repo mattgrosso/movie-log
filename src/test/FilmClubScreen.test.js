@@ -150,13 +150,41 @@ describe('FilmClubScreen feed taps', () => {
     expect(push).toHaveBeenCalledWith('/movie/1');
   });
 
-  it('goes nowhere for a movie you have never rated', () => {
+  // Bug report, 2026-08-20: "if it's one that I have not yet rated... just
+  // clicking the poster should pull up some kind of a summary of the movie so
+  // that I can investigate further." This used to do nothing at all — a dead
+  // poster — because MovieDetail is a local lookup and would render an empty
+  // page for a film you've never rated.
+  it('opens a summary for a movie you have never rated, rather than nothing at all', () => {
     const wrapper = feedScreen();
     const push = wrapper.vm.$router.push;
 
-    wrapper.vm.openFeedItem({ id: 7, t: 'Unseen By Me' });
+    wrapper.vm.openFeedItem({ id: 7, t: 'Unseen By Me', p: '/u.jpg' });
 
+    expect(wrapper.vm.previewing).toMatchObject({ id: 7, title: 'Unseen By Me', poster_path: '/u.jpg' });
+    // Still not navigating — the empty detail page is what this avoids.
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it('hands the summary a hat-shaped movie, so rating from it has real fields', () => {
+    const wrapper = feedScreen();
+
+    wrapper.vm.openFeedItem({ id: 7, t: 'Unseen By Me', p: '/u.jpg' });
+
+    expect(wrapper.vm.previewing.source).toMatchObject({ id: 7, title: 'Unseen By Me', poster_path: '/u.jpg' });
+  });
+
+  it('rating from the summary closes it and hands off to the rating flow', () => {
+    const wrapper = feedScreen();
+    const push = wrapper.vm.$router.push;
+    const commit = wrapper.vm.$store.commit;
+
+    wrapper.vm.openFeedItem({ id: 7, t: 'Unseen By Me', p: '/u.jpg' });
+    wrapper.vm.rateFromPreview(wrapper.vm.previewing.source);
+
+    expect(commit).toHaveBeenCalledWith('setMovieToRate', expect.objectContaining({ id: 7 }));
+    expect(push).toHaveBeenCalledWith('/rate-movie');
+    expect(wrapper.vm.previewing).toBeNull();
   });
 
   it('knows which feed items are in your library', () => {

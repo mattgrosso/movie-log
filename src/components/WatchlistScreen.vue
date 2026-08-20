@@ -64,21 +64,22 @@
         v-else-if="selectedYearMovies.length"
         :items="mediaItems(selectedYearMovies)"
         :hat-note="sectionHatNote({ year: selectedYear })"
-        @select="rateMedia"
+        @select="previewMedia"
         @hatted="puntAll"
       />
       <p v-else class="section-loading">Nothing well-regarded found that you haven't already rated.</p>
     </section>
 
     <!-- TMDB-fed: unseen movies from the people your ratings favor. Tapping
-         one drops into the normal rating flow (you've just watched it) —
-         the same setMovieToRate + /rate-movie handoff PickMedia uses. -->
+         one opens its summary (2026-08-20); rating is the button inside that
+         sheet, which then makes the same setMovieToRate + /rate-movie handoff
+         PickMedia uses. -->
     <!-- Film Club picks: the strongest signal in the app, and until now it
          only existed on the per-friend comparison page. -->
     <section v-if="friendPickMedia.length" class="watchlist-section">
       <h2 class="section-title">Your Film Club loves these</h2>
       <p class="section-caption">Rated 8 or better by friends, never rated by you. Agreement sorts first.</p>
-      <WatchlistRow :items="mediaItems(friendPickMedia)" hat-note="Loved by the film club" @select="rateMedia" @hatted="puntAll"/>
+      <WatchlistRow :items="mediaItems(friendPickMedia)" hat-note="Loved by the film club" @select="previewMedia" @hatted="puntAll"/>
     </section>
 
     <section v-for="section in rankedSections" :key="section.key" class="watchlist-section">
@@ -88,11 +89,16 @@
         <span v-if="section.record" class="section-record">{{ section.record.hits }} of {{ section.record.suggested }} watched</span>
       </p>
       <p v-if="section.loading" class="section-loading">Looking up filmographies&hellip;</p>
-      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" :hat-note="sectionHatNote(section)" @select="rateMedia" @hatted="puntAll"/>
+      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" :hat-note="sectionHatNote(section)" @select="previewMedia" @hatted="puntAll"/>
       <p v-else class="section-loading">Nothing new found — you've seen the good ones.</p>
     </section>
 
     <DrawFromHat/>
+
+    <!-- One instance for every poster in every row: driven by which movie is
+         set, so tapping along a row re-targets it rather than mounting and
+         tearing down a sheet per poster. -->
+    <MoviePreview :movie="previewing" @close="previewing = null" @rate="rateFromPreview"/>
 
     <p v-if="!$store.state.isOnline" class="watchlist-offline-note">
       You're offline — the "what to see next" lists need a connection, so only the rewatch list is shown.
@@ -112,6 +118,7 @@ import axios from 'axios';
 import BackLink from './games/BackLink.vue';
 import WatchlistRow from './WatchlistRow.vue';
 import DrawFromHat from './DrawFromHat.vue';
+import MoviePreview from './MoviePreview.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { friendsLoveUnseen } from '../assets/javascript/social.js';
 import { rankSections, sourceSummary } from '../assets/javascript/recommendationStats.js';
@@ -128,12 +135,15 @@ export default {
   components: {
     BackLink,
     DrawFromHat,
+    MoviePreview,
     WatchlistRow
   },
   data () {
     return {
       // Pending hat-punts, cleared on unmount — see puntAll.
       puntTimers: [],
+      // The unrated movie whose summary sheet is open, or null.
+      previewing: null,
       // Suggestions per year, keyed by year — { 1997: [...movies] }. Filled
       // one year at a time, as each is selected, and kept so switching back
       // to a year already looked at is instant and costs no second request.
@@ -482,6 +492,18 @@ export default {
     goToMovie (entry) {
       if (entry?.movie?.id == null) return;
       this.$router.push(`/movie/${entry.movie.id}`);
+    },
+    // Bug report, 2026-08-20: "just clicking the poster should pull up some
+    // kind of a summary of the movie so that I can investigate further."
+    // These rows suggest films you HAVEN'T seen, so dropping straight into
+    // the rating flow only ever made sense if you had.
+    previewMedia (media) {
+      if (media?.id == null) return;
+      this.previewing = { id: media.id, title: media.title || media.name || '', poster_path: media.poster_path, source: media };
+    },
+    rateFromPreview (media) {
+      this.previewing = null;
+      this.rateMedia(media);
     },
     rateMedia (media) {
       this.$store.commit('setMovieToRate', media);
