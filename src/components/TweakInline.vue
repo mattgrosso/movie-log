@@ -56,56 +56,70 @@
           <p v-if="progressLabel" class="text-light small mb-0">{{ progressLabel }}</p>
         </div>
 
-        <!-- Swapping indicator: shown until BOTH posters for this matchup
-             have loaded, so a half-swapped pair is never tappable. -->
-        <div v-if="!postersReady" class="posters-swapping text-center">
-          <span class="spinner-border spinner-border-sm text-light" role="status" aria-hidden="true"></span>
-          <span class="text-light ms-2">Loading the next pair&hellip;</span>
-        </div>
+        <!-- The pair and its swapping indicator occupy the SAME box, one
+             stacked over the other, so nothing on this card moves as a
+             matchup swaps. Bug report, 2026-08-20: "The new loading state on
+             the tie breaker is forcing the two empty poster spots down and
+             then popping them back up. It's broken." — the two were siblings
+             in normal flow, and `v-show` never hid the row: Bootstrap's
+             .d-flex is `display: flex !important`, which beats the inline
+             `display: none` v-show sets. So the spinner's 180px sat ABOVE a
+             row that was still fully laid out. -->
+        <div class="poster-stage">
+          <!-- Shown until BOTH posters for this matchup have loaded, so a
+               half-swapped pair is never tappable. -->
+          <div v-if="!postersReady" class="posters-swapping text-center">
+            <span class="spinner-border spinner-border-sm text-light" role="status" aria-hidden="true"></span>
+            <span class="text-light ms-2">Loading the next pair&hellip;</span>
+          </div>
 
-        <!-- Two posters side by side. v-show, not v-if: the <img> elements
-             have to be in the DOM and loading for their load events to be
-             what lifts the gate. -->
-        <div v-show="postersReady" class="d-flex justify-content-center gap-4">
-          <div class="poster-container text-center" @click="chooseWinner(firstResult)">
-            <div class="poster-wrapper">
-              <img
-                :key="`first-${firstResult.dbKey}`"
-                ref="firstPoster"
-                class="rounded poster-image"
-                :src="`https://image.tmdb.org/t/p/w500${topStructure(firstResult).poster_path}`"
-                :alt="topStructure(firstResult).title"
-                @load="markPosterLoaded(firstResult.dbKey)"
-                @error="markPosterLoaded(firstResult.dbKey)"
-              >
-              <!-- Bug report: a stuck :hover on iOS (no real mouse to leave)
-                   made the tapped poster look like it "got a little larger"
-                   after selection, read as unwanted/confusing - :hover is
-                   gone (see below), replaced with this deliberate checkmark
-                   so there's still a clear "you picked this one" signal. -->
-              <div v-if="selectedDbKey === firstResult.dbKey" class="selected-checkmark">
-                <i class="bi bi-check-lg"></i>
+          <!-- Two posters side by side. Hidden with `visibility`, not v-if or
+               v-show: the <img> elements have to stay in the DOM and loading
+               for their load events to be what lifts the gate, the row has to
+               keep reserving its height (fixed 120x180 posters, so it is
+               exactly right even before an image arrives), and a hidden row
+               takes no taps. -->
+          <div class="poster-row d-flex justify-content-center gap-4" :class="{ 'posters-hidden': !postersReady }">
+            <div class="poster-container text-center" @click="chooseWinner(firstResult)">
+              <div class="poster-wrapper">
+                <img
+                  :key="`first-${firstResult.dbKey}`"
+                  ref="firstPoster"
+                  class="rounded poster-image"
+                  :src="`https://image.tmdb.org/t/p/w500${topStructure(firstResult).poster_path}`"
+                  :alt="topStructure(firstResult).title"
+                  @load="markPosterLoaded(firstResult.dbKey)"
+                  @error="markPosterLoaded(firstResult.dbKey)"
+                >
+                <!-- Bug report: a stuck :hover on iOS (no real mouse to leave)
+                     made the tapped poster look like it "got a little larger"
+                     after selection, read as unwanted/confusing - :hover is
+                     gone (see below), replaced with this deliberate checkmark
+                     so there's still a clear "you picked this one" signal. -->
+                <div v-if="selectedDbKey === firstResult.dbKey" class="selected-checkmark">
+                  <i class="bi bi-check-lg"></i>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="vs-divider d-flex align-items-center">
-            <span class="text-light">vs</span>
-          </div>
+            <div class="vs-divider d-flex align-items-center">
+              <span class="text-light">vs</span>
+            </div>
 
-          <div class="poster-container text-center" @click="chooseWinner(secondResult)">
-            <div class="poster-wrapper">
-              <img
-                :key="`second-${secondResult.dbKey}`"
-                ref="secondPoster"
-                class="rounded poster-image"
-                :src="`https://image.tmdb.org/t/p/w500${topStructure(secondResult).poster_path}`"
-                :alt="topStructure(secondResult).title"
-                @load="markPosterLoaded(secondResult.dbKey)"
-                @error="markPosterLoaded(secondResult.dbKey)"
-              >
-              <div v-if="selectedDbKey === secondResult.dbKey" class="selected-checkmark">
-                <i class="bi bi-check-lg"></i>
+            <div class="poster-container text-center" @click="chooseWinner(secondResult)">
+              <div class="poster-wrapper">
+                <img
+                  :key="`second-${secondResult.dbKey}`"
+                  ref="secondPoster"
+                  class="rounded poster-image"
+                  :src="`https://image.tmdb.org/t/p/w500${topStructure(secondResult).poster_path}`"
+                  :alt="topStructure(secondResult).title"
+                  @load="markPosterLoaded(secondResult.dbKey)"
+                  @error="markPosterLoaded(secondResult.dbKey)"
+                >
+                <div v-if="selectedDbKey === secondResult.dbKey" class="selected-checkmark">
+                  <i class="bi bi-check-lg"></i>
+                </div>
               </div>
             </div>
           </div>
@@ -176,7 +190,13 @@ export default {
       // dbKeys whose poster has finished loading (or failed) for the match
       // currently on screen. Reset on every change of matchup — see
       // postersReady, and the bug report behind it.
-      loadedPosterKeys: []
+      loadedPosterKeys: [],
+      // Set when a tournament is acknowledged with "Done" in ordinary
+      // (non-forced) mode, and cleared once the prompt has actually closed.
+      // It stops needsNewTournament from self-starting the next tied group in
+      // the window between "Done" and Home re-evaluating the daily quota —
+      // see acknowledgeResults. Not something flush ordering should decide.
+      justAcknowledged: false
     }
   },
   computed: {
@@ -210,6 +230,13 @@ export default {
     },
     currentTournament () {
       return this.localTournament || this.$store.state.settings?.tieBreakTournament || null;
+    },
+    // The "force tiebreak to show" testing toggle (Home's settings pane).
+    // Read straight from the store rather than taken as a prop: showTweakModal
+    // is already true in both the forced and the ordinary case, so it can't
+    // tell them apart, and acknowledgeResults needs to.
+    tieBreakForced () {
+      return this.$store.state.settings?.tieBreakPromptState === 'forced';
     },
     tournamentIsComplete () {
       return Boolean(this.currentTournament && isComplete(this.currentTournament));
@@ -263,6 +290,7 @@ export default {
     // True exactly when this is visible, nothing is currently in progress,
     // and there's a fresh group to start one for.
     needsNewTournament () {
+      if (this.justAcknowledged) return false;
       return this.showTweakModal && !this.currentTournament && this.tiedGroupDbKeys.length >= 2;
     },
     // Identifies the matchup on screen. Changing it is what resets the
@@ -325,6 +353,13 @@ export default {
       handler (needsOne) {
         if (needsOne) this.ensureTournamentStarted();
       }
+    },
+    // The prompt genuinely closing is the signal that the post-"Done" window
+    // is over: Home has re-evaluated and decided this isn't due right now.
+    // Whenever it next decides it IS due, the watcher above is free to start
+    // the tournament for it.
+    showTweakModal (isShowing) {
+      if (!isShowing) this.justAcknowledged = false;
     }
   },
   methods: {
@@ -555,11 +590,29 @@ export default {
       // session-end stamp above — this tournament is fully done and
       // acknowledged, so reset the daily-quota clock now.
       this.$store.dispatch('writeDurably', { path: 'settings/lastTweak', value: Date.now() });
-      // Immediately (rather than waiting on the watcher's next tick) start
-      // the next tournament if another tied group is already sitting there —
-      // most relevant with "force tiebreak" enabled, where showTweakModal
-      // never toggles to re-trigger detection on its own.
-      this.ensureTournamentStarted();
+      // Bug report, 2026-08-20: "I just finished a tie break tournament and
+      // it is immediately offering me another one. There is supposed to be a
+      // delay between prompts."
+      //
+      // Stamping lastTweak above is not enough on its own, because Home's
+      // activeModalType pins the prompt open for as long as a tournament
+      // RECORD exists — deliberately, so nothing can steal the screen
+      // mid-tournament — and checks the daily quota only when there is no
+      // record. Creating the next tournament here therefore walked straight
+      // past the delay that had just been set.
+      //
+      // The eager start only ever existed for the "force tiebreak" testing
+      // toggle, where showTweakModal is pinned true and so the
+      // needsNewTournament watcher never re-fires on its own. Keep it for
+      // exactly that case; in normal use, leave the next tied group alone and
+      // let the quota decide when to offer it.
+      if (this.tieBreakForced) {
+        this.ensureTournamentStarted();
+      } else {
+        // needsNewTournament would otherwise start it a tick later anyway,
+        // while showTweakModal is still true and Home hasn't re-evaluated.
+        this.justAcknowledged = true;
+      }
 
       // Emit event to parent to update data
       this.$emit('tweak-updated');
@@ -640,14 +693,29 @@ export default {
     }
   }
 
-  // Holds the pair's place while they load, so the panel doesn't collapse
-  // and jump back open as each matchup swaps.
+  // The pair and its loading indicator share one box, stacked. The row's own
+  // height (fixed 120x180 posters + 2px borders) is what the stage measures,
+  // so the card is exactly as tall while loading as it is when loaded and
+  // nothing shifts when the indicator goes away.
+  .poster-stage {
+    position: relative;
+  }
+
   .posters-swapping {
     align-items: center;
     display: flex;
+    inset: 0;
     justify-content: center;
-    // Roughly the height of a poster row, keeping the layout still.
-    min-height: 180px;
+    position: absolute;
+  }
+
+  // NOT `v-show` — Bootstrap's .d-flex on this same element is
+  // `display: flex !important` and beats the inline `display: none` v-show
+  // sets, so the row stayed laid out under the indicator and visibly dropped
+  // 180px (bug report, 2026-08-20). `visibility` keeps the height reserved,
+  // keeps the <img>s loading (which is what lifts the gate), and stops taps.
+  .poster-row.posters-hidden {
+    visibility: hidden;
   }
 
   .poster-container {

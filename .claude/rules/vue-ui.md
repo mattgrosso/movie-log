@@ -75,6 +75,19 @@ first attempt at the games scroll-to-top do nothing at all.
 - **An invisible full-height overlay for a gesture will eat real taps.** `BackLink`'s
   20px edge-swipe strip silently ate the leftmost button on every game screen. Listen on
   `window` and filter by touch origin instead.
+- **`v-show` does not hide a Bootstrap display utility.** `v-show` writes an inline
+  `display: none`; `.d-flex`/`.d-block`/`.d-grid` are `display: … !important`, and
+  `!important` in a stylesheet beats a plain inline style. `v-show` on such an element is
+  a **silent no-op** — the tiebreak poster row stayed fully laid out under its own loading
+  spinner and visibly dropped 180px. Toggle a class you own (`visibility: hidden` keeps the
+  space reserved and refuses taps), or put `v-show` on a wrapper that carries no `d-*`
+  class. **jsdom will not catch this**: no Bootstrap CSS is loaded there, so a test
+  asserting `element.style.display === 'none'` passes against the broken page. Assert the
+  class instead.
+- **A loading state that replaces content must overlay it, not precede it.** Two siblings
+  in normal flow means the content moves the moment the indicator leaves. One
+  `position: relative` stage + an `inset: 0` indicator over a hidden-but-present row
+  costs zero layout shift.
 - **Touch targets: 40px minimum.** Anything smaller gets reported as "the button doesn't
   work."
 - **`transform` only during drag** — combining it with `filter`/shadow left visual trails

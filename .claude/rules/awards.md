@@ -82,3 +82,12 @@ contiguous run of equal scores; `createRoundRobinTournament(ids, rng)` builds ev
   "force tiebreak" testing toggle pins it true so it never changes again.
 - A 2-contestant tie skips the tournament ceremony entirely and always closes + stamps
   `lastTweak`, never chaining into a different tied group.
+- **Stamping `lastTweak` is not enough to enforce the delay.** Home pins the prompt open
+  for as long as a tournament RECORD exists (so nothing steals the screen mid-tournament)
+  and consults the daily quota only when there is none. So *creating* the next tournament
+  right after "Done" walks straight past the delay that was just set — reported as "I just
+  finished a tie break tournament and it is immediately offering me another one". Only the
+  `forced` prompt state chains into the next tied group; otherwise `justAcknowledged`
+  blocks `needsNewTournament` until the prompt has actually closed once, so the answer
+  doesn't depend on Vue's flush ordering between the parent's prop update and the child's
+  watcher.

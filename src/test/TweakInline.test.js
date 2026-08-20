@@ -18,10 +18,10 @@ function movie (dbKey, title, calculatedTotal, tweakValue = 0) {
   }
 }
 
-function mountTweak (movies, { tieBreakTournament = null } = {}) {
+function mountTweak (movies, { tieBreakTournament = null, tieBreakPromptState = 'auto' } = {}) {
   const dispatch = vi.fn()
   const mockStore = {
-    state: { currentLog: 'movieLog', settings: { tieBreakTournament } },
+    state: { currentLog: 'movieLog', settings: { tieBreakTournament, tieBreakPromptState } },
     getters: { allMoviesAsArray: movies },
     dispatch
   }
@@ -156,16 +156,42 @@ describe('TweakInline', () => {
     it('shows a swapping indicator and hides the pair until both have loaded', async () => {
       const { wrapper } = await openMatchup([movie('a', 'A', 8), movie('b', 'B', 8)])
 
-      // v-show asserted via the style it writes, per .claude/rules/testing.md
-      // (isVisible() gives contradictory answers on a detached mount).
-      const pair = () => wrapper.find('.d-flex.justify-content-center.gap-4')
+      // This used to assert `element.style.display === 'none'`, i.e. exactly
+      // what v-show writes — and stayed green while the row was plainly
+      // visible on a real phone, because jsdom loads no Bootstrap CSS and so
+      // never saw the `.d-flex { display: flex !important }` that beat that
+      // inline style. Assert the class the component controls instead; it is
+      // the thing that actually hides the row now.
+      const pair = () => wrapper.find('.poster-row')
       expect(wrapper.find('.posters-swapping').exists()).toBe(true)
-      expect(pair().element.style.display).toBe('none')
+      expect(pair().classes()).toContain('posters-hidden')
 
       await postersLoaded(wrapper)
 
       expect(wrapper.find('.posters-swapping').exists()).toBe(false)
-      expect(pair().element.style.display).toBe('')
+      expect(pair().classes()).not.toContain('posters-hidden')
+    })
+
+    // Bug report, 2026-08-20: "The new loading state on the tie breaker is
+    // forcing the two empty poster spots down and then popping them back up."
+    it('stacks the indicator over the pair rather than above it, so nothing is pushed down', async () => {
+      const { wrapper } = await openMatchup([movie('a', 'A', 8), movie('b', 'B', 8)])
+
+      // Both live inside one positioned stage — the indicator is a sibling
+      // OVERLAY of the row, never a block that takes its own height in flow
+      // above it.
+      const stage = wrapper.find('.poster-stage')
+      expect(stage.exists()).toBe(true)
+      expect(stage.find('.posters-swapping').exists()).toBe(true)
+      expect(stage.find('.poster-row').exists()).toBe(true)
+
+      // And the row keeps reserving its space while hidden, so the swap costs
+      // no height change: it is hidden by visibility, not removed or
+      // display:none'd.
+      const row = wrapper.find('.poster-row')
+      expect(row.classes()).toContain('posters-hidden')
+      expect(row.element.style.display).toBe('')
+      expect(wrapper.findAll('.poster-image')).toHaveLength(2)
     })
 
     it('refuses a tap while only ONE poster has loaded — the actual misfire', async () => {
@@ -520,7 +546,11 @@ describe('TweakInline', () => {
       // longer exercise the thing this regression test is actually about:
       // acknowledgeResults's watcher-independent restart after a Done tap.
       const movies = [movie('a', 'A', 8), movie('b', 'B', 8), movie('c', 'C', 8)]
-      const { wrapper, dispatch } = mountTweak(movies) // showTweakModal: true, fixed prop, never changes
+      // showTweakModal: true, fixed prop, never changes — which is what the
+      // 'forced' setting does in the real app, so say so explicitly: the
+      // restart below is now conditional on it (see the delay test that
+      // follows).
+      const { wrapper, dispatch } = mountTweak(movies, { tieBreakPromptState: 'forced' })
 
       await wrapper.find('.prompt-card').trigger('click')
       await postersLoaded(wrapper)
@@ -544,6 +574,49 @@ describe('TweakInline', () => {
       await postersLoaded(wrapper)
       expect(wrapper.findAll('.poster-container')).toHaveLength(2)
       expect(wrapper.text()).not.toContain('Tournament Complete!')
+    })
+  })
+
+  // Bug report, 2026-08-20: "I just finished a tie break tournament and it is
+  // immediately offering me another one. There is supposed to be a delay
+  // between prompts."
+  //
+  // The counterpart to the forced-mode test above: in ORDINARY use the eager
+  // restart is what defeated the delay, because Home pins the prompt open for
+  // as long as a tournament record exists and only consults the daily quota
+  // when there is none.
+  describe('the delay between tournaments (not forced)', () => {
+    it('does not start the next tournament on "Done", even with another tied group waiting', async () => {
+      // One contiguous tied run of 3 to play through, plus a second pair tied
+      // on a different score — so there is definitely another group sitting
+      // there for the eager restart to have grabbed.
+      const movies = [
+        movie('a', 'A', 8), movie('b', 'B', 8), movie('c', 'C', 8),
+        movie('d', 'D', 6), movie('e', 'E', 6)
+      ]
+      const { wrapper, dispatch } = mountTweak(movies)
+
+      await wrapper.find('.prompt-card').trigger('click')
+      await postersLoaded(wrapper)
+      for (let i = 0; i < 3; i++) {
+        await wrapper.findAll('.poster-container')[0].trigger('click')
+        await postersLoaded(wrapper)
+      }
+      expect(wrapper.text()).toContain('Tournament Complete!')
+
+      dispatch.mockClear()
+      await wrapper.find('.btn').trigger('click') // "Done"
+
+      // The record is cleared and the quota clock is stamped...
+      expect(lastDispatchTo(dispatch, 'settings/tieBreakTournament')).toBeNull()
+      expect(lastDispatchTo(dispatch, 'settings/lastTweak')).toEqual(expect.any(Number))
+
+      // ...and crucially, nothing writes a NEW tournament on the way out. A
+      // record here is what re-opened the prompt on the spot, since Home
+      // treats an existing record as work in progress and skips the delay.
+      const writes = dispatch.mock.calls.filter(([, e]) => e.path === 'settings/tieBreakTournament')
+      expect(writes).toHaveLength(1)
+      expect(writes[0][1].value).toBeNull()
     })
   })
 })
