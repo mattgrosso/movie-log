@@ -125,6 +125,16 @@
               <div v-if="nomineesBarStuck" class="awards-safe-area-shade"></div>
             </Teleport>
             <div class="sticky-top-section">
+              <!-- Which category this is. Bug report, 2026-08-20: "When I
+                   click into a category on my personal awards, it doesn't
+                   actually say anywhere what category I'm working on on that
+                   page so if I look away and forget, I have to exit and come
+                   back in order to see what category I'm in."
+                   Inside the STICKY section deliberately: the panel bar above
+                   scrolls away, and a name you lose the moment you scroll
+                   down a grid of nominees is the same bug again. -->
+              <h5 class="category-header">{{ getCurrentCategoryName() }}</h5>
+
               <!-- Current Nominees - Always visible -->
               <div class="current-nominees-section">
                 <h6 class="section-title" @click="toggleTrashReveal">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
@@ -2640,8 +2650,14 @@ export default {
         top: 0;
         z-index: 10;
 
-        .category-header h5 {
-          color: white;
+        /* Was `.category-header h5`, styling a wrapper that no longer exists
+           — a dead rule, which is how the category name came to be missing
+           from this pane entirely. The h5 carries the class itself now. */
+        .category-header {
+          color: #fff;
+          font-size: 1rem;
+          font-weight: 600;
+          margin: 0 0 0.4rem;
         }
 
         .category-title-clickable {
