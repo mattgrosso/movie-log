@@ -253,3 +253,100 @@ not a shape TMDB ever produces — it made every gendered row come back empty.
   the brim sits on top and the crown hangs below, opening upward, with the plus on the
   crown. The crown had to become an outline rather than a fill — a same-coloured plus
   drawn on a filled crown is invisible.
+
+## Overnight round, 2026-08-20 (six reports)
+
+Matt fetched a round of reports and went to bed: "Just fix what you can. I trust your
+judgement." All six landed.
+
+### The tiebreak loading state pushed the posters down (`v-show` vs Bootstrap)
+
+"The new loading state on the tie breaker is forcing the two empty poster spots down and
+the popping them back up. It's broken."
+
+The swapping indicator added the day before was a flow sibling ABOVE the poster row, with
+a `min-height: 180px` intended to hold the pair's place, and the row itself was hidden
+with `v-show`. Except it wasn't hidden at all: `v-show` writes an inline `display: none`,
+and the row also carries Bootstrap's `.d-flex`, which is `display: flex !important` — and
+`!important` in a stylesheet beats a plain inline style. So the spinner's 180px stacked
+ON TOP of a row that was still fully laid out, and the row snapped back up when the
+spinner left.
+
+Now one `position: relative` stage holds both, the indicator is `inset: 0` over the row,
+and the row is hidden with a class of our own (`visibility: hidden`) — which keeps its
+height reserved, keeps the `<img>`s loading (that's what lifts the gate), and refuses
+taps. Zero layout shift either way.
+
+**The existing test passed against the broken code.** It asserted
+`element.style.display === 'none'` — exactly what `v-show` writes — and jsdom loads no
+Bootstrap CSS, so it never saw the `!important` that beat it. Now in `.claude/rules/vue-ui.md`.
+
+### A finished tournament immediately offered another one
+
+"I just finished a tie break tournament and it is immediately offering me another one.
+There is supposed to be a delay between prompts."
+
+`acknowledgeResults` did stamp `lastTweak` — but then called `ensureTournamentStarted()`,
+and Home pins the prompt open for as long as a tournament *record* exists, checking the
+daily quota only when there is none. So the new record walked straight past the delay
+that had just been set one line earlier.
+
+That eager restart only ever existed for the "force tiebreak" testing toggle, where
+`showTweakModal` is pinned true and the `needsNewTournament` watcher never re-fires. It's
+now conditional on that state. In ordinary use a `justAcknowledged` flag blocks the
+watcher until the prompt has actually closed once — deliberately, rather than trusting
+Vue's flush ordering between the parent's prop update and the child's watcher to get
+there first.
+
+### Six Degrees ended on a tier picker instead of the house buttons
+
+"When I complete a six degrees, let's lose the difficulty buttons and just have a new game
+button and a back to games button. Just like we do in other games."
+
+The third revision of this spot (a decoupled picker + New Game button was tried and
+reverted once already). Now the standard `.end-actions` row; "New Game" replays whatever
+tier `selectedDifficulty` holds. The gate screen keeps its picker — retrying at a
+different tier is the only thing that gets you off it.
+
+### The whole-list hat button, and the year lists
+
+"The button we have for adding a whole watchlist to a hat it takes up more room than it
+actually has value. Let's just get rid of it then we can tighten up those layouts a
+little bit." Gone; section margin 1.75rem → 1.25rem, since that button was contributing
+~40px of the gap between sections on its own.
+
+"How did you choose which years to include in the get it to 10 watchlist... it seems like
+an arbitrary number of lists. Maybe there's a way to combine those into a single list with
+like a year selector above it... and then, if you could see on each one of those
+selectors, how close we actually are."
+
+They *were* arbitrary: `nearThresholdYears` returned the closest three of the years within
+four of the threshold — neither "the newest few" nor all of them, which is exactly why it
+read as arbitrary. Nothing is culled now (`reach`/`cap` default to `Infinity`, kept as
+options), and the screen is one section with a sideways year picker, each tab labelled
+with that year's own distance, closest to done on the left. Suggestions are fetched for
+the selected year only and cached per year — previously three years were fetched up
+front, which was affordable only because the list was capped at three.
+
+### Film Club called people by their email handle
+
+"It would be nice if we could use someone's real name when we mention them in film club."
+
+Two separate causes. Your own name: `socialSettingsWithDefaults` fell from an
+explicitly-typed display name straight to the email's local part, and nobody had ever
+typed one — so Matt published as "mattgrosso". The sign-in provider hands back
+`user.displayName` ("Matt Grosso") and the store was throwing it away. Now captured at
+`completeLogin` **and** `verifyRestoredSession` (anyone already signed in never goes
+through the former again), persisted to localStorage so a mention isn't briefly wrong
+while auth settles, cleared on logout, and slotted between the typed name and the email.
+Apple only returns a name on the first authorization, so a null never overwrites one
+already captured.
+
+A friend's name: `filmClubFriends` fell from their profile straight to their raw database
+key — a sanitized email address — and profiles are fetched lazily because they're ~100KB
+each. The directory row is already in memory and carries the same name; it's the middle
+step now.
+
+The six-hour publish throttle also gets a name-change bypass. Friends see you by whatever
+was last published, so waiting up to six hours to stop calling you by your email handle
+would be this same report, still on screen.
