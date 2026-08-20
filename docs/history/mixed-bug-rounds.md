@@ -413,3 +413,38 @@ Two things extracted on the way through:
 - **`FilmClubScreen` had no `data()` at all**, so `v-model="directorySearch"` on the
   "Search people on other apps" box had nothing to write to and the filter never applied.
   Noticed while adding `previewing`; declared alongside it.
+
+### Filling out the unrated-movie drawer
+
+"Let's add director and cast and some other pertinent details to the unrated movie
+drawer that you just added."
+
+Director and cast were asked for by name. The other two are the ones that actually
+change a decision about a film you have never seen:
+
+- **The content rating** ("PG-13"), which sits with the year and runtime — the things
+  you check before committing an evening. Null when TMDB has no certification for the
+  region, which is common and has to read as unknown rather than as an empty badge.
+- **What your Film Club made of it.** The strongest signal the app holds about a film
+  nobody has rated for you, and it costs **no request** — the club profiles are already
+  in memory. `friendRatingsFor` in `social.js` is the one-film counterpart to
+  `friendsLoveUnseen`.
+
+`append_to_response=credits,release_dates` rides on the existing details call, so this is
+still exactly the two requests it was before any of it was added.
+
+Pure extraction lives in `movieSummary.js`: `directorsFrom` uses `.filter()`, never
+`.find()` (a co-directed film has two, and crediting only the first-listed is a mistake
+this repo has made before), and matches on `job` rather than array position, since TMDB
+orders crew by department. `topCastFrom` sorts by `order` explicitly — `order: 0` is top
+billing, not a missing value, which is the `id: 0` trap in another guise.
+
+Friends' scores go through `formatScore` because they are this app's own weighted sums.
+The TMDB average deliberately does not: that is TMDB's number, published at one decimal,
+and padding it to two would invent precision it does not have.
+
+**The mock was lying, and reverting the fix is what caught it.** The first version of the
+MoviePreview suite returned `credits` and `release_dates` from the details call whatever
+the URL asked for, so the director, cast and certification tests all passed against a
+component that never requested them — only two of five failed on the revert. The mock now
+strips both unless `append_to_response` names them, and all five fail as they should.

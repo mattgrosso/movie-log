@@ -17,7 +17,22 @@ const DETAILS = {
   release_date: '2018-06-15',
   runtime: 114,
   vote_average: 7.8,
-  genres: [{ id: 18, name: 'Drama' }, { id: 80, name: 'Crime' }]
+  genres: [{ id: 18, name: 'Drama' }, { id: 80, name: 'Crime' }],
+  // Appended onto the details call rather than fetched separately.
+  credits: {
+    crew: [
+      { job: 'Producer', name: 'Some Producer' },
+      { job: 'Director', name: 'Real Director' }
+    ],
+    cast: [
+      { name: 'Second Billed', order: 1 },
+      { name: 'Top Billed', order: 0 },
+      { name: 'Third Billed', order: 2 }
+    ]
+  },
+  release_dates: {
+    results: [{ iso_3166_1: 'US', release_dates: [{ certification: '' }, { certification: 'R' }] }]
+  }
 };
 
 const PROVIDERS = {
@@ -29,15 +44,33 @@ const PROVIDERS = {
   }
 };
 
+// Faithful to TMDB on the point that matters here: `credits` and
+// `release_dates` come back ONLY when append_to_response asks for them. A mock
+// that hands them over regardless would let the director/cast/certification
+// tests pass against a component that never requested them — which is exactly
+// how this suite behaved until it was checked by reverting the fix.
 const impl = ({ details = DETAILS, providers = PROVIDERS } = {}) => (url) => {
   if (url.includes('/watch/providers')) {
     return providers ? Promise.resolve({ data: providers }) : Promise.reject(new Error('nope'));
   }
-  return details ? Promise.resolve({ data: details }) : Promise.reject(new Error('nope'));
+  if (!details) return Promise.reject(new Error('nope'));
+
+  const appended = (url.match(/append_to_response=([^&]*)/)?.[1] || '').split(',').filter(Boolean);
+  const body = { ...details };
+  ['credits', 'release_dates'].forEach((key) => {
+    if (!appended.includes(key)) delete body[key];
+  });
+  return Promise.resolve({ data: body });
 };
 
-const factory = (movie = { id: 90, title: 'Unseen Gem' }) =>
-  mount(MoviePreview, { props: { movie }, global: { stubs: { teleport: true } } });
+const factory = (movie = { id: 90, title: 'Unseen Gem' }, { filmClubProfiles = {} } = {}) =>
+  mount(MoviePreview, {
+    props: { movie },
+    global: {
+      stubs: { teleport: true },
+      mocks: { $store: { getters: { filmClubProfiles } } }
+    }
+  });
 
 // Lookups are cached per TMDB id for the life of the page (module scope, so it
 // survives an unmount — a row invites tapping the same poster twice). That
@@ -72,9 +105,104 @@ describe('MoviePreview', () => {
 
     expect(wrapper.find('.mp-title').text()).toBe('Unseen Gem');
     expect(wrapper.find('.mp-overview').text()).toBe('A quiet film about a loud man.');
-    expect(wrapper.find('.mp-fact-line').text()).toBe('2018 · 114 min');
     expect(wrapper.find('.mp-genres').text()).toBe('Drama, Crime');
     expect(wrapper.find('.mp-score').text()).toContain('7.8');
+  });
+
+  // "Let's add director and cast and some other pertinent details to the
+  // unrated movie drawer" (2026-08-20).
+  describe('who made it and what it is rated', () => {
+    it('names the director and the top-billed cast, in billing order', async () => {
+      const wrapper = factory();
+      await flushPromises();
+
+      const people = wrapper.findAll('.mp-people').map((p) => p.text());
+      expect(people[0]).toContain('Director');
+      expect(people[0]).toContain('Real Director');
+      expect(wrapper.find('.mp-cast').text()).toContain('Top Billed, Second Billed, Third Billed');
+    });
+
+    it('pluralises the label for a co-directed film and keeps both names', async () => {
+      const id = freshId();
+      axios.get.mockImplementation(impl({
+        details: {
+          ...DETAILS,
+          id,
+          credits: { crew: [{ job: 'Director', name: 'Joel' }, { job: 'Director', name: 'Ethan' }], cast: [] }
+        }
+      }));
+      const wrapper = factory({ id, title: 'Unseen Gem' });
+      await flushPromises();
+
+      const directors = wrapper.find('.mp-people').text();
+      expect(directors).toContain('Directors');
+      expect(directors).toContain('Joel, Ethan');
+    });
+
+    it('puts the content rating alongside the year and runtime', async () => {
+      const wrapper = factory();
+      await flushPromises();
+
+      expect(wrapper.find('.mp-fact-line').text()).toBe('2018 · 114 min · R');
+    });
+
+    it('leaves the rating out entirely when TMDB has none, rather than showing a gap', async () => {
+      const id = freshId();
+      axios.get.mockImplementation(impl({
+        details: { ...DETAILS, id, release_dates: { results: [] } }
+      }));
+      const wrapper = factory({ id, title: 'Unseen Gem' });
+      await flushPromises();
+
+      expect(wrapper.find('.mp-fact-line').text()).toBe('2018 · 114 min');
+    });
+
+    it('asks for credits and certification on the existing details call, not two more requests', async () => {
+      const id = freshId();
+      axios.get.mockImplementation(impl({ details: { ...DETAILS, id } }));
+      factory({ id, title: 'Unseen Gem' });
+      await flushPromises();
+
+      const urls = axios.get.mock.calls.map(([url]) => url);
+      expect(urls).toHaveLength(2);
+      expect(urls.some((url) => url.includes('append_to_response=credits,release_dates'))).toBe(true);
+    });
+  });
+
+  // The app's own signal, and it costs no request — the club profiles are
+  // already in memory.
+  describe('what the film club made of it', () => {
+    const profiles = {
+      a: { name: 'Natalie', ratings: { 90: { r: 9.2 } } },
+      b: { name: 'Brian', ratings: { 90: { r: 8.44 } } },
+      c: { name: 'Seth', ratings: { 12: { r: 7 } } }
+    };
+
+    it('lists the friends who have rated it, best first, at the app precision', async () => {
+      const wrapper = factory({ id: 90, title: 'Unseen Gem' }, { filmClubProfiles: profiles });
+      await flushPromises();
+
+      const chips = wrapper.findAll('.mp-club-chip').map((chip) => chip.text());
+      expect(chips).toEqual(['Natalie 9.20', 'Brian 8.44']);
+    });
+
+    it('shows nothing at all when nobody in the club has seen it', async () => {
+      const wrapper = factory({ id: 90, title: 'Unseen Gem' }, { filmClubProfiles: { c: profiles.c } });
+      await flushPromises();
+
+      expect(wrapper.find('.mp-club').exists()).toBe(false);
+    });
+
+    it('survives a bare store, which several mounts stub', async () => {
+      const wrapper = mount(MoviePreview, {
+        props: { movie: { id: 90, title: 'Unseen Gem' } },
+        global: { stubs: { teleport: true }, mocks: { $store: {} } }
+      });
+      await flushPromises();
+
+      expect(wrapper.find('.mp-club').exists()).toBe(false);
+      expect(wrapper.find('.mp-title').text()).toBe('Unseen Gem');
+    });
   });
 
   // "Can I actually watch it" is half of deciding whether to bother, so it is

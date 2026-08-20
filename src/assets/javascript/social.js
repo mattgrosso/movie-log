@@ -221,6 +221,32 @@ function criterionGapsAcross (shared) {
   return gaps.length ? gaps.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap)) : null;
 }
 
+/**
+ * What the club made of ONE film — `[{ name, rating }]`, best first.
+ *
+ * The counterpart to friendsLoveUnseen, which asks the same question across
+ * the whole library. This is for MoviePreview: when you are deciding whether
+ * to bother with a film nobody has rated for you, the people you actually
+ * know having seen it is the most pertinent fact the app holds, and it costs
+ * no request — the profiles are already in memory.
+ *
+ * Unrated-by-them is absent, not zero: a friend on the shelf-only sharing
+ * tier publishes no `ratings` map at all and simply contributes nothing.
+ */
+export function friendRatingsFor (friendProfiles, tmdbId) {
+  if (tmdbId == null) return [];
+  const key = String(tmdbId);
+
+  return Object.values(friendProfiles || {})
+    .map((profile) => {
+      const rating = profile?.ratings?.[key];
+      if (!Number.isFinite(rating?.r)) return null;
+      return { name: profile.name || 'A friend', rating: rating.r };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.rating - a.rating || a.name.localeCompare(b.name));
+}
+
 // Across the whole Film Club: movies your friends rate highly that you
 // have never rated. Agreement is the point — two friends at 9 is a much
 // stronger recommendation than one, so consensus sorts above raw score.

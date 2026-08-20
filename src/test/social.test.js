@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults, countNewFriendUpdates, friendsLoveUnseen ,
+import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults, countNewFriendUpdates, friendsLoveUnseen , friendRatingsFor ,
   friendSnapshot,
   myRatingsById
 } from '@/assets/javascript/social.js'
@@ -343,3 +343,55 @@ describe('friendSnapshot', () => {
     expect(snapshot.recent).toEqual([]);
   });
 });
+
+
+// "Add director and cast and some other pertinent details to the unrated
+// movie drawer" (2026-08-20). What the people you actually know made of a
+// film is the most pertinent thing the app holds about one nobody has rated
+// for you — and the profiles are already in memory, so it costs no request.
+describe('friendRatingsFor', () => {
+  const profiles = {
+    a: { name: 'Natalie', ratings: { 550: { r: 9.2 }, 12: { r: 4 } } },
+    b: { name: 'Brian', ratings: { 550: { r: 8.44 } } },
+    c: { name: 'Seth', ratings: {} },
+    // The shelf-only sharing tier publishes no ratings map at all.
+    d: { name: 'Shelf Only' }
+  }
+
+  it('reports everyone who has rated the film, best first', () => {
+    expect(friendRatingsFor(profiles, 550)).toEqual([
+      { name: 'Natalie', rating: 9.2 },
+      { name: 'Brian', rating: 8.44 }
+    ])
+  })
+
+  it('takes a string id as readily as a number — Firebase keys are strings', () => {
+    expect(friendRatingsFor(profiles, '550').map((f) => f.name)).toEqual(['Natalie', 'Brian'])
+  })
+
+  it('leaves out friends who have not rated it, rather than scoring them zero', () => {
+    expect(friendRatingsFor(profiles, 12)).toEqual([{ name: 'Natalie', rating: 4 }])
+  })
+
+  it('is empty for a film nobody in the club has seen', () => {
+    expect(friendRatingsFor(profiles, 999)).toEqual([])
+  })
+
+  it('breaks a tie alphabetically, so the order cannot wobble between renders', () => {
+    const tied = {
+      a: { name: 'Zoe', ratings: { 1: { r: 8 } } },
+      b: { name: 'Adam', ratings: { 1: { r: 8 } } }
+    }
+
+    expect(friendRatingsFor(tied, 1).map((f) => f.name)).toEqual(['Adam', 'Zoe'])
+  })
+
+  it('names an anonymous profile rather than rendering undefined', () => {
+    expect(friendRatingsFor({ x: { ratings: { 1: { r: 7 } } } }, 1)).toEqual([{ name: 'A friend', rating: 7 }])
+  })
+
+  it('is null-safe', () => {
+    expect(friendRatingsFor(null, 1)).toEqual([])
+    expect(friendRatingsFor(profiles, null)).toEqual([])
+  })
+})

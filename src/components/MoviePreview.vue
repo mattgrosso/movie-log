@@ -25,8 +25,22 @@
             <p v-if="factLine" class="mp-fact-line">{{ factLine }}</p>
             <p v-if="genres" class="mp-genres">{{ genres }}</p>
             <p v-if="score" class="mp-score">{{ score }} on TMDB</p>
+
+            <!-- Named rather than run together with the rest: "who made it"
+                 is the first thing you want about a film you've never seen
+                 (bug report, 2026-08-20). Plural label for a co-directed
+                 film — directorsFrom keeps every one of them. -->
+            <p v-if="directors.length" class="mp-people">
+              <span class="mp-people-label">{{ directors.length === 1 ? 'Director' : 'Directors' }}</span>
+              {{ directors.join(', ') }}
+            </p>
           </div>
         </div>
+
+        <p v-if="cast.length" class="mp-people mp-cast">
+          <span class="mp-people-label">Cast</span>
+          {{ cast.join(', ') }}
+        </p>
 
         <p v-if="loading" class="mp-status">
           <span class="spinner-border spinner-border-sm" role="status"></span>
@@ -35,6 +49,18 @@
         <p v-else-if="overview" class="mp-overview">{{ overview }}</p>
         <p v-else-if="error" class="mp-status">Couldn't load anything more about this one.</p>
         <p v-else class="mp-status">No summary available.</p>
+
+        <!-- What the people you actually know made of it. The strongest
+             signal the app holds about a film nobody has rated for you, and
+             it costs no request — the club profiles are already in memory. -->
+        <div v-if="friendRatings.length" class="mp-club">
+          <p class="mp-club-label">Your Film Club</p>
+          <div class="mp-club-scores">
+            <span v-for="friend in friendRatings" :key="friend.name" class="mp-club-chip">
+              {{ friend.name }} {{ formatScore(friend.rating) }}
+            </span>
+          </div>
+        </div>
 
         <!-- The availability the "where to watch" sheet shows, inline rather
              than behind a second tap — the point of the sheet is to decide
@@ -96,6 +122,9 @@
 // single-letter keys), and only the id is common to all of them.
 import axios from 'axios';
 import { normalizeWatchProviders, PROVIDER_REGION } from '../assets/javascript/watchProviders';
+import { directorsFrom, topCastFrom, certificationFrom } from '../assets/javascript/movieSummary.js';
+import { friendRatingsFor } from '../assets/javascript/social.js';
+import { formatScore } from '../assets/javascript/formatScore.js';
 import backgroundScrollLock from '../mixins/backgroundScrollLock.js';
 
 // Details and availability both change on the order of days, and a row of
@@ -130,18 +159,40 @@ export default {
     overview () {
       return this.details?.overview || null;
     },
-    // Year and runtime, whichever of them we actually have.
+    // Year, runtime and content rating — whichever of them we actually have.
+    // All three are the kind of thing you check before committing an evening,
+    // and none of them earns a line of its own.
     factLine () {
       const released = this.details?.release_date || this.movie?.release_date;
       const year = released ? new Date(released).getFullYear() : null;
       const runtime = this.details?.runtime;
       return [
         Number.isFinite(year) ? year : null,
-        runtime ? `${runtime} min` : null
+        runtime ? `${runtime} min` : null,
+        this.certification
       ].filter(Boolean).join(' · ') || null;
     },
     genres () {
       return (this.details?.genres || []).map((genre) => genre.name).join(', ') || null;
+    },
+    // "Directed by" for one, "Directors" for a co-directed film — see
+    // directorsFrom, which deliberately keeps all of them.
+    directors () {
+      return directorsFrom(this.details?.credits);
+    },
+    cast () {
+      return topCastFrom(this.details?.credits);
+    },
+    // "PG-13". Null for a film TMDB has no US certification for, which is
+    // common — an empty badge would be worse than none.
+    certification () {
+      return certificationFrom(this.details?.release_dates, PROVIDER_REGION);
+    },
+    // The most pertinent thing the app itself knows about an unrated film,
+    // and it costs no request: the profiles are already in memory. Optional-
+    // chained because several test mounts stub $store bare.
+    friendRatings () {
+      return friendRatingsFor(this.$store?.getters?.filmClubProfiles, this.movie?.id);
     },
     // TMDB's 0 means "nobody has voted", not "everybody hated it" — same
     // treatment box office already gets on MovieDetail.
@@ -161,6 +212,12 @@ export default {
     }
   },
   methods: {
+    // Friends' scores are this app's own weighted sums, so they go through
+    // the shared two-decimal helper like every other score in the app. The
+    // TMDB average above deliberately does NOT — that is TMDB's number,
+    // published at one decimal, and padding it to two would invent precision
+    // it doesn't have.
+    formatScore,
     async load (movie) {
       this.details = null;
       this.providerGroups = [];
@@ -181,8 +238,13 @@ export default {
       const apiKey = process.env.VUE_APP_TMDB_API_KEY;
       // One failing half must not blank the other: a film with no availability
       // still deserves its summary, and vice versa.
+      //
+      // Credits and release dates ride along on the details call via
+      // append_to_response rather than costing two more requests — this is
+      // still exactly the two requests it was before director/cast/rating
+      // were added.
       const [details, providers] = await Promise.all([
-        axios.get(`https://api.themoviedb.org/3/movie/${movie.id}?api_key=${apiKey}`)
+        axios.get(`https://api.themoviedb.org/3/movie/${movie.id}?api_key=${apiKey}&append_to_response=credits,release_dates`)
           .then((response) => response.data, () => null),
         axios.get(`https://api.themoviedb.org/3/movie/${movie.id}/watch/providers?api_key=${apiKey}`)
           .then((response) => normalizeWatchProviders(response.data, PROVIDER_REGION), () => null)
@@ -309,6 +371,59 @@ export default {
   color: #ccc;
   font-size: 0.78rem;
   margin: 0;
+}
+
+/* Names never clamp — a long cast list just makes the sheet taller, which is
+   Matt's standing rule for text under artwork. */
+.mp-people {
+  color: #ccc;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 0.35rem 0 0;
+}
+
+.mp-cast {
+  margin: 0 0 0.7rem;
+}
+
+/* A quiet label rather than a heading: these are one-line facts, not
+   sections. #9a9a9a on #161616 is ~5.9:1. */
+.mp-people-label {
+  color: #9a9a9a;
+  display: block;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mp-club {
+  margin-bottom: 0.8rem;
+}
+
+.mp-club-label {
+  color: #9a9a9a;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+}
+
+.mp-club-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+/* Neutral surface, no colour-coding by score — the number is the signal and
+   a green/red wash would read as the app's own opinion of the film. */
+.mp-club-chip {
+  background: #1f1f1f;
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
+  color: #e4e4e4;
+  font-size: 0.72rem;
+  padding: 0.18rem 0.5rem;
+  white-space: nowrap;
 }
 
 .mp-overview {
