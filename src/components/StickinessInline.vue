@@ -7,10 +7,7 @@
         <span class="prompt-badge prompt-badge-stickiness"><i class="bi bi-sticky-fill"></i></span>
         <span class="prompt-body">
           <span class="prompt-label">Stickiness</span>
-          <p class="prompt-text">
-            {{ resultsThatNeedStickiness.length }} movie{{ resultsThatNeedStickiness.length === 1 ? '' : 's' }}
-            you've had time to sit with.
-          </p>
+          <p class="prompt-text">{{ stickinessPromptText }}</p>
           <a class="prompt-action prompt-action-stickiness" @click.stop="toggleStickinessInline">Add stickiness</a>
         </span>
       </div>
@@ -129,6 +126,17 @@ export default {
   computed: {
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";
+    },
+    // Was "N movies you've had time to sit with." Bug report, 2026-08-20: "I
+    // don't like the language on the stickiness prompt like 'you've had time
+    // to sit with' isn't that great? Can you reword that to me a bit more
+    // direct?" The other prompt cards state a plain fact and leave the verb
+    // to the action link — "2021 has enough films to hand out awards", "Three
+    // films are sitting on the same score" — so this does too, and says what
+    // is actually wanted rather than describing the passage of time.
+    stickinessPromptText () {
+      const count = this.resultsThatNeedStickiness.length;
+      return `${count} movie${count === 1 ? '' : 's'} ${count === 1 ? 'is' : 'are'} ready for a stickiness score.`;
     },
     allMoviesRanked () {
       const movies = [...this.$store.getters.allMoviesAsArray];

@@ -57,6 +57,25 @@ function factory (entries) {
 }
 
 describe('StickinessInline', () => {
+  // Bug report, 2026-08-20: "I don't like the language on the stickiness
+  // prompt like 'you've had time to sit with' isn't that great? Can you
+  // reword that to me a bit more direct?" The other prompt cards state a
+  // plain fact and leave the verb to the action link.
+  describe('the prompt copy', () => {
+    it('says plainly what is wanted, not how long it has been', () => {
+      const { wrapper } = factory([staleEntry(1), staleEntry(2)]);
+
+      expect(wrapper.find('.prompt-text').text()).toBe('2 movies are ready for a stickiness score.');
+      expect(wrapper.text()).not.toContain('sit with');
+    });
+
+    it('agrees with itself for a single movie', () => {
+      const { wrapper } = factory([staleEntry(1)]);
+
+      expect(wrapper.find('.prompt-text').text()).toBe('1 movie is ready for a stickiness score.');
+    });
+  });
+
   it('lists entries that are due for a stickiness rating', () => {
     const { wrapper } = factory([staleEntry(1), staleEntry(2)]);
     expect(wrapper.vm.resultsThatNeedStickiness).toHaveLength(2);
