@@ -23,14 +23,50 @@
       <WatchlistRow :items="anotherShotItems" puntable hat-note="Worth a second look — rated low here, loved elsewhere" @select="goToMovie" @punt="punt" @hatted="puntAll"/>
     </section>
 
-    <!-- TMDB-fed: well-regarded movies from years sitting just under the
-         awards threshold (feedback: "I'm often trying to get my years up
-         to 10 so I can fill in my awards"). -->
-    <section v-for="section in yearSections" :key="`year-${section.year}`" class="watchlist-section">
-      <h2 class="section-title">Get {{ section.year }} to {{ awardsThreshold }}</h2>
-      <p class="section-caption">{{ section.count }} rated — {{ section.missing }} to go for awards.</p>
-      <p v-if="yearsLoading" class="section-loading">Looking up {{ section.year }}&hellip;</p>
-      <WatchlistRow v-else-if="section.movies.length" :items="mediaItems(section.movies)" :hat-note="sectionHatNote(section)" @select="rateMedia" @hatted="puntAll"/>
+    <!-- TMDB-fed: well-regarded movies from years you've started but not
+         finished (feedback: "I'm often trying to get my years up to 10 so I
+         can fill in my awards").
+
+         One section with a year selector, not one section per year (bug
+         report, 2026-08-19: "it seems like an arbitrary number of lists...
+         maybe there's a way to combine those into a single list with like a
+         year selector above it... and then, if you could see on each one of
+         those selectors, how close we actually are"). Every unfinished year
+         is offered; each tab carries its own distance, so how the order was
+         chosen is visible rather than guessed at. -->
+    <section v-if="nearYears.length" class="watchlist-section">
+      <h2 class="section-title">Get a year to {{ awardsThreshold }}</h2>
+      <p class="section-caption">
+        {{ selectedYearSummary.count }} rated in {{ selectedYear }} —
+        {{ selectedYearSummary.missing }} to go for awards.
+      </p>
+
+      <!-- Closest to done on the left, so the most winnable year is the one
+           you land on. Scrolls sideways like every other long row here. -->
+      <div class="year-picker" role="tablist" aria-label="Choose a year to fill out">
+        <button
+          v-for="year in nearYears"
+          :key="`year-tab-${year.year}`"
+          type="button"
+          role="tab"
+          class="year-tab"
+          :class="{ active: year.year === selectedYear }"
+          :aria-selected="year.year === selectedYear"
+          @click="selectYear(year.year)"
+        >
+          <span class="year-tab-year">{{ year.year }}</span>
+          <span class="year-tab-gap">{{ year.missing }} to go</span>
+        </button>
+      </div>
+
+      <p v-if="yearsLoading" class="section-loading">Looking up {{ selectedYear }}&hellip;</p>
+      <WatchlistRow
+        v-else-if="selectedYearMovies.length"
+        :items="mediaItems(selectedYearMovies)"
+        :hat-note="sectionHatNote({ year: selectedYear })"
+        @select="rateMedia"
+        @hatted="puntAll"
+      />
       <p v-else class="section-loading">Nothing well-regarded found that you haven't already rated.</p>
     </section>
 
@@ -98,7 +134,13 @@ export default {
     return {
       // Pending hat-punts, cleared on unmount — see puntAll.
       puntTimers: [],
-      yearSections: [], // { year, count, missing, movies }
+      // Suggestions per year, keyed by year — { 1997: [...movies] }. Filled
+      // one year at a time, as each is selected, and kept so switching back
+      // to a year already looked at is instant and costs no second request.
+      yearMovies: {},
+      // Which year the picker is on. Null until the library has arrived and
+      // defaultYear can pick the closest-to-done one.
+      selectedYear: null,
       gemMovies: [],
       gemsLoading: true,
       yearsLoading: true,
@@ -188,8 +230,24 @@ export default {
         .slice(0, 2)
         .map(([id]) => ({ id: Number(id), name: nameById.get(Number(id)) }));
     },
+    // Every started-but-unfinished year, closest to done first. No longer
+    // trimmed to a handful — the picker shows them all (see the template).
     nearYears () {
       return nearThresholdYears(this.library, awardsYearThreshold(this.$store.state.settings));
+    },
+    // The year the picker opens on: the one needing the fewest films, which
+    // is simply the head of the list nearYears already sorted.
+    defaultYear () {
+      return this.nearYears[0]?.year ?? null;
+    },
+    // The selected year's own row from nearYears. Falls back to a zeroed
+    // stand-in so the caption can render during the tick between the library
+    // arriving and selectedYear being set.
+    selectedYearSummary () {
+      return this.nearYears.find((year) => year.year === this.selectedYear) || { count: 0, missing: 0 };
+    },
+    selectedYearMovies () {
+      return this.yearMovies[this.selectedYear] || [];
     },
     awardsThreshold () {
       return awardsYearThreshold(this.$store.state.settings);
@@ -337,6 +395,14 @@ export default {
         this.loaded = true;
         this.buildWatchlists();
       }
+    },
+    // Rating a film from the picker can finish the very year you're looking
+    // at, which drops it out of nearYears and would leave the tab strip with
+    // nothing selected. Fall back to whatever is closest to done now.
+    nearYears (years) {
+      if (!years.length) return;
+      if (years.some((year) => year.year === this.selectedYear)) return;
+      this.selectYear(this.defaultYear);
     }
   },
   methods: {
@@ -432,6 +498,12 @@ export default {
       }
       const rated = ratedTmdbIds(this.library);
 
+      // The year picker opens on the closest-to-done year; only that one is
+      // fetched now, the rest as they're tapped. Kicked off (not awaited)
+      // alongside everything else below.
+      if (this.selectedYear == null) this.selectedYear = this.defaultYear;
+      const yearLoaded = this.loadSelectedYear();
+
       // Resolve gender first so the performer list can be split three ways.
       // A wide pool goes in, since taking the top three overall could turn
       // out to be three actors and leave the actresses row empty.
@@ -440,19 +512,17 @@ export default {
       this.actorNames = performers.filter((p) => p.gender === 2).slice(0, 3);
       this.underratedNames = await this.resolvePerformers(this.underratedPerformers);
 
-      const [directorMovies, actressMovies, actorMovies, underratedMovies, similarMovies, yearSections, gemMovies] = await Promise.all([
+      const [directorMovies, actressMovies, actorMovies, underratedMovies, similarMovies, gemMovies] = await Promise.all([
         this.moviesFromPeople(this.favoriteDirectors, 'crew', rated),
         this.moviesFromPeople(this.actressNames, 'cast', rated),
         this.moviesFromPeople(this.actorNames, 'cast', rated),
         this.moviesFromPeople(this.underratedNames, 'cast', rated),
         this.moviesLikeFavorites(this.recommendationSeeds, rated),
-        this.moviesForNearYears(this.nearYears, rated),
         this.hiddenGems(this.topTasteGenres, rated)
       ]);
+      await yearLoaded;
       this.gemMovies = gemMovies;
       this.gemsLoading = false;
-      this.yearSections = yearSections;
-      this.yearsLoading = false;
       this.directorMovies = directorMovies;
       this.directorsLoading = false;
       this.actressMovies = actressMovies;
@@ -519,27 +589,53 @@ export default {
     },
     // Per near-threshold year: TMDB discover, well-voted first, then the
     // shared unseen-only quality ranking.
-    async moviesForNearYears (years, rated) {
+    // One year's suggestions. Previously every year on screen was fetched
+    // up front, which was affordable only because the list was capped at
+    // three; now that the picker offers every unfinished year, this is
+    // called for the selected one and its result cached in yearMovies.
+    async moviesForYear (year, rated) {
       const apiKey = process.env.VUE_APP_TMDB_API_KEY;
-      const sections = await Promise.all(years.map(async ({ year, count, missing }) => {
-        try {
-          const response = await axios.get(`https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&primary_release_year=${year}&sort_by=vote_count.desc&vote_count.gte=200&page=1`);
-          const candidates = (response.data?.results || []).map((movie) => ({
-            id: movie.id,
-            title: movie.title,
-            poster_path: movie.poster_path,
-            release_date: movie.release_date,
-            vote_average: movie.vote_average,
-            vote_count: movie.vote_count,
-            popularity: movie.popularity
-          }));
-          const movies = rankWatchlistCandidates(candidates, rated, Date.now(), { cap: 12, profile: this.taste });
-          return { year, count, missing, movies };
-        } catch {
-          return { year, count, missing, movies: [] };
-        }
-      }));
-      return sections;
+      try {
+        const response = await axios.get(`https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&primary_release_year=${year}&sort_by=vote_count.desc&vote_count.gte=200&page=1`);
+        const candidates = (response.data?.results || []).map((movie) => ({
+          id: movie.id,
+          title: movie.title,
+          poster_path: movie.poster_path,
+          release_date: movie.release_date,
+          vote_average: movie.vote_average,
+          vote_count: movie.vote_count,
+          popularity: movie.popularity
+        }));
+        return rankWatchlistCandidates(candidates, rated, Date.now(), { cap: 12, profile: this.taste });
+      } catch {
+        return [];
+      }
+    },
+    // Tapping a tab. Already-fetched years come back instantly from the
+    // cache; a new one shows the section's loading line while it lands.
+    async selectYear (year) {
+      if (year == null || year === this.selectedYear) return;
+      this.selectedYear = year;
+      await this.loadSelectedYear();
+    },
+    async loadSelectedYear () {
+      const year = this.selectedYear;
+      if (year == null) return;
+      if (this.yearMovies[year]) {
+        this.yearsLoading = false;
+        return;
+      }
+      if (!this.$store.state.isOnline) {
+        this.yearsLoading = false;
+        return;
+      }
+      this.yearsLoading = true;
+      const movies = await this.moviesForYear(year, ratedTmdbIds(this.library));
+      // Guard against a slow response for a year the user has already
+      // tabbed away from — cache it, but don't lift the spinner on the year
+      // now on screen, which has its own request in flight.
+      this.yearMovies = { ...this.yearMovies, [year]: movies };
+      if (this.selectedYear === year) this.yearsLoading = false;
     },
     // credits kind: 'crew' keeps only their Director credits; 'cast' keeps
     // reasonably-billed roles (order < 10) so cameos don't flood the list.
@@ -637,8 +733,13 @@ export default {
   margin: 0.25rem 0 1.25rem;
 }
 
+/* 1.75rem when every row still ended in a bulk "add all to a hat" button,
+   which put its own ~40px between the posters and the next heading. With that
+   gone (2026-08-20: "it takes up more room than it actually has value... then
+   we can tighten up those layouts a little bit") the gap is doing the whole
+   job of separating two sections on its own, and doesn't need to be as big. */
 .watchlist-section {
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.25rem;
 }
 
 .section-title {
@@ -646,6 +747,64 @@ export default {
   font-size: 1.1rem;
   margin-bottom: 0.5rem;
   padding-bottom: 0.35rem;
+}
+
+/* Sideways like the poster rows below it, and for the same reason: however
+   many years are unfinished, this stays one row tall. */
+.year-picker {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Two stacked lines — the year, and how far it has to go — so the ordering
+   explains itself at a glance (bug report: "if you could see on each one of
+   those selectors, how close we actually are"). Neutral surfaces, no left
+   accent bar; the selected tab is the light one. 40px minimum tap target. */
+.year-tab {
+  background: #1c1c1c;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #b9b9b9;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0.1rem;
+  line-height: 1.15;
+  min-height: 40px;
+  padding: 0.3rem 0.55rem;
+  white-space: nowrap;
+}
+
+.year-tab-year {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* #9a9a9a on #1c1c1c is ~5.5:1; on the active tab's #e8e8e8 the darker
+   value below is used instead. */
+.year-tab-gap {
+  color: #9a9a9a;
+  font-size: 0.62rem;
+}
+
+.year-tab.active {
+  background: #e8e8e8;
+  border-color: #e8e8e8;
+  color: #111;
+}
+
+.year-tab.active .year-tab-gap {
+  color: #444;
+}
+
+/* Mobile-first: press feedback only, never a hover state that sticks. */
+.year-tab:active:not(.active) {
+  background: #2b2b2b;
+  color: #fff;
 }
 
 .section-record {

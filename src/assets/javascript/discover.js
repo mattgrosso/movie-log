@@ -293,12 +293,21 @@ export function ratedTmdbIds (entries) {
 }
 
 // "Fill out your award years" (feedback 2026-08-15: "I'm often trying to
-// get my years up to 10 so I can fill in my awards"). Years sitting just
-// below the awards eligibility threshold, closest first — the screen then
-// suggests well-regarded unseen movies from each. Threshold comes from the
-// same settings value the awards flow uses, so this always chases whatever
-// "10" currently means.
-export function nearThresholdYears (entries, threshold = 10, { reach = 4, cap = 3 } = {}) {
+// get my years up to 10 so I can fill in my awards"). Every year you've
+// started but not finished, closest to done first — the screen then suggests
+// well-regarded unseen movies from whichever you pick. Threshold comes from
+// the same settings value the awards flow uses, so this always chases
+// whatever "10" currently means.
+//
+// `reach` and `cap` used to default to 4 and 3, which is what produced three
+// standalone "Get YYYY to 10" sections and the question behind this change
+// (2026-08-19): "How did you choose which years to include... it seems like
+// an arbitrary number of lists." They were arbitrary — the closest three of
+// the years within four of the threshold, which is neither "the newest few"
+// nor all of them. Nothing is culled now; the screen shows the whole list in
+// a selector labelled with each year's own distance, so the ordering explains
+// itself. Both options are kept for callers that do want a short list.
+export function nearThresholdYears (entries, threshold = 10, { reach = Infinity, cap = Infinity } = {}) {
   const counts = {};
   (entries || []).forEach((entry) => {
     const date = entry?.movie?.release_date;

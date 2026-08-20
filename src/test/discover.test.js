@@ -197,18 +197,48 @@ describe('nearThresholdYears', () => {
     ratings: [{ calculatedTotal: 7 }]
   })
 
-  it('finds years just under the threshold, closest to done first', () => {
+  it('finds unfinished years, closest to done first', () => {
     const entries = [
       ...Array.from({ length: 9 }, (_, i) => yearEntry(i, 1997)), // 1 to go
       ...Array.from({ length: 7 }, (_, i) => yearEntry(20 + i, 2003)), // 3 to go
       ...Array.from({ length: 10 }, (_, i) => yearEntry(40 + i, 1999)), // complete: excluded
-      ...Array.from({ length: 2 }, (_, i) => yearEntry(60 + i, 1988)) // too far: excluded
+      ...Array.from({ length: 2 }, (_, i) => yearEntry(60 + i, 1988)) // 8 to go
     ]
 
     const years = nearThresholdYears(entries, 10)
 
-    expect(years.map((y) => y.year)).toEqual([1997, 2003])
+    expect(years.map((y) => y.year)).toEqual([1997, 2003, 1988])
     expect(years[0].missing).toBe(1)
+  })
+
+  // Bug report, 2026-08-19: "How did you choose which years to include in the
+  // get it to 10 watchlist... it seems like an arbitrary number of lists."
+  // It was: the closest three within four of the threshold. Nothing is
+  // dropped now — the picker shows them all and labels each one's distance.
+  it('keeps every started-but-unfinished year, however far off it is', () => {
+    const entries = [
+      ...Array.from({ length: 9 }, (_, i) => yearEntry(i, 1997)), // 1 to go
+      ...Array.from({ length: 8 }, (_, i) => yearEntry(20 + i, 2003)), // 2
+      ...Array.from({ length: 7 }, (_, i) => yearEntry(40 + i, 2011)), // 3
+      ...Array.from({ length: 6 }, (_, i) => yearEntry(60 + i, 1975)), // 4
+      ...Array.from({ length: 1 }, (_, i) => yearEntry(80 + i, 1962)) // 9 — used to be cut
+    ]
+
+    const years = nearThresholdYears(entries, 10)
+
+    expect(years.map((y) => y.year)).toEqual([1997, 2003, 2011, 1975, 1962])
+    expect(years.map((y) => y.missing)).toEqual([1, 2, 3, 4, 9])
+  })
+
+  it('still narrows on request, for a caller that wants a short list', () => {
+    const entries = [
+      ...Array.from({ length: 9 }, (_, i) => yearEntry(i, 1997)), // 1 to go
+      ...Array.from({ length: 8 }, (_, i) => yearEntry(20 + i, 2003)), // 2
+      ...Array.from({ length: 1 }, (_, i) => yearEntry(40 + i, 1962)) // 9 — beyond reach
+    ]
+
+    expect(nearThresholdYears(entries, 10, { reach: 4, cap: 1 }).map((y) => y.year)).toEqual([1997])
+    expect(nearThresholdYears(entries, 10, { reach: 4 }).map((y) => y.year)).toEqual([1997, 2003])
   })
 
   it('honours a custom threshold and ignores shorts', () => {

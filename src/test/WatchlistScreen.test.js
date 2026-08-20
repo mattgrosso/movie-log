@@ -347,3 +347,107 @@ describe('films already in a hat are not suggested again', () => {
     expect(cardNames(wrapper)).toContain('Old Favorite A');
   });
 });
+
+// Bug report, 2026-08-19: "How did you choose which years to include in the
+// get it to 10 watchlist... it seems like an arbitrary number of lists. Maybe
+// there's a way to combine those into a single list with like a year selector
+// above it... and then, if you could see on each one of those selectors, how
+// close we actually are so I can look at any given year."
+describe('the "get a year to 10" picker', () => {
+  // 1997 needs 1 more, 2003 needs 3, 1962 needs 9. Under the old rules 1962
+  // was dropped outright (beyond a reach of 4).
+  const yearMovie = (id, year) => ({
+    dbKey: `y${id}`,
+    movie: { id, title: `M${id}`, poster_path: '/p.jpg', release_date: `${year}-06-15`, runtime: 100, crew: [], cast: [] },
+    ratings: [{ calculatedTotal: 7, date: yearsAgo(6) }]
+  });
+
+  const yearLibrary = () => [
+    ...Array.from({ length: 9 }, (_, i) => yearMovie(i + 1, 1997)),
+    ...Array.from({ length: 7 }, (_, i) => yearMovie(100 + i, 2003)),
+    yearMovie(200, 1962)
+  ];
+
+  // Each year's discover call answers with a film named for the year asked
+  // for, so which year is on screen is unambiguous.
+  const discoverImpl = (url) => {
+    const match = url.match(/primary_release_year=(\d{4})/);
+    if (match) {
+      return Promise.resolve({
+        data: {
+          results: [
+            { id: Number(`9${match[1]}`), title: `Pick from ${match[1]}`, poster_path: '/p.jpg', release_date: `${match[1]}-03-10`, vote_count: 5000, vote_average: 8.2 }
+          ]
+        }
+      });
+    }
+    return tmdbImpl(url);
+  };
+
+  const yearsAsked = () => axios.get.mock.calls
+    .map(([url]) => url.match(/primary_release_year=(\d{4})/)?.[1])
+    .filter(Boolean);
+
+  beforeEach(() => {
+    axios.get.mockReset();
+    axios.get.mockImplementation(discoverImpl);
+  });
+
+  it('offers every unfinished year in one selector, each labelled with how far off it is', async () => {
+    const { wrapper } = factory({ movies: yearLibrary() });
+    await flushPromises();
+
+    const tabs = wrapper.findAll('.year-tab');
+    expect(tabs.map((tab) => tab.find('.year-tab-year').text())).toEqual(['1997', '2003', '1962']);
+    expect(tabs.map((tab) => tab.find('.year-tab-gap').text())).toEqual(['1 to go', '3 to go', '9 to go']);
+
+    // One section, not one per year — the whole point of the report.
+    expect(wrapper.findAll('.year-picker')).toHaveLength(1);
+    expect(wrapper.text()).toContain('Get a year to 10');
+  });
+
+  it('opens on the closest-to-done year and fetches only that one', async () => {
+    const { wrapper } = factory({ movies: yearLibrary() });
+    await flushPromises();
+
+    expect(wrapper.find('.year-tab.active .year-tab-year').text()).toBe('1997');
+    expect(yearsAsked()).toEqual(['1997']);
+    expect(cardNames(wrapper)).toContain('Pick from 1997');
+    expect(cardNames(wrapper)).not.toContain('Pick from 2003');
+  });
+
+  it('tapping another year swaps the list to that year, fetching it on demand', async () => {
+    const { wrapper } = factory({ movies: yearLibrary() });
+    await flushPromises();
+
+    await wrapper.findAll('.year-tab')[2].trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.year-tab.active .year-tab-year').text()).toBe('1962');
+    expect(yearsAsked()).toEqual(['1997', '1962']);
+    expect(cardNames(wrapper)).toContain('Pick from 1962');
+    expect(cardNames(wrapper)).not.toContain('Pick from 1997');
+    expect(wrapper.text()).toContain('9 to go for awards');
+  });
+
+  it('going back to a year already looked at costs no second request', async () => {
+    const { wrapper } = factory({ movies: yearLibrary() });
+    await flushPromises();
+
+    await wrapper.findAll('.year-tab')[1].trigger('click');
+    await flushPromises();
+    await wrapper.findAll('.year-tab')[0].trigger('click');
+    await flushPromises();
+
+    expect(yearsAsked()).toEqual(['1997', '2003']);
+    expect(cardNames(wrapper)).toContain('Pick from 1997');
+  });
+
+  it('shows no picker at all when every year is either finished or untouched', async () => {
+    const { wrapper } = factory();
+    await flushPromises();
+
+    expect(wrapper.find('.year-picker').exists()).toBe(false);
+    expect(yearsAsked()).toEqual([]);
+  });
+});
