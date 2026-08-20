@@ -35,6 +35,40 @@ carrying a `movieId`. `PERSONAL_AWARD_CATEGORIES` lives in
   `awardNameWithThe`/`awardNameWithoutThe`/`awardNameSingular` in `personalAwards.js` —
   never hardcode "Personal" or "Oscar".
 
+## Custom (honorary) awards
+
+Stored **per year**, beside that year's categories:
+
+```
+settings/personalAwards/<year>/customCategories/<key> = { name, createdAt }
+```
+
+with nominees/winner in `categories/<key>` exactly like a standard award's. That is the
+whole design: everything downstream keys off the category key and already defaults
+sensibly for one it doesn't recognise (`isCategoryDisabled` → false, `getCategorySortKey`
+→ 'rating', `isActingCategory` → false), so custom awards ride the existing machinery
+rather than needing a parallel path.
+
+- **A map, never an array** — Firebase returns a sparse array as an object map, and a map
+  makes deleting one a leaf write.
+- **The key is slug-derived, not timestamped** (`customAwardKey`). Reusing a name next
+  year yields the SAME key, so "3× Best Needle Drop" aggregates across years in the
+  Trophy Case the way a standard category does. The cost is that a duplicate *within* one
+  year would silently overwrite the first, so the modal refuses one.
+- **Custom awards are movie-type.** The person path is gender-gated and specific to the
+  acting categories; none of it generalises. `CUSTOM_AWARD_TYPE` in
+  `personalAwardsCategories.js` is where that stops being a constant if it ever changes.
+- **Read `customCategories` OUTSIDE the `categories` branch** when loading a year — an
+  award can exist with nothing assigned to it yet, and that record has no `categories`
+  key at all.
+- **Removing one must delete `categories/<key>` too.** Orphaned nominees under a key
+  nothing lists any more keep the award alive in the Trophy Case and in every winner's
+  award history.
+- Resolve names anywhere outside the modal with **`awardCategoryNameMap(personalAwards)`**
+  — whole-map, not per-year, because the Trophy Case aggregates across years and a movie's
+  award history walks every year at once. `PERSONAL_AWARD_CATEGORY_NAMES` alone renders a
+  custom award as its raw storage key.
+
 ## Acting-category gender eligibility
 
 **One source: `genderEligibility.js`'s `isEligibleForActingCategory`.** Two copies had

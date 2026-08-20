@@ -222,3 +222,57 @@ near-identical hues, and the club is small. You are always `#f0f0f0`.
 
 Contrarians needs three raters and Blind Spots needs two friends, so both correctly hide
 themselves on a one-friend club rather than rendering something meaningless.
+
+## Custom (honorary) awards, 2026-08-20
+
+"It would be cool if for any given personal awards here, I could add custom awards. So if
+I wanted to, I can name an award whatever I want and then assign it. So I can basically
+hand out honorary awards."
+
+The pleasing part is how little had to change. Every per-key helper in the modal already
+defaulted sensibly for a key it had never seen — `isCategoryDisabled` → false,
+`getCategoryDisabledReason` → null, `getCategorySortKey` → `'rating'`, `isActingCategory`
+→ false — and all four display consumers already fell back to `|| categoryKey`. So a
+custom award could ride the whole existing nominate-and-crown machinery instead of
+needing a parallel path; the work was storage, a list that includes them, and name
+resolution.
+
+**Storage** is per year, beside that year's categories:
+
+```
+settings/personalAwards/<year>/customCategories/<key> = { name, createdAt }
+```
+
+with nominees and winner in `categories/<key>` exactly like a standard award's. A map,
+not an array — Firebase hands a sparse array back as an object map, and a map makes
+deletion a leaf write.
+
+**The key is slug-derived rather than timestamped**, which is the one genuinely
+interesting decision. `customAwardKey('Best Needle Drop')` is always
+`custom-best-needle-drop`, so handing out the same award again next year produces the same
+key and the Trophy Case aggregates it across years the way it does a standard category
+("3× Best Needle Drop") with no extra work. The cost is that a duplicate *within* a single
+year would silently overwrite the first, so the modal refuses one — as it refuses a name
+that is already a standard category, and a name that slugs to nothing (pure punctuation
+would otherwise be stored under a bare `custom-` prefix).
+
+**Movie-type only.** The person path is gender-gated and specific to the acting
+categories, and none of that generalises to an award someone invented; custom awards draw
+on the year's films, the same pool Best Picture uses.
+
+Two things that would have been quiet bugs, both caught by writing the test first and then
+reverting the fix:
+
+- **Loading has to read `customCategories` outside the `categories` branch.** An award can
+  exist with nothing assigned to it yet, and that record has no `categories` key at all —
+  so reading it inside the branch dropped every not-yet-assigned award on reload.
+- **Removing an award has to delete `categories/<key>` too.** Orphaned nominees under a key
+  nothing lists any more would keep the award alive in the Trophy Case and in every
+  winner's award history — visible everywhere except the one screen that could remove it.
+
+Name resolution outside the modal goes through `awardCategoryNameMap(personalAwards)`,
+which merges the standard names with every year's custom ones. Whole-map rather than
+per-year on purpose: the Trophy Case aggregates a category across years, and a movie's
+award history walks every year at once, so an award invented in 2019 still has to render
+by name on a card built in 2026. The Connections generator uses it too — without it, a
+puzzle clue would have read "custom-best-needle-drop (The Groskers)".

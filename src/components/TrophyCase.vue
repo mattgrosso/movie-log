@@ -157,7 +157,7 @@
 </template>
 
 <script>
-import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
+import { awardCategoryNameMap } from '../assets/javascript/personalAwardsCategories.js';
 import { expandNomineeFromMinimal } from '../assets/javascript/personalAwards.js';
 import { collectAwardEntries, rankPeople, rankMovies, rankPeopleWithoutWins, rankSweeps, winStreaks, categoryOwners, longestWaits, rankUpsets } from '../assets/javascript/awardStats.js';
 import { getRating } from '../assets/javascript/GetRating.js';
@@ -193,6 +193,11 @@ export default {
     }
   },
   computed: {
+    // Standard category names plus every custom award the user has ever
+    // invented, across all years — see categoryName().
+    awardCategoryNames () {
+      return awardCategoryNameMap(this.$store.state.settings?.personalAwards);
+    },
     // Every personal-award WIN, expanded to a displayable object and grouped
     // by category key, sorted newest-year-first within each category.
     categorizedWins () {
@@ -417,8 +422,12 @@ export default {
     isExpanded (shelfKey, cardKey) {
       return Boolean(this.expandedCard && this.expandedCard.shelfKey === shelfKey && this.expandedCard.cardKey === cardKey);
     },
+    // Resolves custom awards too. Built from EVERY year rather than the one
+    // on screen: this shelf aggregates a category across years ("3× Best
+    // Needle Drop"), so an award invented in 2019 still has to render by name
+    // on a card built in 2026.
     categoryName (categoryKey) {
-      return PERSONAL_AWARD_CATEGORIES.find((category) => category.key === categoryKey)?.name || categoryKey;
+      return this.awardCategoryNames[categoryKey] || categoryKey;
     },
     // A PERSON gets a picture of the person - never a poster of one of
     // their films (bug report: "I don't wanna show Steven Spielberg but

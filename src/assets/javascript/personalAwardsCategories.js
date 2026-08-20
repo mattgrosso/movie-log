@@ -22,3 +22,105 @@ export const PERSONAL_AWARD_CATEGORY_NAMES = PERSONAL_AWARD_CATEGORIES.reduce((a
   acc[category.key] = category.name;
   return acc;
 }, {});
+
+// ---------------------------------------------------------------------------
+// Custom awards (2026-08-20): "It would be cool if for any given personal
+// awards here, I could add custom awards. So if I wanted to, I can name an
+// award whatever I want and then assign it. So I can basically hand out
+// honorary awards."
+//
+// A custom award is stored per YEAR, next to that year's categories:
+//
+//   settings/personalAwards/<year>/customCategories/<key> = { name, createdAt }
+//
+// and its nominees/winner live in `categories/<key>` exactly like a standard
+// one's. That is the whole trick: everything downstream — nominating, picking
+// a winner, the completion check, the Trophy Case, a movie's award history —
+// already keys off the category key and falls back gracefully on one it
+// doesn't recognise, so custom awards ride the existing machinery rather than
+// needing a parallel path.
+//
+// A MAP keyed by the award key, never an array: Firebase hands a sparse array
+// back as an object map (see .claude/rules/data-writes.md), and a map also
+// makes deleting one a leaf write.
+
+export const CUSTOM_AWARD_PREFIX = 'custom-';
+
+// Custom awards are movie-type: you pick from the films you rated that year,
+// the same pool Best Picture draws on. The person-type path is gender-gated
+// and specific to the acting categories, and none of that generalises to an
+// award someone invented. If person-type ever lands, this is where the type
+// stops being a constant.
+const CUSTOM_AWARD_TYPE = 'movie';
+
+/**
+ * A stable, Firebase-safe key for an award name.
+ *
+ * Slug-derived rather than timestamped, deliberately: giving the same award
+ * the same name next year produces the SAME key, so "2× Best Needle Drop"
+ * aggregates across years in the Trophy Case the way a standard category
+ * does. Returns null for a name with nothing sluggable in it (all
+ * punctuation, or empty), which callers must reject rather than store.
+ *
+ * Firebase forbids . $ # [ ] / in a key; this emits only [a-z0-9-], so the
+ * question can't arise.
+ */
+export function customAwardKey (name) {
+  const slug = String(name ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug ? `${CUSTOM_AWARD_PREFIX}${slug}` : null;
+}
+
+export function isCustomAwardKey (key) {
+  return typeof key === 'string' && key.startsWith(CUSTOM_AWARD_PREFIX);
+}
+
+/**
+ * One year's custom awards, oldest first, in the shape the category list
+ * uses. Order is by creation so the list doesn't reshuffle as they're added.
+ */
+export function customCategoriesForYear (yearAwards) {
+  return Object.entries(yearAwards?.customCategories || {})
+    .filter(([, custom]) => custom?.name)
+    .map(([key, custom]) => ({
+      key,
+      name: custom.name,
+      type: CUSTOM_AWARD_TYPE,
+      custom: true,
+      createdAt: Number(custom.createdAt) || 0
+    }))
+    .sort((a, b) => a.createdAt - b.createdAt || a.name.localeCompare(b.name));
+}
+
+/** The standard categories plus this year's custom ones, in ceremony order. */
+export function categoriesForYear (yearAwards) {
+  return [
+    ...PERSONAL_AWARD_CATEGORIES.map((category) => ({ ...category, custom: false })),
+    ...customCategoriesForYear(yearAwards)
+  ];
+}
+
+/**
+ * `{ key: name }` for every award the user has ever handed out, standard and
+ * custom, across every year.
+ *
+ * Whole-map rather than per-year because the two display consumers need it
+ * that way: the Trophy Case aggregates a category ACROSS years ("3× Best
+ * Needle Drop") and a movie's award history walks every year at once. A
+ * custom award only defined in 2019 still has to render by name on a 2019
+ * award shown in 2026.
+ */
+export function awardCategoryNameMap (personalAwards) {
+  const names = { ...PERSONAL_AWARD_CATEGORY_NAMES };
+
+  Object.values(personalAwards || {}).forEach((yearAwards) => {
+    customCategoriesForYear(yearAwards).forEach((category) => {
+      names[category.key] = category.name;
+    });
+  });
+
+  return names;
+}

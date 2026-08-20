@@ -541,7 +541,7 @@ import ErrorLogService from "../services/ErrorLogService.js";
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 import { computeFlatKeywords } from '../utils/keywords.js';
 import { buildTagSuggestions, canCreateNewTag } from '../utils/tags.js';
-import { PERSONAL_AWARD_CATEGORY_NAMES } from '../assets/javascript/personalAwardsCategories.js';
+import { awardCategoryNameMap } from '../assets/javascript/personalAwardsCategories.js';
 import { findOtherAwardsForMovie } from '../assets/javascript/otherAwards.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
 import { awardNameWithThe } from '../assets/javascript/personalAwards.js';
@@ -686,6 +686,7 @@ export default {
       if (!this.movie) return empty;
 
       const personalAwards = this.$store.state.settings?.personalAwards || {};
+      const categoryNames = awardCategoryNameMap(personalAwards);
       const wins = [];
       const nominations = [];
 
@@ -697,7 +698,9 @@ export default {
             const categoryData = categories[categoryKey];
             if (!categoryData) return;
 
-            const categoryName = PERSONAL_AWARD_CATEGORY_NAMES[categoryKey] || categoryKey;
+            // Resolves custom awards too — an honorary award invented for
+            // one year still has to name itself on the film that won it.
+            const categoryName = categoryNames[categoryKey] || categoryKey;
             const matchingNominees = (categoryData.nominees || []).filter((nominee) => nominee && nominee.movieId === this.movie.id);
             const winnerMatches = Boolean(categoryData.winner && categoryData.winner.movieId === this.movie.id);
             const names = matchingNominees.map((nominee) => nominee.name).filter(Boolean);

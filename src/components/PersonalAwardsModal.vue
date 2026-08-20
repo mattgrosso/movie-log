@@ -94,6 +94,38 @@
                 </span>
               </button>
             </div>
+
+            <!-- Invent an award (2026-08-20). Sits after the standard list
+                 rather than above it: the thirteen are the ceremony, this is
+                 the honorary extra. -->
+            <div class="custom-award-add">
+              <button
+                v-if="!addingCustomAward"
+                type="button"
+                class="custom-award-open"
+                @click="openCustomAwardForm"
+              >
+                <i class="bi bi-plus-lg"></i> Add your own award
+              </button>
+
+              <div v-else class="custom-award-form">
+                <input
+                  ref="customAwardInput"
+                  v-model="customAwardName"
+                  type="text"
+                  class="form-control custom-award-input"
+                  placeholder="Best Needle Drop"
+                  maxlength="60"
+                  @keyup.enter="addCustomAward"
+                  @keyup.esc="cancelCustomAward"
+                >
+                <div class="custom-award-actions">
+                  <button type="button" class="btn btn-sm btn-outline-light" @click="cancelCustomAward">Cancel</button>
+                  <button type="button" class="btn btn-sm btn-warning" :disabled="!customAwardName.trim()" @click="addCustomAward">Add</button>
+                </div>
+                <p v-if="customAwardError" class="custom-award-error">{{ customAwardError }}</p>
+              </div>
+            </div>
           </div>
 
           </div><!-- /list-pane -->
@@ -104,10 +136,22 @@
               <button type="button" class="panel-back" @click="backToCategories">
                 <i class="bi bi-chevron-left"></i> Categories
               </button>
+              <!-- An invented award can be un-invented; the thirteen standard
+                   ones cannot. Offered here rather than as an × on the
+                   category row, because those rows are <button>s and a button
+                   inside a button is invalid markup. -->
+              <button
+                v-if="selectedCategoryIsCustom"
+                type="button"
+                class="panel-remove"
+                @click="removeCustomAward"
+              >
+                Remove award
+              </button>
               <!-- Deliberately unadvertised: revealed by tapping the
                    "Current Nominees:" heading below (the old secret was
                    tapping the category title). -->
-              <button v-if="isMatt" v-show="showTrashIcon" type="button" class="panel-trash" title="Clear all nominees" @click="onTrashTap">
+              <button v-else-if="isMatt" v-show="showTrashIcon" type="button" class="panel-trash" title="Clear all nominees" @click="onTrashTap">
                 <i class="bi bi-trash3"></i>
               </button>
             </div>
@@ -389,7 +433,7 @@ import { getRating } from '../assets/javascript/GetRating.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { pickEligibleAwardsYear } from '../utils/awards.js';
 import { awardsYearThreshold, awardsPromptCopy } from '../assets/javascript/personalAwards.js';
-import { PERSONAL_AWARD_CATEGORIES } from '../assets/javascript/personalAwardsCategories.js';
+import { PERSONAL_AWARD_CATEGORIES, categoriesForYear, customAwardKey, isCustomAwardKey } from '../assets/javascript/personalAwardsCategories.js';
 import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
 import { expandNomineeFromMinimal as expandNomineeFromMinimalShared, actingSiblingConflict } from '../assets/javascript/personalAwards.js';
 
@@ -446,6 +490,14 @@ export default {
       selectedCategory: null,
       currentYear: null,
       awardsData: {},
+      // This year's invented awards, as { <key>: { name, createdAt } }.
+      // Held beside awardsData rather than inside it: awardsData is
+      // nominees/winner per category, and an award can exist with neither.
+      customCategories: {},
+      // The "add an award" row's open/typing state.
+      addingCustomAward: false,
+      customAwardName: '',
+      customAwardError: null,
       eligibleOptions: [], // For movie categories: simple array. For acting: movie-grouped array
       loadingOptions: false,
       showTrashIcon: false, // For Matt's category reset functionality
@@ -527,13 +579,21 @@ export default {
         return [];
       }
     },
+    // The standard thirteen plus whatever awards the user has invented for
+    // THIS year (2026-08-20: "I can name an award whatever I want and then
+    // assign it"). Custom ones are movie-type and carry no genre filter, so
+    // every per-key helper below already answers correctly for them: not
+    // disabled, no disabled reason, sorted by rating.
     categories () {
-      return PERSONAL_AWARD_CATEGORIES.map(category => ({
+      return categoriesForYear({ customCategories: this.customCategories }).map(category => ({
         ...category,
         completed: this.isCategoryCompleted(category.key),
         disabled: this.isCategoryDisabled(category.key),
         disabledReason: this.getCategoryDisabledReason(category.key)
       }));
+    },
+    selectedCategoryIsCustom () {
+      return isCustomAwardKey(this.selectedCategory);
     },
     totalCategories () {
       return this.categories.filter(cat => !cat.disabled).length;
@@ -985,6 +1045,12 @@ export default {
           lastUpdated: Date.now(),
           categories: cleanedCategories
         };
+        // Only when there are some: writing an empty object would have
+        // Firebase delete the key anyway, and every year carrying an
+        // explicit `customCategories: {}` is noise in the stored shape.
+        if (Object.keys(this.customCategories).length) {
+          awardsEntry.customCategories = { ...this.customCategories };
+        }
         if (movieIds) {
           awardsEntry.availableMovieIds = movieIds;
         }
@@ -1010,6 +1076,10 @@ export default {
     initializeAwardsData () {
       try {
         const existingAwards = this.$store.state.settings.personalAwards?.[this.currentYear];
+        // Read before the categories branch below: a year can have an award
+        // invented but not yet assigned, which leaves customCategories set
+        // and `categories` empty.
+        this.customCategories = existingAwards?.customCategories || {};
         if (existingAwards && existingAwards.categories) {
           // Expand minimal nominees back to full objects for display
           this.awardsData = {};
@@ -1030,6 +1100,7 @@ export default {
         console.error('🚨 INIT FAILED:', error.message);
         ErrorLogService.error('Error initializing awards data:', error);
         this.awardsData = {};
+        this.customCategories = {};
       }
       this.awardsDataDirty = false;
     },
@@ -1055,6 +1126,77 @@ export default {
     getCurrentCategoryName () {
       const category = this.categories.find(cat => cat.key === this.selectedCategory);
       return category ? category.name : '';
+    },
+    // --- Custom awards -----------------------------------------------------
+    //
+    // 2026-08-20: "I could add custom awards... name an award whatever I want
+    // and then assign it. So I can basically hand out honorary awards."
+    openCustomAwardForm () {
+      this.addingCustomAward = true;
+      this.customAwardName = '';
+      this.customAwardError = null;
+      // The input renders on this tick; focusing it saves a second tap on a
+      // phone, where the keyboard is the slow part.
+      this.$nextTick(() => this.$refs.customAwardInput?.focus?.());
+    },
+    cancelCustomAward () {
+      this.addingCustomAward = false;
+      this.customAwardName = '';
+      this.customAwardError = null;
+    },
+    async addCustomAward () {
+      const name = this.customAwardName.trim();
+      const key = customAwardKey(name);
+
+      // A name of pure punctuation slugs to nothing, which would otherwise be
+      // stored under a bare "custom-" prefix.
+      if (!key) {
+        this.customAwardError = 'Give the award a name.';
+        return;
+      }
+      // Same name, same key (that is what lets a repeated award aggregate
+      // across years) — so within ONE year a duplicate would silently
+      // overwrite the first. Refuse instead.
+      if (this.customCategories[key]) {
+        this.customAwardError = 'You already have an award called that this year.';
+        return;
+      }
+      if (this.categories.some((category) => category.name.toLowerCase() === name.toLowerCase())) {
+        this.customAwardError = 'That is already one of the categories.';
+        return;
+      }
+
+      this.customCategories = { ...this.customCategories, [key]: { name, createdAt: Date.now() } };
+      this.cancelCustomAward();
+      // Persist before drilling in: an award you invented and then lost to a
+      // reload would be worse than not offering it.
+      await this.saveCurrentState();
+      await this.selectCategory(key);
+    },
+    /**
+     * Remove an invented award, and everything it was holding.
+     *
+     * Offered from inside the award rather than as an × on its row: the rows
+     * are <button>s, and a button inside a button is invalid markup that
+     * behaves differently across browsers.
+     */
+    async removeCustomAward () {
+      const key = this.selectedCategory;
+      if (!isCustomAwardKey(key)) return;
+
+      const remaining = { ...this.customCategories };
+      delete remaining[key];
+      this.customCategories = remaining;
+
+      // Its nominees and winner go with it — leaving them orphaned under a
+      // key nothing lists any more would keep the award alive in the Trophy
+      // Case and in every winner's award history.
+      const remainingAwards = { ...this.awardsData };
+      delete remainingAwards[key];
+      this.awardsData = remainingAwards;
+
+      this.backToCategories();
+      await this.saveCurrentState();
     },
     updateNoNomineesFlag (categoryKey) {
       // Safely manage the noNominees flag based on available options and existing nominees
@@ -3124,6 +3266,77 @@ export default {
   gap: 0.5rem;
   justify-content: space-between;
   margin-bottom: 0.5rem;
+}
+
+/* Understated: removing an award you invented is a real action but not one
+   the pane should push you toward. #b9b9b9 on the dark pane is ~8:1, and the
+   40px height is the house minimum tap target. */
+.panel-remove {
+  background: none;
+  border: none;
+  color: #b9b9b9;
+  font-size: 0.75rem;
+  min-height: 40px;
+  padding: 0 0.25rem;
+}
+
+/* Mobile-first: press feedback only, never a hover state that sticks. */
+.panel-remove:active {
+  color: #fff;
+}
+
+.custom-award-add {
+  margin-top: 0.6rem;
+}
+
+/* Dashed, and quieter than a category row — an invitation, not a fourteenth
+   category. */
+.custom-award-open {
+  background: none;
+  border: 1px dashed #3a3a3a;
+  border-radius: 8px;
+  color: #b9b9b9;
+  font-size: 0.85rem;
+  min-height: 44px;
+  width: 100%;
+}
+
+.custom-award-open:active {
+  background: #1f1f1f;
+  color: #fff;
+}
+
+.custom-award-form {
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  padding: 0.7rem;
+}
+
+.custom-award-input {
+  background: #1f1f1f;
+  border: 1px solid #3a3a3a;
+  color: #fff;
+  /* A UA-imposed minimum width beats width: 100% in a narrow column — see
+     .claude/rules/vue-ui.md. */
+  min-width: 0;
+}
+
+.custom-award-input::placeholder {
+  color: #8a8a8a;
+}
+
+.custom-award-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.6rem;
+}
+
+.custom-award-error {
+  color: #ff8a80;
+  font-size: 0.75rem;
+  margin: 0.5rem 0 0;
 }
 
 .sticky-sentinel {

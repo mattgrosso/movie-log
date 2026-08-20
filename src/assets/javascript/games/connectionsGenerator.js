@@ -1,6 +1,6 @@
 import { entryKey, movieDirectors, movieGenreNames, movieDecade, movieCastNames, shuffle, pickRandomDistinct } from './gameUtils.js';
 import { computeFlatKeywords } from '../../../utils/keywords.js';
-import { PERSONAL_AWARD_CATEGORY_NAMES } from '../personalAwardsCategories.js';
+import { awardCategoryNameMap } from '../personalAwardsCategories.js';
 import { awardNameWithThe } from '../personalAwards.js';
 
 const GROUP_SIZE = 4;
@@ -179,12 +179,15 @@ function movieWonAwardCategories (entry, awardsData, academyWinsByTmdbId) {
     // Falls back to "The Oscars" via awardNameWithThe's own default when
     // the name hasn't been set (or awardsData predates this field).
     const personalLabel = awardNameWithThe(awardsData?.personalAwardName);
+    // Includes awards the user invented — a clue reading "custom-best-needle
+    // -drop (The Groskers)" would be a raw storage key on screen.
+    const categoryNames = awardCategoryNameMap(personalAwards);
     Object.values(personalAwards).forEach((yearData) => {
       const yearCategories = yearData?.categories || {};
       Object.keys(yearCategories).forEach((categoryKey) => {
         const winner = yearCategories[categoryKey]?.winner;
         if (winner?.movieId === movieId) {
-          const name = PERSONAL_AWARD_CATEGORY_NAMES[categoryKey] || categoryKey;
+          const name = categoryNames[categoryKey] || categoryKey;
           categories.add(`${name} (${personalLabel})`);
         }
       });
