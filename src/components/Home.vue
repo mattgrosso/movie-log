@@ -1591,11 +1591,21 @@ export default {
       immediate: true,
       handler (ready) {
         if (!ready) return;
+        const social = this.$store.getters?.socialSettings;
+        if (!social?.enabled) return;
+        // The six-hour throttle is about not republishing a ~100KB profile
+        // for no reason. A changed NAME is a reason: friends see a mention
+        // by whatever was last published, so waiting up to six hours to stop
+        // calling someone by their email handle would be the bug report
+        // (2026-08-20) still on screen. Same for anyone signing in on a new
+        // device, where the stamp is absent and this publishes anyway.
         const lastPublish = Number(localStorage.getItem('cinemaRoll.social.lastPublish') || 0);
-        if (Date.now() - lastPublish < 6 * 60 * 60 * 1000) return;
-        if (!this.$store.getters?.socialSettings?.enabled) return;
+        const lastName = localStorage.getItem('cinemaRoll.social.lastPublishName');
+        const nameChanged = social.displayName !== lastName;
+        if (!nameChanged && Date.now() - lastPublish < 6 * 60 * 60 * 1000) return;
         this.$store.dispatch('publishSocialProfile');
         localStorage.setItem('cinemaRoll.social.lastPublish', String(Date.now()));
+        localStorage.setItem('cinemaRoll.social.lastPublishName', social.displayName);
       }
     },
     // Publishes a small summary of what's actually on screen to the store,

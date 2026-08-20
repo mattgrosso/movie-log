@@ -226,6 +226,15 @@ export default createStore({
     // synchronously filter/match against without a per-movie network call.
     allAcademyAwards: [],
     userEmail: null,
+    // The name the sign-in provider knows you by ("Matt Grosso"), as opposed
+    // to the address you signed in with. Bug report, 2026-08-20: "It would be
+    // nice if we could use someone's real name when we mention them in film
+    // club" — every Film Club mention used to fall back to the email's local
+    // part ("mattgrosso"), because this was thrown away at login. Restored
+    // from localStorage on boot so a mention isn't wrong for the moment
+    // before Firebase settles. Only ever a DEFAULT: an explicitly-set
+    // settings/social/displayName still wins (see socialSettingsWithDefaults).
+    userRealName: window.localStorage.getItem('userRealName') || null,
     databaseTopKey: null,
     newEntrySearchResults: [],
     movieToRate: {},
@@ -383,7 +392,7 @@ export default createStore({
       // Sharing is ON by default — the friend handshake is the real consent
       // gate (rules make unfriended profiles unreadable). Explicit false in
       // settings.social is the opt-out. See socialSettingsWithDefaults.
-      return socialSettingsWithDefaults(state.settings?.social, state.userEmail);
+      return socialSettingsWithDefaults(state.settings?.social, state.userEmail, state.userRealName);
     },
     // Friendship = BOTH edges exist. My friends are my outgoing edges that
     // the other side has reciprocated.
@@ -429,7 +438,15 @@ export default createStore({
     filmClubFriends (state, getters) {
       const native = getters.socialFriendKeys.map((key) => ({
         key,
-        name: state.socialFriendProfiles?.[key]?.name || key,
+        // Profile first, then the directory row, then — only if this person
+        // has published neither — the database key. That middle step matters:
+        // profiles are fetched lazily and are ~100KB each, so before they
+        // land every friend was being MENTIONED BY DATABASE KEY, which is a
+        // sanitized email address (bug report, 2026-08-20: "It would be nice
+        // if we could use someone's real name when we mention them in film
+        // club"). The directory row is already in memory and carries the same
+        // name the profile will.
+        name: state.socialFriendProfiles?.[key]?.name || state.socialDirectory?.[key]?.name || key,
         profile: state.socialFriendProfiles?.[key] || null,
         external: false
       }));
@@ -564,6 +581,15 @@ export default createStore({
     },
     setUserEmail (state, value) {
       state.userEmail = value;
+    },
+    setUserRealName (state, value) {
+      const name = (value || '').trim() || null;
+      state.userRealName = name;
+      if (name) {
+        window.localStorage.setItem('userRealName', name);
+      } else {
+        window.localStorage.removeItem('userRealName');
+      }
     },
     setDatabaseTopKey (state, value) {
       state.databaseTopKey = emailToDatabaseKey(value);
@@ -764,6 +790,11 @@ export default createStore({
       }
 
       context.commit('setUserEmail', email);
+      // Google and Apple both hand back the account holder's own name; it is
+      // what Film Club should call them (bug report, 2026-08-20). Apple only
+      // returns it on the very FIRST authorization, so a null here must not
+      // wipe a name captured earlier — hence the guard.
+      if (user?.displayName) context.commit('setUserRealName', user.displayName);
       // NOTE: this used to `dispatch` — but setDatabaseTopKey is a MUTATION,
       // never an action, so that dispatch was a silent no-op and state.databaseTopKey
       // stayed null through login. It only worked because the router guard
@@ -834,6 +865,9 @@ export default createStore({
       window.localStorage.removeItem('databaseTopKey');
       window.localStorage.removeItem('userEmail');
       context.commit('setUserEmail', null);
+      // The mutation clears the stored copy too — signing out must not leave
+      // the previous account's name behind for whoever signs in next.
+      context.commit('setUserRealName', null);
       context.commit('setDatabaseTopKey', null);
       await context.dispatch('resetLocalDB');
       router.push('/login');
@@ -856,6 +890,11 @@ export default createStore({
         if (user.email && user.email !== context.state.userEmail) {
           context.commit('setUserEmail', user.email);
           window.localStorage.setItem('userEmail', user.email);
+        }
+        // Anyone already signed in when this shipped never went through
+        // completeLogin again, so this is where their real name is picked up.
+        if (user.displayName && user.displayName !== context.state.userRealName) {
+          context.commit('setUserRealName', user.displayName);
         }
         return;
       }

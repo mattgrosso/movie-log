@@ -19,12 +19,29 @@ function entry (id, title, rating, { at = NOW - id * 1000, year = 2000, criteria
 const ratingOf = (e) => ({ calculatedTotal: e.ratings[0].calculatedTotal })
 
 describe('socialSettingsWithDefaults', () => {
-  it('defaults everything ON with a name derived from the email', () => {
+  it('defaults everything ON, and falls back to the email when no real name is known', () => {
     const settings = socialSettingsWithDefaults(undefined, 'mattgrosso@gmail.com')
     expect(settings.enabled).toBe(true)
     expect(settings.shareRatings).toBe(true)
     expect(settings.shareCriteria).toBe(true)
     expect(settings.displayName).toBe('mattgrosso')
+  })
+
+  // Bug report, 2026-08-20: "It would be nice if we could use someone's real
+  // name when we mention them in film club."
+  it('prefers the name the sign-in provider knows over the email handle', () => {
+    const settings = socialSettingsWithDefaults(undefined, 'mattgrosso@gmail.com', 'Matt Grosso')
+    expect(settings.displayName).toBe('Matt Grosso')
+  })
+
+  it('still lets a typed display name beat the real name', () => {
+    const settings = socialSettingsWithDefaults({ displayName: 'MG' }, 'mattgrosso@gmail.com', 'Matt Grosso')
+    expect(settings.displayName).toBe('MG')
+  })
+
+  it('ignores a blank or whitespace-only real name rather than publishing it', () => {
+    expect(socialSettingsWithDefaults(undefined, 'mattgrosso@gmail.com', '   ').displayName).toBe('mattgrosso')
+    expect(socialSettingsWithDefaults(undefined, 'mattgrosso@gmail.com', null).displayName).toBe('mattgrosso')
   })
 
   it('only an explicit false opts a tier out', () => {

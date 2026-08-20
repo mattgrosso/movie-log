@@ -55,14 +55,22 @@ export function criteriaArrayFrom (rating) {
 // required — the friendship handshake is the real consent gate, and the
 // database rules make an unfriended profile unreadable regardless. The
 // settings card is the opt-OUT. Only an explicit `false` turns a tier off.
-export function socialSettingsWithDefaults (raw, userEmail) {
+//
+// `realName` is what the sign-in provider calls the account holder. Bug
+// report, 2026-08-20: "It would be nice if we could use someone's real name
+// when we mention them in film club." Nobody had ever typed a display name,
+// so every mention fell through to the email's local part — "mattgrosso"
+// rather than "Matt Grosso". The real name now sits between the two: an
+// explicitly-typed display name still wins, and the email is still there for
+// a provider that returns no name at all.
+export function socialSettingsWithDefaults (raw, userEmail, realName) {
   const social = raw || {};
   const emailName = (userEmail || '').split('@')[0];
   return {
     enabled: social.enabled !== false,
     shareRatings: social.shareRatings !== false,
     shareCriteria: social.shareCriteria !== false,
-    displayName: social.displayName || emailName || 'A Cinema Roll user'
+    displayName: social.displayName || (realName || '').trim() || emailName || 'A Cinema Roll user'
   };
 }
 
