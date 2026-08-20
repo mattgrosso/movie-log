@@ -276,3 +276,40 @@ per-year on purpose: the Trophy Case aggregates a category across years, and a m
 award history walks every year at once, so an award invented in 2019 still has to render
 by name on a card built in 2026. The Connections generator uses it too — without it, a
 puzzle clue would have read "custom-best-needle-drop (The Groskers)".
+
+### Honorary awards to people, same day
+
+"I definitely need to be able to do honorary awards to people."
+
+Fair — the fixed categories already cover actors and directors, so the awards a person
+would *want* to invent are exactly the ones the built-ins don't reach: the composer, the
+cinematographer, the casting director. Custom awards now carry a `type`, chosen on a
+two-segment toggle when you name one, and a person-type award draws on the cast and crew
+of that year's films.
+
+Three things that mattered:
+
+- **A custom award must never read as an acting category.** `isActingCategory` now returns
+  false for any custom key explicitly. It would have been false anyway — slugs are
+  lowercase and the check is `includes('Actor')` — but relying on letter case for
+  correctness is luck, not design, and both gender gating and the lead/supporting sibling
+  conflict hang off that one predicate. Writing the test against a cased key
+  (`custom-Best-Actor`) is what turned it into a real guard; the lowercase version passed
+  with the fix reverted.
+- **It returns a flat list, not the movie-grouped shape.** The grouping exists for the
+  acting grid's per-movie "load more cast"; a person-type custom award renders in the
+  simple grid, each person over the poster of the film they did it on, exactly as Best
+  Director does.
+- **Cast is capped, crew is not.** Crew is already trimmed to `KEPT_CREW_JOBS` on the way
+  into storage — a dozen or so per film — but cast is deliberately untrimmed because Six
+  Degrees walks the full billing list, so a ten-film year would otherwise render hundreds
+  of tiles.
+
+Winners' photos come from the Trophy Case's existing name lookup rather than being
+pre-fetched: doing it upfront would be a `/search/person` call for every cast and crew
+member of the year, and the Trophy Case already resolves a person by name and falls back
+to their initial. A saved winner carrying a `name` is what tells it this is a person and
+not a film.
+
+Awards created in v1.90.0 carry no `type` at all. They default to `'movie'`, which is
+what they were, rather than being backfilled.

@@ -46,12 +46,24 @@ export const PERSONAL_AWARD_CATEGORY_NAMES = PERSONAL_AWARD_CATEGORIES.reduce((a
 
 export const CUSTOM_AWARD_PREFIX = 'custom-';
 
-// Custom awards are movie-type: you pick from the films you rated that year,
-// the same pool Best Picture draws on. The person-type path is gender-gated
-// and specific to the acting categories, and none of that generalises to an
-// award someone invented. If person-type ever lands, this is where the type
-// stops being a constant.
-const CUSTOM_AWARD_TYPE = 'movie';
+// A custom award goes either to a film or to a person — "I definitely need to
+// be able to do honorary awards to people" (2026-08-20).
+//
+// A person-type custom award draws on the cast and crew of that year's films.
+// It is deliberately NOT an acting category: no gender gating (that belongs to
+// the four acting categories and nothing else) and no lead/supporting sibling
+// conflict. Best Director is the shape it follows — a person picked from a
+// film, shown over that film's poster.
+export const CUSTOM_AWARD_TYPES = ['movie', 'person'];
+
+// Awards created before person-type landed carry no `type` at all, and were
+// all films. Defaulting rather than backfilling keeps those records valid
+// exactly as written.
+const DEFAULT_CUSTOM_AWARD_TYPE = 'movie';
+
+export function customAwardType (stored) {
+  return CUSTOM_AWARD_TYPES.includes(stored) ? stored : DEFAULT_CUSTOM_AWARD_TYPE;
+}
 
 /**
  * A stable, Firebase-safe key for an award name.
@@ -88,7 +100,7 @@ export function customCategoriesForYear (yearAwards) {
     .map(([key, custom]) => ({
       key,
       name: custom.name,
-      type: CUSTOM_AWARD_TYPE,
+      type: customAwardType(custom.type),
       custom: true,
       createdAt: Number(custom.createdAt) || 0
     }))

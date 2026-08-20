@@ -119,6 +119,24 @@
                   @keyup.enter="addCustomAward"
                   @keyup.esc="cancelCustomAward"
                 >
+                <!-- Who it goes to. A film is the common case, but an
+                     honorary award is exactly the one that often isn't
+                     ("I definitely need to be able to do honorary awards to
+                     people"), and the pool differs entirely, so it has to be
+                     decided up front. -->
+                <div class="custom-award-types" role="radiogroup" aria-label="What this award goes to">
+                  <button
+                    v-for="option in customAwardTypeOptions"
+                    :key="option.value"
+                    type="button"
+                    role="radio"
+                    class="custom-award-type"
+                    :class="{ active: customAwardType === option.value }"
+                    :aria-checked="customAwardType === option.value"
+                    @click="customAwardType = option.value"
+                  >{{ option.label }}</button>
+                </div>
+
                 <div class="custom-award-actions">
                   <button type="button" class="btn btn-sm btn-outline-light" @click="cancelCustomAward">Cancel</button>
                   <button type="button" class="btn btn-sm btn-warning" :disabled="!customAwardName.trim()" @click="addCustomAward">Add</button>
@@ -437,6 +455,11 @@ import { PERSONAL_AWARD_CATEGORIES, categoriesForYear, customAwardKey, isCustomA
 import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
 import { expandNomineeFromMinimal as expandNomineeFromMinimalShared, actingSiblingConflict } from '../assets/javascript/personalAwards.js';
 
+// Top-billed cast offered for a person-type custom award, per film. Cast is
+// stored untrimmed (Six Degrees walks the full billing list on purpose), so
+// without a cap a ten-film year would render hundreds of tiles.
+const CUSTOM_AWARD_CAST_DEPTH = 10;
+
 export default {
   name: "PersonalAwardsModal",
   props: {
@@ -497,6 +520,8 @@ export default {
       // The "add an award" row's open/typing state.
       addingCustomAward: false,
       customAwardName: '',
+      // Most invented awards go to a film, so that is where the toggle starts.
+      customAwardType: 'movie',
       customAwardError: null,
       eligibleOptions: [], // For movie categories: simple array. For acting: movie-grouped array
       loadingOptions: false,
@@ -594,6 +619,12 @@ export default {
     },
     selectedCategoryIsCustom () {
       return isCustomAwardKey(this.selectedCategory);
+    },
+    customAwardTypeOptions () {
+      return [
+        { value: 'movie', label: 'A film' },
+        { value: 'person', label: 'A person' }
+      ];
     },
     totalCategories () {
       return this.categories.filter(cat => !cat.disabled).length;
@@ -1134,6 +1165,7 @@ export default {
     openCustomAwardForm () {
       this.addingCustomAward = true;
       this.customAwardName = '';
+      this.customAwardType = 'movie';
       this.customAwardError = null;
       // The input renders on this tick; focusing it saves a second tap on a
       // phone, where the keyboard is the slow part.
@@ -1142,6 +1174,7 @@ export default {
     cancelCustomAward () {
       this.addingCustomAward = false;
       this.customAwardName = '';
+      this.customAwardType = 'movie';
       this.customAwardError = null;
     },
     async addCustomAward () {
@@ -1166,7 +1199,10 @@ export default {
         return;
       }
 
-      this.customCategories = { ...this.customCategories, [key]: { name, createdAt: Date.now() } };
+      this.customCategories = {
+        ...this.customCategories,
+        [key]: { name, type: this.customAwardType, createdAt: Date.now() }
+      };
       this.cancelCustomAward();
       // Persist before drilling in: an award you invented and then lost to a
       // reload would be worse than not offering it.
@@ -1374,6 +1410,18 @@ export default {
         moviesForYear = moviesForYear.filter(entry =>
           entry.movie.genres && entry.movie.genres.some(genre => genre.name === 'Documentary')
         );
+      }
+
+      // A person-type CUSTOM award returns a flat list of people, not the
+      // movie-grouped shape below — that grouping exists for the acting grid,
+      // with its per-movie "load more cast". These render in the simple grid,
+      // each person over the poster of the film they did it on, exactly like
+      // Best Director.
+      if (isCustomAwardKey(this.selectedCategory) && category.type === 'person') {
+        const people = this.extractCustomAwardPeople(moviesForYear);
+        const sortedPeople = this.sortOptionsByRelevantRating(people, this.selectedCategory);
+        this.optionsCache[cacheKey] = sortedPeople;
+        return sortedPeople;
       }
 
       if (category.type === 'movie') {
@@ -1625,7 +1673,59 @@ export default {
         movieGroup.isLoading = false;
       }
     },
+    /**
+     * Everyone who worked on a film that year — the pool for a person-type
+     * custom award ("I definitely need to be able to do honorary awards to
+     * people", 2026-08-20).
+     *
+     * Cast AND crew, because an honorary award is exactly the case the fixed
+     * categories don't cover: the composer, the casting director, the stunt
+     * double you want to single out. Crew is already trimmed to
+     * KEPT_CREW_JOBS on the way into storage, so it is a dozen or so per film;
+     * cast is deliberately untrimmed (Six Degrees walks the full billing
+     * list), so it is capped here or a ten-film year would render hundreds of
+     * tiles.
+     *
+     * The same person on two films that year appears twice, on purpose — you
+     * are honouring them for a piece of work, the way the acting categories
+     * already treat a person-plus-film as the unit.
+     */
+    extractCustomAwardPeople (movies) {
+      const people = [];
+      const seen = new Set();
+
+      movies.forEach(entry => {
+        const movie = entry.movie || {};
+        const add = (person, role) => {
+          if (!person?.name) return;
+          const dedupeKey = `${person.name}|${movie.id}`;
+          if (seen.has(dedupeKey)) return;
+          seen.add(dedupeKey);
+          people.push({
+            id: person.id || person.name,
+            name: person.name,
+            role,
+            movie,
+            movieId: movie.id,
+            // No gender check: that belongs to the four acting categories and
+            // nothing else. filterPeopleByGender passes these straight
+            // through, which is the point.
+            needsGenderCheck: false
+          });
+        };
+
+        (movie.cast || []).slice(0, CUSTOM_AWARD_CAST_DEPTH)
+          .forEach((person) => add(person, person.character || 'Cast'));
+        (movie.crew || []).forEach((person) => add(person, person.job || 'Crew'));
+      });
+
+      return people;
+    },
     extractPeopleFromMovies (movies, categoryKey) {
+      if (isCustomAwardKey(categoryKey)) {
+        return this.extractCustomAwardPeople(movies);
+      }
+
       const people = [];
 
       movies.forEach(entry => {
@@ -1907,8 +2007,10 @@ export default {
         // This is a movie option, no role to show
         return null;
       } else {
-        // This is a person option, show just the character/role
-        return option.character || null;
+        // This is a person option, show just the character/role. `role` is
+        // the custom-award pool's field — a character for cast, a job for
+        // crew, since an honorary award can go to either.
+        return option.character || option.role || null;
       }
     },
     // The sibling acting category (lead vs supporting) already holding this
@@ -2414,12 +2516,25 @@ export default {
       return expandNomineeFromMinimalShared(minimalNominee, this.allEntriesWithFlatKeywordsAdded);
     },
     isActingCategory (categoryKey) {
+      // An invented award is never an acting category, whatever it is called.
+      // Slugs are lowercase so `includes('Actor')` cannot match one today —
+      // but "Best Actor Impression" relying on letter case for correctness is
+      // luck, not design. Gender gating and the lead/supporting sibling
+      // conflict both hang off this.
+      if (isCustomAwardKey(categoryKey)) return false;
       return categoryKey && (categoryKey.includes('Actor') || categoryKey.includes('Actress'));
     },
     shouldShowTextOverlay (categoryKey) {
-      // Show text overlay for Best Director and all acting categories
-      // Hide text overlay for all other categories (Best Picture, etc.)
+      // Show text overlay for Best Director, the acting categories, and any
+      // person-type custom award — a tile showing a film's poster has to say
+      // WHICH person it stands for. Hidden for movie categories, where the
+      // poster is the answer.
+      if (this.isCustomPersonCategory(categoryKey)) return true;
       return categoryKey === 'bestDirector' || this.isActingCategory(categoryKey);
+    },
+    isCustomPersonCategory (categoryKey) {
+      if (!isCustomAwardKey(categoryKey)) return false;
+      return this.categories.find((category) => category.key === categoryKey)?.type === 'person';
     },
   }
 };
@@ -3324,6 +3439,45 @@ export default {
 
 .custom-award-input::placeholder {
   color: #8a8a8a;
+}
+
+/* One connected two-segment control, the same shape Six Degrees' hint row
+   uses. Selection is shown by the light fill, not a coloured outline. */
+.custom-award-types {
+  display: flex;
+  margin-top: 0.6rem;
+}
+
+.custom-award-type {
+  background: #1f1f1f;
+  border: 1px solid #3a3a3a;
+  color: #b9b9b9;
+  flex: 1;
+  font-size: 0.78rem;
+  /* House minimum tap target. */
+  min-height: 40px;
+  padding: 0 0.5rem;
+}
+
+.custom-award-type:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.custom-award-type:last-child {
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+}
+
+.custom-award-type.active {
+  background: #e8e8e8;
+  border-color: #e8e8e8;
+  color: #111;
+}
+
+/* Mobile-first: press feedback only, never a hover state that sticks. */
+.custom-award-type:active:not(.active) {
+  background: #2b2b2b;
+  color: #fff;
 }
 
 .custom-award-actions {

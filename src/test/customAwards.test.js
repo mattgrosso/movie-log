@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   customAwardKey,
+  customAwardType,
   isCustomAwardKey,
   customCategoriesForYear,
   categoriesForYear,
@@ -132,5 +133,38 @@ describe('awardCategoryNameMap', () => {
   it('is null-safe and still knows the standard names', () => {
     expect(awardCategoryNameMap(null).bestDirector).toBe('Best Director');
     expect(awardCategoryNameMap({}).bestDirector).toBe('Best Director');
+  });
+});
+
+
+// "I definitely need to be able to do honorary awards to people" (2026-08-20).
+describe('customAwardType', () => {
+  it('accepts the two kinds an award can go to', () => {
+    expect(customAwardType('movie')).toBe('movie');
+    expect(customAwardType('person')).toBe('person');
+  });
+
+  // Awards created before person-type landed carry no `type` at all and were
+  // all films. Defaulting rather than backfilling keeps those records valid
+  // exactly as written.
+  it('reads a record with no type as a film award', () => {
+    expect(customAwardType(undefined)).toBe('movie');
+    expect(customAwardType(null)).toBe('movie');
+  });
+
+  it('refuses a type it does not know rather than passing it through', () => {
+    expect(customAwardType('honorary')).toBe('movie');
+    expect(customAwardType(7)).toBe('movie');
+  });
+
+  it('is what customCategoriesForYear reports, per award', () => {
+    const yearAwards = {
+      customCategories: {
+        'custom-a': { name: 'To A Film', createdAt: 1 },
+        'custom-b': { name: 'To A Person', type: 'person', createdAt: 2 }
+      }
+    };
+
+    expect(customCategoriesForYear(yearAwards).map((c) => c.type)).toEqual(['movie', 'person']);
   });
 });

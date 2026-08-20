@@ -55,9 +55,22 @@ rather than needing a parallel path.
   year yields the SAME key, so "3× Best Needle Drop" aggregates across years in the
   Trophy Case the way a standard category does. The cost is that a duplicate *within* one
   year would silently overwrite the first, so the modal refuses one.
-- **Custom awards are movie-type.** The person path is gender-gated and specific to the
-  acting categories; none of it generalises. `CUSTOM_AWARD_TYPE` in
-  `personalAwardsCategories.js` is where that stops being a constant if it ever changes.
+- **A custom award goes to a film or to a person** (`type`, via `customAwardType`).
+  Records written before person-type landed carry no `type`; they default to `'movie'`
+  rather than being backfilled.
+- **A person-type custom award is NOT an acting category.** `isActingCategory` returns
+  false for any custom key — explicitly, not by relying on slugs being lowercase — because
+  gender gating and the lead/supporting sibling conflict both hang off it and neither
+  belongs to an award someone invented. Its pool is cast (capped at
+  `CUSTOM_AWARD_CAST_DEPTH`, since cast is stored untrimmed) plus all stored crew, so the
+  composer and the cinematographer are reachable; each option carries a `role` that is a
+  character for cast and a job for crew. It returns a FLAT list, not the movie-grouped
+  shape — that grouping exists for the acting grid's per-movie "load more cast".
+- **Person winners get their photo from the Trophy Case's own lookup.** Custom person
+  options deliberately don't pre-fetch `details.profile_path` — that would be a
+  `/search/person` call per cast+crew member of the year. The Trophy Case already falls
+  back to a name lookup, and a saved winner carrying a `name` is what tells it this is a
+  person and not a film.
 - **Read `customCategories` OUTSIDE the `categories` branch** when loading a year — an
   award can exist with nothing assigned to it yet, and that record has no `categories`
   key at all.
