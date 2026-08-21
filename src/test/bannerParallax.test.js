@@ -34,14 +34,17 @@ describe('tilt math', () => {
     expect(offset).toEqual({ x: 0, y: 0 });
   });
 
-  it('scales linearly and clamps at the full-tilt angle', () => {
+  // Signs are the window illusion (report 2026-08-21: "peek around the
+  // corner, not slide the picture in that direction"): tilting toward one
+  // side moves the photo the OTHER way, revealing that side.
+  it('scales linearly, clamps at the full-tilt angle, and counter-moves the tilt', () => {
     const baseline = { beta: 0, gamma: 0 };
     const half = tiltOffset({ beta: 0, gamma: MAX_TILT_DEG / 2 }, baseline);
-    expect(half.x).toBeCloseTo(MAX_SHIFT_PCT / 2, 5);
+    expect(half.x).toBeCloseTo(-MAX_SHIFT_PCT / 2, 5);
 
     const wild = tiltOffset({ beta: -170, gamma: 170 }, baseline);
-    expect(wild.x).toBe(MAX_SHIFT_PCT);
-    expect(wild.y).toBe(-MAX_SHIFT_PCT);
+    expect(wild.x).toBe(-MAX_SHIFT_PCT);
+    expect(wild.y).toBe(MAX_SHIFT_PCT);
   });
 
   it('the scale margin always covers the maximum shift, so no edge shows', () => {
@@ -92,11 +95,11 @@ describe('createBannerParallax', () => {
     expect(image.style.transform).toContain(`scale(${SCALE})`);
     expect(image.style.transform).toContain('translate3d(0.000%, 0.000%');
 
-    // ...and a tilt away from it drifts the photo.
+    // ...and a rightward tilt drifts the photo LEFT — the window illusion.
     win.handlers.deviceorientation({ beta: 40, gamma: 10 });
     parallax._frame();
-    const x = parseFloat(image.style.transform.match(/translate3d\(([-\d.]+)%/)[1]);
-    expect(x).toBeGreaterThan(0);
+    const x = parseFloat(image.style.transform.match(/translate3d\((-?[\d.]+)%/)[1]);
+    expect(x).toBeLessThan(0);
   });
 
   it('on iOS, a gesture-required refusal arms a one-time tap that asks again', async () => {

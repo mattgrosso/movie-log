@@ -34,11 +34,17 @@ export const FOLLOW = 0.35;          // how fast the drawn offset chases the til
 // Where the photo should sit for a reading against a baseline: linear in
 // the tilt delta, clamped at MAX_TILT_DEG. gamma is left/right tilt → x,
 // beta is toward/away tilt → y (portrait mapping; the banner is phone-only).
+//
+// NEGATED on both axes (report 2026-08-21: "when I tilt my phone, it lets
+// me kind of like peek around the corner, not like it slides the picture in
+// that direction"): the header is a window, and tilting the phone right
+// should reveal more of the photo's left — the way a real window works —
+// rather than dragging the photo rightward with the motion.
 export function tiltOffset (reading, baseline) {
   const unit = (value) => Math.max(-1, Math.min(1, value / MAX_TILT_DEG));
   return {
-    x: unit((reading.gamma ?? 0) - baseline.gamma) * MAX_SHIFT_PCT,
-    y: unit((reading.beta ?? 0) - baseline.beta) * MAX_SHIFT_PCT
+    x: -unit((reading.gamma ?? 0) - baseline.gamma) * MAX_SHIFT_PCT,
+    y: -unit((reading.beta ?? 0) - baseline.beta) * MAX_SHIFT_PCT
   };
 }
 
