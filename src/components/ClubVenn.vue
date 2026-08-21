@@ -1,0 +1,477 @@
+<template>
+  <div class="club-venn">
+    <BackLink/>
+
+    <h1 class="cv-title">Club Venn</h1>
+    <p class="cv-subtitle">Pick two or three people — every region is a real list of films.</p>
+
+    <p v-if="people.length < 2" class="cv-empty">
+      The Venn needs at least one friend who shares their ratings — right now it's just you here.
+    </p>
+
+    <template v-else>
+      <!-- Who's in the diagram. Tapping a fourth person drops the oldest pick. -->
+      <div class="cv-people">
+        <button
+          v-for="person in people"
+          :key="person.key"
+          type="button"
+          class="cv-chip"
+          :class="{ selected: isSelected(person.key) }"
+          :style="chipStyle(person.key)"
+          @click="togglePerson(person.key)"
+        >{{ person.name }}</button>
+      </div>
+
+      <!-- The lens: same circles, three different questions. -->
+      <div class="cv-lenses">
+        <button
+          v-for="option in lenses"
+          :key="option.key"
+          type="button"
+          class="cv-lens"
+          :class="{ selected: lens === option.key }"
+          @click="setLens(option.key)"
+        >{{ option.label }}</button>
+      </div>
+      <p class="cv-lens-note">{{ lensNote }}</p>
+
+      <p v-if="selected.length < 2" class="cv-empty">Pick at least two people above.</p>
+
+      <template v-else>
+        <!-- The diagram. A tap anywhere resolves to whichever circles contain
+             the point — that subset IS the region, no path hit-testing. -->
+        <div class="cv-stage">
+          <svg
+            class="cv-svg"
+            :viewBox="`0 0 100 ${layout.height}`"
+            :style="{ aspectRatio: `100 / ${layout.height}` }"
+            @click="onVennTap"
+          >
+            <circle
+              v-for="circle in layout.circles"
+              :key="circle.key"
+              :cx="circle.x"
+              :cy="circle.y"
+              :r="circle.r"
+              class="cv-circle"
+              :style="{ fill: colorFor(circle.key), stroke: colorFor(circle.key) }"
+            />
+            <text
+              v-for="region in labelledRegions"
+              :key="`n-${region.signature}`"
+              :x="anchorFor(region).x"
+              :y="anchorFor(region).y"
+              class="cv-count"
+              :class="{ selected: region.signature === selectedSignature }"
+            >{{ region.count }}</text>
+          </svg>
+        </div>
+
+        <!-- Same regions as rows, for anything too small to tap in the art. -->
+        <div class="cv-legend">
+          <button
+            v-for="region in occupiedRegions"
+            :key="`l-${region.signature}`"
+            type="button"
+            class="cv-legend-row"
+            :class="{ selected: region.signature === selectedSignature }"
+            @click="selectRegion(region.signature)"
+          >
+            <span class="cv-legend-dots">
+              <span
+                v-for="key in region.keys"
+                :key="`d-${region.signature}-${key}`"
+                class="cv-dot"
+                :style="{ background: colorFor(key) }"
+              ></span>
+            </span>
+            <span class="cv-legend-name">{{ labelFor(region) }}</span>
+            <span class="cv-legend-count">{{ region.count }}</span>
+          </button>
+        </div>
+
+        <section v-if="selectedRegion" class="cv-section">
+          <h2 class="cv-section-title">{{ labelFor(selectedRegion) }}</h2>
+          <p class="cv-caption">{{ regionCaption }}</p>
+          <div class="cv-poster-row">
+            <div
+              v-for="movie in selectedRegion.movies"
+              :key="movie.id"
+              class="cv-poster-card"
+              role="button"
+              :aria-label="movie.t"
+              @click="openMovie(movie)"
+            >
+              <div class="cv-poster-frame">
+                <img v-if="movie.p" :src="poster(movie.p)" :alt="movie.t" class="cv-poster">
+                <div v-else class="cv-poster cv-poster-blank">{{ movie.t }}</div>
+                <SendToHat
+                  v-if="!inMyLibrary(movie)"
+                  class="cv-poster-hat"
+                  variant="icon"
+                  :movies="hatMovieFor(movie)"
+                  :note="hatNoteFor(movie)"
+                />
+              </div>
+              <span class="cv-poster-note">{{ scoresLine(movie) }}</span>
+            </div>
+          </div>
+        </section>
+        <p v-else class="cv-hint">Tap a region — in the picture or the list — to see what's in it.</p>
+      </template>
+    </template>
+  </div>
+</template>
+
+<script>
+// Club Venn (/club-venn). All the set math and geometry is pure in
+// clubVenn.js; this component is selection state and rendering. From the
+// 2026-08-21 bug report: "there's gotta be some kind of cool Venn diagram we
+// could build around friends in my film club."
+import BackLink from './games/BackLink.vue';
+import SendToHat from './SendToHat.vue';
+import { getRating } from '../assets/javascript/GetRating.js';
+import { formatScore } from '../assets/javascript/formatScore.js';
+import { memberColors, YOU_COLOR } from '../assets/javascript/clubCharts.js';
+import {
+  LENSES,
+  LOVE_THRESHOLD,
+  vennPeople,
+  vennRegions,
+  vennLayout,
+  subsetAt,
+  regionLabel
+} from '../assets/javascript/clubVenn.js';
+
+export default {
+  name: 'ClubVenn',
+  components: { BackLink, SendToHat },
+  data () {
+    return {
+      lenses: LENSES,
+      lens: 'all',
+      selectedKeys: [],
+      selectedSignature: null,
+      seeded: false
+    };
+  },
+  computed: {
+    myEntries () {
+      return this.$store.getters.allMoviesAsArray || [];
+    },
+    profiles () {
+      return this.$store.getters.filmClubProfiles || {};
+    },
+    people () {
+      return vennPeople(this.myEntries, getRating, this.profiles);
+    },
+    // Your library's ids, unlensed — governs navigation and the hat ribbon.
+    myIds () {
+      const you = this.people.find((person) => person.key === 'you');
+      return you ? you.movies : new Map();
+    },
+    selected () {
+      return this.selectedKeys
+        .map((key) => this.people.find((person) => person.key === key))
+        .filter(Boolean);
+    },
+    colors () {
+      return memberColors(Object.keys(this.profiles));
+    },
+    regionData () {
+      if (this.selected.length < 2) return null;
+      return vennRegions(this.selected, this.lens, Date.now());
+    },
+    layout () {
+      return this.regionData ? vennLayout(this.regionData) : null;
+    },
+    occupiedRegions () {
+      return (this.regionData?.regions || []).filter((region) => region.count > 0);
+    },
+    labelledRegions () {
+      return this.occupiedRegions.filter((region) => this.layout?.anchors[region.signature]);
+    },
+    selectedRegion () {
+      if (!this.selectedSignature) return null;
+      return this.occupiedRegions.find((region) => region.signature === this.selectedSignature) || null;
+    },
+    lensNote () {
+      if (this.lens === 'loved') return `Only films someone gave ${LOVE_THRESHOLD}+ count for that person.`;
+      if (this.lens === 'year') return `Only films watched in ${new Date().getFullYear()}.`;
+      return 'Everything each person has rated.';
+    },
+    regionCaption () {
+      const region = this.selectedRegion;
+      if (!region) return '';
+      const films = region.count === 1 ? 'film' : 'films';
+      if (!region.keys.includes('you') && this.selectedKeys.includes('you')) {
+        return `${region.count} ${films} you haven't rated — the hat ribbon sends one to a Movie Hat.`;
+      }
+      return `${region.count} ${films}, best first.`;
+    }
+  },
+  watch: {
+    // Profiles arrive async; seed the classic picture once — you plus the
+    // first two friends — and never fight the user's own picks after that.
+    people: {
+      immediate: true,
+      handler (people) {
+        if (this.seeded || people.length < 2) return;
+        this.seeded = true;
+        this.selectedKeys = people.slice(0, 3).map((person) => person.key);
+      }
+    }
+  },
+  created () {
+    // Reachable directly, so it can't assume the Film Club screen ran first.
+    this.$store.dispatch('attachSocialListeners');
+    this.$store.dispatch('fetchFriendProfiles');
+  },
+  methods: {
+    formatScore,
+    isSelected (key) {
+      return this.selectedKeys.includes(key);
+    },
+    togglePerson (key) {
+      const index = this.selectedKeys.indexOf(key);
+      if (index >= 0) {
+        this.selectedKeys.splice(index, 1);
+      } else {
+        this.selectedKeys.push(key);
+        if (this.selectedKeys.length > 3) this.selectedKeys.shift();
+      }
+      this.selectedSignature = null;
+    },
+    setLens (key) {
+      this.lens = key;
+      this.selectedSignature = null;
+    },
+    colorFor (key) {
+      return key === 'you' ? YOU_COLOR : (this.colors[key] || '#9a9a9a');
+    },
+    chipStyle (key) {
+      const color = this.colorFor(key);
+      return this.isSelected(key)
+        ? { background: color, borderColor: color, color: '#101010' }
+        : { borderColor: color, color };
+    },
+    labelFor (region) {
+      return regionLabel(region, this.regionData?.people || [], this.selected.length);
+    },
+    anchorFor (region) {
+      return this.layout.anchors[region.signature];
+    },
+    selectRegion (signature) {
+      this.selectedSignature = this.selectedSignature === signature ? null : signature;
+    },
+    // The tap resolves through the same viewBox the circles were drawn in:
+    // the svg keeps its aspect via aspect-ratio, so both axes scale linearly.
+    onVennTap (event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (!rect.width || !rect.height || !this.layout) return;
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * this.layout.height;
+      const keys = subsetAt(x, y, this.layout.circles);
+      if (!keys.length) return;
+      const signature = [...keys].sort().join('|');
+      const region = this.occupiedRegions.find((candidate) =>
+        [...candidate.keys].sort().join('|') === signature);
+      if (region) this.selectRegion(region.signature);
+    },
+    inMyLibrary (movie) {
+      return this.myIds.has(movie.id);
+    },
+    scoresLine (movie) {
+      return this.selectedKeys
+        .filter((key) => movie.scores[key] != null)
+        .map((key) => formatScore(movie.scores[key]))
+        .join(' · ');
+    },
+    poster (path) {
+      return `https://image.tmdb.org/t/p/w185${path}`;
+    },
+    openMovie (movie) {
+      // Same rule as Club Charts: MovieDetail is a local lookup, so don't
+      // send anyone to an empty page for a film only a friend has rated.
+      if (!this.inMyLibrary(movie)) return;
+      this.$router.push(`/movie/${movie.id}`);
+    },
+    hatMovieFor (movie) {
+      return { id: movie.id, title: movie.t, poster_path: movie.p, release_date: '', overview: '' };
+    },
+    hatNoteFor (movie) {
+      const names = Object.keys(movie.scores)
+        .map((key) => this.regionData?.people.find((person) => person.key === key)?.name)
+        .filter(Boolean);
+      return `A Club Venn find — rated ${this.scoresLine(movie)} by ${names.join(' & ')}`;
+    }
+  }
+};
+</script>
+
+<style lang="scss" scoped>
+.club-venn {
+  color: #eee;
+  padding: 0.75rem 1rem 3rem;
+}
+
+.cv-title { margin: 0.25rem 0 0; }
+.cv-subtitle { color: #ccc; font-size: 0.85rem; margin: 0.25rem 0 1rem; }
+.cv-empty { color: #ccc; padding: 1.5rem 0; text-align: center; }
+.cv-hint { color: #b9b9b9; font-size: 0.8rem; padding: 0.75rem 0; text-align: center; }
+
+.cv-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.cv-chip {
+  background: transparent;
+  border: 1.5px solid;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 0.3rem 0.9rem;
+
+  &:active { opacity: 0.75; }
+}
+
+.cv-lenses {
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 999px;
+  display: flex;
+  margin-bottom: 0.35rem;
+  overflow: hidden;
+}
+
+.cv-lens {
+  background: transparent;
+  border: none;
+  color: #ccc;
+  flex: 1 1 0;
+  font-size: 0.8rem;
+  min-height: 40px;
+  padding: 0.4rem 0;
+
+  &.selected {
+    background: #2e2e2e;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  &:active { opacity: 0.75; }
+}
+
+.cv-lens-note { color: #7a7a7a; font-size: 0.68rem; margin: 0 0 0.75rem; text-align: center; }
+
+.cv-stage {
+  background: #101010;
+  border: 1px solid #2e2e2e;
+  border-radius: 10px;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+}
+
+.cv-svg { display: block; width: 100%; }
+
+.cv-circle {
+  fill-opacity: 0.28;
+  stroke-opacity: 0.9;
+  stroke-width: 0.6;
+}
+
+/* White with a dark halo, so a count stays readable whether it lands on the
+   dark ground or inside two overlapping light fills. */
+.cv-count {
+  fill: #fff;
+  font-size: 5px;
+  font-weight: 700;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: #101010;
+  stroke-width: 1px;
+  text-anchor: middle;
+
+  &.selected { font-size: 6.5px; }
+}
+
+.cv-legend {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.75rem;
+}
+
+.cv-legend-row {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #242424;
+  color: #eee;
+  display: flex;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0.45rem 0.25rem;
+  text-align: left;
+
+  &:last-child { border-bottom: none; }
+  &.selected { background: #1c1c1c; border-radius: 6px; }
+  &:active { background: #222; }
+}
+
+.cv-legend-dots { display: flex; flex: 0 0 auto; gap: 3px; }
+
+.cv-dot {
+  border-radius: 50%;
+  display: inline-block;
+  height: 9px;
+  width: 9px;
+}
+
+.cv-legend-name { flex: 1 1 auto; font-size: 0.85rem; min-width: 0; }
+.cv-legend-count { color: #b9b9b9; flex: 0 0 auto; font-size: 0.8rem; font-weight: 700; }
+
+.cv-section {
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+
+.cv-section-title { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.25rem; }
+.cv-caption { color: #ccc; font-size: 0.78rem; margin: 0 0 0.9rem; }
+
+/* Poster rows, house rules: fixed image height so edges line up, text below
+   free to run. */
+.cv-poster-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cv-poster-card { flex: 0 0 92px; width: 92px; }
+.cv-poster-card:active { transform: scale(0.97); }
+.cv-poster-frame { position: relative; }
+.cv-poster { border-radius: 6px; display: block; height: 138px; object-fit: cover; width: 92px; }
+.cv-poster-hat { position: absolute; right: 0; top: 0; }
+
+.cv-poster-blank {
+  align-items: center;
+  background: #2b2b2b;
+  color: #ccc;
+  display: flex;
+  font-size: 0.68rem;
+  justify-content: center;
+  padding: 0.3rem;
+  text-align: center;
+}
+
+.cv-poster-note { color: #ccc; display: block; font-size: 0.7rem; font-weight: 700; margin-top: 0.2rem; text-align: center; }
+</style>

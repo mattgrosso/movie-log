@@ -101,6 +101,17 @@
         <i class="bi bi-chevron-right"></i>
       </button>
 
+      <!-- Same treatment as the charts: the Venn is its own screen (bug
+           report 2026-08-21, "some kind of cool Venn diagram... around
+           friends in my film club"). -->
+      <button type="button" class="cs-charts-link" @click="$router.push('/club-venn')">
+        <span>
+          <strong>Club Venn</strong>
+          <em>Any two or three of you, circle by circle</em>
+        </span>
+        <i class="bi bi-chevron-right"></i>
+      </button>
+
       <!-- Both of these lists run long and pushed everything else off the
            screen; they scroll in place instead ("it feels like it takes up
            too much space vertically... its own little section in a
