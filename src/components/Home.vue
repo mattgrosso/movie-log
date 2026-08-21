@@ -1282,6 +1282,7 @@
 <script>
 import axios from 'axios';
 import { scrollWindowTo } from '../utils/scrollWindowTo.js';
+import { indexOfMovie, resultElementId, resultsNeededToReveal, scrollOffsetFor } from '../assets/javascript/revealInList.js';
 import { arrivedFromMovieDetail } from '../router/scrollBehavior.js';
 import minBy from 'lodash/minBy';
 import debounce from 'lodash/debounce';
@@ -1670,6 +1671,12 @@ export default {
     // Google popup, which an automated browser cannot complete. Mirrors the
     // app's own ?testToken= sign-in hook; the token only ever grants the Dev
     // Hat (see mint-hat-token.mjs in the movie-hat repo).
+    // `?revealMovie=<dbKey>` scrolls the list to that film in place, keeping
+    // whatever sort is already set. Set by the rank badge on MovieDetail.
+    if (this.$route?.query?.revealMovie) {
+      this.revealMovieInList(String(this.$route.query.revealMovie));
+    }
+
     const hatToken = this.$route?.query?.hatToken;
     if (hatToken) {
       this.$store.dispatch('connectMovieHat', hatToken)
@@ -4967,6 +4974,55 @@ export default {
       // The row carries the id from the catalog, so the chip does too.
       this.addSearchFilter(suggestion.value, false, suggestion.expectedType, suggestion.tmdbId ?? null);
     },
+    /**
+     * Scroll the list to one film, without changing how the list is sorted.
+     *
+     * Bug report (2026-08-20): a quick way to see a film's neighbours in the
+     * rankings. The sort and order are left exactly as they are - that was the
+     * explicit ask - so this only has to render far enough down the list and
+     * put the row on screen.
+     */
+    async revealMovieInList (dbKey) {
+      const locate = () => indexOfMovie(this.sortedResults, dbKey);
+
+      let index = locate();
+
+      // A search or a set of chips can exclude the film entirely, and then
+      // there is nothing to scroll to. Clearing them is the only way to honour
+      // "where does this live in the overall list" - and silently doing
+      // nothing is exactly the failure mode of the pin button just fixed.
+      if (index === -1) {
+        this.clearAllFilters();
+        await this.$nextTick();
+        index = locate();
+      }
+      if (index === -1) return false;
+
+      // Home renders a slice; a film at #134 is not in the document until
+      // enough of the list is. The margin is the neighbours below it.
+      this.numberOfResultsToShow = resultsNeededToReveal(index, this.numberOfResultsToShow);
+      await this.$nextTick();
+
+      const element = document.getElementById(resultElementId(dbKey));
+      if (!element) return false;
+
+      // `<html>` has scroll-behavior: smooth, which makes a bare
+      // window.scrollTo a silent no-op here (see .claude/rules/vue-ui.md).
+      const top = element.getBoundingClientRect().top + window.scrollY;
+      scrollWindowTo(scrollOffsetFor(top, window.innerHeight));
+
+      // A brief highlight, or you arrive at a wall of posters with no idea
+      // which one you came for.
+      element.classList.add('revealed-result');
+      setTimeout(() => element.classList.remove('revealed-result'), 2400);
+
+      // Drop the param so a refresh, or a later back-navigation, doesn't
+      // yank the list around again.
+      const query = { ...this.$route.query };
+      delete query.revealMovie;
+      this.$router.replace({ query }).catch(() => {});
+      return true;
+    },
     clearAllFilters () {
       // Blur the search input first to prevent layout shifts
       if (this.$refs.searchInput) {
@@ -5553,6 +5609,21 @@ export default {
 </script>
 
 <style lang="scss">
+/* Brief marker on the row you jumped to via a rank badge. Without it you
+   arrive at a wall of posters with no idea which one you came for. Purely a
+   box-shadow animation - nothing about the layout changes, so the list does
+   not shift under your thumb the moment you land. Unscoped, because the row
+   itself belongs to DBGridLayoutSearchResult. */
+.revealed-result {
+  animation: reveal-pulse 2.4s ease-out;
+  border-radius: 6px;
+}
+
+@keyframes reveal-pulse {
+  0%, 55% { box-shadow: 0 0 0 3px #ffd700, 0 0 14px 4px rgba(255, 215, 0, 0.45); }
+  100% { box-shadow: 0 0 0 3px rgba(255, 215, 0, 0), 0 0 14px 4px rgba(255, 215, 0, 0); }
+}
+
 @import '@/assets/scss/prompt-card';
 
 /* Quick links and tags are one combined list now, capped and scrolling —

@@ -43,7 +43,17 @@
                 :normalizedRating="normalizedRatingForMedia(result)"
                 @typeChanged="visibleRatingType = $event"
               />
-              <span v-if="overallRank && visibleRatingType === 'rating'" class="overall-rank">({{ordinalRank}})</span>
+              <!-- The rank is now the way to go and look at it in context:
+                   "I just wanna see where that movie lives and who its
+                   neighbors are on the home screen" (2026-08-21). Home keeps
+                   its own sort; this only scrolls the list there. -->
+              <button
+                v-if="overallRank && visibleRatingType === 'rating'"
+                type="button"
+                class="overall-rank overall-rank-link"
+                :title="`Show ${ordinalRank} in your rankings`"
+                @click.stop="showInRankings"
+              >({{ordinalRank}})</button>
             </span>
           </div>
           <div class="line-two">
@@ -927,6 +937,13 @@ export default {
     },
   },
   methods: {
+    // Jumps to Home and scrolls to this film in whatever order Home is
+    // already in. Nothing about the list changes.
+    showInRankings () {
+      const dbKey = this.result?.dbKey;
+      if (!dbKey) return;
+      this.$router.push({ path: '/', query: { revealMovie: dbKey } }).catch(() => {});
+    },
     async loadMovieData (tmdbId) {
       try {
         // Wait for database to be loaded if it isn't already
@@ -2024,6 +2041,23 @@ export default {
       align-items: baseline;
       display: flex;
       gap: 0.3rem;
+    }
+
+    .overall-rank-link {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font: inherit;
+      padding: 0;
+      /* Underlined so it reads as pressable, while still looking like the
+         rank it replaced rather than a button. */
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* Mobile-first: :active, never :hover (see .claude/rules/vue-ui.md). */
+    .overall-rank-link:active {
+      opacity: 0.6;
     }
 
     .overall-rank {
