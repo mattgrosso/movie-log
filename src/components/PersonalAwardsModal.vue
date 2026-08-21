@@ -279,6 +279,17 @@
             <!-- Available Options Section -->
             <div class="available-options-section">
               <h6 class="section-title">Available Options:</h6>
+              <!-- Bug report (2026-08-21): "How are the movies sorted when I'm
+                   nominating people for personal acting awards? It seems
+                   random." It was never random - acting categories order the
+                   films by your Performance score, others by the criterion
+                   that category is about. Nothing on screen said so, and no
+                   score was shown anywhere, so the order had no visible
+                   justification. Saying it, and showing the score on each
+                   film, is the whole fix. -->
+              <p v-if="!loadingOptions && eligibleOptions.length" class="options-sort-note">
+                Films ordered by your <strong>{{ sortCriterionLabel }}</strong> score, best first.
+              </p>
               <!-- Loading state -->
               <div v-if="loadingOptions" class="loading-container">
                 <div class="spinner-border" role="status">
@@ -298,6 +309,9 @@
                   <div class="movie-group-header">
                     <h6 class="movie-title">{{ movieGroup.movie.title }}</h6>
                     <span class="movie-year">({{ new Date(movieGroup.movie.release_date).getFullYear() }})</span>
+                    <span v-if="sortScoreFor(movieGroup) !== null" class="movie-sort-score">
+                      {{ sortCriterionLabel }} {{ sortScoreFor(movieGroup) }}
+                    </span>
                   </div>
 
                   <!-- Cast members grid for this movie -->
@@ -755,6 +769,20 @@ export default {
 
       const backdrop = entry && (entry.customBackdropPath || entry.movie?.backdrop_path);
       return backdrop ? `https://image.tmdb.org/t/p/w500${backdrop}` : null;
+    },
+    // The criterion this category orders by, in the words the rating form
+    // uses. getCategorySortKey already decides it; this only names it.
+    sortCriterionLabel () {
+      const key = this.getCategorySortKey(this.selectedCategory);
+      const labels = {
+        rating: 'Rating',
+        direction: 'Direction',
+        performance: 'Performance',
+        story: 'Story',
+        imagery: 'Imagery',
+        soundtrack: 'Soundtrack'
+      };
+      return labels[key] || 'Rating';
     },
     eligibleOptionsByMovie () {
       // Only return movie-grouped data for acting categories
@@ -1449,12 +1477,19 @@ export default {
           return this.sortResultsLikeMainApp(a.movieEntry, b.movieEntry, sortCriteria);
         });
 
-        // Extract sorted movie IDs
-        const sortedMovieIds = movieEntries.map(item => item.movieId);
-
-        // Convert to array to preserve sort order
-        const sortedMovieArray = sortedMovieIds.map(movieId => ({
+        // Convert to array to preserve sort order. The score each film was
+        // ordered by rides along: the entry is in hand right here, and the
+        // header shows it so the ordering is visible rather than looking
+        // arbitrary (bug report, 2026-08-21).
+        const scoreFor = (movieEntry) => {
+          const rating = this.mostRecentRating(movieEntry);
+          const raw = sortCriteria === 'rating' ? rating.calculatedTotal : rating[sortCriteria];
+          const numeric = Number(raw);
+          return Number.isFinite(numeric) ? numeric : null;
+        };
+        const sortedMovieArray = movieEntries.map(({ movieId, movieEntry }) => ({
           movieId,
+          sortScore: scoreFor(movieEntry),
           ...optionsByMovie[movieId]
         }));
 
@@ -1616,6 +1651,13 @@ export default {
       }));
 
       return results.filter(Boolean);
+    },
+    // The number this film was ordered by, captured during the sort where
+    // the library entry is already in hand. Null rather than a misleading 0
+    // when the film has no score for that criterion.
+    sortScoreFor (movieGroup) {
+      const value = movieGroup?.sortScore;
+      return Number.isFinite(value) ? value : null;
     },
     getCategorySortKey (categoryKey) {
       // Map awards categories to Cinema Roll sort keys
@@ -3150,7 +3192,22 @@ export default {
           gap: 24px;
 
           .movie-group {
-            .movie-group-header {
+            /* Says out loud what the ordering is. #ccc, not Bootstrap's .text-muted,
+   which fails contrast on these dark panels (see .claude/rules/vue-ui.md). */
+.options-sort-note {
+  color: #ccc;
+  font-size: 0.78rem;
+  margin: 0 0 0.6rem;
+}
+
+.movie-sort-score {
+  color: #ccc;
+  font-size: 0.72rem;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.movie-group-header {
               align-items: baseline;
               display: flex;
               gap: 8px;

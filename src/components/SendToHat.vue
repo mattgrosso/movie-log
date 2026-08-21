@@ -224,9 +224,21 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.send-to-hat {
-  position: relative;
-}
+/* No `position` here, deliberately.
+ *
+ * This root is placed by whoever renders it, and two callers pin it to a
+ * poster's corner (`.cs-poster-hat`, `.cc-poster-hat`, both `position:
+ * absolute`). Those are parent-scoped rules on this component's root, so they
+ * carry exactly the same specificity as a rule here — and this component's CSS
+ * is emitted once per chunk that imports it, which put two later copies of a
+ * `position: relative` here after both of them. Last one wins, so the hat
+ * dropped into normal flow and rendered below the poster instead of on it
+ * (bug report, 2026-08-21).
+ *
+ * Nothing inside needs a containing block from this element: the wedge is
+ * `.hat-icon-button::before`, contained by `.hat-icon-button`'s own
+ * `position: relative`, and both sheets are teleported to <body> and fixed.
+ * Don't set layout properties on this root — set them on the button. */
 
 .hat-button {
   align-items: center;

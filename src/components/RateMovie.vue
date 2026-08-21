@@ -130,10 +130,26 @@
       </div>
 
       <div v-if="movieToRate" class="col-12">
-        <div ref="neighbors" class="neighbors">
-          <div class="hide-neighbors" @click="toggleNeighbors">
-            <i class="bi bi-arrow-bar-down"/>
-            <i class="bi bi-arrow-bar-up"/>
+        <div ref="neighbors" class="neighbors" :class="{ unstuck: !neighborsPinned }">
+          <!-- A pin, not the up/down arrows this used to show. Those read as a
+               sort control - reported as exactly that on 2026-08-21: "I'm
+               assuming it's supposed to make that list be sorted ascending or
+               descending". Sorting these makes no sense; the strip is
+               positional (two above, this film, two below, by rating). What
+               the button actually does is pin the strip to the bottom of the
+               screen or let it scroll away. -->
+          <div
+            class="hide-neighbors"
+            role="button"
+            tabindex="0"
+            :title="neighborsPinned ? 'Unpin this strip' : 'Pin this strip to the bottom'"
+            :aria-label="neighborsPinned ? 'Unpin this strip' : 'Pin this strip to the bottom'"
+            @click="toggleNeighbors"
+            @keydown.enter="toggleNeighbors"
+            @keydown.space.prevent="toggleNeighbors"
+          >
+            <i class="bi bi-pin-angle-fill"/>
+            <i class="bi bi-pin-angle"/>
           </div>
           <div v-if="neighborTwoAhead" class="neighbor-two-ahead">
             <img :src="posterUrl(neighborTwoAhead.movie, neighborTwoAhead)" :alt="`${neighborTwoAhead.movie.title} poster`">
@@ -355,6 +371,11 @@ export default {
   components: { RatingSelect },
   data () {
     return {
+      // Whether the neighbours strip is pinned to the bottom of the screen.
+      // Held in state rather than toggled onto the DOM node through $refs:
+      // that made the only evidence of this feature a class mutation no test
+      // could see, which is part of how it sat broken for eleven months.
+      neighborsPinned: true,
       direction: null,
       imagery: null,
       story: null,
@@ -785,7 +806,7 @@ export default {
       }
     },
     toggleNeighbors () {
-      this.$refs.neighbors.classList.toggle("unstuck");
+      this.neighborsPinned = !this.neighborsPinned;
     },
     // Returns a human-friendly relative time string for a given timestamp
     relativeTime (date) {
@@ -894,26 +915,41 @@ export default {
       justify-content: space-between;
       margin: 0 -1rem; /* Extend to edges, counteracting parent p-3 padding */
       padding: 6px;
-      position: relative;
+      /* Pinned to the bottom of the viewport while you scroll the form, so
+         where this film sits against its neighbours stays visible the whole
+         time you're moving sliders. That is the entire point of the strip, and
+         of the pin button.
+         Restored 2026-08-21: "Cleans up layout for rate movie form" (6020426,
+         2025-09-06) swapped this for `position: relative` during a 267-line
+         refactor. That silently made the pin button a no-op — `.unstuck` below
+         sets `position: relative` too, so both of its states were identical
+         and only the icon changed. It stayed that way for eleven months, until
+         a bug report: "I press this little up/down arrow... it doesn't do
+         anything." The toggle was left in place by that commit, which is what
+         makes it collateral rather than a decision. */
+      bottom: 0;
+      position: sticky;
 
       &.unstuck {
-        bottom: 0;
+        /* Released: back into normal flow, scrolling away with the page.
+           `bottom` has to be cleared too, or it lingers as an offset. */
+        bottom: auto;
         position: relative;
 
-        .bi-arrow-bar-down {
+        .bi-pin-angle-fill {
           display: none;
         }
 
-        .bi-arrow-bar-up {
+        .bi-pin-angle {
           display: block;
         }
       }
 
-      .bi-arrow-bar-up {
+      .bi-pin-angle {
         display: none;
       }
 
-      .bi-arrow-bar-down {
+      .bi-pin-angle-fill {
         display: block;
       }
 
