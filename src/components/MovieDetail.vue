@@ -14,6 +14,7 @@
         </template>
       </div>
       <img v-if="movie && getBackdropPath()"
+           ref="backdropImage"
            :src="`https://image.tmdb.org/t/p/w1280${getBackdropPath()}`"
            :alt="`${movie.title} backdrop`"
            class="backdrop-image">
@@ -545,6 +546,7 @@
 <script>
 import { navigationTarget } from '../utils/navigationTarget.js';
 import { formatScore } from '../assets/javascript/formatScore.js';
+import { createBannerParallax } from '../assets/javascript/bannerParallax.js';
 import axios from 'axios';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
@@ -602,9 +604,17 @@ export default {
     this.loadMovieData(tmdbId);
   },
 
+  mounted () {
+    // Same tilt parallax as the Home banner, on the backdrop (Matt liked it
+    // and asked for it here too, 2026-08-21).
+    this.bannerParallax = createBannerParallax({ getImage: () => this.$refs.backdropImage });
+    this.bannerParallax.start();
+  },
+
   beforeUnmount () {
     // Show header again when leaving this page
     this.$store.commit('setShowHeader', true);
+    this.bannerParallax?.stop();
   },
   watch: {
     '$route.params.tmdbId': {

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import RateMovie from '@/components/RateMovie.vue'
+import { createBannerParallax } from '@/assets/javascript/bannerParallax.js'
+
+vi.mock('@/assets/javascript/bannerParallax.js', () => ({
+  createBannerParallax: vi.fn(() => ({ start: vi.fn(), stop: vi.fn() }))
+}))
 
 // --- Mocks ------------------------------------------------------------------
 // axios: getChatGPTKeywords runs in mounted(); resolve it so mount is quiet.
@@ -106,6 +111,22 @@ describe('RateMovie', () => {
     })
 
     await wrapper.vm.$nextTick()
+  })
+
+  // Tilt parallax on the backdrop, same as Home's banner ("It would also be
+  // cool... on the rate a movie page", 2026-08-21). The sensor logic has its
+  // own tests; this pins the wiring.
+  describe('backdrop tilt parallax', () => {
+    it('starts on mount aimed at the backdrop image, stops on unmount', () => {
+      const call = createBannerParallax.mock.calls.at(-1)
+      const instance = createBannerParallax.mock.results.at(-1).value
+
+      expect(instance.start).toHaveBeenCalled()
+      expect(call[0].getImage()).toBe(wrapper.find('.backdrop-image').element)
+
+      wrapper.unmount()
+      expect(instance.stop).toHaveBeenCalled()
+    })
   })
 
   describe('rating math', () => {

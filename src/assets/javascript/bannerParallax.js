@@ -25,8 +25,11 @@
 export const MAX_TILT_DEG = 14;   // tilt that reaches full shift
 export const MAX_SHIFT_PCT = 2.2; // of the image's own size, per axis
 export const SCALE = 1.06;        // 3% margin a side — always > MAX_SHIFT_PCT
-export const BASELINE_ALPHA = 0.02; // baseline half-life ~0.6s at 60fps
-export const FOLLOW = 0.12;         // how fast the drawn offset chases the tilt
+// Feel (retuned 2026-08-21, "a little bit squishy"): the chase is fast so
+// the photo tracks the hand rather than swimming after it, and the baseline
+// follow is slow so a held tilt doesn't visibly rubber-band back to centre.
+export const BASELINE_ALPHA = 0.006; // ~2s half-life at 60fps
+export const FOLLOW = 0.35;          // how fast the drawn offset chases the tilt
 
 // Where the photo should sit for a reading against a baseline: linear in
 // the tilt delta, clamped at MAX_TILT_DEG. gamma is left/right tilt → x,

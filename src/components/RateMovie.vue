@@ -10,6 +10,7 @@
         </span>
       </div>
       <img v-if="rateBannerUrl"
+           ref="backdropImage"
            :src="rateBannerUrl"
            :alt="`${title} backdrop`"
            class="backdrop-image">
@@ -307,6 +308,7 @@
 <script>
 import axios from "axios";
 import { formatScore } from '../assets/javascript/formatScore.js';
+import { createBannerParallax } from '../assets/javascript/bannerParallax.js';
 import addRating from "../assets/javascript/AddRating.js";
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
@@ -419,6 +421,14 @@ export default {
     this.id = this.movieToRate.id;
 
     this.getChatGPTKeywords();
+
+    // Same tilt parallax as the Home banner, on the backdrop (Matt liked it
+    // and asked for it here too, 2026-08-21).
+    this.bannerParallax = createBannerParallax({ getImage: () => this.$refs.backdropImage });
+    this.bannerParallax.start();
+  },
+  beforeUnmount () {
+    this.bannerParallax?.stop();
   },
   beforeRouteLeave () {
     this.$store.commit("setShowHeader", true);
