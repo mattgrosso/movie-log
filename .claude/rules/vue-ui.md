@@ -38,6 +38,16 @@ first attempt at the games scroll-to-top do nothing at all.
 
 ## Style calls Matt has made
 
+- **All notifications go in Home's `.home-notices` section** (2026-08-21: "make that
+  notification space a unified concept and use it for all notifications going
+  forward"). Anything the app wants to tell the user renders as a `.prompt-card`
+  inside that one section — never a stray banner, never nested inside the results
+  area, never mounted globally in App.vue (Offline/LibraryAccess are app STATES and
+  stay global). Two accent families, documented in `_prompt-card.scss`: the chores
+  keep their app-vocabulary colours; anything where the app talks about itself
+  (updates, bug resolutions, future housekeeping) uses the neutral `-app` accent.
+  `homeNotices.test.js` enforces the placement at the source level.
+
 - **Poster/photo rows: images edge-aligned, text flows.** In any horizontal
   row of posters or photos, every image's top AND bottom edge must line up:
   fixed image height + `align-items: flex-start` on the row. Text below an
