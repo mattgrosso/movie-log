@@ -31,7 +31,10 @@ function img () {
 describe('tilt math', () => {
   it('sits at zero when the reading matches the baseline', () => {
     const offset = tiltOffset({ beta: 40, gamma: -5 }, { beta: 40, gamma: -5 });
-    expect(offset).toEqual({ x: 0, y: 0 });
+    // toBeCloseTo, not toEqual: the negation makes this -0, which toEqual
+    // distinguishes from +0. They render identically.
+    expect(offset.x).toBeCloseTo(0, 10);
+    expect(offset.y).toBeCloseTo(0, 10);
   });
 
   // Signs are the window illusion (report 2026-08-21: "peek around the
