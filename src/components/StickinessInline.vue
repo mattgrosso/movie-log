@@ -3,7 +3,7 @@
     <!-- Single container that changes its content -->
     <Transition name="stickiness-expand" mode="out-in">
       <!-- Prompt -->
-      <div v-if="!showStickinessInline" key="notice" class="prompt-card mb-3" @click="toggleStickinessInline">
+      <div v-if="!showStickinessInline" key="notice" class="prompt-card" @click="toggleStickinessInline">
         <span class="prompt-badge prompt-badge-stickiness"><i class="bi bi-sticky-fill"></i></span>
         <span class="prompt-body">
           <span class="prompt-label">Stickiness</span>
@@ -13,7 +13,7 @@
       </div>
 
       <!-- Inline Content -->
-      <div v-else key="form" class="stickiness-container p-3 mb-3">
+      <div v-else key="form" class="stickiness-container p-3">
         <!-- Top section: Centered poster -->
         <div class="text-center mb-3">
           <img
@@ -356,6 +356,11 @@ export default {
 // Stickiness content styling
 .stickiness-inline {
   .stickiness-container {
+    /* Swapped in place of the prompt-card, so it keeps the card's page
+       rhythm (see _prompt-card.scss). */
+    margin-bottom: 0.75rem;
+    margin-top: 0.5rem;
+
     /* Same surface as .prompt-card and every other panel in the app —
        #161616 on a #2e2e2e hairline. This used to be flat #4a4a4a with a
        #666 border, which is what the collapsed prompts looked like before

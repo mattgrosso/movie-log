@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="$store.state.updateAvailable"
-    class="prompt-card update-available-banner mb-3"
+    class="prompt-card update-available-banner"
     @click="reload"
   >
     <span class="prompt-badge prompt-badge-app"><i class="bi bi-arrow-repeat"></i></span>

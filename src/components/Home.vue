@@ -351,7 +351,7 @@
       v-if="!shouldShowStartSuggestions && showResultsList && paginatedSortedResults.length"
       class="results"
     >
-      <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
+      <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap mt-2">
         <div class="btn-group col-12" role="group" aria-label="Button group">
           <!-- Settings (gear) button replaces shorts toggle -->
           <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel" title="Settings" aria-label="Open settings">
@@ -485,7 +485,7 @@
            pending." -->
       <div
         v-if="incomingFriendRequests.length"
-        class="prompt-card mb-3"
+        class="prompt-card"
         @click="$router.push('/film-club')"
       >
         <span class="prompt-badge prompt-badge-friends"><i class="bi bi-people-fill"></i></span>
@@ -5701,6 +5701,12 @@ export default {
       }
 
       .results-actions {
+        /* The bottom of the rainbow, top of the notification space: the
+           same 0.75rem as every other gap in the header->input->rainbow->
+           notices->results chain. (Top spacing is the mt-2 class, pairing
+           with the search bar's interior 0.25rem.) */
+        margin-bottom: 0.75rem;
+
         .dropdown-item {
           &.active,
           &:active {

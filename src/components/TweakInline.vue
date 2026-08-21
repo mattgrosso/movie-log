@@ -3,7 +3,7 @@
     <!-- Single container that changes its content -->
     <Transition name="tweak-expand" mode="out-in">
       <!-- Prompt -->
-      <div v-if="!showTweakInline" key="notice" class="prompt-card mb-3" @click="toggleTweakInline">
+      <div v-if="!showTweakInline" key="notice" class="prompt-card" @click="toggleTweakInline">
         <span class="prompt-badge prompt-badge-tiebreak"><i class="bi bi-signpost-split-fill"></i></span>
         <span class="prompt-body">
           <span class="prompt-label">Tiebreak</span>
@@ -13,7 +13,7 @@
       </div>
 
       <!-- Tournament just completed: show final standings -->
-      <div v-else-if="tournamentIsComplete" key="results" class="tweak-container p-3 mb-3">
+      <div v-else-if="tournamentIsComplete" key="results" class="tweak-container p-3">
         <div class="text-center mb-3">
           <h5 class="text-light mb-0">Tournament Complete!</h5>
           <p class="text-light small mb-0">Final standings for this tie</p>
@@ -46,7 +46,7 @@
 
       <!-- Current match (guarded so a momentary null pair can never throw
            trying to render a poster for a movie that isn't there) -->
-      <div v-else-if="firstResult && secondResult" key="form" class="tweak-container p-3 mb-3">
+      <div v-else-if="firstResult && secondResult" key="form" class="tweak-container p-3">
         <!-- Title. Bug report: with a 2-way tie, progressLabel is empty (no
              subtitle line), which left the posters "pulled too tight" right
              under the header - mb-3 (was mb-2) gives consistent breathing
@@ -658,6 +658,11 @@ export default {
 // Tweak content styling
 .tweak-inline {
   .tweak-container {
+    /* Swapped in place of the prompt-card, so it keeps the card's page
+       rhythm (see _prompt-card.scss). */
+    margin-bottom: 0.75rem;
+    margin-top: 0.5rem;
+
     /* Same surface as .prompt-card and every other panel in the app —
        #161616 on a #2e2e2e hairline. This used to be flat #4a4a4a with a
        #666 border, which is what the collapsed prompts looked like before

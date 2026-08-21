@@ -1,6 +1,6 @@
 <template>
   <div class="personal-awards">
-    <div v-if="!pageMode && firstEligibleYear != null" class="prompt-card mb-3" role="alert" @click="openModal">
+    <div v-if="!pageMode && firstEligibleYear != null" class="prompt-card" role="alert" @click="openModal">
       <span class="prompt-badge prompt-badge-awards"><i class="bi bi-trophy-fill"></i></span>
       <span class="prompt-body">
         <span class="prompt-label">{{ awardNameSingular }}</span>

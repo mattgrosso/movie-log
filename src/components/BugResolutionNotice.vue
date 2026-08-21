@@ -4,7 +4,7 @@
        the full story; ANY dismissal of that panel marks the notices seen —
        the point is "your report mattered, here's what happened", not a
        task to acknowledge. -->
-  <div v-if="notices.length && !open" class="prompt-card mb-3" @click="open = true">
+  <div v-if="notices.length && !open" class="prompt-card" @click="open = true">
     <span class="prompt-badge prompt-badge-app"><i class="bi bi-bug-fill"></i></span>
     <span class="prompt-body">
       <span class="prompt-label">Bug report</span>
