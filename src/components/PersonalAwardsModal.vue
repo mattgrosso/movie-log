@@ -195,7 +195,21 @@
                    Inside the STICKY section deliberately: the panel bar above
                    scrolls away, and a name you lose the moment you scroll
                    down a grid of nominees is the same bug again. -->
-              <h5 class="category-header">{{ getCurrentCategoryName() }}</h5>
+              <!-- The back link, AGAIN, deliberately: the panel bar above
+                   scrolls away, and once you've scrolled down the nominee
+                   grids and picked someone, the only way back up to the
+                   categories was scrolling the whole page. Bug report,
+                   2026-08-21: "that categories link should also be in the
+                   sticky pane so I can see it no matter how far down
+                   scrolled." Same shape as the category-name fix directly
+                   below it (2026-08-20) - anything you need after scrolling
+                   has to live in the part that doesn't scroll. -->
+              <div class="category-header-row">
+                <button type="button" class="panel-back sticky-back" @click="backToCategories">
+                  <i class="bi bi-chevron-left"></i> Categories
+                </button>
+                <h5 class="category-header">{{ getCurrentCategoryName() }}</h5>
+              </div>
 
               <!-- Current Nominees - Always visible -->
               <div class="current-nominees-section">
@@ -464,7 +478,7 @@ import Modal from './Modal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { pickEligibleAwardsYear } from '../utils/awards.js';
-import { awardsYearThreshold, awardsPromptCopy } from '../assets/javascript/personalAwards.js';
+import { awardsYearThreshold, awardsPromptCopy, distinctNomineeCount } from '../assets/javascript/personalAwards.js';
 import { PERSONAL_AWARD_CATEGORIES, categoriesForYear, customAwardKey, isCustomAwardKey } from '../assets/javascript/personalAwardsCategories.js';
 import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
 import { expandNomineeFromMinimal as expandNomineeFromMinimalShared, actingSiblingConflict } from '../assets/javascript/personalAwards.js';
@@ -2339,7 +2353,10 @@ export default {
       const categoryData = this.awardsData[categoryKey];
       if (!categoryData) return 0;
       if (categoryData.noNominees) return 0; // Show 0 for "no nominees" categories
-      return (categoryData.nominees || []).length;
+      // People, not nominations: an actor nominated in two films is one
+      // nominee (bug report, 2026-08-21). The stored per-movie entries are
+      // untouched - only the count reads differently.
+      return distinctNomineeCount(categoryData.nominees);
     },
     getCategoryWinner (categoryKey) {
       const categoryData = this.awardsData[categoryKey];
@@ -2952,6 +2969,22 @@ export default {
         /* Was `.category-header h5`, styling a wrapper that no longer exists
            — a dead rule, which is how the category name came to be missing
            from this pane entirely. The h5 carries the class itself now. */
+        .category-header-row {
+          align-items: baseline;
+          display: flex;
+          gap: 0.75rem;
+        }
+
+        /* Tighter than the panel-bar copy: it shares a row with the category
+           name inside the pinned bar, where 40px of button height would
+           thicken the whole strip. Still comfortably tappable via padding. */
+        .sticky-back {
+          flex: none;
+          font-size: 0.8rem;
+          min-height: 0;
+          padding: 0.15rem 0.4rem 0.15rem 0;
+        }
+
         .category-header {
           color: #fff;
           font-size: 1rem;

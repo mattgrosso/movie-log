@@ -63,6 +63,39 @@ export function expandNomineeFromMinimal (minimalNominee, entriesLibrary) {
 // (settings.personalAwardName, e.g. "The Groskers" — see Home.vue's
 // settings panel). Shared so MovieDetail.vue's "My Awards" heading agrees
 // with Home.vue/PersonalAwardsModal.vue rather than hardcoding "Oscar".
+/**
+ * How many nominees a category has, counting a PERSON once however many
+ * films they were nominated for.
+ *
+ * Bug report (2026-08-21): "somebody who was nominated for a specific role,
+ * but has appeared in more than one movie... they get counted twice so even
+ * though it's only five people it says there are six nominees." Nominations
+ * are stored per person-per-movie on purpose - picking the same actor in two
+ * films is how Matt acknowledges a great year - but the count on the category
+ * row should read as people, because that is what "five nominees" means at a
+ * real ceremony.
+ *
+ * A person's identity is their TMDB id when there is one, their name when
+ * there isn't (convertNomineeToMinimal falls back to the name for the id, so
+ * name-collisions across DIFFERENT people were already collapsed upstream and
+ * nothing is lost here). Movie nominees count individually, as before.
+ */
+export function distinctNomineeCount (nominees) {
+  const keys = new Set();
+  for (const nominee of nominees || []) {
+    if (!nominee) continue;
+    const isPerson = nominee.type === 'person' || (nominee.name != null && nominee.movieId != null);
+    if (isPerson) {
+      keys.add(`person:${nominee.id ?? nominee.name}`);
+    } else {
+      // Movies: one nominee per entry. Fall back to object identity via an
+      // ever-unique key rather than collapsing unknown shapes together.
+      keys.add(`movie:${nominee.id ?? nominee.movieId ?? nominee.movie?.id ?? `#${keys.size}`}`);
+    }
+  }
+  return keys.size;
+}
+
 export function awardNameWithThe (personalAwardName) {
   const name = personalAwardName || 'Oscar';
   return name.toLowerCase().startsWith('the ') ? name : `The ${name}`;

@@ -104,6 +104,33 @@ describe('which category am I in', () => {
     expect(wrapper.find('.panel-bar .category-header').exists()).toBe(false)
   })
 
+  // Same disease, next symptom (bug report, 2026-08-21): "the list of
+  // nominees is sticky, but the link back to categories is not... I have to
+  // scroll all the way back to the top." The link is duplicated INTO the
+  // sticky bar - "also", as reported, so the top copy stays for anyone who
+  // hasn't scrolled.
+  it('puts a Categories back link inside the sticky section too', async () => {
+    const { wrapper } = factory()
+    wrapper.vm.selectedCategory = 'bestPicture'
+    await nextTick()
+
+    expect(wrapper.find('.sticky-top-section .panel-back').exists()).toBe(true)
+    // The original at the top survives - the report said "also".
+    expect(wrapper.find('.panel-bar .panel-back').exists()).toBe(true)
+  })
+
+  it('the sticky back link actually leaves the category', async () => {
+    const { wrapper } = factory()
+    wrapper.vm.selectedCategory = 'bestPicture'
+    await nextTick()
+
+    await wrapper.find('.sticky-top-section .panel-back').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.category-header').exists()).toBe(false)
+    expect(wrapper.find('.awards-header').exists()).toBe(true)
+  })
+
   it('shows the year heading again on the way back out, not a category name', async () => {
     const { wrapper } = factory()
     wrapper.vm.selectedCategory = 'bestPicture'
