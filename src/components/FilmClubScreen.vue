@@ -96,18 +96,7 @@
       <button type="button" class="cs-charts-link" @click="$router.push('/club-charts')">
         <span>
           <strong>Club Charts</strong>
-          <em>Taste maps, blind spots, who's the contrarian</em>
-        </span>
-        <i class="bi bi-chevron-right"></i>
-      </button>
-
-      <!-- Same treatment as the charts: the Venn is its own screen (bug
-           report 2026-08-21, "some kind of cool Venn diagram... around
-           friends in my film club"). -->
-      <button type="button" class="cs-charts-link" @click="$router.push('/club-venn')">
-        <span>
-          <strong>Club Venn</strong>
-          <em>Any two or three of you, circle by circle</em>
+          <em>The Venn, taste maps, blind spots, who's the contrarian</em>
         </span>
         <i class="bi bi-chevron-right"></i>
       </button>

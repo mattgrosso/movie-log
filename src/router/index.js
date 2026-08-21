@@ -33,7 +33,6 @@ const DeepStats = () => import(/* webpackChunkName: "deep-stats" */ "../componen
 const FilmClubScreen = () => import(/* webpackChunkName: "film-club" */ "../components/FilmClubScreen.vue");
 const FriendComparison = () => import(/* webpackChunkName: "film-club" */ "../components/FriendComparison.vue");
 const ClubCharts = () => import(/* webpackChunkName: "film-club" */ "../components/ClubCharts.vue");
-const ClubVenn = () => import(/* webpackChunkName: "film-club" */ "../components/ClubVenn.vue");
 
 // Router
 const loggedIn = () => {
@@ -498,23 +497,10 @@ const routes = [
     }
   },
   {
+    // The Venn lived here for a few hours on 2026-08-21 before moving into
+    // Club Charts; keep the address working.
     path: '/club-venn',
-    name: 'ClubVenn',
-    component: ClubVenn,
-    meta: {
-      // Back-link identity: what this screen is called, and where back
-      // goes when there is no history to go back to.
-      title: 'Club Venn',
-      parent: '/film-club',
-      requiresLogin: true
-    },
-    beforeEnter: (to, from, next) => {
-      if (!loggedIn()) {
-        next('/login');
-      } else {
-        next();
-      }
-    }
+    redirect: '/club-charts'
   },
   {
     path: '/film-club/:friendKey',

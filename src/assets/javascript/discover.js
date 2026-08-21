@@ -76,11 +76,20 @@ export function rewatchCandidates (entries, getRatingFn, now = Date.now(), { due
 // vote_count in the stored shape (backfilled server-side like taglines);
 // entries without them are skipped, and a vote-count floor keeps
 // obscure-but-inflated titles out.
+//
+// Recency matters (report 2026-08-21: "if I watched it recently, I don't
+// need to give it another shot right away"). Two ways: nothing within two
+// years resurfaces at all — a movie you didn't like shouldn't come back
+// faster than the 2-3 year cycle even a top favorite gets — and the
+// differential only earns its full ranking weight once the viewing has had
+// `rampYears` to fade, so an eight-year-old miss outranks a two-year-old
+// one with the same score gap.
 export function anotherShotCandidates (entries, getRatingFn, now = Date.now(), {
   maxYourRating = 6.5,
   minCommunity = 7.4,
   minVotes = 200,
-  minYears = 1,
+  minYears = 2,
+  rampYears = 5,
   cap = 24,
   // Same as rewatchCandidates: excluded before the cap, so punting refills.
   exclude = null
@@ -97,7 +106,8 @@ export function anotherShotCandidates (entries, getRatingFn, now = Date.now(), {
       if (!Number.isFinite(votes) || votes < minVotes) return null;
       const yearsSince = (now - watchedAt) / YEAR_MS;
       if (yearsSince < minYears) return null;
-      return { entry, yours, community, yearsSince, score: community - yours };
+      const fade = Math.min(1, yearsSince / rampYears);
+      return { entry, yours, community, yearsSince, score: (community - yours) * fade };
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score)

@@ -1,30 +1,15 @@
 <template>
   <div class="club-venn">
-    <BackLink/>
-
-    <h1 class="cv-title">Club Venn</h1>
-    <p class="cv-subtitle">Pick two or three people — every region is a real list of films.</p>
-
     <p v-if="people.length < 2" class="cv-empty">
       The Venn needs at least one friend who shares their ratings — right now it's just you here.
     </p>
 
     <template v-else>
-      <!-- Who's in the diagram. Tapping a fourth person drops the oldest pick. -->
-      <div class="cv-people">
-        <button
-          v-for="person in people"
-          :key="person.key"
-          type="button"
-          class="cv-chip"
-          :class="{ selected: isSelected(person.key) }"
-          :style="chipStyle(person.key)"
-          @click="togglePerson(person.key)"
-        >{{ person.name }}</button>
-      </div>
+      <p v-if="selected.length < 2" class="cv-empty">Pick at least two people above to draw the Venn.</p>
+      <p v-else-if="selection.length > 3" class="cv-cap-note">Drawing the first three people picked — a Venn stops being readable past three circles.</p>
 
       <!-- The lens: same circles, three different questions. -->
-      <div class="cv-lenses">
+      <div v-if="selected.length >= 2" class="cv-lenses">
         <button
           v-for="option in lenses"
           :key="option.key"
@@ -34,11 +19,9 @@
           @click="setLens(option.key)"
         >{{ option.label }}</button>
       </div>
-      <p class="cv-lens-note">{{ lensNote }}</p>
+      <p v-if="selected.length >= 2" class="cv-lens-note">{{ lensNote }}</p>
 
-      <p v-if="selected.length < 2" class="cv-empty">Pick at least two people above.</p>
-
-      <template v-else>
+      <template v-if="selected.length >= 2">
         <!-- The diagram. A tap anywhere resolves to whichever circles contain
              the point — that subset IS the region, no path hit-testing. -->
         <div class="cv-stage">
@@ -125,11 +108,13 @@
 </template>
 
 <script>
-// Club Venn (/club-venn). All the set math and geometry is pure in
-// clubVenn.js; this component is selection state and rendering. From the
-// 2026-08-21 bug report: "there's gotta be some kind of cool Venn diagram we
-// could build around friends in my film club."
-import BackLink from './games/BackLink.vue';
+// The Club Venn, as a section of Club Charts. Born standalone at /club-venn,
+// folded in the same day on Matt's call: "the club Venn should exist inside
+// of club charts... let's pour a similar amount of customizability to the
+// other charts". Who's in the diagram now comes from the page-wide people
+// picker via the `selection` prop (first three picked, in pick order); this
+// component keeps the lens, the diagram, and the region lists. All set math
+// and geometry is pure in clubVenn.js.
 import SendToHat from './SendToHat.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { formatScore } from '../assets/javascript/formatScore.js';
@@ -146,14 +131,17 @@ import {
 
 export default {
   name: 'ClubVenn',
-  components: { BackLink, SendToHat },
+  components: { SendToHat },
+  props: {
+    // Ordered member keys from the page-wide picker ('you' plus friend
+    // keys). The Venn draws the first three, in pick order.
+    selection: { type: Array, required: true }
+  },
   data () {
     return {
       lenses: LENSES,
       lens: 'all',
-      selectedKeys: [],
-      selectedSignature: null,
-      seeded: false
+      selectedSignature: null
     };
   },
   computed: {
@@ -170,6 +158,11 @@ export default {
     myIds () {
       const you = this.people.find((person) => person.key === 'you');
       return you ? you.movies : new Map();
+    },
+    // The first three picked, in pick order — the cap that keeps the
+    // diagram readable.
+    selectedKeys () {
+      return this.selection.slice(0, 3);
     },
     selected () {
       return this.selectedKeys
@@ -212,49 +205,19 @@ export default {
     }
   },
   watch: {
-    // Profiles arrive async; seed the classic picture once — you plus the
-    // first two friends — and never fight the user's own picks after that.
-    people: {
-      immediate: true,
-      handler (people) {
-        if (this.seeded || people.length < 2) return;
-        this.seeded = true;
-        this.selectedKeys = people.slice(0, 3).map((person) => person.key);
-      }
+    // A different cast of circles makes the open region stale.
+    selectedKeys () {
+      this.selectedSignature = null;
     }
-  },
-  created () {
-    // Reachable directly, so it can't assume the Film Club screen ran first.
-    this.$store.dispatch('attachSocialListeners');
-    this.$store.dispatch('fetchFriendProfiles');
   },
   methods: {
     formatScore,
-    isSelected (key) {
-      return this.selectedKeys.includes(key);
-    },
-    togglePerson (key) {
-      const index = this.selectedKeys.indexOf(key);
-      if (index >= 0) {
-        this.selectedKeys.splice(index, 1);
-      } else {
-        this.selectedKeys.push(key);
-        if (this.selectedKeys.length > 3) this.selectedKeys.shift();
-      }
-      this.selectedSignature = null;
-    },
     setLens (key) {
       this.lens = key;
       this.selectedSignature = null;
     },
     colorFor (key) {
       return key === 'you' ? YOU_COLOR : (this.colors[key] || '#9a9a9a');
-    },
-    chipStyle (key) {
-      const color = this.colorFor(key);
-      return this.isSelected(key)
-        ? { background: color, borderColor: color, color: '#101010' }
-        : { borderColor: color, color };
     },
     labelFor (region) {
       return regionLabel(region, this.regionData?.people || [], this.selected.length);
@@ -311,34 +274,14 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+/* Lives inside a Club Charts .cc-section, so no page padding of its own. */
 .club-venn {
   color: #eee;
-  padding: 0.75rem 1rem 3rem;
 }
 
-.cv-title { margin: 0.25rem 0 0; }
-.cv-subtitle { color: #ccc; font-size: 0.85rem; margin: 0.25rem 0 1rem; }
-.cv-empty { color: #ccc; padding: 1.5rem 0; text-align: center; }
+.cv-empty { color: #ccc; padding: 1rem 0; text-align: center; }
 .cv-hint { color: #b9b9b9; font-size: 0.8rem; padding: 0.75rem 0; text-align: center; }
-
-.cv-people {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.cv-chip {
-  background: transparent;
-  border: 1.5px solid;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  min-height: 40px;
-  padding: 0.3rem 0.9rem;
-
-  &:active { opacity: 0.75; }
-}
+.cv-cap-note { color: #7a7a7a; font-size: 0.68rem; margin: 0 0 0.5rem; }
 
 .cv-lenses {
   background: #161616;

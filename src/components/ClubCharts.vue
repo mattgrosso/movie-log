@@ -5,17 +5,40 @@
     <h1 class="cc-title">Club Charts</h1>
     <p class="cc-subtitle">Where your taste and everyone else's actually meet.</p>
 
-    <p v-if="!overlaps.length" class="cc-empty">
+    <!-- Gate on the roster, not on the current selection: deselecting every
+         friend must never swallow the picker you'd need to undo it. -->
+    <p v-if="!legend || legend.length < 2" class="cc-empty">
       Nothing to chart yet — these all need a friend with a published profile.
     </p>
 
     <template v-else>
-      <!-- Who is who. Every chart below uses these colours. -->
+      <!-- Who is who — and who is IN. The key doubles as the page-wide
+           people picker (Matt, 2026-08-21: "let's pour a similar amount of
+           customizability to the other charts in club charts"): tap a person
+           to drop them from every chart below; tap again to bring them back.
+           Everyone starts included. -->
       <div class="cc-key">
-        <span v-for="member in legend" :key="member.key" class="cc-key-item">
+        <button
+          v-for="member in legend"
+          :key="member.key"
+          type="button"
+          class="cc-key-item"
+          :class="{ excluded: !isSelected(member.key) }"
+          @click="toggleMember(member.key)"
+        >
           <span class="cc-swatch" :style="{ background: member.color }"></span>{{ member.name }}
-        </span>
+        </button>
       </div>
+
+      <!-- THE VENN — first, because every region is tappable and it's the
+           chart people play with. -->
+      <section class="cc-section">
+        <h2 class="cc-section-title">The Venn</h2>
+        <p class="cc-caption">
+          Circles are libraries under the chosen lens; every region is a real list of films. Tap one.
+        </p>
+        <ClubVenn :selection="selectedKeys"/>
+      </section>
 
       <!-- THE TASTE MAP -->
       <section v-if="map.length" class="cc-section">
@@ -285,6 +308,7 @@
 <script>
 import BackLink from './games/BackLink.vue';
 import SendToHat from './SendToHat.vue';
+import ClubVenn from './ClubVenn.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { CRITERIA } from '../assets/javascript/social.js';
 import { formatScore, formatScoreGap } from '../assets/javascript/formatScore.js';
@@ -306,7 +330,15 @@ import {
 
 export default {
   name: 'ClubCharts',
-  components: { BackLink, SendToHat },
+  components: { BackLink, SendToHat, ClubVenn },
+  data () {
+    return {
+      // Ordered picker state: 'you' plus friend keys, in pick order (the
+      // Venn draws the first three). Seeded to everyone once profiles load.
+      selectedKeys: [],
+      seeded: false
+    };
+  },
   computed: {
     myEntries () {
       return this.$store.getters.allMoviesAsArray || [];
@@ -314,9 +346,19 @@ export default {
     profiles () {
       return this.$store.getters.filmClubProfiles || {};
     },
+    // What the picker admits: every chart below sees only these friends.
+    // Colours stay keyed on the FULL roster, so nobody changes colour by
+    // being toggled.
+    activeProfiles () {
+      const active = {};
+      Object.entries(this.profiles).forEach(([key, profile]) => {
+        if (this.selectedKeys.includes(key)) active[key] = profile;
+      });
+      return active;
+    },
     // One join, shared by nearly every chart on the page.
     joined () {
-      return buildOverlaps(this.myEntries, getRating, this.profiles);
+      return buildOverlaps(this.myEntries, getRating, this.activeProfiles);
     },
     overlaps () {
       return this.joined.overlaps;
@@ -324,13 +366,15 @@ export default {
     colors () {
       return memberColors(Object.keys(this.profiles));
     },
+    // The full roster, whether currently included or not — an excluded
+    // member has to stay visible to be brought back.
     legend () {
       return [
         { key: 'you', name: 'You', color: YOU_COLOR },
-        ...this.overlaps.map((friend) => ({
-          key: friend.key,
-          name: friend.name,
-          color: this.colorFor(friend.key)
+        ...Object.entries(this.profiles).map(([key, profile]) => ({
+          key,
+          name: profile?.name || 'A Cinema Roll user',
+          color: this.colorFor(key)
         }))
       ];
     },
@@ -347,19 +391,19 @@ export default {
       return agreementByGenre(this.overlaps);
     },
     curves () {
-      return generosityCurves(this.myEntries, getRating, this.profiles);
+      return generosityCurves(this.myEntries, getRating, this.activeProfiles);
     },
     outliers () {
-      return contrarians(this.myEntries, getRating, this.profiles);
+      return contrarians(this.myEntries, getRating, this.activeProfiles);
     },
     spots () {
-      return blindSpots(this.myEntries, getRating, this.profiles);
+      return blindSpots(this.myEntries, getRating, this.activeProfiles);
     },
     syncs () {
       return syncMoments(this.overlaps);
     },
     activity () {
-      return clubActivity(this.myEntries, getRating, this.profiles);
+      return clubActivity(this.myEntries, getRating, this.activeProfiles);
     },
     radar () {
       return criterionRadar(this.overlaps, CRITERIA);
@@ -386,6 +430,19 @@ export default {
       return { min: Math.min(...values), max: Math.max(...values) };
     }
   },
+  watch: {
+    // Profiles arrive async; include everyone once, then never fight the
+    // user's own picks. A friend who publishes later joins the roster but
+    // not the selection — showing up mid-look would reshuffle every chart.
+    profiles: {
+      immediate: true,
+      handler (profiles) {
+        if (this.seeded || !Object.keys(profiles).length) return;
+        this.seeded = true;
+        this.selectedKeys = ['you', ...Object.keys(profiles)];
+      }
+    }
+  },
   created () {
     // Reachable directly, so it can't assume the Film Club screen ran first.
     this.$store.dispatch('attachSocialListeners');
@@ -395,6 +452,16 @@ export default {
     // Template-exposed; two decimals on every score (bug report).
     formatScore,
     formatScoreGap,
+    isSelected (key) {
+      return this.selectedKeys.includes(key);
+    },
+    // Ordered toggle: re-including someone puts them at the END of the pick
+    // order, which is what feeds the Venn its first-three.
+    toggleMember (key) {
+      const index = this.selectedKeys.indexOf(key);
+      if (index >= 0) this.selectedKeys.splice(index, 1);
+      else this.selectedKeys.push(key);
+    },
     colorFor (key) {
       return key === 'you' ? YOU_COLOR : (this.colors[key] || '#9a9a9a');
     },
@@ -483,7 +550,25 @@ export default {
   margin-bottom: 1rem;
 }
 
-.cc-key-item { align-items: center; color: #ccc; display: flex; font-size: 0.75rem; }
+/* The key rows are the picker now: buttons, 40px targets, and an excluded
+   member reads as switched off — dimmed and struck through, still tappable. */
+.cc-key-item {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: #ccc;
+  display: flex;
+  font-size: 0.75rem;
+  min-height: 40px;
+  padding: 0 0.25rem;
+
+  &:active { opacity: 0.7; }
+
+  &.excluded {
+    opacity: 0.45;
+    text-decoration: line-through;
+  }
+}
 
 .cc-swatch {
   border-radius: 50%;

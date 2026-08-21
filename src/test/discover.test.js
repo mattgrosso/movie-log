@@ -81,7 +81,9 @@ describe('anotherShotCandidates', () => {
     const list = anotherShotCandidates(entries, ratingOf, NOW);
 
     expect(list.map((c) => c.entry.movie.title)).toEqual(['You 5, world 8.5', 'You 6, world 7.8']);
-    expect(list[0].score).toBeCloseTo(3.5, 5);
+    // The 3.5-point gap only counts 3/5ths, because the viewing is three
+    // years into the five-year fade ramp.
+    expect(list[0].score).toBeCloseTo(3.5 * 0.6, 5);
   });
 
   it('ignores low-vote-count community scores and entries without vote data', () => {
@@ -92,9 +94,27 @@ describe('anotherShotCandidates', () => {
     expect(anotherShotCandidates(entries, ratingOf, NOW)).toHaveLength(0);
   });
 
-  it('waits at least a year since you watched it', () => {
-    const entries = [withVotes(1, 'Too soon', { rating: 5, watched: yearsAgo(0.3) }, 8.5, 5000)];
+  // Report 2026-08-21: "if I watched it recently, I don't need to give it
+  // another shot right away."
+  it('waits at least two years since you watched it', () => {
+    const entries = [
+      withVotes(1, 'Too soon', { rating: 5, watched: yearsAgo(0.3) }, 8.5, 5000),
+      withVotes(2, 'Still too soon', { rating: 5, watched: yearsAgo(1.5) }, 8.5, 5000)
+    ];
     expect(anotherShotCandidates(entries, ratingOf, NOW)).toHaveLength(0);
+  });
+
+  it('a faded old miss outranks a fresher one with the same score gap', () => {
+    const entries = [
+      withVotes(1, 'Two years ago', { rating: 5, watched: yearsAgo(2.1) }, 8.5, 5000),
+      withVotes(2, 'Eight years ago', { rating: 5, watched: yearsAgo(8) }, 8.5, 5000)
+    ];
+
+    const list = anotherShotCandidates(entries, ratingOf, NOW);
+
+    expect(list.map((c) => c.entry.movie.title)).toEqual(['Eight years ago', 'Two years ago']);
+    // Past the ramp the differential counts in full.
+    expect(list[0].score).toBeCloseTo(3.5, 5);
   });
 });
 
