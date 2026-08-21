@@ -5,8 +5,11 @@
 // same as the rest of this app's data) — this is simply the convenient
 // read/triage path.
 //
-// Once triaged, mark a report resolved with `yarn resolve-bug-report
-// <reportId>` (scripts/resolve-bug-report.mjs) so it stops showing up here.
+// Once triaged, resolve with `yarn resolve-bug-report <reportId>
+// --understood "..." --fixed "..."` (scripts/resolve-bug-report.mjs) — the
+// two texts are shown to the reporter in the app on their next launch, so
+// write them in plain language. `--silent` skips the notice for duplicates
+// and QA noise.
 //
 // Requires one env var, read from .env.local by scripts/loadEnvLocal.mjs
 // (Node's native --env-file flag needs 20.6+; this repo is pinned to 18):

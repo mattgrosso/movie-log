@@ -16,6 +16,7 @@
     </main>
     <AppFooter v-if="$store.state.dbLoaded"/>
     <BugReportButton/>
+    <BugResolutionNotice/>
   </div>
 </template>
 
@@ -23,6 +24,7 @@
 import AppFooter from "./components/Footer.vue";
 import AppHeader from "./components/Header.vue";
 import BugReportButton from "./components/BugReportButton.vue";
+import BugResolutionNotice from "./components/BugResolutionNotice.vue";
 import UpdateAvailableBanner from "./components/UpdateAvailableBanner.vue";
 import OfflineBanner from "./components/OfflineBanner.vue";
 import LibraryAccessBanner from "./components/LibraryAccessBanner.vue";
@@ -36,6 +38,7 @@ export default {
     AppFooter,
     AppHeader,
     BugReportButton,
+    BugResolutionNotice,
     LibraryAccessBanner,
     OfflineBanner,
     UpdateAvailableBanner

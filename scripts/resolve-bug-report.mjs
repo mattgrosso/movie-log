@@ -1,15 +1,28 @@
-// Marks one or more bug reports as resolved, so fetch-bug-reports.mjs stops
-// surfacing them by default (see its own --all flag to see everything,
-// resolved or not).
+// Marks a bug report resolved AND tells the reporter, in plain language,
+// what was wrong and what changed. The notice lands at
+// `<topKey>/bugReportResolutions/<reportId>` in the reporter's own account,
+// where BugResolutionNotice.vue shows it on their next launch.
 //
-// Requires the same env var as fetch-bug-reports (read from .env.local via
-// Node's native --env-file flag):
-//   FIREBASE_ADMIN_KEY_PATH
+//   yarn resolve-bug-report <reportId> \
+//     --understood "What was going wrong, in their terms" \
+//     --fixed "What we did about it"
 //
-// Run with: yarn resolve-bug-report <reportId> [reportId...]
+//   yarn resolve-bug-report <id> [id...] --silent   # resolve without a notice
+//
+// Write the two texts for a smart 12-year-old: no jargon, no file names, no
+// component names. "The list forgot your filters when you came back" beats
+// "route state wasn't persisted". The reporter sees exactly these words.
+//
+// --silent exists for reports that need no reply: duplicates, QA noise,
+// reports filed by whoever is running this command. Resolving WITHOUT saying
+// which — texts or --silent — is refused, so closing the loop is the default
+// shape of resolving a bug, not an optional extra.
+//
+// Requires FIREBASE_ADMIN_KEY_PATH in .env.local (same as fetch-bug-reports).
 
 import { readFileSync } from 'fs';
 import { loadEnvLocal } from './loadEnvLocal.mjs';
+import { emailToTopKey, snippetOf } from './bugResolutionHelpers.mjs';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 
@@ -23,10 +36,52 @@ if (!keyPath) {
   process.exit(1);
 }
 
-const reportIds = process.argv.slice(2);
-if (!reportIds.length) {
-  console.error('Usage: yarn resolve-bug-report <reportId> [reportId...]');
-  console.error('(report IDs are printed by `yarn fetch-bug-reports`, e.g. -Oxf9_3qcyXUHOzNoYD7)');
+function usage () {
+  console.error('Usage: yarn resolve-bug-report <reportId> --understood "..." --fixed "..."');
+  console.error('       yarn resolve-bug-report <reportId> [reportId...] --silent');
+  console.error('');
+  console.error('The --understood / --fixed texts are shown to the reporter in the app,');
+  console.error('word for word — write them for a smart 12-year-old, no jargon.');
+  console.error('--silent skips the notice (duplicates, QA noise, self-filed reports).');
+  process.exit(1);
+}
+
+// Tiny argv parse: flags take the next token as their value; everything else
+// is a report id.
+const reportIds = [];
+let understood = null;
+let fixed = null;
+let silent = false;
+
+const args = process.argv.slice(2);
+for (let i = 0; i < args.length; i += 1) {
+  const arg = args[i];
+  if (arg === '--understood') {
+    understood = args[++i] ?? null;
+  } else if (arg === '--fixed') {
+    fixed = args[++i] ?? null;
+  } else if (arg === '--silent') {
+    silent = true;
+  } else if (arg.startsWith('--')) {
+    console.error(`Unknown flag ${arg}\n`);
+    usage();
+  } else {
+    reportIds.push(arg);
+  }
+}
+
+if (!reportIds.length) usage();
+
+if (!silent && (!understood?.trim() || !fixed?.trim())) {
+  console.error('Refusing to resolve without telling the reporter what happened.');
+  console.error('Provide --understood and --fixed, or pass --silent to skip the notice.\n');
+  usage();
+}
+
+if (!silent && reportIds.length > 1) {
+  // One explanation cannot honestly describe several different reports.
+  console.error('A notice describes ONE report — resolve them one at a time,');
+  console.error('or pass --silent to close several without notices.');
   process.exit(1);
 }
 
@@ -41,8 +96,31 @@ for (const id of reportIds) {
     console.error(`No report found with id ${id} - skipping.`);
     continue;
   }
-  await reportRef.update({ resolved: true, resolvedAt: Date.now() });
+  const report = snapshot.val();
+  const resolvedAt = Date.now();
+
+  const update = { resolved: true, resolvedAt };
+  if (!silent) update.resolution = { understood, fixed };
+  await reportRef.update(update);
   console.log(`Marked ${id} resolved.`);
+
+  if (silent) continue;
+
+  const topKey = emailToTopKey(report.reporterEmail);
+  if (!topKey) {
+    console.warn(`  ! ${id} has no reporter email — resolved, but there is nobody to notify.`);
+    continue;
+  }
+
+  await db.ref(`${topKey}/bugReportResolutions/${id}`).set({
+    understood,
+    fixed,
+    reportSnippet: snippetOf(report.transcript),
+    reportedAt: report.createdAt || null,
+    resolvedAt,
+    seen: false
+  });
+  console.log(`  Notice queued for ${report.reporterEmail} — they'll see it on their next launch.`);
 }
 
 process.exit(0);
