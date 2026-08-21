@@ -168,6 +168,31 @@ describe('which category am I in', () => {
     expect(wrapper.find('.awards-header').exists()).toBe(true)
   })
 
+  // "The trash icon that gets revealed when I click on that title needs to
+  // be moved into the sticky bar with the title... the trash icon could
+  // appear to the left hand side of the text" (2026-08-21). When it lived in
+  // the top bar, revealing it after scrolling made a button appear somewhere
+  // off-screen - a tap that looks like it does nothing.
+  it('reveals the trash inside the sticky bar, beside its tap target', async () => {
+    const { wrapper } = factory()
+    wrapper.vm.selectedCategory = 'bestPicture'
+    await nextTick()
+
+    // Wherever the trash renders, it must be in the sticky row, never the
+    // scrolling panel bar.
+    expect(wrapper.find('.panel-bar .panel-trash').exists()).toBe(false)
+
+    // The factory mounts with no databaseTopKey, which isMatt treats as
+    // Matt - asserted so this test can never silently skip its second half.
+    expect(wrapper.vm.isMatt).toBe(true)
+    const row = wrapper.find('.nominees-instruction-row')
+    expect(row.find('.panel-trash').exists()).toBe(true)
+    // Left of the text: the button precedes the instruction in the row.
+    const children = row.element.children
+    expect(children[0].className).toContain('panel-trash')
+    expect(children[1].className).toContain('section-title')
+  })
+
   it('shows the year heading again on the way back out, not a category name', async () => {
     const { wrapper } = factory()
     wrapper.vm.selectedCategory = 'bestPicture'

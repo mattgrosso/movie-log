@@ -153,10 +153,11 @@
             <!-- No back link here any more - it lives in the sticky bar
                  below, alone: "I don't want that categories link to be
                  duplicated. You can get rid of the one that isn't sticky"
-                 (2026-08-21). The bar itself only renders when it still has
-                 a job: Remove award for a custom category, or Matt's trash.
-                 An empty bar would just be a mystery gap above the header. -->
-            <div v-if="selectedCategoryIsCustom || isMatt" class="panel-bar">
+                 (2026-08-21). The trash followed it the same day - the reveal
+                 tap lives in the sticky bar, so a button that appeared up
+                 here materialised off-screen once you'd scrolled. The bar's
+                 one remaining job is Remove award for a custom category. -->
+            <div v-if="selectedCategoryIsCustom" class="panel-bar">
               <!-- An invented award can be un-invented; the thirteen standard
                    ones cannot. Offered here rather than as an × on the
                    category row, because those rows are <button>s and a button
@@ -168,12 +169,6 @@
                 @click="removeCustomAward"
               >
                 Remove award
-              </button>
-              <!-- Deliberately unadvertised: revealed by tapping the
-                   "Current Nominees:" heading below (the old secret was
-                   tapping the category title). -->
-              <button v-else-if="isMatt" v-show="showTrashIcon" type="button" class="panel-trash" title="Clear all nominees" @click="onTrashTap">
-                <i class="bi bi-trash3"></i>
               </button>
             </div>
             <!-- Sticky Top Section (the promoted category tile above is the
@@ -211,7 +206,19 @@
                 </button>
                 <div class="category-header-titles">
                   <h5 class="category-header">{{ getCurrentCategoryName() }}</h5>
-                  <h6 class="section-title" @click="toggleTrashReveal">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
+                  <div class="nominees-instruction-row">
+                    <!-- Deliberately unadvertised: revealed by tapping the
+                         instruction text beside it. In the sticky bar WITH
+                         its tap target ("the trash icon could appear to the
+                         left hand side of the text", 2026-08-21) - when it
+                         lived in the top bar, tapping the reveal after
+                         scrolling made a button appear somewhere off-screen,
+                         which reads as the tap doing nothing. -->
+                    <button v-if="isMatt" v-show="showTrashIcon" type="button" class="panel-trash sticky-trash" title="Clear all nominees" @click="onTrashTap">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                    <h6 class="section-title" @click="toggleTrashReveal">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
+                  </div>
                 </div>
               </div>
 
@@ -2995,6 +3002,22 @@ export default {
            spacing so the pair reads as a unit. */
         .category-header-titles .section-title {
           margin: 0;
+        }
+
+        .nominees-instruction-row {
+          align-items: center;
+          display: flex;
+          gap: 0.5rem;
+          justify-content: flex-end;
+        }
+
+        /* Compact inside the pinned bar: the 40px panel-bar sizing would
+           thicken the whole strip. The tap target stays honest - the icon
+           only ever appears next to the text that was just tapped. */
+        .sticky-trash {
+          min-height: 0;
+          min-width: 0;
+          padding: 0 0.15rem;
         }
 
         /* Tighter than the panel-bar copy: it shares a row with the category
