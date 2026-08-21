@@ -31,14 +31,28 @@ describe('BugResolutionNotice', () => {
     vi.clearAllMocks();
   });
 
-  it('shows an unseen resolution with the reporter\'s words and both explanations', async () => {
+  // Two stages since the notification-space unification (2026-08-21): a
+  // prompt-card in .home-notices first, the full story only on tap.
+  it('starts as a prompt-card, not the full panel', async () => {
     fetchUnseenResolutions.mockResolvedValue([NOTICE]);
     const wrapper = factory();
     await flushPromises();
 
+    expect(wrapper.find('.prompt-card').exists()).toBe(true);
+    expect(wrapper.text()).toContain('A bug you reported has been fixed');
+    expect(wrapper.find('.bug-resolution-panel').exists()).toBe(false);
+  });
+
+  it('opens the full story on tap, with their words and both explanations', async () => {
+    fetchUnseenResolutions.mockResolvedValue([NOTICE]);
+    const wrapper = factory();
+    await flushPromises();
+
+    await wrapper.find('.prompt-card').trigger('click');
+
     const text = wrapper.text();
     expect(wrapper.find('.bug-resolution-panel').exists()).toBe(true);
-    expect(text).toContain('A bug you reported is fixed');
+    expect(wrapper.find('.prompt-card').exists()).toBe(false);
     expect(text).toContain(NOTICE.reportSnippet);
     expect(text).toContain(NOTICE.understood);
     expect(text).toContain(NOTICE.fixed);
@@ -49,6 +63,7 @@ describe('BugResolutionNotice', () => {
     const wrapper = factory();
     await flushPromises();
 
+    expect(wrapper.find('.prompt-card').exists()).toBe(false);
     expect(wrapper.find('.bug-resolution-panel').exists()).toBe(false);
   });
 
@@ -59,26 +74,29 @@ describe('BugResolutionNotice', () => {
     expect(fetchUnseenResolutions).not.toHaveBeenCalled();
   });
 
-  it('marks every shown notice seen on "Got it" and closes', async () => {
+  it('marks every shown notice seen on "Got it" and closes everything', async () => {
     fetchUnseenResolutions.mockResolvedValue([NOTICE, { ...NOTICE, id: '-Other' }]);
     const wrapper = factory();
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Bugs you reported are fixed');
+    expect(wrapper.text()).toContain('2 bugs you reported have been fixed');
+    await wrapper.find('.prompt-card').trigger('click');
     await wrapper.find('.bug-resolution-panel__actions .btn').trigger('click');
 
     expect(markResolutionsSeen).toHaveBeenCalledWith(expect.anything(), ['-Oxyz', '-Other']);
     expect(wrapper.find('.bug-resolution-panel').exists()).toBe(false);
+    expect(wrapper.find('.prompt-card').exists()).toBe(false);
   });
 
-  it('counts a backdrop dismissal as seen too', async () => {
+  it('counts a backdrop dismissal of the story as seen too', async () => {
     fetchUnseenResolutions.mockResolvedValue([NOTICE]);
     const wrapper = factory();
     await flushPromises();
 
+    await wrapper.find('.prompt-card').trigger('click');
     await wrapper.find('.bug-resolution-backdrop').trigger('click');
 
     expect(markResolutionsSeen).toHaveBeenCalledWith(expect.anything(), ['-Oxyz']);
-    expect(wrapper.find('.bug-resolution-panel').exists()).toBe(false);
+    expect(wrapper.find('.prompt-card').exists()).toBe(false);
   });
 });

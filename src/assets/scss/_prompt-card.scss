@@ -10,8 +10,16 @@
 // border, from before the #161616 / #2e2e2e panels and the accent vocabulary
 // that Deep Stats, Insights, Year in Review and MovieDetail all share now.
 //
-// Each chore keeps its own accent, drawn from the SAME vocabulary rather than
-// invented here — the mistake MovieDetail's first pass made:
+// Since 2026-08-21 this is THE notification language, not just the chores'
+// (Matt: "make that notification space a unified concept and use it for all
+// notifications going forward"). Everything the app needs to tell you on
+// Home renders as one of these cards, stacked inside `.home-notices`.
+//
+// Two families, one shape:
+//
+// YOUR MOVIE HOMEWORK — each chore keeps its own accent, drawn from the SAME
+// vocabulary as the rest of the app rather than invented here — the mistake
+// MovieDetail's first pass made:
 //
 //   gold   #ffc107  awards        — wins everywhere in the app
 //   purple #cd7fe8  friends       — Insights' People tab
@@ -20,6 +28,14 @@
 //   green  #24d776  stickiness    — Insights' Activity tab; stickiness is
 //                                   the question of how a film holds up over
 //                                   time
+//
+// THE APP TALKING ABOUT ITSELF — updates, bug-report resolutions, and any
+// future housekeeping share ONE neutral accent:
+//
+//   light  #d9d9d9  app           — deliberately colourless, so housekeeping
+//                                   never competes with the homework accents
+//                                   and a new app notice never needs a new
+//                                   colour invented for it
 //
 // NO left-edge accent bar: "I'm not that into it" (2026-08-15). The colour
 // arrives as a badge behind the icon instead.
@@ -62,6 +78,7 @@
 .prompt-badge-friends { background: #cd7fe8; }
 .prompt-badge-tiebreak { background: #1d8bf1; }
 .prompt-badge-stickiness { background: #24d776; }
+.prompt-badge-app { background: #d9d9d9; }
 
 .prompt-body {
   display: flex;
@@ -98,3 +115,12 @@
 .prompt-action-friends { color: #cd7fe8; }
 .prompt-action-tiebreak { color: #4fa3e3; }
 .prompt-action-stickiness { color: #24d776; }
+.prompt-action-app { color: #d9d9d9; }
+
+// The one place all of these render: the section at the top of Home. The
+// cards carry their own bottom margins, so the container just names the
+// space — anything new the app wants to say goes inside it, never as a
+// stray banner somewhere else.
+.home-notices {
+  width: 100%;
+}

@@ -1,8 +1,23 @@
 <template>
-  <!-- Shown once, on the first launch after a reported bug is resolved.
-       Any dismissal counts as seen: the point is "your report mattered,
-       here's what happened", not a task to acknowledge. -->
-  <div v-if="notices.length" class="bug-resolution-backdrop" @click.self="dismiss">
+  <!-- A prompt-card in Home's unified notification space, wearing the
+       neutral "app" accent (the app talking about itself). Tapping opens
+       the full story; ANY dismissal of that panel marks the notices seen —
+       the point is "your report mattered, here's what happened", not a
+       task to acknowledge. -->
+  <div v-if="notices.length && !open" class="prompt-card mb-3" @click="open = true">
+    <span class="prompt-badge prompt-badge-app"><i class="bi bi-bug-fill"></i></span>
+    <span class="prompt-body">
+      <span class="prompt-label">Bug report</span>
+      <p class="prompt-text">
+        {{ notices.length === 1
+          ? 'A bug you reported has been fixed.'
+          : `${notices.length} bugs you reported have been fixed.` }}
+      </p>
+      <a class="prompt-action prompt-action-app" @click.stop="open = true">See what happened</a>
+    </span>
+  </div>
+
+  <div v-if="notices.length && open" class="bug-resolution-backdrop" @click.self="dismiss">
     <div class="bug-resolution-panel" role="dialog" aria-label="A bug you reported was fixed">
       <h2 class="bug-resolution-panel__title">
         <i class="bi bi-check-circle-fill"></i>
@@ -46,13 +61,14 @@ export default {
   data () {
     return {
       notices: [],
+      open: false,
       checked: false
     };
   },
   computed: {
     ready () {
-      // Wait for the library so the prompt never races the login screen, and
-      // never appears over a half-loaded app.
+      // Wait for the library so the card never races the login screen or
+      // appears over a half-loaded app.
       return Boolean(this.$store.state.dbLoaded && this.$store.getters.databaseTopKey);
     }
   },
@@ -70,6 +86,7 @@ export default {
     dismiss () {
       const ids = this.notices.map((notice) => notice.id);
       this.notices = [];
+      this.open = false;
       markResolutionsSeen(this.$store, ids);
     },
     formatDate (timestamp) {
@@ -79,10 +96,11 @@ export default {
 };
 </script>
 
-<style scoped>
-/* Same visual family as the bug-report panel it answers — dark surface,
-   #ccc-or-brighter text (the contrast rule), :active only. Sits just under
-   the bug button's own layer so the trigger stays reachable above it. */
+<style lang="scss" scoped>
+@import '@/assets/scss/prompt-card';
+
+/* The detail panel keeps the bug-report family's look — dark surface,
+   #ccc-or-brighter text, :active only. */
 .bug-resolution-backdrop {
   position: fixed;
   inset: 0;

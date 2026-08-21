@@ -1,10 +1,19 @@
 <template>
-  <div v-if="$store.state.updateAvailable" class="update-available-banner">
-    <span v-if="updating">Updating&hellip;</span>
-    <span v-else>A new version of Cinema Roll is available.</span>
-    <button class="btn btn-sm btn-dark" :disabled="updating" @click="reload">
-      {{ updating ? 'One moment' : 'Refresh' }}
-    </button>
+  <div
+    v-if="$store.state.updateAvailable"
+    class="prompt-card update-available-banner mb-3"
+    @click="reload"
+  >
+    <span class="prompt-badge prompt-badge-app"><i class="bi bi-arrow-repeat"></i></span>
+    <span class="prompt-body">
+      <span class="prompt-label">App update</span>
+      <p class="prompt-text">
+        {{ updating ? 'Updating Cinema Roll…' : 'A new version of Cinema Roll is ready.' }}
+      </p>
+      <button class="prompt-action prompt-action-app" :disabled="updating" @click.stop="reload">
+        {{ updating ? 'One moment' : 'Refresh' }}
+      </button>
+    </span>
   </div>
 </template>
 
@@ -14,9 +23,14 @@ import { reloadForUpdate } from '../utils/appUpdate.js';
 // Shows once App.vue's deploy check flags a new version. Since 2026-08-15
 // updates normally apply THEMSELVES at a quiet moment (App.vue's
 // auto-update watcher, feedback: "the user shouldn't have to take an
-// action") — this banner is the visible state while waiting and the manual
+// action") — this card is the visible state while waiting and the manual
 // fallback whenever a quiet moment never comes (typing, mid-game, modal
-// open). Rendered globally from App.vue in normal document flow.
+// open).
+//
+// Since 2026-08-21 it renders as a prompt-card in Home's .home-notices
+// section — the unified notification space — rather than as a full-width
+// yellow banner over every screen. The neutral "app" accent marks it as
+// the app talking about itself, not movie homework.
 export default {
   name: 'UpdateAvailableBanner',
   data () {
@@ -30,23 +44,26 @@ export default {
       this.updating = true;
       await reloadForUpdate();
     },
-    // The wait-out-the-install logic lives in utils/appUpdate.js now,
-    // shared with App.vue's automatic update path.
+    // The wait-out-the-install logic lives in utils/appUpdate.js, shared
+    // with App.vue's automatic update path.
   }
 }
 </script>
 
-<style scoped>
-.update-available-banner {
-  align-items: center;
-  background-color: #ffc107;
-  color: #000;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  justify-content: center;
-  padding: 0.5rem 1rem;
-  font-size: 0.85rem;
-  text-align: center;
+<style lang="scss" scoped>
+@import '@/assets/scss/prompt-card';
+
+/* The action is a real <button> (it disables while updating), dressed as
+   the prompt-action link every other card in the space uses. */
+.prompt-action {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+
+  &:disabled {
+    color: #9a9a9a;
+    cursor: default;
+  }
 }
 </style>

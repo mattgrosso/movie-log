@@ -1,0 +1,55 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+
+// The unified notification space (2026-08-21): everything the app wants to
+// tell you renders as a prompt-card inside Home's .home-notices section.
+// Home.vue is too entangled to mount here, so these are source-level
+// assertions — the same style as the guards in other repos that read the
+// template because jsdom can't see the layout. What they pin:
+//
+//  1. Every notification component renders INSIDE .home-notices, and only
+//     once. The friend-request card had to be rescued from inside
+//     `results-exist` on 2026-08-19 (a no-match search hid it); this stops
+//     any card from quietly sliding back into a conditional corner.
+//  2. App.vue renders no notification components — a card mounted globally
+//     AND in the space would show twice.
+
+const read = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
+
+const home = read('../components/Home.vue');
+const app = read('../App.vue');
+
+const noticesSection = () => {
+  const start = home.indexOf('<section class="home-notices">');
+  const end = home.indexOf('</section>', start);
+  expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+  return home.slice(start, end);
+};
+
+describe('the unified notification space', () => {
+  it('exists exactly once in Home', () => {
+    expect(home.match(/class="home-notices"/g)).toHaveLength(1);
+  });
+
+  it('contains every notification, each rendered nowhere else in Home', () => {
+    const section = noticesSection();
+
+    for (const tag of ['<BugResolutionNotice', '<UpdateAvailableBanner', '<StickinessInline', '<TweakInline', '<PersonalAwardsModal']) {
+      expect(section).toContain(tag);
+      // Once in the section means once in the whole file.
+      expect(home.split(tag)).toHaveLength(2);
+    }
+
+    expect(section).toContain('prompt-badge-friends');
+  });
+
+  it('keeps notifications out of the global App shell', () => {
+    expect(app).not.toContain('<UpdateAvailableBanner');
+    expect(app).not.toContain('<BugResolutionNotice');
+    // The whole-app state banners stay global.
+    expect(app).toContain('<OfflineBanner');
+    expect(app).toContain('<LibraryAccessBanner');
+  });
+});

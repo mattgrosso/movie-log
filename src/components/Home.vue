@@ -325,31 +325,66 @@
     <div v-if="$store.state.dbLoaded && !showSuggestionsOnly && userRatedMovieCount > 0 && userRatedMovieCount < 10 && !value && !resultsAreFiltered" class="text-center mt-2 mb-1">
       <button class="btn btn-success" @click="showSuggestionsOnly = true">{{ suggestionsButtonLabel }}</button>
     </div>
-    <!-- Friend requests, at the top level of the page ON PURPOSE.
-         Bug report, 2026-08-19: "I need a more prominent notification when
-         somebody wants to be my friend either via movie log or from
-         cinnamon roll directly because I see them when I go look for them
-         at the bottom of my film club, but not more prominently. I decided
-         unless I think to look there I won't ever know that they're
-         pending."
-         It WAS on Home already — but nested three levels inside
-         `results-exist`, so it only rendered while a results list happened
-         to be on screen. A search with no matches, or the start-suggestions
-         state, hid it completely. Whether someone is waiting on you has
-         nothing to do with what the results area is doing, so it now
-         renders in every state of this page. -->
-    <div
-      v-if="incomingFriendRequests.length"
-      class="prompt-card mb-3"
-      @click="$router.push('/film-club')"
-    >
-      <span class="prompt-badge prompt-badge-friends"><i class="bi bi-people-fill"></i></span>
-      <span class="prompt-body">
-        <span class="prompt-label">Film Club</span>
-        <p class="prompt-text">{{ friendRequestBannerText }}</p>
-        <a class="prompt-action prompt-action-friends" @click.stop="$router.push('/film-club')">Review the request</a>
-      </span>
-    </div>
+    <!-- THE notification space (Matt, 2026-08-21: "make that notification
+         space a unified concept and use it for all notifications going
+         forward"). Every prompt-card the app shows lives here, in one
+         stack at the top level of Home — never nested inside the results
+         area, which is the mistake the friend-request card had to be
+         rescued from on 2026-08-19: whether something needs your attention
+         has nothing to do with what the results list is doing.
+
+         Order is deliberate: a person waiting comes first, then news about
+         your own reports, then app housekeeping, and the movie homework
+         last — the chores expand in place into working UIs, so they sit
+         closest to the library they act on. One chore at a time, chosen by
+         activeModalType. Shared look in scss/_prompt-card.scss. -->
+    <section class="home-notices">
+      <!-- Friend requests: prominent ON PURPOSE. Bug report, 2026-08-19:
+           "unless I think to look there I won't ever know that they're
+           pending." -->
+      <div
+        v-if="incomingFriendRequests.length"
+        class="prompt-card mb-3"
+        @click="$router.push('/film-club')"
+      >
+        <span class="prompt-badge prompt-badge-friends"><i class="bi bi-people-fill"></i></span>
+        <span class="prompt-body">
+          <span class="prompt-label">Film Club</span>
+          <p class="prompt-text">{{ friendRequestBannerText }}</p>
+          <a class="prompt-action prompt-action-friends" @click.stop="$router.push('/film-club')">Review the request</a>
+        </span>
+      </div>
+
+      <BugResolutionNotice/>
+
+      <UpdateAvailableBanner/>
+
+      <StickinessInline
+        :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+        :showStickinessModal="showStickinessModal"
+        @stickiness-updated="onStickinessUpdated"
+      />
+      <TweakInline
+        :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+        :showTweakModal="showTweakModal"
+        @tweak-updated="onTweakUpdated"
+      />
+      <!-- Banner-only on Home: tapping the "year is ready" notice navigates
+           to /awards (the overlay modal is retired — it "always feels a
+           little bit janky"). No :selectedYear here, deliberately — see
+           PersonalAwardsModal for why passing the persisted daily year
+           through the explicit-intent override kept the banner naming a
+           finished year. -->
+      <PersonalAwardsModal
+        v-if="showAwardsModal"
+        :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
+        :personalAwardName="personalAwardName"
+        :awardNameWithThe="getAwardNameWithThe()"
+        :awardNameSingular="getAwardNameSingular()"
+        :autoOpen="awardsPromptState === 'forced'"
+        :navigateOnOpen="true"
+      />
+    </section>
 
     <NoResults
       v-if="shouldShowStartSuggestions"
@@ -487,36 +522,10 @@
               </button>
             </div>
           </div>
-          <!-- Stickiness Inline Content -->
-          <StickinessInline
-            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-            :showStickinessModal="showStickinessModal"
-            @stickiness-updated="onStickinessUpdated"
-          />
-          <TweakInline
-            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-            :showTweakModal="showTweakModal"
-            @tweak-updated="onTweakUpdated"
-          />
-          <!-- Banner-only on Home now: tapping the "year is ready" notice
-               navigates to the /awards page (the overlay modal is retired —
-               feedback: it "always feels a little bit janky"). -->
-          <!-- No :selectedYear here, deliberately. selectedYear is the
-               explicit-intent override (Resume/Edit buttons) and the picker
-               returns it unconditionally — passing the persisted daily year
-               through it kept the banner naming a year all day AFTER it was
-               completed, sending Matt to a finished year with no new-movies
-               list. The picker reads dailyAwardsYear from settings itself and
-               applies stickiness WITH the completion check. -->
-          <PersonalAwardsModal
-            v-if="showAwardsModal"
-            :allEntriesWithFlatKeywordsAdded="allEntriesWithFlatKeywordsAdded"
-            :personalAwardName="personalAwardName"
-            :awardNameWithThe="getAwardNameWithThe()"
-            :awardNameSingular="getAwardNameSingular()"
-            :autoOpen="awardsPromptState === 'forced'"
-            :navigateOnOpen="true"
-          />
+          <!-- The chore prompts (stickiness / tiebreak / awards) used to
+               render here, inside results-exist — which hid them whenever a
+               search matched nothing. They live in .home-notices now, the
+               one notification space at the top of this page. -->
           <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
           <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">
             <div class="settings-panel-header d-flex justify-content-between align-items-center mb-2">
@@ -1292,6 +1301,8 @@ import DBGridLayoutSearchResult from './DBGridLayoutSearchResult.vue';
 import TweakInline from "./TweakInline.vue";
 import StickinessInline from "./StickinessInline.vue";
 import PersonalAwardsModal from "./PersonalAwardsModal.vue";
+import BugResolutionNotice from "./BugResolutionNotice.vue";
+import UpdateAvailableBanner from "./UpdateAvailableBanner.vue";
 import RatingCurveSettings from "./RatingCurveSettings.vue";
 import SettingsSection from "./SettingsSection.vue";
 import NoResults from "./NoResults.vue";
@@ -1406,6 +1417,8 @@ export default {
     TweakInline,
     StickinessInline,
     PersonalAwardsModal,
+    BugResolutionNotice,
+    UpdateAvailableBanner,
     RatingCurveSettings,
     SettingsSection,
     NoResults,

@@ -3,7 +3,11 @@
     <!-- Invisible scroll-to-top trigger area -->
     <div class="scroll-to-top-trigger" @click.stop="scrollToTop"></div>
     <AppHeader/>
-    <UpdateAvailableBanner/>
+    <!-- UpdateAvailableBanner and BugResolutionNotice render inside Home's
+         .home-notices section now — the one notification space — not here.
+         The auto-update machinery below stays global; only the visible
+         fallback moved. Offline and access banners remain global: they are
+         states of the whole app, not notifications. -->
     <OfflineBanner/>
     <LibraryAccessBanner/>
     <!-- The routed page grows to fill whatever is left below the header, which
@@ -16,7 +20,6 @@
     </main>
     <AppFooter v-if="$store.state.dbLoaded"/>
     <BugReportButton/>
-    <BugResolutionNotice/>
   </div>
 </template>
 
@@ -24,8 +27,6 @@
 import AppFooter from "./components/Footer.vue";
 import AppHeader from "./components/Header.vue";
 import BugReportButton from "./components/BugReportButton.vue";
-import BugResolutionNotice from "./components/BugResolutionNotice.vue";
-import UpdateAvailableBanner from "./components/UpdateAvailableBanner.vue";
 import OfflineBanner from "./components/OfflineBanner.vue";
 import LibraryAccessBanner from "./components/LibraryAccessBanner.vue";
 import { pickFallbackBanner } from "./assets/javascript/bannerFallback.js";
@@ -38,10 +39,8 @@ export default {
     AppFooter,
     AppHeader,
     BugReportButton,
-    BugResolutionNotice,
     LibraryAccessBanner,
-    OfflineBanner,
-    UpdateAvailableBanner
+    OfflineBanner
   },
   data () {
     return {

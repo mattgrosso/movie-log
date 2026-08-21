@@ -169,8 +169,8 @@ describe('App - offline detection + pending-write flush wiring', () => {
   })
 })
 
-describe('App - renders UpdateAvailableBanner globally', () => {
-  it('always renders the banner component (its own v-if handles whether anything shows)', () => {
+describe('App - global banners', () => {
+  it('renders the whole-app state banners, and NOT the Home-scoped notices', () => {
     vi.spyOn(document, 'addEventListener').mockImplementation(() => {})
     vi.spyOn(window, 'addEventListener').mockImplementation(() => {})
 
@@ -180,9 +180,14 @@ describe('App - renders UpdateAvailableBanner globally', () => {
       }
     })
 
-    expect(wrapper.findComponent({ name: 'UpdateAvailableBanner' }).exists()).toBe(true)
+    // Offline and access banners are states of the whole app, so they stay
+    // global. The update card and bug-resolution card are NOTIFICATIONS,
+    // and every notification renders in Home's .home-notices section — a
+    // second copy here would show the update twice (2026-08-21 unification).
     expect(wrapper.findComponent({ name: 'OfflineBanner' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'LibraryAccessBanner' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'UpdateAvailableBanner' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'BugResolutionNotice' }).exists()).toBe(false)
     vi.restoreAllMocks()
   })
 })
