@@ -25,7 +25,22 @@ const rawCalculatedTotal = (rating) => {
   const stickiness = store.getters.weight("stickiness") * parseFloat(cleanStickiness);
 
   const total = direction + imagery + story + performance + soundtrack + love + overall + stickiness;
-  return parseFloat((total / 10).toFixed(2));
+  // FOUR decimal places kept, TWO displayed (formatScore.js is the only
+  // display path). Matt, 2026-08-21: "maintain scores to three decimal places
+  // or even four... the additional decimal places that we track but don't
+  // display would only really be there so that we could always sort in terms
+  // of score... The score is the rank. We just need more precision."
+  //
+  // The arithmetic behind it: at 2dp the whole 0-10 range has 1,000 slots and
+  // the library passed 1,379 films, so a fully tie-free ranking was
+  // mathematically impossible - and the tiebreak tournament's ±0.01 nudges
+  // (which land on the SECOND decimal) had to spend those same scarce slots,
+  // often manufacturing a fresh tie as they broke one. At 4dp there are
+  // 100,000 slots, and tournament nudges now land on the fourth decimal
+  // (tweakDeltaForRank), invisible in every display but decisive in every
+  // sort. Films whose criteria produce genuinely identical weighted sums
+  // still tie exactly - that's what the tournament is for.
+  return parseFloat((total / 10).toFixed(4));
 };
 
 // Rating-curve anchors (settings.normalizationAnchors = { ten, five } as

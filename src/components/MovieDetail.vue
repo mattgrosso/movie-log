@@ -90,7 +90,7 @@
                       <span v-else-if="rating.date">On&nbsp;</span>
                       <span>{{formattedDate(rating.date)}}</span>
                     </span>
-                    <p class="col-3 m-0 text-center border-start">{{rating.calculatedTotal}}</p>
+                    <p class="col-3 m-0 text-center border-start">{{formatScore(rating.calculatedTotal)}}</p>
                   </button>
                 </h2>
                 <div :id="`collapse-${index}`" class="accordion-collapse collapse" :aria-labelledby="`heading-${index}`">
@@ -544,6 +544,7 @@
 
 <script>
 import { navigationTarget } from '../utils/navigationTarget.js';
+import { formatScore } from '../assets/javascript/formatScore.js';
 import axios from 'axios';
 import ToggleableRating from './ToggleableRating.vue';
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
@@ -937,6 +938,7 @@ export default {
     },
   },
   methods: {
+    formatScore,
     // Jumps to Home and scrolls to this film in whatever order Home is
     // already in. Nothing about the list changes.
     showInRankings () {

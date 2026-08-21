@@ -68,7 +68,11 @@ describe('GetRating', () => {
       // stickiness: 1.9 * 4 = 7.6
       // total: 78.15 / 10 = 7.815 → 7.81
 
-      expect(result.calculatedTotal).toBe(7.81)
+      // 7.815 exactly - the old 2dp rounding truncated this fixture to 7.81,
+      // which is precisely the collapse the 4dp change exists to stop: two
+      // films at 7.815 and 7.8149 must sort as different films even though
+      // both display as 7.81 (formatScore).
+      expect(result.calculatedTotal).toBe(7.815)
       expect(result.love).toBe(9)
       expect(result.overall).toBe(8)
     })

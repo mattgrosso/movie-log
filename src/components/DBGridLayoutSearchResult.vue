@@ -92,7 +92,7 @@
                     <span v-else-if="rating.date">On&nbsp;</span>
                     <span>{{formattedDate(rating.date)}}</span>
                   </span>
-                  <p class="col-3 m-0 text-center border-start">{{rating.calculatedTotal}}</p>
+                  <p class="col-3 m-0 text-center border-start">{{formatScore(rating.calculatedTotal)}}</p>
                 </button>
               </h2>
               <div :id="`collapse-${index}`" class="accordion-collapse collapse" :aria-labelledby="`heading-${index}`">
@@ -263,6 +263,7 @@
 
 <script>
 import axios from 'axios';
+import { formatScore } from '../assets/javascript/formatScore.js';
 import ordinal from "ordinal-js";
 import minBy from 'lodash/minBy';
 import Modal from './Modal.vue';
@@ -372,6 +373,7 @@ export default {
     }
   },
   methods: {
+    formatScore,
     async checkLetterboxdData () {
       if (!this.$store.state.settings.letterboxdConnected) {
         return;

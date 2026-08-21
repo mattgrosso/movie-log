@@ -112,6 +112,18 @@ Weighted criteria, combined into `calculatedTotal`:
 `GetRating.js` is uncached and moderately expensive — never call it inside a sort
 comparator (see `.claude/rules/home-search.md`).
 
+**Precision (2026-08-21): scores are computed to FOUR decimals, displayed at TWO.**
+"The score is the rank" — Matt rejected keeping a separate ranking order, so
+sorting precision comes from decimals the screens never show (`formatScore.js` is
+the only display path; a template rendering `calculatedTotal` raw is a bug, and
+`scorePrecision.test.js` guards the known ones). Tiebreak tournament verdicts
+land on the fourth decimal (`tweakDeltaForRank`, −0.0001 score per rank) so a
+verdict re-orders its group without moving any displayed number. Old tournaments
+wrote ±0.01-scale tweaks; they're deliberately not migrated — they encode real
+verdicts, and rescaling would change displayed scores. `calculatedTotal` is never
+persisted, so the precision change applied to the whole library retroactively
+with no data migration.
+
 ## Data
 
 Firebase Realtime Database, keyed by the user's sanitized email:

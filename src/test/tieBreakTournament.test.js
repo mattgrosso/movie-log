@@ -361,12 +361,17 @@ describe('tweakDeltaForRank', () => {
     expect(tweakDeltaForRank(0)).toBeCloseTo(0)
   })
 
-  it('applies -0.05 per rank below the top', () => {
+  // -0.0005 on tweakValue is -0.0001 on the score: one slot on the FOURTH
+  // decimal, which is tracked (GetRating rounds to 4dp) but never displayed
+  // (formatScore shows 2). A tournament verdict re-orders its group without
+  // moving any number a screen shows. The old -0.05 steps moved the second
+  // decimal because at 2dp nothing smaller changed the sort at all.
+  it('applies -0.0005 per rank below the top - the invisible fourth decimal', () => {
     // Not the score step: tweakValue feeds `overall`, which is weighted (2)
     // and divided by 10, so the visible score moves by a fifth of this —
     // exactly 0.01 per rank, the smallest step that survives rounding to 2dp.
-    expect(tweakDeltaForRank(1)).toBeCloseTo(-0.05)
-    expect(tweakDeltaForRank(2)).toBeCloseTo(-0.1)
-    expect(tweakDeltaForRank(3)).toBeCloseTo(-0.15)
+    expect(tweakDeltaForRank(1)).toBeCloseTo(-0.0005, 6)
+    expect(tweakDeltaForRank(2)).toBeCloseTo(-0.001, 6)
+    expect(tweakDeltaForRank(3)).toBeCloseTo(-0.0015, 6)
   })
 })

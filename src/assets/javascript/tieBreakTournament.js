@@ -318,18 +318,24 @@ export function progress (tournament) {
  *
  * NOT the change to the visible score. `tweakValue` is added to `overall`,
  * which is then weighted (2) and divided by 10 — so the score moves by a
- * FIFTH of this, and `calculatedTotal` is rounded to 2dp. 0.05 is therefore
- * the smallest step that shifts the displayed score at all: exactly 0.01,
- * one slot on that grid.
+ * FIFTH of this: -0.0005 per rank on tweakValue is exactly -0.0001 per rank
+ * on `calculatedTotal`, one slot on the FOURTH decimal.
  *
- * Was -0.1 (a 0.02 score step). Halved per feedback, because a tie is
- * resolved by moving losers down into whatever score sits below them, and
- * the further they travel the more they distort a rating that was genuinely
- * earned. It reduces how often a fresh tie is manufactured; it can't
- * eliminate it, since ~1,300 movies share a few hundred 0.01 slots and any
- * fixed step can land on an occupied one. Deliberately NOT hunting for a
- * free slot — ties arising from these nudges are acceptable, just rarer.
+ * That decimal is deliberately invisible. Scores are computed to 4dp
+ * (GetRating.js) and displayed at 2dp (formatScore.js), so a tournament
+ * verdict re-orders the tied films without moving any number a screen shows.
+ * Matt, 2026-08-21: "the tiebreakers should modify... the fourth. Just go
+ * all the way, and then I'll have a lot more space."
+ *
+ * History: was -0.1, then -0.05 — sized to shift the SECOND decimal, because
+ * at 2dp that was the smallest step that changed the sort at all. Those old
+ * deltas remain in stored tweakValues and still order their groups correctly
+ * (they're just 100x the new step); they are not migrated, because they
+ * encode real verdicts and rescaling them would change displayed scores.
+ * The old comment conceded ties "can't be eliminated, since ~1,300 movies
+ * share a few hundred 0.01 slots" — at 4dp there are 100,000 slots, and a
+ * whole 18-film group resolves within 0.0017 of score space.
  */
 export function tweakDeltaForRank (rank) {
-  return -0.05 * rank;
+  return -0.0005 * rank;
 }

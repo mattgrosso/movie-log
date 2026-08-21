@@ -68,7 +68,7 @@
 
       <div class="col-12 my-3">
         <p class="rating text-center mb-0" id="rating">
-          <span class="fw-bold">Rating: {{rating.calculatedTotal}}</span>
+          <span class="fw-bold">Rating: {{formatScore(rating.calculatedTotal)}}</span>
           <i class="bi bi-info-circle ms-2" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-collapseRatingBreakdown" aria-expanded="true" aria-controls="panelsStayOpen-collapseRatingBreakdown"></i>
           <span class="mx-2">|</span>
           <span>#{{indexIfSortedIntoArray(movieAsRatedOnPage, allMoviesRanked) + 1}}/{{numberOfMoviesAfterRating}}</span>
@@ -107,7 +107,7 @@
                     <td></td>
                     <td>Rating</td>
                     <td></td>
-                    <td>{{rating.calculatedTotal}}</td>
+                    <td>{{formatScore(rating.calculatedTotal)}}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -227,7 +227,7 @@
                   <span v-if="rating.date">{{ new Date(rating.date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) }}</span>
                   <span v-else>-</span>
                 </p>
-                <p class="col-5 m-0 text-center border-start">{{rating.calculatedTotal}}</p>
+                <p class="col-5 m-0 text-center border-start">{{formatScore(rating.calculatedTotal)}}</p>
               </div>
             </button>
           </h2>
@@ -306,6 +306,7 @@
 
 <script>
 import axios from "axios";
+import { formatScore } from '../assets/javascript/formatScore.js';
 import addRating from "../assets/javascript/AddRating.js";
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
@@ -595,6 +596,7 @@ export default {
     }
   },
   methods: {
+    formatScore,
     movieYear (movie) {
       return new Date(movie.release_date).getFullYear();
     },

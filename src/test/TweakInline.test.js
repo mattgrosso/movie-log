@@ -104,7 +104,7 @@ describe('TweakInline', () => {
       // Winner (rank 0) untouched, loser (rank 1) gets the -0.05 penalty —
       // matching the old single-pair tiebreak's behavior exactly for N=2.
       const loserUpdate = lastDispatchTo(dispatch, 'movieLog/b')
-      expect(loserUpdate.ratings[0].tweakValue).toBeCloseTo(-0.05)
+      expect(loserUpdate.ratings[0].tweakValue).toBeCloseTo(-0.0005, 6)
       expect(lastDispatchTo(dispatch, 'movieLog/a')).toBeUndefined()
 
       // No "Tournament Complete!" standings screen/Done tap for a 2-way tie
@@ -484,10 +484,10 @@ describe('TweakInline', () => {
       expect(Object.keys(byPath).sort()).toEqual(['movieLog/b', 'movieLog/c', 'movieLog/d', 'movieLog/e'])
       // The mangled entry is written back as a REAL array, normalized.
       expect(Array.isArray(byPath['movieLog/c'].ratings)).toBe(true)
-      expect(byPath['movieLog/c'].ratings[0].tweakValue).toBeCloseTo(-0.1)
+      expect(byPath['movieLog/c'].ratings[0].tweakValue).toBeCloseTo(-0.001, 6)
       // And the ranks below it still received their own distinct deltas.
-      expect(byPath['movieLog/d'].ratings[0].tweakValue).toBeCloseTo(-0.15)
-      expect(byPath['movieLog/e'].ratings[0].tweakValue).toBeCloseTo(-0.2)
+      expect(byPath['movieLog/d'].ratings[0].tweakValue).toBeCloseTo(-0.0015, 6)
+      expect(byPath['movieLog/e'].ratings[0].tweakValue).toBeCloseTo(-0.002, 6)
     })
 
     it('a contestant deleted from the library mid-tournament is skipped without aborting the others', () => {
