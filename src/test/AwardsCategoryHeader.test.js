@@ -104,19 +104,56 @@ describe('which category am I in', () => {
     expect(wrapper.find('.panel-bar .category-header').exists()).toBe(false)
   })
 
-  // Same disease, next symptom (bug report, 2026-08-21): "the list of
-  // nominees is sticky, but the link back to categories is not... I have to
-  // scroll all the way back to the top." The link is duplicated INTO the
-  // sticky bar - "also", as reported, so the top copy stays for anyone who
-  // hasn't scrolled.
-  it('puts a Categories back link inside the sticky section too', async () => {
+  // Bug report (2026-08-21): "the list of nominees is sticky, but the link
+  // back to categories is not... I have to scroll all the way back to the
+  // top." First fix duplicated the link into the sticky bar; feedback the
+  // same day: "I don't want that categories link to be duplicated. You can
+  // get rid of the one that isn't sticky." So: exactly one link, in the bar
+  // that never scrolls away.
+  it('puts the one and only Categories link inside the sticky section', async () => {
     const { wrapper } = factory()
     wrapper.vm.selectedCategory = 'bestPicture'
     await nextTick()
 
     expect(wrapper.find('.sticky-top-section .panel-back').exists()).toBe(true)
-    // The original at the top survives - the report said "also".
-    expect(wrapper.find('.panel-bar .panel-back').exists()).toBe(true)
+    expect(wrapper.find('.panel-bar .panel-back').exists()).toBe(false)
+    expect(wrapper.findAll('.panel-back')).toHaveLength(1)
+  })
+
+  // The layout he asked for, verbatim: "write a line, the category title,
+  // and the text that says current nominees... put that on the right edge
+  // and keep the categories link on the left edge." jsdom does no layout, so
+  // the structure is the contract: one row, link first, then a titles block
+  // holding BOTH the name and the instruction - and the instruction gone
+  // from its old home below.
+  it('puts the title and the nominees instruction in one right-edge block', async () => {
+    const { wrapper } = factory()
+    wrapper.vm.selectedCategory = 'bestPicture'
+    await nextTick()
+
+    const row = wrapper.find('.category-header-row')
+    expect(row.exists()).toBe(true)
+    expect(row.find('.panel-back').exists()).toBe(true)
+    const titles = row.find('.category-header-titles')
+    expect(titles.find('.category-header').exists()).toBe(true)
+    expect(titles.find('.section-title').text()).toContain('Current Nominees:')
+    expect(wrapper.find('.current-nominees-section .section-title').exists()).toBe(false)
+  })
+
+  // The instruction text doubled as the tap target that reveals Matt's trash
+  // button. Moving it must not lose that.
+  it('tapping the relocated instruction still toggles the trash reveal', async () => {
+    const { wrapper } = factory()
+    wrapper.vm.selectedCategory = 'bestPicture'
+    await nextTick()
+
+    expect(wrapper.vm.showTrashIcon).toBe(false)
+    await wrapper.find('.category-header-titles .section-title').trigger('click')
+    if (wrapper.vm.isMatt) {
+      expect(wrapper.vm.showTrashIcon).toBe(true)
+    } else {
+      expect(wrapper.vm.showTrashIcon).toBe(false)
+    }
   })
 
   it('the sticky back link actually leaves the category', async () => {

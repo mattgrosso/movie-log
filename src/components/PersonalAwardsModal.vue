@@ -150,10 +150,13 @@
 
           <div class="awards-pane detail-pane">
           <div v-if="selectedCategory" ref="categoryPanel" class="category-detail">
-            <div class="panel-bar">
-              <button type="button" class="panel-back" @click="backToCategories">
-                <i class="bi bi-chevron-left"></i> Categories
-              </button>
+            <!-- No back link here any more - it lives in the sticky bar
+                 below, alone: "I don't want that categories link to be
+                 duplicated. You can get rid of the one that isn't sticky"
+                 (2026-08-21). The bar itself only renders when it still has
+                 a job: Remove award for a custom category, or Matt's trash.
+                 An empty bar would just be a mystery gap above the header. -->
+            <div v-if="selectedCategoryIsCustom || isMatt" class="panel-bar">
               <!-- An invented award can be un-invented; the thirteen standard
                    ones cannot. Offered here rather than as an × on the
                    category row, because those rows are <button>s and a button
@@ -195,25 +198,26 @@
                    Inside the STICKY section deliberately: the panel bar above
                    scrolls away, and a name you lose the moment you scroll
                    down a grid of nominees is the same bug again. -->
-              <!-- The back link, AGAIN, deliberately: the panel bar above
-                   scrolls away, and once you've scrolled down the nominee
-                   grids and picked someone, the only way back up to the
-                   categories was scrolling the whole page. Bug report,
-                   2026-08-21: "that categories link should also be in the
-                   sticky pane so I can see it no matter how far down
-                   scrolled." Same shape as the category-name fix directly
-                   below it (2026-08-20) - anything you need after scrolling
-                   has to live in the part that doesn't scroll. -->
+              <!-- The ONLY back link (bug report 2026-08-21 put one here;
+                   feedback the same day removed the panel-bar copy: "I don't
+                   want that categories link to be duplicated"). One line,
+                   per the same feedback: link on the left edge; category
+                   title with the Current Nominees instruction under it as a
+                   right-aligned block. Tapping the instruction still reveals
+                   Matt's trash, as it did when it lived below. -->
               <div class="category-header-row">
                 <button type="button" class="panel-back sticky-back" @click="backToCategories">
                   <i class="bi bi-chevron-left"></i> Categories
                 </button>
-                <h5 class="category-header">{{ getCurrentCategoryName() }}</h5>
+                <div class="category-header-titles">
+                  <h5 class="category-header">{{ getCurrentCategoryName() }}</h5>
+                  <h6 class="section-title" @click="toggleTrashReveal">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
+                </div>
               </div>
 
-              <!-- Current Nominees - Always visible -->
+              <!-- Current Nominees - always visible; its heading moved up
+                   into the header row (2026-08-21). -->
               <div class="current-nominees-section">
-                <h6 class="section-title" @click="toggleTrashReveal">Current Nominees: <span class="instruction-text">Click a nominee to select winner</span></h6>
                 <div class="current-nominees-gallery">
                   <!-- No nominees button when category is empty -->
                   <div v-if="getCurrentNominees().length === 0" class="no-nominees-placeholder">
@@ -2970,9 +2974,27 @@ export default {
            — a dead rule, which is how the category name came to be missing
            from this pane entirely. The h5 carries the class itself now. */
         .category-header-row {
-          align-items: baseline;
+          /* Link pinned to the left edge, titles block to the right edge -
+             "put that on the right edge and keep the categories link on the
+             left edge" (2026-08-21). Centered vertically rather than
+             baseline-aligned: the right side is two stacked lines, and the
+             link should sit level with the block, not with the first line's
+             baseline. */
+          align-items: center;
           display: flex;
           gap: 0.75rem;
+          justify-content: space-between;
+        }
+
+        .category-header-titles {
+          text-align: right;
+        }
+
+        /* Inside the header row the heading is one of two stacked lines on
+           the right, not a section break - kill the section-title's own
+           spacing so the pair reads as a unit. */
+        .category-header-titles .section-title {
+          margin: 0;
         }
 
         /* Tighter than the panel-bar copy: it shares a row with the category
@@ -2989,7 +3011,7 @@ export default {
           color: #fff;
           font-size: 1rem;
           font-weight: 600;
-          margin: 0 0 0.4rem;
+          margin: 0 0 0.1rem;
         }
 
         .category-title-clickable {
@@ -3469,7 +3491,11 @@ export default {
   align-items: center;
   display: flex;
   gap: 0.5rem;
-  justify-content: space-between;
+  /* flex-end, not space-between: the back link that used to anchor the left
+     side moved into the sticky bar (2026-08-21), and Remove award / the
+     trash were always right-edge controls. space-between with one child
+     would silently drag them to the left edge. */
+  justify-content: flex-end;
   margin-bottom: 0.5rem;
 }
 
