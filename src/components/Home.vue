@@ -328,16 +328,157 @@
     <!-- THE notification space (Matt, 2026-08-21: "make that notification
          space a unified concept and use it for all notifications going
          forward"). Every prompt-card the app shows lives here, in one
-         stack at the top level of Home — never nested inside the results
-         area, which is the mistake the friend-request card had to be
-         rescued from on 2026-08-19: whether something needs your attention
-         has nothing to do with what the results list is doing.
+         stack directly BELOW the rainbow bar (his call, same day) — and at
+         the top level of Home, never nested inside the results area, which
+         is the mistake the friend-request card had to be rescued from on
+         2026-08-19: whether something needs your attention has nothing to
+         do with what the results list is doing. When there are no results
+         the rainbow hides and the stack simply sits under the search bar.
 
          Order is deliberate: a person waiting comes first, then news about
          your own reports, then app housekeeping, and the movie homework
          last — the chores expand in place into working UIs, so they sit
          closest to the library they act on. One chore at a time, chosen by
          activeModalType. Shared look in scss/_prompt-card.scss. -->
+    <!-- The rainbow bar, above the notification space (Matt, 2026-08-21:
+         "I don't want it above the rainbow bar. It should go below the
+         rainbow"). Moved out of results-exist so it can sit above the
+         notices while they stay in one always-rendered spot; the guard
+         reproduces its old visibility exactly (not start-suggestions, a
+         results list showing, at least one result). The .results wrapper is
+         a CSS namespace only — all the bar's styling is nested under it. -->
+    <div
+      v-if="!shouldShowStartSuggestions && showResultsList && paginatedSortedResults.length"
+      class="results"
+    >
+      <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
+        <div class="btn-group col-12" role="group" aria-label="Button group">
+          <!-- Settings (gear) button replaces shorts toggle -->
+          <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel" title="Settings" aria-label="Open settings">
+            <i class="bi bi-gear"></i>
+          </button>
+          <button class="results-actions-button btn btn-info" type="button" @click="goToGames" title="Games" aria-label="Go to games">
+            <i class="bi" :class="gamesButtonIcon"/>
+          </button>
+          <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage" title="Toggle count / average / views" aria-label="Toggle between result count, average rating, and view count">
+            <span v-if="showAverage">
+              <span class="average-label">(avg)</span>
+              <span class="average-value">{{averageRating(displayedResults)}}</span>
+            </span>
+            <span v-else-if="showViewCount">
+              <span class="average-label">(views)</span>
+              <span class="average-value">{{viewsCount(displayedResults)}}</span>
+            </span>
+            <span v-else-if="showLogScore">
+              <span class="average-label">(log)</span>
+              <span class="average-value">{{filteredLogScore}}</span>
+            </span>
+            <span v-else-if="quickLinkContext === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{unifiedFilteredResults.length}}</span>
+            <span v-else>{{displayedResults.length}}</span>
+          </button>
+          <button class="results-actions-button btn btn-info" type="button" @click="goToInsights" title="Insights" aria-label="Go to insights">
+            <i class="bi bi-lightbulb"/>
+          </button>
+          <!-- The Film Club takes the lightning bolt's rainbow slot and
+               color; the quick-links trigger now lives inside the
+               search input's right edge (Matt: "it really
+               needs to be a first order page"). -->
+          <button class="results-actions-button btn btn-warning btn-sm" type="button" @click="$router.push('/film-club')" title="Film Club" aria-label="Go to the Film Club">
+            <!-- New friend ratings since the club was last opened. Always
+                 the OUTLINE club: "I basically wanted it to always be the
+                 outline icon not the solid one because that better matches
+                 the other icons on the list" (2026-08-17) — the binoculars
+                 and sort glyphs beside it are outlines. -->
+            <span v-if="filmClubNewUpdateCount" class="film-club-badge">
+              <i class="bi bi-suit-club film-club-glyph"/>
+              <span class="film-club-badge-count">{{ filmClubNewUpdateCount > 9 ? '9+' : filmClubNewUpdateCount }}</span>
+            </span>
+            <i v-else class="bi bi-suit-club film-club-glyph"/>
+          </button>
+          <!-- Shuffle lives inside the quick-links panel now (feedback:
+               the extra watchlist button broke the rainbow); watchlist
+               takes shuffle's old slot and color. -->
+          <button class="results-actions-button btn btn-info btn-sm" @click="$router.push('/watchlist')" title="Watchlist" aria-label="Go to watchlist">
+            <i class="bi bi-binoculars watchlist-glyph"/>
+          </button>
+          <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Sort results" aria-label="Sort results">
+            <i v-if="sortValue === 'rating'" class="bi bi-123"/>
+            <i v-if="sortValue === 'watched'" class="bi bi-calendar3"/>
+            <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
+            <i v-if="sortValue === 'title'" class="bi bi-alphabet"></i>
+            <i v-if="sortValue === 'views'" class="bi bi-eye"></i>
+            <i v-if="sortValue === 'direction'" class="bi bi-dpad"></i>
+            <i v-if="sortValue === 'imagery'" class="bi bi-image"></i>
+            <i v-if="sortValue === 'story'" class="bi bi-book"></i>
+            <i v-if="sortValue === 'performance'" class="bi bi-speedometer"></i>
+            <i v-if="sortValue === 'soundtrack'" class="bi bi-music-note-beamed"></i>
+            <i v-if="sortValue === 'stickiness'" class="bi bi-sticky"></i>
+            <span class="order-arrow">
+              <i v-if="sortOrder !== 'bestOrNewestOnTop'" class="bi bi-arrow-down-short"/>
+              <i v-if="sortOrder === 'bestOrNewestOnTop'" class="bi bi-arrow-up-short"/>
+            </span>
+            <ul class="dropdown-menu">
+              <li value="rating">
+                <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setOrToggleSortValue('rating')">
+                  Rating
+                </button>
+              </li>
+              <li value="watched">
+                <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setOrToggleSortValue('watched')">
+                  Watch Date
+                </button>
+              </li>
+              <li value="release">
+                <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setOrToggleSortValue('release')">
+                  Release Date
+                </button>
+              </li>
+              <li value="title">
+                <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setOrToggleSortValue('title')">
+                  Title
+                </button>
+              </li>
+              <li value="views">
+                <button class="dropdown-item" :class="{active: sortValue === 'views'}" @click="setOrToggleSortValue('views')">
+                  Views
+                </button>
+              </li>
+              <li value="direction">
+                <button class="dropdown-item" :class="{active: sortValue === 'direction'}" @click="setOrToggleSortValue('direction')">
+                  Direction
+                </button>
+              </li>
+              <li value="imagery">
+                <button class="dropdown-item" :class="{active: sortValue === 'imagery'}" @click="setOrToggleSortValue('imagery')">
+                  Imagery
+                </button>
+              </li>
+              <li value="story">
+                <button class="dropdown-item" :class="{active: sortValue === 'story'}" @click="setOrToggleSortValue('story')">
+                  Story
+                </button>
+              </li>
+              <li value="performance">
+                <button class="dropdown-item" :class="{active: sortValue === 'performance'}" @click="setOrToggleSortValue('performance')">
+                  Performance
+                </button>
+              </li>
+              <li value="soundtrack">
+                <button class="dropdown-item" :class="{active: sortValue === 'soundtrack'}" @click="setOrToggleSortValue('soundtrack')">
+                  Soundtrack
+                </button>
+              </li>
+              <li value="stickiness">
+                <button class="dropdown-item" :class="{active: sortValue === 'stickiness'}" @click="setOrToggleSortValue('stickiness')">
+                  Stickiness
+                </button>
+              </li>
+            </ul>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <section class="home-notices">
       <!-- Friend requests: prominent ON PURPOSE. Bug report, 2026-08-19:
            "unless I think to look there I won't ever know that they're
@@ -396,136 +537,10 @@
     <div v-else>
       <div v-if="showResultsList" class="results">
         <div v-if="paginatedSortedResults.length" class="results-exist">
-          <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap my-2">
-            <div class="btn-group col-12" role="group" aria-label="Button group">
-              <!-- Settings (gear) button replaces shorts toggle -->
-              <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel" title="Settings" aria-label="Open settings">
-                <i class="bi bi-gear"></i>
-              </button>
-              <button class="results-actions-button btn btn-info" type="button" @click="goToGames" title="Games" aria-label="Go to games">
-                <i class="bi" :class="gamesButtonIcon"/>
-              </button>
-              <button class="results-actions-button filtered-count-display btn btn-secondary" @click="toggleCountViewsAverage" title="Toggle count / average / views" aria-label="Toggle between result count, average rating, and view count">
-                <span v-if="showAverage">
-                  <span class="average-label">(avg)</span>
-                  <span class="average-value">{{averageRating(displayedResults)}}</span>
-                </span>
-                <span v-else-if="showViewCount">
-                  <span class="average-label">(views)</span>
-                  <span class="average-value">{{viewsCount(displayedResults)}}</span>
-                </span>
-                <span v-else-if="showLogScore">
-                  <span class="average-label">(log)</span>
-                  <span class="average-value">{{filteredLogScore}}</span>
-                </span>
-                <span v-else-if="quickLinkContext === 'bestPicture'">{{bestPicturesWithRatings.length}}/{{unifiedFilteredResults.length}}</span>
-                <span v-else>{{displayedResults.length}}</span>
-              </button>
-              <button class="results-actions-button btn btn-info" type="button" @click="goToInsights" title="Insights" aria-label="Go to insights">
-                <i class="bi bi-lightbulb"/>
-              </button>
-              <!-- The Film Club takes the lightning bolt's rainbow slot and
-                   color; the quick-links trigger now lives inside the
-                   search input's right edge (Matt: "it really
-                   needs to be a first order page"). -->
-              <button class="results-actions-button btn btn-warning btn-sm" type="button" @click="$router.push('/film-club')" title="Film Club" aria-label="Go to the Film Club">
-                <!-- New friend ratings since the club was last opened. Always
-                     the OUTLINE club: "I basically wanted it to always be the
-                     outline icon not the solid one because that better matches
-                     the other icons on the list" (2026-08-17) — the binoculars
-                     and sort glyphs beside it are outlines. -->
-                <span v-if="filmClubNewUpdateCount" class="film-club-badge">
-                  <i class="bi bi-suit-club film-club-glyph"/>
-                  <span class="film-club-badge-count">{{ filmClubNewUpdateCount > 9 ? '9+' : filmClubNewUpdateCount }}</span>
-                </span>
-                <i v-else class="bi bi-suit-club film-club-glyph"/>
-              </button>
-              <!-- Shuffle lives inside the quick-links panel now (feedback:
-                   the extra watchlist button broke the rainbow); watchlist
-                   takes shuffle's old slot and color. -->
-              <button class="results-actions-button btn btn-info btn-sm" @click="$router.push('/watchlist')" title="Watchlist" aria-label="Go to watchlist">
-                <i class="bi bi-binoculars watchlist-glyph"/>
-              </button>
-              <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Sort results" aria-label="Sort results">
-                <i v-if="sortValue === 'rating'" class="bi bi-123"/>
-                <i v-if="sortValue === 'watched'" class="bi bi-calendar3"/>
-                <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
-                <i v-if="sortValue === 'title'" class="bi bi-alphabet"></i>
-                <i v-if="sortValue === 'views'" class="bi bi-eye"></i>
-                <i v-if="sortValue === 'direction'" class="bi bi-dpad"></i>
-                <i v-if="sortValue === 'imagery'" class="bi bi-image"></i>
-                <i v-if="sortValue === 'story'" class="bi bi-book"></i>
-                <i v-if="sortValue === 'performance'" class="bi bi-speedometer"></i>
-                <i v-if="sortValue === 'soundtrack'" class="bi bi-music-note-beamed"></i>
-                <i v-if="sortValue === 'stickiness'" class="bi bi-sticky"></i>
-                <span class="order-arrow">
-                  <i v-if="sortOrder !== 'bestOrNewestOnTop'" class="bi bi-arrow-down-short"/>
-                  <i v-if="sortOrder === 'bestOrNewestOnTop'" class="bi bi-arrow-up-short"/>
-                </span>
-                <ul class="dropdown-menu">
-                  <li value="rating">
-                    <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setOrToggleSortValue('rating')">
-                      Rating
-                    </button>
-                  </li>
-                  <li value="watched">
-                    <button class="dropdown-item" :class="{active: sortValue === 'watched'}" @click="setOrToggleSortValue('watched')">
-                      Watch Date
-                    </button>
-                  </li>
-                  <li value="release">
-                    <button class="dropdown-item" :class="{active: sortValue === 'release'}" @click="setOrToggleSortValue('release')">
-                      Release Date
-                    </button>
-                  </li>
-                  <li value="title">
-                    <button class="dropdown-item" :class="{active: sortValue === 'title'}" @click="setOrToggleSortValue('title')">
-                      Title
-                    </button>
-                  </li>
-                  <li value="views">
-                    <button class="dropdown-item" :class="{active: sortValue === 'views'}" @click="setOrToggleSortValue('views')">
-                      Views
-                    </button>
-                  </li>
-                  <li value="direction">
-                    <button class="dropdown-item" :class="{active: sortValue === 'direction'}" @click="setOrToggleSortValue('direction')">
-                      Direction
-                    </button>
-                  </li>
-                  <li value="imagery">
-                    <button class="dropdown-item" :class="{active: sortValue === 'imagery'}" @click="setOrToggleSortValue('imagery')">
-                      Imagery
-                    </button>
-                  </li>
-                  <li value="story">
-                    <button class="dropdown-item" :class="{active: sortValue === 'story'}" @click="setOrToggleSortValue('story')">
-                      Story
-                    </button>
-                  </li>
-                  <li value="performance">
-                    <button class="dropdown-item" :class="{active: sortValue === 'performance'}" @click="setOrToggleSortValue('performance')">
-                      Performance
-                    </button>
-                  </li>
-                  <li value="soundtrack">
-                    <button class="dropdown-item" :class="{active: sortValue === 'soundtrack'}" @click="setOrToggleSortValue('soundtrack')">
-                      Soundtrack
-                    </button>
-                  </li>
-                  <li value="stickiness">
-                    <button class="dropdown-item" :class="{active: sortValue === 'stickiness'}" @click="setOrToggleSortValue('stickiness')">
-                      Stickiness
-                    </button>
-                  </li>
-                </ul>
-              </button>
-            </div>
-          </div>
-          <!-- The chore prompts (stickiness / tiebreak / awards) used to
-               render here, inside results-exist — which hid them whenever a
-               search matched nothing. They live in .home-notices now, the
-               one notification space at the top of this page. -->
+          <!-- The rainbow bar and the chore prompts both used to render
+               here. The bar now sits above .home-notices at the top level
+               (its old spot in this flow hid nothing, but Matt wants the
+               notices BELOW it); the prompts live inside .home-notices. -->
           <!-- Inline Settings Panel accordion, right after action buttons and before results list -->
           <div v-if="showSettingsPanel" :class="['settings-panel-inline', 'card', 'card-body', darkOrLight['text-bg-dark'] ? 'dark' : '']">
             <div class="settings-panel-header d-flex justify-content-between align-items-center mb-2">

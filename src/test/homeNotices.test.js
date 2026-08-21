@@ -45,6 +45,18 @@ describe('the unified notification space', () => {
     expect(section).toContain('prompt-badge-friends');
   });
 
+  // "I don't want it above the rainbow bar. It should go below the rainbow"
+  // — the bar renders immediately before the section, and only once (it was
+  // moved out of results-exist to sit there; a second copy left behind
+  // would double every button).
+  it('sits directly below the rainbow bar', () => {
+    expect(home.match(/class="results-actions /g)).toHaveLength(1);
+    const rainbow = home.indexOf('class="results-actions ');
+    const notices = home.indexOf('<section class="home-notices">');
+    expect(rainbow).toBeGreaterThan(-1);
+    expect(rainbow).toBeLessThan(notices);
+  });
+
   it('keeps notifications out of the global App shell', () => {
     expect(app).not.toContain('<UpdateAvailableBanner');
     expect(app).not.toContain('<BugResolutionNotice');
