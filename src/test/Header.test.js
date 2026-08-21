@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import AppHeader from '@/components/Header.vue';
+import { createBannerParallax } from '@/assets/javascript/bannerParallax.js';
+
+vi.mock('@/assets/javascript/bannerParallax.js', () => ({
+  createBannerParallax: vi.fn(() => ({ start: vi.fn(), stop: vi.fn() }))
+}));
 
 function factory (stateOverrides = {}) {
   return mount(AppHeader, {
@@ -61,6 +66,30 @@ describe('Header', () => {
 
       expect(wrapper.vm.$store.commit).toHaveBeenCalledWith('setGoHome', true);
       expect(wrapper.vm.$router.push).toHaveBeenCalledWith('/');
+    });
+  });
+
+  // Tilt parallax on the banner photo (bug report 2026-08-21). The sensor
+  // logic lives in bannerParallax.js and has its own tests; here we pin the
+  // wiring: started on mount, stopped on unmount, aimed at the banner img.
+  describe('banner tilt parallax', () => {
+    it('starts on mount with a getter that resolves the banner img, and stops on unmount', () => {
+      const wrapper = factory({ bannerUrl: 'https://example.com/banner.png' });
+
+      const call = createBannerParallax.mock.calls.at(-1);
+      const instance = createBannerParallax.mock.results.at(-1).value;
+      expect(instance.start).toHaveBeenCalled();
+      expect(call[0].getImage()).toBe(wrapper.find('.random-banner img').element);
+
+      wrapper.unmount();
+      expect(instance.stop).toHaveBeenCalled();
+    });
+
+    it('the image getter just returns nothing while no banner is loaded', () => {
+      factory({ bannerUrl: null });
+
+      const call = createBannerParallax.mock.calls.at(-1);
+      expect(call[0].getImage()).toBeFalsy();
     });
   });
 });

@@ -1,0 +1,150 @@
+import { describe, it, expect, vi } from 'vitest';
+import {
+  MAX_TILT_DEG,
+  MAX_SHIFT_PCT,
+  SCALE,
+  tiltOffset,
+  settleBaseline,
+  follow,
+  createBannerParallax
+} from '@/assets/javascript/bannerParallax.js';
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+// A window stand-in the orchestrator can attach to, with handlers we can
+// fire by hand.
+function fakeWin ({ DeviceOrientationEvent: doe, reducedMotion = false } = {}) {
+  const handlers = {};
+  return {
+    DeviceOrientationEvent: doe,
+    matchMedia: (query) => ({ matches: reducedMotion && query.includes('reduced-motion') }),
+    addEventListener: vi.fn((type, handler) => { handlers[type] = handler; }),
+    removeEventListener: vi.fn((type) => { delete handlers[type]; }),
+    handlers
+  };
+}
+
+function img () {
+  return { style: { transform: '' } };
+}
+
+describe('tilt math', () => {
+  it('sits at zero when the reading matches the baseline', () => {
+    const offset = tiltOffset({ beta: 40, gamma: -5 }, { beta: 40, gamma: -5 });
+    expect(offset).toEqual({ x: 0, y: 0 });
+  });
+
+  it('scales linearly and clamps at the full-tilt angle', () => {
+    const baseline = { beta: 0, gamma: 0 };
+    const half = tiltOffset({ beta: 0, gamma: MAX_TILT_DEG / 2 }, baseline);
+    expect(half.x).toBeCloseTo(MAX_SHIFT_PCT / 2, 5);
+
+    const wild = tiltOffset({ beta: -170, gamma: 170 }, baseline);
+    expect(wild.x).toBe(MAX_SHIFT_PCT);
+    expect(wild.y).toBe(-MAX_SHIFT_PCT);
+  });
+
+  it('the scale margin always covers the maximum shift, so no edge shows', () => {
+    expect((SCALE - 1) / 2 * 100).toBeGreaterThan(MAX_SHIFT_PCT);
+  });
+
+  it('settleBaseline drifts the neutral point toward the current posture', () => {
+    const settled = settleBaseline({ beta: 0, gamma: 0 }, { beta: 10, gamma: -10 }, 0.5);
+    expect(settled).toEqual({ beta: 5, gamma: -5 });
+  });
+
+  it('follow eases the drawn offset toward the target', () => {
+    expect(follow({ x: 0, y: 0 }, { x: 10, y: -10 }, 0.5)).toEqual({ x: 5, y: -5 });
+  });
+});
+
+describe('createBannerParallax', () => {
+  it('does nothing without DeviceOrientationEvent support', async () => {
+    const win = fakeWin({ DeviceOrientationEvent: undefined });
+    const parallax = createBannerParallax({ getImage: img, win, raf: null });
+    parallax.start();
+    await flush();
+
+    expect(win.addEventListener).not.toHaveBeenCalled();
+  });
+
+  it('does nothing under prefers-reduced-motion', async () => {
+    const win = fakeWin({ DeviceOrientationEvent: function () {}, reducedMotion: true });
+    const parallax = createBannerParallax({ getImage: img, win, raf: null });
+    parallax.start();
+    await flush();
+
+    expect(win.addEventListener).not.toHaveBeenCalled();
+  });
+
+  it('attaches directly where no permission is needed, and moves the photo', async () => {
+    const win = fakeWin({ DeviceOrientationEvent: function () {} });
+    const image = img();
+    const parallax = createBannerParallax({ getImage: () => image, win, raf: null });
+    parallax.start();
+    await flush();
+
+    expect(win.handlers.deviceorientation).toBeTruthy();
+
+    // First reading becomes the neutral posture...
+    win.handlers.deviceorientation({ beta: 40, gamma: 0 });
+    parallax._frame();
+    expect(image.style.transform).toContain(`scale(${SCALE})`);
+    expect(image.style.transform).toContain('translate3d(0.000%, 0.000%');
+
+    // ...and a tilt away from it drifts the photo.
+    win.handlers.deviceorientation({ beta: 40, gamma: 10 });
+    parallax._frame();
+    const x = parseFloat(image.style.transform.match(/translate3d\(([-\d.]+)%/)[1]);
+    expect(x).toBeGreaterThan(0);
+  });
+
+  it('on iOS, a gesture-required refusal arms a one-time tap that asks again', async () => {
+    const requestPermission = vi.fn()
+      .mockRejectedValueOnce(new Error('needs a user gesture'))
+      .mockResolvedValueOnce('granted');
+    const win = fakeWin({ DeviceOrientationEvent: { requestPermission } });
+    const parallax = createBannerParallax({ getImage: img, win, raf: null });
+
+    parallax.start();
+    await flush();
+    expect(win.handlers.click).toBeTruthy();
+    expect(win.handlers.deviceorientation).toBeFalsy();
+
+    win.handlers.click();
+    await flush();
+    expect(requestPermission).toHaveBeenCalledTimes(2);
+    expect(win.handlers.deviceorientation).toBeTruthy();
+  });
+
+  it('a real denial is final — no listeners, no re-asking', async () => {
+    const requestPermission = vi.fn().mockResolvedValue('denied');
+    const win = fakeWin({ DeviceOrientationEvent: { requestPermission } });
+    const parallax = createBannerParallax({ getImage: img, win, raf: null });
+
+    parallax.start();
+    await flush();
+    parallax.start();
+    await flush();
+
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+    expect(win.handlers.deviceorientation).toBeFalsy();
+    expect(win.handlers.click).toBeFalsy();
+  });
+
+  it('stop removes the listener and clears the transform', async () => {
+    const win = fakeWin({ DeviceOrientationEvent: function () {} });
+    const image = img();
+    const parallax = createBannerParallax({ getImage: () => image, win, raf: null });
+    parallax.start();
+    await flush();
+
+    win.handlers.deviceorientation({ beta: 10, gamma: 5 });
+    parallax._frame();
+    expect(image.style.transform).not.toBe('');
+
+    parallax.stop();
+    expect(win.handlers.deviceorientation).toBeFalsy();
+    expect(image.style.transform).toBe('');
+  });
+});
