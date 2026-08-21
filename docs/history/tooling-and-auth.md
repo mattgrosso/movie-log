@@ -41,6 +41,31 @@ Ported the "report a bug without breaking your flow" pattern from the thundersto
 
 Tests: `src/test/bugReports.test.js` (report shape, empty-transcript guard, reporterEmail fallback), `src/test/BugReportButton.test.js` (open/close, disabled-until-text, success/error paths).
 
+### Closing the loop: resolution notices (2026-08-21)
+
+Matt's ask: resolving a bug should end with the reporter hearing about it, in the app,
+in plain language ("aimed at a 12 year old"). So `yarn resolve-bug-report` now REQUIRES
+`--understood` (what was going wrong) and `--fixed` (what we did) — or an explicit
+`--silent` for duplicates/QA noise — and, besides stamping the report, writes a notice
+to `<topKey>/bugReportResolutions/<reportId>` in the reporter's own account. That
+placement is the trick: the per-account rules already grant it, so no rules change, and
+`bugReports/` stays write-only. One notice describes ONE report; the script refuses to
+attach one explanation to several ids.
+
+`BugResolutionNotice.vue` (mounted in `App.vue`) fetches unseen notices once per launch
+after `dbLoaded`, shows them in one panel (reporter's words quoted back + the two
+texts), and marks them seen on ANY dismissal — backdrop included — via one atomic
+leaf-path `update()`. Seen-marking is prompt state (the `setDBValue` category), not
+user-authored content.
+
+`scripts/bugResolutionHelpers.mjs` carries the script-side email→topKey derivation
+(via `createRequire` for the JSON — `readFileSync(new URL(...))` breaks under vitest's
+transform) and `src/test/bugResolutions.test.js` pins it byte-identical to the app's
+`emailToDatabaseKey`: a drifted key writes notices into an account that doesn't exist.
+Verified end-to-end on production with the QA tester: planted report → resolve with
+texts → notice rendered on next launch → "Got it" wrote `seen: true` → fixtures
+removed.
+
 ## Semantic Versioning (Jul 2026)
 
 `src/assets/javascript/version.js` (run via `yarn update-version`, which `yarn build`/`yarn deploy` always run first) used to ALWAYS default to a PATCH bump when run non-interactively — there's no TTY for an agent-run build to press 2/3 at, so every single agent-triggered deploy silently incremented the patch number regardless of what actually shipped, no matter how large. This went unnoticed long enough that the patch number reached 100+ under one minor version before being caught.
