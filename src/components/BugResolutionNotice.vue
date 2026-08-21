@@ -80,7 +80,15 @@ export default {
         this.checked = true;
         this.notices = await fetchUnseenResolutions(this.$store);
       }
+    },
+    // Same convention as every other modal here (Favorite* etc.): the page
+    // behind the panel must not scroll while it's up.
+    open (open) {
+      document.body.classList.toggle('no-scroll', open);
     }
+  },
+  beforeUnmount () {
+    if (this.open) document.body.classList.remove('no-scroll');
   },
   methods: {
     dismiss () {

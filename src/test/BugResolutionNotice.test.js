@@ -99,4 +99,33 @@ describe('BugResolutionNotice', () => {
     expect(markResolutionsSeen).toHaveBeenCalledWith(expect.anything(), ['-Oxyz']);
     expect(wrapper.find('.prompt-card').exists()).toBe(false);
   });
+
+  // Bug report 2026-08-21: "The new bug resolution modal isn't preventing me
+  // from scrolling the content behind it." Same convention as every other
+  // modal here: body.no-scroll while the panel is up.
+  it('locks body scrolling while the story panel is open, and only then', async () => {
+    fetchUnseenResolutions.mockResolvedValue([NOTICE]);
+    const wrapper = factory();
+    await flushPromises();
+
+    expect(document.body.classList.contains('no-scroll')).toBe(false);
+
+    await wrapper.find('.prompt-card').trigger('click');
+    expect(document.body.classList.contains('no-scroll')).toBe(true);
+
+    await wrapper.find('.bug-resolution-panel__actions .btn').trigger('click');
+    expect(document.body.classList.contains('no-scroll')).toBe(false);
+  });
+
+  it('releases the scroll lock if the component unmounts while open', async () => {
+    fetchUnseenResolutions.mockResolvedValue([NOTICE]);
+    const wrapper = factory();
+    await flushPromises();
+
+    await wrapper.find('.prompt-card').trigger('click');
+    expect(document.body.classList.contains('no-scroll')).toBe(true);
+
+    wrapper.unmount();
+    expect(document.body.classList.contains('no-scroll')).toBe(false);
+  });
 });
