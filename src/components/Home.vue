@@ -351,7 +351,7 @@
       v-if="!shouldShowStartSuggestions && showResultsList && paginatedSortedResults.length"
       class="results"
     >
-      <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap mt-2">
+      <div class="results-actions col-12 md-col-6 d-flex justify-content-between flex-wrap mt-1">
         <div class="btn-group col-12" role="group" aria-label="Button group">
           <!-- Settings (gear) button replaces shorts toggle -->
           <button class="results-actions-button btn btn-secondary" @click="toggleSettingsPanel" title="Settings" aria-label="Open settings">
@@ -5702,10 +5702,10 @@ export default {
 
       .results-actions {
         /* The bottom of the rainbow, top of the notification space: the
-           same 0.75rem as every other gap in the header->input->rainbow->
-           notices->results chain. (Top spacing is the mt-2 class, pairing
+           same 0.5rem as every other gap in the header->input->rainbow->
+           notices->results chain. (Top spacing is the mt-1 class, pairing
            with the search bar's interior 0.25rem.) */
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
 
         .dropdown-item {
           &.active,
@@ -6748,9 +6748,10 @@ export default {
 }
 
 /* Unrated Movie Posters */
-/* Header→input gap matched to the input→rainbow gap (Matt). */
+/* Header→input gap matched to the input→rainbow gap (Matt) — and the whole
+   chain runs on 0.5rem now ("I wanted them all small", 2026-08-21). */
 .home {
-  padding-top: 0.75rem;
+  padding-top: 0.5rem;
 }
 
 /* The quick-links bolt inside the search input: a plain dark glyph on the

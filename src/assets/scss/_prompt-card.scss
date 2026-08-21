@@ -42,15 +42,16 @@
 
 .prompt-card {
   align-items: flex-start;
-  /* The page rhythm is 0.75rem gaps (header -> input -> rainbow -> notices
-     -> results, Matt: "I like when the padding... all match"). Cards own
-     their bottom gap; the 0.5rem TOP margin exists purely as a collapse
-     partner — under the rainbow's 0.75rem it collapses away, but when the
-     rainbow is hidden it pairs with the search bar's 0.25rem interior to
-     make the same 0.75rem. Bootstrap spacing utilities (mb-3 etc.) are
-     !important and would overrule this — don't put them on a card. */
-  margin-bottom: 0.75rem;
-  margin-top: 0.5rem;
+  /* The page rhythm is 0.5rem gaps (header -> input -> rainbow -> notices
+     -> results — Matt: "I like when the padding... all match", then "I
+     wanted them all small"). Cards own their bottom gap; the 0.25rem TOP
+     margin exists purely as a collapse partner — under the rainbow's
+     0.5rem it collapses away, but when the rainbow is hidden it pairs with
+     the search bar's 0.25rem interior to make the same 0.5rem. Bootstrap
+     spacing utilities (mb-3 etc.) are !important and would overrule this —
+     don't put them on a card. */
+  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
   background: #161616;
   border: 1px solid #2e2e2e;
   border-radius: 10px;
