@@ -60,6 +60,21 @@ describe('Header', () => {
       expect(wrapper.find('.version-only .version').exists()).toBe(true);
     });
 
+    // The corner badge is the house stamp's version half (0.5rem over a banner
+    // photo has no room for a timestamp); the full "v… · built …" line is in
+    // the footer. Assert the text, not just that the element exists — an empty
+    // .version would satisfy the two tests above.
+    it('renders the version with the house "v" prefix, in both placements', () => {
+      const originalVersion = process.env.VUE_APP_VERSION;
+      process.env.VUE_APP_VERSION = '1.96.4';
+
+      expect(factory().find('.home-link .version').text()).toBe('v1.96.4');
+      expect(factory({ hideHeaderLogo: true }).find('.version-only .version').text()).toBe('v1.96.4');
+
+      process.env.VUE_APP_VERSION = originalVersion;
+      if (originalVersion === undefined) delete process.env.VUE_APP_VERSION;
+    });
+
     it('.version-only also navigates home on click, same as the normal title', async () => {
       const wrapper = factory({ hideHeaderLogo: true });
       await wrapper.find('.version-only').trigger('click');

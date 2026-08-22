@@ -1,6 +1,18 @@
 const { defineConfig } = require('@vue/cli-service');
 const webpack = require('webpack');
 
+// The house build stamp (see `src/assets/javascript/buildStamp.js`).
+//
+// This file is evaluated once per build, after vue-cli has loaded `.env`, so
+// assigning here stamps the moment THIS bundle was built — not the moment the
+// page was loaded, which is the whole point: a tab left open for a week keeps
+// showing the build it is still running. The `VUE_APP_` prefix is what gets it
+// into the client bundle; vue-cli's DefinePlugin picks up every such variable
+// present in `process.env` when it builds the webpack config, which happens
+// after this module runs. `VUE_APP_VERSION` comes from `.env` and is bumped by
+// `yarn deploy` — untouched here.
+process.env.VUE_APP_BUILD_TIME = new Date().toISOString();
+
 module.exports = defineConfig({
   transpileDependencies: true,
   configureWebpack: {

@@ -3,7 +3,9 @@
     <span>
       &copy; {{new Date().getFullYear()}} - Matt Grosso
     </span>
-    <span>{{version}}</span>
+    <!-- The house build stamp: "v1.96.4 · built Aug 22, 1:32 AM". The footer
+         renders on every screen, so this is always on screen — no taps. -->
+    <span class="build-stamp">{{buildStamp}}</span>
     <div>
       <span class="dev-mode-switch mx-1" :class="$store.getters.devMode ? 'dev-mode-on' : 'dev-mode-off'" @click="toggleDevMode">
         <i class="bi bi-file-earmark-code-fill"/>
@@ -23,11 +25,13 @@
 </template>
 
 <script>
+import { buildStamp } from '../assets/javascript/buildStamp.js';
+
 export default {
   name: 'AppFooter',
   computed: {
-    version () {
-      return process.env.VUE_APP_VERSION;
+    buildStamp () {
+      return buildStamp();
     }
   },
   methods: {
@@ -50,6 +54,20 @@ export default {
     color: white;
     font-size: 0.6rem;
     padding: 6px 12px;
+    // The build stamp is longer than the bare version number it replaced, and
+    // its length varies with the date ("Aug 22" vs "Dec 31, 2025"). Wrapping
+    // is the safety net on a 320px phone: the icons drop to a second line
+    // rather than the stamp being squeezed or overflowing.
+    flex-wrap: wrap;
+    row-gap: 2px;
+
+    // Muted, never competing for attention, but still legible on black —
+    // #ccc, not Bootstrap's .text-muted (see .claude/rules/vue-ui.md).
+    .build-stamp {
+      color: #ccc;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
 
     span,
     a {

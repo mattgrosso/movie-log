@@ -186,11 +186,20 @@ new section, offline support); MAJOR only for a breaking change. When in doubt, 
 
 **After deploying, always tell the user the resulting version.**
 
+The version reaches the screen as the **house build stamp** (2026-08-22, a blanket
+policy across all of Matt's apps): one muted line reading
+`v1.96.4 · built Aug 22, 1:32 AM`, rendered in the footer — on screen everywhere — with
+the version half alone in the header's corner badge. `vue.config.js` sets
+`VUE_APP_BUILD_TIME` when the build starts, so the time is the BUILD's, never the page
+load's: a tab left open for a week keeps showing the build it's still running.
+`src/assets/javascript/buildStamp.js` is the only formatter.
+
 ## Environment
 
 - `VUE_APP_GOOGLE_API_KEY` — Firebase/Google
 - `VUE_APP_TMDB_API_KEY` — The Movie Database
 - `VUE_APP_ENABLE_APPLE_SIGNIN` — leave unset until Apple sign-in is configured
+- `VUE_APP_BUILD_TIME` — not in `.env`; set by `vue.config.js` per build (see above)
 - `FIREBASE_ADMIN_KEY_PATH` in `.env.local` (gitignored) — for the triage scripts
 
 ## Open work

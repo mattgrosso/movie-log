@@ -33,6 +33,7 @@
 <script>
 import { getRating } from "../assets/javascript/GetRating.js";
 import { createBannerParallax } from "../assets/javascript/bannerParallax.js";
+import { versionLabel } from "../assets/javascript/buildStamp.js";
 
 export default {
   name: "AppHeader",
@@ -52,8 +53,13 @@ export default {
     bannerUrl () {
       return this.$store.state.bannerUrl;
     },
+    // Same source as the footer's full build stamp, in the standard's own
+    // degraded "vX" form: this badge is 0.5rem of type tucked into the corner
+    // of a banner photo, with no room for a timestamp. The full
+    // "v1.96.4 · built Aug 22, 1:32 AM" line lives in the footer, which is on
+    // screen at all times.
     version () {
-      return process.env.VUE_APP_VERSION;
+      return versionLabel();
     },
     currentLogIsTVLog () {
       return this.$store.state.currentLog === "tvLog";

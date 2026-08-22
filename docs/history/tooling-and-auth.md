@@ -247,3 +247,41 @@ Two things fell out of the investigation:
   and all, ~1.9MB (one is 882KB), every ten minutes, billed as egress on Movie Hat's
   database. `fetchHatMovies` reads the `movies` child; the read rule is at the hat level,
   so no rules change was needed.
+
+## The house build stamp (2026-08-22)
+
+Matt: "On lots of our apps, we have either a version number or a timestamp that tells me
+when the last version was loaded so I can see if I'm looking at new code. We should make
+that a blanket policy across all the apps and implement it everywhere."
+
+Cinema Roll already had half of it — `VUE_APP_VERSION` printed bare in two places, the
+footer and the header's corner badge — but a version number alone doesn't answer the
+question that gets asked, which is "did this tab pick up the deploy I just did?" A number
+only helps if you remember what the last one was.
+
+So the standard is version **and** build time, in one muted line, identical in every app:
+
+```
+v1.96.4 · built Aug 22, 1:32 AM
+```
+
+Local time, because the question is always asked relative to a deploy you just did. The
+year appears only when it isn't the current one, so the common case stays short.
+
+The load-bearing detail is that the timestamp is stamped when the **bundle is built**,
+not when the page is loaded. A page-load clock always reads "just now" and is therefore
+worthless; a build clock on a tab left open for a week still reads last Tuesday, which is
+the whole point. `vue.config.js` sets `process.env.VUE_APP_BUILD_TIME` at the top of the
+file — it's evaluated once per build, after vue-cli has loaded `.env` and before webpack's
+DefinePlugin collects the `VUE_APP_*` variables, so the value is inlined into the bundle
+(verified: two consecutive builds inlined times 47 seconds apart).
+
+`src/assets/javascript/buildStamp.js` is the only formatter, pure and unit-tested
+directly, and it **degrades rather than disappearing**: no build time still shows
+`v1.96.4`, no version still shows `built …`, neither shows nothing at all. The header's
+corner badge uses that degraded form deliberately — 0.5rem of type over a banner photo
+has no room for a timestamp — so the app has one format, not two styles. The full line
+lives in the footer, which renders on every screen.
+
+No new version number was invented: the stamp reuses `VUE_APP_VERSION` and the existing
+`yarn deploy` bump. Shipped as 1.96.5.
