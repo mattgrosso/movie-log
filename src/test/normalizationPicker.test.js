@@ -89,13 +89,36 @@ describe('applyNormalization', () => {
     expect(applyNormalization(9.5, { tenBase: 8 })).toBe(10); // above the anchor clamps
   });
 
-  it('both anchors: piecewise through (five -> 5) and (ten -> 10)', () => {
+  it('both anchors: each anchor movie displays its grade', () => {
     const anchors = { tenBase: 9, fiveBase: 6 };
     expect(applyNormalization(9, anchors)).toBe(10);
     expect(applyNormalization(6, anchors)).toBe(5);
-    expect(applyNormalization(7.5, anchors)).toBe(8); // midway in the top segment: 7.5
-    expect(applyNormalization(3, anchors)).toBe(3); // bottom segment: 5 * 3/6 = 2.5 -> 3
+    expect(applyNormalization(7.5, anchors)).toBe(7); // midway: 4.5 + 5 * 1.5/3 = 7
+    expect(applyNormalization(3, anchors)).toBe(2); // bottom segment: 4.5 * 3/6 = 2.25 -> 2
     expect(applyNormalization(0, anchors)).toBe(0);
+  });
+
+  // Bug report (2026-08-21): "Coco is supposed to be the last number 10,
+  // but I'm seeing tens all the way down well below that." The anchor marks
+  // the BOTTOM of its grade bucket — the movie right below the ten-anchor
+  // must display 9, not ride the rounding up to a tenth 10.
+  it('the ten-anchor is the LAST 10: the next movie down displays 9', () => {
+    const anchors = { tenBase: 9, fiveBase: 6 };
+    expect(applyNormalization(9, anchors)).toBe(10);
+    expect(applyNormalization(8.9, anchors)).toBe(9);
+    // Anything at or above the anchor is still a 10.
+    expect(applyNormalization(9.7, anchors)).toBe(10);
+  });
+
+  it('the five-anchor is the LOWEST 5: the next movie down displays 4', () => {
+    const anchors = { tenBase: 9, fiveBase: 6 };
+    expect(applyNormalization(6, anchors)).toBe(5);
+    expect(applyNormalization(5.9, anchors)).toBe(4);
+  });
+
+  it('ten-anchor only: the next movie down displays 9 there too', () => {
+    expect(applyNormalization(8, { tenBase: 8 })).toBe(10);
+    expect(applyNormalization(7.9, { tenBase: 8 })).toBe(9);
   });
 
   it('is monotonic across the pivot', () => {

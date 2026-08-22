@@ -61,9 +61,20 @@ export function normalizationCandidates (entries, getRatingFn, { grade = 10, min
 //
 // applyNormalization is THE display step: GetRating.js hands it the movie's
 // 0-10 min-max position and whatever anchors/tweak the settings hold.
-//   - ten + five anchors: piecewise linear. [fiveBase..tenBase] -> [5..10],
-//     [0..fiveBase] -> [0..5]. Each anchor movie lands exactly on its grade.
-//   - ten anchor only: stretch so the anchor is exactly 10: base * 10/tenBase.
+//
+// An anchor marks the BOTTOM of its grade bucket, so it maps to the bucket's
+// rounding boundary (grade - 0.5), not the grade itself. Mapping the anchor
+// to a flat 10.0 shipped first and was wrong in exactly the way the picker's
+// label promises against: display rounds to the nearest whole number, so
+// every movie in the top tenth of the band under the anchor ALSO rounded to
+// 10 — bug report: "Coco is supposed to be the last number 10, but I'm
+// seeing tens all the way down well below that." (The legacy offset picker,
+// offsetForLastMovieAt above, always targeted grade - 0.5; the anchors now
+// share that semantic.)
+//   - ten + five anchors: piecewise linear. [fiveBase..tenBase] -> [4.5..9.5]
+//     (the last-5 and last-10 boundaries), [0..fiveBase] -> [0..4.5]. The
+//     anchor movie displays its grade; the next movie down displays less.
+//   - ten anchor only: stretch so the anchor sits on 9.5: base * 9.5/tenBase.
 //   - no anchors: the legacy constant offset (tweak), unchanged behavior.
 // Always rounded to a whole number and clamped to [0, 10]; anything scoring
 // above the ten-anchor clamps to 10.
@@ -75,12 +86,12 @@ export function applyNormalization (base, { tweak = 0.25, tenBase = null, fiveBa
 
   if (hasTen && hasFive && tenBase > fiveBase) {
     if (base >= fiveBase) {
-      value = 5 + (5 * (base - fiveBase)) / (tenBase - fiveBase);
+      value = 4.5 + (5 * (base - fiveBase)) / (tenBase - fiveBase);
     } else {
-      value = fiveBase === 0 ? 0 : (5 * base) / fiveBase;
+      value = fiveBase === 0 ? 0 : (4.5 * base) / fiveBase;
     }
   } else if (hasTen) {
-    value = (base * 10) / tenBase;
+    value = (base * 9.5) / tenBase;
   } else {
     value = base + tweak;
   }
