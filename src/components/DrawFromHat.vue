@@ -27,6 +27,14 @@
              text — "the layout on the hat displays where you're showing the
              history is all busted". A row can't hold a full-width strip; this
              stacks instead. -->
+        <!-- ONE row: name, count, Draw (bug report 2026-08-21: "that whole
+             header section is way too much... combine the title the button
+             and the number of movies in the hat all into one row for sure
+             and you can make the button smaller"). It used to be a head row
+             plus a separate button row — the leftover of the "Last drew"
+             block that once lived between them. The button keeps the 40px
+             touch height; smaller means narrower and quieter, not harder
+             to hit. -->
         <div class="hat-head">
           <span class="hat-name">{{ hat.title }}</span>
           <span class="hat-waiting">
@@ -34,25 +42,13 @@
             <template v-else-if="hat.waiting == null">&hellip;</template>
             <template v-else>{{ hat.waiting }} waiting</template>
           </span>
-        </div>
-
-        <!-- The "Last drew" poster and title used to sit here, above the
-             history strip. Removed (bug report): the strip below is sorted
-             newest-first by the same dateDrawn, so its very first card was
-             always this exact movie — "the most recently drawn is just the
-             most recent one in the history we don't need both". The row is
-             now just the Draw button, plus the empty state for a hat that
-             has never given anything up. -->
-        <div class="hat-last">
-          <div class="hat-last-text">
-            <span v-if="!hat.error && !hatHasHistory(hat)" class="hat-last-label">Nothing drawn yet.</span>
-          </div>
-
           <button type="button" class="hat-draw" :disabled="drawing" @click="draw(hat)">
             <span v-if="drawing === hat.title" class="spinner-border spinner-border-sm" role="status"></span>
             <span v-else>Draw</span>
           </button>
         </div>
+
+        <span v-if="!hat.error && !hatHasHistory(hat)" class="hat-empty-label">Nothing drawn yet.</span>
 
         <!-- Full width, which is the whole reason the card had to stop being
              a row. Everything this hat has ever given up, newest first.
@@ -341,30 +337,22 @@ export default {
 }
 
 .hat-head {
-  align-items: baseline;
-  display: flex;
-  gap: 0.5rem;
-  justify-content: space-between;
-}
-
-.hat-name { color: #fff; font-size: 0.95rem; font-weight: 700; min-width: 0; }
-.hat-waiting { color: #b9b9b9; font-size: 0.72rem; white-space: nowrap; }
-
-.hat-last {
   align-items: center;
   display: flex;
   gap: 0.6rem;
-  margin-top: 0.5rem;
 }
 
-.hat-last-text {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-}
+/* The name owns the slack; a long hat name wraps and the row grows. */
+.hat-name { color: #fff; flex: 1 1 auto; font-size: 0.95rem; font-weight: 700; min-width: 0; }
+.hat-waiting { color: #b9b9b9; flex: 0 0 auto; font-size: 0.72rem; white-space: nowrap; }
 
-.hat-last-label { color: #9a9a9a; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.hat-empty-label {
+  color: #9a9a9a;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  margin-top: 0.4rem;
+  text-transform: uppercase;
+}
 
 .hat-draw {
   background: #33383d;
@@ -372,11 +360,11 @@ export default {
   border-radius: 8px;
   color: #eee;
   flex: 0 0 auto;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  /* 40px minimum touch target. */
+  /* 40px minimum touch target — "smaller" shrinks the padding, not the hit area. */
   min-height: 40px;
-  padding: 0.3rem 1.1rem;
+  padding: 0.25rem 0.75rem;
 }
 
 /* Mobile-first: press feedback is :active only, never :hover. */

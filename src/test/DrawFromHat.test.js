@@ -81,8 +81,8 @@ describe('DrawFromHat', () => {
     // Exactly one Heat on the card, in the strip — not one here and one there.
     expect(card.findAll('.hat-history-card')).toHaveLength(1);
     expect(card.find('.hat-history-poster').attributes('alt')).toBe('Heat');
-    expect(card.find('.hat-last-poster').exists()).toBe(false);
-    expect(card.find('.hat-last-text').text()).not.toContain('Heat');
+    // A hat with history has no empty-state label.
+    expect(card.find('.hat-empty-label').exists()).toBe(false);
   });
 
   it('asks for the hat summaries when it appears', () => {
@@ -210,13 +210,19 @@ describe('DrawFromHat history strip', () => {
     expect(wrapper.find('.hat-history-title').text()).toContain('3');
   });
 
-  it('keeps the strip out of the last-drawn row so it can run full width', async () => {
+  // Bug report (2026-08-21): "combine the title the button and the number of
+  // movies in the hat all into one row" — the header IS that one row, and
+  // the history strip stays a full-width sibling below it.
+  it('puts name, count and the Draw button in one header row', async () => {
     const { wrapper } = factory({ hats: [{ title: 'Dev Hat', dbKey: 'k1' }], summaries: withHistory });
     await flushPromises();
 
-    // A child of the card, a sibling of .hat-last — not inside it.
+    const head = wrapper.find('.hat-head');
+    expect(head.find('.hat-name').exists()).toBe(true);
+    expect(head.find('.hat-waiting').exists()).toBe(true);
+    expect(head.find('.hat-draw').exists()).toBe(true);
     expect(wrapper.find('.hat-card > .hat-history').exists()).toBe(true);
-    expect(wrapper.find('.hat-last .hat-history').exists()).toBe(false);
+    expect(wrapper.find('.hat-head .hat-history').exists()).toBe(false);
   });
 
   it('still offers the draw button alongside the history', async () => {
@@ -248,7 +254,7 @@ describe('DrawFromHat history strip', () => {
     await flushPromises();
 
     expect(wrapper.find('.hat-history').exists()).toBe(false);
-    expect(wrapper.find('.hat-last-text').text()).toContain('Nothing drawn yet.');
+    expect(wrapper.find('.hat-empty-label').text()).toContain('Nothing drawn yet.');
     expect(wrapper.find('.hat-draw').exists()).toBe(true);
   });
 
