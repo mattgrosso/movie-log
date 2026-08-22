@@ -31,29 +31,38 @@ export const SCALE = 1.06;        // 3% margin a side — always > MAX_SHIFT_PCT
 export const BASELINE_ALPHA = 0.006; // ~2s half-life at 60fps
 export const FOLLOW = 0.35;          // how fast the drawn offset chases the tilt
 
-// Orientation angles live on circles, and every delta must take the SHORT
-// way around (bug report 2026-08-21, lying in bed: "the banner image is
-// like weirdly bouncy or loose... really jerky"). Held overhead, the phone
-// sits near beta's ±180 wrap, where a tremor flips the reading from +179 to
-// -179 — a raw subtraction saw a 358° swing and slammed the photo to full
-// throw on every flip. beta's period is 360 ([-180, 180)); gamma's is 180
-// ([-90, 90), it flips sign as the screen passes vertical).
-const angleDelta = (to, from, period) => {
-  let delta = (to - from) % period;
-  if (delta > period / 2) delta -= period;
-  if (delta < -period / 2) delta += period;
-  return delta;
-};
+// Euler angles are the WRONG shape for this effect (bug report 2026-08-21,
+// lying in bed: "the banner image is like weirdly bouncy or loose... really
+// jerky", and after a shortest-path-wrap fix, "still doing its sort of
+// jerky motions"). They are discontinuous two ways: a tremor at beta's
+// ±180 wrap (phone overhead), and — the one the wrap fix couldn't cover —
+// the coordinated flip as the screen passes near vertical, where iOS
+// re-expresses the SAME physical pose with gamma's sign flipped and beta
+// jumped by 180 at once. A 180° jump has no "short way around", so it
+// flip-flopped between +full and -full throw.
+//
+// So: convert each reading to the tilt VECTOR — where gravity points across
+// the screen plane. sin/cos of the same angles, but continuous at every
+// posture, because two Euler spellings of one pose produce one vector.
+// Components are ≈ the tilt in radians for small angles, so the feel
+// upright is unchanged.
+const rad = (deg) => (deg * Math.PI) / 180;
 
-// Keep an accumulating angle inside its sensor range after a nudge.
-const wrapAngle = (value, period) => {
-  const half = period / 2;
-  return ((((value + half) % period) + period) % period) - half;
-};
+export function tiltVector (reading) {
+  const beta = rad(reading.beta ?? 0);
+  const gamma = rad(reading.gamma ?? 0);
+  return {
+    x: Math.sin(gamma) * Math.cos(beta),
+    y: Math.sin(beta)
+  };
+}
 
-// Where the photo should sit for a reading against a baseline: linear in
-// the tilt delta, clamped at MAX_TILT_DEG. gamma is left/right tilt → x,
-// beta is toward/away tilt → y (portrait mapping; the banner is phone-only).
+// Full throw is still "MAX_TILT_DEG of tilt", expressed in vector units.
+const FULL_TILT = Math.sin(rad(MAX_TILT_DEG));
+
+// Where the photo should sit for a reading against a baseline VECTOR:
+// linear in the tilt delta, clamped at MAX_TILT_DEG's worth. x is
+// left/right, y toward/away (portrait mapping; the banner is phone-only).
 //
 // NEGATED on both axes (report 2026-08-21: "when I tilt my phone, it lets
 // me kind of like peek around the corner, not like it slides the picture in
@@ -61,20 +70,21 @@ const wrapAngle = (value, period) => {
 // should reveal more of the photo's left — the way a real window works —
 // rather than dragging the photo rightward with the motion.
 export function tiltOffset (reading, baseline) {
-  const unit = (value) => Math.max(-1, Math.min(1, value / MAX_TILT_DEG));
+  const unit = (value) => Math.max(-1, Math.min(1, value / FULL_TILT));
+  const vector = tiltVector(reading);
   return {
-    x: -unit(angleDelta(reading.gamma ?? 0, baseline.gamma, 180)) * MAX_SHIFT_PCT,
-    y: -unit(angleDelta(reading.beta ?? 0, baseline.beta, 360)) * MAX_SHIFT_PCT
+    x: -unit(vector.x - baseline.x) * MAX_SHIFT_PCT,
+    y: -unit(vector.y - baseline.y) * MAX_SHIFT_PCT
   };
 }
 
-// Slow exponential follow: the neutral point drifts toward however the
-// phone is actually being held — by the short way around, staying inside
-// the sensor's own range so later deltas keep making sense.
+// Slow exponential follow: the neutral vector drifts toward however the
+// phone is actually being held. Plain lerp — vectors have no wrap to chase.
 export function settleBaseline (baseline, reading, alpha = BASELINE_ALPHA) {
+  const target = tiltVector(reading);
   return {
-    beta: wrapAngle(baseline.beta + angleDelta(reading.beta ?? 0, baseline.beta, 360) * alpha, 360),
-    gamma: wrapAngle(baseline.gamma + angleDelta(reading.gamma ?? 0, baseline.gamma, 180) * alpha, 180)
+    x: baseline.x + (target.x - baseline.x) * alpha,
+    y: baseline.y + (target.y - baseline.y) * alpha
   };
 }
 
@@ -111,7 +121,9 @@ export function createBannerParallax ({
   const frame = () => {
     if (!running) return;
     if (reading) {
-      baseline = baseline ? settleBaseline(baseline, reading) : { ...reading };
+      // The baseline is a tilt VECTOR (see tiltVector); the first reading
+      // becomes neutral verbatim.
+      baseline = baseline ? settleBaseline(baseline, reading) : tiltVector(reading);
       drawn = follow(drawn, tiltOffset(reading, baseline));
       const image = getImage();
       if (image) {

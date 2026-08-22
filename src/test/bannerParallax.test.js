@@ -4,6 +4,7 @@ import {
   MAX_SHIFT_PCT,
   SCALE,
   tiltOffset,
+  tiltVector,
   settleBaseline,
   follow,
   createBannerParallax
@@ -29,8 +30,12 @@ function img () {
 }
 
 describe('tilt math', () => {
+  const rad = (deg) => (deg * Math.PI) / 180;
+  const S = Math.sin(rad(MAX_TILT_DEG)); // tilt-vector length at full throw
+
   it('sits at zero when the reading matches the baseline', () => {
-    const offset = tiltOffset({ beta: 40, gamma: -5 }, { beta: 40, gamma: -5 });
+    const reading = { beta: 40, gamma: -5 };
+    const offset = tiltOffset(reading, tiltVector(reading));
     // toBeCloseTo, not toEqual: the negation makes this -0, which toEqual
     // distinguishes from +0. They render identically.
     expect(offset.x).toBeCloseTo(0, 10);
@@ -40,50 +45,52 @@ describe('tilt math', () => {
   // Signs are the window illusion (report 2026-08-21: "peek around the
   // corner, not slide the picture in that direction"): tilting toward one
   // side moves the photo the OTHER way, revealing that side.
-  it('scales linearly, clamps at the full-tilt angle, and counter-moves the tilt', () => {
-    const baseline = { beta: 0, gamma: 0 };
-    const half = tiltOffset({ beta: 0, gamma: MAX_TILT_DEG / 2 }, baseline);
-    expect(half.x).toBeCloseTo(-MAX_SHIFT_PCT / 2, 5);
+  it('scales with the tilt, clamps at the full-tilt angle, and counter-moves the tilt', () => {
+    const upright = tiltVector({ beta: 0, gamma: 0 });
 
-    // gamma's real range is [-90, 90); 89 is as wild as the sensor gets.
-    const wild = tiltOffset({ beta: -170, gamma: 89 }, baseline);
-    expect(wild.x).toBe(-MAX_SHIFT_PCT);
-    expect(wild.y).toBe(MAX_SHIFT_PCT);
+    const half = tiltOffset({ beta: 0, gamma: MAX_TILT_DEG / 2 }, upright);
+    expect(half.x).toBeCloseTo(-(Math.sin(rad(MAX_TILT_DEG / 2)) / S) * MAX_SHIFT_PCT, 5);
+
+    const wild = tiltOffset({ beta: 30, gamma: -30 }, upright);
+    expect(wild.x).toBe(MAX_SHIFT_PCT);
+    expect(wild.y).toBe(-MAX_SHIFT_PCT);
   });
 
   // Bug report (2026-08-21, lying in bed): "the banner image is like weirdly
-  // bouncy or loose... really jerky." Held overhead, the phone sits near
-  // beta's ±180 wrap, where a tremor flips the reading from +179 to -179.
-  // The raw subtraction saw that as a 358° swing and slammed the photo to
-  // full throw every flip. Deltas must take the short way around the circle.
-  it('a tremor across the beta ±180 wrap is a small nudge, not a full-throw jump', () => {
-    const offset = tiltOffset({ beta: 179.5, gamma: 0 }, { beta: -179.5, gamma: 0 });
-    // Shortest path is -1°, not +359°: a gentle positive nudge.
-    expect(offset.y).toBeCloseTo((1 / MAX_TILT_DEG) * MAX_SHIFT_PCT, 5);
+  // bouncy or loose... really jerky." Euler angles are discontinuous in two
+  // ways and BOTH showed up in bed. The tilt vector (gravity direction) is
+  // continuous everywhere, so these postures are ordinary points on it.
+  it('a tremor across the beta ±180 wrap (phone overhead) is a small nudge', () => {
+    const offset = tiltOffset({ beta: 179.5, gamma: 0 }, tiltVector({ beta: -179.5, gamma: 0 }));
+    const delta = Math.sin(rad(179.5)) - Math.sin(rad(-179.5));
+    expect(offset.y).toBeCloseTo(-(delta / S) * MAX_SHIFT_PCT, 5);
+    expect(Math.abs(offset.y)).toBeLessThan(0.3);
   });
 
-  it('a gamma flip across ±90 (screen passing vertical) stays gentle too', () => {
-    const offset = tiltOffset({ beta: 0, gamma: 89 }, { beta: 0, gamma: -89 });
-    // gamma's period is 180: 178 apart the short way is -2°.
-    expect(offset.x).toBeCloseTo((2 / MAX_TILT_DEG) * MAX_SHIFT_PCT, 5);
-  });
+  // The one the first fix missed (report: "still doing its sort of jerky
+  // motions"): as the screen passes near vertical, iOS re-expresses the SAME
+  // physical pose with gamma's sign flipped and beta jumped by 180 at once.
+  // A 180° jump has no "short way around" — it flip-flopped full throw. The
+  // two representations must produce the SAME tilt vector.
+  it('the coordinated Euler flip (screen near vertical) is a no-op', () => {
+    const before = tiltVector({ beta: 0, gamma: 89 });
+    const after = tiltVector({ beta: -180, gamma: -89 });
+    expect(after.x).toBeCloseTo(before.x, 10);
+    expect(after.y).toBeCloseTo(before.y, 10);
 
-  it('settleBaseline follows across the beta wrap and stays in range', () => {
-    const nudged = settleBaseline({ beta: 170, gamma: 0 }, { beta: -170, gamma: 0 }, 0.25);
-    // Toward -170 the short way (through 180), not backwards through 0.
-    expect(nudged.beta).toBeCloseTo(175, 5);
-
-    const crossed = settleBaseline({ beta: 170, gamma: 0 }, { beta: -170, gamma: 0 }, 0.75);
-    expect(crossed.beta).toBeCloseTo(-175, 5);
+    const offset = tiltOffset({ beta: -180, gamma: -89 }, before);
+    expect(offset.x).toBeCloseTo(0, 10);
+    expect(offset.y).toBeCloseTo(0, 10);
   });
 
   it('the scale margin always covers the maximum shift, so no edge shows', () => {
     expect((SCALE - 1) / 2 * 100).toBeGreaterThan(MAX_SHIFT_PCT);
   });
 
-  it('settleBaseline drifts the neutral point toward the current posture', () => {
-    const settled = settleBaseline({ beta: 0, gamma: 0 }, { beta: 10, gamma: -10 }, 0.5);
-    expect(settled).toEqual({ beta: 5, gamma: -5 });
+  it('settleBaseline drifts the neutral vector toward the current posture', () => {
+    const settled = settleBaseline({ x: 0, y: 0 }, { beta: 10, gamma: -10 }, 0.5);
+    expect(settled.x).toBeCloseTo((Math.sin(rad(-10)) * Math.cos(rad(10))) / 2, 10);
+    expect(settled.y).toBeCloseTo(Math.sin(rad(10)) / 2, 10);
   });
 
   it('follow eases the drawn offset toward the target', () => {
