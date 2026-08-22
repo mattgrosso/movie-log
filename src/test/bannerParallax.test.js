@@ -45,9 +45,36 @@ describe('tilt math', () => {
     const half = tiltOffset({ beta: 0, gamma: MAX_TILT_DEG / 2 }, baseline);
     expect(half.x).toBeCloseTo(-MAX_SHIFT_PCT / 2, 5);
 
-    const wild = tiltOffset({ beta: -170, gamma: 170 }, baseline);
+    // gamma's real range is [-90, 90); 89 is as wild as the sensor gets.
+    const wild = tiltOffset({ beta: -170, gamma: 89 }, baseline);
     expect(wild.x).toBe(-MAX_SHIFT_PCT);
     expect(wild.y).toBe(MAX_SHIFT_PCT);
+  });
+
+  // Bug report (2026-08-21, lying in bed): "the banner image is like weirdly
+  // bouncy or loose... really jerky." Held overhead, the phone sits near
+  // beta's ±180 wrap, where a tremor flips the reading from +179 to -179.
+  // The raw subtraction saw that as a 358° swing and slammed the photo to
+  // full throw every flip. Deltas must take the short way around the circle.
+  it('a tremor across the beta ±180 wrap is a small nudge, not a full-throw jump', () => {
+    const offset = tiltOffset({ beta: 179.5, gamma: 0 }, { beta: -179.5, gamma: 0 });
+    // Shortest path is -1°, not +359°: a gentle positive nudge.
+    expect(offset.y).toBeCloseTo((1 / MAX_TILT_DEG) * MAX_SHIFT_PCT, 5);
+  });
+
+  it('a gamma flip across ±90 (screen passing vertical) stays gentle too', () => {
+    const offset = tiltOffset({ beta: 0, gamma: 89 }, { beta: 0, gamma: -89 });
+    // gamma's period is 180: 178 apart the short way is -2°.
+    expect(offset.x).toBeCloseTo((2 / MAX_TILT_DEG) * MAX_SHIFT_PCT, 5);
+  });
+
+  it('settleBaseline follows across the beta wrap and stays in range', () => {
+    const nudged = settleBaseline({ beta: 170, gamma: 0 }, { beta: -170, gamma: 0 }, 0.25);
+    // Toward -170 the short way (through 180), not backwards through 0.
+    expect(nudged.beta).toBeCloseTo(175, 5);
+
+    const crossed = settleBaseline({ beta: 170, gamma: 0 }, { beta: -170, gamma: 0 }, 0.75);
+    expect(crossed.beta).toBeCloseTo(-175, 5);
   });
 
   it('the scale margin always covers the maximum shift, so no edge shows', () => {
