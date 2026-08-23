@@ -1,29 +1,50 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   MAX_TILT_DEG,
   MAX_SHIFT_PCT,
   SCALE,
+  MOTION_PERMISSION_KEY,
   tiltOffset,
   tiltVector,
   settleBaseline,
   follow,
-  createBannerParallax
+  createBannerParallax,
+  forgetMotionPermission
 } from '@/assets/javascript/bannerParallax.js';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-// A window stand-in the orchestrator can attach to, with handlers we can
-// fire by hand.
-function fakeWin ({ DeviceOrientationEvent: doe, reducedMotion = false } = {}) {
-  const handlers = {};
+function fakeStorage () {
+  const store = new Map();
   return {
-    DeviceOrientationEvent: doe,
-    matchMedia: (query) => ({ matches: reducedMotion && query.includes('reduced-motion') }),
-    addEventListener: vi.fn((type, handler) => { handlers[type] = handler; }),
-    removeEventListener: vi.fn((type) => { delete handlers[type]; }),
-    handlers
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key)
   };
 }
+
+// A window stand-in the orchestrator can attach to, with handlers we can
+// fire by hand.
+function fakeWin ({ DeviceOrientationEvent: doe, reducedMotion = false, localStorage = fakeStorage() } = {}) {
+  const handlers = {};
+  const counts = {};
+  return {
+    DeviceOrientationEvent: doe,
+    localStorage,
+    matchMedia: (query) => ({ matches: reducedMotion && query.includes('reduced-motion') }),
+    addEventListener: vi.fn((type, handler) => {
+      handlers[type] = handler;
+      counts[type] = (counts[type] || 0) + 1;
+    }),
+    removeEventListener: vi.fn((type) => { delete handlers[type]; }),
+    handlers,
+    counts
+  };
+}
+
+// The permission answer is module state on purpose (one answer for the whole
+// app), so each test starts from "never asked, nothing remembered".
+beforeEach(() => forgetMotionPermission(fakeWin()));
 
 function img () {
   return { style: { transform: '' } };
@@ -170,6 +191,96 @@ describe('createBannerParallax', () => {
     expect(requestPermission).toHaveBeenCalledTimes(1);
     expect(win.handlers.deviceorientation).toBeFalsy();
     expect(win.handlers.click).toBeFalsy();
+  });
+
+  // Bug report (2026-08-22): "It's annoying how often cinema roll is now
+  // asking me for permission to detect motion." Header, MovieDetail and
+  // RateMovie each build their own parallax, and each used to carry its own
+  // permission state — so opening a movie armed another tap listener and put
+  // another iOS dialog in front of the next thing you touched.
+  it('three banners on one page ask for permission exactly once between them', async () => {
+    const requestPermission = vi.fn()
+      .mockRejectedValueOnce(new Error('needs a user gesture'))
+      .mockResolvedValue('granted');
+    const win = fakeWin({ DeviceOrientationEvent: { requestPermission } });
+
+    // Header mounts, then a movie is opened, then the rate screen — three
+    // instances alive at once, exactly as the real app does it.
+    const banners = [1, 2, 3].map(() => createBannerParallax({ getImage: img, win, raf: null }));
+    banners.forEach((banner) => banner.start());
+    await flush();
+
+    // ONE armed tap, not three.
+    expect(win.counts.click).toBe(1);
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+
+    win.handlers.click();
+    await flush();
+
+    // One dialog total, and every banner is listening off that one answer.
+    expect(requestPermission).toHaveBeenCalledTimes(2);
+    expect(win.counts.deviceorientation).toBe(3);
+    expect(win.counts.click).toBe(1);
+  });
+
+  it('a remembered "no" survives a relaunch and is never asked again', async () => {
+    const first = vi.fn().mockResolvedValue('denied');
+    const win = fakeWin({ DeviceOrientationEvent: { requestPermission: first } });
+    createBannerParallax({ getImage: img, win, raf: null }).start();
+    await flush();
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(win.localStorage.getItem(MOTION_PERMISSION_KEY)).toBe('denied');
+
+    // A new launch: module state is gone, the device's answer is not.
+    forgetMotionPermission(fakeWin());
+    const second = vi.fn().mockResolvedValue('granted');
+    const relaunched = fakeWin({
+      DeviceOrientationEvent: { requestPermission: second },
+      localStorage: win.localStorage
+    });
+    createBannerParallax({ getImage: img, win: relaunched, raf: null }).start();
+    await flush();
+
+    expect(second).not.toHaveBeenCalled();
+    expect(relaunched.handlers.click).toBeFalsy();
+    expect(relaunched.handlers.deviceorientation).toBeFalsy();
+  });
+
+  it('turning the effect off in settings means no listeners and no asking', async () => {
+    const requestPermission = vi.fn().mockResolvedValue('granted');
+    const win = fakeWin({ DeviceOrientationEvent: { requestPermission } });
+    const parallax = createBannerParallax({
+      getImage: img,
+      isEnabled: () => false,
+      win,
+      raf: null
+    });
+    parallax.start();
+    await flush();
+
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(win.addEventListener).not.toHaveBeenCalled();
+  });
+
+  // The permission promise can outlive the screen that asked for it — it sits
+  // on an armed tap listener. Whoever is still on screen when the answer lands
+  // gets the effect; a component the user already left does not start
+  // listening behind their back.
+  it('a banner unmounted while the request is pending never attaches', async () => {
+    const requestPermission = vi.fn()
+      .mockRejectedValueOnce(new Error('needs a user gesture'))
+      .mockResolvedValue('granted');
+    const win = fakeWin({ DeviceOrientationEvent: { requestPermission } });
+
+    const parallax = createBannerParallax({ getImage: img, win, raf: null });
+    parallax.start();
+    await flush();
+
+    parallax.stop(); // navigated away
+    win.handlers.click();
+    await flush();
+
+    expect(win.handlers.deviceorientation).toBeFalsy();
   });
 
   it('stop removes the listener and clears the transform', async () => {

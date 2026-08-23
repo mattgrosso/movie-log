@@ -365,7 +365,13 @@ export function filmClubSummary (myEntries, getRatingFn, friendProfiles) {
 // Deliberately NOT compareWithFriend: that returns twelve-item disagreement
 // and shared-love lists and per-criterion gaps, all of it thrown away here.
 // This walks the overlap once for the two numbers a row actually shows.
-export function friendSnapshot (myRatingsById, profile, { recentCount = 4 } = {}) {
+// `recentCount` defaults to everything the published profile carries (40 —
+// see the `recent` writer above). It used to default to 4, which is what the
+// friend rows showed: "In film club, we show lists of each friend's recent
+// movies but they seem to be limited to just four movies" (2026-08-22). How
+// many of those actually render is now the screen's business, not this
+// function's — FilmClubScreen scrolls the row and pages images in.
+export function friendSnapshot (myRatingsById, profile, { recentCount = Infinity } = {}) {
   const theirs = profile?.ratings || {};
   let shared = 0;
   let gapTotal = 0;

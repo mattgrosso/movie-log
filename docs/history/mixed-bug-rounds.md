@@ -448,3 +448,75 @@ MoviePreview suite returned `credits` and `release_dates` from the details call 
 the URL asked for, so the director, cast and certification tests all passed against a
 component that never requested them — only two of five failed on the revert. The mock now
 strips both unless `append_to_response` names them, and all five fail as they should.
+
+### Prompts, permissions and a friend's poster strip (Aug 2026)
+
+Four reports in one sweep, two of them about the personal-awards prompt.
+
+**A threshold setting that only three of its four readers honoured.** Natalie: "Yesterday
+I changed my personal award number so that I only need three movies and I haven't gotten
+a pop-up because even though I know that for example 1997 has three movies." The setting
+(`settings.awardsYearThreshold`, itself the fix for an earlier "an arbitrary number that I
+came up with for me") was read correctly by `PersonalAwardsModal.yearsEligibleForAwards`
+and by `awardsBrowsableYears` — but Home's `shouldShowAwardsModal`, the gate that decides
+whether the prompt appears at all, carried its own inlined copy of the count with a
+hardcoded `>= 10`. So lowering the number changed every screen except the one that offers
+you the work, which is the only one she would have noticed. The count is now
+`yearsMeetingAwardsThreshold` in `personalAwards.js` and there is one copy of it. The
+"does this year still need work" predicate is deliberately *not* unified: three callers
+answer it three slightly different ways (stored `availableMovieIds` vs rating dates), and
+collapsing them was a bigger, riskier change than the bug called for.
+
+**"Is it just once a day?"** Matt, on the same prompt: "I'm just curious if I will see
+more than one prompt for personal awards per day and maybe that's a setting we ought to be
+able to do kind of like we do for tiebreakers. Maybe we ought to go ahead and set that for
+stickiness and personal awards." Three chores, three different answers to one question,
+and only one of them (tiebreaks) was the user's to change: awards were hardwired to one
+completed year per calendar day, and stickiness had no limit at all. `promptQuota.js` is
+now the single answer, spacing rather than counting — N a day means no sooner than
+`24h / N` after the last one, the shape the tiebreak setting already had.
+
+Two things that shaped it:
+
+- **Blank had to keep meaning "no limit" for stickiness.** Defaulting an unset
+  `stickinessPromptsPerDay` to 1 would have been a regression shipped as a feature, so
+  `promptsPerDay` returns `null` — a real answer, distinct from a missing one.
+- **Legacy data reads as a timestamp rather than being migrated.** Every account carries
+  only `lastAwardCompletionDate`, a `toDateString()` value that the old gate compared to
+  today. `lastAwardsPromptAt` reads it as the start of that day, which reproduces the old
+  behaviour exactly at one a day and needs no write.
+
+The first draft put the quota check inside `shouldShowAwardsModal`'s "have settings
+loaded yet" branch, where it only ran for users who had completed a year before. A test
+for `awardsPromptsPerDay: 0` caught it.
+
+**The motion permission asked once per screen, forever.** "It's annoying how often cinema
+roll is now asking me for permission to detect motion. Honestly, if we can't reduce the
+number of times that it asks then we should just get rid of that feature." The banner
+tilt effect is built by three components — Header, MovieDetail, RateMovie — and the
+permission state was a closure variable inside each `createBannerParallax`. Every movie
+opened made a fresh instance that knew nothing, called `requestPermission()`, caught the
+"needs a user gesture" rejection, armed its own click listener, and put the iOS dialog in
+front of the next thing tapped. Denying didn't help: the `denied` flag died with the
+instance and with the page.
+
+The answer now lives at module scope and in `localStorage`: one in-flight request that
+later instances await instead of queueing another dialog, one armed gesture listener, and
+a "no" remembered on the device. A remembered "no" with no way back would be a trap, so
+Settings grew a **Banner tilt effect** switch (`settings.bannerTilt`) that forgets the
+stored answer when turned on — which is also Matt's stated fallback of getting rid of the
+feature, in his own hands. The regression guard mounts three parallaxes on one window and
+asserts exactly one armed tap between them; with the single-flight line removed it reads
+three, the bug's real signature.
+
+**A friend's recent films stopped at four.** "In film club, we show lists of each friend's
+recent movies but they seem to be limited to just four movies. We should increase that so
+it's a scrollable horizontal list. Don't mess with the size of the posters just load more.
+And we don't want to load thousands of movies every time so these should be lazy loaded
+only when I scroll to see more." The cap was `friendSnapshot`'s `recentCount = 4`, while
+the published profile has carried 40 since "the recent feed on my film club could be
+larger". `friendSnapshot` now returns everything and how many render is the screen's
+business: eight at rest, eight more each time you scroll within a poster's width of the
+end. Poster size is untouched, as asked. Lazy loading here is about image requests, not
+data — the forty items are already in memory; it is forty `<img>` elements per friend that
+would have hit TMDB.

@@ -223,6 +223,15 @@ export default {
     closeStickinessInline () {
       this.showStickinessInline = false;
       this.stickinessRating = "";
+      // One sitting = one prompt, whether it ended because the queue ran dry
+      // or because the user closed it. Only meaningful when a quota is set
+      // (`settings/stickinessPromptsPerDay`, unlimited by default — see
+      // promptQuota.js); stamping it unconditionally keeps the record honest
+      // for the moment a quota IS set.
+      this.$store.dispatch('writeDurably', {
+        path: 'settings/lastStickinessPromptAt',
+        value: Date.now()
+      });
     },
     topStructure (result) {
       if (this.currentLogIsTVLog) {

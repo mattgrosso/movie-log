@@ -157,6 +157,48 @@ export function awardsYearThreshold (settings) {
   return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 10;
 }
 
+// How many awards-eligible films each release year has. Shorts (<=40min)
+// don't compete, the same exclusion the modal applies.
+export function awardsYearCounts (entries) {
+  const counts = {};
+
+  (entries || []).forEach((entry) => {
+    const releaseDate = entry?.movie?.release_date;
+    if (!releaseDate) return;
+    if (entry.movie.runtime && entry.movie.runtime <= 40) return;
+
+    const year = new Date(releaseDate).getFullYear();
+    if (!Number.isFinite(year)) return;
+    counts[year] = (counts[year] || 0) + 1;
+  });
+
+  return counts;
+}
+
+/**
+ * Every year with enough rated films to enter the awards flow at all,
+ * ascending. This is only the SIZE gate — whether a year still needs work is
+ * a separate question each caller answers its own way.
+ *
+ * Bug report (2026-08-22, Natalie): "Yesterday I changed my personal award
+ * number so that I only need three movies and I haven't gotten a pop-up even
+ * though I know that for example 1997 has three movies." `awardsYearThreshold`
+ * was honoured by the modal and by the /awards year strip, but Home's
+ * `shouldShowAwardsModal` — the gate that decides whether the prompt appears
+ * at ALL — carried its own hardcoded `>= 10`. Lowering the setting therefore
+ * changed every screen except the one that offers you the work. One function,
+ * so a fourth copy can't drift off again.
+ */
+export function yearsMeetingAwardsThreshold (entries, settings) {
+  const threshold = awardsYearThreshold(settings);
+  const counts = awardsYearCounts(entries);
+
+  return Object.keys(counts)
+    .map(Number)
+    .filter((year) => Number.isFinite(year) && counts[year] >= threshold)
+    .sort((a, b) => a - b);
+}
+
 // Every year the awards flow will offer, oldest first — the year strip on
 // /awards.
 //
@@ -169,24 +211,7 @@ export function awardsYearThreshold (settings) {
 //
 // Ascending, matching the year scroller on the home screen.
 export function awardsBrowsableYears (entries, settings) {
-  const threshold = awardsYearThreshold(settings);
-  const counts = {};
-
-  (entries || []).forEach((entry) => {
-    const releaseDate = entry?.movie?.release_date;
-    if (!releaseDate) return;
-    // Shorts don't compete, the same exclusion the modal applies.
-    if (entry.movie.runtime && entry.movie.runtime <= 40) return;
-
-    const year = new Date(releaseDate).getFullYear();
-    if (!Number.isFinite(year)) return;
-    counts[year] = (counts[year] || 0) + 1;
-  });
-
-  return Object.keys(counts)
-    .map(Number)
-    .filter((year) => Number.isFinite(year) && counts[year] >= threshold)
-    .sort((a, b) => a - b);
+  return yearsMeetingAwardsThreshold(entries, settings);
 }
 
 /**

@@ -215,3 +215,83 @@ describe('FilmClubScreen feed taps', () => {
       .toBe('Brian watched this');
   });
 });
+
+// Bug report (2026-08-22): "In film club, we show lists of each friend's
+// recent movies but they seem to be limited to just four movies. We should
+// increase that so it's a scrollable horizontal list. Don't mess with the
+// size of the posters just load more. And we don't want to load thousands of
+// movies every time so these should be lazy loaded only when I scroll to see
+// more."
+describe("a friend's recent-poster strip", () => {
+  // The published profile carries 40; the cap that produced "just four" was
+  // friendSnapshot's recentCount default.
+  const busyFriend = (count) => ({
+    brian: {
+      name: 'Brian',
+      counts: { titles: count },
+      ratings: {},
+      recent: Array.from({ length: count }, (_, index) => ({
+        id: index + 1,
+        t: `Film ${index + 1}`,
+        p: `/${index + 1}.jpg`,
+        r: 8,
+        at: Date.now() - (index + 1) * HOUR
+      }))
+    }
+  });
+
+  // A scrollable strip stubbed at a width that shows part of it, with the
+  // scroll position under the test's control — jsdom lays nothing out.
+  function stripAt (wrapper, { scrollLeft, clientWidth = 300, scrollWidth = 1000 }) {
+    const strip = wrapper.find('.cs-friend-posters');
+    return { target: { scrollLeft, clientWidth, scrollWidth }, element: strip.element };
+  }
+
+  it('renders more than the four it used to, but not all forty at once', () => {
+    const wrapper = factory({ profiles: busyFriend(40) });
+
+    const posters = wrapper.findAll('.cs-friend-poster');
+    expect(posters.length).toBeGreaterThan(4);
+    expect(posters.length).toBeLessThan(40);
+  });
+
+  it('keeps the whole list available to page through', () => {
+    const wrapper = factory({ profiles: busyFriend(40) });
+
+    expect(wrapper.vm.friendRows[0].recent).toHaveLength(40);
+  });
+
+  it('loads the next page only once you scroll to the end', async () => {
+    const wrapper = factory({ profiles: busyFriend(40) });
+    const before = wrapper.findAll('.cs-friend-poster').length;
+    const friend = wrapper.vm.friendRows[0];
+
+    // Barely moved: nothing new, no extra image requests.
+    wrapper.vm.growFriendPosters(friend, stripAt(wrapper, { scrollLeft: 10 }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll('.cs-friend-poster').length).toBe(before);
+
+    // At the end: the next page arrives.
+    wrapper.vm.growFriendPosters(friend, stripAt(wrapper, { scrollLeft: 700 }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll('.cs-friend-poster').length).toBeGreaterThan(before);
+  });
+
+  it('stops growing at the end of what the friend published', async () => {
+    const wrapper = factory({ profiles: busyFriend(40) });
+    const friend = wrapper.vm.friendRows[0];
+
+    for (let i = 0; i < 20; i += 1) {
+      wrapper.vm.growFriendPosters(friend, stripAt(wrapper, { scrollLeft: 700 }));
+    }
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll('.cs-friend-poster').length).toBe(40);
+  });
+
+  it('leaves a friend with only a couple of films alone', () => {
+    const wrapper = factory({ profiles: busyFriend(2) });
+
+    expect(wrapper.findAll('.cs-friend-poster')).toHaveLength(2);
+  });
+});

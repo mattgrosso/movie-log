@@ -10,7 +10,9 @@
 //   DeviceOrientationEvent.requestPermission(), which itself only works
 //   from a user gesture. So: try silently at start (Android and old iOS
 //   just work), and if that's refused, arm a one-time tap listener and ask
-//   again from inside the gesture. A user who *denies* is never asked again.
+//   again from inside the gesture. That whole dance happens ONCE for the
+//   whole app and its answer is remembered across launches — see the
+//   permission section below, and the bug report that forced it.
 // - There is no absolute "neutral" phone angle — however you're holding it
 //   right now IS neutral. The baseline is a slow exponential follow of the
 //   readings, so the effect always re-centres on your current posture and a
@@ -95,19 +97,141 @@ export function follow (current, target, factor = FOLLOW) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Motion permission — ONE answer for the whole app, remembered across launches
+// ---------------------------------------------------------------------------
+//
+// Bug report (2026-08-22): "It's annoying how often cinema roll is now asking
+// me for permission to detect motion. Honestly, if we can't reduce the number
+// of times that it asks then we should just get rid of that feature."
+//
+// Three components build their own parallax — Header (mounted always),
+// MovieDetail and RateMovie (mounted on every visit) — and the permission
+// state used to be a closure variable inside each one. So every movie you
+// opened created an instance that knew nothing, called requestPermission(),
+// got the "needs a user gesture" rejection, armed its own click listener, and
+// put the iOS dialog in front of your next tap. Denying didn't help either:
+// the `denied` flag died with the instance and with the page.
+//
+// So the answer lives here, at module scope, and in localStorage:
+//
+// - One in-flight request, shared. Instances that start while a request is
+//   pending await the same promise instead of queueing another dialog.
+// - One armed gesture listener for the whole app, not one per instance.
+// - A "no" is remembered on the DEVICE and is final. Turning the effect back
+//   on in Settings is the only way back, which is what makes remembering it
+//   safe.
+//
+// The stored answer can't replace asking outright when it says yes: iOS only
+// delivers orientation events after requestPermission() resolves in THIS page
+// session. But an already-granted origin resolves it without showing a
+// dialog, so a yes costs one silent call per launch and no prompts.
+
+export const MOTION_PERMISSION_KEY = 'cinemaroll.motionPermission';
+
+let sessionAnswer = null;   // 'granted' | 'denied' | null (not asked yet)
+let pendingRequest = null;  // shared promise while a request is outstanding
+
+function readStored (win) {
+  try {
+    return win?.localStorage?.getItem(MOTION_PERMISSION_KEY) || null;
+  } catch {
+    return null; // Safari private mode throws on access, not just on write.
+  }
+}
+
+function writeStored (win, answer) {
+  try {
+    win?.localStorage?.setItem(MOTION_PERMISSION_KEY, answer);
+  } catch {
+    // Nothing to do — we still have the session answer.
+  }
+}
+
+/** Test seam, and what the Settings switch calls when the effect is re-enabled. */
+export function forgetMotionPermission (win = typeof window === 'undefined' ? null : window) {
+  sessionAnswer = null;
+  pendingRequest = null;
+  try {
+    win?.localStorage?.removeItem(MOTION_PERMISSION_KEY);
+  } catch {
+    // Ignore.
+  }
+}
+
+function nextGesture (win) {
+  return new Promise((resolve) => {
+    win.addEventListener('click', () => resolve(), { once: true, passive: true });
+  });
+}
+
+/**
+ * Resolve to 'granted' or 'denied', asking the user at most once per launch
+ * and never again after a remembered "no".
+ */
+export function requestMotionPermission (win) {
+  const Orientation = win?.DeviceOrientationEvent;
+  if (!Orientation) return Promise.resolve('denied');
+
+  // Nothing to ask on Android / older iOS — events just arrive.
+  if (typeof Orientation.requestPermission !== 'function') {
+    return Promise.resolve('granted');
+  }
+
+  if (sessionAnswer) return Promise.resolve(sessionAnswer);
+  if (readStored(win) === 'denied') {
+    sessionAnswer = 'denied';
+    return Promise.resolve('denied');
+  }
+  if (pendingRequest) return pendingRequest;
+
+  const settle = (answer) => {
+    sessionAnswer = answer;
+    pendingRequest = null;
+    writeStored(win, answer);
+    return answer;
+  };
+
+  pendingRequest = (async () => {
+    try {
+      const answer = await Orientation.requestPermission();
+      return settle(answer === 'granted' ? 'granted' : 'denied');
+    } catch {
+      // Needs a user gesture. ONE armed listener, ONE retry from inside the
+      // tap. A second failure ends the attempt for this launch without
+      // storing anything, so the next launch may try once more — but this
+      // launch will not arm another listener and put up another dialog.
+      await nextGesture(win);
+      try {
+        const answer = await Orientation.requestPermission();
+        return settle(answer === 'granted' ? 'granted' : 'denied');
+      } catch {
+        sessionAnswer = 'denied';
+        pendingRequest = null;
+        return 'denied';
+      }
+    }
+  })();
+
+  return pendingRequest;
+}
+
 /**
  * Wire the effect to a banner image. `getImage` re-resolves every frame —
  * the img is v-if'd on a store value and may appear or vanish at any time.
  * Pass `raf: null` in tests and drive `_frame()` by hand.
+ *
+ * `isEnabled` is read at start(), not captured, so the Settings switch takes
+ * effect on the next screen without a reload.
  */
 export function createBannerParallax ({
   getImage,
+  isEnabled = () => true,
   win = typeof window === 'undefined' ? null : window,
   raf = win ? win.requestAnimationFrame?.bind(win) : null
 } = {}) {
   let running = false;
-  let armed = false;
-  let denied = false;
+  let stopped = false;
   let reading = null;
   let baseline = null;
   let drawn = { x: 0, y: 0 };
@@ -142,40 +266,24 @@ export function createBannerParallax ({
   };
 
   const tryStart = async () => {
-    const Orientation = win?.DeviceOrientationEvent;
-    if (!Orientation || denied) return;
-    if (typeof Orientation.requestPermission === 'function') {
-      try {
-        const answer = await Orientation.requestPermission();
-        if (answer !== 'granted') { denied = true; return; } // a "no" is final
-      } catch {
-        // Needs a user gesture — ask again from inside the next tap.
-        armOnce();
-        return;
-      }
-    }
+    const answer = await requestMotionPermission(win);
+    // The permission request can outlive this instance by a long way — it
+    // sits on an armed gesture listener — so a screen the user has already
+    // left must not quietly start listening when it finally resolves.
+    if (answer !== 'granted' || stopped) return;
     attach();
-  };
-
-  const onGesture = () => {
-    armed = false;
-    tryStart();
-  };
-
-  const armOnce = () => {
-    if (armed || running || denied) return;
-    armed = true;
-    win.addEventListener('click', onGesture, { once: true, passive: true });
   };
 
   return {
     start () {
       if (!win || running) return;
+      if (!isEnabled()) return;
       if (win.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+      stopped = false;
       tryStart();
     },
     stop () {
-      if (armed) { win.removeEventListener('click', onGesture); armed = false; }
+      stopped = true;
       if (!running) return;
       running = false;
       win.removeEventListener('deviceorientation', onOrientation);

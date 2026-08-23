@@ -424,7 +424,10 @@ export default {
 
     // Same tilt parallax as the Home banner, on the backdrop (Matt liked it
     // and asked for it here too, 2026-08-21).
-    this.bannerParallax = createBannerParallax({ getImage: () => this.$refs.backdropImage });
+    this.bannerParallax = createBannerParallax({
+      getImage: () => this.$refs.backdropImage,
+      isEnabled: () => this.$store.state.settings?.bannerTilt !== false
+    });
     this.bannerParallax.start();
   },
   beforeUnmount () {

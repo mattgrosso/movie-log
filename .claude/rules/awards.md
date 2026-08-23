@@ -34,6 +34,34 @@ carrying a `movieId`. `PERSONAL_AWARD_CATEGORIES` lives in
 - **Use the user's own award name.** `settings.personalAwardName` (default 'Oscar') via
   `awardNameWithThe`/`awardNameWithoutThe`/`awardNameSingular` in `personalAwards.js` —
   never hardcode "Personal" or "Oscar".
+- **One year-size gate: `yearsMeetingAwardsThreshold(entries, settings)`.** Whether a year
+  is big enough to have awards reads `settings.awardsYearThreshold`, and there were three
+  copies of the count — the modal, the /awards strip, and Home's `shouldShowAwardsModal`,
+  which still hardcoded `>= 10`. So lowering the setting changed every screen except the
+  one that *offers* you the work: "I changed my personal award number so that I only need
+  three movies and I haven't gotten a pop-up" (Natalie, 2026-08-22). Never re-derive the
+  count; the "which years still need work" predicate is separate and stays per-caller.
+
+## Prompt quotas
+
+`promptQuota.js` answers "may this prompt appear yet" for all three home-screen chores.
+Spacing, not counters: N a day means "no sooner than `ONE_DAY_MS / N` after the last one",
+which is the shape the tiebreak setting already had and what Matt asked the others to
+match (2026-08-22).
+
+- `settings.awardsPromptsPerDay` (default 1), `settings.stickinessPromptsPerDay`
+  (default **no limit** — stickiness never had one, and a blank box must not quietly
+  become a cap), `settings.tieBreakTweak` (unchanged, still its own code path).
+- `null` from `promptsPerDay` means no limit and is a real answer; `0` means never.
+- Awards stamp `settings/lastAwardsPromptAt` on "Complete Awards"; stickiness stamps
+  `settings/lastStickinessPromptAt` when the inline panel closes, so one sitting through
+  the whole queue is one prompt.
+- **`lastAwardCompletionDate` is still the only stamp on existing accounts.**
+  `lastAwardsPromptAt(settings)` falls back to reading that date string as the start of
+  that day, which reproduces the old `=== today` gate exactly at one a day. Don't migrate
+  it away.
+- The quota check lives OUTSIDE `shouldShowAwardsModal`'s settings-loaded branch. Nested
+  inside it, someone who had never completed a year could not turn the prompt off.
 
 ## Custom (honorary) awards
 

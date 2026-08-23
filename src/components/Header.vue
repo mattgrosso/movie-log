@@ -41,7 +41,10 @@ export default {
     // Tilt parallax on the banner photo (bug report 2026-08-21). All the
     // sensor/permission/motion logic is in bannerParallax.js; the ref
     // resolves per-frame because the img is v-if'd on the store.
-    this.bannerParallax = createBannerParallax({ getImage: () => this.$refs.bannerImage });
+    this.bannerParallax = createBannerParallax({
+      getImage: () => this.$refs.bannerImage,
+      isEnabled: () => this.$store.state.settings?.bannerTilt !== false
+    });
     this.bannerParallax.start();
   },
   beforeUnmount () {

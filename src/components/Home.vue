@@ -703,6 +703,46 @@
                                   @change="saveTieBreakTweak"
                                 >
                               </div>
+                <div class="mb-3">
+                                <label for="awardsPromptsPerDay" class="form-label">Max daily personal awards prompts:</label>
+                                <input
+                                  type="number"
+                                  class="form-control"
+                                  id="awardsPromptsPerDay"
+                                  :value="awardsPromptsPerDayInput"
+                                  min="0"
+                                  max="24"
+                                  step="1"
+                                  @change="saveAwardsPromptsPerDay($event.target.value)"
+                                >
+                                <small class="form-text text-white">Spaced evenly through the day. 0 turns them off.</small>
+                              </div>
+                <div class="mb-3">
+                                <label for="stickinessPromptsPerDay" class="form-label">Max daily stickiness prompts:</label>
+                                <input
+                                  type="number"
+                                  class="form-control"
+                                  id="stickinessPromptsPerDay"
+                                  :value="stickinessPromptsPerDayInput"
+                                  min="0"
+                                  max="24"
+                                  step="1"
+                                  placeholder="No limit"
+                                  @change="saveStickinessPromptsPerDay($event.target.value)"
+                                >
+                                <small class="form-text text-white">Leave blank for no limit. 0 turns them off.</small>
+                              </div>
+                <!-- The other thing the app asks for, and the report that
+                     prompted this section's growth was about exactly this one
+                     (2026-08-22). Turning it back on clears a remembered "no"
+                     so iOS gets asked again. -->
+                <div class="form-check form-switch mb-1">
+                  <input class="form-check-input" type="checkbox" id="bannerTiltToggle" :checked="bannerTilt" @change="updateBannerTilt">
+                  <label class="form-check-label" for="bannerTiltToggle">Banner tilt effect</label>
+                </div>
+                <small class="form-text text-white d-block mb-3">
+                  Drifts banner photos as you tilt the phone. Needs motion permission, which Cinema Roll asks for once.
+                </small>
                 <template v-if="isMatt">
                   <ThreeStateToggle
                                     id="stickinessPromptState"
@@ -1348,7 +1388,9 @@ const moreFromCache = createCache();
 // once.
 const tmdbIdCache = new Map();
 import { getRating } from "../assets/javascript/GetRating.js";
-import { awardsYearThreshold } from "../assets/javascript/personalAwards.js";
+import { awardsYearThreshold, yearsMeetingAwardsThreshold } from "../assets/javascript/personalAwards.js";
+import { promptsPerDay, dueForPrompt, lastAwardsPromptAt } from "../assets/javascript/promptQuota.js";
+import { forgetMotionPermission } from "../assets/javascript/bannerParallax.js";
 import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
 import ErrorLogService from '../services/ErrorLogService.js';
 import { computeFlatKeywords } from '../utils/keywords.js';
@@ -2020,6 +2062,39 @@ export default {
     tieBreakTweak () {
       const value = this.$store.state.settings?.tieBreakTweak;
       return typeof value === 'number' ? value : 1;
+    },
+    // Prompt quotas. Awards default to one a day (what they have always
+    // done); stickiness defaults to no limit, also what it has always done —
+    // a blank box means "as often as there's something to rate" rather than
+    // quietly capping a prompt that never was capped. See promptQuota.js.
+    awardsPromptsPerDayInput () {
+      const value = this.$store.state.settings?.awardsPromptsPerDay;
+      return typeof value === 'number' ? value : 1;
+    },
+    stickinessPromptsPerDayInput () {
+      const value = this.$store.state.settings?.stickinessPromptsPerDay;
+      return typeof value === 'number' ? value : null;
+    },
+    bannerTilt () {
+      return this.$store.state.settings?.bannerTilt !== false;
+    },
+    awardsPromptDue () {
+      // eslint-disable-next-line no-unused-vars
+      const _ = this.forceModalReevaluation;
+      const settings = this.$store.state.settings || {};
+      return dueForPrompt({
+        lastAt: lastAwardsPromptAt(settings),
+        perDay: promptsPerDay(settings.awardsPromptsPerDay, 1)
+      });
+    },
+    stickinessPromptDue () {
+      // eslint-disable-next-line no-unused-vars
+      const _ = this.forceModalReevaluation;
+      const settings = this.$store.state.settings || {};
+      return dueForPrompt({
+        lastAt: settings.lastStickinessPromptAt,
+        perDay: promptsPerDay(settings.stickinessPromptsPerDay, null)
+      });
     },
     personalAwardName () {
       const value = this.$store.state.settings?.personalAwardName;
@@ -3289,8 +3364,11 @@ export default {
         return 'tieBreak';
       }
 
-      // Check if stickiness should show (highest priority in normal mode)
-      const shouldShowStickiness = !stickinessDisabled &&
+      // Check if stickiness should show (highest priority in normal mode).
+      // `stickinessPromptDue` is the daily quota and is unlimited unless the
+      // user sets one (bug report 2026-08-22: "maybe we ought to go ahead and
+      // set that for stickiness and personal awards").
+      const shouldShowStickiness = !stickinessDisabled && this.stickinessPromptDue &&
         Boolean(this.allEntriesWithFlatKeywordsAdded.length && this.resultsThatNeedStickiness.length);
 
       // Check if tie break should show (second priority)
@@ -3375,7 +3453,7 @@ export default {
       // If lastAwardDate is undefined, we need to determine if this is because:
       // 1. Settings haven't loaded yet (return false to prevent flash)
       // 2. User has never completed awards (continue with normal logic)
-      if (lastAwardDate === undefined) {
+      if (lastAwardDate === undefined && !settings.lastAwardsPromptAt) {
         // Check if there are any existing personal awards - if so, settings are loaded
         const hasExistingAwards = settings.personalAwards && Object.keys(settings.personalAwards).length > 0;
 
@@ -3392,26 +3470,25 @@ export default {
           }
         }
         // If we get here, settings are loaded but user just hasn't done awards before
-      } else if (lastAwardDate === today) {
-        return false; // Already did awards today
       }
 
-      // Check if there are any years with 10+ rated movies that don't have completed awards
-      const yearCounts = {};
+      // The daily quota — one a day by default, `awardsPromptsPerDay` to
+      // change it (bug report 2026-08-22, "will I see more than one prompt for
+      // personal awards per day... maybe that's a setting"). Outside the
+      // settings-loaded branch above, not inside it: someone who has never
+      // completed a year still gets to turn the prompt off.
+      if (!this.awardsPromptDue) {
+        return false;
+      }
 
-      this.allEntriesWithFlatKeywordsAdded.forEach(entry => {
-        // Exclude shorts (<40min) from awards consideration
-        if (entry.movie.runtime && entry.movie.runtime <= 40) {
-          return;
-        }
-
-        const year = new Date(entry.movie.release_date).getFullYear();
-        yearCounts[year] = (yearCounts[year] || 0) + 1;
-      });
-
-      const eligibleYears = Object.keys(yearCounts)
-        .filter(year => yearCounts[year] >= 10)
-        .map(year => parseInt(year));
+      // Which years are big enough to have awards at all. Reads the user's
+      // own `awardsYearThreshold` — this used to be a hardcoded 10, so
+      // lowering the setting changed the modal and the /awards strip but not
+      // the prompt that offers the work (bug report 2026-08-22, Natalie).
+      const eligibleYears = yearsMeetingAwardsThreshold(
+        this.allEntriesWithFlatKeywordsAdded,
+        settings
+      );
 
       // Check if any eligible years need awards (either new or have new movies)
       const hasEligibleYears = eligibleYears.some(year => {
@@ -4438,6 +4515,31 @@ export default {
     },
     saveTieBreakTweak () {
       this.$store.dispatch('writeDurably', { path: 'settings/tieBreakTweak', value: this.tieBreakTweak });
+    },
+    // Blank clears the setting rather than writing 0 — for stickiness that is
+    // "no limit", and for awards it falls back to the default of one a day.
+    // `<input type="number">` gives '' for both an empty box and unparseable
+    // text, which is the answer we want in either case.
+    savePromptsPerDay (path, raw) {
+      const value = raw === '' || raw == null ? null : Number(raw);
+      this.$store.dispatch('writeDurably', {
+        path,
+        value: Number.isFinite(value) ? Math.max(0, Math.floor(value)) : null
+      });
+    },
+    updateBannerTilt (event) {
+      const enabled = event.target.checked;
+      // Switching it back on forgets a remembered denial, so the next banner
+      // can ask iOS again — otherwise the switch would be on with the effect
+      // permanently dead and no way to explain why.
+      if (enabled) forgetMotionPermission();
+      this.$store.dispatch('writeDurably', { path: 'settings/bannerTilt', value: enabled });
+    },
+    saveAwardsPromptsPerDay (raw) {
+      this.savePromptsPerDay('settings/awardsPromptsPerDay', raw);
+    },
+    saveStickinessPromptsPerDay (raw) {
+      this.savePromptsPerDay('settings/stickinessPromptsPerDay', raw);
     },
     savePersonalAwardName () {
       this.$store.dispatch('writeDurably', { path: 'settings/personalAwardName', value: this.personalAwardName });

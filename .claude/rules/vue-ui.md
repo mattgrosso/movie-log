@@ -48,6 +48,17 @@ first attempt at the games scroll-to-top do nothing at all.
   (updates, bug resolutions, future housekeeping) uses the neutral `-app` accent.
   `homeNotices.test.js` enforces the placement at the source level.
 
+- **Device permissions are asked ONCE, app-wide, and the answer is remembered.**
+  `bannerParallax.js` owns the motion-permission answer at module scope plus
+  `localStorage`, because three components build their own parallax (Header, MovieDetail,
+  RateMovie) and per-instance state meant every movie you opened armed another tap
+  listener and another iOS dialog: "It's annoying how often cinema roll is now asking me
+  for permission to detect motion... if we can't reduce the number of times that it asks
+  then we should just get rid of that feature" (2026-08-22). Any future permission goes
+  the same way — one shared in-flight request, one armed gesture listener, a remembered
+  "no", and a Settings switch (`settings.bannerTilt`) that clears the memory when turned
+  back on. A permission the user can't re-grant is a trap.
+
 - **Poster/photo rows: images edge-aligned, text flows.** In any horizontal
   row of posters or photos, every image's top AND bottom edge must line up:
   fixed image height + `align-items: flex-start` on the row. Text below an

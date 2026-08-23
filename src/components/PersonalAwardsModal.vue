@@ -489,7 +489,7 @@ import Modal from './Modal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { pickEligibleAwardsYear } from '../utils/awards.js';
-import { awardsYearThreshold, awardsPromptCopy, distinctNomineeCount } from '../assets/javascript/personalAwards.js';
+import { yearsMeetingAwardsThreshold, awardsPromptCopy, distinctNomineeCount } from '../assets/javascript/personalAwards.js';
 import { PERSONAL_AWARD_CATEGORIES, categoriesForYear, customAwardKey, isCustomAwardKey } from '../assets/javascript/personalAwardsCategories.js';
 import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
 import { expandNomineeFromMinimal as expandNomineeFromMinimalShared, actingSiblingConflict } from '../assets/javascript/personalAwards.js';
@@ -596,35 +596,14 @@ export default {
           return [];
         }
 
-        const yearCounts = {};
-
-        this.allEntriesWithFlatKeywordsAdded.forEach(entry => {
-          try {
-            if (!entry || !entry.movie || !entry.movie.release_date) {
-              return;
-            }
-
-            // Exclude shorts (<40min) from awards consideration
-            if (entry.movie.runtime && entry.movie.runtime <= 40) {
-              return;
-            }
-
-            const year = new Date(entry.movie.release_date).getFullYear();
-            if (isNaN(year)) return;
-
-            yearCounts[year] = (yearCounts[year] || 0) + 1;
-          } catch (error) {
-            console.error('Error processing entry for year calculation:', entry, error);
-            ErrorLogService.error('Error processing entry for year calculation:', entry, error);
-          }
-        });
-
-        const threshold = awardsYearThreshold(this.$store.state.settings);
-        const eligibleYears = Object.keys(yearCounts)
-          .filter(year => yearCounts[year] >= threshold)
-          .map(year => parseInt(year))
-          .filter(year => !isNaN(year))
-          .sort((a, b) => b - a); // Most recent first
+        // Shared with Home's prompt gate and the /awards year strip, so the
+        // threshold setting can't be honoured on one screen and hardcoded on
+        // another (bug report 2026-08-22). Ascending there; most recent first
+        // is what this list wants.
+        const eligibleYears = yearsMeetingAwardsThreshold(
+          this.allEntriesWithFlatKeywordsAdded,
+          this.$store.state.settings
+        ).slice().reverse();
 
         // Filter out years that are already completed (optional - since this is a "living record")
         return eligibleYears.filter(year => {
@@ -1009,10 +988,16 @@ export default {
     async completeYearAndClose () {
       try {
         this.completingYear = true; // Set flag to prevent further saves
-        // Record completion date
+        // Record completion date. The date string is what every existing
+        // account carries; the timestamp beside it is what the prompt quota
+        // actually spaces on now (see promptQuota.js), so both get written.
         await this.$store.dispatch('writeDurably', {
           path: 'settings/lastAwardCompletionDate',
           value: new Date().toDateString()
+        });
+        await this.$store.dispatch('writeDurably', {
+          path: 'settings/lastAwardsPromptAt',
+          value: Date.now()
         });
 
         // Clear daily selection

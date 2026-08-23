@@ -76,10 +76,19 @@
             </template>
           </p>
 
-          <!-- What they've been watching, rather than a bare count. -->
-          <div v-if="friend.recent.length" class="cs-friend-posters">
+          <!-- What they've been watching, rather than a bare count. Scrolls
+               sideways through everything their profile publishes, a page at
+               a time as you reach the end (2026-08-22: "we should increase
+               that so it's a scrollable horizontal list... we don't want to
+               load thousands of movies every time so these should be lazy
+               loaded only when I scroll to see more"). -->
+          <div
+            v-if="friend.recent.length"
+            class="cs-friend-posters"
+            @scroll.passive="growFriendPosters(friend, $event)"
+          >
             <img
-              v-for="item in friend.recent"
+              v-for="item in visibleRecent(friend)"
               :key="`${friend.key}-${item.id}-${item.at}`"
               :src="poster(item.p)"
               :alt="item.t"
@@ -230,11 +239,24 @@ import { filterDirectory } from '../assets/javascript/interchange.js';
 import { omitQaAccounts, isQaAccountKey } from '../assets/javascript/databaseKey.js';
 import { formatScore, formatScoreGap } from '../assets/javascript/formatScore.js';
 
+// A friend row shows this many posters before you scroll, then this many more
+// each time you reach the end of the strip. The profile carries 40, and
+// mounting every one of them for every friend is exactly the "load thousands
+// of movies every time" the request asked us not to do — each poster is a
+// TMDB image request.
+const FRIEND_POSTERS_INITIAL = 8;
+const FRIEND_POSTERS_PAGE = 8;
+// How close to the right edge counts as "reached the end", in px.
+const FRIEND_POSTERS_TRIGGER = 120;
+
 export default {
   name: 'FilmClubScreen',
   components: { BackLink, SettingsSection, SendToHat, MoviePreview },
   data () {
     return {
+      // How many recent posters each friend's strip is currently rendering,
+      // keyed by friend key. Absent = the initial page.
+      friendPosterCounts: {},
       // The unrated film whose summary sheet is open, or null.
       previewing: null,
       // Was never declared, so `v-model` on the "Search people on other apps"
@@ -409,6 +431,20 @@ export default {
     poster (path) {
       return `https://image.tmdb.org/t/p/w185${path}`;
     },
+    visibleRecent (friend) {
+      return friend.recent.slice(0, this.friendPosterCounts[friend.key] || FRIEND_POSTERS_INITIAL);
+    },
+    // Scrolled to within a poster's width of the end: render the next page.
+    // Nothing here reaches the network directly — the new <img>s do, which is
+    // the point of paging them in rather than mounting all forty.
+    growFriendPosters (friend, event) {
+      const strip = event.target;
+      const shown = this.friendPosterCounts[friend.key] || FRIEND_POSTERS_INITIAL;
+      if (shown >= friend.recent.length) return;
+      if (strip.scrollLeft + strip.clientWidth < strip.scrollWidth - FRIEND_POSTERS_TRIGGER) return;
+
+      this.friendPosterCounts[friend.key] = Math.min(shown + FRIEND_POSTERS_PAGE, friend.recent.length);
+    },
     goToMovie (tmdbId) {
       if (tmdbId == null) return;
       this.$router.push(`/movie/${tmdbId}`);
@@ -514,11 +550,25 @@ export default {
 
 .cs-friend-line strong { color: #eee; }
 
-.cs-friend-posters { display: flex; gap: 0.35rem; }
+/* Scrolls sideways rather than wrapping or truncating (2026-08-22). Poster
+   size is deliberately unchanged — "don't mess with the size of the posters
+   just load more". `align-items: flex-start` keeps every top and bottom edge
+   in line, the house rule for any poster row. */
+.cs-friend-posters {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  /* The row's parent scrolls the page; without this an almost-horizontal
+     swipe hands the gesture up and the strip feels stuck. */
+  overscroll-behavior-x: contain;
+  padding-bottom: 0.25rem;
+}
 
 .cs-friend-poster {
   border-radius: 4px;
   display: block;
+  flex: 0 0 auto;
   height: 66px;
   object-fit: cover;
   width: 44px;
