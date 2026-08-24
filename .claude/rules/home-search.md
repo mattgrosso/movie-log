@@ -69,6 +69,20 @@ header, and persisted daily at `settings/groupOrderOverride` (reverts next day).
 Multiple chips use **AND** logic. The result count badge uses `displayedResults` (what's
 actually rendered), not `unifiedFilteredResults.length`.
 
+**Grouping RE-SEARCHES, which is why typed chips can't use it — except people.** The
+free-text grouped view takes the chip's bare VALUE (type discarded) and searches it
+across Title / Director / Cast / Producer / Company / Keywords. Title is always one of
+those, so every typed chip leaked movies its own filter excluded — a `tag:DARK` chip
+showed everything with "dark" in the title (d4580ec). Grouping is therefore off for all
+typed chips.
+
+The one exception is `person`, and it works by a different mechanism: it does not
+re-search at all. `personRoleGroups.js` **partitions `unifiedFilteredResults`** by the
+role that person held on each film, so a leak is structurally impossible rather than
+merely guarded against. It reuses `FILTER_KINDS.person`'s exact/surname matcher — it must,
+or the sections would partition a different set than the count claims. If you add
+grouping for another chip type, partition; never re-search.
+
 ## Year chips get a scroller, not a chip
 
 Any active `type === 'year'` chip (not `yearRange`/decades) swaps the chip row for

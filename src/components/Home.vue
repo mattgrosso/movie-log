@@ -1416,6 +1416,7 @@ import {
   awardNameWithoutThe,
   awardNameSingular
 } from '../assets/javascript/personalAwards.js';
+import { groupByPersonRole } from '../assets/javascript/personRoleGroups.js';
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
 import { GAME_ICONS, lastPlayedGamePath } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
@@ -2776,6 +2777,21 @@ export default {
 
       return [...DEFAULT_GROUP_ORDER];
     },
+    // Sections for a person chip, built by splitting the results already on
+    // screen rather than searching again. Null when there's nothing to split
+    // or only one role to split into — a lone "Cast" header over the same
+    // list is a heading, not a grouping.
+    personRoleGroups () {
+      const filter = this.effectiveSearchFilter;
+      if (!filter || filter.type !== 'person') return null;
+
+      const sections = groupByPersonRole(this.unifiedFilteredResults, filter.value, {
+        order: this.groupOrder,
+        sort: (movies) => this.sortResultsFast(movies)
+      });
+
+      return sections.length > 1 ? sections : null;
+    },
     groupedByAllCategories () {
       // Use debounced search for typing performance, but fall back to effectiveSearchTerm for chips
       let searchTerm;
@@ -2820,6 +2836,16 @@ export default {
       // Horror film rendered nowhere and a Comedy called "Horror Story Night"
       // rendered instead. Every typed chip leaks this way, because Title is
       // always one of the groups being searched.
+      // ...with ONE exception, and it is the case the sections exist for. A
+      // person chip is a question about roles — Matt, 2026-08-23: "I've
+      // searched for Stephen Spielberg and his direction, acting, and
+      // production are all smooshed." Answering it needs no re-search and so
+      // leaks nothing: personRoleGroups partitions the flat filtered results
+      // instead of going back to the library. See personRoleGroups.js.
+      if (this.effectiveSearchFilter && this.effectiveSearchFilter.type === 'person') {
+        return this.personRoleGroups;
+      }
+
       if (this.effectiveSearchFilter && this.effectiveSearchFilter.type !== 'general') {
         return null;
       }
