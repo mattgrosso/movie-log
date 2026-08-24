@@ -117,6 +117,58 @@ export function curveLadder (
 }
 
 /**
+ * The two curves, sampled across the library, for the line chart.
+ *
+ * Matt, 2026-08-24: "a graph that shows the adjusted curve and the actual
+ * curve on the same line chart."
+ *
+ * X is the percentile through the library (rank-sorted, worst to best) rather
+ * than the raw score, because the question underneath is about SHAPE — "it
+ * feels more skewed than I'd like" — and a percentile axis is what makes the
+ * skew legible: the vertical gap between the lines at any point is how far
+ * the curve moved the films sitting there. Against a raw-score axis the two
+ * lines would mostly restate the same monotonic climb.
+ *
+ * `actual` is the raw calculatedTotal; `adjusted` is what the app displays
+ * before rounding. Both are on the same 0-10 scale, which is the only reason
+ * putting them on one chart says anything.
+ */
+export function curveShape (rated, {
+  tenTotal = null, fiveTotal = null, tweak = 0.25, samples = 81
+} = {}) {
+  const items = (rated || []).filter((item) => Number.isFinite(item?.total));
+  if (items.length < 2) return [];
+
+  const totals = items.map((item) => item.total);
+  const minRating = Math.min(...totals);
+  const maxRating = Math.max(...totals);
+  if (minRating === maxRating) return [];
+
+  const toBase = (total) =>
+    (Number.isFinite(total) ? baseNormalized(total, minRating, maxRating) : null);
+  const options = { tweak, tenBase: toBase(tenTotal), fiveBase: toBase(fiveTotal) };
+
+  const ascending = [...totals].sort((a, b) => a - b);
+
+  // Sampled rather than one point per film: 1,381 points is a slow render for
+  // a line whose shape is fully carried by ~80. The endpoints are always
+  // included so the chart spans the real range.
+  const count = Math.min(samples, ascending.length);
+  const points = [];
+  for (let i = 0; i < count; i += 1) {
+    const position = i / (count - 1);
+    const total = ascending[Math.round(position * (ascending.length - 1))];
+    const adjusted = normalizedValue(baseNormalized(total, minRating, maxRating), options);
+    points.push({
+      percentile: Math.round(position * 100),
+      actual: total,
+      adjusted: Math.max(0, Math.min(10, adjusted))
+    });
+  }
+  return points;
+}
+
+/**
  * The share of the library sitting at or below `grade`, as a percentage.
  *
  * The "43% of your library is below a 5" figure, which is the sentence that

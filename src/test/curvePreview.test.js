@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { curveLadder, shareAtOrBelow } from '@/assets/javascript/curvePreview.js';
+import { curveLadder, curveShape, shareAtOrBelow } from '@/assets/javascript/curvePreview.js';
 import {
   baseNormalized, normalizedValue, applyNormalization
 } from '@/assets/javascript/normalizationPicker.js';
@@ -153,6 +153,53 @@ describe('curveLadder', () => {
     expect(curveLadder([film('a', NaN)], {})).toEqual([]);
     // Nothing to preview when every movie scores the same.
     expect(curveLadder([film('a', 5), film('b', 5)], {})).toEqual([]);
+  });
+});
+
+describe('curveShape', () => {
+  it('walks the library from worst to best', () => {
+    const points = curveShape(library, { tenTotal: 10, fiveTotal: 5 });
+    expect(points[0].percentile).toBe(0);
+    expect(points.at(-1).percentile).toBe(100);
+    // Raw scores only ever climb as you move up the library.
+    points.slice(1).forEach((point, i) => {
+      expect(point.actual).toBeGreaterThanOrEqual(points[i].actual);
+    });
+  });
+
+  it('spans the real range at both ends', () => {
+    const points = curveShape(library, { tenTotal: 10, fiveTotal: 5 });
+    expect(points[0].actual).toBe(0);
+    expect(points.at(-1).actual).toBe(10);
+  });
+
+  // The two lines are only comparable because both are 0-10. An adjusted
+  // value escaping that range would draw off the top of the chart.
+  it('keeps the adjusted line on the same scale as the raw one', () => {
+    const points = curveShape(library, { tenTotal: 6, fiveTotal: 3 });
+    points.forEach((point) => {
+      expect(point.adjusted).toBeGreaterThanOrEqual(0);
+      expect(point.adjusted).toBeLessThanOrEqual(10);
+    });
+  });
+
+  // The gap between the lines IS the message — "where orange sits below grey,
+  // the curve is marking those movies down".
+  it('shows the curve pushing the low end down when the five-anchor is high', () => {
+    const points = curveShape(library, { tenTotal: 10, fiveTotal: 8 });
+    const low = points.find((point) => point.percentile >= 30);
+    expect(low.adjusted).toBeLessThan(low.actual);
+  });
+
+  it('samples down instead of returning a point per movie', () => {
+    const big = Array.from({ length: 1381 }, (_, i) => film(`Film ${i}`, i / 138));
+    expect(curveShape(big, { tenTotal: 10, fiveTotal: 5 }).length).toBeLessThanOrEqual(81);
+  });
+
+  it('is safe on junk', () => {
+    expect(curveShape(null, {})).toEqual([]);
+    expect(curveShape([film('only', 5)], {})).toEqual([]);
+    expect(curveShape([film('a', 5), film('b', 5)], {})).toEqual([]);
   });
 });
 

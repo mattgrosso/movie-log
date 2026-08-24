@@ -62,47 +62,72 @@
       <button type="button" class="picker-cancel" @click="picking = null">Cancel</button>
     </div>
 
-    <!-- The whole curve, as real movies. Inline and always on rather than a
-         popup: the point is to change an anchor and watch this move, and a
-         dialog you have to reopen after every pick doesn't support that. -->
+    <!-- What these two anchors actually do to the library. Both halves update
+         live as an anchor moves, which is the loop this exists for — pick,
+         look, adjust. -->
     <div v-if="curveRows.length" class="curve-ladder">
       <h4 class="ladder-heading">How your library lands</h4>
-      <p class="ladder-explainer">
-        Every row is the <strong>lowest-scoring movie that still earns that number</strong> —
-        the one sitting right on the line. If a row feels wrong, move an anchor.
-      </p>
+
       <p v-if="lowShare >= 40" class="ladder-warning">
         {{ lowShare }}% of your library rates 4 or below. Your "This is a 5" pick sets
         that floor: everything scoring under it has to land lower.
       </p>
 
-      <table class="ladder-table">
-        <thead>
-          <tr>
-            <th scope="col" class="ladder-col-grade">Rating</th>
-            <th scope="col" class="ladder-col-count">Movies</th>
-            <th scope="col">Lowest movie at that rating</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in curveRows" :key="row.grade" :class="{ 'is-anchor': isAnchorRow(row) }">
-            <td class="ladder-grade">{{ row.grade }}</td>
-            <td class="ladder-count">{{ row.count }}</td>
-            <td class="ladder-film">
-              <span class="ladder-title">{{ row.lowest.entry.movie.title }}</span>
-              <span class="ladder-score">
-                scored {{ formatScore(row.lowest.total) }}, curves to {{ formatScore(row.lowest.value) }}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <p class="ladder-footnote">
-        "Curves to" is the number before rounding — 4.30 becomes a 4. Your raw scores
-        don't spread evenly over 0–10, so the middle of your library sits higher than
-        you'd expect.
+      <!-- The shape, always on: it's one glance and it's the thing that
+           answers "does this feel skewed?". The 11-row table behind it is
+           reference, so it collapses. -->
+      <div class="curve-chart">
+        <LineChart :chartData="curveChartData" :options="curveChartOptions"/>
+      </div>
+      <p class="chart-explainer">
+        Where the orange line sits below the grey one, the curve is marking those movies
+        down from their raw score. The kink is your "This is a 5".
       </p>
+
+      <button
+        type="button"
+        class="ladder-toggle"
+        :aria-expanded="showLadder ? 'true' : 'false'"
+        @click="showLadder = !showLadder"
+      >
+        <i :class="showLadder ? 'bi bi-chevron-down' : 'bi bi-chevron-right'"></i>
+        <span>Movie at each rating</span>
+      </button>
+
+      <div v-if="showLadder" class="ladder-body">
+        <p class="ladder-explainer">
+          Every row is the <strong>lowest-scoring movie that still earns that number</strong> —
+          the one sitting right on the line. If a row feels wrong, move an anchor.
+        </p>
+
+        <table class="ladder-table">
+          <thead>
+            <tr>
+              <th scope="col" class="ladder-col-grade">Rating</th>
+              <th scope="col" class="ladder-col-count">Movies</th>
+              <th scope="col">Lowest movie at that rating</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in curveRows" :key="row.grade" :class="{ 'is-anchor': isAnchorRow(row) }">
+              <td class="ladder-grade">{{ row.grade }}</td>
+              <td class="ladder-count">{{ row.count }}</td>
+              <td class="ladder-film">
+                <span class="ladder-title">{{ row.lowest.entry.movie.title }}</span>
+                <span class="ladder-score">
+                  scored {{ formatScore(row.lowest.total) }}, curves to {{ formatScore(row.lowest.value) }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p class="ladder-footnote">
+          "Curves to" is the number before rounding — 4.30 becomes a 4. Your raw scores
+          don't spread evenly over 0–10, so the middle of your library sits higher than
+          you'd expect.
+        </p>
+      </div>
     </div>
 
     <div v-if="!anchors.ten" class="manual-offset">
@@ -131,14 +156,20 @@
 // numeric offset remains as the fallback control when no anchor is chosen.
 import { getRating } from '../assets/javascript/GetRating.js';
 import { initialPickerWindow } from '../assets/javascript/normalizationPicker.js';
-import { curveLadder, shareAtOrBelow } from '../assets/javascript/curvePreview.js';
+import { curveLadder, curveShape, shareAtOrBelow } from '../assets/javascript/curvePreview.js';
+import { Chart, registerables } from 'chart.js';
+import { LineChart } from 'vue-chart-3';
 import { formatScore } from '../assets/javascript/formatScore.js';
+
+Chart.register(...registerables);
 
 export default {
   name: 'RatingCurveSettings',
+  components: { LineChart },
   data () {
     return {
       picking: null, // 'ten' | 'five' | null
+      showLadder: false, // the per-rating table is reference, not a default view
       pickerQuery: '',
       windowStart: 0, // lazy-loading window into pickerPool
       windowEnd: 0,
@@ -191,6 +222,81 @@ export default {
     // was 43% of the library without anything saying so.
     lowShare () {
       return shareAtOrBelow(this.curveRows, 4);
+    },
+    curvePoints () {
+      return curveShape(
+        this.ratedLibrary.map((entry) => ({ entry, total: entry.curveTotal })),
+        {
+          tenTotal: this.tenAnchorTotal,
+          fiveTotal: this.fiveAnchorTotal,
+          tweak: this.manualTweak
+        }
+      );
+    },
+    curveChartData () {
+      return {
+        labels: this.curvePoints.map((point) => point.percentile),
+        datasets: [
+          {
+            label: 'Raw score',
+            data: this.curvePoints.map((point) => point.actual),
+            borderColor: '#9a9a9a',
+            borderDash: [5, 4],
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.15
+          },
+          {
+            label: 'After the curve',
+            data: this.curvePoints.map((point) => point.adjusted),
+            borderColor: '#e8833a',
+            borderWidth: 2.5,
+            pointRadius: 0,
+            tension: 0.15
+          }
+        ]
+      };
+    },
+    curveChartOptions () {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { intersect: false, mode: 'index' },
+        plugins: {
+          legend: {
+            display: true,
+            labels: { color: '#ccc', boxWidth: 14, font: { size: 11 } }
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => `${items[0].label}th percentile of your library`,
+              label: (item) => `${item.dataset.label}: ${formatScore(item.parsed.y)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true, text: 'Your library, worst to best', color: '#ccc', font: { size: 10 }
+            },
+            ticks: {
+              color: '#ccc',
+              font: { size: 9 },
+              maxTicksLimit: 5,
+              callback (value) {
+                return `${this.getLabelForValue(value)}%`;
+              }
+            },
+            grid: { color: '#2a2a2a' }
+          },
+          y: {
+            min: 0,
+            max: 10,
+            ticks: { color: '#ccc', font: { size: 9 }, stepSize: 2 },
+            grid: { color: '#2a2a2a' }
+          }
+        }
+      };
     },
     // The full rank-sorted pool; pickerCandidates is a lazy window into it
     // ("I just need to be able to go down as far as I need to" — feedback).
@@ -573,5 +679,49 @@ export default {
   color: #ccc;
   font-size: 0.72rem;
   margin-top: 0.6rem;
+}
+
+.curve-chart {
+  /* maintainAspectRatio is off, so the canvas needs a height from CSS. A
+     percentage height here would silently do nothing (vue-ui rule). */
+  height: 190px;
+  margin-bottom: 0.4rem;
+}
+
+.chart-explainer {
+  color: #ccc;
+  font-size: 0.72rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Accordion header. Full width and 44px tall so it's a comfortable tap
+   (40px minimum, vue-ui rule), and :active rather than :hover — a tapped
+   element keeps :hover on iOS with no mouse to leave it. */
+.ladder-toggle {
+  align-items: center;
+  background: #2e2e2e;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #eee;
+  display: flex;
+  font-size: 0.8rem;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0 0.7rem;
+  text-align: left;
+  width: 100%;
+
+  &:active {
+    background: #383838;
+  }
+
+  .bi {
+    color: #ccc;
+    font-size: 0.75rem;
+  }
+}
+
+.ladder-body {
+  padding-top: 0.75rem;
 }
 </style>
