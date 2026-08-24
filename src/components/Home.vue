@@ -732,17 +732,6 @@
                                 >
                                 <small class="form-text text-white">Leave blank for no limit. 0 turns them off.</small>
                               </div>
-                <!-- The other thing the app asks for, and the report that
-                     prompted this section's growth was about exactly this one
-                     (2026-08-22). Turning it back on clears a remembered "no"
-                     so iOS gets asked again. -->
-                <div class="form-check form-switch mb-1">
-                  <input class="form-check-input" type="checkbox" id="bannerTiltToggle" :checked="bannerTilt" @change="updateBannerTilt">
-                  <label class="form-check-label" for="bannerTiltToggle">Banner tilt effect</label>
-                </div>
-                <small class="form-text text-white d-block mb-3">
-                  Drifts banner photos as you tilt the phone. Needs motion permission, which Cinema Roll asks for once.
-                </small>
                 <template v-if="isMatt">
                   <ThreeStateToggle
                                     id="stickinessPromptState"
@@ -1390,7 +1379,6 @@ const tmdbIdCache = new Map();
 import { getRating } from "../assets/javascript/GetRating.js";
 import { awardsYearThreshold, yearsMeetingAwardsThreshold } from "../assets/javascript/personalAwards.js";
 import { promptsPerDay, dueForPrompt, lastAwardsPromptAt } from "../assets/javascript/promptQuota.js";
-import { forgetMotionPermission } from "../assets/javascript/bannerParallax.js";
 import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
 import ErrorLogService from '../services/ErrorLogService.js';
 import { computeFlatKeywords } from '../utils/keywords.js';
@@ -2075,9 +2063,6 @@ export default {
     stickinessPromptsPerDayInput () {
       const value = this.$store.state.settings?.stickinessPromptsPerDay;
       return typeof value === 'number' ? value : null;
-    },
-    bannerTilt () {
-      return this.$store.state.settings?.bannerTilt !== false;
     },
     awardsPromptDue () {
       // eslint-disable-next-line no-unused-vars
@@ -4552,14 +4537,6 @@ export default {
         path,
         value: Number.isFinite(value) ? Math.max(0, Math.floor(value)) : null
       });
-    },
-    updateBannerTilt (event) {
-      const enabled = event.target.checked;
-      // Switching it back on forgets a remembered denial, so the next banner
-      // can ask iOS again — otherwise the switch would be on with the effect
-      // permanently dead and no way to explain why.
-      if (enabled) forgetMotionPermission();
-      this.$store.dispatch('writeDurably', { path: 'settings/bannerTilt', value: enabled });
     },
     saveAwardsPromptsPerDay (raw) {
       this.savePromptsPerDay('settings/awardsPromptsPerDay', raw);

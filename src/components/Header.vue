@@ -6,7 +6,7 @@
            (e.g. Six Degrees' custom banner), leaving the banner itself as
            the only tap-to-home affordance left in the header. -->
       <div class="random-banner" @click="goHome">
-        <img v-if="bannerUrl" ref="bannerImage" :src="bannerUrl">
+        <img v-if="bannerUrl" :src="bannerUrl">
       </div>
       <div class="top-posters">
         <img v-for="(poster, index) in topTenPosters" :src="poster" :key="index">
@@ -32,24 +32,10 @@
 
 <script>
 import { getRating } from "../assets/javascript/GetRating.js";
-import { createBannerParallax } from "../assets/javascript/bannerParallax.js";
 import { versionLabel } from "../assets/javascript/buildStamp.js";
 
 export default {
   name: "AppHeader",
-  mounted () {
-    // Tilt parallax on the banner photo (bug report 2026-08-21). All the
-    // sensor/permission/motion logic is in bannerParallax.js; the ref
-    // resolves per-frame because the img is v-if'd on the store.
-    this.bannerParallax = createBannerParallax({
-      getImage: () => this.$refs.bannerImage,
-      isEnabled: () => this.$store.state.settings?.bannerTilt !== false
-    });
-    this.bannerParallax.start();
-  },
-  beforeUnmount () {
-    this.bannerParallax?.stop();
-  },
   computed: {
     // Home resolves the banner on arrival (context-aware) and stores the URL.
     // Header is now a pure renderer; the old 30s random-swap timer is gone.

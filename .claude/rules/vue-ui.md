@@ -48,16 +48,32 @@ first attempt at the games scroll-to-top do nothing at all.
   (updates, bug resolutions, future housekeeping) uses the neutral `-app` accent.
   `homeNotices.test.js` enforces the placement at the source level.
 
-- **Device permissions are asked ONCE, app-wide, and the answer is remembered.**
-  `bannerParallax.js` owns the motion-permission answer at module scope plus
-  `localStorage`, because three components build their own parallax (Header, MovieDetail,
-  RateMovie) and per-instance state meant every movie you opened armed another tap
-  listener and another iOS dialog: "It's annoying how often cinema roll is now asking me
-  for permission to detect motion... if we can't reduce the number of times that it asks
-  then we should just get rid of that feature" (2026-08-22). Any future permission goes
-  the same way — one shared in-flight request, one armed gesture listener, a remembered
-  "no", and a Settings switch (`settings.bannerTilt`) that clears the memory when turned
-  back on. A permission the user can't re-grant is a trap.
+- **Don't build a feature on a permission the OS can revoke behind your back.**
+  Banner tilt parallax was built 2026-08-21 and **removed 2026-08-24**. Read this before
+  proposing anything that needs `requestPermission()`.
+
+  It needed iOS motion permission, and iOS only delivers orientation events after
+  `requestPermission()` resolves **in that page session** — so a remembered "yes" cannot
+  short-circuit the call. When iOS still holds the grant the call is silent; when iOS has
+  forgotten it (Safari expires it for origins you haven't visited in a while) the call
+  rejects, and the only way to recover is to ask again from inside a user gesture, which
+  puts a system dialog in front of an unrelated tap.
+
+  Two rounds of fixes could only reduce the frequency, never reach zero. Round one moved
+  the answer to module scope + `localStorage`, because three components each built their
+  own parallax and per-instance state meant every movie you opened armed another listener
+  and another dialog ("It's annoying how often cinema roll is now asking me for permission
+  to detect motion... if we can't reduce the number of times that it asks then we should
+  just get rid of that feature", 2026-08-22). That cut it from once-per-movie to
+  once-per-launch. Natalie then reported it again against the fixed build — "it should
+  only ask once and then remember that" — because once-per-launch is still the floor of
+  that approach. Matt's call, 2026-08-24: "if we can't reduce the number of prompts for
+  the parallax feature, let's just go ahead and lose it."
+
+  The lesson is about the trade, not the plumbing: a decorative effect cannot justify a
+  recurring system prompt. If a future feature needs a revocable permission, ask only from
+  an explicit user action that wants it, degrade silently when it's gone, and never re-ask
+  spontaneously.
 
 - **Poster/photo rows: images edge-aligned, text flows.** In any horizontal
   row of posters or photos, every image's top AND bottom edge must line up:
