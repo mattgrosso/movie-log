@@ -435,15 +435,26 @@ describe('TweakInline', () => {
 
       // The results screen renders immediately (finalRanking is local/sync)...
       expect(wrapper.text()).toContain('Tournament Complete!')
-      // ...but the save is still in flight (movieLog/d's write hasn't resolved).
-      expect(wrapper.text()).toContain('Saving final scores')
       expect(wrapper.find('.tournament-results').exists()).toBe(true)
-      const doneBtn = wrapper.find('.btn')
+
+      // ...but the save is still in flight (movieLog/d's write hasn't
+      // resolved), and the BUTTON is what says so. Bug report (2026-08-24):
+      // "the spinner should be in the button and should disable the button
+      // until we're done and then I can click done." A spinner on its own
+      // line above a dead button read as two unrelated things.
+      const doneBtn = wrapper.find('.tournament-done')
       expect(doneBtn.attributes('disabled')).toBeDefined()
+      expect(doneBtn.text()).toContain('Saving scores')
+      expect(doneBtn.find('.spinner-border').exists()).toBe(true)
+      // Nothing outside the button claims to be saving.
+      expect(wrapper.findAll('.spinner-border')).toHaveLength(1)
 
       resolveLastWrite()
-      await vi.waitFor(() => expect(wrapper.text()).not.toContain('Saving final scores'))
-      expect(wrapper.find('.btn').attributes('disabled')).toBeUndefined()
+      await vi.waitFor(() => expect(wrapper.find('.tournament-done').text()).toContain('Done'))
+      const settled = wrapper.find('.tournament-done')
+      expect(settled.attributes('disabled')).toBeUndefined()
+      expect(settled.find('.spinner-border').exists()).toBe(false)
+      expect(settled.text()).not.toContain('Saving')
     })
   })
 

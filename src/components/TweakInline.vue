@@ -34,13 +34,31 @@
              noticeable moment to save (one Firebase write per adjusted
              contestant) and the screen gave no indication anything was
              still happening - it just "seemed frozen". submitting now stays
-             true until those writes actually resolve (see chooseWinner). -->
-        <div v-if="submitting" class="text-center mb-2">
-          <span class="spinner-border spinner-border-sm text-light" role="status" aria-hidden="true"></span>
-          <span class="text-light ms-2">Saving final scores...</span>
-        </div>
+             true until those writes actually resolve (see chooseWinner).
+
+             Bug report (2026-08-24): "there's a spinner that says saving
+             scores and there's a button that says done. The spinner should be
+             in the button and should disable the button until we're done and
+             then I can click done." The button WAS already disabled while
+             saving, but with the spinner sitting above it as a separate line
+             the two read as unrelated - a dead button next to a message,
+             rather than one control that is busy. One element now says both
+             things. -->
         <div class="text-center">
-          <button type="button" class="btn btn-sm btn-outline-light" :disabled="submitting" @click="acknowledgeResults">Done</button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-light tournament-done"
+            :disabled="submitting"
+            @click="acknowledgeResults"
+          >
+            <span
+              v-if="submitting"
+              class="spinner-border spinner-border-sm me-2"
+              role="status"
+              aria-hidden="true"
+            ></span>
+            {{ submitting ? 'Saving scores…' : 'Done' }}
+          </button>
         </div>
       </div>
 
@@ -631,6 +649,15 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+/* 44px, because this is a phone and a btn-sm is otherwise under the 40px
+   minimum. A fixed min-width stops the button changing size when its label
+   swaps between "Saving scores…" and "Done", which would make it jump under
+   the finger at the exact moment it becomes tappable. */
+.tournament-done {
+  min-height: 44px;
+  min-width: 11rem;
+}
+
 @import '@/assets/scss/prompt-card';
 
 // Tweak inline animation
