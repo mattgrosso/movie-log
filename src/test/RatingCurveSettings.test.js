@@ -82,19 +82,25 @@ describe('the curve preview', () => {
     expect(rows[0].find('.ladder-grade').text()).toBe('10');
   });
 
-  it('feeds the chart both lines on the same scale', () => {
-    const { datasets } = wrapper.vm.curveChartData;
+  it('plots movie counts against the rating, one bar of the axis per rating', () => {
+    const { labels, datasets } = wrapper.vm.curveChartData;
+    expect(labels).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     expect(datasets).toHaveLength(2);
-    expect(datasets.map((d) => d.label)).toEqual(['Raw score', 'After the curve']);
-    expect(wrapper.vm.curveChartOptions.scales.y).toMatchObject({ min: 0, max: 10 });
+    expect(datasets.map((d) => d.label)).toEqual(['Your real ratings', 'After the curve']);
+    // Y counts movies now, so it must not be pinned to a 0-10 ceiling.
+    expect(wrapper.vm.curveChartOptions.scales.y.max).toBeUndefined();
+    expect(wrapper.vm.curveChartOptions.scales.y.beginAtZero).toBe(true);
   });
 
   // Two lines carrying the same numbers would draw one line and say nothing,
   // and asserting only the labels would never notice. Each dataset has to be
-  // the series it claims to be.
-  it('plots the raw scores and the curved values as genuinely different lines', () => {
-    const [raw, curved] = wrapper.vm.curveChartData.datasets;
-    const points = wrapper.vm.curvePoints;
+  // the series it claims to be. The anchors here are deliberately set to BEND
+  // the curve — with the default ones this fixture's two bells are identical,
+  // which would make the assertion vacuous.
+  it('plots the real spread and the curved spread as genuinely different lines', () => {
+    const bent = factory({ normalizationAnchors: { ten: 'top', five: 'high' } });
+    const [raw, curved] = bent.vm.curveChartData.datasets;
+    const points = bent.vm.curvePoints;
 
     expect(raw.data).toEqual(points.map((point) => point.actual));
     expect(curved.data).toEqual(points.map((point) => point.adjusted));

@@ -80,8 +80,9 @@
         <LineChart :chartData="curveChartData" :options="curveChartOptions"/>
       </div>
       <p class="chart-explainer">
-        Where the orange line sits below the grey one, the curve is marking those movies
-        down from their raw score. The kink is your "This is a 5".
+        How many movies land at each rating. Grey is the shape your actual scores make;
+        orange is the shape the curve forces them into. Where orange sits left of grey,
+        the curve is marking your library down.
       </p>
 
       <button
@@ -156,7 +157,7 @@
 // numeric offset remains as the fallback control when no anchor is chosen.
 import { getRating } from '../assets/javascript/GetRating.js';
 import { initialPickerWindow } from '../assets/javascript/normalizationPicker.js';
-import { curveLadder, curveShape, shareAtOrBelow } from '../assets/javascript/curvePreview.js';
+import { curveLadder, curveDistribution, shareAtOrBelow } from '../assets/javascript/curvePreview.js';
 import { Chart, registerables } from 'chart.js';
 import { LineChart } from 'vue-chart-3';
 import { formatScore } from '../assets/javascript/formatScore.js';
@@ -224,7 +225,7 @@ export default {
       return shareAtOrBelow(this.curveRows, 4);
     },
     curvePoints () {
-      return curveShape(
+      return curveDistribution(
         this.ratedLibrary.map((entry) => ({ entry, total: entry.curveTotal })),
         {
           tenTotal: this.tenAnchorTotal,
@@ -235,24 +236,28 @@ export default {
     },
     curveChartData () {
       return {
-        labels: this.curvePoints.map((point) => point.percentile),
+        labels: this.curvePoints.map((point) => point.rating),
         datasets: [
           {
-            label: 'Raw score',
+            label: 'Your real ratings',
             data: this.curvePoints.map((point) => point.actual),
             borderColor: '#9a9a9a',
+            backgroundColor: 'rgba(154, 154, 154, 0.15)',
             borderDash: [5, 4],
             borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.15
+            fill: true,
+            pointRadius: 2,
+            tension: 0.35
           },
           {
             label: 'After the curve',
             data: this.curvePoints.map((point) => point.adjusted),
             borderColor: '#e8833a',
+            backgroundColor: 'rgba(232, 131, 58, 0.15)',
             borderWidth: 2.5,
-            pointRadius: 0,
-            tension: 0.15
+            fill: true,
+            pointRadius: 2,
+            tension: 0.35
           }
         ]
       };
@@ -269,53 +274,30 @@ export default {
           },
           tooltip: {
             callbacks: {
-              title: (items) => `${items[0].label}th percentile of your library`,
-              label: (item) => `${item.dataset.label}: ${formatScore(item.parsed.y)}`
+              title: (items) => `Rated ${items[0].label}`,
+              label: (item) => `${item.dataset.label}: ${item.parsed.y} movies`
             }
           }
         },
         scales: {
           x: {
             title: {
-              display: true, text: 'Your library, worst to best', color: '#ccc', font: { size: 10 }
+              display: true, text: 'Rating', color: '#ccc', font: { size: 10 }
             },
-            ticks: {
-              color: '#ccc',
-              font: { size: 9 },
-              maxTicksLimit: 5,
-              callback (value) {
-                return `${this.getLabelForValue(value)}%`;
-              }
-            },
+            ticks: { color: '#ccc', font: { size: 9 } },
             grid: { color: '#2a2a2a' }
           },
           y: {
-            min: 0,
-            max: 10,
-            ticks: { color: '#ccc', font: { size: 9 }, stepSize: 2 },
+            beginAtZero: true,
+            title: {
+              display: true, text: 'Movies', color: '#ccc', font: { size: 10 }
+            },
+            ticks: { color: '#ccc', font: { size: 9 }, maxTicksLimit: 5 },
             grid: { color: '#2a2a2a' }
           }
         }
       };
     },
-    // The full rank-sorted pool; pickerCandidates is a lazy window into it
-    // ("I just need to be able to go down as far as I need to" — feedback).
-    pickerPool () {
-      const query = this.pickerQuery.trim().toLowerCase();
-      let pool = this.ratedLibrary;
-
-      // The five-anchor must sit below the ten-anchor or the curve inverts.
-      if (this.picking === 'five' && Number.isFinite(this.tenAnchorTotal)) {
-        pool = pool.filter((entry) => entry.curveTotal < this.tenAnchorTotal);
-      }
-      if (query) {
-        pool = pool.filter((entry) => (entry.movie.title || '').toLowerCase().includes(query));
-      }
-      return [...pool].sort((a, b) => b.curveTotal - a.curveTotal);
-    },
-    pickerCandidates () {
-      return this.pickerPool.slice(this.windowStart, this.windowEnd);
-    }
   },
   watch: {
     pickerQuery () {

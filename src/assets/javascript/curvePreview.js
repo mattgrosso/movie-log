@@ -117,27 +117,28 @@ export function curveLadder (
 }
 
 /**
- * The two curves, sampled across the library, for the line chart.
+ * How many movies sit at each rating — raw versus curved — for the chart.
  *
- * Matt, 2026-08-24: "a graph that shows the adjusted curve and the actual
- * curve on the same line chart."
+ * Matt, 2026-08-24: "The x axis should be the ratings, and I wanna see the
+ * bell curve, and I wanted to compare the actual curve of my real ratings
+ * versus the normalized curve that we're forcing it into."
  *
- * X is the percentile through the library (rank-sorted, worst to best) rather
- * than the raw score, because the question underneath is about SHAPE — "it
- * feels more skewed than I'd like" — and a percentile axis is what makes the
- * skew legible: the vertical gap between the lines at any point is how far
- * the curve moved the films sitting there. Against a raw-score axis the two
- * lines would mostly restate the same monotonic climb.
+ * This is a DISTRIBUTION, not a transfer function. An earlier version plotted
+ * score-in against score-out across the library and he rejected it — rightly:
+ * it showed what the curve does to an individual film, when the question was
+ * about the shape of the whole library. Two bells on one axis answer that
+ * directly. On his real data the raw scores peak at 6-7 and the curve moves
+ * the peak to 4-5, which is the "skew" he could feel but not see.
  *
- * `actual` is the raw calculatedTotal; `adjusted` is what the app displays
- * before rounding. Both are on the same 0-10 scale, which is the only reason
- * putting them on one chart says anything.
+ * Both series are counted into the same integer 0-10 buckets, because two
+ * distributions on different axes cannot be compared by eye. `actual` rounds
+ * the raw score; `adjusted` is the rating the app displays.
  */
-export function curveShape (rated, {
-  tenTotal = null, fiveTotal = null, tweak = 0.25, samples = 81
+export function curveDistribution (rated, {
+  tenTotal = null, fiveTotal = null, tweak = 0.25
 } = {}) {
   const items = (rated || []).filter((item) => Number.isFinite(item?.total));
-  if (items.length < 2) return [];
+  if (!items.length) return [];
 
   const totals = items.map((item) => item.total);
   const minRating = Math.min(...totals);
@@ -147,25 +148,14 @@ export function curveShape (rated, {
   const toBase = (total) =>
     (Number.isFinite(total) ? baseNormalized(total, minRating, maxRating) : null);
   const options = { tweak, tenBase: toBase(tenTotal), fiveBase: toBase(fiveTotal) };
+  const bucket = (value) => Math.max(0, Math.min(10, Math.round(value)));
 
-  const ascending = [...totals].sort((a, b) => a - b);
-
-  // Sampled rather than one point per film: 1,381 points is a slow render for
-  // a line whose shape is fully carried by ~80. The endpoints are always
-  // included so the chart spans the real range.
-  const count = Math.min(samples, ascending.length);
-  const points = [];
-  for (let i = 0; i < count; i += 1) {
-    const position = i / (count - 1);
-    const total = ascending[Math.round(position * (ascending.length - 1))];
-    const adjusted = normalizedValue(baseNormalized(total, minRating, maxRating), options);
-    points.push({
-      percentile: Math.round(position * 100),
-      actual: total,
-      adjusted: Math.max(0, Math.min(10, adjusted))
-    });
-  }
-  return points;
+  const rows = Array.from({ length: 11 }, (_, rating) => ({ rating, actual: 0, adjusted: 0 }));
+  items.forEach((item) => {
+    rows[bucket(item.total)].actual += 1;
+    rows[bucket(normalizedValue(baseNormalized(item.total, minRating, maxRating), options))].adjusted += 1;
+  });
+  return rows;
 }
 
 /**

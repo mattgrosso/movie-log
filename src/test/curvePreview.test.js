@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { curveLadder, curveShape, shareAtOrBelow } from '@/assets/javascript/curvePreview.js';
+import { curveLadder, curveDistribution, shareAtOrBelow } from '@/assets/javascript/curvePreview.js';
 import {
   baseNormalized, normalizedValue, applyNormalization
 } from '@/assets/javascript/normalizationPicker.js';
@@ -13,6 +13,16 @@ import {
 // that matter here are the ones tying it to GetRating.js's own arithmetic.
 
 const film = (title, total) => ({ entry: { dbKey: title, movie: { title } }, total });
+
+// A library shaped like a real one: a bell peaking at 6-7, the way Matt's
+// 1,381 films actually sit. A flat one-film-per-score fixture has no peak, so
+// it cannot test a claim about the peak moving.
+const bellLibrary = [
+  [0, 1], [1, 2], [2, 4], [3, 8], [4, 14],
+  [5, 20], [6, 30], [7, 30], [8, 10], [9, 5], [10, 2]
+].flatMap(([score, count]) =>
+  Array.from({ length: count }, (_, i) => film(`Film ${score}-${i}`, score))
+);
 
 // A spread wide enough to populate most ratings.
 const library = [
@@ -156,50 +166,58 @@ describe('curveLadder', () => {
   });
 });
 
-describe('curveShape', () => {
-  it('walks the library from worst to best', () => {
-    const points = curveShape(library, { tenTotal: 10, fiveTotal: 5 });
-    expect(points[0].percentile).toBe(0);
-    expect(points.at(-1).percentile).toBe(100);
-    // Raw scores only ever climb as you move up the library.
-    points.slice(1).forEach((point, i) => {
-      expect(point.actual).toBeGreaterThanOrEqual(points[i].actual);
-    });
+describe('curveDistribution', () => {
+  // The chart he actually wanted: two bells on one axis. An earlier version
+  // plotted score-in against score-out and he rejected it — "that graph's not
+  // interested to me. The x axis should be the ratings, and I wanna see the
+  // bell curve."
+  it('gives a bucket for every rating 0-10, in order', () => {
+    const rows = curveDistribution(library, { tenTotal: 10, fiveTotal: 5 });
+    expect(rows).toHaveLength(11);
+    expect(rows.map((r) => r.rating)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 
-  it('spans the real range at both ends', () => {
-    const points = curveShape(library, { tenTotal: 10, fiveTotal: 5 });
-    expect(points[0].actual).toBe(0);
-    expect(points.at(-1).actual).toBe(10);
+  it('counts the whole library into each series', () => {
+    const rows = curveDistribution(library, { tenTotal: 10, fiveTotal: 5 });
+    expect(rows.reduce((sum, r) => sum + r.actual, 0)).toBe(library.length);
+    expect(rows.reduce((sum, r) => sum + r.adjusted, 0)).toBe(library.length);
   });
 
-  // The two lines are only comparable because both are 0-10. An adjusted
-  // value escaping that range would draw off the top of the chart.
-  it('keeps the adjusted line on the same scale as the raw one', () => {
-    const points = curveShape(library, { tenTotal: 6, fiveTotal: 3 });
-    points.forEach((point) => {
-      expect(point.adjusted).toBeGreaterThanOrEqual(0);
-      expect(point.adjusted).toBeLessThanOrEqual(10);
-    });
+  it('buckets the raw score by rounding it', () => {
+    const rows = curveDistribution(
+      [film('a', 6.4), film('b', 6.6), film('top', 10), film('floor', 0)],
+      { tenTotal: 10, fiveTotal: 5 }
+    );
+    expect(rows[6].actual).toBe(1);
+    expect(rows[7].actual).toBe(1);
   });
 
-  // The gap between the lines IS the message — "where orange sits below grey,
-  // the curve is marking those movies down".
-  it('shows the curve pushing the low end down when the five-anchor is high', () => {
-    const points = curveShape(library, { tenTotal: 10, fiveTotal: 8 });
-    const low = points.find((point) => point.percentile >= 30);
-    expect(low.adjusted).toBeLessThan(low.actual);
+  // The comparison the chart exists to make: a five-anchor set high in the
+  // library drags the curved bell left of the real one. On his real data the
+  // raw scores peak at 6-7 and the curve moves the peak to 4-5.
+  it('shows the curve shifting the peak down when the five-anchor is high', () => {
+    const rows = curveDistribution(bellLibrary, { tenTotal: 10, fiveTotal: 8 });
+    const peak = (key) => rows.reduce((best, row) => (row[key] > best[key] ? row : best), rows[0]);
+
+    expect(peak('actual').rating).toBe(6);
+    expect(peak('adjusted').rating).toBeLessThan(peak('actual').rating);
   });
 
-  it('samples down instead of returning a point per movie', () => {
-    const big = Array.from({ length: 1381 }, (_, i) => film(`Film ${i}`, i / 138));
-    expect(curveShape(big, { tenTotal: 10, fiveTotal: 5 }).length).toBeLessThanOrEqual(81);
+  // The other direction, so the test above isn't just measuring "any anchor
+  // moves the peak": drop the five-anchor low and the curved bell stops
+  // trailing the real one.
+  it('a lower five-anchor pulls the two bells back together', () => {
+    const spread = (fiveTotal) => {
+      const rows = curveDistribution(bellLibrary, { tenTotal: 10, fiveTotal });
+      return rows.reduce((sum, row) => sum + Math.abs(row.actual - row.adjusted), 0);
+    };
+    expect(spread(3)).toBeLessThan(spread(8));
   });
 
   it('is safe on junk', () => {
-    expect(curveShape(null, {})).toEqual([]);
-    expect(curveShape([film('only', 5)], {})).toEqual([]);
-    expect(curveShape([film('a', 5), film('b', 5)], {})).toEqual([]);
+    expect(curveDistribution(null, {})).toEqual([]);
+    expect(curveDistribution([], {})).toEqual([]);
+    expect(curveDistribution([film('a', 5), film('b', 5)], {})).toEqual([]);
   });
 });
 
