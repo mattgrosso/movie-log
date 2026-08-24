@@ -78,25 +78,34 @@ export function normalizationCandidates (entries, getRatingFn, { grade = 10, min
 //   - no anchors: the legacy constant offset (tweak), unchanged behavior.
 // Always rounded to a whole number and clamped to [0, 10]; anything scoring
 // above the ten-anchor clamps to 10.
-export function applyNormalization (base, { tweak = 0.25, tenBase = null, fiveBase = null } = {}) {
-  let value;
-
+/**
+ * The curve's answer BEFORE rounding.
+ *
+ * Split out from applyNormalization (2026-08-24) so the curve preview can
+ * show its working: "5.57 → 4.30 → 4" makes the rounding step visible, which
+ * is the step people are actually surprised by. Feedback that prompted it:
+ * "I'd like more clarity on what the results of my choices are when I make
+ * them." Nothing about the curve changed — applyNormalization still rounds
+ * and clamps exactly as it did.
+ */
+export function normalizedValue (base, { tweak = 0.25, tenBase = null, fiveBase = null } = {}) {
   const hasTen = Number.isFinite(tenBase) && tenBase > 0;
   const hasFive = Number.isFinite(fiveBase) && fiveBase >= 0;
 
   if (hasTen && hasFive && tenBase > fiveBase) {
     if (base >= fiveBase) {
-      value = 4.5 + (5 * (base - fiveBase)) / (tenBase - fiveBase);
-    } else {
-      value = fiveBase === 0 ? 0 : (4.5 * base) / fiveBase;
+      return 4.5 + (5 * (base - fiveBase)) / (tenBase - fiveBase);
     }
-  } else if (hasTen) {
-    value = (base * 9.5) / tenBase;
-  } else {
-    value = base + tweak;
+    return fiveBase === 0 ? 0 : (4.5 * base) / fiveBase;
   }
+  if (hasTen) {
+    return (base * 9.5) / tenBase;
+  }
+  return base + tweak;
+}
 
-  return Math.max(0, Math.min(10, Math.round(value)));
+export function applyNormalization (base, options = {}) {
+  return Math.max(0, Math.min(10, Math.round(normalizedValue(base, options))));
 }
 
 // Initial window into the (rank-sorted) picker pool. The ten-picker opens
