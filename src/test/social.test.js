@@ -395,3 +395,46 @@ describe('friendRatingsFor', () => {
     expect(friendRatingsFor(profiles, null)).toEqual([])
   })
 })
+
+// "let's use the normalized ratings as well. It would be best if we could show
+// star ratings for these on the movie details" (2026-08-25).
+//
+// Stars can only be assigned by the person's own app: they present the
+// NORMALIZED rating, which is library-relative and curve-adjusted, so a reader
+// holding nothing but our composite `r` cannot derive them — they have neither
+// our library's range nor our normalization tweak and anchors.
+describe('buildSocialProfile — stars', () => {
+  const scored = (total, normalized) => () => ({ calculatedTotal: total, normalizedRating: normalized })
+
+  it('publishes the star rating alongside the composite', () => {
+    const profile = buildSocialProfile([entry(1, 'Heat', 8.7)], scored(8.7, 9), {
+      name: 'Matt', shareRatings: true
+    })
+    expect(profile.ratings[1].r).toBe(8.7)
+    expect(profile.ratings[1].s).toBe(4.5)
+  })
+
+  it('derives the stars from the NORMALIZED rating, not the composite', () => {
+    // The two numbers are on different scales — a composite of 8.7 against a
+    // normalized 4 is two stars, not four and a half.
+    const profile = buildSocialProfile([entry(1, 'Heat', 8.7)], scored(8.7, 4), {
+      name: 'Matt', shareRatings: true
+    })
+    expect(profile.ratings[1].s).toBe(2)
+  })
+
+  it('omits the stars rather than publishing a zero when there is no normalized rating', () => {
+    const profile = buildSocialProfile([entry(1, 'Heat', 8.7)], scored(8.7, undefined), {
+      name: 'Matt', shareRatings: true
+    })
+    expect(profile.ratings[1].r).toBe(8.7)
+    expect(profile.ratings[1].s).toBeUndefined()
+  })
+
+  it('still publishes nothing at all when ratings are not shared', () => {
+    const profile = buildSocialProfile([entry(1, 'Heat', 8.7)], scored(8.7, 9), {
+      name: 'Matt', shareRatings: false
+    })
+    expect(profile.ratings).toBeUndefined()
+  })
+})

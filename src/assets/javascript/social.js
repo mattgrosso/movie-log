@@ -15,6 +15,7 @@
 // profile carries composite scores only.
 
 import { logScore } from './logScore.js';
+import { normalizedRatingToStars } from './starRating.js';
 
 // Fixed publishing order for the compact criteria array. Index-coupled with
 // anything reading `c` — append, never reorder.
@@ -82,9 +83,18 @@ export function buildSocialProfile (entries, getRatingFn, { name, shareRatings =
   let viewings = 0;
 
   (entries || []).forEach((entry) => {
-    const rating = getRatingFn(entry)?.calculatedTotal;
+    const scored = getRatingFn(entry);
+    const rating = scored?.calculatedTotal;
     const id = entry?.movie?.id;
     if (!Number.isFinite(rating) || id == null) return;
+    // Stars can ONLY be assigned here, by the person's own app. They are a
+    // presentation of the normalized rating -- library-relative and
+    // curve-adjusted (starRating.js) -- so a reader holding nothing but our
+    // `r` cannot work them out: they have neither our library's range nor
+    // our normalization tweak and anchors. Publishing the composite alone is
+    // what left friends' pills showing a raw score on a scale that isn't
+    // comparable between people (2026-08-25).
+    const stars = normalizedRatingToStars(scored?.normalizedRating);
     const times = (entry.ratings || [])
       .map((r) => new Date(r?.date ?? NaN).getTime())
       .filter(Number.isFinite);
@@ -97,6 +107,7 @@ export function buildSocialProfile (entries, getRatingFn, { name, shareRatings =
       t: entry.movie.title || '',
       p: entry.movie.poster_path || null,
       r: Math.round(rating * 100) / 100,
+      s: stars,
       at: times.length ? Math.max(...times) : null,
       c: shareCriteria ? criteriaArrayFrom(mostRecent) : null,
       v: viewingsFrom(entry),
@@ -134,8 +145,11 @@ export function buildSocialProfile (entries, getRatingFn, { name, shareRatings =
 
   if (shareRatings) {
     const ratings = {};
-    rated.forEach(({ id, t, p, r, at, c, v }) => {
+    rated.forEach(({ id, t, p, r, s: stars, at, c, v }) => {
       ratings[id] = { r, at, t, p };
+      // Optional: a rating below half a star, or one with no normalized value
+      // yet, has no stars to publish. Absent rather than zero.
+      if (Number.isFinite(stars)) ratings[id].s = stars;
       if (shareCriteria && c) ratings[id].c = c;
       if (v?.length) ratings[id].v = v;   // where and when, per viewing
     });

@@ -348,3 +348,47 @@ describe('cross-app directory', () => {
     expect(filterDirectory(entries, { search: 'A' }).map((e) => e.handle)).toEqual(['a', 'c'])  // Alice + Carol
   })
 })
+
+// "What ratings does Movie Log send us? Do they have normalized ratings of some
+// sort (star ratings maybe?) Let's use those for Movie Log" (2026-08-25).
+//
+// They do: Brian's live feed carries a starRating on all 2,980 films, in half
+// steps. We were parsing the composite and dropping the stars on the floor.
+describe('incoming feeds — stars', () => {
+  const feed = (movie) => ({
+    format: 'film-club/1',
+    name: 'Brian Goegan',
+    source: 'movielog',
+    movies: [{ tmdbId: 1368337, title: 'The Odyssey', rating: 6.779875, ...movie }]
+  })
+
+  it('keeps the sender’s own star rating', () => {
+    const profile = fromInterchange(feed({ starRating: 4.5 }))
+    expect(profile.ratings[1368337].s).toBe(4.5)
+    expect(profile.ratings[1368337].r).toBe(6.779875)
+  })
+
+  it('never invents stars from the composite when the sender sent none', () => {
+    // Stars present the normalized, library-relative, curve-adjusted score.
+    // We hold neither their library nor their curve, so rescaling `rating`
+    // would be a guess wearing the costume of their opinion.
+    const profile = fromInterchange(feed({}))
+    expect(profile.ratings[1368337].r).toBe(6.779875)
+    expect(profile.ratings[1368337].s).toBeUndefined()
+  })
+
+  it('survives a nonsense star value', () => {
+    const profile = fromInterchange(feed({ starRating: 'excellent' }))
+    expect(profile.ratings[1368337].s).toBeUndefined()
+  })
+
+  it('round-trips our own feed back to the same stars', () => {
+    const entries = [{
+      movie: { id: 42, title: 'Heat', poster_path: '/h.jpg' },
+      ratings: [{ date: '2026-06-15', calculatedTotal: 8.7 }]
+    }]
+    const ours = toInterchange(entries, () => ({ calculatedTotal: 8.7, normalizedRating: 9 }), { name: 'Matt' })
+    expect(ours.movies[0].starRating).toBe(4.5)
+    expect(fromInterchange(ours).ratings[42].s).toBe(4.5)
+  })
+})

@@ -16,7 +16,8 @@
 // distinction wrong.
 
 /**
- * Friends with a published rating for `tmdbId`, as `[{ key, name, score }]`.
+ * Friends with a published rating for `tmdbId`, as
+ * `[{ key, name, score, stars }]`.
  *
  * Highest score first — the interesting question on a detail page is who
  * loved it. Ties fall back to name so the order is stable between renders
@@ -36,7 +37,17 @@ export function friendsWhoRated (friends, tmdbId) {
       return {
         key: friend.key ?? friend.name,
         name: friend.name || 'A friend',
-        score: rating.r
+        score: rating.r,
+        // Stars are the comparable number. `r` is a composite on each
+        // person's own scale, so one friend's 8.7 and another's 8.7 are not
+        // the same opinion; the normalized value behind the stars is
+        // library-relative and curve-adjusted, which is exactly what makes it
+        // mean the same thing across people.
+        //
+        // Null when their app hasn't published stars yet -- profiles only
+        // gain them when their owner's app next republishes, and a raw Movie
+        // Log feed carries none at all. Callers fall back to the score.
+        stars: Number.isFinite(rating.s) ? rating.s : null
       };
     })
     .filter(Boolean)

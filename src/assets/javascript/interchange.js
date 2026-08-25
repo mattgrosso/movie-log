@@ -124,6 +124,10 @@ function profileFromMovies (movies, { name, source, marker }) {
       t: movie.title,
       p: movie.posterPath || null
     };
+    // `s` is optional throughout: a feed in the raw Movie Log format carries
+    // no stars and none can be derived, so readers must cope with its absence
+    // rather than treating it as a zero.
+    if (Number.isFinite(movie.starRating)) row.s = movie.starRating;
     if (movie.criteria) row.c = CRITERIA_KEYS.map((key) => (Number.isFinite(movie.criteria[key]) ? movie.criteria[key] : -1));
     if (movie.viewings?.length) {
       row.v = movie.viewings.map((viewing) => (viewing.medium ? { at: viewing.watchedAt, m: viewing.medium } : { at: viewing.watchedAt }));
@@ -160,6 +164,11 @@ export function fromInterchange (payload) {
       title: movie?.title || '',
       posterPath: movie?.posterPath || null,
       rating: num(movie?.rating),
+      // The sender's OWN star rating. Never recomputed from `rating` here:
+      // stars are a presentation of the normalized, library-relative,
+      // curve-adjusted score (see starRating.js), and we have neither their
+      // library nor their curve. Only the source can assign them.
+      starRating: num(movie?.starRating),
       criteria: movie?.criteria || null,
       viewings: Array.isArray(movie?.viewings)
         ? movie.viewings
