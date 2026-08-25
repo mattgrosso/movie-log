@@ -1751,6 +1751,14 @@ export default {
     // number of updates... I'm not sure that's working. I haven't seen it in a
     // while" (2026-08-17). Profiles are a few KB each.
     this.$store.dispatch('fetchFriendProfiles');
+    // External friends are a SEPARATE fetch -- their profiles come from other
+    // apps' feeds, not from social/profiles -- and Home used to load only the
+    // native half. Anything outside Film Club, Watchlist and Friend
+    // Comparison therefore saw a club with the external members missing:
+    // Brian had rated The Odyssey 6.78 and his pill never appeared on the
+    // movie page (2026-08-25). Both halves load together now, the same
+    // pairing WatchlistScreen and FriendComparison already use.
+    this.$store.dispatch('syncExternalFriends');
 
     // Capture navigation intent at the start - needed for various logic below
     const navigationIntent = this.$store.state.homePageNavigationIntent;

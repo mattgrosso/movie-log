@@ -144,12 +144,6 @@
           </div>
         </div>
 
-        <!-- Who in the club has seen it. Sits up here with Ratings and "Best
-             since" rather than down among the TMDB facts: it's your data, not
-             the film's, and the documented section order (Genres → Awards →
-             Cast → Keywords → Box Office → Made In → Tags) stays untouched. -->
-        <FriendsWhoSaw :tmdbId="movie && movie.id" :yourScore="yourScoreForClub" />
-
         <!-- Directors -->
         <div class="directors mb-3">
           <h4>
@@ -176,6 +170,10 @@
             </a>
           </p>
         </div>
+
+        <!-- Club friends who have rated this, as pills. Sits directly above
+             Awards by request (2026-08-25). -->
+        <FriendsWhoSaw :tmdbId="movie && movie.id" />
 
         <!-- Awards -->
         <div v-if="academyAwardWins.length || academyAwardNominations.length || personalAwardWins.length || personalAwardNominations.length || otherAwardWins.length || otherAwardNominations.length" class="awards mb-3">
@@ -626,13 +624,6 @@ export default {
         return this.$router?.resolve?.(back)?.meta?.title || 'Back';
       }
       return 'Home';
-    },
-    // Your own score for the club comparison line, or null when you haven't
-    // rated this — every detail page reached by search is in that state, and
-    // a 0 there would read as a very low opinion rather than as no opinion.
-    yourScoreForClub () {
-      const total = this.result ? this.mostRecentRating(this.result)?.calculatedTotal : null;
-      return Number.isFinite(total) ? total : null;
     },
     overallRank () {
       // Optional-chained: test mounts (and early lifecycle) may lack the
