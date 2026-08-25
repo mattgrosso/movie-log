@@ -34,26 +34,20 @@
             <h3>
               <a class="link" @click.stop="searchFor(`${getYear(result)}`)">{{getYear(result)}}</a>
             </h3>
-            <!-- Rank rides with the score as a small parenthetical rather
-                 than standing on its own (bug report). The word "overall"
-                 is dropped — the ordinal alone reads fine next to a score. -->
+            <!-- Rank rides with the score as a small parenthetical, in the
+                 same spot as "(normalized rating)". It used to be a button
+                 that jumped to the rank in Home, and that was the problem:
+                 the score is itself a three-way toggle, so a link sitting
+                 inside it caught taps meant for the toggle. Bug report
+                 2026-08-25: "get rid of the link and move the rank info so
+                 that it mimics the placement of the normalized
+                 parenthetical." -->
             <span class="rating-with-rank">
               <ToggleableRating
                 :rating="ratingForMedia(result)"
                 :normalizedRating="normalizedRatingForMedia(result)"
-                @typeChanged="visibleRatingType = $event"
+                :rankLabel="ordinalRank || ''"
               />
-              <!-- The rank is now the way to go and look at it in context:
-                   "I just wanna see where that movie lives and who its
-                   neighbors are on the home screen" (2026-08-21). Home keeps
-                   its own sort; this only scrolls the list there. -->
-              <button
-                v-if="overallRank && visibleRatingType === 'rating'"
-                type="button"
-                class="overall-rank overall-rank-link"
-                :title="`Show ${ordinalRank} in your rankings`"
-                @click.stop="showInRankings"
-              >({{ordinalRank}})</button>
             </span>
           </div>
           <div class="line-two">
@@ -567,9 +561,6 @@ export default {
   },
   data () {
     return {
-      // Mirrors ToggleableRating's current view so the rank can hide
-      // when the score is showing as stars or a normalized value.
-      visibleRatingType: 'rating',
       movie: null,
       result: null, // Will be constructed from movie data
       previousEntry: null,
@@ -939,13 +930,6 @@ export default {
   },
   methods: {
     formatScore,
-    // Jumps to Home and scrolls to this film in whatever order Home is
-    // already in. Nothing about the list changes.
-    showInRankings () {
-      const dbKey = this.result?.dbKey;
-      if (!dbKey) return;
-      this.$router.push({ path: '/', query: { revealMovie: dbKey } }).catch(() => {});
-    },
     async loadMovieData (tmdbId) {
       try {
         // Wait for database to be loaded if it isn't already
@@ -2043,28 +2027,6 @@ export default {
       align-items: baseline;
       display: flex;
       gap: 0.3rem;
-    }
-
-    .overall-rank-link {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font: inherit;
-      padding: 0;
-      /* Underlined so it reads as pressable, while still looking like the
-         rank it replaced rather than a button. */
-      text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-
-    /* Mobile-first: :active, never :hover (see .claude/rules/vue-ui.md). */
-    .overall-rank-link:active {
-      opacity: 0.6;
-    }
-
-    .overall-rank {
-      color: #ccc;
-      font-size: 0.8rem;
     }
 
 

@@ -86,4 +86,17 @@ describe('no template renders the raw total', () => {
     const template = source.slice(0, source.indexOf('<script'));
     expect(template).not.toMatch(/\{\{\s*rating\.calculatedTotal\s*\}\}/);
   });
+
+  // The leak this guard could not see (bug report 2026-08-25). MovieDetail
+  // doesn't render the total itself — it passes it to ToggleableRating as a
+  // prop, which rendered `{{rating}}`. A different spelling of the same
+  // mistake, printing 8.4372 on the detail page for four days. Checking only
+  // the templates that name `calculatedTotal` will always miss a component
+  // one hop downstream, so the receiving end is pinned too.
+  it('ToggleableRating formats the score it is handed', () => {
+    const source = readFileSync(join(process.cwd(), 'src/components/ToggleableRating.vue'), 'utf8');
+    const template = source.slice(0, source.indexOf('<script'));
+    expect(template).not.toMatch(/\{\{\s*rating\s*\}\}/);
+    expect(template).not.toMatch(/\{\{\s*normalizedRating\s*\}\}/);
+  });
 });

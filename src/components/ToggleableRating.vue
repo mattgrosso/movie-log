@@ -1,10 +1,17 @@
 <template>
   <div class="toggleable-rating" @click="cycleVisibleRatingType">
     <div v-if="visibleRatingType === 'rating'" class="rating">
-      <h3 class="m-0">{{ rating }}</h3>
+      <h3 class="m-0">{{ displayRating }}</h3>
+      <!-- The rank sits exactly where "(normalized rating)" sits, and is
+           deliberately NOT a link or a button. Bug report 2026-08-25: "The
+           whole score is a button that toggles itself between score,
+           normalized, stars. So I don't want be accidentally clicking a link
+           while I'm trying to toggle." A tap here falls through to the
+           toggle like a tap anywhere else on the control. -->
+      <label v-if="rankLabel">({{ rankLabel }})</label>
     </div>
     <div v-else-if="visibleRatingType === 'normalizedRating'" class="normalized-rating">
-      <h3 class="m-0">{{ normalizedRating }}</h3>
+      <h3 class="m-0">{{ displayNormalizedRating }}</h3>
       <label @click.stop="cycleVisibleRatingType">(normalized rating)</label>
     </div>
     <div v-else-if="visibleRatingType === 'stars'" class="stars">
@@ -21,6 +28,8 @@
 </template>
 
 <script>
+import { formatScore } from '../assets/javascript/formatScore.js';
+
 export default {
   name: 'ToggleableRating',
   // Which of the three views is showing. MovieDetail uses it to show the
@@ -35,6 +44,12 @@ export default {
     normalizedRating: {
       type: Number,
       required: true
+    },
+    // Already-ordinalised ("412th"). Shown only beside the precise score — a
+    // rank next to a star rating is answering a question nobody asked.
+    rankLabel: {
+      type: String,
+      default: ''
     }
   },
   data () {
@@ -51,6 +66,18 @@ export default {
     }
   },
   computed: {
+    // Formatted at the point of display only. The props stay numeric because
+    // the star maths below divides them — rounding first would move half-stars
+    // around. Scores are computed to four decimals and shown at two, and this
+    // component is handed `calculatedTotal` as a prop, which is how it slipped
+    // past the guard in scorePrecision.test.js and printed 8.4372 on the
+    // detail page (bug report 2026-08-25).
+    displayRating () {
+      return formatScore(this.rating);
+    },
+    displayNormalizedRating () {
+      return formatScore(this.normalizedRating);
+    },
     starCount () {
       return this.normalizedRating / 2;
     },
@@ -107,6 +134,10 @@ export default {
       }
     }
 
+    /* One placement, two users: the rank parenthetical is meant to sit
+       exactly where "(normalized rating)" sits, so they share the rule
+       rather than being lined up by eye and drifting apart. */
+    .rating,
     .normalized-rating {
       display: flex;
       position: relative;

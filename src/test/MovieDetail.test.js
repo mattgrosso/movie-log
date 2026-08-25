@@ -368,7 +368,7 @@ describe('MovieDetail geography sections', () => {
 describe('MovieDetail — rank rides only with the precise score', () => {
   // Tapping the score cycles precise -> normalized -> stars. A rank beside
   // a star rating or a normalized score answers a question nobody asked.
-  it('shows the rank for the precise score and hides it for the other views', async () => {
+  it('hands the rank to the score control instead of rendering its own link', async () => {
     const store = {
       state: { movieLog: {}, settings: { tags: { 'viewing-tags': {} } }, academyAwardWinners: {} },
       // Ranked list containing this movie, so overallRank is a real value
@@ -388,17 +388,17 @@ describe('MovieDetail — rank rides only with the precise score', () => {
         stubs: { ToggleableRating: true, Modal: true }
       }
     })
-    await wrapper.setData({ result: makeResult(), movie: makeResult().movie, visibleRatingType: 'rating' })
+    await wrapper.setData({ result: makeResult(), movie: makeResult().movie })
+
     expect(wrapper.vm.overallRank).toBe(2)                        // there IS a rank to show
-    expect(wrapper.find('.overall-rank').text()).toBe('(2nd)')
+    expect(wrapper.findComponent({ name: 'ToggleableRating' }).props('rankLabel')).toBe('2nd')
 
-    await wrapper.setData({ visibleRatingType: 'stars' })
-    expect(wrapper.find('.overall-rank').exists()).toBe(false)
-
-    await wrapper.setData({ visibleRatingType: 'normalizedRating' })
-    expect(wrapper.find('.overall-rank').exists()).toBe(false)
-
-    await wrapper.setData({ visibleRatingType: 'rating' })
-    expect(wrapper.find('.overall-rank').text()).toBe('(2nd)')    // and back again
+    // The rank used to be a button here that jumped to Home. It caught taps
+    // meant for the score toggle it sits inside, so it is gone -- rank now
+    // renders inside ToggleableRating as inert text (bug report 2026-08-25).
+    // Whether it hides for the star and normalized views is that component's
+    // business now, and ToggleableRating.test.js asserts it.
+    expect(wrapper.find('.overall-rank-link').exists()).toBe(false)
+    expect(wrapper.find('.rating-with-rank button').exists()).toBe(false)
   })
 })
