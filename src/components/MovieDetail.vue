@@ -116,6 +116,14 @@
                       </tbody>
                     </table>
                     <div class="d-flex justify-content-end mt-2">
+                      <!-- Edit sits BEFORE delete, and is the safer of the two
+                           on purpose. Bug report 2026-08-25 (Natalie): "I rate
+                           a movie and then I don't feel like it's right so I
+                           go to rewrite it, so I delete the rating, but then I
+                           forget to." Delete-and-retype was the only way to
+                           change a rating; the gap between the two steps is
+                           where the rating went missing. -->
+                      <div class="btn btn-sm btn-secondary me-1" @click="editRating(index)">Edit Rating</div>
                       <div :id="`delete-button-${result.dbKey}-${index}`" class="delete-button btn btn-sm btn-warning" @click="showConfimDeleteButton(result.dbKey, index)">Delete Rating</div>
                       <div :id="`confirm-delete-button-${result.dbKey}-${index}`" class="confirm-delete-button d-none col-12 d-flex justify-content-between align-items-center">
                         <p class="m-0">Are you sure?</p>
@@ -1063,6 +1071,15 @@ export default {
 
     rateMedia (movie) {
       this.$store.commit('setMovieToRate', movie);
+      this.$router.push('/rate-movie');
+    },
+
+    // Amend an existing viewing instead of logging a new one. Order matters:
+    // setMovieToRate CLEARS ratingToEdit (so a plain "Add New Rating" can
+    // never inherit a stale target), so the target is set after it.
+    editRating (index) {
+      this.$store.commit('setMovieToRate', this.topStructure(this.result));
+      this.$store.commit('setRatingToEdit', { dbKey: this.result.dbKey, index });
       this.$router.push('/rate-movie');
     },
 

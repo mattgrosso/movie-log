@@ -4,6 +4,7 @@ import {
   getListOfYearsFromRange,
   applyFilter,
   getSortValue,
+  isSortValueUnknown,
   sortResultsFast,
   sortResults,
   countDidYouMeanSuggestionsThatFit,
@@ -195,6 +196,89 @@ describe('getSortValue', () => {
   })
 })
 
+// Requested 2026-08-25: "sort by budget, by box office, and then by profit and
+// by percentage of budget returned." The awkward part is that the data is
+// optional — TMDB's 0 means "unknown", and about a fifth of a real library has
+// no figures.
+function makeMoneyItems () {
+  const at = (title, budget, revenue, calculatedTotal) => ({
+    movie: { title, release_date: '2010-01-01', budget, revenue },
+    ratings: [{}],
+    rating: { calculatedTotal, date: '1', love: 5 }
+  })
+  return [
+    at('Cheap Hit', 5, 100, 7),        // 20x return, +95 profit
+    at('Blockbuster', 200, 900, 8),    // 4.5x return, +700 profit
+    at('Flop', 300, 60, 6),            // 0.2x return, -240 profit
+    at('Unknown Budget', 0, 400, 9),   // revenue only
+    at('No Figures At All', 0, 0, 5)
+  ]
+}
+
+describe('the money sorts', () => {
+  const item = (title) => makeMoneyItems().find((i) => i.movie.title === title)
+
+  it('reads each figure off the movie', () => {
+    expect(getSortValue(item('Blockbuster'), 'budget', getRating)).toBe(200)
+    expect(getSortValue(item('Blockbuster'), 'boxOffice', getRating)).toBe(900)
+    expect(getSortValue(item('Blockbuster'), 'profit', getRating)).toBe(700)
+    expect(getSortValue(item('Blockbuster'), 'returnPct', getRating)).toBe(450)
+  })
+
+  it('reports a loss as a negative profit rather than clamping it', () => {
+    expect(getSortValue(item('Flop'), 'profit', getRating)).toBe(-240)
+    expect(getSortValue(item('Flop'), 'returnPct', getRating)).toBe(20)
+  })
+
+  // A zero budget would make the ratio Infinity and float a film with no
+  // figures above every real one.
+  it('never returns Infinity for a zero budget', () => {
+    expect(getSortValue(item('Unknown Budget'), 'returnPct', getRating)).toBe(0)
+    expect(Number.isFinite(getSortValue(item('Unknown Budget'), 'returnPct', getRating))).toBe(true)
+  })
+
+  it('knows which figures each sort actually needs', () => {
+    // Revenue but no budget: box office is answerable, the other three aren't.
+    expect(isSortValueUnknown(item('Unknown Budget'), 'boxOffice')).toBe(false)
+    expect(isSortValueUnknown(item('Unknown Budget'), 'budget')).toBe(true)
+    expect(isSortValueUnknown(item('Unknown Budget'), 'profit')).toBe(true)
+    expect(isSortValueUnknown(item('Unknown Budget'), 'returnPct')).toBe(true)
+  })
+
+  it('leaves every other sort alone', () => {
+    expect(isSortValueUnknown(item('No Figures At All'), 'rating')).toBe(false)
+    expect(isSortValueUnknown(item('No Figures At All'), 'title')).toBe(false)
+  })
+
+  // The behaviour that makes the sorts usable: flipping to worst-on-top to
+  // find the biggest flops must show flops, not the films with no figures.
+  it('sinks the films with no figures in BOTH directions', () => {
+    const withFigures = ['Cheap Hit', 'Blockbuster', 'Flop']
+    for (const sortOrder of ['bestOrNewestOnTop', 'worstOrOldestOnTop']) {
+      const titles = sortResultsFast(makeMoneyItems(), { sortValue: 'profit', sortOrder, getRating })
+        .map((i) => i.movie.title)
+      expect(titles.slice(0, 3).sort()).toEqual([...withFigures].sort())
+      expect(titles.slice(3).sort()).toEqual(['No Figures At All', 'Unknown Budget'])
+    }
+  })
+
+  it('puts the biggest earner on top and the biggest loss at the bottom', () => {
+    const titles = sortResultsFast(makeMoneyItems(), { sortValue: 'profit', sortOrder: 'bestOrNewestOnTop', getRating })
+      .map((i) => i.movie.title)
+    expect(titles[0]).toBe('Blockbuster')
+    expect(titles[2]).toBe('Flop')
+  })
+
+  // Profit and return are different questions, and the cheap film should win
+  // one of them — that's the reason to offer both.
+  it('ranks by return on budget differently than by raw profit', () => {
+    const byReturn = sortResultsFast(makeMoneyItems(), { sortValue: 'returnPct', sortOrder: 'bestOrNewestOnTop', getRating })
+      .map((i) => i.movie.title)
+    expect(byReturn[0]).toBe('Cheap Hit')
+    expect(byReturn[1]).toBe('Blockbuster')
+  })
+})
+
 describe('sortResultsFast matches sortResults (the oracle) exactly', () => {
   const keys = ['rating', 'release', 'title', 'watched', 'views', 'love']
   const orders = ['bestOrNewestOnTop', 'worstOrOldestOnTop']
@@ -204,6 +288,19 @@ describe('sortResultsFast matches sortResults (the oracle) exactly', () => {
         const opts = { sortValue, sortOrder, getRating }
         const fast = sortResultsFast(makeItems(), opts).map(i => i.movie.title)
         const oracle = [...makeItems()].sort((a, b) => sortResults(a, b, opts)).map(i => i.movie.title)
+        expect(fast).toEqual(oracle)
+      })
+    }
+  }
+
+  // The money sorts go through the same lockstep check, on a fixture that
+  // actually exercises the unknown-sinks branch in both implementations.
+  for (const sortValue of ['budget', 'boxOffice', 'profit', 'returnPct']) {
+    for (const sortOrder of ['bestOrNewestOnTop', 'worstOrOldestOnTop']) {
+      it(`${sortValue} / ${sortOrder}`, () => {
+        const opts = { sortValue, sortOrder, getRating }
+        const fast = sortResultsFast(makeMoneyItems(), opts).map(i => i.movie.title)
+        const oracle = [...makeMoneyItems()].sort((a, b) => sortResults(a, b, opts)).map(i => i.movie.title)
         expect(fast).toEqual(oracle)
       })
     }

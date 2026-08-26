@@ -13,7 +13,10 @@
            :src="rateBannerUrl"
            :alt="`${title} backdrop`"
            class="backdrop-image">
-      <h1 class="text-light m-0 px-3 py-2">Rate {{title}}</h1>
+      <!-- The heading is the only thing distinguishing an edit from a new
+           rating on a screen that otherwise looks identical, and getting that
+           wrong means overwriting a viewing you meant to keep. -->
+      <h1 class="text-light m-0 px-3 py-2">{{ isEditing ? 'Edit' : 'Rate' }} {{title}}</h1>
     </div>
     <div class="rate-movie-content container-fluid">
       <div class="row p-3">
@@ -210,9 +213,9 @@
         value="Submit"
         :disabled="loading"
       >
-        <span v-if="!loading">Submit</span>
+        <span v-if="!loading">{{ isEditing ? 'Save Changes' : 'Submit' }}</span>
         <span v-if="loading" class="disabled-show spinner-border spinner-border-sm mx-2" role="status" aria-hidden="true"></span>
-        <span v-if="loading" class="disabled-show ">Submiting...</span>
+        <span v-if="loading" class="disabled-show ">{{ isEditing ? 'Saving...' : 'Submiting...' }}</span>
       </button>
     </div>
 
@@ -418,6 +421,20 @@ export default {
     this.year = this.movieToRate.release_date ? new Date(this.movieToRate.release_date).getFullYear() : '';
     this.id = this.movieToRate.id;
 
+    // Amending an existing viewing rather than logging a new one. Bug report
+    // 2026-08-25 (Natalie): "I rate a movie and then I don't feel like it's
+    // right so I go to rewrite it, so I delete the rating, but then I forget
+    // to. It would be nice if you could both delete the rating and edit the
+    // rating." Delete-then-retype is the only path today, and the gap between
+    // the two steps is where the rating goes missing.
+    if (this.editingRating) {
+      this.loadRatingForEdit(this.editingRating);
+      // Keywords already belong to this viewing; refetching would spend a
+      // call to overwrite them with a fresh guess.
+      if (!this.chatGPTKeywords.length) this.getChatGPTKeywords();
+      return;
+    }
+
     this.getChatGPTKeywords();
   },
   beforeRouteLeave () {
@@ -522,6 +539,20 @@ export default {
       return this.$store.getters.allMoviesAsArray.find((entry) => {
         return entry.movie.id === this.id;
       })
+    },
+    // The existing rating being amended, resolved from { dbKey, index }
+    // rather than carried as an object — so it stays the live store copy and
+    // can't be saved back over a newer version of itself. Resolves to null
+    // (a normal new rating) if the target has since gone.
+    editingRating () {
+      const target = this.$store.state.ratingToEdit;
+      if (!target) return null;
+      const entry = this.$store.state.movieLog?.[target.dbKey];
+      const rating = entry?.ratings?.[target.index];
+      return rating ? { ...target, rating } : null;
+    },
+    isEditing () {
+      return Boolean(this.editingRating);
     },
     viewingTagUsageCounts () {
       return countViewingTagUsage(this.$store.getters.allMoviesAsArray);
@@ -676,6 +707,32 @@ export default {
       }
       return `https://image.tmdb.org/t/p/w500${posterPath}`;
     },
+    // Seed the form from an existing viewing so an edit starts where the
+    // rating actually is, not at the defaults. Anything absent falls back to
+    // the same 5 the submit path uses, so an old rating missing a criterion
+    // doesn't render blank sliders.
+    loadRatingForEdit ({ rating }) {
+      // Null and undefined are left alone rather than coerced: `stickiness`
+      // is legitimately null on a viewing that was never asked, and the
+      // submit path passes it through as null too.
+      RATING_FIELDS.forEach(({ key }) => {
+        if (rating[key] !== undefined && rating[key] !== null) this[key] = rating[key];
+      });
+      this.medium = rating.medium || '';
+      this.selectedViewingTags = Array.isArray(rating.tags) ? [...rating.tags] : [];
+      this.chatGPTKeywords = Array.isArray(rating.chatGPTKeywords) ? [...rating.chatGPTKeywords] : [];
+
+      // Stored as an epoch; the datetime-local input wants "YYYY-MM-DDTHH:mm"
+      // in LOCAL time. toISOString would be UTC and shows an evening viewing
+      // on the previous day (the same trap documented for Letterboxd links).
+      if (rating.date) {
+        const when = new Date(rating.date);
+        if (!Number.isNaN(when.getTime())) {
+          this.date = when.toLocaleString('sv-SE').slice(0, 16).replace(' ', 'T');
+        }
+      }
+    },
+
     async addRating () {
       this.loading = true;
       this.submitError = null;
@@ -705,7 +762,18 @@ export default {
         year: this.year
       };
 
-      ratings.push(rating);
+      // Editing REPLACES the viewing in place; a new rating is appended.
+      // AddRating.js reads only `ratings[0].id` and writes the whole array,
+      // so a swapped element travels the same path as an appended one.
+      const editing = this.editingRating;
+      if (editing && editing.index < ratings.length) {
+        // Merge rather than overwrite: fields this form doesn't collect
+        // (anything a future rating shape adds, or data written by another
+        // screen) would otherwise be dropped by the edit.
+        ratings[editing.index] = { ...ratings[editing.index], ...rating };
+      } else {
+        ratings.push(rating);
+      }
 
       // AddRating.js can throw (e.g. a brand-new movie whose TMDB fetch
       // failed while online, with no local data to fall back to) - surface

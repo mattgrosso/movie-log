@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatScore, formatScoreGap, SCORE_DECIMALS } from '../assets/javascript/formatScore.js';
+import { formatScore, formatScoreGap, formatNormalizedScore, SCORE_DECIMALS } from '../assets/javascript/formatScore.js';
 
 describe('formatScore', () => {
   it('always shows two decimals, padding a round number out', () => {
@@ -57,5 +57,33 @@ describe('formatScoreGap', () => {
   it('takes the fallback for a missing gap', () => {
     expect(formatScoreGap(null)).toBe('—');
     expect(formatScoreGap(NaN)).toBe('—');
+  });
+});
+
+describe('formatNormalizedScore', () => {
+  // The normalized score is rounded at source (applyNormalization ends in
+  // Math.round), so two decimals on it were always ".00" — bug report
+  // 2026-08-25: "those are always gonna be full numbers."
+  it('shows a whole number with no decimal point at all', () => {
+    expect(formatNormalizedScore(7)).toBe('7');
+    expect(formatNormalizedScore(10)).toBe('10');
+    expect(formatNormalizedScore(0)).toBe('0');
+  });
+
+  it('rounds rather than exposing a half-step the app does not believe in', () => {
+    expect(formatNormalizedScore(7.5031)).toBe('8');
+    expect(formatNormalizedScore(7.4)).toBe('7');
+  });
+
+  it('takes the fallback for a missing score', () => {
+    expect(formatNormalizedScore(null)).toBe('—');
+    expect(formatNormalizedScore(undefined)).toBe('—');
+    expect(formatNormalizedScore(NaN)).toBe('—');
+  });
+
+  // Guards against the two being "unified" later: they are different kinds of
+  // number and formatScore's two decimals are load-bearing elsewhere.
+  it('does not change how a precise score is formatted', () => {
+    expect(formatScore(7)).toBe('7.00');
   });
 });

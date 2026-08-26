@@ -28,7 +28,7 @@
 </template>
 
 <script>
-import { formatScore } from '../assets/javascript/formatScore.js';
+import { formatScore, formatNormalizedScore } from '../assets/javascript/formatScore.js';
 
 export default {
   name: 'ToggleableRating',
@@ -75,8 +75,11 @@ export default {
     displayRating () {
       return formatScore(this.rating);
     },
+    // Whole numbers, not two decimals — the normalized score is rounded at
+    // source (see formatNormalizedScore). The prop stays numeric because
+    // starCount below divides it.
     displayNormalizedRating () {
-      return formatScore(this.normalizedRating);
+      return formatNormalizedScore(this.normalizedRating);
     },
     starCount () {
       return this.normalizedRating / 2;

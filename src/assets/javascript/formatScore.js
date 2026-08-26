@@ -30,6 +30,22 @@ export const formatScore = (value, fallback = '—') => {
 };
 
 /**
+ * A NORMALIZED score, which is a different kind of number: `applyNormalization`
+ * ends in `Math.round`, so it is always a whole 0-10. Two decimals on it were
+ * always ".00" — bug report 2026-08-25: "I don't think we need to have any
+ * decimals after the normalized score. Those are always gonna be full numbers."
+ *
+ * Rounds rather than trusting the caller, so a value that somehow arrives
+ * fractional still prints as a whole number instead of exposing a half-step
+ * the rest of the app doesn't believe in.
+ */
+export const formatNormalizedScore = (value, fallback = '—') => {
+  const numeric = typeof value === 'number' ? value : parseFloat(value);
+  if (numeric == null || Number.isNaN(numeric)) return fallback;
+  return String(Math.round(numeric));
+};
+
+/**
  * The same, for a magnitude — a gap, spread or lean, where the sign is
  * carried by the surrounding label ("6.30 apart", "±0.45") rather than by
  * the number itself.

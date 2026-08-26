@@ -481,6 +481,56 @@ describe('Insights — what lives on which tab', () => {
       expect(wrapper.find('.coverage-gaps').text()).toMatch(/Still to claim/)
     })
 
+    // Bug report 2026-08-25: "the graph says there are three dates that I've
+    // never watched on, but it only tells me about two of them. What is that
+    // last date? Is it possible it's February 29?" It was — Feb 29 is held
+    // out of the named gaps on purpose (an empty one says much less than an
+    // empty Mar 3), but it was still counted in the total and then swallowed
+    // by an unhelpful "and 1 more".
+    it('names Feb 29 instead of hiding it inside "and 1 more"', async () => {
+      const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+      const skip = new Set(['2-29', '3-3', '11-12'])
+      const mediaEntries = []
+      DAYS_IN_MONTH.forEach((length, index) => {
+        const month = index + 1
+        for (let day = 1; day <= length; day++) {
+          if (skip.has(`${month}-${day}`)) continue
+          mediaEntries.push(entry({
+            dbKey: `d-${month}-${day}`,
+            // 2024 so Feb 29 is a real date in the fixture year.
+            ratings: [{ calculatedTotal: 5, date: localDate(2024, month, day) }]
+          }))
+        }
+      })
+
+      const { wrapper } = mountInsights({ mediaEntries })
+      await showTab(wrapper, 'activity')
+
+      expect(wrapper.find('.coverage-caption').text()).toMatch(/a film on 363 of 366 dates/)
+      expect(wrapper.find('.coverage-caption').text()).toMatch(/the 3 you never have/)
+
+      const gaps = wrapper.find('.coverage-gaps').text()
+      expect(gaps).toContain('Mar 3')
+      expect(gaps).toContain('Nov 12')
+      // The whole point: the third date is named, and set apart with the
+      // reason it's different rather than left as a riddle.
+      expect(gaps).toContain('Feb 29')
+      expect(gaps).toMatch(/every fourth year/)
+      expect(gaps).not.toMatch(/1 more/)
+    })
+
+    // The "and N more" tail still has to work — it's only the rare date that
+    // was being miscounted into it.
+    it('still counts ordinary gaps beyond the named handful', async () => {
+      const mediaEntries = [entry({ ratings: [{ calculatedTotal: 5, date: localDate(2026, 1, 15) }] })]
+      const { wrapper } = mountInsights({ mediaEntries })
+      await showTab(wrapper, 'activity')
+
+      // 366 dates, 1 watched, 365 missing = 364 ordinary + Feb 29. Six are
+      // named, so 358 ordinary gaps remain — Feb 29 is NOT among them.
+      expect(wrapper.find('.coverage-gaps').text()).toMatch(/and 358 more/)
+    })
+
     it('collapses the same date across years into one cell', async () => {
       const { wrapper } = mountInsights({
         mediaEntries: [

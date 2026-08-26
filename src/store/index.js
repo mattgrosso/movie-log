@@ -238,6 +238,9 @@ export default createStore({
     databaseTopKey: null,
     newEntrySearchResults: [],
     movieToRate: {},
+    // { dbKey, index } while RateMovie is amending an existing viewing,
+    // otherwise null — see setRatingToEdit.
+    ratingToEdit: null,
     DBSearchValue: null,
     DBSortValue: null,
     DBSortOrder: null,
@@ -614,6 +617,20 @@ export default createStore({
     },
     setMovieToRate (state, movie) {
       state.movieToRate = movie;
+      // Clearing here, not at the call sites. Every route into RateMovie
+      // commits this mutation, so a stale `ratingToEdit` left over from a
+      // previous edit would turn the NEXT "Add New Rating" into an
+      // overwrite of an old viewing — silent data loss. Making the reset
+      // part of this mutation means no call site can forget it; the edit
+      // path commits setRatingToEdit immediately after this one.
+      state.ratingToEdit = null;
+    },
+    // { dbKey, index } — which existing rating RateMovie is amending, or
+    // null for a brand-new one. Deliberately an index into the entry's own
+    // `ratings` array (the same index deleteRating uses); `getAllRatings`
+    // maps 1:1 over it, so what the accordion shows at row N is ratings[N].
+    setRatingToEdit (state, target) {
+      state.ratingToEdit = target;
     },
     // Applies a single movieLog write to local state immediately, regardless
     // of connectivity - the optimistic-commit half of offline rating support

@@ -124,6 +124,11 @@
                     </tbody>
                   </table>
                   <div class="d-flex justify-content-end mt-2">
+                    <!-- Same pair as MovieDetail's ratings accordion — see the
+                         comment there. Editing has to exist everywhere a
+                         rating can be deleted, or the delete-and-retype habit
+                         just moves to whichever screen lacks it. -->
+                    <div class="btn btn-sm btn-secondary me-1" @click="editRating(index)">Edit Rating</div>
                     <div :id="`delete-button-${previousEntry.dbKey}-${index}`" class="delete-button btn btn-sm btn-warning" @click="showConfimDeleteButton(previousEntry.dbKey, index)">Delete Rating</div>
                     <div :id="`confirm-delete-button-${previousEntry.dbKey}-${index}`" class="confirm-delete-button d-none col-12 d-flex justify-content-between align-items-center">
                       <p class="m-0">Are you sure?</p>
@@ -571,6 +576,13 @@ export default {
     rateMedia (media) {
       this.$store.commit('setMovieToRate', media);
       window.scroll({ top, behavior: 'smooth' });
+      this.showDetailsModal = false;
+      this.$router.push('/rate-movie');
+    },
+    // setMovieToRate CLEARS ratingToEdit, so the target is set after it.
+    editRating (index) {
+      this.$store.commit('setMovieToRate', this.topStructure(this.result));
+      this.$store.commit('setRatingToEdit', { dbKey: this.previousEntry.dbKey, index });
       this.showDetailsModal = false;
       this.$router.push('/rate-movie');
     },

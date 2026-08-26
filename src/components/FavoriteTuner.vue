@@ -108,11 +108,31 @@ export default {
     justify-content: center;
     margin: 0.5rem 0 0 auto;
     padding: 0;
+    position: relative;
     width: 32px;
     z-index: 2;
 
+    // The circle stays 32px; the TAP target is 40 (the house minimum in
+    // .claude/rules/vue-ui.md). Reported as "unless I tap really quickly
+    // twice, it doesn't really work".
+    &::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+    }
+
+    // Press feedback is a shrink and NOTHING ELSE. The translateY(-50%) that
+    // used to live here was the resting transform from when this button was
+    // absolutely positioned on the pane's top border line; the 2026-08-15 tab
+    // rework put it in flow and left the translate behind, where it stopped
+    // being a resting position and became a 16px JUMP on touch-down. It moved
+    // out from under the finger, so touchend landed outside the button and no
+    // click fired — bug report 2026-08-25: "the button kinda like jumps away
+    // as I tap it like moves and then unless I tap really quickly twice, it
+    // doesn't really work."
     &:active {
-      transform: translateY(-50%) scale(0.9);
+      transform: scale(0.9);
     }
 
     &.active {

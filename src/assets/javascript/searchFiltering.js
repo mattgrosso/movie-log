@@ -62,10 +62,55 @@ export function applyFilter (result, filter) {
 }
 
 /**
+ * The four money sorts. Requested 2026-08-25: "add a couple new sorting
+ * options to the main results page. We need to be able to sort by budget, by
+ * box office, and then by profit and by percentage of budget returned."
+ *
+ * Kept together because they share one awkward property: the data is optional.
+ * TMDB reports 0 for "we don't know", which is indistinguishable from a
+ * genuinely free production, so the whole app treats 0 and undefined alike as
+ * unknown (see MovieDetail's Box Office section). Roughly a fifth of a mature
+ * library has no figures at all.
+ */
+export const BOX_OFFICE_SORTS = new Set(['budget', 'boxOffice', 'profit', 'returnPct']);
+
+const boxOfficeFor = (item) => ({
+  budget: item?.movie?.budget || 0,
+  revenue: item?.movie?.revenue || 0
+});
+
+/**
+ * Whether this item has no answer for this sort — which is different from
+ * having a low one. Unknowns sink to the bottom in BOTH directions (see the
+ * comparators): flipping to worst-on-top to find the biggest flops should
+ * show flops, not three hundred films with no figures.
+ *
+ * Profit and percentage-returned need both numbers; budget and box office
+ * need only their own.
+ */
+export function isSortValueUnknown (item, key) {
+  if (!BOX_OFFICE_SORTS.has(key)) return false;
+  const { budget, revenue } = boxOfficeFor(item);
+  if (key === 'budget') return budget <= 0;
+  if (key === 'boxOffice') return revenue <= 0;
+  return budget <= 0 || revenue <= 0;
+}
+
+/**
  * The sort key value for `item`. `getRating(item)` returns the rating object
  * (the component passes its mostRecentRating, which wraps GetRating.js).
  */
 export function getSortValue (item, key, getRating) {
+  if (BOX_OFFICE_SORTS.has(key)) {
+    const { budget, revenue } = boxOfficeFor(item);
+    if (key === 'budget') return budget;
+    if (key === 'boxOffice') return revenue;
+    if (key === 'profit') return revenue - budget;
+    // Percentage of budget returned: 250 means it made two and a half times
+    // what it cost. Guarded against a zero budget, which would be Infinity
+    // and would sort above every real film.
+    return budget > 0 ? (revenue / budget) * 100 : 0;
+  }
   if (key === 'rating') {
     return getRating(item).calculatedTotal;
   } else if (key === 'release') {
@@ -102,10 +147,15 @@ export function sortResultsFast (array, { sortValue, sortOrder, getRating }) {
     const rating = getRating(item);
     const secondary = rating.calculatedTotal;
     const primary = key === 'rating' ? rating.calculatedTotal : getSortValue(item, key, getRating);
-    return { item, primary, secondary };
+    return { item, primary, secondary, unknown: isSortValueUnknown(item, key) };
   });
 
   decorated.sort((a, b) => {
+    // "No figures" is not a low number — it sinks whichever way the sort
+    // points. Only the money sorts can ever set this.
+    if (a.unknown !== b.unknown) {
+      return a.unknown ? 1 : -1;
+    }
     // Mirror sortResults exactly, including the quirk that === on two Date objects
     // is false (so date sorts skip the secondary tiebreak).
     if (a.primary === b.primary) {
@@ -134,8 +184,18 @@ export function sortResultsFast (array, { sortValue, sortOrder, getRating }) {
  * identical to the legacy in-component comparator.
  */
 export function sortResults (a, b, { sortValue, sortOrder, getRating }) {
-  const sortValueA = getSortValue(a, sortValue || 'rating', getRating);
-  const sortValueB = getSortValue(b, sortValue || 'rating', getRating);
+  const key = sortValue || 'rating';
+
+  // Kept in lockstep with sortResultsFast — searchFiltering.test.js asserts
+  // the two produce byte-identical orderings.
+  const unknownA = isSortValueUnknown(a, key);
+  const unknownB = isSortValueUnknown(b, key);
+  if (unknownA !== unknownB) {
+    return unknownA ? 1 : -1;
+  }
+
+  const sortValueA = getSortValue(a, key, getRating);
+  const sortValueB = getSortValue(b, key, getRating);
 
   if (sortValueA === sortValueB) {
     const secondarySortValueA = getRating(a).calculatedTotal;

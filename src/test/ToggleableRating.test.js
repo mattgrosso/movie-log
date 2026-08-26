@@ -41,11 +41,26 @@ describe('ToggleableRating score precision', () => {
     expect(mountRating({ rating: 9 }).text()).toContain('9.00')
   })
 
-  it('formats the normalized score too', async () => {
-    const wrapper = mountRating({ normalizedRating: 7.5031 })
+  // Bug report 2026-08-25: "I don't think we need to have any decimals after
+  // the normalized score. Those are always gonna be full numbers." True by
+  // construction — applyNormalization ends in Math.round — so ".00" was pure
+  // noise on every one of them.
+  it('shows the normalized score as a whole number', async () => {
+    const wrapper = mountRating({ normalizedRating: 7 })
     await wrapper.trigger('click')
-    expect(wrapper.text()).toContain('7.50')
-    expect(wrapper.text()).not.toContain('7.5031')
+    expect(wrapper.find('.normalized-rating h3').text()).toBe('7')
+  })
+
+  it('shows a normalized 10 as "10", not "10.00"', async () => {
+    const wrapper = mountRating({ normalizedRating: 10 })
+    await wrapper.trigger('click')
+    expect(wrapper.find('.normalized-rating h3').text()).toBe('10')
+  })
+
+  // The precise score is a different kind of number and keeps its decimals —
+  // the two must not be "fixed" together.
+  it('leaves the precise score at two decimals', () => {
+    expect(mountRating({ rating: 9 }).find('.rating h3').text()).toBe('9.00')
   })
 
   it('still counts stars off the unrounded number', async () => {

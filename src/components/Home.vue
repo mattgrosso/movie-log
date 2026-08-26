@@ -413,6 +413,10 @@
             <i v-if="sortValue === 'performance'" class="bi bi-speedometer"></i>
             <i v-if="sortValue === 'soundtrack'" class="bi bi-music-note-beamed"></i>
             <i v-if="sortValue === 'stickiness'" class="bi bi-sticky"></i>
+            <i v-if="sortValue === 'budget'" class="bi bi-cash-stack"></i>
+            <i v-if="sortValue === 'boxOffice'" class="bi bi-ticket-perforated"></i>
+            <i v-if="sortValue === 'profit'" class="bi bi-graph-up-arrow"></i>
+            <i v-if="sortValue === 'returnPct'" class="bi bi-percent"></i>
             <span class="order-arrow">
               <i v-if="sortOrder !== 'bestOrNewestOnTop'" class="bi bi-arrow-down-short"/>
               <i v-if="sortOrder === 'bestOrNewestOnTop'" class="bi bi-arrow-up-short"/>
@@ -471,6 +475,30 @@
               <li value="stickiness">
                 <button class="dropdown-item" :class="{active: sortValue === 'stickiness'}" @click="setOrToggleSortValue('stickiness')">
                   Stickiness
+                </button>
+              </li>
+              <!-- The money sorts, kept together and last. Requested
+                   2026-08-25. Films with no figures sink to the bottom
+                   whichever way the sort points — see isSortValueUnknown. -->
+              <li><hr class="dropdown-divider"></li>
+              <li value="budget">
+                <button class="dropdown-item" :class="{active: sortValue === 'budget'}" @click="setOrToggleSortValue('budget')">
+                  Budget
+                </button>
+              </li>
+              <li value="boxOffice">
+                <button class="dropdown-item" :class="{active: sortValue === 'boxOffice'}" @click="setOrToggleSortValue('boxOffice')">
+                  Box office
+                </button>
+              </li>
+              <li value="profit">
+                <button class="dropdown-item" :class="{active: sortValue === 'profit'}" @click="setOrToggleSortValue('profit')">
+                  Profit
+                </button>
+              </li>
+              <li value="returnPct">
+                <button class="dropdown-item" :class="{active: sortValue === 'returnPct'}" @click="setOrToggleSortValue('returnPct')">
+                  Return on budget
                 </button>
               </li>
             </ul>
@@ -2125,7 +2153,11 @@ export default {
         { value: 'story', label: 'Story' },
         { value: 'performance', label: 'Performance' },
         { value: 'soundtrack', label: 'Soundtrack' },
-        { value: 'stickiness', label: 'Stickiness' }
+        { value: 'stickiness', label: 'Stickiness' },
+        { value: 'budget', label: 'Budget' },
+        { value: 'boxOffice', label: 'Box office' },
+        { value: 'profit', label: 'Profit' },
+        { value: 'returnPct', label: 'Return on budget' }
       ];
     },
     defaultSortValue () {

@@ -161,10 +161,15 @@
           </div>
         </div>
 
-        <p v-if="nextGapsToFill.length" class="coverage-gaps">
-          Still to claim: <strong>{{ nextGapsToFill.join(', ') }}</strong>
-          <template v-if="coverage.missing.length > nextGapsToFill.length">
-            and {{ coverage.missing.length - nextGapsToFill.length }} more
+        <p v-if="nextGapsToFill.length || rareGapsToFill.length" class="coverage-gaps">
+          <template v-if="nextGapsToFill.length">
+            Still to claim: <strong>{{ nextGapsToFill.join(', ') }}</strong><template v-if="ordinaryGapsRemaining">
+              and {{ ordinaryGapsRemaining }} more</template><template v-if="rareGapsToFill.length">.</template>
+          </template>
+          <template v-if="rareGapsToFill.length">
+            <template v-if="!nextGapsToFill.length">Still to claim: </template>
+            <strong>{{ rareGapsToFill.join(', ') }}</strong> too — though that one
+            only comes round every fourth year.
           </template>
         </p>
         <p v-else-if="!coverage.missing.length" class="coverage-gaps">
@@ -333,6 +338,22 @@ export default {
       return this.coverage.missing
         .filter((gap) => !gap.rare)
         .slice(0, 6)
+        .map((gap) => `${this.monthAbbreviations[gap.month]} ${gap.day}`);
+    },
+    // How many ORDINARY gaps the named handful leaves out. This used to be
+    // measured against the whole missing list, which quietly folded Feb 29
+    // into "and 1 more" — bug report 2026-08-25: "it says there are three
+    // dates I've never watched on, but it only tells me about two of them.
+    // What is that last date? Is it possible it's February 29?" It was.
+    ordinaryGapsRemaining () {
+      return this.coverage.missing.filter((gap) => !gap.rare).length - this.nextGapsToFill.length;
+    },
+    // Named rather than hidden. It's kept apart from the ordinary gaps
+    // because an empty Feb 29 says much less than an empty Mar 3 — but
+    // "there's one more and I won't say which" says least of all.
+    rareGapsToFill () {
+      return this.coverage.missing
+        .filter((gap) => gap.rare)
         .map((gap) => `${this.monthAbbreviations[gap.month]} ${gap.day}`);
     },
     peopleCategories () {
