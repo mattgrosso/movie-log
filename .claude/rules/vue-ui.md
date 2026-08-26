@@ -109,6 +109,21 @@ first attempt at the games scroll-to-top do nothing at all.
 - **A form control's UA-imposed minimum width beats `width: 100%`.** `datetime-local` in
   a narrow Bootstrap column overflowed horizontally and latched the iOS layout viewport
   wider than the screen. `min-width: 0` on `.form-control`/`.form-select` is the fix.
+- **Bootstrap's data-api handlers run in the CAPTURE phase**, so `@click.stop` inside a
+  widget cannot stop them. `EventHandler.on(document, evt, selector, fn)` passes its
+  `delegation` flag straight into `addEventListener`'s third argument. Consequence: a
+  `.dropdown-menu` nested INSIDE its own `[data-bs-toggle="dropdown"]` button is shut by
+  every click in it, because the document-level toggle handler fires before anything in
+  the menu sees the event. Two rounds of `@click.stop` failed against this before it was
+  reproduced in an isolated page (2026-08-26). Keep the menu a SIBLING of the toggle —
+  Bootstrap's own btn-group structure. Note also that this only survives because Vue
+  builds the DOM programmatically; the same markup written as plain HTML has the `<ul>`
+  hoisted out of the `<button>` by the parser, so a static-HTML test of it is testing a
+  different tree.
+- **Don't wrap a chip in `.results-actions`.** Those buttons take their rainbow colours
+  from `.results-actions-button:nth-child(N)` and their width from `flex: 1 1 0` on the
+  button itself, so any wrapper recolours and resizes the row. Adding a SIBLING after the
+  last chip is safe; adding one earlier shifts every colour after it.
 - **An invisible full-height overlay for a gesture will eat real taps.** `BackLink`'s
   20px edge-swipe strip silently ate the leftmost button on every game screen. Listen on
   `window` and filter by touch origin instead.

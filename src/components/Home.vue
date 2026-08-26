@@ -401,7 +401,7 @@
           <button class="results-actions-button btn btn-info btn-sm" @click="$router.push('/watchlist')" title="Watchlist" aria-label="Go to watchlist">
             <i class="bi bi-binoculars watchlist-glyph"/>
           </button>
-          <button ref="sortToggle" class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Sort results" aria-label="Sort results">
+          <button class="results-actions-button btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Sort results" aria-label="Sort results">
             <i v-if="sortValue === 'rating'" class="bi bi-123"/>
             <i v-if="sortValue === 'watched'" class="bi bi-calendar3"/>
             <i v-if="sortValue === 'release'" class="bi bi-calendar-date"/>
@@ -421,16 +421,24 @@
               <i v-if="sortOrder !== 'bestOrNewestOnTop'" class="bi bi-arrow-down-short"/>
               <i v-if="sortOrder === 'bestOrNewestOnTop'" class="bi bi-arrow-up-short"/>
             </span>
-            <!-- The menu lives INSIDE the toggle button, so every click in it
-                 bubbles to the toggle and Bootstrap's delegated
-                 [data-bs-toggle] handler shuts the menu. That's the behaviour
-                 we want when picking a sort and the wrong one for the toggle
-                 at the bottom, which you should be able to flip and then keep
-                 choosing (reported 2026-08-26). Rather than restructure — the
-                 chips take their rainbow colours from :nth-child, so wrapping
-                 this button breaks them — the menu stops the event itself and
-                 closing becomes explicit, in setOrToggleSortValue. -->
-            <ul class="dropdown-menu" @click.stop>
+          </button>
+          <!-- SIBLING of the toggle, not a child of it — Bootstrap's own
+               btn-group + dropdown structure. It used to be nested inside the
+               <button>, which is invalid HTML and had a real consequence:
+               Bootstrap registers its delegated data-api handlers with
+               useCapture TRUE, so the document-level [data-bs-toggle] handler
+               runs BEFORE anything in the menu can stop the event. Every click
+               inside the menu therefore reached the toggle and shut it, and no
+               amount of @click.stop could prevent it (verified in an isolated
+               Bootstrap 5.3.3 page, 2026-08-26).
+               Only the </button> moved. Wrapping the toggle in a <div
+               class="dropdown"> — the other way to fix this — would have
+               broken the rainbow: these chips take their colours from
+               .results-actions-button:nth-child(N), and flex: 1 1 0 sits on
+               the button, not on a wrapper. The <ul> is safe here because the
+               sort chip is the LAST button in the group, so no chip's index
+               moves. -->
+            <ul class="dropdown-menu">
               <li value="rating">
                 <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setOrToggleSortValue('rating')">
                   Rating
@@ -522,7 +530,6 @@
                 </button>
               </li>
             </ul>
-          </button>
         </div>
       </div>
     </div>
@@ -1382,9 +1389,6 @@
 
 <script>
 import axios from 'axios';
-// Only the Dropdown class — the sort menu swallows its own clicks, so it has
-// to be closed explicitly after a pick (see closeSortMenu).
-import { Dropdown } from 'bootstrap';
 import { scrollWindowTo } from '../utils/scrollWindowTo.js';
 import { indexOfMovie, resultElementId, resultsNeededToReveal, scrollOffsetFor } from '../assets/javascript/revealInList.js';
 import { arrivedFromMovieDetail } from '../router/scrollBehavior.js';
@@ -4336,13 +4340,6 @@ export default {
       // Save sort state to store for potential restoration
       this.$store.commit('setHomePageSortValue', this.sortValue);
       this.$store.commit('setHomePageSortOrder', this.sortOrder);
-      this.closeSortMenu();
-    },
-    // The menu swallows its own clicks (see the template), so closing after a
-    // pick is ours to do. The money toggle deliberately doesn't call this.
-    closeSortMenu () {
-      const toggle = this.$refs.sortToggle;
-      if (toggle) Dropdown.getInstance(toggle)?.hide();
     },
     getSortValue (item, key) {
       return getSortValueUtil(item, key, this.mostRecentRating, { adjusted: this.moneyInTodaysDollars });
