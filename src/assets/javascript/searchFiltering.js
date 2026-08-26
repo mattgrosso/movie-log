@@ -94,6 +94,41 @@ const boxOfficeFor = (item, adjusted = false) => {
 };
 
 /**
+ * From when a missing box office means "it never sold tickets" rather than
+ * "nobody wrote the number down".
+ *
+ * Before roughly this year, a blank gross is almost always unrecorded history
+ * — The Searchers, Breathless, Bringing Up Baby and A Trip to the Moon all
+ * sit in that pile, and their budgets are real and belong on a budget sort.
+ * After it, a real budget with no gross at all is the signature of a
+ * streaming original.
+ */
+export const STREAMING_ERA_YEAR = 2015;
+
+/**
+ * A modern film carrying a real budget and no box office whatsoever.
+ *
+ * There is no reliable way to ASK whether something played in cinemas
+ * (tested 2026-08-26): TMDB's release types count a three-week
+ * awards-eligibility run as theatrical, so The Irishman and Red Notice both
+ * read as cinema releases; and `production_companies` names who MADE a film,
+ * not who released it, so Netflix appears on none of its own. What is left is
+ * the shape of the data itself, gated by era.
+ *
+ * Requested 2026-08-26: "the budget numbers get a bit skewed by movies that
+ * go straight to streaming."
+ */
+export const isModernWithNoBoxOffice = (item) => {
+  const movie = item?.movie;
+  if (!movie) return false;
+  if (!(movie.budget > 0)) return false;
+  if (movie.revenue > 0) return false;
+
+  const year = Number(String(movie.release_date || '').slice(0, 4));
+  return Number.isFinite(year) && year >= STREAMING_ERA_YEAR;
+};
+
+/**
  * Whether this item has no answer for this sort — which is different from
  * having a low one. Unknowns sink to the bottom in BOTH directions (see the
  * comparators): flipping to worst-on-top to find the biggest flops should
@@ -105,7 +140,17 @@ const boxOfficeFor = (item, adjusted = false) => {
 export function isSortValueUnknown (item, key) {
   if (!BOX_OFFICE_SORTS.has(key)) return false;
   const { budget, revenue } = boxOfficeFor(item);
-  if (key === 'budget') return budget <= 0;
+  // A budget IS known for a streaming original — but it isn't comparable to
+  // one that sold tickets, which is the complaint. Sunk rather than hidden,
+  // so it's still findable at the end of the list.
+  //
+  // Scoped to 'budget' as a statement of intent, not because it is load-
+  // bearing: isModernWithNoBoxOffice only ever fires on a film with zero
+  // revenue, and zero revenue already makes boxOffice, profit and returnPct
+  // unknown on the lines below. A mutation that applies it to all four passes
+  // every test. It would start mattering the day this counted NEGLIGIBLE box
+  // office rather than exactly none.
+  if (key === 'budget') return budget <= 0 || isModernWithNoBoxOffice(item);
   if (key === 'boxOffice') return revenue <= 0;
   return budget <= 0 || revenue <= 0;
 }

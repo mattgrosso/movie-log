@@ -239,3 +239,50 @@ describe('DBGridLayoutSearchResult — the caption follows the money mode', () =
     expect(card('boxOffice', { release_date: null }, true).vm.sortDetail).toBe('$920M')
   })
 })
+
+// Requested 2026-08-26: sink streaming originals on the budget sort. A $150M
+// film sitting at the bottom of "most expensive" has to say why, or it reads
+// as a bug rather than a decision.
+describe('DBGridLayoutSearchResult — the sunk-film marker', () => {
+  const card = (sortValue, movie) => {
+    const result = makeResult({ movie: { budget: 150_000_000, revenue: 0, release_date: '2020-07-10', ...movie } })
+    const mockStore = {
+      state: { settings: { letterboxdConnected: false, letterboxdUsername: '' }, allAcademyAwards: [], moneyInTodaysDollars: false },
+      getters: { allMediaSortedByRating: [result], allMediaAsArray: [result] },
+      commit: vi.fn(),
+      dispatch: vi.fn()
+    }
+    return shallowMount(DBGridLayoutSearchResult, {
+      props: { result, index: 0, keywordCounts: {}, allCounts: [], sortValue },
+      global: { mocks: { $store: mockStore }, directives: { lazy: () => {} } }
+    })
+  }
+
+  it('marks a modern film with a budget and no box office', () => {
+    const wrapper = card('budget')
+    expect(wrapper.vm.marksNoBoxOffice).toBe(true)
+    expect(wrapper.find('.no-box-office').exists()).toBe(true)
+    // The budget is still shown — it's known, just not comparable.
+    expect(wrapper.vm.sortDetail).toBe('$150M')
+  })
+
+  it('explains itself on the mark rather than leaving a bare glyph', () => {
+    expect(card('budget').find('.no-box-office').attributes('title')).toMatch(/No box office reported/)
+  })
+
+  // The whole point of the era gate.
+  it('never marks an old film whose gross was simply never recorded', () => {
+    expect(card('budget', { release_date: '1956-03-13', budget: 3_750_000 }).vm.marksNoBoxOffice).toBe(false)
+  })
+
+  it('never marks a film that sold tickets', () => {
+    expect(card('budget', { revenue: 500_000_000 }).vm.marksNoBoxOffice).toBe(false)
+  })
+
+  // Only the budget sort sinks these, so only it explains itself.
+  it('stays out of the way on every other sort', () => {
+    expect(card('boxOffice').vm.marksNoBoxOffice).toBe(false)
+    expect(card('rating').vm.marksNoBoxOffice).toBe(false)
+    expect(card('profit').vm.marksNoBoxOffice).toBe(false)
+  })
+})

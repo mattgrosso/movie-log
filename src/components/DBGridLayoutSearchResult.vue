@@ -44,7 +44,12 @@
            budget ones." The rank still rides along, as it does in every
            other variant. -->
       <span v-else-if="sortDetail">
-        {{sortDetail}} · {{getOrdinal(overAllRank)}}
+        {{sortDetail}}<!--
+        --><i
+          v-if="marksNoBoxOffice"
+          class="bi bi-tv no-box-office"
+          title="No box office reported — streaming original or never widely released. Sorted to the end of the budget list."
+        ></i> · {{getOrdinal(overAllRank)}}
       </span>
       <span v-else class="rank">
         <span v-if="resultsAreFiltered">{{getOrdinal(index + 1)}} ({{getOrdinal(overAllRank)}})</span>
@@ -279,6 +284,7 @@ import axios from 'axios';
 import { formatScore } from '../assets/javascript/formatScore.js';
 import { formatMoneyShort, formatProfit, formatReturn } from '../assets/javascript/formatMoney.js';
 import { adjustedMovieMoney } from '../assets/javascript/inflation.js';
+import { isModernWithNoBoxOffice } from '../assets/javascript/searchFiltering.js';
 import ordinal from "ordinal-js";
 import minBy from 'lodash/minBy';
 import Modal from './Modal.vue';
@@ -410,6 +416,12 @@ export default {
       const score = this.mostRecentRating(this.result)?.[this.sortValue];
       const numeric = parseFloat(score);
       return Number.isFinite(numeric) ? `${label} ${numeric}` : '';
+    },
+    // Only on the budget sort, and only where the film was deliberately sunk —
+    // otherwise a $150M film sitting at the bottom of "most expensive" reads
+    // as a bug rather than a decision.
+    marksNoBoxOffice () {
+      return this.sortValue === 'budget' && isModernWithNoBoxOffice(this.result);
     },
     overAllRank () {
       return this.$store.getters.allMediaSortedByRating.findIndex((media) => {
@@ -871,6 +883,14 @@ export default {
       justify-content: space-between;
       padding: 0.5rem;
       align-items: center;
+    }
+
+    .no-box-office {
+      // Present but quiet: the figure is the message, this only says why the
+      // film is where it is.
+      font-size: 0.55rem;
+      margin-left: 0.2rem;
+      opacity: 0.65;
     }
 
     .pending-match-badge {

@@ -5,6 +5,8 @@ import {
   applyFilter,
   getSortValue,
   isSortValueUnknown,
+  isModernWithNoBoxOffice,
+  STREAMING_ERA_YEAR,
   sortResultsFast,
   sortResults,
   countDidYouMeanSuggestionsThatFit,
@@ -282,6 +284,84 @@ describe('the money sorts', () => {
 // Requested 2026-08-26: "I would also like to have a way to show boxoffice
 // numbers adjusted for inflation." One switch covers budget, box office and
 // profit — everything eighty years of inflation distorts.
+// Requested 2026-08-26: "the budget numbers get a bit skewed by movies that
+// go straight to streaming." There is no reliable way to ASK whether a film
+// played in cinemas — TMDB's release types call a three-week awards run
+// theatrical (The Irishman, Red Notice), and production_companies names who
+// MADE a film, not who released it (Netflix appears on none of its own). What
+// is left is the shape of the data, gated by era.
+describe('modern films with no box office', () => {
+  const film = (title, year, budget, revenue) => ({
+    movie: { title, release_date: `${year}-06-01`, budget, revenue },
+    ratings: [{}],
+    rating: { calculatedTotal: 8, date: '1', love: 5 }
+  })
+
+  it('spots a streaming original: real budget, no gross, made recently', () => {
+    expect(isModernWithNoBoxOffice(film('The Old Guard', 2020, 70_000_000, 0))).toBe(true)
+  })
+
+  // The reason for the era gate. These are not streaming originals — nobody
+  // recorded their grosses, and their budgets are real.
+  it('leaves the old films alone', () => {
+    expect(isModernWithNoBoxOffice(film('The Searchers', 1956, 3_750_000, 0))).toBe(false)
+    expect(isModernWithNoBoxOffice(film('Breathless', 1960, 120_000, 0))).toBe(false)
+    expect(isModernWithNoBoxOffice(film('A Trip to the Moon', 1902, 10_000, 0))).toBe(false)
+  })
+
+  it('leaves a modern film that DID sell tickets alone', () => {
+    expect(isModernWithNoBoxOffice(film('Barbie', 2023, 145_000_000, 1_450_000_000))).toBe(false)
+  })
+
+  it('needs a real budget, not just a missing gross', () => {
+    expect(isModernWithNoBoxOffice(film('Unknown Everything', 2022, 0, 0))).toBe(false)
+  })
+
+  it('is safe on a film with no release date or no movie at all', () => {
+    expect(isModernWithNoBoxOffice({ movie: { budget: 5, revenue: 0 } })).toBe(false)
+    expect(isModernWithNoBoxOffice(null)).toBe(false)
+  })
+
+  it('treats the threshold year itself as modern', () => {
+    expect(isModernWithNoBoxOffice(film('Edge', STREAMING_ERA_YEAR, 1_000_000, 0))).toBe(true)
+    expect(isModernWithNoBoxOffice(film('Just Before', STREAMING_ERA_YEAR - 1, 1_000_000, 0))).toBe(false)
+  })
+
+  // The behaviour that was asked for: sunk on the BUDGET sort specifically.
+  it('sinks a streaming original below films that sold tickets', () => {
+    const library = [
+      film('Streamer', 2020, 150_000_000, 0),
+      film('Cinema Hit', 2019, 80_000_000, 500_000_000),
+      film('The Searchers', 1956, 3_750_000, 0)
+    ]
+    const titles = sortResultsFast(library, { sortValue: 'budget', sortOrder: 'bestOrNewestOnTop', getRating })
+      .map(i => i.movie.title)
+    expect(titles[titles.length - 1]).toBe('Streamer')
+    // The old film keeps its place on its real budget.
+    expect(titles[0]).toBe('Cinema Hit')
+  })
+
+  it('sinks it whichever way the sort points', () => {
+    const library = [film('Streamer', 2020, 150_000_000, 0), film('Cinema Hit', 2019, 80_000_000, 500_000_000)]
+    const titles = sortResultsFast(library, { sortValue: 'budget', sortOrder: 'worstOrOldestOnTop', getRating })
+      .map(i => i.movie.title)
+    expect(titles[titles.length - 1]).toBe('Streamer')
+  })
+
+  // The other three money sorts already handled these films: box office is
+  // genuinely zero, and profit/return need both figures. Only budget changed.
+  it('changes nothing about the other three sorts', () => {
+    const streamer = film('Streamer', 2020, 150_000_000, 0)
+    expect(isSortValueUnknown(streamer, 'boxOffice')).toBe(true)
+    expect(isSortValueUnknown(streamer, 'profit')).toBe(true)
+    expect(isSortValueUnknown(streamer, 'returnPct')).toBe(true)
+    // And a film that sold tickets is untouched on every one.
+    const hit = film('Cinema Hit', 2019, 80_000_000, 500_000_000)
+    expect(isSortValueUnknown(hit, 'budget')).toBe(false)
+    expect(isSortValueUnknown(hit, 'boxOffice')).toBe(false)
+  })
+})
+
 describe('money in today\'s dollars', () => {
   const era = (title, year, budget, revenue) => ({
     movie: { title, release_date: `${year}-06-01`, budget, revenue },
