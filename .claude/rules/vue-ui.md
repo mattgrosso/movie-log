@@ -120,6 +120,14 @@ first attempt at the games scroll-to-top do nothing at all.
   builds the DOM programmatically; the same markup written as plain HTML has the `<ul>`
   hoisted out of the `<button>` by the parser, so a static-HTML test of it is testing a
   different tree.
+- **`.home .results ul { width: 100% }` catches the sort dropdown too.** It was invisible
+  for as long as the menu lived inside the 157px toggle chip — 100% of a chip looks
+  exactly like a compact dropdown — and became 800px the moment the menu was re-parented
+  to the full-width `.btn-group`. The menu opts out with `ul.dropdown-menu { width:
+  max-content }`; the **type selector is load-bearing** (0,4,1 against that rule's 0,2,1),
+  not decoration. General lesson: a broad element rule under a page class can be masked
+  for years by the containing block it happens to land in, and surfaces the moment
+  anything re-parents.
 - **Don't wrap a chip in `.results-actions`.** Those buttons take their rainbow colours
   from `.results-actions-button:nth-child(N)` and their width from `flex: 1 1 0` on the
   button itself, so any wrapper recolours and resizes the row. Adding a SIBLING after the

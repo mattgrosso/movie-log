@@ -438,7 +438,7 @@
                the button, not on a wrapper. The <ul> is safe here because the
                sort chip is the LAST button in the group, so no chip's index
                moves. -->
-            <ul class="dropdown-menu">
+            <ul class="dropdown-menu dropdown-menu-end">
               <li value="rating">
                 <button class="dropdown-item" :class="{active: sortValue === 'rating'}" @click="setOrToggleSortValue('rating')">
                   Rating
@@ -5885,6 +5885,23 @@ export default {
            notices->results chain. (Top spacing is the mt-1 class, pairing
            with the search bar's interior 0.25rem.) */
         margin-bottom: 0.5rem;
+
+        /* The sort menu has to opt OUT of `.home .results ul { width: 100% }`
+           a few rules up, which is meant for the results list.
+           It caught this menu all along and was invisible: while the <ul>
+           lived inside the toggle <button>, 100% meant 100% of a 157px chip,
+           which looks exactly like a compact dropdown. Moving the menu out of
+           the button (so it would stop closing itself) re-parented it to the
+           full-width .btn-group, and the same rule stretched it to 800px.
+           Reported 2026-08-26: "it goes full width, and it's way too big."
+           `ul.dropdown-menu` here is (0,4,1) against that rule's (0,2,1) —
+           the type selector is load-bearing, not decoration. Measured on the
+           live page: 800px -> 160px, right-aligned under the toggle. */
+        ul.dropdown-menu {
+          width: max-content;
+          /* A phone still has to be able to see the whole thing. */
+          max-width: 80vw;
+        }
 
         .dropdown-item {
           &.active,

@@ -41,7 +41,7 @@ describe('the sort menu closes on a pick and stays open on the money toggle', ()
   it('keeps the menu OUT of the toggle button', () => {
     const row = actionsRow();
     const buttonClose = row.indexOf('</button>', row.indexOf('data-bs-toggle="dropdown"'));
-    const menuOpen = row.indexOf('<ul class="dropdown-menu"');
+    const menuOpen = row.indexOf('<ul class="dropdown-menu');
     expect(menuOpen).toBeGreaterThan(-1);
     // The toggle must be closed BEFORE the menu opens, or the menu is nested
     // inside it again and Bootstrap's capture-phase handler wins.
@@ -75,5 +75,44 @@ describe('the sort menu closes on a pick and stays open on the money toggle', ()
     const toggleIndex = buttons.findIndex((m) => row.slice(m.index, row.indexOf('>', m.index)).includes('data-bs-toggle="dropdown"'));
     expect(buttons.length).toBeGreaterThan(1);
     expect(toggleIndex).toBe(buttons.length - 1);
+  });
+});
+
+// Follow-on report, 2026-08-26: "the drop down menu that comes out of the sort
+// goes full width, and it's way too big. Before it was nice and compact over
+// on the right hand side."
+//
+// Moving the menu out of the toggle button exposed a rule that had been
+// catching it all along: `.home .results ul { width: 100% }`, meant for the
+// results list. It was invisible while the menu lived inside the 157px chip —
+// 100% of a chip looks exactly like a compact dropdown — and became 800px the
+// moment the menu's parent became the full-width .btn-group. Measured live.
+describe('the sort menu stays compact', () => {
+  const styleBlock = () => {
+    const text = source();
+    return text.slice(text.indexOf('.results-actions {'), text.indexOf('.pending-match-badge') + 1 || undefined);
+  };
+
+  it('opts the menu out of the full-width results-list rule', () => {
+    const block = styleBlock();
+    const rule = block.match(/ul\.dropdown-menu \{[^}]*\}/);
+    expect(rule).not.toBeNull();
+    expect(rule[0]).toContain('width: max-content');
+  });
+
+  // The type selector is what wins against `.home .results ul` — (0,4,1) vs
+  // (0,2,1). Dropping it silently restores the bug.
+  it('keeps the ul type selector that carries the specificity', () => {
+    expect(styleBlock()).toContain('ul.dropdown-menu {');
+  });
+
+  it('caps the width so a phone can still see the whole menu', () => {
+    expect(styleBlock().match(/ul\.dropdown-menu \{[^}]*\}/)[0]).toContain('max-width');
+  });
+
+  // The sort chip is the rightmost of the seven, so the menu hangs off its
+  // right edge rather than running off the screen.
+  it('right-aligns the menu under its toggle', () => {
+    expect(actionsRow()).toContain('class="dropdown-menu dropdown-menu-end"');
   });
 });
