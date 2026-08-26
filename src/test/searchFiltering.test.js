@@ -279,6 +279,79 @@ describe('the money sorts', () => {
   })
 })
 
+// Requested 2026-08-26: "I would also like to have a way to show boxoffice
+// numbers adjusted for inflation." One switch covers budget, box office and
+// profit — everything eighty years of inflation distorts.
+describe('money in today\'s dollars', () => {
+  const era = (title, year, budget, revenue) => ({
+    movie: { title, release_date: `${year}-06-01`, budget, revenue },
+    ratings: [{}],
+    rating: { calculatedTotal: 8, date: '1', love: 5 }
+  })
+
+  // The comparison that motivated it: raw, the modern film is far ahead;
+  // adjusted, the older one wins.
+  const ACROSS_ERAS = () => [
+    era('Old Giant', 1975, 10_000_000, 300_000_000),
+    era('New Hit', 2023, 100_000_000, 700_000_000)
+  ]
+
+  it('leaves the raw order alone when the switch is off', () => {
+    const titles = sortResultsFast(ACROSS_ERAS(), { sortValue: 'boxOffice', sortOrder: 'bestOrNewestOnTop', getRating })
+      .map(i => i.movie.title)
+    expect(titles[0]).toBe('New Hit')
+  })
+
+  it('re-ranks across eras once it is on', () => {
+    const titles = sortResultsFast(ACROSS_ERAS(), { sortValue: 'boxOffice', sortOrder: 'bestOrNewestOnTop', getRating, adjusted: true })
+      .map(i => i.movie.title)
+    expect(titles[0]).toBe('Old Giant')
+  })
+
+  it('adjusts budget and profit too, not only box office', () => {
+    const item = era('Old Giant', 1975, 10_000_000, 300_000_000)
+    expect(getSortValue(item, 'budget', getRating, { adjusted: true }))
+      .toBeGreaterThan(getSortValue(item, 'budget', getRating))
+    expect(getSortValue(item, 'profit', getRating, { adjusted: true }))
+      .toBeGreaterThan(getSortValue(item, 'profit', getRating))
+  })
+
+  // Budget and box office are in the same year's dollars, so the ratio
+  // between them does not move. Note this is a characterization, not a
+  // guard: the maths cancels, so it holds even without the explicit
+  // returnPct exemption in getSortValue.
+  it('leaves return on budget alone, because a ratio has no era', () => {
+    const item = era('Old Giant', 1975, 10_000_000, 300_000_000)
+    expect(getSortValue(item, 'returnPct', getRating, { adjusted: true }))
+      .toBe(getSortValue(item, 'returnPct', getRating))
+  })
+
+  // A film with no release date can't be adjusted; falling back to zero would
+  // reclassify it as having no box office and sink it out of the list.
+  it('falls back to the raw figure rather than zeroing an unadjustable film', () => {
+    const undated = { movie: { title: 'Undated', budget: 5_000_000, revenue: 50_000_000 }, ratings: [{}], rating: { calculatedTotal: 8, date: '1', love: 5 } }
+    expect(getSortValue(undated, 'boxOffice', getRating, { adjusted: true })).toBe(50_000_000)
+    expect(isSortValueUnknown(undated, 'boxOffice')).toBe(false)
+  })
+
+  it('still sinks the films with no figures at all', () => {
+    const blank = { movie: { title: 'Blank', release_date: '1975-06-01', budget: 0, revenue: 0 }, ratings: [{}], rating: { calculatedTotal: 8, date: '1', love: 5 } }
+    const titles = sortResultsFast([...ACROSS_ERAS(), blank], { sortValue: 'boxOffice', sortOrder: 'worstOrOldestOnTop', getRating, adjusted: true })
+      .map(i => i.movie.title)
+    expect(titles[titles.length - 1]).toBe('Blank')
+  })
+
+  // Both comparators, in lockstep, with the flag on.
+  for (const sortValue of ['budget', 'boxOffice', 'profit', 'returnPct']) {
+    it(`fast and oracle agree on ${sortValue} in today's dollars`, () => {
+      const opts = { sortValue, sortOrder: 'bestOrNewestOnTop', getRating, adjusted: true }
+      const fast = sortResultsFast(ACROSS_ERAS(), opts).map(i => i.movie.title)
+      const oracle = [...ACROSS_ERAS()].sort((a, b) => sortResults(a, b, opts)).map(i => i.movie.title)
+      expect(fast).toEqual(oracle)
+    })
+  }
+})
+
 describe('sortResultsFast matches sortResults (the oracle) exactly', () => {
   const keys = ['rating', 'release', 'title', 'watched', 'views', 'love']
   const orders = ['bestOrNewestOnTop', 'worstOrOldestOnTop']

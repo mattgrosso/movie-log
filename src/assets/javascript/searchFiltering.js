@@ -14,6 +14,7 @@
 // importers keep working unchanged.
 import { normalizeSearchText, looseSearchText } from './searchText.js';
 import { FILTER_KINDS, getListOfYearsFromRange } from './filterKinds.js';
+import { adjustedMovieMoney } from './inflation.js';
 
 export { normalizeSearchText, looseSearchText, getListOfYearsFromRange };
 
@@ -74,10 +75,23 @@ export function applyFilter (result, filter) {
  */
 export const BOX_OFFICE_SORTS = new Set(['budget', 'boxOffice', 'profit', 'returnPct']);
 
-const boxOfficeFor = (item) => ({
-  budget: item?.movie?.budget || 0,
-  revenue: item?.movie?.revenue || 0
-});
+/**
+ * A film's two money figures, optionally re-expressed in today's dollars.
+ *
+ * `adjusted` falls back to the raw figure when the film can't be adjusted (no
+ * release date, a year off the end of the CPI table) rather than dropping to
+ * zero — a film that simply lacks a date must not be reclassified as having
+ * no box office and sink out of the list.
+ */
+const boxOfficeFor = (item, adjusted = false) => {
+  const budget = item?.movie?.budget || 0;
+  const revenue = item?.movie?.revenue || 0;
+  if (!adjusted) return { budget, revenue };
+  return {
+    budget: adjustedMovieMoney(item?.movie, 'budget') ?? budget,
+    revenue: adjustedMovieMoney(item?.movie, 'revenue') ?? revenue
+  };
+};
 
 /**
  * Whether this item has no answer for this sort — which is different from
@@ -100,9 +114,15 @@ export function isSortValueUnknown (item, key) {
  * The sort key value for `item`. `getRating(item)` returns the rating object
  * (the component passes its mostRecentRating, which wraps GetRating.js).
  */
-export function getSortValue (item, key, getRating) {
+export function getSortValue (item, key, getRating, { adjusted = false } = {}) {
   if (BOX_OFFICE_SORTS.has(key)) {
-    const { budget, revenue } = boxOfficeFor(item);
+    // Return on budget is deliberately NOT adjusted. Budget and box office
+    // are in the same year's dollars, so scaling both by the same factor
+    // cancels — this is belt-and-braces, not load-bearing (a mutation that
+    // removes it passes every test, because the maths already agrees). It
+    // stays as a statement of intent, and it would start mattering the day
+    // the two figures were ever adjusted by different indices.
+    const { budget, revenue } = boxOfficeFor(item, adjusted && key !== 'returnPct');
     if (key === 'budget') return budget;
     if (key === 'boxOffice') return revenue;
     if (key === 'profit') return revenue - budget;
@@ -139,14 +159,14 @@ export function getSortValue (item, key, getRating) {
  * on the cached values with semantics identical to sortResults. Returns a NEW
  * array (does not mutate the input).
  */
-export function sortResultsFast (array, { sortValue, sortOrder, getRating }) {
+export function sortResultsFast (array, { sortValue, sortOrder, getRating, adjusted = false }) {
   const key = sortValue || 'rating';
   const bestOnTop = sortOrder === 'bestOrNewestOnTop';
 
   const decorated = array.map((item) => {
     const rating = getRating(item);
     const secondary = rating.calculatedTotal;
-    const primary = key === 'rating' ? rating.calculatedTotal : getSortValue(item, key, getRating);
+    const primary = key === 'rating' ? rating.calculatedTotal : getSortValue(item, key, getRating, { adjusted });
     return { item, primary, secondary, unknown: isSortValueUnknown(item, key) };
   });
 
@@ -183,7 +203,7 @@ export function sortResultsFast (array, { sortValue, sortOrder, getRating }) {
  * Reference comparator (the oracle sortResultsFast is tested against). Kept
  * identical to the legacy in-component comparator.
  */
-export function sortResults (a, b, { sortValue, sortOrder, getRating }) {
+export function sortResults (a, b, { sortValue, sortOrder, getRating, adjusted = false }) {
   const key = sortValue || 'rating';
 
   // Kept in lockstep with sortResultsFast — searchFiltering.test.js asserts
@@ -194,8 +214,8 @@ export function sortResults (a, b, { sortValue, sortOrder, getRating }) {
     return unknownA ? 1 : -1;
   }
 
-  const sortValueA = getSortValue(a, key, getRating);
-  const sortValueB = getSortValue(b, key, getRating);
+  const sortValueA = getSortValue(a, key, getRating, { adjusted });
+  const sortValueB = getSortValue(b, key, getRating, { adjusted });
 
   if (sortValueA === sortValueB) {
     const secondarySortValueA = getRating(a).calculatedTotal;

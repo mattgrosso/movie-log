@@ -501,6 +501,17 @@
                   Return on budget
                 </button>
               </li>
+              <!-- A way of LOOKING at the money, not a fifth money sort —
+                   budget and box office are both distorted by eighty years of
+                   inflation, so one switch covers all of it. Requested
+                   2026-08-26. Return on budget is left out on purpose: it's a
+                   ratio of two same-year figures and doesn't move. -->
+              <li>
+                <button class="dropdown-item money-mode" :class="{active: moneyInTodaysDollars}" @click.stop="toggleMoneyInflation">
+                  <i class="bi" :class="moneyInTodaysDollars ? 'bi-check-square' : 'bi-square'"></i>
+                  In today's dollars
+                </button>
+              </li>
             </ul>
           </button>
         </div>
@@ -2159,6 +2170,9 @@ export default {
         { value: 'profit', label: 'Profit' },
         { value: 'returnPct', label: 'Return on budget' }
       ];
+    },
+    moneyInTodaysDollars () {
+      return this.$store.state.moneyInTodaysDollars;
     },
     defaultSortValue () {
       return this.$store.state.settings?.defaultSort?.value || 'rating';
@@ -4312,14 +4326,18 @@ export default {
       this.$store.commit('setHomePageSortOrder', this.sortOrder);
     },
     getSortValue (item, key) {
-      return getSortValueUtil(item, key, this.mostRecentRating);
+      return getSortValueUtil(item, key, this.mostRecentRating, { adjusted: this.moneyInTodaysDollars });
     },
     sortResultsFast (array) {
       return sortResultsFastUtil(array, {
         sortValue: this.sortValue,
         sortOrder: this.sortOrder,
-        getRating: this.mostRecentRating
+        getRating: this.mostRecentRating,
+        adjusted: this.moneyInTodaysDollars
       });
+    },
+    toggleMoneyInflation () {
+      this.$store.commit('setMoneyInTodaysDollars', !this.moneyInTodaysDollars);
     },
     sortResults (a, b) {
       return sortResultsUtil(a, b, {

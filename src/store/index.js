@@ -238,6 +238,11 @@ export default createStore({
     databaseTopKey: null,
     newEntrySearchResults: [],
     movieToRate: {},
+    // Money sorts and captions expressed in BASE_YEAR dollars (inflation.js).
+    // localStorage rather than the database: it's a way of LOOKING at the
+    // library, like sort order, not a fact about it — and it should not cost
+    // a write or wait on a sync to take effect.
+    moneyInTodaysDollars: window.localStorage.getItem('moneyInTodaysDollars') === 'true',
     // { dbKey, index } while RateMovie is amending an existing viewing,
     // otherwise null — see setRatingToEdit.
     ratingToEdit: null,
@@ -614,6 +619,10 @@ export default createStore({
       const sorted = results.sort(sortByVoteCount);
 
       state.newEntrySearchResults = sorted;
+    },
+    setMoneyInTodaysDollars (state, on) {
+      state.moneyInTodaysDollars = Boolean(on);
+      window.localStorage.setItem('moneyInTodaysDollars', String(state.moneyInTodaysDollars));
     },
     setMovieToRate (state, movie) {
       state.movieToRate = movie;

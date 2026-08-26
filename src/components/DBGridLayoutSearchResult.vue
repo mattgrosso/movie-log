@@ -38,6 +38,14 @@
       <span v-else-if="sortValue === 'views'">
         {{result.ratings.length}} view<span v-if="result.ratings.length > 1" >s</span> · {{getOrdinal(overAllRank)}}
       </span>
+      <!-- Whatever the list is currently sorted BY, said out loud. Requested
+           2026-08-26: "show the sorted values in the tiny bar below each
+           poster... the individual scores that we're sorting on, and now the
+           budget ones." The rank still rides along, as it does in every
+           other variant. -->
+      <span v-else-if="sortDetail">
+        {{sortDetail}} · {{getOrdinal(overAllRank)}}
+      </span>
       <span v-else class="rank">
         <span v-if="resultsAreFiltered">{{getOrdinal(index + 1)}} ({{getOrdinal(overAllRank)}})</span>
         <span v-else>{{getOrdinal(overAllRank)}}</span>
@@ -269,6 +277,8 @@
 <script>
 import axios from 'axios';
 import { formatScore } from '../assets/javascript/formatScore.js';
+import { formatMoneyShort, formatProfit, formatReturn } from '../assets/javascript/formatMoney.js';
+import { adjustedMovieMoney } from '../assets/javascript/inflation.js';
 import ordinal from "ordinal-js";
 import minBy from 'lodash/minBy';
 import Modal from './Modal.vue';
@@ -280,6 +290,19 @@ import notFoundImage from '../assets/images/Image_not_available.png';
 import LetterboxdUrlService from '../services/LetterboxdUrlService.js';
 import ErrorLogService from '../services/ErrorLogService.js';
 import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.js';
+
+// Same shorthand MovieDetail's ratings table uses, so one vocabulary covers
+// both places a criterion score is named.
+const CRITERION_LABELS = {
+  direction: 'dir',
+  imagery: 'img',
+  story: 'stry',
+  performance: 'perf',
+  soundtrack: 'sndtk',
+  stickiness: 'stick',
+  love: 'love',
+  overall: 'ovral'
+};
 
 export default {
   props: {
@@ -342,6 +365,52 @@ export default {
     }
   },
   computed: {
+    // The value this list is sorted by, short enough for an 8px caption.
+    // Empty for sorts that already say their own value elsewhere (rating is
+    // the number on the right) or have none to say (title).
+    sortDetail () {
+      const movie = this.topStructure(this.result) || {};
+      const rawBudget = movie.budget || 0;
+      const rawRevenue = movie.revenue || 0;
+
+      // The caption has to agree with the sort, or a list ordered by today's
+      // dollars would be labelled with the original ones. Falls back to the
+      // raw figure when a film can't be adjusted (no release date), matching
+      // boxOfficeFor in searchFiltering.js. Return on budget is a ratio of
+      // two same-year figures and is left unadjusted on purpose.
+      const adjusting = this.$store.state.moneyInTodaysDollars;
+      const budget = adjusting
+        ? (adjustedMovieMoney(movie, 'budget') ?? rawBudget)
+        : rawBudget;
+      const revenue = adjusting
+        ? (adjustedMovieMoney(movie, 'revenue') ?? rawRevenue)
+        : rawRevenue;
+
+      switch (this.sortValue) {
+        // TMDB's 0 means "we don't know", which is why these show a dash
+        // rather than "$0" — see isSortValueUnknown in searchFiltering.js,
+        // where the same films sink to the bottom of the sort.
+        case 'budget':
+          return rawBudget > 0 ? formatMoneyShort(budget) : '—';
+        case 'boxOffice':
+          return rawRevenue > 0 ? formatMoneyShort(revenue) : '—';
+        case 'profit':
+          return rawBudget > 0 && rawRevenue > 0 ? formatProfit(budget, revenue) : '—';
+        case 'returnPct':
+          return rawBudget > 0 && rawRevenue > 0 ? formatReturn(rawBudget, rawRevenue) : '—';
+        default:
+          break;
+      }
+
+      // The eight rating criteria. Abbreviated the way MovieDetail's ratings
+      // table already abbreviates them, because a bare "8" next to an 8.44
+      // score reads as a second, contradictory rating.
+      const label = CRITERION_LABELS[this.sortValue];
+      if (!label) return '';
+      const score = this.mostRecentRating(this.result)?.[this.sortValue];
+      const numeric = parseFloat(score);
+      return Number.isFinite(numeric) ? `${label} ${numeric}` : '';
+    },
     overAllRank () {
       return this.$store.getters.allMediaSortedByRating.findIndex((media) => {
         return media.dbKey === this.result.dbKey;
