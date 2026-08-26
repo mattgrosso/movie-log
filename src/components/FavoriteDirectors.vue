@@ -23,37 +23,18 @@
       </li>
     </ul>
     <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
-    <div v-if="showModal && selectedDirector" class="director-modal-overlay">
-      <div class="director-modal">
-        <button class="close-btn" @click="closeDirectorModal">&times;</button>
-        <h2>{{ selectedDirector.name }}</h2>
-        <div class="portrait-wrapper" v-if="selectedDirector.details && selectedDirector.details.profile_path">
-          <img
-            :src="`https://image.tmdb.org/t/p/w185${selectedDirector.details.profile_path}`"
-            :alt="selectedDirector.name"
-            class="portrait"
-            style="margin-bottom: 1rem; width: 120px; height: auto; display: block; margin-left: auto; margin-right: auto;"
-          />
-        </div>
-        <div class="portrait-wrapper" v-else>
-          <img
-            src="../assets/images/Image_not_available.png"
-            :alt="selectedDirector.name"
-            class="portrait"
-            style="margin-bottom: 1rem; width: 120px; height: auto; display: block; margin-left: auto; margin-right: auto;"
-          />
-        </div>
-        <div class="modal-section">
-          <h3>Rated Films</h3>
-          <ul class="films-list">
-            <li v-for="film in selectedDirector.entries" class="col-12" :key="film.movie.id">
-              <strong>{{ film.movie.title }}</strong>
-            </li>
-          </ul>
-        </div>
-        <button class="search-btn" @click="searchForDirector">Search for this director</button>
-      </div>
-    </div>
+    <!-- One shared modal for all eight sections; each used to carry
+         its own copy, which is how they drifted apart. -->
+    <PersonModal
+      v-if="showModal && selectedDirector"
+      :person="selectedDirector"
+      role-label="Director"
+      :rank="rankOfDirector"
+      :library-average="libraryAverageScore"
+      @close="closeDirectorModal"
+      @search="searchForDirector"
+      @select-film="goToFilm"
+    />
   </div>
 </template>
 
@@ -63,6 +44,8 @@ import favoriteTuning from "../mixins/favoriteTuning.js";
 import { getRating } from "../assets/javascript/GetRating.js";
 import { globalAverage } from "../assets/javascript/logScore.js";
 import { personLogScore } from "../assets/javascript/logScoreRankings.js";
+import { dedupeAppearancesByFilm } from "../assets/javascript/personCredits.js";
+import PersonModal from "./PersonModal.vue";
 
 // Persisted under settings/favoriteTuning/<TUNING_KEY>. Each section uses its own
 // key so its levers stay independent of the others.
@@ -76,7 +59,7 @@ const TUNING_DEFAULTS = Object.freeze({
 });
 
 export default {
-  components: { FavoriteTuner },
+  components: { FavoriteTuner, PersonModal },
   mixins: [favoriteTuning],
   props: {
     allEntriesWithFlatKeywordsAdded: {
@@ -100,6 +83,11 @@ export default {
     }
   },
   computed: {
+    rankOfDirector () {
+      if (!this.selectedDirector) return null;
+      const index = this.topTenList.findIndex((p) => p.name === this.selectedDirector.name);
+      return index >= 0 ? index + 1 : null;
+    },
     tunerLevers () {
       return [
         {
@@ -154,7 +142,7 @@ export default {
 
       this.peopleData = Object.entries(valueToMovies).map(([name, appearances]) => {
         // DETERMINISTIC SORT: sort by movie title, then billing, then id.
-        const sortedAppearances = appearances.slice().sort((a, b) => {
+        const sortedAppearances = dedupeAppearancesByFilm(appearances).sort((a, b) => {
           const titleA = (a.entry.movie.title || '').trim().toLowerCase();
           const titleB = (b.entry.movie.title || '').trim().toLowerCase();
           if (titleA < titleB) return -1;
@@ -207,6 +195,12 @@ export default {
           return null;
         }).catch(() => null);
       });
+    },
+    // Where they sit in this list, for the modal's "#3" badge.
+    goToFilm (film) {
+      this.closeDirectorModal();
+      const id = film?.movie?.id;
+      if (id) this.$router.push(`/movie/${id}`);
     },
     openDirectorModal (entry) {
       this.selectedDirector = entry;
@@ -299,97 +293,6 @@ export default {
     }
   }
 
-  .director-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-
-    .director-modal {
-      background: #222;
-      color: #fff;
-      border-radius: 10px;
-      padding: 2rem;
-      min-width: 320px;
-      max-width: 90vw;
-      box-shadow: 0 2px 16px #000a;
-      position: relative;
-
-      .close-btn {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
-        background: none;
-        border: none;
-        color: #fff;
-        font-size: 2rem;
-        cursor: pointer;
-      }
-
-      .modal-section {
-        margin-bottom: 1.5rem;
-      }
-
-      .search-btn {
-        background: #1976d2;
-        color: #fff;
-        border: none;
-        border-radius: 4px;
-        padding: 0.5rem 1.5rem;
-        font-size: 1rem;
-        cursor: pointer;
-        margin-top: 1rem;
-      }
-
-      .breakdown-list {
-        padding-left: 0;
-        list-style: none;
-        margin-bottom: 1rem;
-
-        li {
-          display: block;
-          margin-bottom: 0.25rem;
-          word-break: break-word;
-          width: 100%;
-        }
-      }
-
-      .films-list {
-        padding-left: 0;
-        list-style: none;
-        max-height: 250px;
-        overflow-y: auto;
-        margin-bottom: 1rem;
-        position: relative;
-
-        // Fade indicator for scrollable content
-        &::after {
-          content: "";
-          display: block;
-          position: sticky;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          height: 32px;
-          pointer-events: none;
-          background: linear-gradient(to bottom, rgba(34,34,34,0), rgba(34,34,34,0.95) 90%);
-          z-index: 2;
-        }
-
-        li {
-          display: block;
-          margin-bottom: 0.25rem;
-          word-break: break-word;
-        }
-      }
-    }
-  }
 }
 body.no-scroll {
   overflow: hidden !important;

@@ -23,39 +23,18 @@
       </li>
     </ul>
     <FavoriteTuner :levers="tunerLevers" @update="onTunerUpdate" @reset="resetTuner" />
-    <div v-if="showModal && selectedProducer" class="producer-modal-overlay">
-      <div class="producer-modal">
-        <button class="close-btn" @click="closeProducerModal">&times;</button>
-        <h2>{{ selectedProducer.name }}</h2>
-        <div class="portrait-wrapper" v-if="selectedProducer.details && selectedProducer.details.profile_path">
-          <img
-            :src="`https://image.tmdb.org/t/p/w185${selectedProducer.details.profile_path}`"
-            :alt="selectedProducer.name"
-            class="portrait"
-            style="margin-bottom: 1rem; width: 120px; height: auto; display: block; margin-left: auto; margin-right: auto;"
-          />
-        </div>
-        <div class="portrait-wrapper" v-else>
-          <img
-            src="../assets/images/Image_not_available.png"
-            :alt="selectedProducer.name"
-            class="portrait"
-            style="margin-bottom: 1rem; width: 120px; height: auto; display: block; margin-left: auto; margin-right: auto;"
-          />
-        </div>
-        <div class="modal-section">
-          <h3>Rated Films</h3>
-          <ul class="films-list">
-            <li v-for="film in selectedProducer.entries" :key="film.movie.id">
-              <strong>{{ film.movie.title }}</strong>
-              <span v-if="!isNaN(parseFloat(getRating(film).calculatedTotal))"> - Rated: {{ parseFloat(getRating(film).calculatedTotal).toFixed(2) }}</span>
-              <span v-else> - Not rated</span>
-            </li>
-          </ul>
-        </div>
-        <button class="search-btn" @click="searchForProducer">Search for this producer</button>
-      </div>
-    </div>
+    <!-- One shared modal for all eight sections; each used to carry
+         its own copy, which is how they drifted apart. -->
+    <PersonModal
+      v-if="showModal && selectedProducer"
+      :person="selectedProducer"
+      role-label="Producer"
+      :rank="rankOfProducer"
+      :library-average="libraryAverageScore"
+      @close="closeProducerModal"
+      @search="searchForProducer"
+      @select-film="goToFilm"
+    />
   </div>
 </template>
 
@@ -65,6 +44,8 @@ import favoriteTuning from "../mixins/favoriteTuning.js";
 import { getRating } from "../assets/javascript/GetRating.js";
 import { globalAverage } from "../assets/javascript/logScore.js";
 import { personLogScore } from "../assets/javascript/logScoreRankings.js";
+import { dedupeAppearancesByFilm } from "../assets/javascript/personCredits.js";
+import PersonModal from "./PersonModal.vue";
 
 const TUNING_KEY = 'producer';
 const TUNING_DEFAULTS = Object.freeze({
@@ -76,7 +57,7 @@ const TUNING_DEFAULTS = Object.freeze({
 });
 
 export default {
-  components: { FavoriteTuner },
+  components: { FavoriteTuner, PersonModal },
   mixins: [favoriteTuning],
   props: {
     allEntriesWithFlatKeywordsAdded: {
@@ -98,6 +79,11 @@ export default {
     }
   },
   computed: {
+    rankOfProducer () {
+      if (!this.selectedProducer) return null;
+      const index = this.topTenList.findIndex((p) => p.name === this.selectedProducer.name);
+      return index >= 0 ? index + 1 : null;
+    },
     tunerLevers () {
       return [
         {
@@ -156,7 +142,7 @@ export default {
       });
 
       this.peopleData = Object.entries(valueToMovies).map(([name, appearances]) => {
-        const sortedAppearances = appearances.slice().sort((a, b) => {
+        const sortedAppearances = dedupeAppearancesByFilm(appearances).sort((a, b) => {
           const titleA = a.entry.movie.title || '';
           const titleB = b.entry.movie.title || '';
           if (titleA < titleB) return -1;
@@ -206,6 +192,12 @@ export default {
           return null;
         }).catch(() => null);
       });
+    },
+    // Where they sit in this list, for the modal's "#3" badge.
+    goToFilm (film) {
+      this.closeProducerModal();
+      const id = film?.movie?.id;
+      if (id) this.$router.push(`/movie/${id}`);
     },
     openProducerModal (entry) {
       this.selectedProducer = entry;
@@ -298,96 +290,6 @@ export default {
     }
   }
 
-  .producer-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-
-    .producer-modal {
-      background: #222;
-      color: #fff;
-      border-radius: 10px;
-      padding: 2rem;
-      min-width: 320px;
-      max-width: 90vw;
-      box-shadow: 0 2px 16px #000a;
-      position: relative;
-
-      .close-btn {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
-        background: none;
-        border: none;
-        color: #fff;
-        font-size: 2rem;
-        cursor: pointer;
-      }
-
-      .modal-section {
-        margin-bottom: 1.5rem;
-      }
-
-      .search-btn {
-        background: #1976d2;
-        color: #fff;
-        border: none;
-        border-radius: 4px;
-        padding: 0.5rem 1.5rem;
-        font-size: 1rem;
-        cursor: pointer;
-        margin-top: 1rem;
-      }
-
-      .breakdown-list {
-        padding-left: 0;
-        list-style: none;
-        margin-bottom: 1rem;
-
-        li {
-          display: block;
-          margin-bottom: 0.25rem;
-          word-break: break-word;
-          width: 100%;
-        }
-      }
-
-      .films-list {
-        padding-left: 0;
-        list-style: none;
-        max-height: 250px;
-        overflow-y: auto;
-        margin-bottom: 1rem;
-        position: relative;
-
-        &::after {
-          content: "";
-          display: block;
-          position: sticky;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          height: 32px;
-          pointer-events: none;
-          background: linear-gradient(to bottom, rgba(34,34,34,0), rgba(34,34,34,0.95) 90%);
-          z-index: 2;
-        }
-
-        li {
-          display: block;
-          margin-bottom: 0.25rem;
-          word-break: break-word;
-        }
-      }
-    }
-  }
 }
 
 body.no-scroll {

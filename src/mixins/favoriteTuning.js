@@ -1,4 +1,5 @@
 import { getRating } from "../assets/javascript/GetRating.js";
+import { globalAverage } from "../assets/javascript/logScore.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 
 /**
@@ -33,6 +34,14 @@ export default {
       // superseded and drop its (now stale) result.
       rescoreSeq: 0
     };
+  },
+  computed: {
+    // The library-wide average, for PersonModal's "vs your library" figure.
+    // Type-agnostic, so it belongs here rather than in eight copies — and
+    // every section already has the entries it needs.
+    libraryAverageScore () {
+      return globalAverage(this.allEntriesWithFlatKeywordsAdded, getRating);
+    }
   },
   async mounted () {
     this.loadPersistedTuning();
