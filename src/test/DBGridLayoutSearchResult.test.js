@@ -182,10 +182,39 @@ describe('DBGridLayoutSearchResult — the caption names whatever the list is so
     getRating.mockReturnValue({ calculatedTotal: 5, normalizedRating: 5, date: Date.now() })
   })
 
-  it('renders the caption alongside the rank, like every other variant', () => {
+  // Matt, 2026-08-26: "when we sort by the various money things, we don't
+  // need to [show the rank]... the only place the overall rank is useful is
+  // sorted by rating."
+  it('renders the figure and NOT the overall rank', () => {
     const wrapper = sortedBy('budget')
     expect(wrapper.find('.details').text()).toContain('$200M')
-    expect(wrapper.find('.details').text()).toContain('·')
+    expect(wrapper.find('.rank').exists()).toBe(false)
+    expect(wrapper.vm.showsOverallRank).toBe(false)
+  })
+
+  it('keeps the rank on the rating sort, and only there', () => {
+    expect(sortedBy('rating').vm.showsOverallRank).toBe(true)
+    // An empty sortValue IS the rating sort — see getSortValue's default.
+    expect(sortedBy('').vm.showsOverallRank).toBe(true)
+    expect(sortedBy('rating').find('.rank').exists()).toBe(true)
+
+    for (const other of ['watched', 'release', 'views', 'title', 'direction', 'budget', 'boxOffice', 'profit', 'returnPct']) {
+      expect(sortedBy(other).vm.showsOverallRank).toBe(false)
+    }
+  })
+
+  it('names the date or the view count on their own sorts, without a rank', () => {
+    expect(sortedBy('views').find('.details').text()).toMatch(/view/)
+    expect(sortedBy('views').find('.rank').exists()).toBe(false)
+    expect(sortedBy('watched').find('.rank').exists()).toBe(false)
+    expect(sortedBy('release').find('.rank').exists()).toBe(false)
+  })
+
+  // Nothing to say on a title sort — but the score still has to sit right,
+  // which needs a left-hand element for space-between to push against.
+  it('leaves an empty slot rather than no slot when there is nothing to say', () => {
+    const details = sortedBy('title').find('.details')
+    expect(details.element.children.length).toBeGreaterThanOrEqual(2)
   })
 })
 

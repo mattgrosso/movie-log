@@ -27,34 +27,41 @@
       <span v-if="activeQuickLinkList === 'bestPicture'">
         {{topStructure(result).academyAwardsYear}}
       </span>
-      <!-- Overall rank rides along in every variant (Brian-survey C1),
-           kept to this same minimal gray bar per Matt. -->
+      <!-- Overall rank ONLY when the list is sorted by rating. It used to ride
+           along in every variant; Matt, 2026-08-26: "when we sort by the
+           various money things, we don't need to do that... the only place the
+           overall rank is useful is sorted by rating." Everywhere else the bar
+           names the thing being sorted on instead, which is what you're
+           actually looking at. -->
+      <span v-else-if="showsOverallRank" class="rank">
+        <span v-if="resultsAreFiltered">{{getOrdinal(index + 1)}} ({{getOrdinal(overAllRank)}})</span>
+        <span v-else>{{getOrdinal(overAllRank)}}</span>
+      </span>
       <span v-else-if="sortValue === 'watched'">
-        {{smallFormattedDate(mostRecentRating(result).date)}} · {{getOrdinal(overAllRank)}}
+        {{smallFormattedDate(mostRecentRating(result).date)}}
       </span>
       <span v-else-if="sortValue === 'release'">
-        {{smallFormattedDate(topStructure(result).release_date)}} · {{getOrdinal(overAllRank)}}
+        {{smallFormattedDate(topStructure(result).release_date)}}
       </span>
       <span v-else-if="sortValue === 'views'">
-        {{result.ratings.length}} view<span v-if="result.ratings.length > 1" >s</span> · {{getOrdinal(overAllRank)}}
+        {{result.ratings.length}} view<span v-if="result.ratings.length > 1" >s</span>
       </span>
       <!-- Whatever the list is currently sorted BY, said out loud. Requested
            2026-08-26: "show the sorted values in the tiny bar below each
            poster... the individual scores that we're sorting on, and now the
-           budget ones." The rank still rides along, as it does in every
-           other variant. -->
+           budget ones." This IS the bar's content on these sorts — the rank
+           is no longer appended (see showsOverallRank). -->
       <span v-else-if="sortDetail">
         {{sortDetail}}<!--
         --><i
           v-if="marksNoBoxOffice"
           class="bi bi-tv no-box-office"
           title="No box office reported — streaming original or never widely released. Sorted to the end of the budget list."
-        ></i> · {{getOrdinal(overAllRank)}}
+        ></i>
       </span>
-      <span v-else class="rank">
-        <span v-if="resultsAreFiltered">{{getOrdinal(index + 1)}} ({{getOrdinal(overAllRank)}})</span>
-        <span v-else>{{getOrdinal(overAllRank)}}</span>
-      </span>
+      <!-- Nothing to say (title sort). An empty span, not a missing one, so
+           space-between keeps the score pinned right. -->
+      <span v-else></span>
       <span v-if="!result.falseEntry" class="rating">
         {{parseFloat(ratingForMedia(result)).toFixed(2)}}
       </span>
@@ -420,6 +427,12 @@ export default {
     // Only on the budget sort, and only where the film was deliberately sunk —
     // otherwise a $150M film sitting at the bottom of "most expensive" reads
     // as a bug rather than a decision.
+    // The rank answers "where does this sit in my whole library, by score",
+    // which is only the question being asked when the list is sorted by score.
+    // An empty sortValue is the rating sort (see getSortValue's default).
+    showsOverallRank () {
+      return !this.sortValue || this.sortValue === 'rating';
+    },
     marksNoBoxOffice () {
       return this.sortValue === 'budget' && isModernWithNoBoxOffice(this.result);
     },
