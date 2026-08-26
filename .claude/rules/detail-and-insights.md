@@ -71,6 +71,30 @@ data load; `rescore` scores with current levers, lazily fetching only for the el
 set, guarded by a `rescoreSeq` token that drops superseded async passes. Dragging a slider
 must never re-hit TMDB (enforced by test).
 
+**One person, one film, one credit.** Every section gathers by walking a film's cast or
+crew and pushing an appearance per match, which double-counts anyone holding two
+qualifying credits on one film (a writer credited "Screenplay" AND "Novel", an actor in
+two roles). That inflates their film count past `minEntries` and feeds the same rating
+into `personLogScore` twice, so it moves the RANKING, not just the displayed list. Run
+appearances through `dedupeAppearancesByFilm` (`personCredits.js`) before the
+deterministic sort — it keeps the best billing, so a lead isn't demoted by a second
+credit further down the cast list. Measured before the fix: 264 doubled writer credits,
+55 producer, 31 cast.
+
+**`PersonModal.vue` is shared by all eight sections.** They each carried their own
+near-identical copy, which is exactly how they drifted (inline styles on the portrait in
+some, none in others, credits never sorted). Anything that should be true of "tapping a
+favourite person" goes in that one component. It takes `person`, `roleLabel`, `rank` and
+`libraryAverage` (from the mixin's `libraryAverageScore`), and emits `close` / `search` /
+`select-film`.
+
+**Biographies need `/person/{id}`.** The mixin's `getDetailsForCastMember` uses
+`/search/person`, which carries id, name, profile_path and popularity — and NO
+biography, birthday or place of birth. PersonModal makes its own lazy lookup when it
+opens, one person at a time, cached by name across sections (a writer-director appears
+in two lists) with misses cached too so a rate-limited lookup isn't retried on every
+open. A failed lookup is silent: the films are the reason the modal exists.
+
 Known-for bonus intentionally differs by section — Directors/Composers blend the role
 sub-score; Writers/Cinematographers/Editors/Producers use plain `calculatedTotal`. Cast
 sections re-gather each pass and gender-gate via cached lookups.

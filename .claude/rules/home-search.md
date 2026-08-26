@@ -34,6 +34,23 @@ Still in Home deliberately (entangled with reactive state): `groupedByAllCategor
   per movie (~9,100 dispatched calls per keystroke over 1,300 movies). If you edit either,
   keep them mirrored — every group compares through the same normalization.
 
+## The money sorts (2026-08-25)
+
+`budget`, `boxOffice`, `profit`, `returnPct` — all four in `BOX_OFFICE_SORTS`. The data
+is optional: TMDB's `0` means "unknown" and is indistinguishable from a genuinely free
+production, so `0` and `undefined` are treated alike (as everywhere else in the app).
+About 77% of a mature library has both figures.
+
+**Films with no figures sink in BOTH directions** (`isSortValueUnknown`, checked at the
+top of both comparators). Flipping to worst-on-top to find the biggest flops has to show
+flops, not three hundred blanks. `profit` and `returnPct` need both numbers; `budget` and
+`boxOffice` need only their own. `returnPct` guards against a zero budget — the ratio
+would be `Infinity` and would sort above every real film.
+
+This is the one place a sort key can be "unanswerable" rather than merely low, so if you
+add another such key, change **both** comparators together — `searchFiltering.test.js`
+runs the byte-identical oracle check over the money keys too.
+
 ## Normalization: both sides, always (2026-08-16)
 
 `normalizeSearchText` — NFD accent strip, non-decomposing letters (ß→ss, ł→l), curly
