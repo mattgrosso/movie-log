@@ -4,6 +4,53 @@
     <h1 class="watchlist-title">Watchlist</h1>
     <p class="watchlist-subtitle">Built from your own ratings — what to revisit, and what to see next.</p>
 
+    <!-- Bug report (2026-08-27): "It'll be cool if I could have a prompt
+         somewhere on the watchlist page where I could give it a prompt and it
+         would give me back a watchlist tailored to that prompt."
+         Everything below this is derived from ratings; this is the one place
+         you can just say what you're in the mood for. -->
+    <section class="watchlist-section prompt-section">
+      <h2 class="section-title">Ask for something</h2>
+      <p class="section-caption">Describe what you're in the mood for.</p>
+
+      <form class="prompt-form" @submit.prevent="askForWatchlist">
+        <input
+          v-model="promptText"
+          class="prompt-input"
+          type="text"
+          maxlength="300"
+          autocomplete="off"
+          :disabled="promptLoading"
+          placeholder="something funny for a rainy Sunday"
+          aria-label="Describe what you're in the mood for"
+        >
+        <button
+          class="prompt-button"
+          type="submit"
+          :disabled="promptLoading || !promptText.trim()"
+        >{{ promptLoading ? 'Thinking…' : 'Ask' }}</button>
+      </form>
+
+      <!-- Quota and failure both land here. The endpoint's own wording is
+           used for a quota refusal, because it's the one that says when it
+           comes back. -->
+      <p v-if="promptError" class="section-caption prompt-error">{{ promptError }}</p>
+
+      <p v-if="promptLoading" class="section-loading">Looking for something that fits&hellip;</p>
+      <template v-else-if="promptResults.length">
+        <p class="section-caption">For &ldquo;{{ promptAsked }}&rdquo;.</p>
+        <WatchlistRow
+          :items="mediaItems(promptResults)"
+          :hat-note="`Asked for: ${promptAsked}`"
+          @select="previewMedia"
+          @hatted="puntAll"
+        />
+      </template>
+      <p v-else-if="promptAsked && !promptError" class="section-loading">
+        Nothing came back that you haven't already rated. Try asking differently.
+      </p>
+    </section>
+
     <!-- Local, always available: movies you loved but haven't logged in a
          long time. -->
     <section v-if="rewatchList.length" class="watchlist-section">
@@ -125,6 +172,8 @@ import { rankSections, sourceSummary } from '../assets/javascript/recommendation
 import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoritePeople, peopleYouRateHigher, rankWatchlistCandidates, ratedTmdbIds, topRatedSeeds, tasteProfile, puntKeyFor, nextPunt, isPunted } from '../assets/javascript/discover.js';
 import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 import { formatScore } from '../assets/javascript/formatScore.js';
+import { tasteSummary, pickTmdbMatch, buildPromptedList } from '../assets/javascript/promptedWatchlist.js';
+import { postToAi } from '../utils/aiRequest.js';
 
 // Long enough to read the "added to <hat>" confirmation before the card that
 // owns it leaves the list.
@@ -142,6 +191,14 @@ export default {
     return {
       // Pending hat-punts, cleared on unmount — see puntAll.
       puntTimers: [],
+      // The "ask for something" box. `promptAsked` is the request the results
+      // on screen belong to, kept separate from what's currently typed so the
+      // caption doesn't change under you while you edit.
+      promptText: '',
+      promptAsked: '',
+      promptResults: [],
+      promptLoading: false,
+      promptError: '',
       // The unrated movie whose summary sheet is open, or null.
       previewing: null,
       // Suggestions per year, keyed by year — { 1997: [...movies] }. Filled
@@ -417,6 +474,64 @@ export default {
   },
   methods: {
     // TMDB-shaped lists (year fillers, Film Club picks, ranked sections).
+    /**
+     * Ask for a watchlist in words.
+     *
+     * The library is NOT sent - see promptedWatchlist.js for why. What goes
+     * up is the request plus a one-line taste sketch; what comes back is
+     * titles, which are resolved against TMDB here and filtered against what
+     * has already been rated. That filtering is done locally on purpose: an
+     * id against a Set is exact and free, where asking the model to avoid
+     * 1,386 titles would mean sending it 1,386 titles and it would still slip.
+     */
+    async askForWatchlist () {
+      const ask = this.promptText.trim();
+      if (!ask || this.promptLoading) return;
+
+      this.promptLoading = true;
+      this.promptError = '';
+      this.promptResults = [];
+
+      try {
+        const entries = Object.values(this.$store.state.movieLog || {});
+        const { data } = await postToAi('/watchlist', {
+          prompt: ask,
+          taste: tasteSummary(entries, getRating)
+        });
+
+        const suggestions = data?.movies || [];
+        if (!suggestions.length) {
+          this.promptAsked = ask;
+          return;
+        }
+
+        const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+        const matches = await Promise.all(suggestions.map(async (suggestion) => {
+          try {
+            const url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}`
+              + `&query=${encodeURIComponent(suggestion.title)}`
+              + (suggestion.year ? `&year=${suggestion.year}` : '');
+            const res = await axios.get(url);
+            return pickTmdbMatch(suggestion, res.data?.results || []);
+          } catch {
+            // One title failing to resolve should cost that one title, never
+            // the whole list.
+            return null;
+          }
+        }));
+
+        this.promptResults = buildPromptedList(suggestions, matches, ratedTmdbIds(entries));
+        this.promptAsked = ask;
+      } catch (error) {
+        // The endpoint says when a quota resets, so its own wording is better
+        // than anything generic invented here.
+        this.promptError = error?.response?.data?.error
+          || "Couldn't get suggestions just now. Try again in a moment.";
+        this.promptAsked = '';
+      } finally {
+        this.promptLoading = false;
+      }
+    },
     mediaItems (movies) {
       return this.notPunted(movies).map((media) => ({
         key: media.id,
@@ -838,6 +953,65 @@ export default {
   color: #adb5bd;
   font-size: 0.78rem;
   margin: 0 0 0.5rem;
+}
+
+/* "Ask for something" — the one place on this page you type rather than
+   scroll. Matched to .year-tab's surfaces so it belongs to the page rather
+   than announcing itself; :active not :hover, since this is an installed iOS
+   PWA where a tapped element keeps its hover state with no mouse to leave
+   it. */
+.prompt-form {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.prompt-input {
+  background: #1c1c1c;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #f1f1f1;
+  flex: 1;
+  /* 16px exactly, not 0.95rem: below 16px iOS Safari zooms the whole page in
+     when the field takes focus, and never zooms back out. */
+  font-size: 1rem;
+  min-height: 44px;
+  min-width: 0;
+  padding: 0.5rem 0.7rem;
+
+  &::placeholder { color: #6c757d; }
+
+  &:focus {
+    border-color: #5a5a5a;
+    outline: none;
+  }
+
+  &:disabled { opacity: 0.6; }
+}
+
+.prompt-button {
+  background: #2b2b2b;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #f1f1f1;
+  flex: 0 0 auto;
+  font-size: 0.9rem;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0.5rem 1.1rem;
+
+  &:active { background: #3a3a3a; }
+
+  &:disabled {
+    color: #7a7a7a;
+    opacity: 0.7;
+  }
+}
+
+/* Amber rather than red: running out of suggestions for the day is a limit,
+   not a failure, and it reads better as information than as an error. */
+.prompt-error {
+  color: #e0a458;
 }
 
 .section-loading {

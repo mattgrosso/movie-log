@@ -4,6 +4,7 @@
   "description": "AWS Lambda function for Claude AI integration",
   "main": "claude-ai.js",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0"
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@aws-sdk/client-dynamodb": "^3.1119.0"
   }
 }

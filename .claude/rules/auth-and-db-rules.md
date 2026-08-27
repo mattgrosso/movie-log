@@ -126,3 +126,55 @@ Movie Hat's database. Use `fetchHatMovies`.
 
 Note the client's `emailToMemberKey` **mirrors** `src/store/memberKey.mjs` in the
 movie-hat repo, which also generates that project's rules. Change one, change both.
+
+## The AI endpoint's spending caps
+
+`aws-lambda/claude-ai.js` has two limiters, and they do different jobs.
+
+**In-memory, per user, per minute** (`withinRateLimit`) — applies to every route. It is
+per-container, so a burst spread across concurrent Lambdas slips through it and a cold
+start wipes it. That is fine for what it is: a speed bump on the three routes that fire
+automatically while you browse (~5k calls a day, which is why those can't carry a daily
+per-person cap).
+
+**Durable, per user AND global, per day** (`checkWatchlistQuota`) — applies to `/watchlist`
+ONLY, the one route a person types into. Matt, when it was built: *"I don't wanna just
+hand over my Claude prompt to just any number of users and have them abuse it... limit
+usage in a way that most users won't notice, but if somebody really went crazy, they
+would be held in check."*
+
+- DynamoDB table **`cinemaroll-ai-usage`** (us-east-1, on-demand), key `pk`, TTL on
+  `expiresAt`. The Lambda's role carries an inline policy `cinemaroll-ai-usage-table`
+  granting only `UpdateItem`/`GetItem` on that table.
+- Keys are `u#<uid>#<YYYY-MM-DD>` and `all#<YYYY-MM-DD>`. Limits: **60 per person per
+  day, 800 across everyone.**
+- The increment and the check are ONE conditional `UpdateItem`, which is what makes it
+  safe under concurrency — two simultaneous calls cannot both see 59 and both proceed.
+  A `ConditionalCheckFailedException` IS the "over limit" answer, not an error.
+- It **fails open**. If DynamoDB is unreachable the request is allowed: a spending cap
+  that takes the feature down when its ledger is unavailable trades a small bounded cost
+  for a visible outage, which is the wrong way round. API Gateway's stage throttle is the
+  backstop underneath.
+
+**Adding a route needs THREE things, not one.** A new `route.endsWith(...)` branch in the
+handler is invisible until you also add the API Gateway route and the Lambda invoke
+permission — the permissions here are scoped per path (`.../*/*/watchlist`), not
+wildcarded. Missing the route gives a 404 with no log line; missing the permission gives
+a 500 with no log line, because the invocation never reaches the function:
+
+```
+aws apigatewayv2 create-route --api-id 2lyldox07e --route-key 'POST /watchlist' \
+  --target integrations/9xdv8nl --profile personal
+aws lambda add-permission --function-name cinemaroll-ai --statement-id apigw-invoke-watchlist \
+  --action lambda:InvokeFunction --principal apigateway.amazonaws.com \
+  --source-arn 'arn:aws:execute-api:us-east-1:298682183644:2lyldox07e/*/*/watchlist' --profile personal
+```
+
+**Ask for structured data with a forced tool call, not with a JSON-shaped prompt.**
+`/watchlist` first asked for JSON in the system prompt and prefilled the reply with
+`{"movies":` to force the shape. The suggestions were good every time; reassembling the
+document was what broke — the continuation sometimes re-emitted the colon
+(`{"movies"::[`) and sometimes omitted the array bracket, both unparseable, and both
+invisible until the raw reply was logged. `tools` + `tool_choice` has the API validate
+the arguments against a schema and leaves nothing to parse. It also fixed vague prompts
+("x", "one more"), which used to get a conversational reply and come back empty.

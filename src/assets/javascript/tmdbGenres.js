@@ -53,3 +53,21 @@ export function genreIdFor (name) {
   const key = name.trim().toLowerCase();
   return TMDB_GENRE_IDS[key] ?? null;
 }
+
+// The other direction: 27 -> "Horror".
+//
+// Derived from TMDB_GENRE_IDS rather than written out again, so the two can
+// never disagree. Several names map to the same id ("sci-fi", "scifi",
+// "science fiction" are all 878); the FIRST one wins, which is why the map
+// above lists the canonical spelling first in each of those groups.
+const NAME_BY_ID = Object.freeze(
+  Object.entries(TMDB_GENRE_IDS).reduce((byId, [name, id]) => {
+    if (!(id in byId)) byId[id] = name.replace(/\b\w/g, (c) => c.toUpperCase());
+    return byId;
+  }, {})
+);
+
+/** `27` → "Horror". Null for an id TMDB has no name for here. */
+export function genreNameFor (id) {
+  return NAME_BY_ID[id] || null;
+}

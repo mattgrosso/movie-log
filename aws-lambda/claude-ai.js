@@ -1,5 +1,6 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
+const { DynamoDBClient, UpdateItemCommand } = require('@aws-sdk/client-dynamodb');
 
 const client = new Anthropic();
 
@@ -19,7 +20,13 @@ const client = new Anthropic();
 const MODELS = {
   keywords: 'claude-haiku-4-5-20251001',
   context: 'claude-sonnet-5',
-  trivia: 'claude-sonnet-5'
+  trivia: 'claude-sonnet-5',
+  // The watchlist prompt picks and orders titles against a short taste
+  // profile. It is a judgement call, not a factual recall problem - if it
+  // suggests something you don't fancy, you can see that from the title and
+  // scroll on. Haiku is the right tier for that, and this is the one route a
+  // person can type into, so it is also the one whose cost could run away.
+  watchlist: 'claude-haiku-4-5-20251001'
 };
 
 // This endpoint spends money on every call and its URL is baked into the
@@ -150,6 +157,86 @@ const withinRateLimit = (uid) => {
   return true;
 };
 
+// --- Durable quota (the watchlist prompt only) ------------------------------
+//
+// Matt: "I don't wanna just hand over my Claude prompt to just any number of
+// users and have them abuse it. Is there some way that we can limit usage in a
+// way that most users won't notice, but if somebody really went crazy, they
+// would be held in check?"
+//
+// The in-memory limiter above cannot do that job. It is per-container, so a
+// burst spread across concurrent Lambdas slips through it, and a cold start
+// wipes it. Fine as a speed bump for the automatic routes; useless as a
+// ceiling.
+//
+// This one is a real ceiling: an atomic counter in DynamoDB, incremented and
+// checked in a single conditional write, so concurrency cannot beat it. It
+// applies ONLY to /watchlist - the one route a human types into. The other
+// three fire automatically while you browse (the file header notes ~5k calls a
+// day), and a per-person daily cap on those would break ordinary use.
+//
+// Two counters, because they stop different things:
+//   - PER USER, per day. Stops one person looping the endpoint.
+//   - EVERYONE, per day. Stops a crowd, or a stolen token, from running up a
+//     bill no single account would have reached.
+//
+// The numbers are chosen so nobody notices. A real session might use this five
+// or ten times; hitting 60 means something has gone wrong, and the global cap
+// is roughly a dozen enthusiastic people on the same day. At Haiku prices and
+// a prompt this small, the global cap is worth a few cents.
+const QUOTA_TABLE = process.env.USAGE_TABLE || 'cinemaroll-ai-usage';
+const PER_USER_PER_DAY = 60;
+const EVERYONE_PER_DAY = 800;
+
+const ddb = new DynamoDBClient({});
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Adds one to a counter and reports whether it was already at its limit.
+ *
+ * The condition is what makes this safe under concurrency: DynamoDB evaluates
+ * it and applies the increment as one atomic operation, so two simultaneous
+ * calls cannot both see 59 and both proceed. A rejected write throws
+ * ConditionalCheckFailed, which IS the "over limit" answer rather than an
+ * error to handle.
+ *
+ * Fails OPEN. If DynamoDB is unreachable the request is allowed: a spending
+ * cap that takes the feature down when the ledger is unavailable trades a
+ * small, bounded cost risk for a visible outage, and that is the wrong way
+ * round. The API Gateway throttle is the backstop underneath this.
+ */
+const countOne = async (key, limit) => {
+  const midnightTomorrow = Math.floor(Date.now() / 1000) + 48 * 3600;
+  try {
+    await ddb.send(new UpdateItemCommand({
+      TableName: QUOTA_TABLE,
+      Key: { pk: { S: key } },
+      UpdateExpression: 'ADD #n :one SET expiresAt = if_not_exists(expiresAt, :ttl)',
+      ConditionExpression: 'attribute_not_exists(#n) OR #n < :limit',
+      ExpressionAttributeNames: { '#n': 'count' },
+      ExpressionAttributeValues: {
+        ':one': { N: '1' },
+        ':limit': { N: String(limit) },
+        ':ttl': { N: String(midnightTomorrow) }
+      }
+    }));
+    return true;
+  } catch (error) {
+    if (error?.name === 'ConditionalCheckFailedException') return false;
+    console.error('Quota check failed open:', error?.name, error?.message);
+    return true;
+  }
+};
+
+/** Returns null when allowed, or the reason it isn't. */
+const checkWatchlistQuota = async (uid) => {
+  const day = today();
+  if (!(await countOne(`u#${uid}#${day}`, PER_USER_PER_DAY))) return 'user';
+  if (!(await countOne(`all#${day}`, EVERYONE_PER_DAY))) return 'global';
+  return null;
+};
+
 /**
  * The assistant's text out of a response.
  *
@@ -271,6 +358,120 @@ Return only a JSON object with a single key "keywords" whose value is an array o
   return response(200, { keywords });
 };
 
+/**
+ * A watchlist built from a sentence.
+ *
+ * Bug report (2026-08-27): "It'll be cool if I could have a prompt somewhere
+ * on the watchlist page where I could give it a prompt and it would give me
+ * back a watchlist tailored to that prompt."
+ *
+ * The library is NOT sent. Cinema Roll has 1,386 rated movies in it, and a
+ * list of every title would be roughly 14,000 tokens on every single call -
+ * more than the rest of this endpoint's traffic put together, and paid again
+ * for every rephrasing of the same request. What goes up instead is a short
+ * taste profile the client already computes for its other lists (a few
+ * hundred tokens), and what comes back is titles. The client resolves those
+ * against TMDB and drops anything already rated, which is both cheaper and
+ * more accurate than asking the model to remember a library it was shown.
+ */
+const getWatchlist = async ({ prompt, taste, count }) => {
+  const wanted = Math.min(Math.max(Number(count) || 12, 4), 16);
+  // Bounded before it reaches the model. A prompt is a sentence; anything
+  // longer is either a mistake or somebody using this as a general-purpose
+  // Claude endpoint, which is exactly what it must not become.
+  const ask = String(prompt || '').trim().slice(0, 300);
+  if (!ask) return response(400, { error: 'No prompt', movies: [] });
+
+  const profile = String(taste || '').trim().slice(0, 1200);
+
+  // A FORCED TOOL CALL, not a JSON-shaped prompt.
+  //
+  // This was first written asking for JSON in the system prompt and prefilling
+  // the reply with `{"movies":` to force the shape. The model's suggestions
+  // were good every time; the SPLICING was what broke. It sometimes continued
+  // with `:[...` (re-emitting the colon, giving `{"movies"::[`) and sometimes
+  // with `{"title"...` (omitting the array bracket) - both unparseable, and
+  // both invisible until the reply was logged. Hand-reassembling a JSON
+  // document from a prefix and a continuation is guesswork.
+  //
+  // A tool schema removes the guesswork: the API validates the arguments
+  // against it, and `tool_choice` makes the model use it rather than replying
+  // in prose. A vague request now yields films instead of a question, and
+  // there is nothing left to parse.
+  const message = await client.messages.create({
+    model: MODELS.watchlist,
+    max_tokens: 1500,
+    system: `You suggest films for one person's watchlist. Always answer by
+calling suggest_films - never with prose, and never by asking what they meant.
+
+- best fit first
+- real films with their correct release year; a wrong year sends the lookup to
+  the wrong film
+- range widely: different decades, countries and scales
+- the request governs. The taste notes break ties; they are not a second
+  request to satisfy.
+- if the request is vague, a single word, or not really a request at all, pick
+  well-regarded films that suit the taste notes and answer anyway.`,
+    tools: [{
+      name: 'suggest_films',
+      description: 'Return the films that fit the request.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          movies: {
+            type: 'array',
+            minItems: wanted,
+            maxItems: wanted,
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'The film\'s title.' },
+                year: { type: 'integer', description: 'Release year.' },
+                why: {
+                  type: 'string',
+                  description: 'One clause under 12 words on why it fits THIS request.'
+                }
+              },
+              required: ['title', 'year', 'why']
+            }
+          }
+        },
+        required: ['movies']
+      }
+    }],
+    tool_choice: { type: 'tool', name: 'suggest_films' },
+    messages: [
+      {
+        role: 'user',
+        content: profile
+          ? `Request: ${ask}\n\nWhat they tend to like: ${profile}`
+          : `Request: ${ask}`
+      }
+    ]
+  });
+
+  const call = (message.content || []).find((block) => block?.type === 'tool_use');
+  if (!call?.input?.movies) {
+    // Should not happen with tool_choice forcing the call, but a 200 with an
+    // empty list is still the right answer: the screen has a good line for it
+    // ("nothing came back - try asking differently"), and blaming the server
+    // for an empty result would be a lie.
+    console.error('watchlist: no tool call', JSON.stringify(message.content || []).slice(0, 300));
+    return response(200, { movies: [] });
+  }
+
+  const movies = call.input.movies
+    .filter((m) => m && typeof m.title === 'string')
+    .slice(0, wanted)
+    .map((m) => ({
+      title: String(m.title).slice(0, 200),
+      year: Number(m.year) || null,
+      why: String(m.why || '').slice(0, 140)
+    }));
+
+  return response(200, { movies });
+};
+
 exports.handler = async (event) => {
   const headers = event.headers || {};
   activeOrigin = headers.origin || headers.Origin || ALLOWED_ORIGINS[0];
@@ -323,6 +524,27 @@ exports.handler = async (event) => {
 
     if (route.endsWith('/trivia')) {
       return await getTrivia(body);
+    }
+
+    if (route.endsWith('/watchlist')) {
+      // The only route with a durable cap - see checkWatchlistQuota for why
+      // this one and not the others. Checked here rather than up with the
+      // in-memory limiter so a call that never reaches this route never
+      // spends any of somebody's daily allowance.
+      const blocked = await checkWatchlistQuota(user.sub);
+      if (blocked === 'user') {
+        return response(429, {
+          error: "That's all the suggestions for today - they reset tomorrow.",
+          movies: []
+        });
+      }
+      if (blocked === 'global') {
+        return response(429, {
+          error: 'Suggestions are resting for the day. Try again tomorrow.',
+          movies: []
+        });
+      }
+      return await getWatchlist(body);
     }
 
     return response(404, { error: 'Unknown route' });
