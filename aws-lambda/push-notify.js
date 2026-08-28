@@ -330,11 +330,19 @@ const notifyFriendsOfLog = async (myKey, { tmdbId, title, score }) => {
       const prefs = push.prefs || {};
       if (prefs.enabled === false || prefs.friendLogs === false) return;
 
+      // Icon badge: the recipient's own chore count plus this log — a badge
+      // should say "things waiting for you", and the friend's log is one of
+      // them until the app is opened (which clears it). The digest rides in
+      // the same node just read, so this costs nothing extra.
+      const due = dueFromDigest(push.digest, prefs, Date.now());
+      const appBadge = due.stickinessCount + (due.tiebreak ? 1 : 0) + due.awardYears.length + 1;
+
       const payload = buildPayload({
         title: `${name} logged ${title}`,
         body,
         navigate,
-        tag: `friend-log-${myKey}-${tmdbId || 'x'}`
+        tag: `friend-log-${myKey}-${tmdbId || 'x'}`,
+        appBadge
       });
       notified += await sendToAccount(friendKey, push.subscriptions, payload);
     } catch (error) {

@@ -256,6 +256,9 @@ export default {
         this.lastBecameVisibleAt = Date.now();
         this.checkForServiceWorkerUpdate();
         this.attemptPendingWritesFlush();
+        // Foregrounding an installed PWA doesn't re-run initializePush, and
+        // it's the most common way a badge gets looked at.
+        navigator.clearAppBadge?.().catch(() => {});
       }
     });
     window.addEventListener('pageshow', () => {
