@@ -178,3 +178,37 @@ document was what broke — the continuation sometimes re-emitted the colon
 invisible until the raw reply was logged. `tools` + `tool_choice` has the API validate
 the arguments against a schema and leaves nothing to parse. It also fixed vague prompts
 ("x", "one more"), which used to get a conversational reply and come back empty.
+
+## The push Lambda (`aws-lambda/push-notify.js`, deployed as `cinemaroll-push`)
+
+Web push notifications (2026-08-27). Same auth pattern as the AI lambda — Firebase ID
+token verified with node crypto for the HTTP routes (`/push/test`, `/push/friend-logged`)
+— plus a second entry mode: an hourly EventBridge rule (`cinemaroll-push-hourly`, :05
+past each hour) that runs the daily digest sweep with **admin** RTDB access. Admin access
+is an OAuth token minted from the service-account key (`FIREBASE_SA` env var) — no
+firebase-admin dependency, the zip stays ~200KB, and the deploy needs no rules change
+because everything lives under `{topKey}/push/` (owner-writable already).
+
+**The design rule: the client computes, the server sends.** `src/assets/javascript/
+pushDigest.js` publishes what's due (with FUTURE stickiness boundary timestamps so the
+server counts forward in time); the Lambda only formats and sends. Never port prompt
+logic into the Lambda — fix the digest instead.
+
+Infra (all `--profile personal`, us-east-1): Lambda `cinemaroll-push` (nodejs22.x,
+role `cinemaroll-push-role`), HTTP API `8rptihkn0l` ($default → Lambda, throttle 5/10),
+env vars `FIREBASE_SA`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. The
+VAPID private key's only copies are the Lambda env and `.env.local`; the public half is
+committed in `.env` (`VUE_APP_VAPID_PUBLIC_KEY`, with `VUE_APP_PUSH_API_URL`). Redeploy:
+
+```
+cd aws-lambda && cp push-notify.js /tmp/push/index.js   # zip index.js + web-push in node_modules
+aws lambda update-function-code --function-name cinemaroll-push \
+  --zip-file fileb://function.zip --profile personal --region us-east-1
+```
+
+Client pieces: `public/push-sw.js` (declarative-payload fallback renderer, pulled in via
+`workboxOptions.importScripts`), `src/utils/push.js` (subscribe from a USER TAP only —
+see the parallax lesson in vue-ui.md; self-heal refresh on app open), store actions
+`loadPushState`/`savePushSubscription`/`savePushPrefs`/`publishPushDigest`, the
+Notifications settings card in Home.vue, and the friend-log announce in RateMovie's
+submit (new viewings only, never edits).

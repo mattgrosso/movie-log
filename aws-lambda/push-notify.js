@@ -1,0 +1,417 @@
+// Push notification sender for Cinema Roll (Matt, 2026-08-27). Two entry
+// modes in one function:
+//
+//   1. HTTP (API Gateway), Firebase-ID-token-gated like claude-ai.js:
+//        POST /push/test          - test notification to the caller's devices
+//        POST /push/friend-logged - fan a "friend logged a movie" push out to
+//                                   the caller's MUTUAL friends who opted in
+//   2. Scheduled (EventBridge, hourly): the daily digest sweep. Reads each
+//      account's `{topKey}/push/` node - prefs, subscriptions, and the
+//      DIGEST the app itself published (src/assets/javascript/pushDigest.js;
+//      the client computes, this only formats and sends). Sends at each
+//      user's preferred local hour, at most once per ~20h, and only when
+//      something is actually due.
+//
+// Payloads use DECLARATIVE web push (`web_push: 8030`) so iOS Safari 18.4+
+// renders them without waking the service worker; public/push-sw.js renders
+// the same JSON on platforms that don't. Everything here is plain node
+// crypto + fetch - no firebase-admin, no googleapis - keeping the zip tiny.
+// The only dependency is web-push (VAPID + payload encryption).
+//
+// Env vars (set on the Lambda, never committed):
+//   FIREBASE_SA        - service-account JSON (Project Settings -> Service
+//                        Accounts). Grants admin RTDB access via OAuth below.
+//   VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT
+//
+// Database rules are default-deny; this function authenticates to RTDB with
+// an OAuth token minted from the service account, which the rules treat as
+// admin. All reads/writes go through dbGet/dbSet.
+
+const crypto = require('crypto');
+const webpush = require('web-push');
+
+const FIREBASE_PROJECT_ID = 'movie-log-8c4d5';
+const DATABASE_URL = 'https://movie-log-8c4d5-default-rtdb.firebaseio.com';
+const FIREBASE_CERT_URL =
+  'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
+const APP_URL = 'https://www.cinemaroll.org';
+
+const ALLOWED_ORIGINS = [
+  'https://www.cinemaroll.org',
+  'https://cinemaroll.org',
+  'http://localhost:8080'
+];
+
+// Top-level database keys that are NOT user accounts. The sweep discovers
+// accounts by shallow-listing the root, so anything shared lives here.
+const NON_ACCOUNT_ROOTS = new Set([
+  'bugReports', 'social', 'clubDirectory', 'clubInbox', 'clubFeed',
+  'mirrorFeed', 'testing-database'
+]);
+// Mirrors QA_ACCOUNT_KEYS in src/assets/javascript/databaseKey.js - the QA
+// account never gets real notifications.
+const QA_ACCOUNT_KEYS = new Set(['cinemaroll-tester-example-com']);
+
+// Mirrors databaseKeyCharacters.json (FROZEN list - see that file).
+const UNSAFE_KEY_CHARACTERS = ['-', '!', '$', '%', '@', '^', '&', '*', '(', ')', '_', '+', '|', '~', '=', '`', '{', '}', '[', ']', ':', '"', ';', "'", '<', '>', '?', ',', '.', '/'];
+const UNSAFE_KEY_PATTERN = new RegExp(`[${UNSAFE_KEY_CHARACTERS.map((c) => `\\${c}`).join('')}]`, 'g');
+const emailToDatabaseKey = (email) => (typeof email === 'string' && email ? email.replace(UNSAFE_KEY_PATTERN, '-') : null);
+
+webpush.setVapidDetails(
+  process.env.VAPID_SUBJECT || 'mailto:mattgrosso@gmail.com',
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
+const corsHeaders = (origin) => ({
+  'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Content-Type': 'application/json'
+});
+
+let activeOrigin = ALLOWED_ORIGINS[0];
+const response = (statusCode, body) => ({
+  statusCode,
+  headers: corsHeaders(activeOrigin),
+  body: JSON.stringify(body)
+});
+
+// --- Firebase ID token verification (copied from claude-ai.js) --------------
+
+let certCache = { keys: null, expiresAt: 0 };
+
+const fetchCerts = async () => {
+  if (certCache.keys && Date.now() < certCache.expiresAt) return certCache.keys;
+  const res = await fetch(FIREBASE_CERT_URL);
+  if (!res.ok) throw new Error(`Could not fetch Firebase certs: ${res.status}`);
+  const keys = await res.json();
+  const maxAge = Number((/max-age=(\d+)/.exec(res.headers.get('cache-control') || '') || [])[1] || 3600);
+  certCache = { keys, expiresAt: Date.now() + maxAge * 1000 };
+  return keys;
+};
+
+const fromBase64Url = (value) =>
+  Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+
+const verifyIdToken = async (authorization) => {
+  const token = (authorization || '').replace(/^Bearer\s+/i, '').trim();
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+
+  let header;
+  let payload;
+  try {
+    header = JSON.parse(fromBase64Url(parts[0]).toString('utf8'));
+    payload = JSON.parse(fromBase64Url(parts[1]).toString('utf8'));
+  } catch {
+    return null;
+  }
+
+  if (header.alg !== 'RS256' || !header.kid) return null;
+
+  const certs = await fetchCerts();
+  const cert = certs[header.kid];
+  if (!cert) return null;
+
+  const signatureValid = crypto.verify(
+    'RSA-SHA256',
+    Buffer.from(`${parts[0]}.${parts[1]}`),
+    crypto.createPublicKey(cert),
+    fromBase64Url(parts[2])
+  );
+  if (!signatureValid) return null;
+
+  // The audience and issuer checks are load-bearing - without them a valid
+  // token from ANY Firebase project is accepted.
+  const now = Math.floor(Date.now() / 1000);
+  if (!payload.exp || payload.exp <= now) return null;
+  if (payload.aud !== FIREBASE_PROJECT_ID) return null;
+  if (payload.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`) return null;
+  if (!payload.sub) return null;
+
+  return payload;
+};
+
+// --- Admin RTDB access via service-account OAuth ----------------------------
+// Mint an access token by signing a JWT with the service-account key and
+// exchanging it at Google's token endpoint. ~30 lines instead of the whole
+// firebase-admin dependency tree.
+
+let dbTokenCache = { token: null, expiresAt: 0 };
+
+const toBase64Url = (buf) =>
+  buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+const getDbToken = async () => {
+  if (dbTokenCache.token && Date.now() < dbTokenCache.expiresAt - 60000) {
+    return dbTokenCache.token;
+  }
+  const sa = JSON.parse(process.env.FIREBASE_SA);
+  const now = Math.floor(Date.now() / 1000);
+  const header = toBase64Url(Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+  const claims = toBase64Url(Buffer.from(JSON.stringify({
+    iss: sa.client_email,
+    scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/firebase.database',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600
+  })));
+  const signature = toBase64Url(crypto.sign('RSA-SHA256', Buffer.from(`${header}.${claims}`), sa.private_key));
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer')}&assertion=${header}.${claims}.${signature}`
+  });
+  if (!res.ok) throw new Error(`OAuth token exchange failed: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  dbTokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in || 3600) * 1000 };
+  return dbTokenCache.token;
+};
+
+const dbGet = async (path, params = '') => {
+  const token = await getDbToken();
+  const res = await fetch(`${DATABASE_URL}/${path}.json?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`RTDB GET ${path} failed: ${res.status}`);
+  return res.json();
+};
+
+const dbSet = async (path, value) => {
+  const token = await getDbToken();
+  const res = await fetch(`${DATABASE_URL}/${path}.json`, {
+    method: value === null ? 'DELETE' : 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: value === null ? undefined : JSON.stringify(value)
+  });
+  if (!res.ok) throw new Error(`RTDB ${value === null ? 'DELETE' : 'PUT'} ${path} failed: ${res.status}`);
+};
+
+// --- Sending ----------------------------------------------------------------
+
+// Declarative web push envelope. iOS 18.4+ renders this without running any
+// service worker JS; public/push-sw.js renders the same JSON elsewhere.
+const buildPayload = ({ title, body, navigate = '/', tag, appBadge }) => {
+  const notification = { title, body, navigate: `${APP_URL}/#${navigate}` };
+  if (tag) notification.tag = tag;
+  if (typeof appBadge === 'number') notification.app_badge = appBadge;
+  return JSON.stringify({ web_push: 8030, notification });
+};
+
+/**
+ * Send one payload to every subscription under an account. A 404/410 means
+ * the endpoint is dead (app deleted, permission revoked, endpoint rotated) -
+ * prune it so future sends stop paying for it. Returns how many landed.
+ */
+const sendToAccount = async (topKey, subscriptions, payload) => {
+  let delivered = 0;
+  await Promise.all(Object.entries(subscriptions || {}).map(async ([id, sub]) => {
+    if (!sub || !sub.endpoint || !sub.keys) return;
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: sub.keys },
+        payload,
+        { TTL: 24 * 3600, urgency: 'normal' }
+      );
+      delivered += 1;
+    } catch (error) {
+      if (error.statusCode === 404 || error.statusCode === 410) {
+        await dbSet(`${topKey}/push/subscriptions/${id}`, null).catch(() => {});
+      } else {
+        console.error(`Push to ${topKey}/${id} failed:`, error.statusCode || error.message);
+      }
+    }
+  }));
+  return delivered;
+};
+
+// --- The daily digest sweep -------------------------------------------------
+
+const localHour = (tz, at = new Date()) => {
+  try {
+    return Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(at)) % 24;
+  } catch {
+    return at.getUTCHours();
+  }
+};
+
+/**
+ * What's due for one account at `now`, straight from the client-published
+ * digest. The dueTimes arithmetic is the whole reason the digest carries
+ * future boundaries: candidates mature while the app is closed.
+ */
+const dueFromDigest = (digest, prefs, now) => {
+  const stickinessCount = prefs.stickiness === false ? 0
+    : (digest.stickiness?.count || 0) + (digest.stickiness?.dueTimes || []).filter((t) => t <= now).length;
+  const tiebreak = prefs.tiebreak === false ? null
+    : (digest.tiebreak?.due ? digest.tiebreak : null);
+  const awardYears = prefs.awards === false ? [] : (digest.awards?.years || []);
+  return { stickinessCount, tiebreak, awardYears };
+};
+
+/** One line per chore, most concrete first; title takes the lead item. */
+const composeDigestMessage = ({ stickinessCount, tiebreak, awardYears }, digest) => {
+  const parts = [];
+  if (stickinessCount > 0) {
+    const lead = digest.stickiness?.nextTitle;
+    parts.push(stickinessCount === 1 && lead
+      ? `${lead} is ready for its stickiness rating`
+      : `${stickinessCount} films are ready for a stickiness check`);
+  }
+  if (tiebreak) {
+    parts.push(tiebreak.count >= 2 ? `${tiebreak.count} films are tied` : 'A tiebreak is waiting');
+  }
+  if (awardYears.length === 1) {
+    parts.push(`${awardYears[0]} needs its personal awards`);
+  } else if (awardYears.length > 1) {
+    parts.push(`${awardYears.length} years need personal awards`);
+  }
+  if (!parts.length) return null;
+  return {
+    title: parts[0],
+    body: parts.length > 1 ? parts.slice(1).join(' · ') : 'Tap to knock it out.'
+  };
+};
+
+const MIN_HOURS_BETWEEN_DIGESTS = 20;
+
+const runDigestSweep = async () => {
+  const now = Date.now();
+  const roots = await dbGet('', 'shallow=true');
+  const accounts = Object.keys(roots || {})
+    .filter((key) => !NON_ACCOUNT_ROOTS.has(key) && !QA_ACCOUNT_KEYS.has(key));
+
+  const results = [];
+  for (const topKey of accounts) {
+    try {
+      const push = await dbGet(`${topKey}/push`);
+      if (!push || !push.subscriptions || !push.digest) continue;
+
+      const prefs = push.prefs || {};
+      if (prefs.enabled === false) continue;
+
+      const hour = Number.isFinite(Number(prefs.hour)) ? Number(prefs.hour) : 19;
+      if (localHour(prefs.tz || 'America/New_York') !== hour) continue;
+
+      const lastAt = Number(push.state?.lastDailyAt) || 0;
+      if (now - lastAt < MIN_HOURS_BETWEEN_DIGESTS * 3600 * 1000) continue;
+
+      const due = dueFromDigest(push.digest, prefs, now);
+      const message = composeDigestMessage(due, push.digest);
+      if (!message) continue;
+
+      const appBadge = due.stickinessCount + (due.tiebreak ? 1 : 0) + due.awardYears.length;
+      const payload = buildPayload({ ...message, navigate: '/', tag: 'daily-digest', appBadge });
+      const delivered = await sendToAccount(topKey, push.subscriptions, payload);
+      if (delivered > 0) {
+        await dbSet(`${topKey}/push/state/lastDailyAt`, now);
+      }
+      results.push({ topKey, delivered });
+    } catch (error) {
+      console.error(`Digest sweep failed for ${topKey}:`, error.message);
+    }
+  }
+  console.log('Digest sweep:', JSON.stringify(results));
+  return results;
+};
+
+// --- Friend-log fan-out -----------------------------------------------------
+
+const notifyFriendsOfLog = async (myKey, { tmdbId, title, score }) => {
+  if (!title || typeof title !== 'string') return { notified: 0 };
+
+  const [edges, myProfileName, myDirectory] = await Promise.all([
+    dbGet('social/friends'),
+    dbGet(`social/profiles/${myKey}/name`),
+    dbGet(`social/directory/${myKey}/name`)
+  ]);
+
+  const name = myProfileName || myDirectory || 'A friend';
+  const mutuals = Object.keys(edges?.[myKey] || {}).filter(
+    (key) => edges?.[key]?.[myKey] && !QA_ACCOUNT_KEYS.has(key) && key !== myKey
+  );
+
+  const navigate = tmdbId ? `/movie/${tmdbId}` : '/';
+  const scoreNumber = Number(score);
+  const body = Number.isFinite(scoreNumber)
+    ? `They gave it a ${scoreNumber.toFixed(2)}.`
+    : 'Tap to see it in their library.';
+
+  let notified = 0;
+  await Promise.all(mutuals.map(async (friendKey) => {
+    try {
+      const push = await dbGet(`${friendKey}/push`);
+      if (!push || !push.subscriptions) return;
+      const prefs = push.prefs || {};
+      if (prefs.enabled === false || prefs.friendLogs === false) return;
+
+      const payload = buildPayload({
+        title: `${name} logged ${title}`,
+        body,
+        navigate,
+        tag: `friend-log-${myKey}-${tmdbId || 'x'}`
+      });
+      notified += await sendToAccount(friendKey, push.subscriptions, payload);
+    } catch (error) {
+      console.error(`Friend-log push to ${friendKey} failed:`, error.message);
+    }
+  }));
+  return { notified };
+};
+
+// --- Handler ----------------------------------------------------------------
+
+exports.handler = async (event) => {
+  // EventBridge schedule - no HTTP context at all.
+  if (event.source === 'aws.events') {
+    await runDigestSweep();
+    return { ok: true };
+  }
+
+  activeOrigin = event.headers?.origin || event.headers?.Origin || ALLOWED_ORIGINS[0];
+  const method = event.requestContext?.http?.method;
+  const path = event.rawPath || '';
+
+  if (method === 'OPTIONS') return response(204, {});
+  if (method !== 'POST') return response(405, { error: 'POST only' });
+
+  const auth = await verifyIdToken(event.headers?.authorization || event.headers?.Authorization);
+  if (!auth || !auth.email) return response(401, { error: 'Invalid or missing token' });
+
+  const myKey = emailToDatabaseKey(auth.email);
+  if (!myKey) return response(401, { error: 'Token has no email' });
+
+  let body = {};
+  try {
+    body = JSON.parse(event.body || '{}');
+  } catch {
+    return response(400, { error: 'Invalid JSON' });
+  }
+
+  try {
+    if (path.endsWith('/push/test')) {
+      const push = await dbGet(`${myKey}/push`);
+      if (!push?.subscriptions) return response(404, { error: 'No subscriptions on this account' });
+      const payload = buildPayload({
+        title: 'Cinema Roll can reach you here',
+        body: 'This is what a notification will look like.',
+        navigate: '/',
+        tag: 'test'
+      });
+      const delivered = await sendToAccount(myKey, push.subscriptions, payload);
+      return response(200, { delivered });
+    }
+
+    if (path.endsWith('/push/friend-logged')) {
+      const result = await notifyFriendsOfLog(myKey, body);
+      return response(200, result);
+    }
+
+    return response(404, { error: 'Unknown route' });
+  } catch (error) {
+    console.error('push-notify error:', error);
+    return response(500, { error: 'Internal error' });
+  }
+};

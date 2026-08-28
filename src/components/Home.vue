@@ -809,6 +809,65 @@
                 </template>
               </SettingsSection>
 
+              <SettingsSection v-if="pushConfigured" title="Notifications" hint="Push notifications for prompts and friends" collapsible :startOpen="false">
+                <!-- iOS only allows web push for Home-Screen-installed apps,
+                     and permission may only be requested from a real tap
+                     (see the parallax post-mortem in vue-ui.md: never ask
+                     spontaneously, degrade silently). -->
+                <small v-if="pushSupportInfo.needsInstall" class="form-text text-white d-block mb-2">
+                  To get notifications on iOS, first add Cinema Roll to your Home Screen
+                  (Share <i class="bi bi-box-arrow-up"></i> → Add to Home Screen), then come back here.
+                </small>
+                <small v-else-if="!pushSupportInfo.supported" class="form-text text-white d-block mb-2">
+                  This browser doesn't support push notifications.
+                </small>
+                <template v-else>
+                  <div v-if="!pushDeviceSubscribed" class="mb-2">
+                    <button class="btn btn-primary" :disabled="pushBusy" @click="enablePushOnThisDevice">
+                      <i class="bi bi-bell me-1"></i>Turn on notifications on this device
+                    </button>
+                    <small class="form-text text-white d-block mt-2">
+                      A daily nudge when films are waiting on stickiness, a tiebreak, or
+                      personal awards — and a ping when a friend logs a movie.
+                    </small>
+                  </div>
+                  <template v-else>
+                    <div class="form-check form-switch mb-1">
+                      <input class="form-check-input" type="checkbox" id="pushStickinessToggle" :checked="pushPrefs.stickiness" @change="updatePushPref('stickiness', $event)">
+                      <label class="form-check-label" for="pushStickinessToggle">Stickiness ratings waiting</label>
+                    </div>
+                    <div class="form-check form-switch mb-1">
+                      <input class="form-check-input" type="checkbox" id="pushTiebreakToggle" :checked="pushPrefs.tiebreak" @change="updatePushPref('tiebreak', $event)">
+                      <label class="form-check-label" for="pushTiebreakToggle">Tiebreaks to settle</label>
+                    </div>
+                    <div class="form-check form-switch mb-1">
+                      <input class="form-check-input" type="checkbox" id="pushAwardsToggle" :checked="pushPrefs.awards" @change="updatePushPref('awards', $event)">
+                      <label class="form-check-label" for="pushAwardsToggle">Award years needing input</label>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                      <input class="form-check-input" type="checkbox" id="pushFriendLogsToggle" :checked="pushPrefs.friendLogs" @change="updatePushPref('friendLogs', $event)">
+                      <label class="form-check-label" for="pushFriendLogsToggle">A friend logs a movie</label>
+                    </div>
+                    <div class="mb-3">
+                      <label for="pushHourSelect" class="form-label">Daily nudge around</label>
+                      <select class="form-select" id="pushHourSelect" :value="pushPrefs.hour" @change="updatePushHour">
+                        <option v-for="hour in 24" :key="hour - 1" :value="hour - 1">{{ formatPushHour(hour - 1) }}</option>
+                      </select>
+                      <small class="form-text text-white">Only sent on days something is actually waiting. Friend logs arrive as they happen.</small>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                      <button class="btn btn-outline-light btn-sm" :disabled="pushBusy" @click="sendTestPush">
+                        {{ pushTestSent ? 'Sent — check your notifications' : 'Send a test notification' }}
+                      </button>
+                      <button class="btn btn-outline-danger btn-sm" :disabled="pushBusy" @click="disablePushOnThisDevice">
+                        Turn off on this device
+                      </button>
+                    </div>
+                  </template>
+                  <small v-if="pushError" class="form-text d-block mt-2" style="color: #ff8f8f;">{{ pushError }}</small>
+                </template>
+              </SettingsSection>
+
               <SettingsSection title="Letterboxd" hint="Link your account for deep links and imports" collapsible :startOpen="false">
                 <div class="mb-3">
                                 <label for="letterboxdUsername" class="form-label">Letterboxd Username:</label>
@@ -1434,6 +1493,8 @@ const tmdbIdCache = new Map();
 import { getRating } from "../assets/javascript/GetRating.js";
 import { awardsYearThreshold, yearsMeetingAwardsThreshold } from "../assets/javascript/personalAwards.js";
 import { promptsPerDay, dueForPrompt, lastAwardsPromptAt } from "../assets/javascript/promptQuota.js";
+import { pushApiConfigured, pushSupport, subscribeThisDevice, unsubscribeThisDevice, sendTestNotification } from "../utils/push.js";
+import { pushPrefsWithDefaults } from "../assets/javascript/pushPrefs.js";
 import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
 import ErrorLogService from '../services/ErrorLogService.js';
 import { computeFlatKeywords } from '../utils/keywords.js';
@@ -1535,6 +1596,13 @@ export default {
       connectingHat: false,
       hatConnectError: null,
       mirrorFeedCopied: false,
+      // Push notifications (settings pane). Whether THIS device holds a
+      // subscription is an async browser question, so it lives in data and
+      // is refreshed by checkPushDevice(), not computed.
+      pushDeviceSubscribed: false,
+      pushBusy: false,
+      pushError: null,
+      pushTestSent: false,
       activeFilters: [], // New multi-filter system
       activeQuickLinkList: "title",
       cachedCastMembers: new Set(), // Cache for fast cast member lookups
@@ -1781,6 +1849,9 @@ export default {
     },
   },
   mounted () {
+    // Which state the Notifications settings card should render in.
+    this.checkPushDevice();
+
     // `?hatToken=` connects Movie Hat from a minted token instead of the
     // Google popup, which an automated browser cannot complete. Mirrors the
     // app's own ?testToken= sign-in hook; the token only ever grants the Dev
@@ -2269,6 +2340,15 @@ export default {
         // setter stores it in local settings; @blur saveLetterboxdUsername persists.
         this.$store.commit('setSettings', { ...(this.$store.state.settings || {}), letterboxdUsername: value });
       }
+    },
+    pushConfigured () {
+      return pushApiConfigured();
+    },
+    pushSupportInfo () {
+      return pushSupport();
+    },
+    pushPrefs () {
+      return pushPrefsWithDefaults(this.$store.state.pushPrefs);
     },
     stickinessPromptState () {
       const value = this.$store.state.settings?.stickinessPromptState;
@@ -3826,6 +3906,65 @@ export default {
       navigator.clipboard?.writeText(this.mirrorFeedUrl);
       this.mirrorFeedCopied = true;
       setTimeout(() => { this.mirrorFeedCopied = false; }, 2000);
+    },
+    // ---- Push notifications (settings pane) --------------------------
+    async checkPushDevice () {
+      try {
+        const registration = await navigator.serviceWorker?.getRegistration();
+        const subscription = await registration?.pushManager?.getSubscription();
+        this.pushDeviceSubscribed = Boolean(subscription) && Notification.permission === 'granted';
+      } catch {
+        this.pushDeviceSubscribed = false;
+      }
+    },
+    async enablePushOnThisDevice () {
+      this.pushBusy = true;
+      this.pushError = null;
+      try {
+        await subscribeThisDevice(this.$store);
+        this.pushDeviceSubscribed = true;
+      } catch (error) {
+        // subscribeThisDevice throws human-readable messages by contract.
+        this.pushError = error.message;
+      } finally {
+        this.pushBusy = false;
+      }
+    },
+    async disablePushOnThisDevice () {
+      this.pushBusy = true;
+      this.pushError = null;
+      try {
+        await unsubscribeThisDevice(this.$store);
+        this.pushDeviceSubscribed = false;
+      } catch {
+        this.pushError = 'Could not unsubscribe this device.';
+      } finally {
+        this.pushBusy = false;
+      }
+    },
+    updatePushPref (key, event) {
+      this.$store.dispatch('savePushPrefs', { [key]: event.target.checked });
+    },
+    updatePushHour (event) {
+      const hour = Number(event.target.value);
+      if (Number.isFinite(hour)) this.$store.dispatch('savePushPrefs', { hour });
+    },
+    formatPushHour (hour) {
+      const twelve = hour % 12 === 0 ? 12 : hour % 12;
+      return `${twelve}:00 ${hour < 12 ? 'AM' : 'PM'}`;
+    },
+    async sendTestPush () {
+      this.pushBusy = true;
+      this.pushError = null;
+      try {
+        await sendTestNotification();
+        this.pushTestSent = true;
+        setTimeout(() => { this.pushTestSent = false; }, 5000);
+      } catch {
+        this.pushError = 'Test notification failed — check your connection and try again.';
+      } finally {
+        this.pushBusy = false;
+      }
     },
     updateSocialEnabled (event) {
       const enabled = event.target.checked;

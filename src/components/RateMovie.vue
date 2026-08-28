@@ -314,6 +314,8 @@ import addRating from "../assets/javascript/AddRating.js";
 import { getRating, getAllRatings } from "../assets/javascript/GetRating.js";
 import ErrorLogService from "../services/ErrorLogService.js";
 import { postToAi } from '../utils/aiRequest.js';
+import { announceLoggedMovie } from '../utils/push.js';
+import { isPlaceholderId } from '../utils/placeholderId.js';
 import { countViewingTagUsage, sortVocabularyByUsage } from "../utils/tags.js";
 import RatingSelect from "./RatingSelect.vue";
 import notFoundImage from "../assets/images/Image_not_available.png";
@@ -789,6 +791,23 @@ export default {
         return;
       }
       this.dbEntry = dbEntry;
+
+      // A genuinely NEW viewing (never an edit — those replace in place
+      // above, and stickiness/tiebreak updates don't come through here at
+      // all) announces itself to the push Lambda, which fans out to mutual
+      // friends who opted into friend-log notifications. Fire-and-forget:
+      // announceLoggedMovie never throws, and a placeholder has no TMDB id
+      // for a friend's app to link to, so it stays quiet until reconciled.
+      const social = this.$store.getters.socialSettings;
+      if (!editing && !isPlaceholderId(this.id) && social?.enabled && this.$store.state.isOnline) {
+        announceLoggedMovie({
+          tmdbId: this.id,
+          title: this.title,
+          // The score travels only when ratings are shared — the same
+          // opt-in tier that governs what friends see in the app.
+          score: social.shareRatings ? getRating(dbEntry.value)?.calculatedTotal : null
+        });
+      }
 
       window.scroll({
         top: 0,

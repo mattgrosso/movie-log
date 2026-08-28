@@ -34,6 +34,8 @@ import {
 } from "../assets/javascript/movieHatAuth.js";
 import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
+import { buildPushDigest } from "../assets/javascript/pushDigest.js";
+import { pushPrefsWithDefaults } from "../assets/javascript/pushPrefs.js";
 import { pendingUpdates, reconcilePending } from "../assets/javascript/recommendationStats.js";
 import { toInterchange, profileFromFeed, buildInvite, parseInvite, buildConnectRequest, normalizeInboxRequests, buildDirectoryEntry, normalizeDirectory, findSubscription, dedupeExternalFriends, FEDERATED_APPS } from "../assets/javascript/interchange.js";
 
@@ -327,6 +329,12 @@ export default createStore({
     federatedDirectory: [],
     federatedDirectoryLoading: false,
     socialAttachedFor: null,
+    // Push notifications (see src/utils/push.js + pushPrefs.js). `pushPrefs`
+    // is the stored `{topKey}/push/prefs` node (null until loaded);
+    // `pushSubscribed` is whether ANY device holds a subscription — the gate
+    // for bothering to publish the digest at all.
+    pushPrefs: null,
+    pushSubscribed: false,
     // When the user last opened the Film Club — drives the rainbow chip's
     // new-updates badge. Mirrored to localStorage so it survives reloads.
     filmClubLastSeen: Number(localStorage.getItem('cinemaRoll.filmClub.lastSeen') || 0),
@@ -591,6 +599,12 @@ export default createStore({
     },
     setSocialAttachedFor (state, value) {
       state.socialAttachedFor = value;
+    },
+    setPushPrefs (state, value) {
+      state.pushPrefs = value;
+    },
+    setPushSubscribed (state, value) {
+      state.pushSubscribed = Boolean(value);
     },
     markFilmClubSeen (state) {
       state.filmClubLastSeen = Date.now();
@@ -2225,6 +2239,70 @@ export default createStore({
     async fetchSocialDirectory (context) {
       const snapshot = await get(ref(db, 'social/directory'));
       context.commit('setSocialDirectory', snapshot.val());
+    },
+    // ---- Push notifications ------------------------------------------
+    //
+    // Everything lives under `{topKey}/push/` — the owner's own subtree, so
+    // the existing per-account rules already cover it (no rules change, no
+    // supervised rules deploy). The Lambda reads it with admin credentials.
+    async loadPushState (context) {
+      const root = context.getters.databaseTopKey;
+      if (!root) return;
+      const [prefsSnap, subsSnap] = await Promise.all([
+        get(ref(db, `${root}/push/prefs`)),
+        get(ref(db, `${root}/push/subscriptions`))
+      ]);
+      context.commit('setPushPrefs', prefsSnap.val());
+      context.commit('setPushSubscribed', subsSnap.exists());
+    },
+    async savePushSubscription (context, record) {
+      const root = context.getters.databaseTopKey;
+      if (!root || !record?.id) return;
+      // update(), not set(): the self-heal refresh on every app open must
+      // not clobber createdAt on an existing row.
+      const { createdAt, ...refreshable } = record;
+      const existing = await get(ref(db, `${root}/push/subscriptions/${record.id}`));
+      await update(ref(db, `${root}/push/subscriptions/${record.id}`),
+        existing.exists() ? refreshable : record);
+      context.commit('setPushSubscribed', true);
+      // First subscription also plants full default prefs so the settings
+      // UI and the Lambda read the same explicit values.
+      if (!context.state.pushPrefs) {
+        await context.dispatch('savePushPrefs', pushPrefsWithDefaults(null));
+      }
+      context.dispatch('publishPushDigest');
+    },
+    async removePushSubscription (context, id) {
+      const root = context.getters.databaseTopKey;
+      if (!root || !id) return;
+      await set(ref(db, `${root}/push/subscriptions/${id}`), null);
+      const remaining = await get(ref(db, `${root}/push/subscriptions`));
+      context.commit('setPushSubscribed', remaining.exists());
+    },
+    async savePushPrefs (context, partial) {
+      const root = context.getters.databaseTopKey;
+      if (!root) return;
+      const merged = { ...pushPrefsWithDefaults(context.state.pushPrefs), ...partial };
+      await update(ref(db, `${root}/push/prefs`), merged);
+      context.commit('setPushPrefs', merged);
+    },
+    // Publish the digest the scheduled Lambda reads (see pushDigest.js for
+    // the client-computes/server-sends rule). Safe to call liberally: no-ops
+    // without a subscribed device or before the library has loaded.
+    async publishPushDigest (context) {
+      const root = context.getters.databaseTopKey;
+      if (!root || !context.state.pushSubscribed) return;
+      if (!context.state.dbLoaded || !context.state.settingsLoaded) return;
+      const digest = buildPushDigest({
+        entries: context.getters.allMediaAsArray,
+        settings: context.state.settings || {},
+        getRating
+      });
+      try {
+        await set(ref(db, `${root}/push/digest`), digest);
+      } catch (error) {
+        console.error('Failed to publish push digest:', error);
+      }
     },
     async sendFriendRequest (context, toKey) {
       const me = context.getters.socialUserKey;

@@ -62,6 +62,11 @@ module.exports = defineConfig({
     workboxOptions: {
       skipWaiting: true,
       clientsClaim: true,
+      // Push notification handlers (public/push-sw.js) — GenerateSW mode has
+      // no hand-written worker to edit, so extra behaviour rides in via
+      // importScripts. The file is copied from public/ as-is, so the name
+      // here must match its real path in dist/.
+      importScripts: ['push-sw.js'],
       // Posters/backdrops: keep whatever's been seen (or proactively warmed
       // via the Settings "Download for offline" action) available without a
       // network round-trip. CacheFirst since a given TMDB image path never

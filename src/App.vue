@@ -32,6 +32,7 @@ import LibraryAccessBanner from "./components/LibraryAccessBanner.vue";
 import { pickFallbackBanner } from "./assets/javascript/bannerFallback.js";
 import { flushStashedBugReports } from "./utils/bugReports.js";
 import { reloadForUpdate, isSafeMomentForReload, shouldAutoAttempt } from "./utils/appUpdate.js";
+import { refreshSubscriptionIfGranted } from "./utils/push.js";
 
 export default {
   name: "Cinema-Roll",
@@ -47,7 +48,8 @@ export default {
       lastActivityAt: Date.now(),
       lastBecameVisibleAt: Date.now(),
       deployedBundleSeen: null,
-      autoUpdateTimer: null
+      autoUpdateTimer: null,
+      pushDigestTimer: null
     };
   },
   computed: {
@@ -76,9 +78,41 @@ export default {
       if (url && !this.$store.state.bannerUrl) {
         this.$store.commit('setBannerUrl', url);
       }
+    },
+    // Push notifications: once the library is in, load prefs/subscriptions,
+    // self-heal this device's subscription, and publish the first digest.
+    '$store.state.dbLoaded' (loaded) {
+      if (loaded) this.initializePush();
+    },
+    // Any library or settings change can change what the daily push should
+    // say (a rating added, stickiness recorded, a tournament finished, a
+    // prompt disabled) — republish the digest, debounced. Both mutations
+    // replace the object reference, so shallow watchers are enough.
+    '$store.state.movieLog' () {
+      this.schedulePushDigest();
+    },
+    '$store.state.settings' () {
+      this.schedulePushDigest();
     }
   },
   methods: {
+    async initializePush () {
+      // Opening the app clears the icon badge — whatever it was counting,
+      // the user is now looking at it.
+      navigator.clearAppBadge?.().catch(() => {});
+      await this.$store.dispatch('loadPushState');
+      await refreshSubscriptionIfGranted(this.$store);
+      this.$store.dispatch('publishPushDigest');
+    },
+    schedulePushDigest () {
+      // Trailing-edge debounce: a backfill or delta sync can replace the
+      // library many times in a burst, and one digest at the end is worth
+      // the same as fifty along the way.
+      clearTimeout(this.pushDigestTimer);
+      this.pushDigestTimer = setTimeout(() => {
+        this.$store.dispatch('publishPushDigest');
+      }, 5000);
+    },
     scrollToTop () {
       window.scrollTo({
         top: 0,
@@ -204,6 +238,10 @@ export default {
     // against whether Firebase actually restored a session. Fire and forget —
     // it resolves itself once auth settles and must not delay first paint.
     this.$store.dispatch('verifyRestoredSession');
+
+    // The dbLoaded watcher handles the normal boot order; this covers the
+    // library having loaded before this component mounted.
+    if (this.$store.state.dbLoaded) this.initializePush();
 
     // visibilitychange alone is unreliable on iOS, particularly for a
     // home-screen-installed PWA - it's a long-standing WebKit quirk that it

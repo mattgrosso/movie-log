@@ -149,7 +149,7 @@ scraped from Wikipedia wikitext), Letterboxd (scraping + deep links).
 - `src/store/index.js` — Vuex + Firebase
 - `src/utils/` — IndexedDB queues, bug reports, small helpers
 - `src/test/` — ~79 Vitest files
-- `aws-lambda/` — the AI endpoint (separate deployable, not linted)
+- `aws-lambda/` — the AI endpoint + push sender (separate deployables, not linted)
 - `scripts/` — db-rules generator, bug-report triage
 
 **Preference: extract pure logic into `src/assets/javascript/` and unit-test it directly**
@@ -201,6 +201,8 @@ load's: a tab left open for a week keeps showing the build it's still running.
 - `VUE_APP_ENABLE_APPLE_SIGNIN` — leave unset until Apple sign-in is configured
 - `VUE_APP_BUILD_TIME` — not in `.env`; set by `vue.config.js` per build (see above)
 - `FIREBASE_ADMIN_KEY_PATH` in `.env.local` (gitignored) — for the triage scripts
+- `VUE_APP_PUSH_API_URL` / `VUE_APP_VAPID_PUBLIC_KEY` — push notifications
+  (`aws-lambda/push-notify.js`; details in `.claude/rules/auth-and-db-rules.md`)
 
 ## Open work
 
