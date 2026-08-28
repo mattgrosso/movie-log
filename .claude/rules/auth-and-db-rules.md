@@ -183,8 +183,9 @@ the arguments against a schema and leaves nothing to parse. It also fixed vague 
 
 Web push notifications (2026-08-27). Same auth pattern as the AI lambda — Firebase ID
 token verified with node crypto for the HTTP routes (`/push/test`, `/push/friend-logged`)
-— plus a second entry mode: an hourly EventBridge rule (`cinemaroll-push-hourly`, :05
-past each hour) that runs the daily digest sweep with **admin** RTDB access. Admin access
+— plus a second entry mode: an EventBridge rule (`cinemaroll-push-hourly`, now
+`rate(15 minutes)` — the name is historical) that runs the chore sweep with **admin**
+RTDB access. Admin access
 is an OAuth token minted from the service-account key (`FIREBASE_SA` env var) — no
 firebase-admin dependency, the zip stays ~200KB, and the deploy needs no rules change
 because everything lives under `{topKey}/push/` (owner-writable already).
@@ -193,6 +194,21 @@ because everything lives under `{topKey}/push/` (owner-writable already).
 pushDigest.js` publishes what's due (with FUTURE stickiness boundary timestamps so the
 server counts forward in time); the Lambda only formats and sends. Never port prompt
 logic into the Lambda — fix the digest instead.
+
+**Cadence is NEWS, not STATE** (2026-08-28, Matt: notify "as the prompts come in", not
+once a day). `aws-lambda/pushCadence.js` is pure, dependency-free CommonJS and owns every
+send/don't-send decision; `src/test/pushCadence.test.js` imports it directly, which is
+the only tested code in `aws-lambda/`. Keep it that way — the hard part of this feature
+is not nagging, and it is entirely in that file.
+
+The rule that makes frequent sweeps tolerable: a send requires something that wasn't true
+last time we sent — more matured stickiness films than we've mentioned, a tiebreak where
+there wasn't one, an unnamed award year. A `state/baseline` node records what's been said;
+it ratchets **down** freely (so finishing chores re-arms them) and up only on a send.
+Three further guards: a waking window, spacing = window / `pushesPerDay`, and **silence
+while the app is open** (`digest.updatedAt` within 30 min — the prompts are already on
+screen). A 24h staleness backstop re-mentions unfinished work so one ignored notification
+isn't the last word. `prefs.cadence = 'daily'` restores the original single-nudge mode.
 
 Infra (all `--profile personal`, us-east-1): Lambda `cinemaroll-push` (nodejs22.x,
 role `cinemaroll-push-role`), HTTP API `8rptihkn0l` ($default → Lambda, throttle 5/10),

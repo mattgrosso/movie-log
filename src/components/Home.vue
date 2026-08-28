@@ -849,8 +849,49 @@
                       <label class="form-check-label" for="pushFriendLogsToggle">A friend logs a movie</label>
                     </div>
                     <div class="mb-3">
+                      <label for="pushCadenceSelect" class="form-label">When to tell me</label>
+                      <select class="form-select" id="pushCadenceSelect" :value="pushPrefs.cadence" @change="updatePushPrefValue('cadence', $event.target.value)">
+                        <option value="asTheyCome">As things come up</option>
+                        <option value="daily">Once a day</option>
+                      </select>
+                    </div>
+                    <template v-if="pushPrefs.cadence === 'asTheyCome'">
+                      <div class="row g-2 mb-3">
+                        <div class="col-6">
+                          <label for="pushWindowStart" class="form-label">Not before</label>
+                          <select class="form-select" id="pushWindowStart" :value="pushPrefs.windowStart" @change="updatePushPrefNumber('windowStart', $event.target.value)">
+                            <option v-for="hour in 24" :key="hour - 1" :value="hour - 1">{{ formatPushHour(hour - 1) }}</option>
+                          </select>
+                        </div>
+                        <div class="col-6">
+                          <label for="pushWindowEnd" class="form-label">Not after</label>
+                          <select class="form-select" id="pushWindowEnd" :value="pushPrefs.windowEnd" @change="updatePushPrefNumber('windowEnd', $event.target.value)">
+                            <option v-for="hour in 24" :key="hour - 1" :value="hour - 1">{{ formatPushHour(hour - 1) }}</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label for="pushesPerDay" class="form-label">At most, per day</label>
+                        <input
+                          type="number"
+                          class="form-control"
+                          id="pushesPerDay"
+                          :value="pushPrefs.pushesPerDay"
+                          min="1"
+                          max="12"
+                          step="1"
+                          @change="updatePushPrefNumber('pushesPerDay', $event.target.value)"
+                        >
+                        <small class="form-text text-white">
+                          A ceiling, not a target — you only hear from Cinema Roll when something
+                          new is waiting, never twice about the same backlog. Friend logs arrive
+                          as they happen and don't count against this.
+                        </small>
+                      </div>
+                    </template>
+                    <div v-else class="mb-3">
                       <label for="pushHourSelect" class="form-label">Daily nudge around</label>
-                      <select class="form-select" id="pushHourSelect" :value="pushPrefs.hour" @change="updatePushHour">
+                      <select class="form-select" id="pushHourSelect" :value="pushPrefs.hour" @change="updatePushPrefNumber('hour', $event.target.value)">
                         <option v-for="hour in 24" :key="hour - 1" :value="hour - 1">{{ formatPushHour(hour - 1) }}</option>
                       </select>
                       <small class="form-text text-white">Only sent on days something is actually waiting. Friend logs arrive as they happen.</small>
@@ -3945,9 +3986,12 @@ export default {
     updatePushPref (key, event) {
       this.$store.dispatch('savePushPrefs', { [key]: event.target.checked });
     },
-    updatePushHour (event) {
-      const hour = Number(event.target.value);
-      if (Number.isFinite(hour)) this.$store.dispatch('savePushPrefs', { hour });
+    updatePushPrefValue (key, value) {
+      this.$store.dispatch('savePushPrefs', { [key]: value });
+    },
+    updatePushPrefNumber (key, value) {
+      const number = Number(value);
+      if (Number.isFinite(number)) this.$store.dispatch('savePushPrefs', { [key]: number });
     },
     formatPushHour (hour) {
       const twelve = hour % 12 === 0 ? 12 : hour % 12;

@@ -5,12 +5,14 @@
 //        POST /push/test          - test notification to the caller's devices
 //        POST /push/friend-logged - fan a "friend logged a movie" push out to
 //                                   the caller's MUTUAL friends who opted in
-//   2. Scheduled (EventBridge, hourly): the daily digest sweep. Reads each
+//   2. Scheduled (EventBridge, every 15 min): the chore sweep. Reads each
 //      account's `{topKey}/push/` node - prefs, subscriptions, and the
 //      DIGEST the app itself published (src/assets/javascript/pushDigest.js;
-//      the client computes, this only formats and sends). Sends at each
-//      user's preferred local hour, at most once per ~20h, and only when
-//      something is actually due.
+//      the client computes, this only formats and sends). WHEN to send is
+//      entirely pushCadence.js's call: notify on NEWS (a film newly matured
+//      into stickiness, a tiebreak that wasn't there, an unnamed award year)
+//      inside waking hours, spaced by the user's allowance, never while the
+//      app is open, and never re-reading a backlog already announced.
 //
 // Payloads use DECLARATIVE web push (`web_push: 8030`) so iOS Safari 18.4+
 // renders them without waking the service worker; public/push-sw.js renders
@@ -29,6 +31,7 @@
 
 const crypto = require('crypto');
 const webpush = require('web-push');
+const { dueFromDigest, nextBaseline, shouldSend, composeMessage, EMPTY_BASELINE } = require('./pushCadence');
 
 const FIREBASE_PROJECT_ID = 'movie-log-8c4d5';
 const DATABASE_URL = 'https://movie-log-8c4d5-default-rtdb.firebaseio.com';
@@ -238,46 +241,15 @@ const localHour = (tz, at = new Date()) => {
 };
 
 /**
- * What's due for one account at `now`, straight from the client-published
- * digest. The dueTimes arithmetic is the whole reason the digest carries
- * future boundaries: candidates mature while the app is closed.
+ * The sweep. Runs every 15 minutes; every decision about WHETHER to send
+ * lives in pushCadence.js (pure and unit-tested — the anti-nagging rules are
+ * the hard part of this feature, not the plumbing).
+ *
+ * The baseline write is unconditional and matters as much as the send: it is
+ * how a finished chore re-arms, so doing all your stickiness ratings means
+ * the next film to mature is news again.
  */
-const dueFromDigest = (digest, prefs, now) => {
-  const stickinessCount = prefs.stickiness === false ? 0
-    : (digest.stickiness?.count || 0) + (digest.stickiness?.dueTimes || []).filter((t) => t <= now).length;
-  const tiebreak = prefs.tiebreak === false ? null
-    : (digest.tiebreak?.due ? digest.tiebreak : null);
-  const awardYears = prefs.awards === false ? [] : (digest.awards?.years || []);
-  return { stickinessCount, tiebreak, awardYears };
-};
-
-/** One line per chore, most concrete first; title takes the lead item. */
-const composeDigestMessage = ({ stickinessCount, tiebreak, awardYears }, digest) => {
-  const parts = [];
-  if (stickinessCount > 0) {
-    const lead = digest.stickiness?.nextTitle;
-    parts.push(stickinessCount === 1 && lead
-      ? `${lead} is ready for its stickiness rating`
-      : `${stickinessCount} films are ready for a stickiness check`);
-  }
-  if (tiebreak) {
-    parts.push(tiebreak.count >= 2 ? `${tiebreak.count} films are tied` : 'A tiebreak is waiting');
-  }
-  if (awardYears.length === 1) {
-    parts.push(`${awardYears[0]} needs its personal awards`);
-  } else if (awardYears.length > 1) {
-    parts.push(`${awardYears.length} years need personal awards`);
-  }
-  if (!parts.length) return null;
-  return {
-    title: parts[0],
-    body: parts.length > 1 ? parts.slice(1).join(' · ') : 'Tap to knock it out.'
-  };
-};
-
-const MIN_HOURS_BETWEEN_DIGESTS = 20;
-
-const runDigestSweep = async () => {
+const runSweep = async () => {
   const now = Date.now();
   const roots = await dbGet('', 'shallow=true');
   const accounts = Object.keys(roots || {})
@@ -290,30 +262,41 @@ const runDigestSweep = async () => {
       if (!push || !push.subscriptions || !push.digest) continue;
 
       const prefs = push.prefs || {};
-      if (prefs.enabled === false) continue;
-
-      const hour = Number.isFinite(Number(prefs.hour)) ? Number(prefs.hour) : 19;
-      if (localHour(prefs.tz || 'America/New_York') !== hour) continue;
-
-      const lastAt = Number(push.state?.lastDailyAt) || 0;
-      if (now - lastAt < MIN_HOURS_BETWEEN_DIGESTS * 3600 * 1000) continue;
-
+      const baseline = push.state?.baseline || EMPTY_BASELINE;
       const due = dueFromDigest(push.digest, prefs, now);
-      const message = composeDigestMessage(due, push.digest);
-      if (!message) continue;
 
-      const appBadge = due.stickinessCount + (due.tiebreak ? 1 : 0) + due.awardYears.length;
-      const payload = buildPayload({ ...message, navigate: '/', tag: 'daily-digest', appBadge });
-      const delivered = await sendToAccount(topKey, push.subscriptions, payload);
-      if (delivered > 0) {
-        await dbSet(`${topKey}/push/state/lastDailyAt`, now);
+      const decision = shouldSend({
+        due,
+        prefs,
+        baseline,
+        now,
+        localHour: localHour(prefs.tz || 'America/New_York'),
+        lastSentAt: Number(push.state?.lastSentAt) || 0,
+        digestUpdatedAt: Number(push.digest.updatedAt) || 0
+      });
+
+      let delivered = 0;
+      if (decision.send) {
+        const message = composeMessage(due, push.digest, decision.news);
+        if (message) {
+          const appBadge = due.stickinessCount + (due.tiebreak ? 1 : 0) + due.awardYears.length;
+          const payload = buildPayload({ ...message, navigate: '/', tag: 'chores', appBadge });
+          delivered = await sendToAccount(topKey, push.subscriptions, payload);
+        }
       }
-      results.push({ topKey, delivered });
+
+      // Record what we've now said (or ratchet the baseline down) regardless
+      // of the outcome — see nextBaseline.
+      const sent = delivered > 0;
+      await dbSet(`${topKey}/push/state/baseline`, nextBaseline(due, baseline, sent));
+      if (sent) await dbSet(`${topKey}/push/state/lastSentAt`, now);
+
+      if (sent || decision.send) results.push({ topKey, delivered, reason: decision.reason });
     } catch (error) {
-      console.error(`Digest sweep failed for ${topKey}:`, error.message);
+      console.error(`Sweep failed for ${topKey}:`, error.message);
     }
   }
-  console.log('Digest sweep:', JSON.stringify(results));
+  console.log('Sweep:', JSON.stringify(results));
   return results;
 };
 
@@ -366,7 +349,7 @@ const notifyFriendsOfLog = async (myKey, { tmdbId, title, score }) => {
 exports.handler = async (event) => {
   // EventBridge schedule - no HTTP context at all.
   if (event.source === 'aws.events') {
-    await runDigestSweep();
+    await runSweep();
     return { ok: true };
   }
 
