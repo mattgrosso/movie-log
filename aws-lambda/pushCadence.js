@@ -62,16 +62,36 @@ const EMPTY_BASELINE = { stickinessCount: 0, tiebreak: false, awardYears: [] };
  * ever running.
  */
 function dueFromDigest (digest, prefs, now) {
-  const stickinessCount = prefs.stickiness === false
+  // A chore that is due in the DATA can still be one the app refuses to put
+  // on screen, because Home.vue gates every prompt behind a per-prompt daily
+  // quota. `eligibleAt` is when that gate opens (0 = no limit), published by
+  // pushDigest.js precisely so this decision can respect it.
+  //
+  // Bug, 2026-08-28: without this, a push announced two chores that were
+  // suppressed until 10:14am and 6pm — so tapping it landed on an empty
+  // screen. A notification must only ever name work you can actually do the
+  // moment you arrive.
+  const open = (section) => {
+    const at = Number(section?.eligibleAt);
+    return !Number.isFinite(at) || at <= now;
+  };
+
+  // A tournament under way pins the screen to the tiebreak prompt; nothing
+  // else can appear, so nothing else may be promised.
+  const pinned = Boolean(digest?.tiebreak?.pinned) && prefs.tiebreak !== false;
+
+  const stickinessCount = (prefs.stickiness === false || pinned || !open(digest?.stickiness))
     ? 0
     : (digest?.stickiness?.count || 0) +
       (digest?.stickiness?.dueTimes || []).filter((time) => time <= now).length;
 
-  const tiebreak = prefs.tiebreak === false
+  const tiebreak = (prefs.tiebreak === false || !open(digest?.tiebreak))
     ? null
     : (digest?.tiebreak?.due ? digest.tiebreak : null);
 
-  const awardYears = prefs.awards === false ? [] : (digest?.awards?.years || []);
+  const awardYears = (prefs.awards === false || pinned || !open(digest?.awards))
+    ? []
+    : (digest?.awards?.years || []);
 
   return { stickinessCount, tiebreak, awardYears };
 }

@@ -30,6 +30,7 @@
 
 import { findTiedGroup, tiedContestantCount } from './tieBreakTournament.js';
 import { yearsMeetingAwardsThreshold } from './personalAwards.js';
+import { promptsPerDay, lastAwardsPromptAt, ONE_DAY_MS } from './promptQuota.js';
 
 const ONE_WEEK_MS = 604800000;
 // Same odd constant StickinessInline.vue uses (≈ half a Julian year).
@@ -57,12 +58,43 @@ function promptState (settings, key) {
 }
 
 /**
+ * WHEN the on-screen prompt is next allowed to appear — the quota gate, as a
+ * timestamp the server can compare against without knowing the rules.
+ *
+ * Bug (2026-08-28): "Cinema Roll gave me a push notification this morning
+ * about some stickiness updates... but then when I clicked the notification
+ * and arrived in the app, there's no stickiness prompt there."
+ *
+ * The digest reported what was due IN THE DATA; Home.vue additionally gates
+ * every prompt behind a per-prompt daily quota (promptQuota.js — tiebreaks
+ * were suppressed until 10:14 that morning, awards until 6pm). So the push
+ * named chores the app then refused to show, and he arrived at an empty
+ * screen. Publishing the gate alongside the count is what keeps the two
+ * honest: a notification may only mention work the app will actually put in
+ * front of you when you get there.
+ *
+ * `0` means no limit / always eligible. `null` means never (the user set the
+ * allowance to zero), and callers treat that section as empty.
+ */
+function eligibleAt (lastAt, perDay) {
+  if (perDay === null || perDay === undefined) return 0;
+  if (!(perDay > 0)) return null;
+  const last = Number(lastAt);
+  if (!Number.isFinite(last) || last <= 0) return 0;
+  return last + ONE_DAY_MS / perDay;
+}
+
+/**
  * Stickiness: how many films are waiting right now, which one the prompt
  * would lead with, and when the NEXT candidates mature.
  */
 export function stickinessDigest (entries, settings, now = Date.now()) {
-  if (promptState(settings, 'stickinessPromptState') === 'disabled') {
-    return { count: 0, nextTitle: null, dueTimes: [] };
+  const gate = eligibleAt(
+    settings?.lastStickinessPromptAt,
+    promptsPerDay(settings?.stickinessPromptsPerDay, null)
+  );
+  if (promptState(settings, 'stickinessPromptState') === 'disabled' || gate === null) {
+    return { count: 0, nextTitle: null, dueTimes: [], eligibleAt: 0 };
   }
 
   const due = [];
@@ -84,10 +116,16 @@ export function stickinessDigest (entries, settings, now = Date.now()) {
       due.push({ title: entryTitle(entry), ratedAt });
       return;
     }
-    // Not due yet — publish the boundaries it will cross, so the server can
-    // count forward in time without knowing why.
-    if (needsWeek && weekAt > now && weekAt - now < DUE_TIMES_HORIZON_MS) dueTimes.push(weekAt);
-    if (needsSixMonth && sixMonthAt > now && sixMonthAt - now < DUE_TIMES_HORIZON_MS) dueTimes.push(sixMonthAt);
+    // Not due yet — publish the ONE boundary that will make it due, so the
+    // server can count forward in time without knowing why. Deliberately the
+    // earliest applicable boundary and no more: a film waiting on both its
+    // week and its six-month pass is still a single entry in the prompt's
+    // list, so emitting both would let the server count one film twice.
+    const boundaries = [];
+    if (needsWeek) boundaries.push(weekAt);
+    if (needsSixMonth) boundaries.push(sixMonthAt);
+    const next = Math.min(...boundaries);
+    if (Number.isFinite(next) && next > now && next - now < DUE_TIMES_HORIZON_MS) dueTimes.push(next);
   });
 
   // Same order the prompt itself uses: most recently rated first.
@@ -97,7 +135,8 @@ export function stickinessDigest (entries, settings, now = Date.now()) {
   return {
     count: due.length,
     nextTitle: due.length ? due[0].title : null,
-    dueTimes: dueTimes.slice(0, DUE_TIMES_CAP)
+    dueTimes: dueTimes.slice(0, DUE_TIMES_CAP),
+    eligibleAt: gate
   };
 }
 
@@ -105,10 +144,15 @@ export function stickinessDigest (entries, settings, now = Date.now()) {
  * Tiebreak: is there something to settle (a live tournament, or a fresh
  * adjacent tie), and between how many films.
  */
-export function tiebreakDigest (entries, settings, getRating) {
+export function tiebreakDigest (entries, settings, getRating, now = Date.now()) {
   if (promptState(settings, 'tieBreakPromptState') === 'disabled') {
-    return { due: false, count: 0 };
+    return { due: false, count: 0, eligibleAt: 0, pinned: false };
   }
+
+  // Home.vue's own arithmetic, mirrored exactly — including the `|| now`
+  // fallback, which makes a brand-new account wait one interval for its
+  // first tiebreak rather than being asked immediately.
+  const gate = (Number(settings?.lastTweak) || now) + ONE_DAY_MS / (Number(settings?.tieBreakTweak) || 1);
 
   const tournament = settings?.tieBreakTournament || null;
 
@@ -124,7 +168,13 @@ export function tiebreakDigest (entries, settings, getRating) {
 
   return {
     due,
-    count: due ? tiedContestantCount(tournament, tiedGroup) : 0
+    count: due ? tiedContestantCount(tournament, tiedGroup) : 0,
+    eligibleAt: gate,
+    // A tournament already under way PINS the screen to the tiebreak prompt
+    // (Home.vue's activeModalType: it is work the user is in the middle of,
+    // and nothing may take the screen from it). So while one exists, no
+    // notification may promise stickiness or awards — they cannot appear.
+    pinned: Boolean(tournament)
   };
 }
 
@@ -136,6 +186,8 @@ export function tiebreakDigest (entries, settings, getRating) {
  */
 export function awardsYearsNeedingInput (entries, settings, now = Date.now()) {
   if (promptState(settings, 'awardsPromptState') === 'disabled') return [];
+  // The quota can switch this prompt off entirely (allowance of 0).
+  if (eligibleAt(lastAwardsPromptAt(settings, now), promptsPerDay(settings?.awardsPromptsPerDay, 1)) === null) return [];
 
   const eligibleYears = yearsMeetingAwardsThreshold(entries, settings);
 
@@ -164,7 +216,13 @@ export function buildPushDigest ({ entries, settings, getRating, now = Date.now(
   return {
     updatedAt: now,
     stickiness: stickinessDigest(entries, settings, now),
-    tiebreak: tiebreakDigest(entries, settings, getRating),
-    awards: { years: awardsYearsNeedingInput(entries, settings, now) }
+    tiebreak: tiebreakDigest(entries, settings, getRating, now),
+    awards: {
+      years: awardsYearsNeedingInput(entries, settings, now),
+      eligibleAt: eligibleAt(
+        lastAwardsPromptAt(settings, now),
+        promptsPerDay(settings?.awardsPromptsPerDay, 1)
+      ) ?? 0
+    }
   };
 }

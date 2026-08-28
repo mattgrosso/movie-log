@@ -118,7 +118,7 @@ describe('tiebreakDigest', () => {
       entry(1, 'A', { score: 9, ratedAt: NOW }),
       entry(2, 'B', { score: 8, ratedAt: NOW })
     ];
-    expect(tiebreakDigest(entries, {}, getRating)).toEqual({ due: false, count: 0 });
+    expect(tiebreakDigest(entries, {}, getRating, NOW)).toMatchObject({ due: false, count: 0, pinned: false });
   });
 
   it('goes silent when the user disabled the tiebreak prompt', () => {
@@ -189,9 +189,96 @@ describe('buildPushDigest', () => {
     const digest = buildPushDigest({ entries: [], settings: {}, getRating, now: NOW });
     expect(digest).toEqual({
       updatedAt: NOW,
-      stickiness: { count: 0, nextTitle: null, dueTimes: [] },
-      tiebreak: { due: false, count: 0 },
-      awards: { years: [] }
+      stickiness: { count: 0, nextTitle: null, dueTimes: [], eligibleAt: 0 },
+      // No lastTweak on a fresh account, so Home.vue's `|| now` fallback
+      // makes the first tiebreak wait one full interval.
+      tiebreak: { due: false, count: 0, eligibleAt: NOW + ONE_DAY, pinned: false },
+      awards: { years: [], eligibleAt: 0 }
     });
+  });
+});
+
+// Bug, 2026-08-28: a push announced chores, and tapping it landed on an app
+// with no prompt at all. The digest published what was due IN THE DATA;
+// Home.vue additionally gates each prompt behind its daily quota
+// (promptQuota.js). `eligibleAt` publishes that gate so the sender can only
+// promise work the app will really show.
+describe('eligibleAt — the quota gate the app applies', () => {
+  const HOUR = 60 * 60 * 1000;
+
+  it('stickiness with no configured limit is always eligible', () => {
+    const d = stickinessDigest([], {}, NOW);
+    expect(d.eligibleAt).toBe(0);
+  });
+
+  it('stickiness rate-limited today reports when the prompt reopens', () => {
+    const settings = { stickinessPromptsPerDay: 4, lastStickinessPromptAt: NOW - HOUR };
+    // 4 a day → one every 6 hours → five hours left to wait.
+    expect(stickinessDigest([], settings, NOW).eligibleAt).toBe(NOW - HOUR + 6 * HOUR);
+  });
+
+  it('an allowance of zero empties the section — the prompt is off', () => {
+    const entries = [entry(1, 'Waiting', { ratedAt: NOW - 30 * ONE_DAY })];
+    const settings = { stickinessPromptsPerDay: 0 };
+    expect(stickinessDigest(entries, settings, NOW).count).toBe(0);
+  });
+
+  it('tiebreak mirrors Home.vue: lastTweak + a day over the allowance', () => {
+    const entries = [
+      entry(1, 'A', { score: 8, ratedAt: NOW }),
+      entry(2, 'B', { score: 8, ratedAt: NOW })
+    ];
+    const settings = { lastTweak: NOW - HOUR, tieBreakTweak: 10 };
+    const d = tiebreakDigest(entries, settings, getRating, NOW);
+    expect(d.due).toBe(true);
+    // 10 a day → every 2.4h → 1.4h still to wait. This is exactly the case
+    // that produced the empty screen.
+    expect(d.eligibleAt).toBe(NOW - HOUR + (24 / 10) * HOUR);
+    expect(d.eligibleAt).toBeGreaterThan(NOW);
+  });
+
+  it('a live tournament is flagged as pinning the screen', () => {
+    const settings = { tieBreakTournament: { contestantIds: [1, 2, 3] } };
+    expect(tiebreakDigest([], settings, getRating, NOW).pinned).toBe(true);
+    expect(tiebreakDigest([], {}, getRating, NOW).pinned).toBe(false);
+  });
+
+  it('awards publish their gate too', () => {
+    const digest = buildPushDigest({ entries: [], settings: {}, getRating, now: NOW });
+    expect(digest.awards).toHaveProperty('eligibleAt');
+    expect(digest.stickiness).toHaveProperty('eligibleAt');
+    expect(digest.tiebreak).toHaveProperty('eligibleAt');
+  });
+});
+
+describe('dueTimes counts each film once', () => {
+  it('a film waiting on BOTH its week and six-month pass emits one boundary', () => {
+    // Rated three days ago with neither stickiness recorded. Emitting both
+    // boundaries would let the server count this single film twice.
+    const entries = [entry(1, 'Both pending', { ratedAt: NOW - 3 * ONE_DAY })];
+    const d = stickinessDigest(entries, {}, NOW);
+    expect(d.count).toBe(0);
+    expect(d.dueTimes).toHaveLength(1);
+    expect(d.dueTimes[0]).toBe(NOW - 3 * ONE_DAY + 604800000); // the WEEK one
+  });
+
+  it('a film that only needs its six-month pass emits that boundary', () => {
+    // Rated five months ago, week-stickiness already given: its only
+    // remaining boundary is the six-month one, about a month away — inside
+    // the 90-day publishing horizon.
+    const ratedAt = NOW - 150 * ONE_DAY;
+    const entries = [entry(1, 'Week done', { ratedAt, rating: { userAddedStickiness: true } })];
+    const d = stickinessDigest(entries, {}, NOW);
+    expect(d.dueTimes).toEqual([ratedAt + SIX_MONTHS]);
+  });
+
+  it('a boundary beyond the horizon is not published yet', () => {
+    // Six months away is further than the 90-day horizon; the app
+    // republishes constantly, so it will be published when it comes close.
+    const entries = [entry(1, 'Far off', {
+      ratedAt: NOW - 3 * ONE_DAY,
+      rating: { userAddedStickiness: true }
+    })];
+    expect(stickinessDigest(entries, {}, NOW).dueTimes).toEqual([]);
   });
 });

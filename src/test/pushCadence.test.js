@@ -247,3 +247,67 @@ describe('composeMessage', () => {
     expect(message.body).toBe('4 films are tied · 1997 needs its personal awards');
   });
 });
+
+// Bug, 2026-08-28: "Cinema Roll gave me a push notification this morning
+// about some stickiness updates that I needed to do. But then when I clicked
+// the notification and arrived in the app, there's no stickiness prompt
+// there." The digest reported what was due IN THE DATA; Home.vue also gates
+// every prompt behind a per-prompt daily quota, so the push named chores the
+// app then refused to display. `eligibleAt` (published per section) is the
+// gate, and nothing may be announced before it opens.
+describe('quota gates — only promise what the app will actually show', () => {
+  const now = NOW
+
+  it('a chore still inside its quota window is not due for notification', () => {
+    // The real shape of that morning: tiebreak due in the data, but the
+    // on-screen prompt suppressed for another two hours.
+    const digest = {
+      stickiness: { count: 0, dueTimes: [], eligibleAt: 0 },
+      tiebreak: { due: true, count: 2, eligibleAt: now + 2 * HOUR },
+      awards: { years: [2009, 2014], eligibleAt: now + 9 * HOUR },
+    }
+    const due = dueFromDigest(digest, {}, now)
+    expect(due.tiebreak).toBeNull()
+    expect(due.awardYears).toEqual([])
+    expect(shouldSend(baseArgs({ due }))).toMatchObject({ send: false, reason: 'nothing-due' })
+  })
+
+  it('once the gate opens, the same chore is announced', () => {
+    const digest = {
+      stickiness: { count: 0, dueTimes: [], eligibleAt: 0 },
+      tiebreak: { due: true, count: 2, eligibleAt: now - 60_000 },
+      awards: { years: [], eligibleAt: 0 },
+    }
+    const due = dueFromDigest(digest, {}, now)
+    expect(due.tiebreak).toMatchObject({ count: 2 })
+    expect(shouldSend(baseArgs({ due, baseline: EMPTY_BASELINE })).send).toBe(true)
+  })
+
+  it('stickiness maturing behind a closed gate is still not announced', () => {
+    const digest = {
+      // Two boundaries already passed, so the data says two films wait...
+      stickiness: { count: 0, dueTimes: [now - 2 * HOUR, now - HOUR], eligibleAt: now + 3 * HOUR },
+      tiebreak: { due: false, count: 0, eligibleAt: 0 },
+      awards: { years: [], eligibleAt: 0 },
+    }
+    // ...but the prompt itself is rate-limited, so the push stays quiet.
+    expect(dueFromDigest(digest, {}, now).stickinessCount).toBe(0)
+  })
+
+  it('a live tournament pins the screen, so nothing else may be promised', () => {
+    const digest = {
+      stickiness: { count: 9, dueTimes: [], eligibleAt: 0 },
+      tiebreak: { due: true, count: 4, eligibleAt: 0, pinned: true },
+      awards: { years: [1997], eligibleAt: 0 },
+    }
+    const due = dueFromDigest(digest, {}, now)
+    expect(due.stickinessCount).toBe(0)
+    expect(due.awardYears).toEqual([])
+    expect(due.tiebreak).toMatchObject({ count: 4 })
+  })
+
+  it('a digest with no eligibleAt at all (older client) still works', () => {
+    const digest = { stickiness: { count: 3, dueTimes: [] }, tiebreak: { due: false }, awards: { years: [] } }
+    expect(dueFromDigest(digest, {}, now).stickinessCount).toBe(3)
+  })
+})
