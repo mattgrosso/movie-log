@@ -40,17 +40,28 @@ export default {
     friends () {
       return friendsWhoRated(this.$store.getters.filmClubFriends, this.tmdbId);
     },
-    // Club membership, as one string cheap to watch. Both halves arrive
-    // async — native keys from the edges listener, external ids from
-    // settings — and the screens that fetch profiles all do it on MOUNT, so
-    // a cold start could pass every one of those mounts before membership
-    // landed and leave the pills blank for the whole session (report
-    // -P0EQt6w7iKdJziMXHTi: three Movie Log friends had rated the movie and
-    // none showed). The pills therefore ensure their own data.
+    // Everything this component needs fetched, as one string cheap to watch.
+    //
+    // The screens that load club data all do it on MOUNT, and a friend-log
+    // push notification navigates straight to `/#/movie/<id>` — so the app
+    // can cold-start on this page with Home never mounting at all, and
+    // NOBODY'S rating shows for the whole session (report
+    // -P0EQt6w7iKdJziMXHTi: "I clicked on their notification... their rating
+    // and none of the other ratings, none of them were there"). The pills
+    // therefore ensure their own data.
+    //
+    // The user KEY is watched alongside membership, and it is the load-
+    // bearing part on that path: at mount, auth hasn't resolved, so
+    // attachSocialListeners has no account to listen for and returns having
+    // done nothing — and without the key here, nothing would ever ask it
+    // again, because the native roster it would otherwise wait on is exactly
+    // what that listener produces. An account with external friends happens
+    // to recover when settings land; one without would stay blank.
     clubRoster () {
+      const me = this.$store.getters.socialUserKey || '';
       const native = this.$store.getters.socialFriendKeys || [];
       const external = Object.keys(this.$store.state?.settings?.externalFriends || {});
-      return [...native, ...external].join('|');
+      return [me, ...native, ...external].join('|');
     }
   },
   watch: {

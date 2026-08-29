@@ -16,7 +16,7 @@ const rated = (name, score, stars) => ({
 // Reactive, so tests can land club membership after mount the way the real
 // store does (edges from a listener, external ids from settings).
 const mockStore = (friends) => reactive({
-  getters: { filmClubFriends: friends, socialFriendKeys: [] },
+  getters: { filmClubFriends: friends, socialFriendKeys: [], socialUserKey: null },
   state: { settings: {} },
   dispatch: vi.fn()
 })
@@ -86,6 +86,21 @@ describe('FriendsWhoSaw', () => {
   it('asks the store to load club data as soon as it mounts', () => {
     const store = mockStore([])
     mountPills([], {}, store)
+    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData')
+  })
+
+  // The notification path, and the one that has to work without any external
+  // friends to rescue it: a friend-log push navigates to /#/movie/<id>, so
+  // the app cold-starts here with no signed-in account yet. Nothing can be
+  // fetched at mount, and the native friend list can't arrive on its own —
+  // it is produced by the very listener that needs the account key.
+  it('asks again when the account arrives, with no external friends in play', async () => {
+    const store = mockStore([])
+    const wrapper = mountPills([], {}, store)
+    store.dispatch.mockClear()
+
+    store.getters.socialUserKey = 'mattgrosso-gmail-com'
+    await wrapper.vm.$nextTick()
     expect(store.dispatch).toHaveBeenCalledWith('ensureClubData')
   })
 
