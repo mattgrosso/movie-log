@@ -85,6 +85,55 @@ Two traps if you extend this:
 - Perf harness: `yarn test:run src/test/Performance.bench.test.js`, read the `[bench]`
   lines. Not a correctness gate. Baseline: general 0.6ms, grouped 2.4ms.
 
+## Typed text is a plain search — always (2026-08-29)
+
+Matt: "why do we need a name search separate from a title search? Don't we have all
+those sections within our search results for exactly this reason?"
+
+`detectFilterType` used to be a six-step exact-match cascade (director → genre → cast →
+company → keyword) that guessed which ONE thing a typed word named and committed that as
+a typed chip. **It now returns `general` for everything except a year.** Years stay
+because `general` never looks at `release_date`, so a typed "2010" would otherwise find
+nothing.
+
+Two failures made this necessary, and the second is the important one:
+
+- It had to choose. "Alice" is Mary Alice's surname (`buildCastMembersCache` indexed bare
+  surnames), so it committed a person chip and hid three Alice-titled films.
+- **A typed chip switches the sections OFF** — `groupedByAllCategories` renders only for
+  `general`. So the guess also removed the one mechanism that shows every reading at once.
+
+The five `detect*Types` methods and the whole cast-name cache are **deleted**; the catalog
+supersedes them. Precision is still available, but only deliberately: the typeahead
+(passes `expectedType`), the Add Filter menu, quick links, tags, and the links on a movie
+detail page. Those links now build their own chips (`MovieDetail.chipForClick`) instead of
+handing off free text — they used to rely on the cascade to re-derive a type it already
+knew, which is exactly what made a clicked keyword drag in films merely *titled* with the
+word.
+
+The "generic terms" blocklist (war, love, black, red, american…) that fell back to a flat
+list is **gone too**. Those words are precisely the ones with several readings, so they
+are what the sections are for; grouping costs ~2.4ms against the flat list's ~0.6ms.
+
+### Identity survives as interpretations, not as a chip type
+
+`searchInterpretations.js` answers "what could these words refer to?" as a **list**,
+from `catalog.js` (which already resolved every library name to its TMDB id). This is what
+keeps **More from** precise: a `general` chip carries no id, so without it typing
+"Thriller" would offer films *called* Thriller. The text search still leads and the
+leading interpretation is asked of `/discover` as well, then the two are **unioned**.
+
+- **Union, never intersection.** "Films called Thriller that are also thrillers" is nearly
+  nothing — the same trap as fetching two chips separately and intersecting them.
+- Only the LEADING reading is asked. Several ANDed together over-narrow identically.
+- Interpretations are computed from the filters the fetch was **started for**
+  (`interpretationsFrom(filters)`), never from component state — the fetch is async and
+  already has a stale-request guard for exactly this reason.
+- Only ever populated for a **lone free-text chip**. A question the user already made
+  precise is theirs, and reinterpreting it would be the old cascade arriving late.
+- A whole name outranks a surname; matching is loose about punctuation on both sides, so
+  "warner bros pictures" still reaches "Warner Bros. Pictures".
+
 ## Grouping and chips
 
 **Group order is also matching priority** — via `usedMovieIds`, a movie matching several
@@ -100,7 +149,9 @@ free-text grouped view takes the chip's bare VALUE (type discarded) and searches
 across Title / Director / Cast / Producer / Company / Keywords. Title is always one of
 those, so every typed chip leaked movies its own filter excluded — a `tag:DARK` chip
 showed everything with "dark" in the title (d4580ec). Grouping is therefore off for all
-typed chips.
+typed chips. Since 2026-08-29 this costs far less than it used to: typed text is a plain
+search, so the sections are what a TYPED search gets, and a typed chip is now always a
+deliberate act (a tapped row, a menu, a link) whose type is the whole point.
 
 The one exception is `person`, and it works by a different mechanism: it does not
 re-search at all. `personRoleGroups.js` **partitions `unifiedFilteredResults`** by the

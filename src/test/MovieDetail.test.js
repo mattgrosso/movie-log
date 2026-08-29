@@ -301,7 +301,13 @@ describe('MovieDetail', () => {
     it('searchFor promotes the clicked type group and samples from results for the banner', () => {
       wrapper.vm.searchFor('Denis Villeneuve', 'director')
       expect(mockStore.commit).toHaveBeenCalledWith('setHomePagePromoteGroup', 'director')
-      expect(mockStore.commit).toHaveBeenCalledWith('setHomePageSearchValue', 'Denis Villeneuve')
+      // A click carries its own type since 2026-08-29 — the search box's
+      // free text is now a plain search, so a link can't rely on it being
+      // re-read as a person. See MovieDetailSearchLinks.test.js.
+      expect(mockStore.commit).toHaveBeenCalledWith('setHomePageSearchChips', [
+        expect.objectContaining({ type: 'person', value: 'Denis Villeneuve' })
+      ])
+      expect(mockStore.commit).toHaveBeenCalledWith('setHomePageSearchValue', '')
       expect(mockStore.commit).toHaveBeenCalledWith('setBannerRequest', { type: 'fromResults' })
       expect(pushSpy).toHaveBeenCalledWith('/')
     })

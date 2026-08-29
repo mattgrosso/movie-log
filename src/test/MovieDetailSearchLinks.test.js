@@ -215,25 +215,67 @@ describe('every search link on a movie detail page', () => {
       .not.toContain('Heist of the Lantern Thriller');
   });
 
-  it('sends a tag as a typed chip, and everything else as a free-text search', () => {
-    const tagPage = detailPage();
-    tagPage.wrapper.setData({ result: SUBJECT, movie: SUBJECT.movie });
-    tagPage.wrapper.vm.searchForTag('DARK');
-    const tagCommits = Object.fromEntries(tagPage.commits);
+  // Changed 2026-08-29. These links used to hand off as free text and rely on
+  // Home's detectFilterType cascade to work out what they meant, which worked
+  // only because a link's text is by definition an exact entity name. Typed
+  // text is now a plain search on purpose (Matt: "why do we need a name search
+  // separate from a title search?"), so a click has to say what it means. It
+  // can: you tapped a specific thing on a specific film.
+  it('sends every labelled link as a typed chip', () => {
+    const commitsFor = (click) => {
+      const page = detailPage();
+      page.wrapper.setData({ result: SUBJECT, movie: SUBJECT.movie });
+      click(page.wrapper.vm);
+      return Object.fromEntries(page.commits);
+    };
 
-    expect(tagCommits.setHomePageSearchChips).toEqual([
+    const tag = commitsFor((vm) => vm.searchForTag('DARK'));
+    expect(tag.setHomePageSearchChips).toEqual([
       expect.objectContaining({ type: 'tag', value: 'DARK' })
     ]);
-    expect(tagCommits.setHomePageSearchValue).toBe('');
+    expect(tag.setHomePageSearchValue).toBe('');
 
-    const genrePage = detailPage();
-    genrePage.wrapper.setData({ result: SUBJECT, movie: SUBJECT.movie });
-    genrePage.wrapper.vm.searchFor('Thriller', 'genre');
-    const genreCommits = Object.fromEntries(genrePage.commits);
+    const genre = commitsFor((vm) => vm.searchFor('Thriller', 'genre'));
+    expect(genre.setHomePageSearchChips).toEqual([
+      expect.objectContaining({ type: 'genre', value: 'Thriller', genreId: 53 })
+    ]);
+    expect(genre.setHomePageSearchValue).toBe('');
 
-    // Chips CLEARED and a plain term set — this is why the tag link was the
-    // only one that hit the grouping bug.
-    expect(genreCommits.setHomePageSearchChips).toEqual([]);
-    expect(genreCommits.setHomePageSearchValue).toBe('Thriller');
+    const keyword = commitsFor((vm) => vm.searchFor('heist', 'keyword'));
+    expect(keyword.setHomePageSearchChips).toEqual([
+      expect.objectContaining({ type: 'keyword', value: 'heist' })
+    ]);
+
+    const company = commitsFor((vm) => vm.searchFor('Lantern Pictures', 'company'));
+    expect(company.setHomePageSearchChips).toEqual([
+      expect.objectContaining({ type: 'company', value: 'Lantern Pictures' })
+    ]);
+  });
+
+  // Every crew role is one `person` chip: Home splits a person's results into
+  // Director / Cast / Producer sections itself (personRoleGroups), so the role
+  // is a display concern there rather than a different question.
+  it('sends every crew role as one person chip', () => {
+    const roles = ['director', 'cast', 'writer', 'composer', 'editor', 'photo', 'producer'];
+    roles.forEach((role) => {
+      const page = detailPage();
+      page.wrapper.setData({ result: SUBJECT, movie: SUBJECT.movie });
+      page.wrapper.vm.searchFor('Jane Director', role);
+      const commits = Object.fromEntries(page.commits);
+      expect(commits.setHomePageSearchChips, `${role} should be a person chip`).toEqual([
+        expect.objectContaining({ type: 'person', value: 'Jane Director' })
+      ]);
+    });
+  });
+
+  // A title IS the free-text question, and an unlabelled click must not
+  // invent a filter out of nothing.
+  it('leaves a title click as a plain search', () => {
+    const page = detailPage();
+    page.wrapper.setData({ result: SUBJECT, movie: SUBJECT.movie });
+    page.wrapper.vm.searchFor('Nightfall Over Kyoto', 'title');
+    const commits = Object.fromEntries(page.commits);
+    expect(commits.setHomePageSearchChips).toEqual([]);
+    expect(commits.setHomePageSearchValue).toBe('Nightfall Over Kyoto');
   });
 });

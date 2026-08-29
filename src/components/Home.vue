@@ -1547,7 +1547,6 @@ import {
   sortResultsFast as sortResultsFastUtil,
   sortResults as sortResultsUtil,
   countDidYouMeanSuggestionsThatFit,
-  termMatchesAnyTitle,
   normalizeSearchText,
   looseSearchText
 } from '../assets/javascript/searchFiltering.js';
@@ -1557,6 +1556,7 @@ import {
   TYPEAHEAD_MIN_CHARS
 } from '../assets/javascript/searchSuggestions.js';
 import { buildCatalog, typeaheadEntries, CATALOG_KINDS } from '../assets/javascript/catalog.js';
+import { interpretationsFor, discoverFilterFor } from '../assets/javascript/searchInterpretations.js';
 import {
   awardNameWithThe,
   awardNameWithoutThe,
@@ -1647,8 +1647,6 @@ export default {
       pushTestSent: false,
       activeFilters: [], // New multi-filter system
       activeQuickLinkList: "title",
-      cachedCastMembers: new Set(), // Cache for fast cast member lookups
-      cachedCastFullNames: new Set(), // Whole names only — see detectCastTypes
       debouncedSetSearchValue: debounce(function (value) {
         this.searchValue = value;
       }, 300),
@@ -1849,7 +1847,6 @@ export default {
     },
     allEntriesWithFlatKeywordsAdded (newVal, oldval) {
       if (!oldval.length && newVal.length) {
-        this.buildCastMembersCache();
         this.resolveBanner(); // data just loaded → set the initial banner
       }
     },
@@ -2456,6 +2453,32 @@ export default {
         .sort()
         .join('&');
     },
+    // The signature plus the reading the fetch will actually use, so a plain
+    // search and the same words as a deliberate chip can't share a cached
+    // answer — they ask TMDB different questions.
+    moreFromCacheKey () {
+      const lead = this.searchInterpretations[0];
+      return lead
+        ? `${this.moreFromSignature}#${lead.kind}|${lead.norm}`
+        : this.moreFromSignature;
+    },
+    /**
+     * What the plain text being searched could REFER TO, best reading first.
+     *
+     * Empty unless the whole question is one free-text chip — with a typed
+     * chip in play the user has already said what they mean, and with several
+     * chips the combined question is theirs, not ours to reinterpret.
+     *
+     * This is what lets "More from" survive typed text becoming a plain
+     * search. A `general` chip carries no TMDB id, so before this the row
+     * could only ask /search/movie for the words — typing "Thriller" would
+     * have offered films CALLED Thriller instead of more thrillers. Now the
+     * text still leads and the leading interpretation adds the question the
+     * old genre chip used to ask, so the row answers both readings at once.
+     */
+    searchInterpretations () {
+      return this.interpretationsFrom(this.moreFromFilters);
+    },
     // Any narrowing at all — a chip or typed text. Watched above, because
     // a filtered list wants rating order and a whole library doesn't.
     hasActiveFilters () {
@@ -3033,11 +3056,15 @@ export default {
         return null;
       }
 
-      // Skip for very common/generic terms that will match too many movies
-      const genericTerms = ['war', 'love', 'man', 'the', 'and', 'new', 'black', 'red', 'big', 'american', 'last', 'first'];
-      if (genericTerms.includes(normalizedSearchTerm)) {
-        return null;
-      }
+      // There used to be a blocklist here — war, love, man, black, red,
+      // american… — that fell back to the flat list for "very common/generic
+      // terms that will match too many movies". Removed 2026-08-29, when
+      // typed text stopped becoming a typed chip: those words are now exactly
+      // the ones the sections are for. "War" is a genre AND a word in a dozen
+      // titles, and answering it with one undifferentiated list is the
+      // failure the sections exist to prevent. Grouping costs ~2.4ms against
+      // the flat list's ~0.6ms over a 1,300-film library (Performance.bench),
+      // so the guard was never carrying its weight in speed either.
 
       // Check if this is a year search - if so, bypass grouping and use normal results
       if (this.detectYearTypes(searchTerm)) {
@@ -4044,31 +4071,6 @@ export default {
       }
     },
 
-    buildCastMembersCache () {
-      // Clear any existing cache
-      this.cachedCastMembers = new Set();
-      // Full names kept apart from the union, because the two are not equally
-      // strong evidence — see detectCastTypes.
-      this.cachedCastFullNames = new Set();
-
-      // Process each movie entry once
-      this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
-        const cast = result.movie?.cast || [];
-
-        // Add each cast member's name to the Set
-        cast.forEach(person => {
-          if (person.name) {
-            this.cachedCastMembers.add(normalizeSearchText(person.name));
-            this.cachedCastFullNames.add(normalizeSearchText(person.name));
-          }
-
-          const lastName = person.name ? normalizeSearchText(person.name).split(' ').slice(-1)[0] : '';
-          if (lastName) {
-            this.cachedCastMembers.add(lastName);
-          }
-        });
-      });
-    },
     // Search/filter/sort logic lives in ../assets/javascript/searchFiltering.js
     // (pure, unit-tested in isolation). These thin wrappers feed it component state.
     buildSearchFields (movie) {
@@ -5484,106 +5486,6 @@ export default {
       // If no year types matched, return null
       return null;
     },
-    detectDirectorTypes (searchValue, lowerValue) {
-      // Check for exact director match
-      const allDirectors = this.allDirectors || [];
-      const exactDirectorMatch = allDirectors.find(director =>
-        director.name && normalizeSearchText(director.name) === lowerValue
-      );
-      if (exactDirectorMatch) {
-        return { type: 'person', value: exactDirectorMatch.name, display: `${exactDirectorMatch.name}` };
-      }
-
-      // For partial matches, don't classify as person type - let it fall through to general search
-      // This ensures the search value works the same in chips as it does in the input
-
-      // If no director types matched, return null
-      return null;
-    },
-    detectGenreTypes (searchValue, lowerValue) {
-      // Check for exact genre match
-      const allGenres = this.allGenres || [];
-      const exactGenreMatch = allGenres.find(genre =>
-        genre.name && normalizeSearchText(genre.name) === lowerValue
-      );
-      if (exactGenreMatch) {
-        // One shared map (assets/javascript/tmdbGenres.js), so chip
-        // detection and the TMDB fetch can never disagree about what
-        // "horror" means. Null for a genre TMDB doesn't have, rather than
-        // the old silent default to 18 (Drama).
-        const genreId = genreIdFor(exactGenreMatch.name);
-        return { type: 'genre', genreId, value: exactGenreMatch.name, display: `${exactGenreMatch.name}` };
-      }
-
-      // If no genre types matched, return null
-      return null;
-    },
-    detectKeywordTypes (searchValue, lowerValue) {
-      // Check for exact keyword match
-      const allKeywords = Object.keys(this.countedKeywords || {});
-      const exactKeywordMatch = allKeywords.find(keyword =>
-        keyword && normalizeSearchText(keyword) === lowerValue
-      );
-      if (exactKeywordMatch) {
-        return { type: 'keyword', value: exactKeywordMatch, display: `${exactKeywordMatch}` };
-      }
-
-      // If no keyword types matched, return null
-      return null;
-    },
-    detectCastTypes (searchValue, lowerValue) {
-      // Check for exact cast match
-      if (!this.cachedCastMembers || !this.cachedCastMembers.size) {
-        console.warn('Rebuilding Cast Cache');
-        this.buildCastMembersCache();
-      }
-      // A whole name is a deliberate thing to type, and it wins outright —
-      // as every other branch of this cascade does, all of which match a
-      // complete entity name.
-      if (this.cachedCastFullNames.has(lowerValue)) {
-        return { type: 'person', value: searchValue, display: `${searchValue}` };
-      }
-
-      // A bare SURNAME is the one thing this cascade indexes that is not
-      // anybody's whole name, and it is the one that collided with a title.
-      // "Alice" is Mary Alice's surname (Malcolm X, Awakenings), so typing it
-      // committed a person chip matching her two films while three
-      // Alice-titled movies went unfound — which read as partial title
-      // matching being broken (report -P0Cx5UWJTGUo-o2S3EU, 2026-08-29). A
-      // name FRAGMENT does not outrank a title; a whole name still does, and
-      // so does an exact genre, keyword, studio or director above.
-      //
-      // Falling through to `general` can only widen the results: its matcher
-      // is a superset of the person matcher (substring cast/crew), so Mary
-      // Alice's films come along too. Committing her deliberately is still
-      // possible through the typeahead, which carries an expectedType and
-      // skips this cascade.
-      if (this.cachedCastMembers.has(lowerValue)) {
-        if (termMatchesAnyTitle(searchValue, this.allEntriesWithFlatKeywordsAdded)) {
-          return null;
-        }
-        return { type: 'person', value: searchValue, display: `${searchValue}` };
-      }
-
-      // If no cast types matched, return null
-      return null;
-    },
-    detectProductionCompanyTypes (searchValue, lowerValue) {
-      // Check for exact company match
-      const allStudios = this.allStudios || [];
-      const exactStudioMatch = allStudios.find(studio =>
-        studio.name && normalizeSearchText(studio.name) === lowerValue
-      );
-      if (exactStudioMatch) {
-        return { type: 'company', value: exactStudioMatch.name, display: `${exactStudioMatch.name}` };
-      }
-
-      // For partial matches, don't classify as company type - let it fall through to general search
-      // This ensures the search value works the same in chips as it does in the input
-
-      // If no company types matched, return null
-      return null;
-    },
     createFilterByType (expectedType, value) {
       const trimmed = value.trim();
 
@@ -5607,43 +5509,43 @@ export default {
           return this.detectFilterType(trimmed);
       }
     },
+    /**
+     * What a TYPED term becomes. Since 2026-08-29: a plain search, always.
+     *
+     * Matt: "I don't really understand why we have to have different types of
+     * searches... Don't we have all those sections within our search results
+     * for exactly this reason? Everything that comes up under a name will be
+     * under the person... and everything that comes up under a title will be
+     * under title, and then I can sort those sections as needed."
+     *
+     * He was right, and this used to be a six-step cascade that guessed which
+     * ONE thing a word named — director, genre, cast, company, keyword — and
+     * committed that as a typed chip. Two things went wrong with that. It had
+     * to choose, so "Alice" became the actress Mary Alice and hid three
+     * Alice-titled films; and a typed chip TURNS THE SECTIONS OFF
+     * (groupedByAllCategories renders only for `general`), so the guess also
+     * removed the tool that would have made the ambiguity a non-issue.
+     *
+     * Now the sections do the sorting, and what the word could refer to is
+     * kept as a LIST instead of a verdict — see searchInterpretations.js,
+     * which is what keeps "More from" asking TMDB precise questions.
+     *
+     * Years are the one exception and stay above this line: `general` does
+     * not match a release year at all, so a typed "2010" has to become a year
+     * chip or it finds nothing. A year chip also reads as a year on screen,
+     * where a person chip that had eaten a title search looked like a bug.
+     *
+     * Precise filters are still entirely available — deliberately, rather
+     * than by guess: the Add Filter menu, the typeahead under the search bar
+     * (which passes an expectedType and skips this), the links on a movie's
+     * detail page, quick links and tags all build typed chips directly.
+     */
     detectFilterType (value) {
       const trimmed = value.trim();
-      // Normalized, not merely lowercased: an exactly-typed "Amélie" or a phone's
-      // curly apostrophe must still be recognised as the thing it names.
-      const lowerValue = normalizeSearchText(trimmed);
 
-      // Check for years
-      if (this.detectYearTypes(trimmed)) {
-        return this.detectYearTypes(trimmed);
-      }
+      const asYear = this.detectYearTypes(trimmed);
+      if (asYear) return asYear;
 
-      // Check for directors
-      if (this.detectDirectorTypes(trimmed, lowerValue)) {
-        return this.detectDirectorTypes(trimmed, lowerValue);
-      }
-
-      // Check for genres
-      if (this.detectGenreTypes(trimmed, lowerValue)) {
-        return this.detectGenreTypes(trimmed, lowerValue);
-      }
-
-      // Check for cast members
-      if (this.detectCastTypes(trimmed, lowerValue)) {
-        return this.detectCastTypes(trimmed, lowerValue);
-      }
-
-      // Check for production companies
-      if (this.detectProductionCompanyTypes(trimmed, lowerValue)) {
-        return this.detectProductionCompanyTypes(trimmed, lowerValue);
-      }
-
-      // Check for keywords
-      if (this.detectKeywordTypes(trimmed, lowerValue)) {
-        return this.detectKeywordTypes(trimmed, lowerValue);
-      }
-
-      // For everything else, use general search
       return { type: 'general', value: trimmed, display: `${trimmed}` };
     },
     async fetchUnratedMoviesByKeyword (keyword) {
@@ -5783,12 +5685,24 @@ export default {
       this.unratedRequestId = requestId;
       const isStale = () => this.unratedRequestId !== requestId;
 
-      const cacheKey = this.moreFromSignature;
+      const cacheKey = this.moreFromCacheKey;
+
+      // What the typed words could refer to — read from the filters this
+      // fetch was STARTED for, never from what is on screen by the time it
+      // finishes. Only ever populated for a lone free-text chip, so this
+      // cannot reinterpret a question the user has already made precise.
+      const readings = this.interpretationsFrom(active);
+      const lead = readings[0] || null;
 
       try {
         const groups = partitionFilters(active);
-        // Kept for the heading's wording when a single chip is in play.
-        this.unratedMoviesSearchType = active.length === 1 ? active[0].type : 'multiple';
+        // Kept for the heading's wording when a single chip is in play. A
+        // plain search that clearly names one thing is described as that
+        // thing — typing "thriller" still reads "More thriller movies",
+        // which is what the row is actually showing.
+        this.unratedMoviesSearchType = active.length === 1
+          ? (lead && lead.exact && lead.kind === 'genre' ? 'genre' : active[0].type)
+          : 'multiple';
 
         const cached = moreFromCache.get(cacheKey);
         let relevantList = cached || [];
@@ -5880,6 +5794,24 @@ export default {
                 discoverParams({ genreIds, personIds, companyIds, keywordIds, window }), 2);
               relevantList = intersectById(relevantList, constrained);
             }
+
+            // The words also name something the library knows — a genre, a
+            // person, a studio, a keyword. Ask that question too and ADD the
+            // answers, because both readings are legitimate: "Alice" means
+            // the films called Alice and the ones with Mary Alice in them.
+            //
+            // A union, never an intersection. Intersecting would answer
+            // "films called Thriller that are also thrillers", which is
+            // nearly nothing — the same mistake fetching two chips
+            // separately and intersecting them made for horror + comedy.
+            // Only the LEADING reading is asked: several ANDed together
+            // would over-narrow the same way, and a second discover call per
+            // keystroke-settled search is enough network as it is.
+            if (lead) {
+              const alsoMeans = await this.discoverForInterpretation(lead, window);
+              const seen = new Set(relevantList.map((movie) => movie?.id));
+              relevantList = [...relevantList, ...alsoMeans.filter((movie) => !seen.has(movie?.id))];
+            }
           } else if (hasDiscoverableFilters(groups)) {
             relevantList = await this.discoverMovies(discoverParams({
               genreIds, personIds, companyIds, keywordIds, window, notNewerThan
@@ -5926,6 +5858,76 @@ export default {
         });
         if (isStale()) return;
         this.unratedMoviesError = 'Error fetching from TMDB.';
+      }
+    },
+    /**
+     * What a set of filters' plain text could refer to.
+     *
+     * Takes the filters explicitly rather than reading component state,
+     * because the fetch it feeds is asynchronous and is handed the filters it
+     * was started for — the whole point of the stale-request guard. Reading
+     * "what is on screen now" halfway through would be the same class of bug
+     * that guard exists to prevent.
+     */
+    interpretationsFrom (filters) {
+      const list = (filters || []).filter((filter) => filter?.type);
+      if (list.length !== 1 || list[0].type !== 'general') return [];
+      return interpretationsFor(this.libraryCatalog, list[0].value);
+    },
+    /**
+     * The unrated films behind ONE reading of the typed words.
+     *
+     * Never throws: this runs alongside a text search that has already
+     * succeeded, so a failed lookup here should quietly add nothing rather
+     * than empty a row that already has an answer.
+     *
+     * People are looked up rather than read from a chip — the library stores
+     * cast and crew name-only on purpose (see catalog.js), so an id has to be
+     * fetched, and `resolveTmdbId` already insists the name match exactly,
+     * which is what keeps a search for a person from landing on an extra
+     * credited on nothing.
+     */
+    async discoverForInterpretation (interpretation, window) {
+      try {
+        const filter = discoverFilterFor(interpretation);
+        if (!filter) return [];
+
+        const params = { window };
+        if (filter.type === 'genre') {
+          const id = filter.genreId ?? this.libraryCatalog.idFor('genre', filter.value);
+          if (id == null) return [];
+          params.genreIds = [id];
+          // Same "nothing too new" rule plain genre browsing has always had:
+          // it exists to keep current buzz out of a broad browse, and this is
+          // the same broad browse arrived at by typing.
+          params.notNewerThan = this.twoYearsAgoDate();
+        } else if (filter.type === 'person') {
+          const id = await this.resolveTmdbId('person', filter.value);
+          if (id == null) return [];
+          params.personIds = [id];
+        } else if (filter.type === 'company') {
+          const id = filter.tmdbId ?? this.libraryCatalog.idFor('company', filter.value) ??
+            await this.resolveTmdbId('company', filter.value);
+          if (id == null) return [];
+          params.companyIds = [id];
+        } else if (filter.type === 'keyword') {
+          const id = filter.tmdbId ?? this.libraryCatalog.idFor('keyword', filter.value) ??
+            await this.resolveTmdbId('keyword', filter.value);
+          if (id == null) return [];
+          params.keywordIds = [id];
+        } else {
+          return [];
+        }
+
+        return await this.discoverMovies(discoverParams(params), 2);
+      } catch (error) {
+        // Deliberately quiet — the text half of the answer is already good.
+        ErrorLogService.warn('Interpretation lookup failed', {
+          kind: interpretation?.kind,
+          value: interpretation?.name,
+          error: error?.message
+        });
+        return [];
       }
     },
     /** The section's "nothing too new" line, as YYYY-MM-DD. */

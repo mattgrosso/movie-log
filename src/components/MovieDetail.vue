@@ -566,6 +566,7 @@ import { awardNameWithThe } from '../assets/javascript/personalAwards.js';
 import { warmImageCache, posterUrl, backdropUrl } from '../assets/javascript/offlinePosterCache.js';
 import { entryForStorage } from '../assets/javascript/storedEntry.js';
 import { countDirectors, countCastCrew, countGenres, countKeywords, countStudios } from '../assets/javascript/entityCounts.js';
+import { genreIdFor } from '../assets/javascript/tmdbGenres.js';
 
 export default {
   name: 'MovieDetail',
@@ -1016,6 +1017,21 @@ export default {
       this.$router.push('/');
     },
 
+    /**
+     * Clicking a name, genre, keyword or studio on this page.
+     *
+     * These hand off as a TYPED chip, the way `searchForTag` always has.
+     * They used to hand off as free text and lean on Home's
+     * `detectFilterType` cascade to work out what they meant — which
+     * happened to work, because a link's text is by definition an exact
+     * entity name. That stopped being true on 2026-08-29, when typed text
+     * became a plain search on purpose (Matt: "why do we need a name search
+     * separate from a title search?"). A click is not typing: you tapped a
+     * specific person on a specific film, so the type is known here and is
+     * no longer worth re-deriving — and re-deriving it is exactly what would
+     * drag in a film merely CALLED "Heist of the Lantern Thriller" when you
+     * clicked the keyword "heist" (MovieDetailSearchLinks.test.js).
+     */
     searchFor (query, type) {
       // Set navigation intent to scroll to top
       this.$store.commit('setHomePageNavigationIntent', 'search');
@@ -1025,13 +1041,43 @@ export default {
       const groupKey = this.groupKeyForClickType(type);
       this.$store.commit('setHomePagePromoteGroup', groupKey);
 
-      // Save the search query in store and navigate back to home
-      this.$store.commit('setHomePageSearchValue', query);
-      this.$store.commit('setHomePageSearchChips', []); // Clear existing chips
+      const chip = this.chipForClick(query, type);
+      this.$store.commit('setHomePageSearchValue', chip ? '' : query);
+      this.$store.commit('setHomePageSearchChips', chip ? [chip] : []);
       this.$store.commit('setHomePageScrollPosition', 0); // Scroll to top for new search
       // Feature a movie from the upcoming search results in the home banner.
       this.$store.commit('setBannerRequest', { type: 'fromResults' });
       this.$router.push('/');
+    },
+    /**
+     * The chip a click means, or null to fall back to a plain search.
+     *
+     * Every crew role is a `person` chip: Home splits a person's results into
+     * Director / Cast / Producer sections itself (personRoleGroups), so the
+     * role is a display concern there, not a different question. `genreId`
+     * rides along because a genre chip carries its identity from wherever it
+     * was created (see Home's createFilterByType).
+     */
+    chipForClick (query, type) {
+      const value = String(query || '').trim();
+      if (!value) return null;
+
+      const asPerson = ['director', 'cast', 'writer', 'composer', 'editor', 'photo', 'producer'];
+      const stamp = (chipType, extra = {}) => ({
+        id: `${chipType}-${Date.now()}`,
+        type: chipType,
+        value,
+        display: value,
+        ...extra
+      });
+
+      if (asPerson.includes(type)) return stamp('person');
+      if (type === 'genre') return stamp('genre', { genreId: genreIdFor(value) });
+      if (type === 'keyword') return stamp('keyword');
+      if (type === 'company') return stamp('company');
+      // 'title' and anything unlabelled stay a plain search — a title IS the
+      // free-text question, and an unknown click should not invent a filter.
+      return null;
     },
     groupKeyForClickType (type) {
       // Maps the type of value clicked on the detail page to a grouped-result

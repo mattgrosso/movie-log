@@ -207,14 +207,28 @@ describe('search bar typeahead', () => {
       expect(chip).toMatchObject({ type: 'keyword', value: 'spiderman', tmdbId: 381074 })
     })
 
-    it('resolves a typed exact term to the same identity a tapped row gets', async () => {
-      // Typing "thriller" in full commits through detectFilterType, not the
-      // panel — the chip must not know less because of the path it took.
-      wrapper.vm.addSearchFilter('Thriller')
+    // Changed 2026-08-29: typing a word no longer guesses at a filter, so the
+    // typed and tapped paths deliberately DIFFER now. Typing is a plain
+    // search answered by the grouped sections; the panel is how you say "I
+    // mean the genre" — and that is the row's whole job, so it must still
+    // carry the identity the old cascade used to attach.
+    it('builds a fully identified chip when the row is tapped', async () => {
+      await type(wrapper, 'thrill')
+      const row = wrapper.vm.typeaheadSuggestions.find((s) => s.value === 'Thriller')
+      expect(row).toBeTruthy()
+      wrapper.vm.applyTypeaheadSuggestion(row)
 
       const chip = wrapper.vm.activeFilters.find((filter) => !filter.temp)
       expect(chip.type).toBe('genre')
-      expect(chip.genreId).toBe(53)
+      expect(chip.genreId ?? chip.tmdbId).toBe(53)
+    })
+
+    it('leaves the same word typed in full as a plain search', async () => {
+      wrapper.vm.addSearchFilter('Thriller')
+
+      const chip = wrapper.vm.activeFilters.find((filter) => !filter.temp)
+      expect(chip.type).toBe('general')
+      expect(chip.value).toBe('Thriller')
     })
 
     it('clears the input so the row does not survive its own tap', async () => {
