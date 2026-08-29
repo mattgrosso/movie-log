@@ -39,6 +39,28 @@ export default {
   computed: {
     friends () {
       return friendsWhoRated(this.$store.getters.filmClubFriends, this.tmdbId);
+    },
+    // Club membership, as one string cheap to watch. Both halves arrive
+    // async — native keys from the edges listener, external ids from
+    // settings — and the screens that fetch profiles all do it on MOUNT, so
+    // a cold start could pass every one of those mounts before membership
+    // landed and leave the pills blank for the whole session (report
+    // -P0EQt6w7iKdJziMXHTi: three Movie Log friends had rated the movie and
+    // none showed). The pills therefore ensure their own data.
+    clubRoster () {
+      const native = this.$store.getters.socialFriendKeys || [];
+      const external = Object.keys(this.$store.state?.settings?.externalFriends || {});
+      return [...native, ...external].join('|');
+    }
+  },
+  watch: {
+    clubRoster: {
+      // Immediate doubles as the mounted hook; ensureClubData only fetches
+      // what's missing, so re-fires are cheap no-ops once profiles are in.
+      immediate: true,
+      handler () {
+        this.$store.dispatch('ensureClubData');
+      }
     }
   },
   methods: {

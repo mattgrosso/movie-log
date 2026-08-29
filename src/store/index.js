@@ -32,7 +32,7 @@ import {
   disconnectMovieHat as signOutOfMovieHat,
   watchMovieHatAuth as observeMovieHatAuth
 } from "../assets/javascript/movieHatAuth.js";
-import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates } from "../assets/javascript/social.js";
+import { buildSocialProfile, socialSettingsWithDefaults, countNewFriendUpdates, clubFetchesNeeded } from "../assets/javascript/social.js";
 import { buildMirrorFeed } from "../assets/javascript/mirrorFeed.js";
 import { buildPushDigest } from "../assets/javascript/pushDigest.js";
 import { pushPrefsWithDefaults } from "../assets/javascript/pushPrefs.js";
@@ -1837,6 +1837,26 @@ export default createStore({
       if (!id) return;
       await context.dispatch('writeDurably', { path: `settings/externalFriends/${id}`, value: null });
       context.commit('setExternalFriendProfile', { id, profile: null });
+    },
+    // Load whatever club data is still missing — safe to dispatch from
+    // anything that renders club data, any number of times. The mount-time
+    // fetches (Home, Film Club, Watchlist) read settings/externalFriends and
+    // the friend edges, and on a cold start neither has necessarily arrived
+    // yet, so a session could run to its end with every pill blank (report
+    // -P0EQt6w7iKdJziMXHTi: three Movie Log friends had rated the movie and
+    // none showed). FriendsWhoSaw watches club membership and dispatches
+    // this as it lands; clubFetchesNeeded (social.js) keeps the re-runs from
+    // re-fetching anything already here.
+    ensureClubData (context) {
+      context.dispatch('attachSocialListeners');
+      const needed = clubFetchesNeeded({
+        friendKeys: context.getters.socialFriendKeys,
+        nativeProfiles: context.state.socialFriendProfiles,
+        externalFriends: context.state.settings?.externalFriends,
+        externalProfiles: context.state.externalFriendProfiles
+      });
+      if (needed.native) context.dispatch('fetchFriendProfiles');
+      if (needed.external) context.dispatch('syncExternalFriends');
     },
     // Fetch each subscribed feed and translate it. Failures are per-friend
     // and non-fatal — one unreachable feed must not blank the club.

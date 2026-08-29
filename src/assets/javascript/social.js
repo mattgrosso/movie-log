@@ -422,3 +422,27 @@ export function myRatingsById (myEntries, getRatingFn) {
   });
   return map;
 }
+
+// ---------------------------------------------------------------------------
+// What the club still needs fetched, given what's already in memory.
+//
+// The screens that load club data (Home, Film Club, Watchlist, Comparison)
+// all fetch on MOUNT — reading settings/externalFriends and the friend edges
+// before either has necessarily arrived on a cold start. That race left a
+// whole session with no external profiles: three Movie Log friends had rated
+// I Love Boosters and not one pill showed on its page (report
+// -P0EQt6w7iKdJziMXHTi, 2026-08-29). This is the decision half of the store's
+// re-runnable `ensureClubData`: it answers only from what's missing, so
+// dispatching it again (a watcher firing as membership arrives, another
+// detail page opening) fetches nothing that's already here.
+//
+// External ids come from the RAW settings map, matching what
+// syncExternalFriends iterates; an errored feed counts as missing so a
+// transient failure heals on the next surface that asks, rather than staying
+// blank until the next full app launch.
+export function clubFetchesNeeded ({ friendKeys = [], nativeProfiles = {}, externalFriends = {}, externalProfiles = {} } = {}) {
+  return {
+    native: (friendKeys || []).some((key) => !nativeProfiles?.[key]),
+    external: Object.keys(externalFriends || {}).some((id) => !externalProfiles?.[id])
+  };
+}

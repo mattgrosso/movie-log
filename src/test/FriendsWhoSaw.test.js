@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 import FriendsWhoSaw from '@/components/FriendsWhoSaw.vue'
 
 // "I just need little pills that show the name and rating for any friends who
@@ -12,9 +13,17 @@ const rated = (name, score, stars) => ({
   profile: { name, ratings: { 42: { r: score, ...(stars === undefined ? {} : { s: stars }) } } }
 })
 
-const mountPills = (friends, props = {}) => mount(FriendsWhoSaw, {
+// Reactive, so tests can land club membership after mount the way the real
+// store does (edges from a listener, external ids from settings).
+const mockStore = (friends) => reactive({
+  getters: { filmClubFriends: friends, socialFriendKeys: [] },
+  state: { settings: {} },
+  dispatch: vi.fn()
+})
+
+const mountPills = (friends, props = {}, store = mockStore(friends)) => mount(FriendsWhoSaw, {
   props: { tmdbId: 42, ...props },
-  global: { mocks: { $store: { getters: { filmClubFriends: friends } } } }
+  global: { mocks: { $store: store } }
 })
 
 describe('FriendsWhoSaw', () => {
@@ -66,5 +75,34 @@ describe('FriendsWhoSaw', () => {
 
   it('renders nothing until a movie id arrives', () => {
     expect(mountPills([rated('Ben', 9, 4)], { tmdbId: null }).find('.friends-who-saw').exists()).toBe(false)
+  })
+
+  // The 2026-08-29 report ("I know for a fact several of my friends have
+  // seen [it]... I'm not seeing anything on that page"): three Movie Log
+  // friends had the movie rated in their live feeds, but external feeds only
+  // synced on Home's mount, which on a cold start runs before
+  // settings/externalFriends has arrived — so the whole session showed no
+  // pills. The pills now ensure their own data.
+  it('asks the store to load club data as soon as it mounts', () => {
+    const store = mockStore([])
+    mountPills([], {}, store)
+    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData')
+  })
+
+  it('asks again when club membership arrives after mount', async () => {
+    const store = mockStore([])
+    const wrapper = mountPills([], {}, store)
+    store.dispatch.mockClear()
+
+    // Settings land late, the cold-start order the bug shipped in.
+    store.state.settings = { externalFriends: { 'ext-1': { name: 'Brian', feedUrl: 'https://example.com/feed.json' } } }
+    await wrapper.vm.$nextTick()
+    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData')
+
+    // And again as native edges arrive.
+    store.dispatch.mockClear()
+    store.getters.socialFriendKeys = ['seth-gmail-com']
+    await wrapper.vm.$nextTick()
+    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData')
   })
 })

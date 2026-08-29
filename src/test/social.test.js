@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { buildSocialProfile, compareWithFriend, filmClubSummary, socialSettingsWithDefaults, countNewFriendUpdates, friendsLoveUnseen , friendRatingsFor ,
   friendSnapshot,
-  myRatingsById
+  myRatingsById,
+  clubFetchesNeeded
 } from '@/assets/javascript/social.js'
 
 const NOW = Date.UTC(2026, 7, 15)
@@ -436,5 +437,53 @@ describe('buildSocialProfile — stars', () => {
       name: 'Matt', shareRatings: false
     })
     expect(profile.ratings).toBeUndefined()
+  })
+})
+
+// The 2026-08-29 report: "I'm definitely not seeing all of my friends ratings
+// on my movie detail pages... I know for a fact several of my friends have
+// seen [it]." Three Movie Log friends had it rated in their live feeds. The
+// native half of the club self-healed through a socialFriendKeys watcher; the
+// EXTERNAL half only ever loaded in a mount hook that reads
+// settings/externalFriends, so on a cold start that ran before settings
+// arrived, it fetched nothing and never tried again all session.
+describe('clubFetchesNeeded', () => {
+  it('asks for both halves when nothing is loaded yet', () => {
+    expect(clubFetchesNeeded({
+      friendKeys: ['seth-gmail-com'],
+      externalFriends: { 'ext-1': { feedUrl: 'https://example.com/f.json' } }
+    })).toEqual({ native: true, external: true })
+  })
+
+  it('asks for nothing once both halves are in — so re-dispatching is free', () => {
+    expect(clubFetchesNeeded({
+      friendKeys: ['seth-gmail-com'],
+      nativeProfiles: { 'seth-gmail-com': { name: 'Seth' } },
+      externalFriends: { 'ext-1': { feedUrl: 'https://example.com/f.json' } },
+      externalProfiles: { 'ext-1': { name: 'Brian' } }
+    })).toEqual({ native: false, external: false })
+  })
+
+  it('asks for the external half alone when only that is missing', () => {
+    // The exact shape of the bug: native friends loaded, external didn't.
+    expect(clubFetchesNeeded({
+      friendKeys: ['seth-gmail-com'],
+      nativeProfiles: { 'seth-gmail-com': { name: 'Seth' } },
+      externalFriends: { 'ext-1': {}, 'ext-2': {} },
+      externalProfiles: { 'ext-1': { name: 'Brian' } }
+    })).toEqual({ native: false, external: true })
+  })
+
+  it('asks again for a feed that errored, so a transient failure heals', () => {
+    expect(clubFetchesNeeded({
+      externalFriends: { 'ext-1': {} },
+      externalProfiles: {}
+    }).external).toBe(true)
+  })
+
+  it('asks for nothing at all when the club is empty', () => {
+    expect(clubFetchesNeeded()).toEqual({ native: false, external: false })
+    expect(clubFetchesNeeded({ friendKeys: [], externalFriends: {} }))
+      .toEqual({ native: false, external: false })
   })
 })

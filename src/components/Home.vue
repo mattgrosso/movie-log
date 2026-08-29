@@ -1547,6 +1547,7 @@ import {
   sortResultsFast as sortResultsFastUtil,
   sortResults as sortResultsUtil,
   countDidYouMeanSuggestionsThatFit,
+  termMatchesAnyTitle,
   normalizeSearchText,
   looseSearchText
 } from '../assets/javascript/searchFiltering.js';
@@ -1647,6 +1648,7 @@ export default {
       activeFilters: [], // New multi-filter system
       activeQuickLinkList: "title",
       cachedCastMembers: new Set(), // Cache for fast cast member lookups
+      cachedCastFullNames: new Set(), // Whole names only — see detectCastTypes
       debouncedSetSearchValue: debounce(function (value) {
         this.searchValue = value;
       }, 300),
@@ -4045,6 +4047,9 @@ export default {
     buildCastMembersCache () {
       // Clear any existing cache
       this.cachedCastMembers = new Set();
+      // Full names kept apart from the union, because the two are not equally
+      // strong evidence — see detectCastTypes.
+      this.cachedCastFullNames = new Set();
 
       // Process each movie entry once
       this.allEntriesWithFlatKeywordsAdded.forEach((result) => {
@@ -4054,6 +4059,7 @@ export default {
         cast.forEach(person => {
           if (person.name) {
             this.cachedCastMembers.add(normalizeSearchText(person.name));
+            this.cachedCastFullNames.add(normalizeSearchText(person.name));
           }
 
           const lastName = person.name ? normalizeSearchText(person.name).split(' ').slice(-1)[0] : '';
@@ -5531,9 +5537,31 @@ export default {
         console.warn('Rebuilding Cast Cache');
         this.buildCastMembersCache();
       }
-      const hasCastMatch = this.cachedCastMembers.has(lowerValue);
+      // A whole name is a deliberate thing to type, and it wins outright —
+      // as every other branch of this cascade does, all of which match a
+      // complete entity name.
+      if (this.cachedCastFullNames.has(lowerValue)) {
+        return { type: 'person', value: searchValue, display: `${searchValue}` };
+      }
 
-      if (hasCastMatch) {
+      // A bare SURNAME is the one thing this cascade indexes that is not
+      // anybody's whole name, and it is the one that collided with a title.
+      // "Alice" is Mary Alice's surname (Malcolm X, Awakenings), so typing it
+      // committed a person chip matching her two films while three
+      // Alice-titled movies went unfound — which read as partial title
+      // matching being broken (report -P0Cx5UWJTGUo-o2S3EU, 2026-08-29). A
+      // name FRAGMENT does not outrank a title; a whole name still does, and
+      // so does an exact genre, keyword, studio or director above.
+      //
+      // Falling through to `general` can only widen the results: its matcher
+      // is a superset of the person matcher (substring cast/crew), so Mary
+      // Alice's films come along too. Committing her deliberately is still
+      // possible through the typeahead, which carries an expectedType and
+      // skips this cascade.
+      if (this.cachedCastMembers.has(lowerValue)) {
+        if (termMatchesAnyTitle(searchValue, this.allEntriesWithFlatKeywordsAdded)) {
+          return null;
+        }
         return { type: 'person', value: searchValue, display: `${searchValue}` };
       }
 

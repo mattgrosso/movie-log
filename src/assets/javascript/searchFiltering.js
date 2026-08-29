@@ -285,6 +285,32 @@ export function sortResults (a, b, { sortValue, sortOrder, getRating, adjusted =
 }
 
 /**
+ * Does this term (loosely) appear in any library TITLE?
+ *
+ * detectFilterType's exact-entity cascade uses this as a guard: an exact
+ * entity match can hijack a term that is also a title. "Alice" is Mary
+ * Alice's surname (Malcolm X, Awakenings), so it committed as a person chip
+ * that quietly matched her two films while three Alice-titled movies sat
+ * unfound (report -P0Cx5UWJTGUo-o2S3EU). A general chip's local matching is
+ * a superset of every structured chip's — exact keyword/genre, substring
+ * cast/crew/company — so when the term matches any title, falling through
+ * to general loses nothing and adds the titles back. Deliberately choosing
+ * the person/genre/keyword reading stays possible through the typeahead,
+ * which passes expectedType and skips the cascade entirely.
+ *
+ * Loose on both sides, same as the general matcher's title check, so a
+ * run-together "spiderman" guards the same titles it would find.
+ */
+export function termMatchesAnyTitle (term, entries) {
+  const loose = looseSearchText(term);
+  if (!loose) return false;
+  return (entries || []).some((entry) => {
+    const titleLoose = entry?._search?.titleLoose ?? looseSearchText(entry?.movie?.title || '');
+    return titleLoose.includes(loose);
+  });
+}
+
+/**
  * How many ranked "Did you mean?" suggestions (best first) fit on one line
  * next to the "Did you mean?: " label, given the search input's rendered
  * width. A character-count estimate, not pixel-exact text measurement -
