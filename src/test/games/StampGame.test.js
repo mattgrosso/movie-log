@@ -204,6 +204,26 @@ describe('StampGame', () => {
       await wrapper.vm.decide('yes');
       expect(wrapper.find('.undo-btn').exists()).toBe(true);
     });
+
+    // Bug report (Matt, 2026-08-28): "if I had an undo button on the stamp
+    // game" - there was one, it was just invisible (12.5px, #777 on
+    // near-black, stacked at the very bottom). The styling is the actual fix;
+    // what this pins is the part a future edit could silently take away - the
+    // control says IN WORDS what it will undo, so it reads as an offer rather
+    // than as fine print.
+    it('says what it will undo, so it reads as a real offer', async () => {
+      const wrapper = factory(library());
+      await wrapper.vm.$nextTick();
+      wrapper.vm.currentIndex = wrapper.vm.round.cards.findIndex((c) => !c.hasTag);
+      await wrapper.vm.$nextTick();
+
+      await wrapper.vm.decide('yes');
+      const undo = wrapper.find('.undo-btn');
+      expect(undo.element.tagName).toBe('BUTTON');
+      expect(undo.text().toLowerCase()).toContain('undo');
+      // Not a bare "Undo" - it names the decision being taken back.
+      expect(undo.text().trim().toLowerCase()).not.toBe('undo');
+    });
   });
 
   describe('swiping', () => {

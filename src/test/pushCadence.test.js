@@ -246,6 +246,25 @@ describe('composeMessage', () => {
     const message = composeMessage(due, digestWith({ count: 2 }), { any: false, newAwardYears: [] });
     expect(message.body).toBe('4 films are tied · 1997 needs its personal awards');
   });
+
+  // Bug report (Matt, 2026-08-28): "The notification told me that I had three
+  // [award] years to deal with, but really since we only deal with one at a
+  // time it should not give me a number. I should just say you have a movie
+  // here. Maybe you could tell me the year."
+  it('names one award year rather than counting them', () => {
+    const due = { stickinessCount: 0, tiebreak: null, awardYears: [2009, 2014, 2019] };
+    const message = composeMessage(due, digestWith({ count: 0 }), { any: false, newAwardYears: [] });
+    expect(message.title).toBe('2009 needs its personal awards');
+    expect(message.title).not.toMatch(/\d+ years/);
+  });
+
+  it('names the earliest year, which is the one the app hands you first', () => {
+    // yearsMeetingAwardsThreshold sorts ascending and the awards modal works
+    // the earliest first, so [0] is the year actually about to be offered.
+    const due = { stickinessCount: 0, tiebreak: null, awardYears: [1997, 2004] };
+    const message = composeMessage(due, digestWith({ count: 0 }), { any: false, newAwardYears: [] });
+    expect(message.title).toBe('1997 needs its personal awards');
+  });
 });
 
 // Bug, 2026-08-28: "Cinema Roll gave me a push notification this morning

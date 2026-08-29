@@ -238,10 +238,20 @@ function composeMessage (due, digest, news) {
     parts.push(due.tiebreak.count >= 2 ? `${due.tiebreak.count} films are tied` : 'A tiebreak is waiting');
   }
 
-  if (due.awardYears.length === 1) {
+  // Always NAME a year, never count them. Bug report (Matt, 2026-08-28):
+  // "The notification told me that I had three [award] years to deal with,
+  // but really since we only deal with one at a time it should not give me a
+  // number. I should just say you have a movie here. Maybe you could tell me
+  // the year."
+  //
+  // He's right that the count was answering the wrong question: the awards
+  // prompt hands you exactly one year and there is no screen anywhere that
+  // shows you three. `awardYears` arrives sorted ascending
+  // (yearsMeetingAwardsThreshold) and the modal works the earliest first, so
+  // [0] is genuinely the year you are about to be given - the notification
+  // now names that and says nothing about the queue behind it.
+  if (due.awardYears.length) {
     parts.push(`${due.awardYears[0]} needs its personal awards`);
-  } else if (due.awardYears.length > 1) {
-    parts.push(`${due.awardYears.length} years need personal awards`);
   }
 
   if (!parts.length) return null;

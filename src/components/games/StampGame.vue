@@ -601,23 +601,55 @@ export default {
   width: 100%;
 }
 
+// Bug report (Matt, 2026-08-28): "if I had an undo button on the stamp game".
+// There WAS one, and had been all along - it was just impossible to find.
+// Stacked below the pass button at the very bottom, 12.5px, #777 on this
+// page's near-black: about 3.9:1, under AA (see CLAUDE.md, "Always check
+// contrast"). So the safety net for a mis-swipe read as fine print.
+//
+// Undo is now a real control - bordered, legible, a 40px tap target - and the
+// two secondary actions sit on ONE row, which lifts both of them a line
+// higher up a phone screen. It stays visually below Yes/No/skip, because it
+// is still not what you press most of the time.
 .secondary-actions {
   align-items: center;
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.9rem;
+  justify-content: center;
+  margin-top: 1rem;
 }
 
 .text-action {
   background: none;
   border: none;
-  color: #777;
-  font-size: 0.78rem;
+  // Was #777 (~3.9:1 here). #a9a9a9 is ~7.4:1 on #1a1a1a.
+  color: #a9a9a9;
+  font-size: 0.82rem;
   text-decoration: underline;
 
   &:active {
     opacity: 0.6;
+  }
+}
+
+.undo-btn {
+  align-items: center;
+  border: 1px solid #4a4a4a;
+  border-radius: 999px;
+  color: #e8e8e8;
+  display: inline-flex;
+  font-size: 0.9rem;
+  gap: 0.4rem;
+  // The house tap-target floor. It was a bare text run before, which is both
+  // hard to see and hard to hit.
+  min-height: 40px;
+  padding: 0 1rem;
+  text-decoration: none;
+
+  &:active {
+    background: rgba(255, 255, 255, 0.08);
+    opacity: 1;
   }
 }
 
