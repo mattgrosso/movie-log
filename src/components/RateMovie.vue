@@ -807,6 +807,15 @@ export default {
           // opt-in tier that governs what friends see in the app.
           score: social.shareRatings ? getRating(dbEntry.value)?.calculatedTotal : null
         });
+        // The push has just left. A friend's Film Club renders the published
+        // profile snapshot, never the rater's live library, so the two have to
+        // go out together — publishing on the usual 20-second debounce means
+        // returnHome() below, plus a phone going back in a pocket, loses the
+        // timer and leaves the notification pointing at nothing. Not awaited:
+        // the write is in flight across the route change, which narrows the
+        // loss window from twenty seconds to one round trip without putting a
+        // ~100KB upload in front of the transition.
+        this.$store.dispatch('publishSocialProfileNow');
       }
 
       window.scroll({

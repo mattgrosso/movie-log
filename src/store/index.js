@@ -184,6 +184,18 @@ const db = getDatabase();
 // Pending debounced profile publish (see scheduleSocialPublish).
 let socialPublishTimer = null;
 
+// Records that the profile was just published, so Home's every-six-hours
+// backstop doesn't immediately repeat a ~100KB write. Every path that publishes
+// off the debounce timer goes through here, or the backstop and the timer
+// disagree about when the last write happened.
+const stampSocialPublish = () => {
+  try {
+    localStorage.setItem('cinemaRoll.social.lastPublish', String(Date.now()));
+  } catch (error) {
+    // Private mode / storage full: the publish itself still happened.
+  }
+};
+
 // Firebase restores a persisted session asynchronously after page load. The
 // router guard, meanwhile, decides you're logged in synchronously from
 // localStorage — so without this, database listeners can be attached before the
@@ -2234,19 +2246,44 @@ export default createStore({
     // profile is a full document (every rated title) rather than a delta.
     // Readers already re-fetch on every visit, so once it is published it is
     // seen immediately.
+    // A setTimeout does NOT survive an installed PWA being backgrounded, and
+    // that is the normal way this app is left — so the coalescing window above
+    // was also a window in which the publish could be lost outright. Seth rated
+    // Tenet at 5:21:10pm on 2026-08-30 and closed the app; the push reached
+    // Matt's phone immediately, his profile snapshot was never rewritten, and
+    // the Film Club (which reads only that snapshot) had no such film for the
+    // six hours until Home's backstop came round. A notification for something
+    // the club cannot show is worse than a slightly later notification.
+    //
+    // Two callers, deliberately different:
+    //   - publishSocialProfileNow: "this must be visible now" (a new viewing
+    //     whose push has already gone out). Always publishes.
+    //   - flushSocialPublish: "we're about to be suspended" (pagehide /
+    //     visibilitychange). Publishes only if something is actually pending,
+    //     so backgrounding the app doesn't write the profile on every tab
+    //     switch.
     scheduleSocialPublish (context, { delay = 20000 } = {}) {
       if (!context.getters.socialSettings?.enabled) return;
       if (socialPublishTimer) clearTimeout(socialPublishTimer);
       socialPublishTimer = setTimeout(() => {
         socialPublishTimer = null;
         context.dispatch('publishSocialProfile');
-        // Keeps Home's every-six-hours backstop from immediately repeating it.
-        try {
-          localStorage.setItem('cinemaRoll.social.lastPublish', String(Date.now()));
-        } catch (error) {
-          // Private mode / storage full: the publish itself still happened.
-        }
+        stampSocialPublish();
       }, delay);
+    },
+    publishSocialProfileNow (context) {
+      if (socialPublishTimer) clearTimeout(socialPublishTimer);
+      socialPublishTimer = null;
+      // Same guard scheduleSocialPublish uses. Without it a call made while
+      // sharing is off would stamp a publish that publishSocialProfile then
+      // refuses to make, and the stamp is what Home's backstop trusts.
+      if (!context.getters.socialSettings?.enabled) return Promise.resolve();
+      stampSocialPublish();
+      return context.dispatch('publishSocialProfile');
+    },
+    flushSocialPublish (context) {
+      if (!socialPublishTimer) return Promise.resolve();
+      return context.dispatch('publishSocialProfileNow');
     },
     async unpublishSocialProfile (context) {
       const me = context.getters.socialUserKey;

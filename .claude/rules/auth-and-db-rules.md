@@ -228,3 +228,28 @@ see the parallax lesson in vue-ui.md; self-heal refresh on app open), store acti
 `loadPushState`/`savePushSubscription`/`savePushPrefs`/`publishPushDigest`, the
 Notifications settings card in Home.vue, and the friend-log announce in RateMovie's
 submit (new viewings only, never edits).
+
+### A friend-log push and the profile publish must travel together
+
+They are fed by different roads and only one of them is instant. The push leaves the
+rater's browser the moment the save lands, reading nothing but the friend-edge graph. The
+recipient's Film Club renders `social/profiles/<friend>/recent` — a **snapshot document**,
+republished on `scheduleSocialPublish`'s 20-second coalescing window.
+
+**A `setTimeout` does not survive an installed PWA being backgrounded**, and putting the
+phone away is the normal end of a rating session. Seth rated Tenet at 5:21pm on
+2026-08-30 and closed the app; his snapshot was last written 49 seconds *before* the
+rating, Matt's phone buzzed anyway, and the Film Club had no such film — Home's six-hour
+backstop (`cinemaRoll.social.lastPublish`) was the next chance, and it had just been
+stamped.
+
+So: `publishSocialProfileNow` (cancels the pending debounce, publishes, stamps) fires from
+RateMovie's submit right beside `announceLoggedMovie`, and `flushSocialPublish` runs any
+*pending* publish from App.vue's `pagehide` / `visibilitychange → hidden`. The flush is
+deliberately a no-op when nothing is pending — backgrounding is constant, and writing a
+~100KB document on every tab switch would be worse than the bug.
+
+The invariant, guarded by `FriendLogAnnounce.test.js`: **anything that announces must also
+publish.** Never notify the club about a film it cannot then show. The publish is not
+awaited before `returnHome()` — the write rides across the route change, which trades one
+round trip's exposure for no delay on the transition.

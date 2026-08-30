@@ -259,7 +259,19 @@ export default {
         // Foregrounding an installed PWA doesn't re-run initializePush, and
         // it's the most common way a badge gets looked at.
         navigator.clearAppBadge?.().catch(() => {});
+      } else {
+        // Going away: run any pending debounced profile publish before the
+        // timer dies with the page. See scheduleSocialPublish — a backgrounded
+        // PWA does not run setTimeout, so this is the difference between a
+        // friend seeing today's rating and seeing it six hours from now.
+        this.$store.dispatch('flushSocialPublish');
       }
+    });
+    // pagehide is the reliable half of this on iOS (same reasoning as the
+    // comment above, in the other direction). Both are no-ops when nothing is
+    // pending, so firing on both costs nothing.
+    window.addEventListener('pagehide', () => {
+      this.$store.dispatch('flushSocialPublish');
     });
     window.addEventListener('pageshow', () => {
       this.lastBecameVisibleAt = Date.now();

@@ -157,3 +157,79 @@ describe('publishing a profile after a rating', () => {
     expect(publishedProfilePaths()).toHaveLength(0);
   });
 });
+
+// 2026-08-30: Seth rated Tenet and closed the app. The friend-log push reached
+// Matt's phone instantly; the profile snapshot the Film Club reads was never
+// rewritten, because a backgrounded PWA does not run setTimeout. His club
+// showed no such film for the six hours until Home's backstop came round.
+//
+// The coalescing window is fine. Being unable to survive the app going away is
+// not — and "the app goes away" is the normal end of a rating session.
+describe('a pending publish surviving the app going away', () => {
+  it('publishes immediately, without waiting out the debounce', async () => {
+    seedLibrary();
+
+    await store.dispatch('publishSocialProfileNow');
+
+    expect(publishedProfilePaths()).toContain('social/profiles/someone-example-com');
+  });
+
+  // The write path already armed a timer; publishing now must cancel it rather
+  // than leave a second full-document write queued behind it.
+  it('cancels the pending debounce instead of publishing twice', async () => {
+    seedLibrary();
+
+    await store.dispatch('writeDatabaseEntryNow', ratingWrite());
+    await store.dispatch('publishSocialProfileNow');
+    await vi.advanceTimersByTimeAsync(60 * 1000);
+
+    expect(publishedProfilePaths()).toHaveLength(1);
+  });
+
+  it('flushes a pending publish when the app is about to be suspended', async () => {
+    seedLibrary();
+
+    await store.dispatch('writeDatabaseEntryNow', ratingWrite());
+    expect(publishedProfilePaths()).toHaveLength(0);
+
+    await store.dispatch('flushSocialPublish');
+
+    expect(publishedProfilePaths()).toContain('social/profiles/someone-example-com');
+  });
+
+  // Backgrounding the app is constant. Publishing a ~100KB document every time
+  // someone switches tabs would be a worse bug than the one being fixed.
+  it('writes nothing on a flush when no publish is pending', async () => {
+    seedLibrary();
+
+    await store.dispatch('flushSocialPublish');
+    await vi.advanceTimersByTimeAsync(60 * 1000);
+
+    expect(publishedProfilePaths()).toHaveLength(0);
+  });
+
+  // Home's backstop reads this stamp and skips for six hours if it looks
+  // recent. An immediate publish that forgot to stamp would leave the backstop
+  // republishing the same document seconds later.
+  it('stamps the publish so Home does not immediately repeat it', async () => {
+    seedLibrary();
+    localStorage.removeItem('cinemaRoll.social.lastPublish');
+
+    await store.dispatch('publishSocialProfileNow');
+
+    expect(Number(localStorage.getItem('cinemaRoll.social.lastPublish'))).toBeGreaterThan(0);
+  });
+
+  // The stamp is a claim that a publish happened. Making it while sharing is
+  // off would suppress Home's backstop on behalf of a write that never went.
+  it('neither publishes nor stamps when sharing is switched off', async () => {
+    seedLibrary();
+    store.state.settings = { ...store.state.settings, social: { enabled: false } };
+    localStorage.removeItem('cinemaRoll.social.lastPublish');
+
+    await store.dispatch('publishSocialProfileNow');
+
+    expect(publishedProfilePaths()).toHaveLength(0);
+    expect(localStorage.getItem('cinemaRoll.social.lastPublish')).toBeNull();
+  });
+});
