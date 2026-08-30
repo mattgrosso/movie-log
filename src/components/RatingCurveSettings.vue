@@ -298,6 +298,24 @@ export default {
         }
       };
     },
+    // The full rank-sorted pool; pickerCandidates is a lazy window into it
+    // ("I just need to be able to go down as far as I need to" — feedback).
+    pickerPool () {
+      const query = this.pickerQuery.trim().toLowerCase();
+      let pool = this.ratedLibrary;
+
+      // The five-anchor must sit below the ten-anchor or the curve inverts.
+      if (this.picking === 'five' && Number.isFinite(this.tenAnchorTotal)) {
+        pool = pool.filter((entry) => entry.curveTotal < this.tenAnchorTotal);
+      }
+      if (query) {
+        pool = pool.filter((entry) => (entry.movie.title || '').toLowerCase().includes(query));
+      }
+      return [...pool].sort((a, b) => b.curveTotal - a.curveTotal);
+    },
+    pickerCandidates () {
+      return this.pickerPool.slice(this.windowStart, this.windowEnd);
+    }
   },
   watch: {
     pickerQuery () {

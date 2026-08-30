@@ -12,6 +12,19 @@ Coverage is strong on the algorithmic core (`searchFiltering.js` ~98%, rating ca
 favorites scoring, awards utils 100%) and absent on `Insights.vue` (3,000+ lines),
 `LetterboxdScrapingService.js`, `YearInReview`, `Outliers`, `ShareDBResults`.
 
+## A component's tests must reach every interactive path, not just the newest one
+
+`RatingCurveSettings.test.js` tested the curve preview exhaustively and never opened
+either anchor picker. So when the curve-chart rewrite (47c58d1) swallowed `pickerPool`
+and `pickerCandidates` in a hunk that was only meant to touch `curveChartOptions`, the
+suite stayed green and both pickers shipped dead for six days — the feature the component
+is named for. Coverage tends to pile up on whatever was last interesting; check what the
+component can DO and confirm each entry point is mounted somewhere.
+
+Corollary: **drive it through the DOM.** A missing computed throws in two places — the
+method that reads it, and the template that renders it — and only the template's throw
+blanks the section. `wrapper.vm.someComputed` would have caught one of those.
+
 ## Prove a test is a real regression guard
 
 The convention here is to **temporarily revert the fix and confirm the test fails with

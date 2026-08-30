@@ -120,3 +120,79 @@ describe('the curve preview', () => {
     expect(low.find('.ladder-warning').exists()).toBe(false);
   });
 });
+
+// Natalie, 2026-08-30: "I try edit on my five in the library settings to change
+// my normalization, it just crashes and removes all the normalized settings
+// from the screen."
+//
+// The pickers had NO component test at all, so when the curve-chart rewrite
+// (47c58d1) swallowed pickerPool/pickerCandidates in a neighbouring hunk, the
+// suite stayed green while every anchor poster was a dead tap. These mount the
+// picker for real: a computed-only assertion would have missed it too, because
+// the template's own `pickerCandidates.length` is half of what threw.
+describe('the anchor pickers', () => {
+  it('opens the five-picker on tapping the current five, without throwing', async () => {
+    const wrapper = factory();
+    const fivePoster = wrapper.findAll('.anchor-slot')[1].find('.anchor-poster');
+
+    await fivePoster.trigger('click');
+
+    expect(wrapper.vm.picking).toBe('five');
+    expect(wrapper.find('.anchor-picker').exists()).toBe(true);
+    expect(wrapper.findAll('.picker-card').length).toBeGreaterThan(0);
+  });
+
+  it('opens the ten-picker on tapping the current ten', async () => {
+    const wrapper = factory();
+    await wrapper.findAll('.anchor-slot')[0].find('.anchor-poster').trigger('click');
+
+    expect(wrapper.vm.picking).toBe('ten');
+    expect(wrapper.findAll('.picker-card').length).toBeGreaterThan(0);
+  });
+
+  // The rule the five-picker exists to enforce: a five at or above the ten
+  // inverts the curve.
+  it('offers only movies scoring below the ten-anchor when picking a five', async () => {
+    const wrapper = factory();
+    await wrapper.findAll('.anchor-slot')[1].find('.anchor-poster').trigger('click');
+
+    const titles = wrapper.findAll('.picker-card').map((card) => card.find('.picker-name').text());
+    expect(titles).not.toContain('Coco'); // the 10 itself
+    expect(titles).toContain('The Fugitive');
+    expect(titles).toEqual([...titles].sort((a, b) => {
+      const score = (t) => LIBRARY.find((e) => e.movie.title === t).score;
+      return score(b) - score(a);
+    }));
+  });
+
+  it('narrows the pool as you type', async () => {
+    const wrapper = factory();
+    await wrapper.findAll('.anchor-slot')[0].find('.anchor-poster').trigger('click');
+    await wrapper.find('.picker-search').setValue('fugitive');
+
+    const titles = wrapper.findAll('.picker-card').map((card) => card.find('.picker-name').text());
+    expect(titles).toEqual(['The Fugitive']);
+  });
+
+  it('writes the chosen movie as the anchor and closes the picker', async () => {
+    const wrapper = factory();
+    await wrapper.findAll('.anchor-slot')[1].find('.anchor-poster').trigger('click');
+    await wrapper.findAll('.picker-card')[0].trigger('click');
+
+    expect(wrapper.vm.$store.dispatch).toHaveBeenCalledWith('writeDurably', {
+      path: 'settings/normalizationAnchors/five',
+      value: 'high'
+    });
+    expect(wrapper.find('.anchor-picker').exists()).toBe(false);
+  });
+
+  // An empty slot reaches the picker by a different button, and that path was
+  // equally dead.
+  it('opens the picker from an empty slot too', async () => {
+    const wrapper = factory({ normalizationAnchors: { ten: 'top' } });
+    await wrapper.findAll('.anchor-slot')[1].find('.anchor-choose').trigger('click');
+
+    expect(wrapper.vm.picking).toBe('five');
+    expect(wrapper.findAll('.picker-card').length).toBeGreaterThan(0);
+  });
+});

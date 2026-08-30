@@ -520,3 +520,39 @@ business: eight at rest, eight more each time you scroll within a poster's width
 end. Poster size is untouched, as asked. Lazy loading here is about image requests, not
 data — the forty items are already in memory; it is forty `<img>` elements per friend that
 would have hit TMDB.
+
+## The anchor pickers were dead for six days (2026-08-30)
+
+Natalie: "I try edit on my five in the library settings to change my normalized reading
+it just crashes and removes all the normalized settings from the screen."
+
+Both anchor pickers — "My lowest rated 10" and "This is a 5" — threw the moment they
+opened. `pickerPool` and `pickerCandidates` were gone from `RatingCurveSettings.vue`'s
+`computed` block, deleted by 47c58d1 ("Chart the two distributions, not the transfer
+function", 2026-08-24). That commit rewrote `curveChartOptions`, which sat immediately
+above them, and the two computeds went out with the tail of the same hunk. Nothing in
+the diff mentions them; the commit message is entirely about the chart.
+
+Her description is exact about the failure MODE, and the mode is the interesting part.
+`openPicker` sets `this.picking = key` FIRST, then calls `resetPickerWindow()`, which
+reads `this.pickerPool.length` and throws. But `picking` is already set, so the
+`v-if="picking"` picker block has entered the render, where the template reads
+`pickerCandidates.length` and throws again — this time during render, which is what tears
+the whole section off the screen. "Crashes AND removes all the normalized settings" is
+two symptoms of one missing pair, and a fix that only guarded the method would have left
+the second half.
+
+**The suite was green throughout.** `RatingCurveSettings.test.js` covered the curve
+preview thoroughly — chart data, both series, the ladder table, the low-share warning —
+and never once opened a picker. 2,988 passing tests, and the feature the component is
+NAMED for had no coverage at all. That is the durable lesson, now in
+`.claude/rules/testing.md`: coverage concentrated on the part of a component that was
+most recently interesting says nothing about the rest of it, and a deletion is exactly
+the kind of regression a green suite is supposed to make impossible.
+
+Six new tests mount the picker for real and go through the DOM, not the vm: tapping
+either anchor poster, tapping the empty slot's "Choose a movie" button, the
+below-the-ten-anchor filter, search narrowing, and that choosing a card writes the
+dbKey and closes the sheet. Asserting on `wrapper.vm.pickerCandidates` alone would have
+caught the method's throw but not the template's, and the template's is the half that
+blanks the screen.
