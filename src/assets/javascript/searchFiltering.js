@@ -311,6 +311,34 @@ export function termMatchesAnyTitle (term, entries) {
 }
 
 /**
+ * Is this movie NAMED by one of the active filters — i.e. does a typed/general
+ * filter's text appear in its title?
+ *
+ * Exists for one purpose: rescuing shorts from the includeShorts=false
+ * exclusion. That setting keeps 15-minute films out of browsing, stats and
+ * entity counts, but it was also applied to search — so typing the exact
+ * title of a short you'd rated found NOTHING ("A Trip to the Moon", "A Matter
+ * of Loaf and Death"; report -P0Jz3pTqFQuw, 2026-08-30). A film you ask for
+ * by name should never be hidden by a tidiness preference.
+ *
+ * Deliberately TITLE-only and GENERAL-only: a genre/person/decade chip is
+ * browsing, and browsing is exactly what the setting is for. A director chip
+ * does not resurface the shorts you've hidden; typing "loaf and death" does.
+ *
+ * Loose on both sides, same as the general matcher's own title check, so this
+ * rescues precisely the titles that matcher would have matched.
+ */
+export function titleNamedByFilters (result, filters) {
+  const titleLoose = result?._search?.titleLoose ?? looseSearchText(result?.movie?.title || '');
+  if (!titleLoose) return false;
+  return (filters || []).some((filter) => {
+    if (filter?.type !== 'general') return false;
+    const loose = looseSearchText(filter.value);
+    return Boolean(loose) && titleLoose.includes(loose);
+  });
+}
+
+/**
  * How many ranked "Did you mean?" suggestions (best first) fit on one line
  * next to the "Did you mean?: " label, given the search input's rendered
  * width. A character-count estimate, not pixel-exact text measurement -

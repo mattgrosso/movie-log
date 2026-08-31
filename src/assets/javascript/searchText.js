@@ -23,7 +23,16 @@ const SMART_PUNCTUATION = {
   // string) instead of making the hyphen decide whether something is findable.
   '‐': ' ', '‑': ' ', '‒': ' ', '–': ' ', '—': ' ',
   '―': ' ', '−': ' ', '-': ' ',
-  '…': '...', ' ': ' '
+  '…': '...', ' ': ' ',
+  // The ampersand is the word "and" in title-speak, and nobody types it that
+  // way: "wallace and gromit" found none of the "Wallace & Gromit: ..." films
+  // (report -P0Jz3pTqFQuw, 2026-08-30), and the same split hits "Angels &
+  // Demons", "Batman & Robin", every "&"-titled film. Folded to the word on
+  // BOTH sides — same rule as every other fold here — so "&" and "and" reach
+  // one string whichever side each appears on. The surrounding spaces keep it
+  // a word ("Mike & Ike" → "mike and ike", not "mikeandike" pre-loose); the
+  // whitespace collapse below cleans up doubles.
+  '&': ' and '
 };
 // Keys are escaped rather than concatenated raw: `-` inside a character class
 // would otherwise read as a range.

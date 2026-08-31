@@ -11,7 +11,8 @@ import {
   sortResults,
   countDidYouMeanSuggestionsThatFit,
   normalizeSearchText,
-  looseSearchText
+  looseSearchText,
+  titleNamedByFilters
 } from '@/assets/javascript/searchFiltering.js'
 
 // Direct unit tests of the pure search/filter/sort module — no component mount.
@@ -549,5 +550,57 @@ describe('search normalization gotchas', () => {
     expect(normalizeSearchText('Adam’s Rib')).toBe("adam's rib")
     expect(looseSearchText('Adam’s Rib')).toBe('adamsrib')
     expect(looseSearchText('Spider-Man')).toBe('spiderman')
+  })
+
+  // Report -P0Jz3pTqFQuw (2026-08-30): "I've searched for Wallace and Gromit
+  // and I only found one movie." The ampersand is the word "and" in
+  // title-speak; before the fold, loose text just deleted it, so
+  // "wallaceandgromit" (typed) could never equal "wallacegromit" (stored).
+  it('folds & to the word "and", both directions', () => {
+    expect(normalizeSearchText('Wallace & Gromit')).toBe('wallace and gromit')
+    expect(looseSearchText('Wallace & Gromit')).toBe('wallaceandgromit')
+
+    const entry = { movie: { title: 'Wallace & Gromit: Vengeance Most Fowl' } }
+    expect(applyFilter(entry, { type: 'general', value: 'wallace and gromit' })).toBe(true)
+    expect(applyFilter(entry, { type: 'general', value: 'Wallace & Gromit' })).toBe(true)
+
+    // And the mirror image: an "and" title found by an "&" query.
+    const andTitle = { movie: { title: 'Angels and Demons' } }
+    expect(applyFilter(andTitle, { type: 'general', value: 'Angels & Demons' })).toBe(true)
+  })
+})
+
+// Report -P0Jz3pTqFQuw (2026-08-30): with includeShorts off, typing the exact
+// title of a rated 15-minute film found NOTHING. The setting is for browsing
+// and stats; a film asked for by name must never be hidden by it. This is the
+// predicate Home's shorts exclusion consults before dropping a short.
+describe('titleNamedByFilters', () => {
+  const short = { movie: { title: 'A Trip to the Moon', runtime: 15, flatKeywords: ['moon'], genres: [], cast: [], crew: [], production_companies: [] } }
+
+  it('rescues a short whose title the typed text names', () => {
+    expect(titleNamedByFilters(short, [{ type: 'general', value: 'A Trip to the Moon' }])).toBe(true)
+    expect(titleNamedByFilters(short, [{ type: 'general', value: 'trip to the moon' }])).toBe(true)
+    // Loose on both sides, like the general matcher itself.
+    expect(titleNamedByFilters(short, [{ type: 'general', value: 'triptothemoon' }])).toBe(true)
+  })
+
+  it('does not rescue on a non-title match — that is browsing', () => {
+    // "moon" the keyword matches this short in the general matcher, but the
+    // rescue is title-only... yet "moon" IS a substring of this title, so use
+    // a keyword that is not: the point is a chip whose text is absent from
+    // the title.
+    expect(titleNamedByFilters(short, [{ type: 'general', value: 'melies' }])).toBe(false)
+  })
+
+  it('ignores structured chips entirely — a genre or person chip is browsing', () => {
+    expect(titleNamedByFilters(short, [{ type: 'genre', value: 'A Trip to the Moon' }])).toBe(false)
+    expect(titleNamedByFilters(short, [{ type: 'person', value: 'A Trip to the Moon' }])).toBe(false)
+  })
+
+  it('handles empty and missing inputs without throwing', () => {
+    expect(titleNamedByFilters(short, [])).toBe(false)
+    expect(titleNamedByFilters(short, null)).toBe(false)
+    expect(titleNamedByFilters(short, [{ type: 'general', value: '' }])).toBe(false)
+    expect(titleNamedByFilters({ movie: {} }, [{ type: 'general', value: 'moon' }])).toBe(false)
   })
 })

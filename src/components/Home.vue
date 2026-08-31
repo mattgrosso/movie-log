@@ -1548,7 +1548,8 @@ import {
   sortResults as sortResultsUtil,
   countDidYouMeanSuggestionsThatFit,
   normalizeSearchText,
-  looseSearchText
+  looseSearchText,
+  titleNamedByFilters
 } from '../assets/javascript/searchFiltering.js';
 import {
   rankTypeahead,
@@ -3871,11 +3872,17 @@ export default {
         });
       }
 
-      // Step 3: Exclude shorts if showShorts is false
+      // Step 3: Exclude shorts if showShorts is false — UNLESS a filter names
+      // the short by title. The setting keeps 15-minute films out of browsing
+      // and stats; it must never make a film you ask for by name unfindable
+      // (typing "A Trip to the Moon" — rated, in the library — found nothing;
+      // report -P0Jz3pTqFQuw). A genre/person/decade chip is still browsing,
+      // so those don't resurface hidden shorts — only naming one does.
       if (!this.showShorts) {
         results = results.filter(result => {
           // Consider as short if runtime <= 40 min
-          return !(result.movie.runtime && result.movie.runtime <= 40);
+          return !(result.movie.runtime && result.movie.runtime <= 40) ||
+            titleNamedByFilters(result, this.allActiveFilters);
         });
       }
 
