@@ -37,6 +37,27 @@ Where a pure function can be extracted, test it directly rather than through a m
 `searchFiltering.js`, `tieBreakTournament.js`, `awardStats.js`, the games modules and
 `scrollBehavior.js` all exist as separate modules partly for this reason.
 
+**When reverting a COMMITTED fix to prove a guard, `git stash` cannot do it** — a clean
+tree stashes nothing, and the pop then grabs whatever ancient `stash@{0}` the repo is
+carrying (there are years-old WIP entries in this one; a pop conflicted one into
+Home.vue on 2026-08-30 and the "pre-fix" run silently tested the fixed code). Use
+`git show HEAD~1:<file> >| <file>` (note `>|` — zsh noclobber blocks plain `>` and the
+"file exists" error otherwise leaves you testing current code again), then
+`git checkout HEAD -- <files>` to restore.
+
+## Every "can't find a movie" report becomes a roster test
+
+Standing rule (Matt, 2026-08-30): "anytime that I report a bug on not being able to
+find a specific movie, we need to write a test to ensure that we don't regress."
+
+`UnfindableMovieReports.test.js` is that roster — one describe block per bug report,
+keyed by report id, encoding the report's LITERAL searches as **typed text through the
+DOM** (typed input only becomes the implicit general filter when no chips are active,
+so a chip-based test exercises a different path than the thumb on the phone did).
+Add a block for each new report; never delete an old one. Mechanism tests still live
+next to their code (`ShortsSearchRescue`, `searchFiltering`) — the roster exists so the
+exact reported experience can never silently come back.
+
 ## Mock requirements that break `mount()` if missing
 
 - **Home.vue mounts** need the `allMoviesAsArray` getter and the `homePage*` state fields.
