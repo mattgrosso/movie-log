@@ -573,22 +573,29 @@ describe('search normalization gotchas', () => {
 // Report -P0Jz3pTqFQuw (2026-08-30): with includeShorts off, typing the exact
 // title of a rated 15-minute film found NOTHING. The setting is for browsing
 // and stats; a film asked for by name must never be hidden by it. This is the
-// predicate Home's shorts exclusion consults before dropping a short.
+// predicate Home's shorts exclusion (flat AND grouped) consults before
+// dropping a short.
+//
+// NAMED means the whole name, forgiving a leading article — not a substring.
+// The substring version lasted one day: "moon" surfaced this film with shorts
+// hidden and made the toggle look dead (Matt, 2026-08-31).
 describe('titleNamedByFilters', () => {
   const short = { movie: { title: 'A Trip to the Moon', runtime: 15, flatKeywords: ['moon'], genres: [], cast: [], crew: [], production_companies: [] } }
 
   it('rescues a short whose title the typed text names', () => {
     expect(titleNamedByFilters(short, [{ type: 'general', value: 'A Trip to the Moon' }])).toBe(true)
+    // A leading article is not part of the name, either side.
     expect(titleNamedByFilters(short, [{ type: 'general', value: 'trip to the moon' }])).toBe(true)
     // Loose on both sides, like the general matcher itself.
     expect(titleNamedByFilters(short, [{ type: 'general', value: 'triptothemoon' }])).toBe(true)
   })
 
+  it('does not rescue on a title SUBSTRING — that is browsing, the toggle governs', () => {
+    expect(titleNamedByFilters(short, [{ type: 'general', value: 'moon' }])).toBe(false)
+    expect(titleNamedByFilters(short, [{ type: 'general', value: 'trip to the' }])).toBe(false)
+  })
+
   it('does not rescue on a non-title match — that is browsing', () => {
-    // "moon" the keyword matches this short in the general matcher, but the
-    // rescue is title-only... yet "moon" IS a substring of this title, so use
-    // a keyword that is not: the point is a chip whose text is absent from
-    // the title.
     expect(titleNamedByFilters(short, [{ type: 'general', value: 'melies' }])).toBe(false)
   })
 

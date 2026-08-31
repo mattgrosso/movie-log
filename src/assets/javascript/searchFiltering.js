@@ -310,9 +310,16 @@ export function termMatchesAnyTitle (term, entries) {
   });
 }
 
+// "A Trip to the Moon" and "trip to the moon" are the same name; a leading
+// article is how English titles a thing, not part of what the thing is called.
+// Stripped from the NORMALIZED (still-spaced) form so only a whole leading
+// word goes — "A.I." normalizes without a space after the a and is untouched.
+const LEADING_ARTICLE = /^(a|an|the) /;
+const namedForm = (value) => looseSearchText(normalizeSearchText(value).replace(LEADING_ARTICLE, ''));
+
 /**
- * Is this movie NAMED by one of the active filters — i.e. does a typed/general
- * filter's text appear in its title?
+ * Is this movie NAMED by one of the active filters — i.e. is a typed/general
+ * filter's text this movie's TITLE?
  *
  * Exists for one purpose: rescuing shorts from the includeShorts=false
  * exclusion. That setting keeps 15-minute films out of browsing, stats and
@@ -321,20 +328,30 @@ export function termMatchesAnyTitle (term, entries) {
  * of Loaf and Death"; report -P0Jz3pTqFQuw, 2026-08-30). A film you ask for
  * by name should never be hidden by a tidiness preference.
  *
- * Deliberately TITLE-only and GENERAL-only: a genre/person/decade chip is
- * browsing, and browsing is exactly what the setting is for. A director chip
- * does not resurface the shorts you've hidden; typing "loaf and death" does.
+ * NAMED means the whole name, forgiving a leading article on either side —
+ * not a substring. The first version rescued on containment, and the very
+ * next live test showed why that's wrong (Matt, 2026-08-31): searching "moon"
+ * surfaced A Trip to the Moon with shorts hidden, and the toggle appeared
+ * dead. "moon" is browsing; Matt's own words drew the line — "a trip to the
+ * moon, WHICH IS THE NAME OF THE MOVIE." Substrings are what the toggle is
+ * for; the name is what the rescue is for.
  *
- * Loose on both sides, same as the general matcher's own title check, so this
- * rescues precisely the titles that matcher would have matched.
+ * Deliberately TITLE-only and GENERAL-only: a genre/person/decade chip is
+ * browsing, and browsing is exactly what the setting is for.
+ *
+ * Loose comparison (punctuation/spacing-blind), same as the general matcher's
+ * own title check, so "triptothemoon" run together still names it.
  */
 export function titleNamedByFilters (result, filters) {
-  const titleLoose = result?._search?.titleLoose ?? looseSearchText(result?.movie?.title || '');
-  if (!titleLoose) return false;
+  const title = result?.movie?.title || '';
+  if (!title) return false;
+  const titleLoose = result?._search?.titleLoose ?? looseSearchText(title);
+  const titleNamed = namedForm(title);
   return (filters || []).some((filter) => {
     if (filter?.type !== 'general') return false;
-    const loose = looseSearchText(filter.value);
-    return Boolean(loose) && titleLoose.includes(loose);
+    const queryLoose = looseSearchText(filter.value);
+    if (!queryLoose) return false;
+    return queryLoose === titleLoose || namedForm(filter.value) === titleNamed;
   });
 }
 

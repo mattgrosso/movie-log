@@ -33,7 +33,7 @@ const vengeanceMostFowl = {
     cast: [],
     crew: [{ name: 'Nick Park', job: 'Director' }],
     production_companies: [{ name: 'Aardman' }],
-    flatKeywords: ['penguin', 'stop motion']
+    keywords: [{ name: 'penguin' }, { name: 'stop motion' }]
   },
   ratings: [{ calculatedTotal: 8.8, date: '2025-01-01' }],
   dbKey: 'movie-929204'
@@ -49,7 +49,7 @@ const loafAndDeath = {
     cast: [],
     crew: [{ name: 'Nick Park', job: 'Director' }],
     production_companies: [{ name: 'Aardman' }],
-    flatKeywords: ['bakery', 'stop motion', 'short film']
+    keywords: [{ name: 'bakery' }, { name: 'stop motion' }, { name: 'short film' }]
   },
   ratings: [{ calculatedTotal: 8.1, date: '2026-08-20' }],
   dbKey: 'movie-14447'
@@ -65,14 +65,51 @@ const tripToTheMoon = {
     cast: [],
     crew: [{ name: 'Georges Melies', job: 'Director' }],
     production_companies: [],
-    flatKeywords: ['moon', 'short film', 'silent film']
+    keywords: [{ name: 'moon' }, { name: 'short film' }, { name: 'silent film' }]
   },
   ratings: [{ calculatedTotal: 8.5, date: '2026-05-01' }],
   dbKey: 'movie-775'
 }
 
+// From the live-test follow-up (2026-08-31): a 24-minute short that matches
+// "moon" by KEYWORD only — its title says nothing about the moon.
+const grandDayOut = {
+  movie: {
+    id: 530,
+    title: 'A Grand Day Out',
+    release_date: '1990-05-18',
+    runtime: 24,
+    genres: [{ name: 'Animation' }],
+    cast: [],
+    crew: [{ name: 'Nick Park', job: 'Director' }],
+    production_companies: [{ name: 'Aardman' }],
+    keywords: [{ name: 'moon' }, { name: 'cheese' }, { name: 'stop motion' }, { name: 'short film' }]
+  },
+  ratings: [{ calculatedTotal: 8.3, date: '2025-06-01' }],
+  dbKey: 'movie-530'
+}
+
+// A FEATURE that matches "moon" by title, so the search has legitimate
+// results and the results area opens — which is exactly the condition under
+// which the grouped sections used to leak hidden shorts.
+const moonstruck = {
+  movie: {
+    id: 2029,
+    title: 'Moonstruck',
+    release_date: '1987-12-18',
+    runtime: 102,
+    genres: [{ name: 'Romance' }],
+    cast: [],
+    crew: [{ name: 'Norman Jewison', job: 'Director' }],
+    production_companies: [],
+    keywords: [{ name: 'new york' }]
+  },
+  ratings: [{ calculatedTotal: 7.9, date: '2024-03-01' }],
+  dbKey: 'movie-2029'
+}
+
 function mountHome ({ includeShorts = false } = {}) {
-  const movies = [vengeanceMostFowl, loafAndDeath, tripToTheMoon]
+  const movies = [vengeanceMostFowl, loafAndDeath, tripToTheMoon, grandDayOut, moonstruck]
   const mockStore = {
     state: {
       dbLoaded: true,
@@ -200,5 +237,53 @@ describe('report -P0Jz3pTqFQuw: the three searches, exactly as typed', () => {
     const titles = renderedTitles(wrapper)
     expect(titles).toContain('Wallace & Gromit: Vengeance Most Fowl')
     expect(titles).not.toContain('A Matter of Loaf and Death')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Live-test follow-up to -P0Jz3pTqFQuw (Matt, 2026-08-31): "When I search for
+// moon now, the short a trip to the moon and the short a grand day out from
+// wallace and gromit both appear whether I have shorts toggled on or off."
+//
+// Two holes, one search. The first rescue rule fired on any title SUBSTRING,
+// so "moon" — browsing, not naming — resurfaced A Trip to the Moon. And the
+// grouped sections had never applied includeShorts at all, so A Grand Day Out
+// (which matches "moon" only by keyword) rode in through the Keywords & Genres
+// bucket the moment the results area opened. The toggle looked dead for both.
+//
+// The line, in Matt's own words from the original report: "a trip to the
+// moon, WHICH IS THE NAME OF THE MOVIE." The name rescues; a substring or a
+// keyword is browsing, and browsing is what the toggle governs.
+describe('follow-up 2026-08-31: "moon" must respect the toggle', () => {
+  it('with shorts hidden, "moon" shows neither short — only the feature', async () => {
+    const wrapper = mountHome({ includeShorts: false })
+    await wrapper.vm.$nextTick()
+    await typeSearch(wrapper, 'moon')
+
+    const titles = renderedTitles(wrapper)
+    expect(titles).toContain('Moonstruck')
+    expect(titles).not.toContain('A Trip to the Moon')
+    expect(titles).not.toContain('A Grand Day Out')
+  })
+
+  it('with shorts shown, "moon" shows all three', async () => {
+    const wrapper = mountHome({ includeShorts: true })
+    await wrapper.vm.$nextTick()
+    await typeSearch(wrapper, 'moon')
+
+    const titles = renderedTitles(wrapper)
+    expect(titles).toContain('Moonstruck')
+    expect(titles).toContain('A Trip to the Moon')
+    expect(titles).toContain('A Grand Day Out')
+  })
+
+  // The original report's promise must survive the tightening: the full name
+  // still finds the short with shorts hidden.
+  it('the name still rescues: "a trip to the moon" with shorts hidden', async () => {
+    const wrapper = mountHome({ includeShorts: false })
+    await wrapper.vm.$nextTick()
+    await typeSearch(wrapper, 'a trip to the moon')
+
+    expect(renderedTitles(wrapper)).toContain('A Trip to the Moon')
   })
 })

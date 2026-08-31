@@ -130,10 +130,22 @@ describe('searching for a short by name, with shorts switched off', () => {
     expect(renderedTitles(wrapper)).toContain('A Trip to the Moon')
   })
 
-  it('renders it for a partial title too', async () => {
+  it('renders it without the leading article too', async () => {
     await searchFor(wrapper, 'trip to the moon')
 
     expect(renderedTitles(wrapper)).toContain('A Trip to the Moon')
+  })
+
+  // The follow-up (2026-08-31): "moon" is a title SUBSTRING, and the first
+  // rescue rule surfaced the short for it with shorts hidden — through both
+  // pipelines, since the grouped sections never filtered shorts at all. A
+  // substring is browsing; only the name rescues. Asserted through the DOM so
+  // the grouped path is covered too.
+  it('a title substring does not resurface it — the toggle governs browsing', async () => {
+    await searchFor(wrapper, 'moon')
+
+    expect(wrapper.vm.unifiedFilteredResults.map((r) => r.movie.title)).not.toContain('A Trip to the Moon')
+    expect(renderedTitles(wrapper)).not.toContain('A Trip to the Moon')
   })
 
   it('still hides it from browsing — a genre chip does not resurface it', async () => {

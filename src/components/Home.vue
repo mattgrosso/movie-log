@@ -3077,7 +3077,22 @@ export default {
         return null;
       }
 
-      const allResults = this.allEntriesWithFlatKeywordsAdded;
+      // The grouped sections respect includeShorts the same way the flat
+      // pipeline does: hidden shorts are out UNLESS the search names one by
+      // title. This filter didn't exist for years and mostly didn't matter,
+      // because the results area only renders when the flat pipeline is
+      // non-empty — but the moment the title-named rescue opened that gate
+      // more often, "moon" put A Grand Day Out (24 min, keyword "moon") in
+      // the Keywords & Genres section with shorts switched off (Matt,
+      // 2026-08-31, the day after the rescue shipped). Same predicate as
+      // step 3 of unifiedFilteredResults, so the two pipelines can't disagree
+      // about which shorts exist.
+      const groupSearchFilters = [{ type: 'general', value: searchTerm }];
+      const allResults = this.showShorts
+        ? this.allEntriesWithFlatKeywordsAdded
+        : this.allEntriesWithFlatKeywordsAdded.filter(result =>
+          !(result.movie.runtime && result.movie.runtime <= 40) ||
+            titleNamedByFilters(result, groupSearchFilters));
 
       // Step 1: Compute candidate matches for each fixed-type group. Done in a
       // SINGLE pass over the library instead of one full filter() pass per group
