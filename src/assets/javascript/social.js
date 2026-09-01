@@ -8,8 +8,12 @@
 // Published profile shape (social/profiles/<userKey>):
 //   { name, updatedAt, counts: {titles, viewings},
 //     topShelf: [{id,t,p,r} x10], crown: {t,p,r,year}|null,
-//     recent: [{id,t,p,r,at} x40],
-//     ratings: { [tmdbId]: {r, at, t, p, c?} } }
+//     recent: [{id,t,p,r,at,s?,m?} x40],
+//     ratings: { [tmdbId]: {r, at, t, p, s?, c?} } }
+// `s` is the star rating — half-star steps, a presentation of the NORMALIZED
+// score, and the only number in here that means the same thing across people
+// (starRating.js). Optional on both: a profile published before 2026-08-31
+// carries none in `recent`, and a rating below half a star has none at all.
 // `c` is the eight-criterion breakdown as a fixed-order array (see CRITERIA)
 // and is published ONLY behind its own opt-in (shareCriteria) — the default
 // profile carries composite scores only.
