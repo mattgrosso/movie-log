@@ -489,3 +489,123 @@ describe('the "get a year to 10" picker', () => {
     expect(yearsAsked()).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Bug report, 2026-09-01: "It'll be nice if on watchlist I could type into the
+// input a person like a director or an actor and get the full list their
+// entire filmography that would be really great cause then I could go through
+// and add them all to hat easily."
+describe('WatchlistScreen — someone\'s filmography', () => {
+  const GRETA = {
+    id: 500, name: 'Greta Gerwig', known_for_department: 'Directing',
+    profile_path: '/gg.jpg', known_for: [{ title: 'Lady Bird' }]
+  };
+  const OTHER_GRETA = { id: 501, name: 'Greta Garbo', known_for_department: 'Acting', known_for: [{ title: 'Ninotchka' }] };
+
+  const CREDITS = {
+    cast: [
+      { id: 800, title: 'Frances Ha', release_date: '2012-05-17', poster_path: '/fh.jpg' },
+      // Already in the library below — kept and marked, not dropped.
+      { id: 1, title: 'Old Favorite A', release_date: '2005-01-01' },
+      // No release date: an announced film that can't be watched.
+      { id: 801, title: 'Untitled Next Project' }
+    ],
+    crew: [
+      { id: 802, title: 'Barbie', release_date: '2023-07-21', job: 'Director', poster_path: '/b.jpg' },
+      { id: 803, title: 'Money Job', release_date: '2020-01-01', job: 'Executive Producer' }
+    ]
+  };
+
+  // Only the person endpoints matter here; everything the page fetches on
+  // mount is allowed to come back empty.
+  function personImpl (people) {
+    return (url) => {
+      if (url.includes('/search/person') && url.includes('query=Greta')) {
+        return Promise.resolve({ data: { results: people } });
+      }
+      if (url.includes('/person/500/movie_credits')) return Promise.resolve({ data: CREDITS });
+      if (url.includes('/search/person')) return Promise.resolve({ data: { results: [] } });
+      return Promise.resolve({ data: { results: [], cast: [], crew: [] } });
+    };
+  }
+
+  async function search (people) {
+    axios.get.mockReset();
+    axios.get.mockImplementation(personImpl(people));
+    const { wrapper } = factory();
+    await flushPromises();
+
+    const form = wrapper.find('.person-section form');
+    await wrapper.find('.person-section .prompt-input').setValue('Greta');
+    await form.trigger('submit');
+    await flushPromises();
+    return wrapper;
+  }
+
+  it('shows the entire filmography, newest first', async () => {
+    const wrapper = await search([GRETA]);
+    const names = wrapper.findAll('.person-section .watchlist-card').map((c) => c.attributes('aria-label'));
+
+    expect(names).toEqual(['Barbie', 'Frances Ha', 'Old Favorite A']);
+  });
+
+  // The whole point of the request — this is a filmography, not a
+  // recommendation list, so seen films stay put and say so.
+  it('keeps films already rated, marked with your score', async () => {
+    const wrapper = await search([GRETA]);
+    expect(wrapper.find('.person-section').text()).toContain('You: 8.50');
+    expect(wrapper.find('.person-section').text()).toContain('3 films, 1 of them already rated');
+  });
+
+  it('leaves out announced films and producer-only credits', async () => {
+    const wrapper = await search([GRETA]);
+    const names = wrapper.findAll('.person-section .watchlist-card').map((c) => c.attributes('aria-label'));
+
+    expect(names).not.toContain('Untitled Next Project');
+    expect(names).not.toContain('Money Job');
+  });
+
+  it('one match goes straight to the films, with no chooser to tap through', async () => {
+    const wrapper = await search([GRETA]);
+    expect(wrapper.find('.person-choice').exists()).toBe(false);
+  });
+
+  // Names collide, and guessing gets it wrong — TMDB's first hit for
+  // "Michael Jordan" is not Michael B. Jordan.
+  it('asks which person you meant when the name is ambiguous', async () => {
+    const wrapper = await search([GRETA, OTHER_GRETA]);
+    const choices = wrapper.findAll('.person-choice');
+
+    expect(choices.map((c) => c.find('.person-choice-name').text())).toEqual(['Greta Gerwig', 'Greta Garbo']);
+    // The films are what tell two same-named people apart.
+    expect(choices[0].text()).toContain('Lady Bird');
+    expect(wrapper.findAll('.person-section .watchlist-card')).toHaveLength(0);
+
+    await choices[0].trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.person-choice').exists()).toBe(false);
+    expect(wrapper.findAll('.person-section .watchlist-card').length).toBe(3);
+  });
+
+  it('says so plainly when nobody matches', async () => {
+    const wrapper = await search([]);
+    expect(wrapper.find('.person-section').text()).toContain('No films found');
+  });
+
+  it('reports a failed lookup instead of silently showing nothing', async () => {
+    axios.get.mockReset();
+    axios.get.mockImplementation((url) => {
+      if (url.includes('query=Greta')) return Promise.reject(new Error('network'));
+      return Promise.resolve({ data: { results: [], cast: [], crew: [] } });
+    });
+    const { wrapper } = factory();
+    await flushPromises();
+
+    await wrapper.find('.person-section .prompt-input').setValue('Greta');
+    await wrapper.find('.person-section form').trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.find('.person-section .prompt-error').text()).toContain("Couldn't look that name up");
+  });
+});

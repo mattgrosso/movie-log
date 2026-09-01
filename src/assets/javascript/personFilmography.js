@@ -1,0 +1,129 @@
+// Look someone up and get their whole filmography.
+//
+// Bug report, 2026-09-01: "It'll be nice if on watchlist I could type into
+// the input a person like a director or an actor and get the full list their
+// entire filmography that would be really great cause then I could go through
+// and add them all to hat easily."
+//
+// This is deliberately NOT the discover.js treatment. Every other list on the
+// watchlist screen is a RECOMMENDATION: rankWatchlistCandidates drops anything
+// already rated, filters cast credits to `order < 10`, keeps directors only,
+// and sorts by a quality score. That is the wrong shape here — "their entire
+// filmography" means the whole list, in the order a filmography reads (newest
+// first), including the ones already seen. The films already in the library
+// are marked rather than removed, because knowing you've seen nine of the
+// twelve is the useful part when you're deciding what to hat.
+
+// Crew jobs that count as authorship. A person's full crew credit list also
+// carries producer, executive producer, thanks, and second-unit work, which
+// for anyone established runs to hundreds of entries and buries the films
+// they're actually known for. These four are what "a film by" means.
+const AUTHOR_JOBS = ['Director', 'Writer', 'Screenplay', 'Story'];
+
+/**
+ * TMDB /search/person results, trimmed to what a chooser needs.
+ *
+ * The chooser exists because names collide and the app can't guess: TMDB's
+ * first result for "Michael Jordan" is not Michael B. Jordan. `knownFor` is
+ * the tiebreaker that actually resolves it — two people with the same name
+ * and the same department are told apart by their films, not by their id.
+ */
+export function personCandidates (results, limit = 6) {
+  return (results || [])
+    .filter((person) => person && person.id != null && person.name)
+    .slice(0, limit)
+    .map((person) => ({
+      id: person.id,
+      name: person.name,
+      department: person.known_for_department || null,
+      profilePath: person.profile_path || null,
+      knownFor: (person.known_for || [])
+        .map((credit) => credit?.title || credit?.name)
+        .filter(Boolean)
+        .slice(0, 3)
+    }));
+}
+
+/** "You: 8.50" where a score is known, "Rated" where it isn't. */
+function seenLabel (id, scoreFor) {
+  const score = scoreFor ? scoreFor(id) : null;
+  return score ? `You: ${score}` : 'Rated';
+}
+
+/** The year a credit belongs to, or null for anything undated. */
+function yearOf (credit) {
+  const year = new Date(credit?.release_date ?? NaN).getFullYear();
+  return Number.isFinite(year) ? year : null;
+}
+
+/**
+ * One person's filmography from TMDB's /person/{id}/movie_credits.
+ *
+ * Returns `[{ id, title, poster_path, release_date, year, roles, note }]`,
+ * newest first. `roles` merges the cast and crew sides — someone who directed
+ * and starred in the same film gets one card saying so, not two cards.
+ *
+ * Undated credits are dropped. TMDB lists announced and in-development
+ * projects with no release date and no poster, and they can't be watched, so
+ * they're noise in a list whose purpose is filling a hat.
+ *
+ * @param credits   the /movie_credits payload ({ cast, crew })
+ * @param ratedIds  TMDB ids already in the user's library
+ * @param scoreFor  optional id -> formatted score, for the "seen it" note
+ */
+export function filmographyFrom (credits, { ratedIds = new Set(), scoreFor = null } = {}) {
+  const byId = new Map();
+
+  const add = (credit, role) => {
+    if (!credit || credit.id == null || !role) return;
+    const year = yearOf(credit);
+    if (year === null) return;
+
+    const existing = byId.get(credit.id);
+    if (existing) {
+      // Same film, second credit: keep the roles, not a duplicate card.
+      if (!existing.roles.includes(role)) existing.roles.push(role);
+      return;
+    }
+    byId.set(credit.id, {
+      id: credit.id,
+      title: credit.title || credit.name || '',
+      poster_path: credit.poster_path || null,
+      release_date: credit.release_date,
+      year,
+      roles: [role],
+      rated: ratedIds.has(credit.id)
+    });
+  };
+
+  // Cast first, so an actor-director's card leads with the acting role when
+  // both apply — matching how the credit is usually spoken.
+  (credits?.cast || []).forEach((credit) => add(credit, 'Actor'));
+  (credits?.crew || []).forEach((credit) => {
+    if (AUTHOR_JOBS.includes(credit?.job)) add(credit, credit.job);
+  });
+
+  return [...byId.values()]
+    .sort((a, b) => (b.year - a.year) || a.title.localeCompare(b.title))
+    .map((film) => ({
+      ...film,
+      // What the poster can't say: when, what they did on it, and whether
+      // it's already in the library. mediaItems reads `note`.
+      //
+      // An entry in the library can still have no usable score (rated on a
+      // criterion the weights ignore, or mid-migration), so a null from
+      // scoreFor falls back to the bare "Rated" rather than printing it.
+      note: [
+        String(film.year),
+        film.roles.join(', '),
+        film.rated ? seenLabel(film.id, scoreFor) : null
+      ].filter(Boolean).join(' · ')
+    }));
+}
+
+/** How many of a filmography the user has already rated. */
+export function filmographyProgress (films) {
+  const total = (films || []).length;
+  const seen = (films || []).filter((film) => film.rated).length;
+  return { total, seen, unseen: total - seen };
+}

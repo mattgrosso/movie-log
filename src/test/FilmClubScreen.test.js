@@ -84,6 +84,34 @@ describe('FilmClubScreen', () => {
     expect(titles[0]).toBe('Recently watched');
   });
 
+  // 2026-08-31: "We're showing their raw scores. I think I'd rather show
+  // their star ratings." A friend's `r` is on their own scale, so it doesn't
+  // compare to anyone else's; the stars behind it do.
+  it('shows a friend stars rather than their raw score', () => {
+    const starred = {
+      brian: { ...PROFILES.brian, recent: [{ ...PROFILES.brian.recent[0], s: 4.5 }] }
+    };
+    const wrapper = factory({ profiles: starred, myEntries: [myMovie(1, 'Heat', 8)] });
+    const note = wrapper.find('.cs-poster-note');
+
+    expect(note.text()).toContain('Brian');
+    expect(note.text()).not.toContain('9.00');
+    expect(note.findAll('.bi-star-fill').length).toBe(4);
+    expect(note.findAll('.bi-star-half').length).toBe(1);
+  });
+
+  // A shelf-only sharer publishes no stars anywhere; a blank pill would be
+  // worse than the score we already have.
+  it('falls back to the score when a friend publishes no stars', () => {
+    const wrapper = factory({
+      profiles: { brian: { ...PROFILES.brian, ratings: {} } },
+      myEntries: [myMovie(1, 'Heat', 8)]
+    });
+
+    expect(wrapper.find('.cs-poster-stars').exists()).toBe(false);
+    expect(wrapper.find('.cs-poster-score').text()).toBe('9.00');
+  });
+
   it('says how long ago each viewing was', () => {
     const wrapper = factory({ profiles: PROFILES, myEntries: [myMovie(1, 'Heat', 8)] });
 

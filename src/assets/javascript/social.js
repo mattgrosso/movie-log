@@ -137,8 +137,15 @@ export function buildSocialProfile (entries, getRatingFn, { name, shareRatings =
     // 40, not 20: "the recent feed on my film club could be larger"
     // (2026-08-17). Each item is a handful of fields, so the profile stays a
     // few KB. Friends only get the longer feed once they republish.
-    recent: byRecency.slice(0, 40).map(({ id, t, p, r, at, v }) => ({
-      id, t, p, r, at, ...(v?.[0]?.m ? { m: v[0].m } : {})
+    //
+    // `s` rides along for the same reason FriendsWhoSaw needs it: the feed
+    // shows stars, and only this app can assign them (see the note above
+    // `stars`). It is NOT behind shareRatings — `r` is already published here
+    // unconditionally, and stars are a coarser view of the same opinion, so
+    // withholding them would hide the more comparable of the two numbers
+    // while publishing the less comparable one.
+    recent: byRecency.slice(0, 40).map(({ id, t, p, r, s, at, v }) => ({
+      id, t, p, r, at, ...(Number.isFinite(s) ? { s } : {}), ...(v?.[0]?.m ? { m: v[0].m } : {})
     })),
     crown
   };
@@ -325,6 +332,16 @@ export function countNewFriendUpdates (friendProfiles, lastSeen) {
   }, 0);
 }
 
+// A friend's published stars for one title, or null. The `ratings` map is
+// keyed by TMDB id and comes back from Firebase as an object, so its keys are
+// strings while a feed item's id is a number — comparing the two directly
+// finds nobody (the same trap friendViewings.js documents).
+function starsFromRatings (profile, id) {
+  if (id == null || id === '') return null;
+  const stars = profile?.ratings?.[String(id)]?.s;
+  return Number.isFinite(stars) ? stars : null;
+}
+
 // ---------------------------------------------------------------------------
 // The Film Club summary: every friend's profile combined.
 export function filmClubSummary (myEntries, getRatingFn, friendProfiles) {
@@ -332,8 +349,21 @@ export function filmClubSummary (myEntries, getRatingFn, friendProfiles) {
   if (!profiles.length) return null;
 
   // Merged recent-activity feed, newest first.
+  //
+  // Stars come from the feed item when the friend's app published them, and
+  // otherwise from their `ratings` map, which has carried `s` since 2026-08-25.
+  // That second path is what makes the feed show stars TODAY: a profile only
+  // gains `s` in `recent` when its owner's app next republishes, and waiting
+  // for every friend to do that would leave the feed showing raw scores for
+  // days. Still null for a shelf-only sharer or a raw Movie Log feed — the
+  // screen falls back to the score there, exactly as the pills do.
   const feed = profiles.flatMap(([key, profile]) =>
-    (profile.recent || []).map((item) => ({ ...item, friendKey: key, friendName: profile.name }))
+    (profile.recent || []).map((item) => ({
+      ...item,
+      s: Number.isFinite(item.s) ? item.s : starsFromRatings(profile, item.id),
+      friendKey: key,
+      friendName: profile.name
+    }))
   ).filter((item) => item.at).sort((a, b) => b.at - a.at).slice(0, 60);
 
   // Club favorites: movies rated by 2+ people (me included), by average.

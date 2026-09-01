@@ -51,6 +51,85 @@
       </p>
     </section>
 
+    <!-- Bug report (2026-09-01): "It'll be nice if on watchlist I could type
+         into the input a person like a director or an actor and get the full
+         list their entire filmography... then I could go through and add them
+         all to hat easily."
+
+         Its own box rather than a second job for the prompt above: that one
+         is an AI call that takes seconds and answers a mood, this is a name
+         lookup that should come straight back. Deliberately NOT the treatment
+         every other section here gets — no unseen-only filter, no quality
+         ranking. The whole filmography, newest first, with the ones you've
+         already rated marked (see personFilmography.js). -->
+    <section class="watchlist-section person-section">
+      <h2 class="section-title">Someone's filmography</h2>
+      <p class="section-caption">A director or an actor — everything they've made.</p>
+
+      <form class="prompt-form" @submit.prevent="searchPerson">
+        <input
+          v-model="personQuery"
+          class="prompt-input"
+          type="text"
+          maxlength="100"
+          autocomplete="off"
+          :disabled="personLoading"
+          placeholder="Greta Gerwig"
+          aria-label="A director or actor's name"
+        >
+        <button
+          class="prompt-button"
+          type="submit"
+          :disabled="personLoading || !personQuery.trim()"
+        >{{ personLoading ? 'Looking…' : 'Find' }}</button>
+      </form>
+
+      <p v-if="personError" class="section-caption prompt-error">{{ personError }}</p>
+      <p v-if="personLoading" class="section-loading">Looking up the filmography&hellip;</p>
+
+      <!-- Names collide, and the app can't guess which one you meant. Shown
+           only when there's a real choice to make; one match goes straight
+           through to the films. -->
+      <template v-else-if="personChoices.length">
+        <p class="section-caption">Which one?</p>
+        <div class="person-choices">
+          <button
+            v-for="person in personChoices"
+            :key="person.id"
+            type="button"
+            class="person-choice"
+            @click="choosePerson(person)"
+          >
+            <img v-if="person.profilePath" :src="`https://image.tmdb.org/t/p/w185${person.profilePath}`" :alt="person.name" class="person-choice-photo" loading="lazy">
+            <span v-else class="person-choice-photo person-choice-photo-blank"><i class="bi bi-person-fill"></i></span>
+            <span class="person-choice-name">{{ person.name }}</span>
+            <span v-if="person.knownFor.length" class="person-choice-known">{{ person.knownFor.join(', ') }}</span>
+            <span v-else-if="person.department" class="person-choice-known">{{ person.department }}</span>
+          </button>
+        </div>
+      </template>
+
+      <template v-else-if="personFilms.length">
+        <p class="section-caption">
+          {{ personName }} — {{ personProgress.total }} films,
+          {{ personProgress.seen }} of them already rated.
+        </p>
+        <!-- personItems, not mediaItems: that one hides punted films, and a
+             filmography that quietly drops entries isn't the entire one.
+             No @hatted either — punting as you add would make the list you're
+             working through shift under you. -->
+        <WatchlistRow
+          :items="personItems"
+          :hat-note="`From ${personName}'s filmography`"
+          @select="previewMedia"
+        />
+      </template>
+
+      <p v-else-if="personSearched && !personError" class="section-loading">
+        No films found for &ldquo;{{ personSearched }}&rdquo;.
+      </p>
+    </section>
+
     <!-- Local, always available: movies you loved but haven't logged in a
          long time. -->
     <section v-if="rewatchList.length" class="watchlist-section">
@@ -173,6 +252,7 @@ import { rewatchCandidates, anotherShotCandidates, nearThresholdYears, favoriteP
 import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 import { formatScore } from '../assets/javascript/formatScore.js';
 import { tasteSummary, pickTmdbMatch, buildPromptedList } from '../assets/javascript/promptedWatchlist.js';
+import { personCandidates, filmographyFrom, filmographyProgress } from '../assets/javascript/personFilmography.js';
 import { postToAi } from '../utils/aiRequest.js';
 
 // Long enough to read the "added to <hat>" confirmation before the card that
@@ -199,6 +279,16 @@ export default {
       promptResults: [],
       promptLoading: false,
       promptError: '',
+      // The "someone's filmography" box. `personSearched` is the name the
+      // results belong to, kept apart from what's typed for the same reason
+      // promptAsked is.
+      personQuery: '',
+      personSearched: '',
+      personChoices: [],
+      personName: '',
+      personFilms: [],
+      personLoading: false,
+      personError: '',
       // The unrated movie whose summary sheet is open, or null.
       previewing: null,
       // Suggestions per year, keyed by year — { 1997: [...movies] }. Filled
@@ -250,6 +340,23 @@ export default {
     },
     library () {
       return this.$store.getters.allMoviesAsArray || [];
+    },
+    // How much of the person's filmography is already in the library — the
+    // useful number when you're deciding what's left to hat.
+    personProgress () {
+      return filmographyProgress(this.personFilms);
+    },
+    // Same shape mediaItems produces, minus the punt filter. See the note in
+    // the template: an "entire filmography" that silently drops films punted
+    // from some other list on this page isn't the entire filmography.
+    personItems () {
+      return this.personFilms.map((film) => ({
+        key: film.id,
+        title: film.title,
+        poster: film.poster_path ? `https://image.tmdb.org/t/p/w342${film.poster_path}` : null,
+        metaLines: [film.note].filter(Boolean),
+        source: film
+      }));
     },
     punts () {
       return this.$store.state.settings?.watchlistPunts || {};
@@ -484,6 +591,82 @@ export default {
      * id against a Set is exact and free, where asking the model to avoid
      * 1,386 titles would mean sending it 1,386 titles and it would still slip.
      */
+    /**
+     * Look a person up by name. One clear match goes straight to their films;
+     * anything ambiguous puts the chooser on screen instead of guessing.
+     */
+    async searchPerson () {
+      const query = this.personQuery.trim();
+      if (!query || this.personLoading) return;
+
+      this.personLoading = true;
+      this.personError = '';
+      this.personChoices = [];
+      this.personFilms = [];
+      this.personName = '';
+
+      try {
+        const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+        const { data } = await axios.get(
+          `https://api.themoviedb.org/3/search/person?api_key=${apiKey}&query=${encodeURIComponent(query)}`
+        );
+        const candidates = personCandidates(data?.results || []);
+        this.personSearched = query;
+
+        if (!candidates.length) return;
+        if (candidates.length === 1) {
+          await this.loadFilmography(candidates[0]);
+          return;
+        }
+        this.personChoices = candidates;
+      } catch (error) {
+        console.error('Person search failed for', query, error);
+        this.personError = "Couldn't look that name up just now. Try again in a moment.";
+        this.personSearched = '';
+      } finally {
+        this.personLoading = false;
+      }
+    },
+    async choosePerson (person) {
+      this.personChoices = [];
+      this.personLoading = true;
+      try {
+        await this.loadFilmography(person);
+      } finally {
+        this.personLoading = false;
+      }
+    },
+    /**
+     * Their whole filmography. `scoreFor` is passed rather than resolved
+     * inside personFilmography.js so that module stays store-free and
+     * unit-testable, the way the rest of assets/javascript is.
+     */
+    async loadFilmography (person) {
+      try {
+        const apiKey = process.env.VUE_APP_TMDB_API_KEY;
+        const { data } = await axios.get(
+          `https://api.themoviedb.org/3/person/${person.id}/movie_credits?api_key=${apiKey}`
+        );
+
+        const byTmdbId = new Map();
+        this.library.forEach((entry) => {
+          if (entry?.movie?.id != null) byTmdbId.set(entry.movie.id, entry);
+        });
+
+        this.personFilms = filmographyFrom(data, {
+          ratedIds: new Set(byTmdbId.keys()),
+          scoreFor: (id) => {
+            const rating = getRating(byTmdbId.get(id))?.calculatedTotal;
+            return Number.isFinite(rating) ? formatScore(rating) : null;
+          }
+        });
+        this.personName = person.name;
+        this.personSearched = person.name;
+      } catch (error) {
+        console.error('Filmography lookup failed for', person.name, error);
+        this.personError = "Couldn't load that filmography just now. Try again in a moment.";
+      }
+    },
     async askForWatchlist () {
       const ask = this.promptText.trim();
       if (!ask || this.promptLoading) return;
@@ -1012,6 +1195,67 @@ export default {
    not a failure, and it reads better as information than as an error. */
 .prompt-error {
   color: #e0a458;
+}
+
+/* Disambiguating a name. A sideways row like every other list on this page,
+   so it takes one row's height however many people share the name. */
+.person-choices {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.person-choice {
+  background: #1c1c1c;
+  border: 1px solid #333;
+  border-radius: 6px;
+  /* #e6e6e6 on #1c1c1c is ~12:1. */
+  color: #e6e6e6;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.4rem;
+  text-align: left;
+  width: 116px;
+
+  &:active { background: #2b2b2b; }
+}
+
+/* Fixed height so every photo in the row lines up top and bottom, whatever
+   TMDB returns — the house poster-row rule. The text below may run to any
+   number of lines; the card just gets taller. */
+.person-choice-photo {
+  border-radius: 4px;
+  display: block;
+  height: 156px;
+  object-fit: cover;
+  width: 104px;
+}
+
+.person-choice-photo-blank {
+  align-items: center;
+  background: #2b2b2b;
+  color: #8a8a8a;
+  display: flex;
+  font-size: 1.6rem;
+  justify-content: center;
+}
+
+.person-choice-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* #b9b9b9 on #1c1c1c is ~9:1 — .text-muted would fail here. */
+.person-choice-known {
+  color: #b9b9b9;
+  font-size: 0.66rem;
+  line-height: 1.2;
 }
 
 .section-loading {

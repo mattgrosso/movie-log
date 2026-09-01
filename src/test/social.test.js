@@ -83,6 +83,37 @@ describe('buildSocialProfile', () => {
     expect(profile.topShelf.length).toBeGreaterThan(0) // shelf still published
   })
 
+  // 2026-08-31: the feed showed raw scores, which aren't comparable between
+  // people. Only the source app can assign stars, so they have to travel in
+  // `recent` — the map alone doesn't help a shelf-only sharer's feed.
+  it('publishes stars alongside the score in the recent feed', () => {
+    const scored = (e) => ({ calculatedTotal: e.ratings[0].calculatedTotal, normalizedRating: 9 })
+    const profile = buildSocialProfile(library, scored, { name: 'Matt', shareRatings: true, now: NOW })
+
+    expect(profile.recent[0].s).toBe(4.5)
+    expect(profile.recent[0].r).toBeDefined() // the score stays, as the fallback
+  })
+
+  it('omits stars rather than publishing a zero when there are none to publish', () => {
+    // Below half a star: normalizedRatingToStars returns null, and an absent
+    // key is the difference between "no stars yet" and "rated zero".
+    const scored = (e) => ({ calculatedTotal: e.ratings[0].calculatedTotal, normalizedRating: 0.4 })
+    const profile = buildSocialProfile(library, scored, { name: 'Matt', shareRatings: true, now: NOW })
+
+    expect(profile.recent[0]).not.toHaveProperty('s')
+  })
+
+  it('publishes feed stars even when the ratings map is opted out', () => {
+    // `r` is already in `recent` regardless of shareRatings, and stars say
+    // less than it does — withholding them would hide the comparable number
+    // while publishing the incomparable one.
+    const scored = (e) => ({ calculatedTotal: e.ratings[0].calculatedTotal, normalizedRating: 9 })
+    const profile = buildSocialProfile(library, scored, { name: 'Matt', shareRatings: false, now: NOW })
+
+    expect(profile.ratings).toBeUndefined()
+    expect(profile.recent[0].s).toBe(4.5)
+  })
+
   it('publishes the criteria array only behind its own opt-in', () => {
     const lib = [entry(1, 'Best', 9.5, { criteria: { love: 10, overall: 9, stickiness: 4, story: 9, imagery: 8, performance: 7, soundtrack: 6 } })]
     const withOptIn = buildSocialProfile(lib, ratingOf, { name: 'Matt', shareRatings: true, shareCriteria: true })
@@ -205,6 +236,42 @@ describe('filmClubSummary', () => {
 
   it('null with no friends', () => {
     expect(filmClubSummary(myLibrary, ratingOf, {})).toBeNull()
+  })
+
+  // The feed shows stars; a profile only gains `s` in `recent` when its owner
+  // republishes, so the summary reads the ratings map in the meantime rather
+  // than leaving the feed on raw scores for days.
+  describe('feed stars', () => {
+    it('takes stars straight from the feed item when the friend published them', () => {
+      const friend = {
+        'nat-key': {
+          name: 'Natalie',
+          recent: [{ id: 7, t: 'Nat Recent', r: 8, s: 4, at: NOW - 100 }],
+          ratings: { 7: { r: 8, s: 2.5 } }   // stale; the feed item wins
+        }
+      }
+      expect(filmClubSummary(myLibrary, ratingOf, friend).feed[0].s).toBe(4)
+    })
+
+    it('falls back to the ratings map for a profile published before feed stars', () => {
+      const friend = {
+        'nat-key': {
+          name: 'Natalie',
+          recent: [{ id: 7, t: 'Nat Recent', r: 8, at: NOW - 100 }],
+          // Firebase returns the map as an object, so its keys are STRINGS
+          // while the feed item's id is a number.
+          ratings: { 7: { r: 8, s: 3.5 } }
+        }
+      }
+      expect(filmClubSummary(myLibrary, ratingOf, friend).feed[0].s).toBe(3.5)
+    })
+
+    it('leaves stars null when nobody published any, so the screen shows the score', () => {
+      const friend = {
+        'nat-key': { name: 'Natalie', recent: [{ id: 7, t: 'Nat Recent', r: 8, at: NOW - 100 }] }
+      }
+      expect(filmClubSummary(myLibrary, ratingOf, friend).feed[0].s).toBeNull()
+    })
   })
 })
 

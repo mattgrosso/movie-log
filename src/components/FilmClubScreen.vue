@@ -46,7 +46,20 @@
                 :note="feedNote(item)"
               />
             </div>
-            <span class="cs-poster-note">{{ item.friendName }} · {{ formatScore(item.r) }}</span>
+            <!-- Stars, not the composite: `r` is on each person's own scale,
+                 so one friend's 8.7 isn't another's (2026-08-31, "We're
+                 showing their raw scores. I think I'd rather show their star
+                 ratings"). The score stays as the fallback for anyone whose
+                 profile publishes no stars — same rule as the detail-page
+                 pills. -->
+            <span class="cs-poster-note">
+              <span class="cs-poster-who">{{ item.friendName }}</span>
+              <span v-if="item.s !== null && item.s !== undefined" class="cs-poster-stars" :aria-label="`${item.s} out of 5`">
+                <i v-for="i in fullStars(item.s)" :key="`f${i}`" class="bi bi-star-fill"/>
+                <i v-if="hasHalfStar(item.s)" class="bi bi-star-half"/>
+              </span>
+              <span v-else class="cs-poster-score">{{ formatScore(item.r) }}</span>
+            </span>
             <span v-if="watchedAgo(item.at)" class="cs-poster-when">{{ watchedAgo(item.at) }}</span>
             <span v-if="!inMyLibrary(item.id)" class="cs-poster-unseen">Not in your library</span>
           </div>
@@ -388,6 +401,15 @@ export default {
     // assets/javascript/formatScore.js.
     formatScore,
     formatScoreGap,
+    // Star arithmetic, matching FriendsWhoSaw: whole stars filled, a trailing
+    // half when the rating lands on a .5 step (starRating.js snaps to those,
+    // so there is no third case).
+    fullStars (stars) {
+      return Math.floor(stars);
+    },
+    hasHalfStar (stars) {
+      return stars % 1 !== 0;
+    },
     watchedAgo (at) {
       return timeAgo(at);
     },
@@ -699,13 +721,36 @@ export default {
 }
 
 .cs-poster-note {
+  align-items: center;
   color: #ccc;
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
   font-size: 0.65rem;
+  gap: 0.05rem 0.3rem;
+  justify-content: center;
   margin-top: 0.2rem;
+}
+
+/* The name is the part that gets long, so it's the only part that truncates —
+   the stars beside it stay whole. */
+.cs-poster-who {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Same gold as the detail-page pills (#f8d62b on #161616, ~11:1). */
+.cs-poster-stars {
+  color: #f8d62b;
+  display: inline-flex;
+  font-size: 0.6rem;
+  gap: 0.05rem;
+  white-space: nowrap;
+}
+
+.cs-poster-score {
+  font-variant-numeric: tabular-nums;
 }
 
 /* How fresh the viewing is. #9a9a9a on #161616 is ~7:1. */
