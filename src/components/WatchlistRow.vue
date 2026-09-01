@@ -10,23 +10,36 @@
         :aria-label="item.seen ? `${item.title} — already rated` : item.title"
         @click="$emit('select', item.source)"
       >
-        <img
-          v-if="item.poster"
-          :src="item.poster"
-          :alt="item.title"
-          class="watchlist-poster"
-          loading="lazy"
-        >
-        <!-- Bug report (2026-09-01), against the filmography row that had just
-             shipped: "should filter out movies that I've already seen or at
-             least should mark them... maybe gray them out or put a message
-             that says already rated." Greying, not filtering — his own call,
-             and the right one for a filmography, where the ones you've seen
-             are half of what the list is telling you. The score in the meta
-             line was already there and wasn't loud enough on a phone. -->
-        <span v-if="item.seen" class="watchlist-seen-flag">Rated</span>
-        <!-- No artwork is the ONE case where the title has to carry it. -->
-        <div v-else class="watchlist-poster watchlist-poster-blank">{{ item.title }}</div>
+        <!-- The frame is what the RATED flag anchors to. Without it the flag
+             positions against the CARD, whose bottom is below the caption, and
+             it lands on the meta text instead of on the artwork.
+
+             NOTE the v-if/v-else pair below must stay ADJACENT. Putting
+             anything between them re-binds the v-else to that element, which
+             is exactly how the blank-artwork branch started rendering under
+             every poster — title and all, against the posters-not-text rule
+             (2026-09-01: "The layout is broken. You also seem to have the
+             title there"). -->
+        <div class="watchlist-poster-frame">
+          <img
+            v-if="item.poster"
+            :src="item.poster"
+            :alt="item.title"
+            class="watchlist-poster"
+            loading="lazy"
+          >
+          <!-- No artwork is the ONE case where the title has to carry it. -->
+          <div v-else class="watchlist-poster watchlist-poster-blank">{{ item.title }}</div>
+
+          <!-- Bug report (2026-09-01), against the filmography row that had
+               just shipped: "should filter out movies that I've already seen
+               or at least should mark them... maybe gray them out or put a
+               message that says already rated." Greying, not filtering — his
+               own call, and the right one for a filmography, where the ones
+               you've seen are half of what the list is telling you. The score
+               in the meta line was already there and wasn't loud enough. -->
+          <span v-if="item.seen" class="watchlist-seen-flag">Rated</span>
+        </div>
 
         <!-- Hat button alone, pinned top-right, matching every other poster
              in the app (bug report: "It should always be in the top right
@@ -160,6 +173,15 @@ export default {
      row lines up top AND bottom regardless of what TMDB returns. */
   height: 156px;
   object-fit: cover;
+  width: 104px;
+}
+
+/* Wraps the artwork so the RATED flag has something poster-shaped to sit in.
+   Fixed height, matching the poster: the card is taller than this (the caption
+   runs below it), and a flag anchored to the card would land on the text. */
+.watchlist-poster-frame {
+  height: 156px;
+  position: relative;
   width: 104px;
 }
 

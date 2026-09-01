@@ -186,3 +186,54 @@ describe('watchlist poster controls', () => {
     expect(wrapper.find('.watchlist-meta-text').exists()).toBe(false);
   });
 });
+
+// 2026-09-01: "The layout is broken. You also seem to have the title there,
+// which we don't need as per our standing rule about posters."
+//
+// The RATED flag had been inserted BETWEEN `<img v-if="item.poster">` and
+// `<div v-else>`, which re-binds the v-else to the flag — so every card
+// WITHOUT the flag fell through to the no-artwork branch and rendered its
+// title in a box under the poster. Posters carry identity here; a title under
+// one is the bug, not decoration.
+describe('a card with artwork never shows its title', () => {
+  const withPoster = { ...item('p1', 'Ghost Rider'), seen: false };
+  const seenPoster = { ...item('p2', 'Drive'), seen: true };
+  const noPoster = { key: 'p3', title: 'No Artwork', poster: null, metaLines: [], source: {} };
+
+  const rowOf = (items) => mount(WatchlistRow, {
+    props: { items },
+    global: { stubs: { SendToHat: true } }
+  });
+
+  it('renders no blank-title element beside a poster, seen or unseen', () => {
+    const row = rowOf([withPoster, seenPoster]);
+
+    expect(row.findAll('.watchlist-poster-blank')).toHaveLength(0);
+    expect(row.text()).not.toContain('Ghost Rider');
+    expect(row.text()).not.toContain('Drive');
+  });
+
+  it('still falls back to the title when there is genuinely no artwork', () => {
+    const row = rowOf([noPoster]);
+
+    expect(row.find('.watchlist-poster-blank').text()).toBe('No Artwork');
+  });
+
+  it('one artwork element per card, never two', () => {
+    const row = rowOf([withPoster, seenPoster, noPoster]);
+
+    expect(row.findAll('.watchlist-card')).toHaveLength(3);
+    expect(row.findAll('.watchlist-poster')).toHaveLength(3);
+  });
+
+  // The flag anchors to the artwork, not to the card — the card's bottom is
+  // below the caption, which is where the flag was landing.
+  it('puts the RATED flag inside the poster frame', () => {
+    const row = rowOf([seenPoster]);
+    const flag = row.find('.watchlist-poster-frame .watchlist-seen-flag');
+
+    expect(flag.exists()).toBe(true);
+    expect(flag.text()).toBe('Rated');
+    expect(ruleFor('.watchlist-poster-frame')).toContain('position: relative');
+  });
+});
