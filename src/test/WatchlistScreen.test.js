@@ -544,7 +544,10 @@ describe('WatchlistScreen — someone\'s filmography', () => {
 
   it('shows the entire filmography, newest first', async () => {
     const wrapper = await search([GRETA]);
-    const names = wrapper.findAll('.person-section .watchlist-card').map((c) => c.attributes('aria-label'));
+    // A rated film's accessible name carries the "already rated" suffix — see
+    // the greying test below — so compare on the title half.
+    const names = wrapper.findAll('.person-section .watchlist-card')
+      .map((c) => c.attributes('aria-label').split(' — ')[0]);
 
     expect(names).toEqual(['Barbie', 'Frances Ha', 'Old Favorite A']);
   });
@@ -555,6 +558,31 @@ describe('WatchlistScreen — someone\'s filmography', () => {
     const wrapper = await search([GRETA]);
     expect(wrapper.find('.person-section').text()).toContain('You: 8.50');
     expect(wrapper.find('.person-section').text()).toContain('3 films, 1 of them already rated');
+  });
+
+  // Follow-up report the same night, against the row that had just shipped:
+  // "should filter out movies that I've already seen or at least should mark
+  // them... maybe gray them out or put a message that says already rated."
+  it('greys and flags the films already rated, without removing them', async () => {
+    const wrapper = await search([GRETA]);
+    const cards = wrapper.findAll('.person-section .watchlist-card');
+    const seen = cards.filter((c) => c.classes('watchlist-card-seen'));
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].attributes('aria-label')).toBe('Old Favorite A — already rated');
+    expect(seen[0].find('.watchlist-seen-flag').text()).toBe('Rated');
+    // Still there, still hattable — greying, not filtering. He asked for that
+    // explicitly: "don't filter them out just maybe gray them out".
+    expect(cards).toHaveLength(3);
+  });
+
+  it('leaves the unseen films undimmed and unflagged', async () => {
+    const wrapper = await search([GRETA]);
+    const unseen = wrapper.findAll('.person-section .watchlist-card')
+      .filter((c) => !c.classes('watchlist-card-seen'));
+
+    expect(unseen).toHaveLength(2);
+    expect(unseen[0].find('.watchlist-seen-flag').exists()).toBe(false);
   });
 
   it('leaves out announced films and producer-only credits', async () => {

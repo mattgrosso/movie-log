@@ -355,6 +355,10 @@ export default {
         title: film.title,
         poster: film.poster_path ? `https://image.tmdb.org/t/p/w342${film.poster_path}` : null,
         metaLines: [film.note].filter(Boolean),
+        // Greys the card and flags it (2026-09-01: "gray them out or put a
+        // message that says already rated"). This is the only list on the
+        // screen that can carry a seen film at all.
+        seen: film.rated,
         source: film
       }));
     },

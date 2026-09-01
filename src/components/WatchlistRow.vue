@@ -5,8 +5,9 @@
         v-for="item in items"
         :key="item.key"
         class="watchlist-card"
+        :class="{ 'watchlist-card-seen': item.seen }"
         role="button"
-        :aria-label="item.title"
+        :aria-label="item.seen ? `${item.title} — already rated` : item.title"
         @click="$emit('select', item.source)"
       >
         <img
@@ -16,6 +17,14 @@
           class="watchlist-poster"
           loading="lazy"
         >
+        <!-- Bug report (2026-09-01), against the filmography row that had just
+             shipped: "should filter out movies that I've already seen or at
+             least should mark them... maybe gray them out or put a message
+             that says already rated." Greying, not filtering — his own call,
+             and the right one for a filmography, where the ones you've seen
+             are half of what the list is telling you. The score in the meta
+             line was already there and wasn't loud enough on a phone. -->
+        <span v-if="item.seen" class="watchlist-seen-flag">Rated</span>
         <!-- No artwork is the ONE case where the title has to carry it. -->
         <div v-else class="watchlist-poster watchlist-poster-blank">{{ item.title }}</div>
 
@@ -96,9 +105,11 @@ export default {
   name: 'WatchlistRow',
   components: { SendToHat },
   props: {
-    // [{ key, title, poster, metaLines, source }] — `source` is handed back
-    // on select and passed to the hat; metaLines is an array of caption
-    // lines, each rendered on its own row beside the punt X.
+    // [{ key, title, poster, metaLines, source, seen? }] — `source` is handed
+    // back on select and passed to the hat; metaLines is an array of caption
+    // lines, each rendered on its own row beside the punt X. `seen` dims the
+    // card and flags it as already rated; only the filmography row sets it,
+    // every other list here being unseen-only by construction.
     items: { type: Array, required: true },
     puntable: { type: Boolean, default: false },
     // Plain-language provenance for the hat: "use plain language to label why
@@ -150,6 +161,35 @@ export default {
   height: 156px;
   object-fit: cover;
   width: 104px;
+}
+
+/* Already rated. Dimmed and desaturated so a scan down the row separates
+   "seen it" from "haven't" without reading a word — but still tappable, still
+   hattable (a rewatch is a real reason to hat something), and NOT removed:
+   in a filmography the ones you've seen are half of what the list is saying.
+
+   The dimming is on the poster alone. Dimming the whole card would take the
+   caption and the hat button with it, and the caption is where the score is. */
+.watchlist-card-seen .watchlist-poster {
+  filter: grayscale(0.85);
+  opacity: 0.45;
+}
+
+/* A word, for the case where dimming alone isn't obvious — a dark poster is
+   already dim. Bottom-left, clear of the hat button's top-right corner. */
+.watchlist-seen-flag {
+  background: rgba(0, 0, 0, 0.78);
+  border-radius: 3px;
+  bottom: 4px;
+  color: #e8e8e8;
+  font-size: 0.6rem;
+  font-weight: 600;
+  left: 4px;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  padding: 2px 5px;
+  position: absolute;
+  text-transform: uppercase;
 }
 
 .watchlist-poster-blank {
