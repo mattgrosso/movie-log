@@ -7,7 +7,7 @@ import {
 } from '@/assets/javascript/decadeChampionship.js'
 
 // A library where the same rating is read straight off the entry.
-function entry (id, { rating = 7, release = '1994-06-15', cast = [], crew = [], genres = [], studios = [] } = {}) {
+function entry (id, { rating = 7, release = '1994-06-15', cast = [], crew = [] } = {}) {
   return {
     dbKey: `k${id}`,
     movie: {
@@ -16,9 +16,7 @@ function entry (id, { rating = 7, release = '1994-06-15', cast = [], crew = [], 
       release_date: release,
       poster_path: `/p${id}.jpg`,
       cast: cast.map((name) => ({ name, character: 'Self' })),
-      crew: crew.map(([job, name]) => ({ job, name })),
-      genres: genres.map((name, i) => ({ id: i + 1, name })),
-      production_companies: studios.map((name, i) => ({ id: i + 1, name }))
+      crew: crew.map(([job, name]) => ({ job, name }))
     },
     ratings: [{ date: '2024-01-01', calculatedTotal: rating }]
   }
@@ -72,7 +70,7 @@ describe('decadeChampionship', () => {
     const result = decadeChampionship(entries, ratingOf, undefined, 1990)
     expect(result.label).toBe('1990s')
     expect(result.filmCount).toBe(2)
-    expect(result.films.map((f) => f.entry.movie.id)).toEqual([1, 2])
+    expect(result.films.map((f) => f.entry.movie.id)).toEqual([1])
     expect(names(result.crew.find((c) => c.key === 'director').ranked)).toEqual(['Nineties'])
   })
 
@@ -134,18 +132,21 @@ describe('decadeChampionship', () => {
     expect(performers[0].score - performers[1].score).toBeLessThan(0.5)
   })
 
-  it('genres and studios need three films, and the full ranked list is returned untrimmed', () => {
+  it('returns the full ranked list untrimmed — the screen takes the winner', () => {
     const entries = [
-      ...Array.from({ length: 3 }, (_, i) => entry(i, { rating: 8, genres: ['Horror'], studios: ['A24'] })),
-      ...Array.from({ length: 2 }, (_, i) => entry(10 + i, { rating: 10, genres: ['Western'], studios: ['Tiny'] })),
-      ...Array.from({ length: 5 }, (_, i) => entry(20 + i, { rating: 7, crew: [['Director', `D${i}`], ['Director', 'Prolific']] }))
+      ...Array.from({ length: 5 }, (_, i) => entry(20 + i, { rating: 7 + i * 0.2, crew: [['Director', `D${i}`], ['Director', 'Prolific']] })),
+      ...Array.from({ length: 5 }, (_, i) => entry(30 + i, { rating: 8, crew: [['Director', 'Also Prolific']] }))
     ]
     const result = decadeChampionship(entries, ratingOf, undefined, 1990)
-    expect(names(result.groups.find((g) => g.key === 'genre').ranked)).toEqual(['Horror'])
-    expect(names(result.groups.find((g) => g.key === 'studio').ranked)).toEqual(['A24'])
-    // Podium is 3, but ranked lists are not trimmed — the screen trims.
-    expect(result.films).toHaveLength(3)
-    expect(result.crew.find((c) => c.key === 'director').ranked.map((p) => p.name)).toEqual(['Prolific'])
+    // Podium is one film, but people lists are not trimmed.
+    expect(result.films).toHaveLength(1)
+    expect(names(result.crew.find((c) => c.key === 'director').ranked)).toEqual(['Also Prolific', 'Prolific'])
+  })
+
+  it('has no producer, genre or studio category (cut 2026-09-02)', () => {
+    const result = decadeChampionship([entry(1), entry(2)], ratingOf, undefined, 1990)
+    expect(result.crew.map((c) => c.key)).toEqual(['director', 'writer', 'cinematographer', 'composer', 'editor'])
+    expect(result.groups).toBeUndefined()
   })
 
   it('equal scores rank by film count, then by name, so order is stable', () => {

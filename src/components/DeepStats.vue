@@ -196,35 +196,39 @@
         {{ championship.filmCount }} film{{ championship.filmCount === 1 ? '' : 's' }} rated from the {{ championship.label }}.
       </p>
 
-      <div
-        v-for="category in championshipCategories"
-        :key="`${championship.decade}-${category.key}`"
-        class="pantheon-category decade-category"
-        :data-category="category.key"
-      >
-        <h3 class="pantheon-label">
-          {{ category.label }}
-          <span v-if="category.note" class="pantheon-count">{{ category.note }}</span>
-        </h3>
-        <p v-if="category.loading && !category.podium.length" class="decade-looking">Looking them up…</p>
-        <div v-else class="ds-poster-row">
-          <div
-            v-for="(champion, index) in category.podium"
-            :key="`${category.key}-${champion.name}`"
-            class="ds-poster-card champion-card"
-            :class="{ winner: index === 0, tappable: category.kind !== 'group' }"
-            :role="category.kind === 'group' ? null : 'button'"
-            :aria-label="champion.name"
-            @click="tapChampion(category, champion, index)"
-          >
-            <img v-if="champion.best && champion.best.movie.poster_path" :src="poster(champion.best)" :alt="champion.best.movie.title" class="ds-poster">
-            <div v-else class="ds-poster ds-poster-blank">{{ champion.name }}</div>
-            <span class="champion-name">
-              <i v-if="index === 0" class="bi bi-trophy-fill champion-trophy" aria-hidden="true"></i>{{ champion.name }}
-            </span>
-            <span class="ds-poster-note gold">{{ champion.scoreLabel }}</span>
-            <span v-if="champion.count" class="ds-poster-note">{{ champion.count }} film{{ champion.count === 1 ? '' : 's' }}</span>
-          </div>
+      <!-- One winner per category, one row each. The first cut showed a
+           podium of three per category as poster rows, and Matt found it too
+           much: "I don't think we need three winners per category." -->
+      <div class="champions">
+        <div
+          v-for="category in championshipCategories"
+          :key="`${championship.decade}-${category.key}`"
+          class="champion"
+          :data-category="category.key"
+          role="button"
+          :aria-label="category.champion ? `${category.label}: ${category.champion.name}` : category.label"
+          @click="tapChampion(category)"
+        >
+          <span class="champion-category">{{ category.label }}</span>
+          <template v-if="category.champion">
+            <img
+              v-if="category.champion.best && category.champion.best.movie.poster_path"
+              :src="poster(category.champion.best)"
+              :alt="category.champion.best.movie.title"
+              class="champion-poster"
+              loading="lazy"
+            >
+            <div v-else class="champion-poster champion-poster-blank"></div>
+            <div class="champion-info">
+              <span class="champion-name">{{ category.champion.name }}</span>
+              <span class="champion-detail">
+                <span class="champion-score">{{ category.champion.scoreLabel }}</span>
+                <template v-if="category.champion.count"> · {{ category.champion.count }} films</template>
+                <template v-if="category.note"> · {{ category.note }}</template>
+              </span>
+            </div>
+          </template>
+          <span v-else class="champion-detail decade-looking">Looking them up…</span>
         </div>
       </div>
       <p v-if="!championshipCategories.length" class="ds-section-caption">
@@ -235,8 +239,6 @@
         v-if="selectedChampion"
         :person="selectedChampion.person"
         :role-label="selectedChampion.roleLabel"
-        :rank="selectedChampion.rank"
-        :rank-of="selectedChampion.rankOf"
         :library-average="championship.globalAvg"
         @close="selectedChampion = null"
         @search="searchForChampion"
@@ -361,32 +363,30 @@ export default {
       if (this.activeDecade === null) return null;
       return decadeChampionship(this.library, getRating, this.weights, this.activeDecade);
     },
-    // The section's categories in display order, each trimmed to its podium.
-    // Actor and Actress need the async gender split; offline they collapse
-    // into one Performers podium rather than disappearing.
+    // The section's categories in display order, each with its one winner
+    // (`champion`, null while a category is still being looked up). Actor
+    // and Actress need the async gender split; offline they collapse into
+    // one Performer row rather than disappearing.
     championshipCategories () {
       const championship = this.championship;
       if (!championship) return [];
-      const podium = DECADE_DEFAULTS.podium;
-      const person = (champion) => ({ ...champion, scoreLabel: formatScore(champion.score) });
-      const people = (key, label, ranked, extra = {}) => ({
-        key, label, kind: 'person', podium: ranked.slice(0, podium).map(person), ...extra
-      });
+      const person = (champion) => (champion ? { ...champion, scoreLabel: formatScore(champion.score) } : null);
+      const people = (key, label, ranked, extra = {}) => ({ key, label, kind: 'person', champion: person(ranked[0]), ...extra });
 
+      const best = championship.films[0];
       const categories = [{
         key: 'film',
         label: 'Film',
         kind: 'film',
-        podium: championship.films.map(({ entry, rating }) => ({
-          name: entry.movie.title, best: entry, entries: [entry], scoreLabel: formatScore(rating), count: 0
-        }))
+        champion: best
+          ? { name: best.entry.movie.title, best: best.entry, entries: [best.entry], scoreLabel: formatScore(best.rating), count: 0 }
+          : null
       }];
       const crew = new Map(championship.crew.map((category) => [category.key, category]));
-      const director = crew.get('director');
-      categories.push(people('director', 'Director', director.ranked));
+      categories.push(people('director', 'Director', crew.get('director').ranked));
 
       if (this.$store.state.isOnline === false) {
-        categories.push(people('performer', 'Performer', championship.performers, { note: 'offline — actors and actresses together' }));
+        categories.push(people('performer', 'Performer', championship.performers, { note: 'offline, actors and actresses together' }));
       } else {
         categories.push(people('actor', 'Actor', this.cast.actors, { loading: this.cast.loading }));
         categories.push(people('actress', 'Actress', this.cast.actresses, { loading: this.cast.loading }));
@@ -395,14 +395,8 @@ export default {
       championship.crew
         .filter((category) => category.key !== 'director')
         .forEach((category) => categories.push(people(category.key, category.label, category.ranked)));
-      championship.groups.forEach((category) => categories.push({
-        key: category.key,
-        label: category.label,
-        kind: 'group',
-        podium: category.ranked.slice(0, podium).map(person)
-      }));
 
-      return categories.filter((category) => category.podium.length || category.loading);
+      return categories.filter((category) => category.champion || category.loading);
     },
     crown () {
       return crownTimeline(this.library, getRating);
@@ -469,8 +463,9 @@ export default {
       }
       publish(false);
     },
-    async tapChampion (category, champion, index) {
-      if (category.kind === 'group') return;
+    async tapChampion (category) {
+      const champion = category.champion;
+      if (!champion) return;
       if (category.kind === 'film') {
         this.goToMovie(champion.best);
         return;
@@ -480,9 +475,7 @@ export default {
       const details = champion.details ?? await lookupPerson(champion.name);
       this.selectedChampion = {
         person: { name: champion.name, entries: champion.entries, count: champion.count, finalScore: champion.score, details },
-        roleLabel: `${category.label} of the ${this.championship.label}`,
-        rank: index + 1,
-        rankOf: category.podium.length
+        roleLabel: `${category.label} of the ${this.championship.label}`
       };
     },
     searchForChampion () {
@@ -707,26 +700,50 @@ export default {
 /* Press feedback is :active only — a tapped pill on iOS keeps :hover. */
 .ds-decade-pill:active { transform: scale(0.96); }
 
-.decade-count { margin-bottom: 0.25rem; }
-.decade-looking { color: #ccc; font-size: 0.78rem; margin: 0 0 0.4rem; }
+.decade-count { margin-bottom: 0.5rem; }
+.decade-looking { color: #ccc; }
 
-.champion-card { cursor: default; }
-.champion-card.tappable { cursor: pointer; }
-.champion-card.tappable:active { opacity: 0.7; }
+/* One row per category: label, the champion's best film of the decade as a
+   small poster, then name and numbers. Eight rows at most. */
+.champions { display: flex; flex-direction: column; }
 
-/* Names flow to any number of lines under a fixed-height poster; the row
-   keeps images edge-aligned (flex-start) and the card just gets taller. */
-.champion-name {
-  color: #ccc;
-  display: block;
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.25;
-  margin-top: 0.25rem;
+.champion {
+  align-items: center;
+  border-top: 1px solid #2e2e2e;
+  cursor: pointer;
+  display: flex;
+  gap: 0.6rem;
+  min-height: 44px;
+  padding: 0.4rem 0;
 }
 
-.champion-card.winner .champion-name { color: #fff; font-weight: 700; }
-.champion-trophy { color: #ffd700; font-size: 0.68rem; margin-right: 0.25rem; }
+.champion:first-child { border-top: none; }
+.champion:active { opacity: 0.7; }
+
+.champion-category {
+  /* #9a9a9a on #161616 is ~7:1. */
+  color: #9a9a9a;
+  flex: 0 0 6.2rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.champion-poster {
+  border-radius: 4px;
+  display: block;
+  flex: 0 0 34px;
+  height: 51px;
+  object-fit: cover;
+  width: 34px;
+}
+
+.champion-poster-blank { background: #2b2b2b; }
+
+.champion-info { display: flex; flex-direction: column; min-width: 0; row-gap: 2px; }
+.champion-name { color: #fff; font-size: 0.9rem; font-weight: 700; line-height: 1.2; }
+.champion-detail { color: #ccc; font-size: 0.72rem; }
+.champion-score { color: #ffc107; font-weight: 700; }
 
 .ds-sort { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
 

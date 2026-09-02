@@ -70,22 +70,27 @@ TODO rather than rewritten — that logic has a documented bug history and no co
 average as the Bayesian anchor throughout.
 
 **Decade Championship (2026-09-02)** buckets by RELEASE decade, not watch year — it's
-about the decade the work belongs to. Nobody qualifies on one film (`minFilms: 2`;
-genres/studios 3); Matt's worry about thin decades is answered by the Log Score's
-Bayesian pull, not by a higher floor. The engine returns FULL ranked lists and the
-screen trims to the podium of three, because the cast list has to be walked past the
-podium to fill Actor and Actress.
+about the decade the work belongs to. Nobody qualifies on one film (`minFilms: 2`);
+Matt's worry about thin decades is answered by the Log Score's Bayesian pull, not by a
+higher floor. The engine returns FULL ranked lists and the screen takes the winner,
+because the cast list has to be walked past the top to find an actor AND an actress.
+
+**One winner per category, eight categories, one row each.** It shipped as a podium of
+three per category as poster rows, with Producer, Genre and Studio too, and Matt cut all
+of that the same day: "it feels like there's too much content here. I don't think we
+need three winners per category... we could probably lose producer and studio. Let's
+lose genre." Don't grow it back.
 
 - **The stored cast carries no gender.** Actor/Actress split takes one TMDB
   `/search/person` lookup per name (`personLookup.js`, cached by name at module scope
   so flipping decades is free), walked in rank order until both podiums fill, capped at
   `CAST_LOOKUP_CAP`. Someone TMDB can't find is skipped, as the Favorite sections do; a
-  found person with no definite reading goes on both podiums (`genderEligibility.js`).
-  **Offline the two collapse into one "Performer" podium** rather than vanishing.
+  found person with no definite reading can win both (`genderEligibility.js`).
+  **Offline the two collapse into one "Performer" row** rather than vanishing.
 - Pass explicit weights to `personLogScore`: its destructuring default turns an
   `undefined` billingWeight into "no billing", which scored a decade's cast as crew.
   `decadeChampionship.js` normalises through `LOG_SCORE_DEFAULTS` for that reason.
-- A champion's card shows their best film of the decade, not a headshot — offline, and
+- A champion's row shows their best film of the decade, not a headshot — offline, and
   more evocative. Tapping opens the shared `PersonModal` with their DECADE credits only.
 
 ## Favorite sections

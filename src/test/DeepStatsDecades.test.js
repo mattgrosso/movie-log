@@ -70,7 +70,8 @@ function mountDeepStats ({ isOnline = true } = {}) {
 
 const section = (wrapper) => wrapper.find('.decade-championship')
 const category = (wrapper, key) => section(wrapper).find(`[data-category="${key}"]`)
-const podiumNames = (wrapper, key) => category(wrapper, key).findAll('.champion-name').map((n) => n.text())
+const championName = (wrapper, key) => category(wrapper, key).find('.champion-name').text()
+const categoryKeys = (wrapper) => section(wrapper).findAll('.champion').map((c) => c.attributes('data-category'))
 
 describe('DeepStats — Decade Championship', () => {
   beforeEach(() => {
@@ -90,25 +91,27 @@ describe('DeepStats — Decade Championship', () => {
     expect(section(wrapper).text()).toContain('5 films rated from the 1990s')
   })
 
-  it('crowns the decade’s film and director, winner first with a trophy', async () => {
+  it('crowns one winner per category, showing their best film of the decade', async () => {
     const { wrapper } = mountDeepStats()
     await flushPromises()
 
-    expect(podiumNames(wrapper, 'film')).toEqual(['Film 1', 'Film 2', 'Film 3'])
+    expect(championName(wrapper, 'film')).toBe('Film 1')
     // One Off has a single film and does not qualify.
-    expect(podiumNames(wrapper, 'director')).toEqual(['Nora Ephron'])
-    const winner = category(wrapper, 'director').find('.champion-card')
-    expect(winner.classes()).toContain('winner')
-    expect(winner.find('.bi-trophy-fill').exists()).toBe(true)
-    expect(winner.find('img').attributes('src')).toContain('/p1.jpg')
+    expect(championName(wrapper, 'director')).toBe('Nora Ephron')
+    expect(category(wrapper, 'director').findAll('.champion-name')).toHaveLength(1)
+    expect(category(wrapper, 'director').find('img').attributes('src')).toContain('/p1.jpg')
+    // Matt cut Producer, Studio and Genre the day it shipped (2026-09-02).
+    // Writer/Cinematographer/Composer/Editor have nobody with two films here.
+    expect(categoryKeys(wrapper)).toEqual(['film', 'director', 'actor', 'actress'])
+    expect(section(wrapper).text()).not.toContain('Romance')
   })
 
   it('splits the cast into Actor and Actress by TMDB gender, skipping anyone TMDB cannot find', async () => {
     const { wrapper } = mountDeepStats()
     await flushPromises()
 
-    expect(podiumNames(wrapper, 'actor')).toEqual(['Tom Hanks'])
-    expect(podiumNames(wrapper, 'actress')).toEqual(['Meg Ryan'])
+    expect(championName(wrapper, 'actor')).toBe('Tom Hanks')
+    expect(championName(wrapper, 'actress')).toBe('Meg Ryan')
     // Nobody Known has two films and would qualify, but a wrong crown is
     // worse than a missing one.
     expect(section(wrapper).text()).not.toContain('Nobody Known')
@@ -123,8 +126,8 @@ describe('DeepStats — Decade Championship', () => {
     await flushPromises()
 
     expect(section(wrapper).text()).toContain('3 films rated from the 2000s')
-    expect(podiumNames(wrapper, 'director')).toEqual(['Wes Anderson'])
-    expect(podiumNames(wrapper, 'film')).toEqual(['Film 6', 'Film 7', 'Film 8'])
+    expect(championName(wrapper, 'director')).toBe('Wes Anderson')
+    expect(championName(wrapper, 'film')).toBe('Film 6')
     // Tilda Swinton has one 2000s film: no actress podium at all this decade.
     expect(category(wrapper, 'actress').exists()).toBe(false)
     expect(category(wrapper, 'actor').exists()).toBe(false)
@@ -137,7 +140,7 @@ describe('DeepStats — Decade Championship', () => {
     expect(lookupPerson).not.toHaveBeenCalled()
     expect(category(wrapper, 'actor').exists()).toBe(false)
     expect(category(wrapper, 'actress').exists()).toBe(false)
-    expect(podiumNames(wrapper, 'performer')).toEqual(['Tom Hanks', 'Meg Ryan', 'Nobody Known'])
+    expect(championName(wrapper, 'performer')).toBe('Tom Hanks')
     expect(category(wrapper, 'performer').text()).toContain('offline')
   })
 
@@ -145,14 +148,13 @@ describe('DeepStats — Decade Championship', () => {
     const { wrapper } = mountDeepStats()
     await flushPromises()
 
-    await category(wrapper, 'director').find('.champion-card').trigger('click')
+    await category(wrapper, 'director').trigger('click')
     await flushPromises()
 
     const modal = wrapper.find('.person-modal')
     expect(modal.exists()).toBe(true)
     expect(modal.text()).toContain('Nora Ephron')
     expect(modal.text()).toContain('Director of the 1990s')
-    expect(modal.text()).toContain('#1 of 1')
     expect(modal.findAll('.person-poster-card')).toHaveLength(3)
   })
 
@@ -160,18 +162,7 @@ describe('DeepStats — Decade Championship', () => {
     const { wrapper, pushSpy } = mountDeepStats()
     await flushPromises()
 
-    await category(wrapper, 'film').find('.champion-card').trigger('click')
+    await category(wrapper, 'film').trigger('click')
     expect(pushSpy).toHaveBeenCalledWith('/movie/1')
-  })
-
-  it('a genre card is not a button', async () => {
-    const { wrapper, pushSpy } = mountDeepStats()
-    await flushPromises()
-
-    const genre = category(wrapper, 'genre').find('.champion-card')
-    expect(genre.attributes('role')).toBeUndefined()
-    await genre.trigger('click')
-    expect(pushSpy).not.toHaveBeenCalled()
-    expect(wrapper.find('.person-modal').exists()).toBe(false)
   })
 })

@@ -22,12 +22,17 @@
 // average is the Bayesian anchor throughout, the same as every other group
 // score in the app.
 //
+// One winner per category, and only the categories that feel like a
+// championship — Producer, Studio and Genre were built and cut the same day
+// ("it feels like there's too much content here. I don't think we need three
+// winners per category, and I think we could lose some of these categories").
+//
 // Cast is returned as one gender-agnostic ranked list ("performers"). The
 // stored cast carries no gender, so splitting it into Actor and Actress
 // takes a TMDB lookup per name — that's the screen's job, and it degrades
 // to a single Performers podium when the lookups can't happen.
 
-import { logScore, globalAverage, LOG_SCORE_DEFAULTS } from './logScore.js';
+import { globalAverage, LOG_SCORE_DEFAULTS } from './logScore.js';
 import { personLogScore } from './logScoreRankings.js';
 import { dedupeAppearancesByFilm } from './personCredits.js';
 
@@ -38,13 +43,7 @@ export const DECADE_CREW_CATEGORIES = [
   { key: 'writer', label: 'Writer', jobs: ['Screenplay', 'Writer', 'Story', 'Additional Writing', 'Novel'] },
   { key: 'cinematographer', label: 'Cinematographer', jobs: ['Director of Photography', 'Cinematographer'] },
   { key: 'composer', label: 'Composer', jobs: ['Original Music Composer', 'Orchestrator'] },
-  { key: 'editor', label: 'Editor', jobs: ['Editor'] },
-  { key: 'producer', label: 'Producer', jobs: ['Producer', 'Executive Producer', 'Co-Producer', 'Associate Producer'] }
-];
-
-export const DECADE_GROUP_CATEGORIES = [
-  { key: 'genre', label: 'Genre' },
-  { key: 'studio', label: 'Studio' }
+  { key: 'editor', label: 'Editor', jobs: ['Editor'] }
 ];
 
 // Beyond this billing position W/(W+billing) adds almost nothing to
@@ -52,9 +51,8 @@ export const DECADE_GROUP_CATEGORIES = [
 const BILLING_CAP = 20;
 
 export const DECADE_DEFAULTS = Object.freeze({
-  minFilms: 2, // people: one film is a data point, not a decade
-  minGroupFilms: 3, // genres and studios
-  podium: 3
+  minFilms: 2, // one film is a data point, not a decade
+  podium: 1 // one winner per category — Matt cut the top three (2026-09-02)
 });
 
 export function decadeLabel (decade) {
@@ -144,19 +142,6 @@ function rankPeople (byName, getRatingFn, globalAvg, weights, { minFilms, cast }
     .sort(rankOrder);
 }
 
-function rankGroups (byName, globalAvg, weights, minGroupFilms) {
-  return [...byName.entries()]
-    .filter(([, films]) => films.length >= minGroupFilms)
-    .map(([name, films]) => ({
-      name,
-      entries: [...films].sort((a, b) => b.rating - a.rating).map((f) => f.entry),
-      count: films.length,
-      score: logScore(films.map((f) => f.rating), globalAvg, weights),
-      best: bestOf(films)
-    }))
-    .filter((group) => group.score !== null)
-    .sort(rankOrder);
-}
 
 /**
  * One decade's championship.
@@ -165,23 +150,20 @@ function rankGroups (byName, globalAvg, weights, minGroupFilms) {
  *   decade, label, filmCount, globalAvg,
  *   films: [{ entry, rating }],            // the decade's best, best first
  *   crew: [{ key, label, ranked: [...] }],  // DECADE_CREW_CATEGORIES order
- *   performers: [...],                      // cast, gender-agnostic, ranked
- *   groups: [{ key, label, ranked: [...] }] // DECADE_GROUP_CATEGORIES order
+ *   performers: [...]                       // cast, gender-agnostic, ranked
  * }}
  * Every `ranked` entry is `{ name, entries, count, score, best }` (cast adds
  * `billings`), sorted best first and NOT trimmed to the podium: the screen
- * trims, and the cast list has to be walked past the podium to find three
- * of each gender.
+ * trims, and the cast list has to be walked past the podium to find an
+ * actor and an actress.
  */
 export function decadeChampionship (entries, getRatingFn, weights, decade, options = {}) {
-  const { minFilms, minGroupFilms, podium } = { ...DECADE_DEFAULTS, ...options };
+  const { minFilms, podium } = { ...DECADE_DEFAULTS, ...options };
   const globalAvg = globalAverage(entries, getRatingFn);
   const films = ratedFilms(entries, getRatingFn).filter((film) => film.decade === decade);
 
   const crewByCategory = new Map(DECADE_CREW_CATEGORIES.map((category) => [category.key, new Map()]));
   const castByName = new Map();
-  const genreByName = new Map();
-  const studioByName = new Map();
   const push = (map, name, value) => {
     if (!name) return;
     const list = map.get(name) || [];
@@ -200,8 +182,6 @@ export function decadeChampionship (entries, getRatingFn, weights, decade, optio
     (movie.cast || []).slice(0, BILLING_CAP).forEach((person, billing) => {
       push(castByName, person?.name, { entry, rating, billing });
     });
-    (movie.genres || []).forEach((genre) => push(genreByName, genre?.name, { entry, rating }));
-    (movie.production_companies || []).forEach((company) => push(studioByName, company?.name, { entry, rating }));
   });
 
   return {
@@ -215,10 +195,6 @@ export function decadeChampionship (entries, getRatingFn, weights, decade, optio
       label: category.label,
       ranked: rankPeople(crewByCategory.get(category.key), getRatingFn, globalAvg, weights, { minFilms, cast: false })
     })),
-    performers: rankPeople(castByName, getRatingFn, globalAvg, weights, { minFilms, cast: true }),
-    groups: [
-      { key: 'genre', label: 'Genre', ranked: rankGroups(genreByName, globalAvg, weights, minGroupFilms) },
-      { key: 'studio', label: 'Studio', ranked: rankGroups(studioByName, globalAvg, weights, minGroupFilms) }
-    ]
+    performers: rankPeople(castByName, getRatingFn, globalAvg, weights, { minFilms, cast: true })
   };
 }
