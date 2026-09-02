@@ -3,6 +3,10 @@ paths:
   - "src/components/MovieDetail.vue"
   - "src/components/Insights.vue"
   - "src/components/Favorite*.vue"
+  - "src/components/DeepStats.vue"
+  - "src/assets/javascript/deepStats.js"
+  - "src/assets/javascript/decadeChampionship.js"
+  - "src/utils/personLookup.js"
   - "src/components/StickinessInline.vue"
   - "src/mixins/favoriteTuning.js"
   - "src/services/**"
@@ -58,6 +62,31 @@ is defensible but shouldn't be changed unilaterally.
 
 Note two computed-side-effect lint errors here are suppressed with an inline disable +
 TODO rather than rewritten — that logic has a documented bug history and no coverage.
+
+## Deep Stats
+
+`/stats` renders only; every section is a pure function in `deepStats.js` or
+`decadeChampionship.js`, tested directly. Log Score for every group, whole-library
+average as the Bayesian anchor throughout.
+
+**Decade Championship (2026-09-02)** buckets by RELEASE decade, not watch year — it's
+about the decade the work belongs to. Nobody qualifies on one film (`minFilms: 2`;
+genres/studios 3); Matt's worry about thin decades is answered by the Log Score's
+Bayesian pull, not by a higher floor. The engine returns FULL ranked lists and the
+screen trims to the podium of three, because the cast list has to be walked past the
+podium to fill Actor and Actress.
+
+- **The stored cast carries no gender.** Actor/Actress split takes one TMDB
+  `/search/person` lookup per name (`personLookup.js`, cached by name at module scope
+  so flipping decades is free), walked in rank order until both podiums fill, capped at
+  `CAST_LOOKUP_CAP`. Someone TMDB can't find is skipped, as the Favorite sections do; a
+  found person with no definite reading goes on both podiums (`genderEligibility.js`).
+  **Offline the two collapse into one "Performer" podium** rather than vanishing.
+- Pass explicit weights to `personLogScore`: its destructuring default turns an
+  `undefined` billingWeight into "no billing", which scored a decade's cast as crew.
+  `decadeChampionship.js` normalises through `LOG_SCORE_DEFAULTS` for that reason.
+- A champion's card shows their best film of the decade, not a headshot — offline, and
+  more evocative. Tapping opens the shared `PersonModal` with their DECADE credits only.
 
 ## Favorite sections
 

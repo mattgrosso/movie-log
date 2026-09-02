@@ -172,6 +172,78 @@
       </div>
     </section>
 
+    <!-- Decade Championship -->
+    <section v-if="championship" class="ds-section decade-championship">
+      <h2 class="ds-section-title">Decade Championship</h2>
+      <p class="ds-section-caption">
+        Who dominated each decade of your library, by release year. Log Score throughout, so depth
+        counts alongside quality and a decade you've barely explored can't crown anyone on one lucky
+        film — nobody qualifies on fewer than two.
+      </p>
+      <!-- The same strip the year screens use: every decade visible, not
+           hidden behind a select. Newest first, like the year strips. -->
+      <div class="ds-decade-scroller">
+        <button
+          v-for="candidate in decades"
+          :key="candidate.decade"
+          type="button"
+          class="btn btn-sm ds-decade-pill"
+          :class="candidate.decade === activeDecade ? 'btn-primary selected' : 'btn-outline-secondary'"
+          @click="selectedDecade = candidate.decade"
+        >{{ candidate.label }}</button>
+      </div>
+      <p class="ds-section-caption decade-count">
+        {{ championship.filmCount }} film{{ championship.filmCount === 1 ? '' : 's' }} rated from the {{ championship.label }}.
+      </p>
+
+      <div
+        v-for="category in championshipCategories"
+        :key="`${championship.decade}-${category.key}`"
+        class="pantheon-category decade-category"
+        :data-category="category.key"
+      >
+        <h3 class="pantheon-label">
+          {{ category.label }}
+          <span v-if="category.note" class="pantheon-count">{{ category.note }}</span>
+        </h3>
+        <p v-if="category.loading && !category.podium.length" class="decade-looking">Looking them up…</p>
+        <div v-else class="ds-poster-row">
+          <div
+            v-for="(champion, index) in category.podium"
+            :key="`${category.key}-${champion.name}`"
+            class="ds-poster-card champion-card"
+            :class="{ winner: index === 0, tappable: category.kind !== 'group' }"
+            :role="category.kind === 'group' ? null : 'button'"
+            :aria-label="champion.name"
+            @click="tapChampion(category, champion, index)"
+          >
+            <img v-if="champion.best && champion.best.movie.poster_path" :src="poster(champion.best)" :alt="champion.best.movie.title" class="ds-poster">
+            <div v-else class="ds-poster ds-poster-blank">{{ champion.name }}</div>
+            <span class="champion-name">
+              <i v-if="index === 0" class="bi bi-trophy-fill champion-trophy" aria-hidden="true"></i>{{ champion.name }}
+            </span>
+            <span class="ds-poster-note gold">{{ champion.scoreLabel }}</span>
+            <span v-if="champion.count" class="ds-poster-note">{{ champion.count }} film{{ champion.count === 1 ? '' : 's' }}</span>
+          </div>
+        </div>
+      </div>
+      <p v-if="!championshipCategories.length" class="ds-section-caption">
+        Not enough from the {{ championship.label }} yet to crown anyone.
+      </p>
+
+      <PersonModal
+        v-if="selectedChampion"
+        :person="selectedChampion.person"
+        :role-label="selectedChampion.roleLabel"
+        :rank="selectedChampion.rank"
+        :rank-of="selectedChampion.rankOf"
+        :library-average="championship.globalAvg"
+        @close="selectedChampion = null"
+        @search="searchForChampion"
+        @select-film="selectChampionFilm"
+      />
+    </section>
+
     <!-- Standouts -->
     <section v-if="standoutList.length" class="ds-section">
       <h2 class="ds-section-title">Standouts</h2>
@@ -236,17 +308,37 @@
 // log-scored Years and Genres). All computation is pure in deepStats.js /
 // logScore.js; this screen only renders. Fully offline.
 import BackLink from './games/BackLink.vue';
+import PersonModal from './PersonModal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
 import { crownTimeline, pantheon, rewatchStats, marathonStats, yearStats, genreStats, standouts } from '../assets/javascript/deepStats.js';
 import { logScoreSettings } from '../assets/javascript/logScore.js';
+import { decadesAvailable, defaultDecade, decadeChampionship, DECADE_DEFAULTS } from '../assets/javascript/decadeChampionship.js';
+import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
+import { formatScore } from '../assets/javascript/formatScore.js';
+import { lookupPerson } from '../utils/personLookup.js';
+
+// Decade Championship's Actor/Actress split walks the decade's ranked cast
+// with one TMDB lookup per name until both podiums are full. A thin decade
+// may never fill one of them; this stops the walk from turning into a
+// lookup per credited actor in the decade.
+const CAST_LOOKUP_CAP = 40;
 
 export default {
   name: 'DeepStats',
-  components: { BackLink },
+  components: { BackLink, PersonModal },
   data () {
     return {
       // Years section ordering — see the Years block.
-      yearSort: 'chronological'
+      yearSort: 'chronological',
+      // Decade Championship. `selectedDecade` is the tapped pill; null means
+      // "the best-evidenced decade" (see activeDecade).
+      selectedDecade: null,
+      // The Actor/Actress podiums for the active decade, resolved
+      // asynchronously (the stored cast carries no gender).
+      cast: { loading: false, actors: [], actresses: [] },
+      castSeq: 0,
+      // A tapped champion: { person, roleLabel, rank, rankOf } for PersonModal.
+      selectedChampion: null
     };
   },
   computed: {
@@ -255,6 +347,62 @@ export default {
     },
     weights () {
       return logScoreSettings(this.$store.state.settings);
+    },
+    decades () {
+      return decadesAvailable(this.library, getRating);
+    },
+    // Falls back to the decade with the most rated films — both before any
+    // tap and if the library changes under a selection.
+    activeDecade () {
+      if (this.decades.some((candidate) => candidate.decade === this.selectedDecade)) return this.selectedDecade;
+      return defaultDecade(this.decades);
+    },
+    championship () {
+      if (this.activeDecade === null) return null;
+      return decadeChampionship(this.library, getRating, this.weights, this.activeDecade);
+    },
+    // The section's categories in display order, each trimmed to its podium.
+    // Actor and Actress need the async gender split; offline they collapse
+    // into one Performers podium rather than disappearing.
+    championshipCategories () {
+      const championship = this.championship;
+      if (!championship) return [];
+      const podium = DECADE_DEFAULTS.podium;
+      const person = (champion) => ({ ...champion, scoreLabel: formatScore(champion.score) });
+      const people = (key, label, ranked, extra = {}) => ({
+        key, label, kind: 'person', podium: ranked.slice(0, podium).map(person), ...extra
+      });
+
+      const categories = [{
+        key: 'film',
+        label: 'Film',
+        kind: 'film',
+        podium: championship.films.map(({ entry, rating }) => ({
+          name: entry.movie.title, best: entry, entries: [entry], scoreLabel: formatScore(rating), count: 0
+        }))
+      }];
+      const crew = new Map(championship.crew.map((category) => [category.key, category]));
+      const director = crew.get('director');
+      categories.push(people('director', 'Director', director.ranked));
+
+      if (this.$store.state.isOnline === false) {
+        categories.push(people('performer', 'Performer', championship.performers, { note: 'offline — actors and actresses together' }));
+      } else {
+        categories.push(people('actor', 'Actor', this.cast.actors, { loading: this.cast.loading }));
+        categories.push(people('actress', 'Actress', this.cast.actresses, { loading: this.cast.loading }));
+      }
+
+      championship.crew
+        .filter((category) => category.key !== 'director')
+        .forEach((category) => categories.push(people(category.key, category.label, category.ranked)));
+      championship.groups.forEach((category) => categories.push({
+        key: category.key,
+        label: category.label,
+        kind: 'group',
+        podium: category.ranked.slice(0, podium).map(person)
+      }));
+
+      return categories.filter((category) => category.podium.length || category.loading);
     },
     crown () {
       return crownTimeline(this.library, getRating);
@@ -281,7 +429,71 @@ export default {
       return genreStats(this.library, getRating, this.weights);
     }
   },
+  watch: {
+    // A new championship object means the decade or the library changed;
+    // either way the cast podiums are rebuilt. The person lookups are cached
+    // by name at module scope, so flipping back to a decade is free.
+    championship: { immediate: true, handler () { this.resolveCast(); } }
+  },
   methods: {
+    async resolveCast () {
+      const seq = ++this.castSeq;
+      const championship = this.championship;
+      this.cast = { loading: false, actors: [], actresses: [] };
+      if (!championship || this.$store.state.isOnline === false) return;
+
+      const podium = DECADE_DEFAULTS.podium;
+      const actors = [];
+      const actresses = [];
+      const publish = (loading) => {
+        this.cast = { loading, actors: [...actors], actresses: [...actresses] };
+      };
+      publish(true);
+
+      let lookups = 0;
+      for (const performer of championship.performers) {
+        if (actors.length >= podium && actresses.length >= podium) break;
+        if (lookups >= CAST_LOOKUP_CAP) break;
+        lookups += 1;
+        const details = await lookupPerson(performer.name);
+        if (seq !== this.castSeq) return; // superseded by a newer decade
+        // Someone TMDB can't identify is skipped, as the Favorite sections
+        // do — a wrong crown is worse than a missing one. A FOUND person
+        // with no definite reading (not specified, non-binary) goes on both
+        // podiums, per genderEligibility.js.
+        if (!details) continue;
+        const champion = { ...performer, details };
+        if (actors.length < podium && isEligibleForActingCategory(details.gender, { isActress: false })) actors.push(champion);
+        if (actresses.length < podium && isEligibleForActingCategory(details.gender, { isActress: true })) actresses.push(champion);
+        publish(true);
+      }
+      publish(false);
+    },
+    async tapChampion (category, champion, index) {
+      if (category.kind === 'group') return;
+      if (category.kind === 'film') {
+        this.goToMovie(champion.best);
+        return;
+      }
+      // Crew champions were never looked up (nothing needed their gender), so
+      // the modal's portrait and biography take one lookup on open.
+      const details = champion.details ?? await lookupPerson(champion.name);
+      this.selectedChampion = {
+        person: { name: champion.name, entries: champion.entries, count: champion.count, finalScore: champion.score, details },
+        roleLabel: `${category.label} of the ${this.championship.label}`,
+        rank: index + 1,
+        rankOf: category.podium.length
+      };
+    },
+    searchForChampion () {
+      const name = this.selectedChampion?.person?.name;
+      this.selectedChampion = null;
+      if (name) this.$router.push({ name: 'Home', query: { search: encodeURIComponent(name) } });
+    },
+    selectChampionFilm (film) {
+      this.selectedChampion = null;
+      this.goToMovie(film);
+    },
     poster (entry) {
       return `https://image.tmdb.org/t/p/w185${entry.movie.poster_path}`;
     },
@@ -474,6 +686,47 @@ export default {
    the label and the note under it disagree about where the card starts. */
 .ds-poster-note { color: #ccc; display: block; font-size: 0.7rem; line-height: 1.25; margin-top: 0.25rem; }
 .ds-poster-note.gold { color: #ffc107; }
+
+/* Decade Championship. The pill strip is YearInReview's, so the two screens
+   read as the same control. */
+.ds-decade-scroller {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ds-decade-pill { flex-shrink: 0; min-height: 40px; white-space: nowrap; }
+
+/* Bootstrap paints btn-outline-secondary's label #6c757d — ~2.6:1 on this
+   surface, the same failure as .text-muted. */
+.ds-decade-pill.btn-outline-secondary { border-color: #4a4a4a; color: #ccc; }
+
+/* Press feedback is :active only — a tapped pill on iOS keeps :hover. */
+.ds-decade-pill:active { transform: scale(0.96); }
+
+.decade-count { margin-bottom: 0.25rem; }
+.decade-looking { color: #ccc; font-size: 0.78rem; margin: 0 0 0.4rem; }
+
+.champion-card { cursor: default; }
+.champion-card.tappable { cursor: pointer; }
+.champion-card.tappable:active { opacity: 0.7; }
+
+/* Names flow to any number of lines under a fixed-height poster; the row
+   keeps images edge-aligned (flex-start) and the card just gets taller. */
+.champion-name {
+  color: #ccc;
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 0.25rem;
+}
+
+.champion-card.winner .champion-name { color: #fff; font-weight: 700; }
+.champion-trophy { color: #ffd700; font-size: 0.68rem; margin-right: 0.25rem; }
 
 .ds-sort { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
 
