@@ -72,27 +72,32 @@ average as the Bayesian anchor throughout.
 **Decade Championship (2026-09-02)** buckets by RELEASE decade, not watch year — it's
 about the decade the work belongs to. Nobody qualifies on one film (`minFilms: 2`);
 Matt's worry about thin decades is answered by the Log Score's Bayesian pull, not by a
-higher floor. The engine returns FULL ranked lists and the screen trims to the podium,
-because the cast list has to be walked past it to fill Actor AND Actress.
+higher floor. The engine returns FULL ranked lists (films to `depth`) and the screen
+takes what it needs, because the cast list has to be walked past the top to fill Actor
+AND Actress.
 
-**Eight categories, one compact row each: label above, podium of three as posters,
-winner a size up.** Three rounds on 2026-09-02 landed here, and both directions have
-been rejected: full poster cards with three per category plus Producer/Genre/Studio was
-"too much content"; one winner per row as a thumbnail made the posters "too small of a
-portion of the layout" and he missed the top three. Posters bottom-align inside a box
-the winner's height so the three names start on one line.
+**One sideways row of winners, a portrait per person and a poster for the film; tap a
+winner to unfold the field beneath.** Four layouts on 2026-09-02, and three are
+rejected: full poster cards with three per category plus Producer/Genre/Studio ("too
+much content"); one winner per row as a thumbnail ("too small of a portion of the
+layout", and he missed the top three); a podium of three posters per row. Then: "people
+portraits instead of movie posters for people... just a horizontally scrolling list...
+one poster or photograph per winner", with the runners-up on tap. A person NEVER gets a
+movie poster — portrait, or the not-available image (`Image_not_available.png`, the
+PersonModal fallback).
 
 - **The stored cast carries no gender.** Actor/Actress split takes one TMDB
   `/search/person` lookup per name (`personLookup.js`, cached by name at module scope
-  so flipping decades is free), walked in rank order until both podiums fill, capped at
-  `CAST_LOOKUP_CAP`. Someone TMDB can't find is skipped, as the Favorite sections do; a
+  so flipping decades is free), walked in rank order and RESUMABLE (`continueCastWalk`):
+  one of each for the row, `depth` of each when Actor/Actress is unfolded, capped at
+  `CAST_LOOKUP_CAP` per decade. Crew winners get a portrait via `ensurePortrait`. Someone TMDB can't find is skipped, as the Favorite sections do; a
   found person with no definite reading can win both (`genderEligibility.js`).
   **Offline the two collapse into one "Performer" row** rather than vanishing.
 - Pass explicit weights to `personLogScore`: its destructuring default turns an
   `undefined` billingWeight into "no billing", which scored a decade's cast as crew.
   `decadeChampionship.js` normalises through `LOG_SCORE_DEFAULTS` for that reason.
-- A champion's row shows their best film of the decade, not a headshot — offline, and
-  more evocative. Tapping opens the shared `PersonModal` with their DECADE credits only.
+- Tapping a person in the unfolded field opens the shared `PersonModal` with their
+  DECADE credits only; a film goes to the movie.
 
 ## Favorite sections
 

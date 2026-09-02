@@ -132,14 +132,14 @@ describe('decadeChampionship', () => {
     expect(performers[0].score - performers[1].score).toBeLessThan(0.5)
   })
 
-  it('returns the full ranked list untrimmed — the screen takes the podium', () => {
+  it('returns full ranked people lists, and films to the unfold depth', () => {
     const entries = [
       ...Array.from({ length: 5 }, (_, i) => entry(20 + i, { rating: 7 + i * 0.2, crew: [['Director', `D${i}`], ['Director', 'Prolific']] })),
       ...Array.from({ length: 5 }, (_, i) => entry(30 + i, { rating: 8, crew: [['Director', 'Also Prolific']] }))
     ]
     const result = decadeChampionship(entries, ratingOf, undefined, 1990)
-    // Films are trimmed to the podium; people lists are not.
-    expect(result.films).toHaveLength(3)
+    // Films are trimmed to `depth` (8 of 10 here); people lists are not.
+    expect(result.films).toHaveLength(8)
     expect(names(result.crew.find((c) => c.key === 'director').ranked)).toEqual(['Also Prolific', 'Prolific'])
   })
 

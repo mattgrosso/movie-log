@@ -22,12 +22,11 @@
 // average is the Bayesian anchor throughout, the same as every other group
 // score in the app.
 //
-// A podium of three per category, and only the categories that feel like a
-// championship — Producer, Studio and Genre were built and cut the same day
-// ("it feels like there's too much content here... we could probably lose
-// producer and studio. Let's lose genre"). The podium was cut to one in the
-// same round and then asked back an hour later ("now that I'm missing them, I
-// actually do like that you gave me the top three").
+// Only the categories that feel like a championship — Producer, Studio and
+// Genre were built and cut the same day ("it feels like there's too much
+// content here... we could probably lose producer and studio. Let's lose
+// genre"). The screen shows one winner per category and unfolds the
+// runners-up on tap, so `depth` is how far down the line that unfold goes.
 //
 // Cast is returned as one gender-agnostic ranked list ("performers"). The
 // stored cast carries no gender, so splitting it into Actor and Actress
@@ -54,7 +53,7 @@ const BILLING_CAP = 20;
 
 export const DECADE_DEFAULTS = Object.freeze({
   minFilms: 2, // one film is a data point, not a decade
-  podium: 3
+  depth: 8 // how many of a category's ranked list the screen can unfold
 });
 
 export function decadeLabel (decade) {
@@ -150,17 +149,17 @@ function rankPeople (byName, getRatingFn, globalAvg, weights, { minFilms, cast }
  *
  * @returns {{
  *   decade, label, filmCount, globalAvg,
- *   films: [{ entry, rating }],            // the decade's best, best first
+ *   films: [{ entry, rating }],            // the decade's best, best first, `depth` of them
  *   crew: [{ key, label, ranked: [...] }],  // DECADE_CREW_CATEGORIES order
  *   performers: [...]                       // cast, gender-agnostic, ranked
  * }}
  * Every `ranked` entry is `{ name, entries, count, score, best }` (cast adds
- * `billings`), sorted best first and NOT trimmed to the podium: the screen
- * trims, and the cast list has to be walked past the podium to fill Actor
- * and Actress.
+ * `billings`), sorted best first and NOT trimmed: the screen takes what it
+ * needs, and the cast list has to be walked past the top to fill Actor and
+ * Actress.
  */
 export function decadeChampionship (entries, getRatingFn, weights, decade, options = {}) {
-  const { minFilms, podium } = { ...DECADE_DEFAULTS, ...options };
+  const { minFilms, depth } = { ...DECADE_DEFAULTS, ...options };
   const globalAvg = globalAverage(entries, getRatingFn);
   const films = ratedFilms(entries, getRatingFn).filter((film) => film.decade === decade);
 
@@ -191,7 +190,7 @@ export function decadeChampionship (entries, getRatingFn, weights, decade, optio
     label: decadeLabel(decade),
     filmCount: films.length,
     globalAvg,
-    films: [...films].sort((a, b) => b.rating - a.rating).slice(0, podium).map(({ entry, rating }) => ({ entry, rating })),
+    films: [...films].sort((a, b) => b.rating - a.rating).slice(0, depth).map(({ entry, rating }) => ({ entry, rating })),
     crew: DECADE_CREW_CATEGORIES.map((category) => ({
       key: category.key,
       label: category.label,

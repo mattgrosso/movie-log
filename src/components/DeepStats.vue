@@ -196,52 +196,73 @@
         {{ championship.filmCount }} film{{ championship.filmCount === 1 ? '' : 's' }} rated from the {{ championship.label }}.
       </p>
 
-      <!-- A compact row per category: the label, then the podium of three as
-           posters, winner a size up. Poster rows of three with a full card
-           each were "too much content"; one winner per row made the posters
-           "too small of a portion of the layout" and Matt missed the top
-           three. This is the middle (2026-09-02). -->
-      <div class="champions">
+      <!-- One winner per category in a sideways row, like every other row on
+           this page: a portrait for a person, a poster for the film. Tap a
+           winner to unfold the runners-up beneath the row. Fourth layout of
+           the day (2026-09-02): "just a horizontally scrolling list... with
+           one poster or photograph per winner", and "I can click on any of
+           the results and see... further down the line, other competitors." -->
+      <div class="ds-poster-row champions" :class="{ 'has-open': openCategoryKey }">
         <div
           v-for="category in championshipCategories"
           :key="`${championship.decade}-${category.key}`"
-          class="champion-row"
+          class="ds-poster-card champion"
+          :class="{ open: category.key === openCategoryKey }"
           :data-category="category.key"
+          role="button"
+          :aria-expanded="category.key === openCategoryKey ? 'true' : 'false'"
+          :aria-label="category.winner ? `${category.label}: ${category.winner.name}` : category.label"
+          @click="toggleCategory(category)"
         >
-          <span class="champion-category">
-            {{ category.label }}<template v-if="category.note"> · {{ category.note }}</template>
-          </span>
-          <p v-if="category.loading && !category.podium.length" class="champion-detail decade-looking">Looking them up…</p>
-          <div v-else class="champion-podium">
-            <div
-              v-for="(champion, index) in category.podium"
-              :key="`${category.key}-${champion.name}`"
-              class="champion"
-              :class="{ winner: index === 0 }"
-              role="button"
-              :aria-label="`${category.label} #${index + 1}: ${champion.name}`"
-              @click="tapChampion(category, champion, index)"
-            >
-              <!-- Bottom-aligned inside a box the winner's height, so the
-                   three names start on the same line whatever the poster size. -->
-              <div class="champion-poster-box">
-                <img
-                  v-if="champion.best && champion.best.movie.poster_path"
-                  :src="poster(champion.best)"
-                  :alt="champion.best.movie.title"
-                  class="champion-poster"
-                  loading="lazy"
-                >
-                <div v-else class="champion-poster champion-poster-blank"></div>
-              </div>
-              <span class="champion-name">{{ champion.name }}</span>
-              <span class="champion-detail">
-                <span class="champion-score">{{ champion.scoreLabel }}</span>
-                <template v-if="champion.count"> · {{ champion.count }}</template>
-              </span>
-            </div>
-          </div>
+          <img
+            v-if="imageFor(category, category.winner)"
+            :src="imageFor(category, category.winner)"
+            :alt="category.winner.name"
+            class="ds-poster"
+            loading="lazy"
+          >
+          <img
+            v-else-if="category.winner && category.kind === 'person'"
+            src="../assets/images/Image_not_available.png"
+            :alt="category.winner.name"
+            class="ds-poster"
+          >
+          <div v-else class="ds-poster ds-poster-blank">{{ category.winner ? category.winner.name : '…' }}</div>
+          <span class="champion-category">{{ category.label }}</span>
+          <span v-if="category.winner" class="champion-name">{{ category.winner.name }}</span>
+          <span v-else class="champion-name decade-looking">Looking…</span>
+          <span v-if="category.winner" class="ds-poster-note gold">{{ category.winner.scoreLabel }}</span>
         </div>
+      </div>
+
+      <!-- The runners-up for the open category: the field, in order. -->
+      <div v-if="openCategory" class="competitors" :data-competitors="openCategory.key">
+        <p class="champion-category competitors-title">
+          {{ openCategory.label }} of the {{ championship.label }}
+          <template v-if="openCategory.note"> · {{ openCategory.note }}</template>
+        </p>
+        <ol class="competitor-list">
+          <li
+            v-for="(competitor, index) in openCategory.field"
+            :key="`${openCategory.key}-${competitor.name}`"
+            class="competitor"
+            role="button"
+            :aria-label="`#${index + 1} ${competitor.name}`"
+            @click="tapCompetitor(openCategory, competitor, index)"
+          >
+            <span class="competitor-rank">{{ index + 1 }}</span>
+            <img v-if="imageFor(openCategory, competitor)" :src="imageFor(openCategory, competitor)" :alt="competitor.name" class="competitor-image" loading="lazy">
+            <img v-else-if="openCategory.kind === 'person'" src="../assets/images/Image_not_available.png" :alt="competitor.name" class="competitor-image">
+            <div v-else class="competitor-image competitor-image-blank"></div>
+            <span class="competitor-name">{{ competitor.name }}</span>
+            <span class="competitor-detail">
+              <span class="champion-score">{{ competitor.scoreLabel }}</span>
+              <template v-if="competitor.count"> · {{ competitor.count }} film{{ competitor.count === 1 ? '' : 's' }}</template>
+            </span>
+          </li>
+        </ol>
+        <p v-if="openCategory.loading" class="champion-detail decade-looking">Looking further down the line…</p>
+        <p v-else-if="openCategory.field.length < 2" class="champion-detail">Nobody else qualifies with two films from the {{ championship.label }}.</p>
       </div>
       <p v-if="!championshipCategories.length" class="ds-section-caption">
         Not enough from the {{ championship.label }} yet to crown anyone.
@@ -334,9 +355,9 @@ import { formatScore } from '../assets/javascript/formatScore.js';
 import { lookupPerson } from '../utils/personLookup.js';
 
 // Decade Championship's Actor/Actress split walks the decade's ranked cast
-// with one TMDB lookup per name until both podiums are full. A thin decade
-// may never fill one of them; this stops the walk from turning into a
-// lookup per credited actor in the decade.
+// with one TMDB lookup per name until both lists are as deep as asked. A
+// thin decade may never fill one of them; this stops the walk from turning
+// into a lookup per credited actor in the decade.
 const CAST_LOOKUP_CAP = 40;
 
 export default {
@@ -349,10 +370,18 @@ export default {
       // Decade Championship. `selectedDecade` is the tapped pill; null means
       // "the best-evidenced decade" (see activeDecade).
       selectedDecade: null,
-      // The Actor/Actress podiums for the active decade, resolved
-      // asynchronously (the stored cast carries no gender).
-      cast: { loading: false, actors: [], actresses: [] },
+      // The Actor/Actress lists for the active decade, resolved by walking
+      // the ranked cast with one TMDB lookup per name (the stored cast
+      // carries no gender). Resumable: the row needs one of each, and the
+      // unfolded runners-up need `depth` of each, so the walk goes only as
+      // far as has been asked for. See continueCastWalk.
+      castWalk: { target: 0, index: 0, lookups: 0, loading: false, done: false, actors: [], actresses: [] },
       castSeq: 0,
+      // Which category's runners-up are unfolded beneath the row.
+      openCategoryKey: null,
+      // name -> TMDB profile_path (null once looked up and missing), for the
+      // portraits of crew winners, who are never looked up for gender.
+      portraits: {},
       // A tapped champion: { person, roleLabel, rank, rankOf } for PersonModal.
       selectedChampion: null
     };
@@ -377,41 +406,42 @@ export default {
       if (this.activeDecade === null) return null;
       return decadeChampionship(this.library, getRating, this.weights, this.activeDecade);
     },
-    // The section's categories in display order, each trimmed to its podium
-    // of three. Actor and Actress need the async gender split; offline they
-    // collapse into one Performer row rather than disappearing.
+    // The section's categories in display order. Each carries its full
+    // ranked list, its `winner` (null while still being looked up) and its
+    // `field` — the runners-up the row unfolds on tap. Actor and Actress
+    // come from the cast walk; offline they collapse into one Performer.
     championshipCategories () {
       const championship = this.championship;
       if (!championship) return [];
-      const podium = DECADE_DEFAULTS.podium;
+      const depth = DECADE_DEFAULTS.depth;
       const person = (champion) => ({ ...champion, scoreLabel: formatScore(champion.score) });
-      const people = (key, label, ranked, extra = {}) => ({
-        key, label, kind: 'person', podium: ranked.slice(0, podium).map(person), ...extra
+      const category = (key, label, kind, ranked, extra = {}) => ({
+        key, label, kind, ranked, winner: ranked[0] || null, field: ranked.slice(0, depth), ...extra
       });
+      const people = (key, label, ranked, extra) => category(key, label, 'person', ranked.map(person), extra);
 
-      const categories = [{
-        key: 'film',
-        label: 'Film',
-        kind: 'film',
-        podium: championship.films.map(({ entry, rating }) => ({
-          name: entry.movie.title, best: entry, entries: [entry], scoreLabel: formatScore(rating), count: 0
-        }))
-      }];
-      const crew = new Map(championship.crew.map((category) => [category.key, category]));
+      const categories = [category('film', 'Film', 'film', championship.films.map(({ entry, rating }) => ({
+        name: entry.movie.title, best: entry, entries: [entry], score: rating, scoreLabel: formatScore(rating), count: 0
+      })))];
+      const crew = new Map(championship.crew.map((c) => [c.key, c]));
       categories.push(people('director', 'Director', crew.get('director').ranked));
 
       if (this.$store.state.isOnline === false) {
         categories.push(people('performer', 'Performer', championship.performers, { note: 'offline, actors and actresses together' }));
       } else {
-        categories.push(people('actor', 'Actor', this.cast.actors, { loading: this.cast.loading }));
-        categories.push(people('actress', 'Actress', this.cast.actresses, { loading: this.cast.loading }));
+        const loading = this.castWalk.loading;
+        categories.push(people('actor', 'Actor', this.castWalk.actors, { loading }));
+        categories.push(people('actress', 'Actress', this.castWalk.actresses, { loading }));
       }
 
       championship.crew
-        .filter((category) => category.key !== 'director')
-        .forEach((category) => categories.push(people(category.key, category.label, category.ranked)));
+        .filter((c) => c.key !== 'director')
+        .forEach((c) => categories.push(people(c.key, c.label, c.ranked)));
 
-      return categories.filter((category) => category.podium.length || category.loading);
+      return categories.filter((c) => c.winner || c.loading);
+    },
+    openCategory () {
+      return this.championshipCategories.find((c) => c.key === this.openCategoryKey) || null;
     },
     crown () {
       return crownTimeline(this.library, getRating);
@@ -439,58 +469,106 @@ export default {
     }
   },
   watch: {
-    // A new championship object means the decade or the library changed;
-    // either way the cast podiums are rebuilt. The person lookups are cached
-    // by name at module scope, so flipping back to a decade is free.
-    championship: { immediate: true, handler () { this.resolveCast(); } }
+    // A new championship object means the decade or the library changed:
+    // fold the runners-up away and restart the cast walk. Person lookups are
+    // cached by name at module scope, so flipping back to a decade is free.
+    championship: {
+      immediate: true,
+      handler () {
+        this.openCategoryKey = null;
+        this.startCastWalk();
+      }
+    },
+    // Portraits for whoever is on screen: the winners, plus the unfolded
+    // field. Cast members already carry `details` from the walk; this is for
+    // crew, who were never looked up.
+    championshipCategories: {
+      immediate: true,
+      handler (categories) {
+        categories.forEach((c) => {
+          if (c.kind !== 'person') return;
+          const shown = c.key === this.openCategoryKey ? c.field : c.field.slice(0, 1);
+          shown.forEach((p) => this.ensurePortrait(p));
+        });
+      }
+    }
   },
   methods: {
-    async resolveCast () {
-      const seq = ++this.castSeq;
+    startCastWalk () {
+      this.castSeq += 1;
+      this.castWalk = { target: 0, index: 0, lookups: 0, loading: false, done: false, actors: [], actresses: [] };
+      this.continueCastWalk(1);
+    },
+    // Walk the decade's ranked cast until Actor and Actress each hold
+    // `target` people, or the list / lookup cap runs out. Someone TMDB can't
+    // identify is skipped, as the Favorite sections do — a wrong crown is
+    // worse than a missing one. A FOUND person with no definite reading
+    // (not specified, non-binary) goes on both lists, per genderEligibility.
+    async continueCastWalk (target) {
       const championship = this.championship;
-      this.cast = { loading: false, actors: [], actresses: [] };
       if (!championship || this.$store.state.isOnline === false) return;
+      const walk = this.castWalk;
+      const seq = this.castSeq;
+      walk.target = Math.max(walk.target, target);
+      if (walk.loading || walk.done) return;
 
-      const podium = DECADE_DEFAULTS.podium;
-      const actors = [];
-      const actresses = [];
-      const publish = (loading) => {
-        this.cast = { loading, actors: [...actors], actresses: [...actresses] };
-      };
-      publish(true);
-
-      let lookups = 0;
-      for (const performer of championship.performers) {
-        if (actors.length >= podium && actresses.length >= podium) break;
-        if (lookups >= CAST_LOOKUP_CAP) break;
-        lookups += 1;
+      walk.loading = true;
+      const performers = championship.performers;
+      const wants = () => walk.actors.length < walk.target || walk.actresses.length < walk.target;
+      while (walk.index < performers.length && walk.lookups < CAST_LOOKUP_CAP && wants()) {
+        const performer = performers[walk.index];
+        walk.index += 1;
+        walk.lookups += 1;
         const details = await lookupPerson(performer.name);
         if (seq !== this.castSeq) return; // superseded by a newer decade
-        // Someone TMDB can't identify is skipped, as the Favorite sections
-        // do — a wrong crown is worse than a missing one. A FOUND person
-        // with no definite reading (not specified, non-binary) goes on both
-        // podiums, per genderEligibility.js.
         if (!details) continue;
         const champion = { ...performer, details };
-        if (actors.length < podium && isEligibleForActingCategory(details.gender, { isActress: false })) actors.push(champion);
-        if (actresses.length < podium && isEligibleForActingCategory(details.gender, { isActress: true })) actresses.push(champion);
-        publish(true);
+        if (isEligibleForActingCategory(details.gender, { isActress: false })) walk.actors.push(champion);
+        if (isEligibleForActingCategory(details.gender, { isActress: true })) walk.actresses.push(champion);
       }
-      publish(false);
+      walk.done = walk.index >= performers.length || walk.lookups >= CAST_LOOKUP_CAP;
+      walk.loading = false;
     },
-    async tapChampion (category, champion, index) {
+    ensurePortrait (person) {
+      const name = person?.name;
+      if (!name || person.details || Object.prototype.hasOwnProperty.call(this.portraits, name)) return;
+      if (this.$store.state.isOnline === false) return;
+      this.portraits[name] = null;
+      this.loadPortrait(name);
+    },
+    async loadPortrait (name) {
+      const details = await lookupPerson(name); // never throws: misses resolve to null
+      this.portraits[name] = details?.profile_path || null;
+    },
+    // A poster for a film, a portrait for a person; '' when there's nothing
+    // to show yet (the template falls back to the not-available image).
+    imageFor (category, item) {
+      if (!item) return '';
       if (category.kind === 'film') {
-        this.goToMovie(champion.best);
+        return item.best?.movie?.poster_path ? this.poster(item.best) : '';
+      }
+      const path = item.details?.profile_path || this.portraits[item.name];
+      return path ? `https://image.tmdb.org/t/p/w185${path}` : '';
+    },
+    toggleCategory (category) {
+      if (this.openCategoryKey === category.key) {
+        this.openCategoryKey = null;
         return;
       }
-      // Crew champions were never looked up (nothing needed their gender), so
-      // the modal's portrait and biography take one lookup on open.
-      const details = champion.details ?? await lookupPerson(champion.name);
+      this.openCategoryKey = category.key;
+      if (category.key === 'actor' || category.key === 'actress') this.continueCastWalk(DECADE_DEFAULTS.depth);
+    },
+    async tapCompetitor (category, competitor, index) {
+      if (category.kind === 'film') {
+        this.goToMovie(competitor.best);
+        return;
+      }
+      const details = competitor.details ?? await lookupPerson(competitor.name);
       this.selectedChampion = {
-        person: { name: champion.name, entries: champion.entries, count: champion.count, finalScore: champion.score, details },
+        person: { name: competitor.name, entries: competitor.entries, count: competitor.count, finalScore: competitor.score, details },
         roleLabel: `${category.label} of the ${this.championship.label}`,
         rank: index + 1,
-        rankOf: category.podium.length
+        rankOf: category.field.length
       };
     },
     searchForChampion () {
@@ -718,74 +796,62 @@ export default {
 .decade-count { margin-bottom: 0.5rem; }
 .decade-looking { color: #ccc; }
 
-/* A row per category: label above, the podium of three as posters below.
-   The winner is a size up; every poster is bottom-aligned inside a box the
-   winner's height, so the names under all three start on the same line. */
-.champions { display: flex; flex-direction: column; }
+/* Winners row: the page's standard sideways poster row, one card per
+   category. Selection is shown by dimming siblings + a subtle scale, never
+   a coloured outline. */
+.champions { padding-bottom: 0.6rem; }
 
-.champion-row {
-  border-top: 1px solid #2e2e2e;
-  padding: 0.55rem 0 0.45rem;
-}
-
-.champion-row:first-child { border-top: none; padding-top: 0; }
+.champion { transition: opacity 0.15s ease, transform 0.15s ease; }
+.champion:active { opacity: 0.7; }
+.champions.has-open .champion:not(.open) { opacity: 0.45; }
+.champion.open { transform: scale(1.03); }
 
 .champion-category {
   /* #9a9a9a on #161616 is ~7:1. */
   color: #9a9a9a;
   display: block;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   letter-spacing: 0.06em;
-  margin-bottom: 0.35rem;
+  margin-top: 0.3rem;
   text-transform: uppercase;
 }
 
-.champion-podium {
-  align-items: flex-start;
-  display: flex;
-  gap: 0.6rem;
-}
-
-.champion {
-  cursor: pointer;
-  display: flex;
-  flex: 0 0 58px;
-  flex-direction: column;
-  width: 58px;
-}
-
-.champion.winner { flex-basis: 74px; width: 74px; }
-.champion:active { opacity: 0.7; }
-
-.champion-poster-box {
-  align-items: flex-end;
-  display: flex;
-  height: 111px;
-}
-
-.champion-poster {
-  border-radius: 5px;
-  display: block;
-  height: 87px;
-  object-fit: cover;
-  width: 58px;
-}
-
-.champion.winner .champion-poster { height: 111px; width: 74px; }
-.champion-poster-blank { background: #2b2b2b; }
-
 /* Names flow to any number of lines; the card just gets taller. */
-.champion-name {
-  color: #ccc;
-  font-size: 0.7rem;
-  font-weight: 600;
-  line-height: 1.2;
-  margin-top: 0.3rem;
+.champion-name { color: #fff; display: block; font-size: 0.74rem; font-weight: 700; line-height: 1.2; }
+.champion-detail { color: #ccc; font-size: 0.72rem; margin: 0.3rem 0 0; }
+.champion-score { color: #ffc107; font-weight: 700; }
+
+/* The unfolded field for one category. */
+.competitors {
+  background: #101010;
+  border: 1px solid #2e2e2e;
+  border-radius: 10px;
+  margin-top: 0.4rem;
+  padding: 0.6rem 0.75rem;
 }
 
-.champion.winner .champion-name { color: #fff; font-size: 0.78rem; font-weight: 700; }
-.champion-detail { color: #ccc; font-size: 0.68rem; margin-top: 2px; }
-.champion-score { color: #ffc107; font-weight: 700; }
+.competitors-title { margin: 0 0 0.4rem; }
+.competitor-list { list-style: none; margin: 0; padding: 0; }
+
+.competitor {
+  align-items: center;
+  border-top: 1px solid #222;
+  cursor: pointer;
+  display: grid;
+  column-gap: 0.6rem;
+  grid-template-columns: 1.4rem 34px 1fr;
+  grid-template-rows: auto auto;
+  min-height: 44px;
+  padding: 0.35rem 0;
+}
+
+.competitor:first-child { border-top: none; }
+.competitor:active { opacity: 0.7; }
+.competitor-rank { color: #ffc107; font-size: 0.8rem; font-weight: 700; grid-row: 1 / 3; }
+.competitor-image { border-radius: 4px; display: block; grid-row: 1 / 3; height: 51px; object-fit: cover; width: 34px; }
+.competitor-image-blank { background: #2b2b2b; }
+.competitor-name { color: #eee; font-size: 0.85rem; font-weight: 600; line-height: 1.2; }
+.competitor-detail { color: #ccc; font-size: 0.72rem; }
 
 .ds-sort { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
 
