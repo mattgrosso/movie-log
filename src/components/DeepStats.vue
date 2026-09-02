@@ -196,39 +196,51 @@
         {{ championship.filmCount }} film{{ championship.filmCount === 1 ? '' : 's' }} rated from the {{ championship.label }}.
       </p>
 
-      <!-- One winner per category, one row each. The first cut showed a
-           podium of three per category as poster rows, and Matt found it too
-           much: "I don't think we need three winners per category." -->
+      <!-- A compact row per category: the label, then the podium of three as
+           posters, winner a size up. Poster rows of three with a full card
+           each were "too much content"; one winner per row made the posters
+           "too small of a portion of the layout" and Matt missed the top
+           three. This is the middle (2026-09-02). -->
       <div class="champions">
         <div
           v-for="category in championshipCategories"
           :key="`${championship.decade}-${category.key}`"
-          class="champion"
+          class="champion-row"
           :data-category="category.key"
-          role="button"
-          :aria-label="category.champion ? `${category.label}: ${category.champion.name}` : category.label"
-          @click="tapChampion(category)"
         >
-          <span class="champion-category">{{ category.label }}</span>
-          <template v-if="category.champion">
-            <img
-              v-if="category.champion.best && category.champion.best.movie.poster_path"
-              :src="poster(category.champion.best)"
-              :alt="category.champion.best.movie.title"
-              class="champion-poster"
-              loading="lazy"
+          <span class="champion-category">
+            {{ category.label }}<template v-if="category.note"> · {{ category.note }}</template>
+          </span>
+          <p v-if="category.loading && !category.podium.length" class="champion-detail decade-looking">Looking them up…</p>
+          <div v-else class="champion-podium">
+            <div
+              v-for="(champion, index) in category.podium"
+              :key="`${category.key}-${champion.name}`"
+              class="champion"
+              :class="{ winner: index === 0 }"
+              role="button"
+              :aria-label="`${category.label} #${index + 1}: ${champion.name}`"
+              @click="tapChampion(category, champion, index)"
             >
-            <div v-else class="champion-poster champion-poster-blank"></div>
-            <div class="champion-info">
-              <span class="champion-name">{{ category.champion.name }}</span>
+              <!-- Bottom-aligned inside a box the winner's height, so the
+                   three names start on the same line whatever the poster size. -->
+              <div class="champion-poster-box">
+                <img
+                  v-if="champion.best && champion.best.movie.poster_path"
+                  :src="poster(champion.best)"
+                  :alt="champion.best.movie.title"
+                  class="champion-poster"
+                  loading="lazy"
+                >
+                <div v-else class="champion-poster champion-poster-blank"></div>
+              </div>
+              <span class="champion-name">{{ champion.name }}</span>
               <span class="champion-detail">
-                <span class="champion-score">{{ category.champion.scoreLabel }}</span>
-                <template v-if="category.champion.count"> · {{ category.champion.count }} films</template>
-                <template v-if="category.note"> · {{ category.note }}</template>
+                <span class="champion-score">{{ champion.scoreLabel }}</span>
+                <template v-if="champion.count"> · {{ champion.count }}</template>
               </span>
             </div>
-          </template>
-          <span v-else class="champion-detail decade-looking">Looking them up…</span>
+          </div>
         </div>
       </div>
       <p v-if="!championshipCategories.length" class="ds-section-caption">
@@ -239,6 +251,8 @@
         v-if="selectedChampion"
         :person="selectedChampion.person"
         :role-label="selectedChampion.roleLabel"
+        :rank="selectedChampion.rank"
+        :rank-of="selectedChampion.rankOf"
         :library-average="championship.globalAvg"
         @close="selectedChampion = null"
         @search="searchForChampion"
@@ -363,24 +377,25 @@ export default {
       if (this.activeDecade === null) return null;
       return decadeChampionship(this.library, getRating, this.weights, this.activeDecade);
     },
-    // The section's categories in display order, each with its one winner
-    // (`champion`, null while a category is still being looked up). Actor
-    // and Actress need the async gender split; offline they collapse into
-    // one Performer row rather than disappearing.
+    // The section's categories in display order, each trimmed to its podium
+    // of three. Actor and Actress need the async gender split; offline they
+    // collapse into one Performer row rather than disappearing.
     championshipCategories () {
       const championship = this.championship;
       if (!championship) return [];
-      const person = (champion) => (champion ? { ...champion, scoreLabel: formatScore(champion.score) } : null);
-      const people = (key, label, ranked, extra = {}) => ({ key, label, kind: 'person', champion: person(ranked[0]), ...extra });
+      const podium = DECADE_DEFAULTS.podium;
+      const person = (champion) => ({ ...champion, scoreLabel: formatScore(champion.score) });
+      const people = (key, label, ranked, extra = {}) => ({
+        key, label, kind: 'person', podium: ranked.slice(0, podium).map(person), ...extra
+      });
 
-      const best = championship.films[0];
       const categories = [{
         key: 'film',
         label: 'Film',
         kind: 'film',
-        champion: best
-          ? { name: best.entry.movie.title, best: best.entry, entries: [best.entry], scoreLabel: formatScore(best.rating), count: 0 }
-          : null
+        podium: championship.films.map(({ entry, rating }) => ({
+          name: entry.movie.title, best: entry, entries: [entry], scoreLabel: formatScore(rating), count: 0
+        }))
       }];
       const crew = new Map(championship.crew.map((category) => [category.key, category]));
       categories.push(people('director', 'Director', crew.get('director').ranked));
@@ -396,7 +411,7 @@ export default {
         .filter((category) => category.key !== 'director')
         .forEach((category) => categories.push(people(category.key, category.label, category.ranked)));
 
-      return categories.filter((category) => category.champion || category.loading);
+      return categories.filter((category) => category.podium.length || category.loading);
     },
     crown () {
       return crownTimeline(this.library, getRating);
@@ -463,9 +478,7 @@ export default {
       }
       publish(false);
     },
-    async tapChampion (category) {
-      const champion = category.champion;
-      if (!champion) return;
+    async tapChampion (category, champion, index) {
       if (category.kind === 'film') {
         this.goToMovie(champion.best);
         return;
@@ -475,7 +488,9 @@ export default {
       const details = champion.details ?? await lookupPerson(champion.name);
       this.selectedChampion = {
         person: { name: champion.name, entries: champion.entries, count: champion.count, finalScore: champion.score, details },
-        roleLabel: `${category.label} of the ${this.championship.label}`
+        roleLabel: `${category.label} of the ${this.championship.label}`,
+        rank: index + 1,
+        rankOf: category.podium.length
       };
     },
     searchForChampion () {
@@ -703,46 +718,73 @@ export default {
 .decade-count { margin-bottom: 0.5rem; }
 .decade-looking { color: #ccc; }
 
-/* One row per category: label, the champion's best film of the decade as a
-   small poster, then name and numbers. Eight rows at most. */
+/* A row per category: label above, the podium of three as posters below.
+   The winner is a size up; every poster is bottom-aligned inside a box the
+   winner's height, so the names under all three start on the same line. */
 .champions { display: flex; flex-direction: column; }
 
-.champion {
-  align-items: center;
+.champion-row {
   border-top: 1px solid #2e2e2e;
-  cursor: pointer;
-  display: flex;
-  gap: 0.6rem;
-  min-height: 44px;
-  padding: 0.4rem 0;
+  padding: 0.55rem 0 0.45rem;
 }
 
-.champion:first-child { border-top: none; }
-.champion:active { opacity: 0.7; }
+.champion-row:first-child { border-top: none; padding-top: 0; }
 
 .champion-category {
   /* #9a9a9a on #161616 is ~7:1. */
   color: #9a9a9a;
-  flex: 0 0 6.2rem;
+  display: block;
   font-size: 0.62rem;
   letter-spacing: 0.06em;
+  margin-bottom: 0.35rem;
   text-transform: uppercase;
 }
 
-.champion-poster {
-  border-radius: 4px;
-  display: block;
-  flex: 0 0 34px;
-  height: 51px;
-  object-fit: cover;
-  width: 34px;
+.champion-podium {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.6rem;
 }
 
+.champion {
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 58px;
+  flex-direction: column;
+  width: 58px;
+}
+
+.champion.winner { flex-basis: 74px; width: 74px; }
+.champion:active { opacity: 0.7; }
+
+.champion-poster-box {
+  align-items: flex-end;
+  display: flex;
+  height: 111px;
+}
+
+.champion-poster {
+  border-radius: 5px;
+  display: block;
+  height: 87px;
+  object-fit: cover;
+  width: 58px;
+}
+
+.champion.winner .champion-poster { height: 111px; width: 74px; }
 .champion-poster-blank { background: #2b2b2b; }
 
-.champion-info { display: flex; flex-direction: column; min-width: 0; row-gap: 2px; }
-.champion-name { color: #fff; font-size: 0.9rem; font-weight: 700; line-height: 1.2; }
-.champion-detail { color: #ccc; font-size: 0.72rem; }
+/* Names flow to any number of lines; the card just gets taller. */
+.champion-name {
+  color: #ccc;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-top: 0.3rem;
+}
+
+.champion.winner .champion-name { color: #fff; font-size: 0.78rem; font-weight: 700; }
+.champion-detail { color: #ccc; font-size: 0.68rem; margin-top: 2px; }
 .champion-score { color: #ffc107; font-weight: 700; }
 
 .ds-sort { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }

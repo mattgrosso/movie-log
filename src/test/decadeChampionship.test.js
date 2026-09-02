@@ -70,7 +70,7 @@ describe('decadeChampionship', () => {
     const result = decadeChampionship(entries, ratingOf, undefined, 1990)
     expect(result.label).toBe('1990s')
     expect(result.filmCount).toBe(2)
-    expect(result.films.map((f) => f.entry.movie.id)).toEqual([1])
+    expect(result.films.map((f) => f.entry.movie.id)).toEqual([1, 2])
     expect(names(result.crew.find((c) => c.key === 'director').ranked)).toEqual(['Nineties'])
   })
 
@@ -132,14 +132,14 @@ describe('decadeChampionship', () => {
     expect(performers[0].score - performers[1].score).toBeLessThan(0.5)
   })
 
-  it('returns the full ranked list untrimmed — the screen takes the winner', () => {
+  it('returns the full ranked list untrimmed — the screen takes the podium', () => {
     const entries = [
       ...Array.from({ length: 5 }, (_, i) => entry(20 + i, { rating: 7 + i * 0.2, crew: [['Director', `D${i}`], ['Director', 'Prolific']] })),
       ...Array.from({ length: 5 }, (_, i) => entry(30 + i, { rating: 8, crew: [['Director', 'Also Prolific']] }))
     ]
     const result = decadeChampionship(entries, ratingOf, undefined, 1990)
-    // Podium is one film, but people lists are not trimmed.
-    expect(result.films).toHaveLength(1)
+    // Films are trimmed to the podium; people lists are not.
+    expect(result.films).toHaveLength(3)
     expect(names(result.crew.find((c) => c.key === 'director').ranked)).toEqual(['Also Prolific', 'Prolific'])
   })
 

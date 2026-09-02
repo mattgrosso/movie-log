@@ -72,14 +72,15 @@ average as the Bayesian anchor throughout.
 **Decade Championship (2026-09-02)** buckets by RELEASE decade, not watch year — it's
 about the decade the work belongs to. Nobody qualifies on one film (`minFilms: 2`);
 Matt's worry about thin decades is answered by the Log Score's Bayesian pull, not by a
-higher floor. The engine returns FULL ranked lists and the screen takes the winner,
-because the cast list has to be walked past the top to find an actor AND an actress.
+higher floor. The engine returns FULL ranked lists and the screen trims to the podium,
+because the cast list has to be walked past it to fill Actor AND Actress.
 
-**One winner per category, eight categories, one row each.** It shipped as a podium of
-three per category as poster rows, with Producer, Genre and Studio too, and Matt cut all
-of that the same day: "it feels like there's too much content here. I don't think we
-need three winners per category... we could probably lose producer and studio. Let's
-lose genre." Don't grow it back.
+**Eight categories, one compact row each: label above, podium of three as posters,
+winner a size up.** Three rounds on 2026-09-02 landed here, and both directions have
+been rejected: full poster cards with three per category plus Producer/Genre/Studio was
+"too much content"; one winner per row as a thumbnail made the posters "too small of a
+portion of the layout" and he missed the top three. Posters bottom-align inside a box
+the winner's height so the three names start on one line.
 
 - **The stored cast carries no gender.** Actor/Actress split takes one TMDB
   `/search/person` lookup per name (`personLookup.js`, cached by name at module scope

@@ -22,10 +22,12 @@
 // average is the Bayesian anchor throughout, the same as every other group
 // score in the app.
 //
-// One winner per category, and only the categories that feel like a
+// A podium of three per category, and only the categories that feel like a
 // championship — Producer, Studio and Genre were built and cut the same day
-// ("it feels like there's too much content here. I don't think we need three
-// winners per category, and I think we could lose some of these categories").
+// ("it feels like there's too much content here... we could probably lose
+// producer and studio. Let's lose genre"). The podium was cut to one in the
+// same round and then asked back an hour later ("now that I'm missing them, I
+// actually do like that you gave me the top three").
 //
 // Cast is returned as one gender-agnostic ranked list ("performers"). The
 // stored cast carries no gender, so splitting it into Actor and Actress
@@ -52,7 +54,7 @@ const BILLING_CAP = 20;
 
 export const DECADE_DEFAULTS = Object.freeze({
   minFilms: 2, // one film is a data point, not a decade
-  podium: 1 // one winner per category — Matt cut the top three (2026-09-02)
+  podium: 3
 });
 
 export function decadeLabel (decade) {
@@ -154,8 +156,8 @@ function rankPeople (byName, getRatingFn, globalAvg, weights, { minFilms, cast }
  * }}
  * Every `ranked` entry is `{ name, entries, count, score, best }` (cast adds
  * `billings`), sorted best first and NOT trimmed to the podium: the screen
- * trims, and the cast list has to be walked past the podium to find an
- * actor and an actress.
+ * trims, and the cast list has to be walked past the podium to fill Actor
+ * and Actress.
  */
 export function decadeChampionship (entries, getRatingFn, weights, decade, options = {}) {
   const { minFilms, podium } = { ...DECADE_DEFAULTS, ...options };
