@@ -277,7 +277,7 @@ const runSweep = async () => {
 
       let delivered = 0;
       if (decision.send) {
-        const message = composeMessage(due, push.digest, decision.news);
+        const message = composeMessage(due, push.digest, decision.news, now);
         if (message) {
           const appBadge = due.stickinessCount + (due.tiebreak ? 1 : 0) + due.awardYears.length;
           const payload = buildPayload({ ...message, navigate: '/', tag: 'chores', appBadge });

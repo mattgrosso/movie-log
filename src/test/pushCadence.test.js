@@ -6,6 +6,7 @@ import {
   spacingMs,
   shouldSend,
   composeMessage,
+  stickinessLead,
   EMPTY_BASELINE
 } from '../../aws-lambda/pushCadence.js';
 
@@ -18,9 +19,9 @@ import {
 const HOUR = 60 * 60 * 1000;
 const NOW = new Date('2026-08-28T18:00:00Z').getTime();
 
-const digestWith = ({ count = 0, dueTimes = [], nextTitle = null, tiebreak = null, years = [] } = {}) => ({
+const digestWith = ({ count = 0, dueTimes = [], nextTitle = null, nextRatedAt = null, upcoming = [], tiebreak = null, years = [] } = {}) => ({
   updatedAt: NOW - 6 * HOUR,
-  stickiness: { count, dueTimes, nextTitle },
+  stickiness: { count, dueTimes, nextTitle, nextRatedAt, upcoming },
   tiebreak: tiebreak || { due: false, count: 0 },
   awards: { years }
 });
@@ -212,6 +213,59 @@ describe('shouldSend — the cases that should fire', () => {
       due, prefs, localHour: 19, baseline: { stickinessCount: 4 }, lastSentAt: NOW - 30 * HOUR
     }));
     expect(sameBacklog.send).toBe(true);
+  });
+});
+
+describe('stickinessLead', () => {
+  // Bug report (Natalie, 2026-09-01): "it said that Picture 06 needed a
+  // stickiness, even though it was actually Coraline that needed stickiness."
+  // Picture 06 was the digest's nextTitle; Coraline crossed its boundary
+  // after the digest was published and, being the more recently rated, led
+  // the prompt when she arrived.
+  const DAY = 24 * HOUR;
+  const coraline = { at: NOW - HOUR, title: 'Coraline', ratedAt: NOW - HOUR - 7 * DAY };
+
+  it('names the film that just matured over the older one already waiting', () => {
+    const digest = digestWith({
+      count: 1, nextTitle: 'Picture 06', nextRatedAt: NOW - 30 * DAY,
+      dueTimes: [coraline.at], upcoming: [coraline]
+    });
+    expect(stickinessLead(digest, NOW)).toBe('Coraline');
+    const due = { stickinessCount: 2, tiebreak: null, awardYears: [] };
+    const message = composeMessage(due, digest, { any: true, newStickiness: true, newAwardYears: [] }, NOW);
+    expect(message.title).toBe('Coraline is ready for its stickiness rating (+1 more)');
+  });
+
+  it('keeps the already-waiting film in front when it was rated more recently', () => {
+    // A six-month boundary belongs to a film rated half a year ago; a film
+    // that came due on its week boundary is newer, and the prompt keeps it.
+    const sixMonth = { at: NOW - HOUR, title: 'Old One', ratedAt: NOW - 183 * DAY };
+    const digest = digestWith({
+      count: 1, nextTitle: 'Last Week', nextRatedAt: NOW - 8 * DAY,
+      dueTimes: [sixMonth.at], upcoming: [sixMonth]
+    });
+    expect(stickinessLead(digest, NOW)).toBe('Last Week');
+  });
+
+  it('ignores boundaries still in the future', () => {
+    const later = { at: NOW + HOUR, title: 'Not Yet', ratedAt: NOW - 6 * DAY };
+    const digest = digestWith({ count: 1, nextTitle: 'Sinners', nextRatedAt: NOW - 9 * DAY, dueTimes: [later.at], upcoming: [later] });
+    expect(stickinessLead(digest, NOW)).toBe('Sinners');
+  });
+
+  it('names nothing rather than the wrong film when matured films have no names', () => {
+    // A digest published before `upcoming` existed: something matured, and
+    // we cannot say what. The old behaviour here was exactly the bug.
+    const digest = digestWith({ count: 1, nextTitle: 'Picture 06', dueTimes: [NOW - HOUR] });
+    expect(stickinessLead(digest, NOW)).toBeNull();
+    const due = { stickinessCount: 2, tiebreak: null, awardYears: [] };
+    const message = composeMessage(due, digest, { any: true, newStickiness: true, newAwardYears: [] }, NOW);
+    expect(message.title).toBe('2 films are ready for a stickiness check');
+  });
+
+  it('still names the lone waiting film when nothing has matured', () => {
+    const digest = digestWith({ count: 1, nextTitle: 'Sinners' });
+    expect(stickinessLead(digest, NOW)).toBe('Sinners');
   });
 });
 

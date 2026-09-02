@@ -58,6 +58,23 @@ describe('stickinessDigest', () => {
     expect(dueAtSend).toBe(1);
   });
 
+  it('names the film behind every upcoming boundary, with when it was rated', () => {
+    // Bug (Natalie, 2026-09-01): the push named "Picture 06" when the app
+    // asked about Coraline. Coraline matured after the digest was published;
+    // the server counted it through dueTimes but could only name nextTitle.
+    const ratedAt = NOW - 3 * ONE_DAY;
+    const entries = [
+      entry(1, 'Picture 06', { ratedAt: NOW - 30 * ONE_DAY }),
+      entry(2, 'Coraline', { ratedAt })
+    ];
+    const digest = stickinessDigest(entries, {}, NOW);
+    expect(digest.nextTitle).toBe('Picture 06');
+    expect(digest.nextRatedAt).toBe(NOW - 30 * ONE_DAY);
+    expect(digest.upcoming).toEqual([{ at: ratedAt + ONE_WEEK, title: 'Coraline', ratedAt }]);
+    // dueTimes is still the plain list the deployed Lambda counts with.
+    expect(digest.dueTimes).toEqual([ratedAt + ONE_WEEK]);
+  });
+
   it('leads with the most recently rated due film, same as the prompt', () => {
     const entries = [
       entry(1, 'Older', { ratedAt: NOW - 30 * ONE_DAY }),
@@ -189,7 +206,7 @@ describe('buildPushDigest', () => {
     const digest = buildPushDigest({ entries: [], settings: {}, getRating, now: NOW });
     expect(digest).toEqual({
       updatedAt: NOW,
-      stickiness: { count: 0, nextTitle: null, dueTimes: [], eligibleAt: 0 },
+      stickiness: { count: 0, nextTitle: null, nextRatedAt: null, dueTimes: [], upcoming: [], eligibleAt: 0 },
       // No lastTweak on a fresh account, so Home.vue's `|| now` fallback
       // makes the first tiebreak wait one full interval.
       tiebreak: { due: false, count: 0, eligibleAt: NOW + ONE_DAY, pinned: false },

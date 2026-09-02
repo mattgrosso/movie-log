@@ -207,18 +207,51 @@ function shouldSend ({ due, prefs = {}, baseline, now, localHour, lastSentAt = 0
 }
 
 /**
- * The notification text. Leads with what's NEW when this send was triggered
- * by news, since that's the part they haven't heard — and for a single newly
- * matured film the digest's `nextTitle` IS that film (it sorts by rating date
- * descending, and the newest arrival is the one that just crossed its
- * boundary).
+ * The film the stickiness prompt will actually lead with when they arrive.
+ *
+ * NOT simply `nextTitle`. Bug report (Natalie, 2026-09-01): "all my pushing
+ * notification, it said that Picture 06 needed a stickiness, even though it
+ * was actually Coraline that needed stickiness." `nextTitle` is the head of
+ * the prompt's list at the moment the app PUBLISHED the digest. A film that
+ * crosses its boundary afterwards is counted here through `dueTimes`, and
+ * because the prompt sorts most-recently-rated first, a film that has just
+ * matured usually leads it - so the push named the film that had been
+ * waiting, and the app opened on the one that had just arrived.
+ *
+ * The digest now carries `upcoming` (each boundary with its film's title and
+ * rating date). The lead is whichever due film was rated most recently, the
+ * prompt's own order. If films have matured that we cannot name (a digest
+ * published before `upcoming` existed), say nothing rather than the wrong
+ * name.
  */
-function composeMessage (due, digest, news) {
+function stickinessLead (digest, now) {
+  const section = digest?.stickiness || {};
+  const maturedCount = (section.dueTimes || []).filter((time) => time <= now).length;
+  const matured = (section.upcoming || [])
+    .filter((item) => item && Number(item.at) <= now && item.title);
+  if (maturedCount > matured.length) return null;
+
+  const candidates = matured.slice();
+  if (section.nextTitle) {
+    candidates.push({ title: section.nextTitle, ratedAt: Number(section.nextRatedAt) || 0 });
+  }
+  if (!candidates.length) return null;
+  return candidates.reduce((best, item) => (
+    (Number(item.ratedAt) || 0) > (Number(best.ratedAt) || 0) ? item : best
+  )).title;
+}
+
+/**
+ * The notification text. Leads with what's NEW when this send was triggered
+ * by news, since that's the part they haven't heard. The film named is the
+ * one the prompt will put in front of them - see stickinessLead.
+ */
+function composeMessage (due, digest, news, now = Date.now()) {
   const leadWithNew = Boolean(news?.any);
   const parts = [];
 
   if (due.stickinessCount > 0) {
-    const title = digest?.stickiness?.nextTitle;
+    const title = stickinessLead(digest, now);
     const justOne = leadWithNew
       ? news.newStickiness && due.stickinessCount - 1 <= 0
       : due.stickinessCount === 1;
@@ -276,5 +309,6 @@ module.exports = {
   nextBaseline,
   spacingMs,
   shouldSend,
-  composeMessage
+  composeMessage,
+  stickinessLead
 };

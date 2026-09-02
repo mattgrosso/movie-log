@@ -66,8 +66,22 @@
       <h2 class="section-title">Someone's filmography</h2>
       <p class="section-caption">A director or an actor — everything they've made.</p>
 
-      <form class="prompt-form" @submit.prevent="searchPerson">
+      <!-- The typeahead is the search bar's (Home.vue), narrowed to people:
+           the directors and cast already in your library, ranked the same
+           way and described the same way ("director · 4 films"). Bug report
+           (Matt, 2026-09-01): "It would be nice if the filmography search
+           could auto complete for me sort of like we do in the other search
+           fields." A tap fills the name AND runs the lookup - there is no
+           chip to build here, the name is the whole query. Anyone not in the
+           library is still one Find away, exactly as before.
+
+           Below the field rather than above it: this box sits mid-page with
+           nothing re-filtering underneath, so the panel can take the natural
+           reading direction. mousedown.prevent keeps a tap from blurring the
+           input (and closing the panel) before the click lands. -->
+      <form class="prompt-form person-form" @submit.prevent="searchPerson">
         <input
+          ref="personInput"
           v-model="personQuery"
           class="prompt-input"
           type="text"
@@ -76,12 +90,29 @@
           :disabled="personLoading"
           placeholder="Greta Gerwig"
           aria-label="A director or actor's name"
+          @focus="personFocused = true"
+          @blur="personFocused = false"
+          @input="personTypeaheadDismissed = false"
+          @keydown.esc="personTypeaheadDismissed = true"
         >
         <button
           class="prompt-button"
           type="submit"
           :disabled="personLoading || !personQuery.trim()"
         >{{ personLoading ? 'Looking…' : 'Find' }}</button>
+        <div v-if="personTypeaheadOpen" class="typeahead-panel person-typeahead">
+          <button
+            v-for="suggestion in personSuggestions"
+            :key="`${suggestion.kind}-${suggestion.value}`"
+            type="button"
+            class="typeahead-row"
+            @mousedown.prevent
+            @click="pickPersonSuggestion(suggestion)"
+          >
+            <span class="typeahead-term">{{ suggestion.value }}</span>
+            <span class="typeahead-meta">{{ describeSuggestion(suggestion) }}</span>
+          </button>
+        </div>
       </form>
 
       <p v-if="personError" class="section-caption prompt-error">{{ personError }}</p>
@@ -253,6 +284,8 @@ import { awardsYearThreshold } from '../assets/javascript/personalAwards.js';
 import { formatScore } from '../assets/javascript/formatScore.js';
 import { tasteSummary, pickTmdbMatch, buildPromptedList } from '../assets/javascript/promptedWatchlist.js';
 import { personCandidates, filmographyFrom, filmographyProgress } from '../assets/javascript/personFilmography.js';
+import { buildCatalog, typeaheadEntries } from '../assets/javascript/catalog.js';
+import { rankTypeahead, describeSuggestion } from '../assets/javascript/searchSuggestions.js';
 import { postToAi } from '../utils/aiRequest.js';
 
 // Long enough to read the "added to <hat>" confirmation before the card that
@@ -289,6 +322,10 @@ export default {
       personFilms: [],
       personLoading: false,
       personError: '',
+      // The person typeahead is only open while its input has focus, and
+      // Escape closes it until the next keystroke - the search bar's rules.
+      personFocused: false,
+      personTypeaheadDismissed: false,
       // The unrated movie whose summary sheet is open, or null.
       previewing: null,
       // Suggestions per year, keyed by year — { 1997: [...movies] }. Filled
@@ -340,6 +377,24 @@ export default {
     },
     library () {
       return this.$store.getters.allMoviesAsArray || [];
+    },
+    // The people in your library, in the shape the search bar's typeahead
+    // ranks (catalog.js). Shorts included: a filmography lookup is about the
+    // person, and someone you only know from a short is still someone you
+    // might want the rest of. Directors first, then cast, deduped - a
+    // director who also acts is offered once, as a director.
+    personTypeaheadIndex () {
+      return typeaheadEntries(buildCatalog(this.library, true))
+        .filter((entry) => entry.expectedType === 'director' || entry.expectedType === 'cast/crew');
+    },
+    personSuggestions () {
+      return rankTypeahead(this.personTypeaheadIndex, this.personQuery);
+    },
+    personTypeaheadOpen () {
+      return this.personFocused &&
+        !this.personTypeaheadDismissed &&
+        !this.personLoading &&
+        this.personSuggestions.length > 0;
     },
     // How much of the person's filmography is already in the library — the
     // useful number when you're deciding what's left to hat.
@@ -599,9 +654,21 @@ export default {
      * Look a person up by name. One clear match goes straight to their films;
      * anything ambiguous puts the chooser on screen instead of guessing.
      */
+    describeSuggestion,
+    /**
+     * A tapped suggestion is the whole answer: put the name in the box and
+     * go and get the filmography, no second tap on Find.
+     */
+    pickPersonSuggestion (suggestion) {
+      this.personQuery = suggestion.value;
+      this.personTypeaheadDismissed = true;
+      this.$refs.personInput?.blur();
+      return this.searchPerson();
+    },
     async searchPerson () {
       const query = this.personQuery.trim();
       if (!query || this.personLoading) return;
+      this.personTypeaheadDismissed = true;
 
       this.personLoading = true;
       this.personError = '';
@@ -1151,6 +1218,52 @@ export default {
   display: flex;
   gap: 0.4rem;
   margin-bottom: 0.5rem;
+}
+
+/* The person box anchors its typeahead panel. */
+.person-form {
+  position: relative;
+}
+
+/* The search bar's panel (Home.vue), opening downward under this field. */
+.typeahead-panel {
+  background: #161616;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  left: 0;
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+}
+.typeahead-row {
+  align-items: baseline;
+  background: none;
+  border: none;
+  color: #eee;
+  display: flex;
+  font-size: 0.9rem;
+  gap: 0.5rem;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+  width: 100%;
+}
+.typeahead-row:active { background: #1f1f1f; }
+.typeahead-term {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.typeahead-meta {
+  color: #8b8b8b;
+  flex-shrink: 0;
+  font-size: 0.7rem;
 }
 
 .prompt-input {

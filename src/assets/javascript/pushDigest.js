@@ -94,11 +94,11 @@ export function stickinessDigest (entries, settings, now = Date.now()) {
     promptsPerDay(settings?.stickinessPromptsPerDay, null)
   );
   if (promptState(settings, 'stickinessPromptState') === 'disabled' || gate === null) {
-    return { count: 0, nextTitle: null, dueTimes: [], eligibleAt: 0 };
+    return { count: 0, nextTitle: null, nextRatedAt: null, dueTimes: [], upcoming: [], eligibleAt: 0 };
   }
 
   const due = [];
-  const dueTimes = [];
+  const upcoming = [];
 
   (entries || []).forEach((entry) => {
     const rating = lastRating(entry);
@@ -112,8 +112,9 @@ export function stickinessDigest (entries, settings, now = Date.now()) {
     const weekAt = ratedAt + ONE_WEEK_MS;
     const sixMonthAt = ratedAt + SIX_MONTHS_MS;
 
+    const title = entryTitle(entry);
     if ((needsWeek && now > weekAt) || (needsSixMonth && now > sixMonthAt)) {
-      due.push({ title: entryTitle(entry), ratedAt });
+      due.push({ title, ratedAt });
       return;
     }
     // Not due yet — publish the ONE boundary that will make it due, so the
@@ -125,17 +126,32 @@ export function stickinessDigest (entries, settings, now = Date.now()) {
     if (needsWeek) boundaries.push(weekAt);
     if (needsSixMonth) boundaries.push(sixMonthAt);
     const next = Math.min(...boundaries);
-    if (Number.isFinite(next) && next > now && next - now < DUE_TIMES_HORIZON_MS) dueTimes.push(next);
+    if (Number.isFinite(next) && next > now && next - now < DUE_TIMES_HORIZON_MS) {
+      upcoming.push({ at: next, title, ratedAt });
+    }
   });
 
   // Same order the prompt itself uses: most recently rated first.
   due.sort((a, b) => b.ratedAt - a.ratedAt);
-  dueTimes.sort((a, b) => a - b);
+  upcoming.sort((a, b) => a.at - b.at);
+  const soon = upcoming.slice(0, DUE_TIMES_CAP);
 
   return {
     count: due.length,
     nextTitle: due.length ? due[0].title : null,
-    dueTimes: dueTimes.slice(0, DUE_TIMES_CAP),
+    // When the lead film was rated — so the server can rank a film that
+    // matures later against it the way the prompt will (see `upcoming`).
+    nextRatedAt: due.length ? due[0].ratedAt : null,
+    dueTimes: soon.map((item) => item.at),
+    // The films behind `dueTimes`, by name. Bug (Natalie, 2026-09-01): the
+    // push said "Picture 06" needed its stickiness rating when the app then
+    // asked about Coraline. `nextTitle` is the head of the list AT PUBLISH
+    // TIME; Coraline crossed its week boundary afterwards, was counted via
+    // `dueTimes`, and - being the most recently rated - led the prompt. The
+    // server can only name the right film if it knows which film each
+    // boundary belongs to and when it was rated. `dueTimes` stays for the
+    // deployed Lambda's counting; this is the same list with names on.
+    upcoming: soon,
     eligibleAt: gate
   };
 }

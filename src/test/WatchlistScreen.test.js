@@ -637,3 +637,60 @@ describe('WatchlistScreen — someone\'s filmography', () => {
     expect(wrapper.find('.person-section .prompt-error').text()).toContain("Couldn't look that name up");
   });
 });
+
+// Bug report (Matt, 2026-09-01, on the watchlist): "It would be nice if the
+// filmography search could auto complete for me sort of like we do in the
+// other search fields." The search bar's typeahead, narrowed to the people
+// in your library; a tap fills the name and runs the lookup in one go.
+describe('WatchlistScreen — the filmography box autocompletes people from your library', () => {
+  async function typing (text) {
+    axios.get.mockReset();
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/search/person')) return Promise.resolve({ data: { results: [{ id: 900, name: 'Fave Director', gender: 2 }] } });
+      if (url.includes('/person/900/movie_credits')) return Promise.resolve({ data: { cast: [], crew: [] } });
+      return Promise.resolve({ data: { results: [], cast: [], crew: [] } });
+    });
+    const { wrapper } = factory();
+    await flushPromises();
+    axios.get.mockClear();
+    const input = wrapper.find('.person-section .prompt-input');
+    await input.trigger('focus');
+    await input.setValue(text);
+    return { wrapper, input };
+  }
+
+  it('offers the directors and cast you have rated, described like the search bar does', async () => {
+    const { wrapper } = await typing('fav');
+    const rows = wrapper.findAll('.person-section .typeahead-row');
+    // Same ranking as the search bar: within a tier, alphabetical.
+    expect(rows.map((r) => r.find('.typeahead-term').text())).toEqual(['Fave Actor', 'Fave Director']);
+    expect(rows[0].find('.typeahead-meta').text()).toBe('cast · 2 films');
+    expect(rows[1].find('.typeahead-meta').text()).toBe('director · 2 films');
+  });
+
+  it('offers nothing for a name that is not in the library, so Find still does the work', async () => {
+    const { wrapper } = await typing('greta');
+    expect(wrapper.find('.person-section .typeahead-panel').exists()).toBe(false);
+  });
+
+  it('a tap fills the name and runs the lookup', async () => {
+    const { wrapper, input } = await typing('fav');
+    const director = wrapper.findAll('.person-section .typeahead-row').find((r) => r.text().includes('Fave Director'));
+    await director.trigger('click');
+    await flushPromises();
+    expect(input.element.value).toBe('Fave Director');
+    expect(axios.get.mock.calls.some(([url]) => url.includes('/search/person') && url.includes('query=Fave%20Director'))).toBe(true);
+    expect(wrapper.find('.person-section .typeahead-panel').exists()).toBe(false);
+  });
+
+  it('escape closes it until the next keystroke, and blur closes it too', async () => {
+    const { wrapper, input } = await typing('fav');
+    expect(wrapper.find('.person-section .typeahead-panel').exists()).toBe(true);
+    await input.trigger('keydown', { key: 'Escape' });
+    expect(wrapper.find('.person-section .typeahead-panel').exists()).toBe(false);
+    await input.setValue('fave');
+    expect(wrapper.find('.person-section .typeahead-panel').exists()).toBe(true);
+    await input.trigger('blur');
+    expect(wrapper.find('.person-section .typeahead-panel').exists()).toBe(false);
+  });
+});
