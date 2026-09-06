@@ -159,7 +159,7 @@ export default {
     status (newStatus) {
       if (newStatus === 'won') {
         this.recordGameWin();
-        this.recordGameRound({ guesses: this.guesses.length });
+        this.recordGameRound({ guesses: this.guesses.length, movie: entryKey(this.target) });
       }
     },
     // Fires once eligibleGameEntries has real data (it may be empty for a

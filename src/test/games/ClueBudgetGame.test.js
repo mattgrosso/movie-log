@@ -402,7 +402,7 @@ describe('ClueBudgetGame - round history (feature: game stats)', () => {
     const call = dispatch.mock.calls.find(([, entry]) => entry?.path === 'settings/games/history/clue-budget');
     expect(call).toBeTruthy();
     const lastRecord = call[1].value[call[1].value.length - 1];
-    expect(lastRecord).toMatchObject({ won: true, saved: wrapper.vm.budget });
+    expect(lastRecord).toMatchObject({ won: true, saved: wrapper.vm.budget, movie: wrapper.vm.target.dbKey });
   });
 
   it('going broke records a loss', async () => {
@@ -412,7 +412,7 @@ describe('ClueBudgetGame - round history (feature: game stats)', () => {
     wrapper.vm.revealPoster();
 
     const call = dispatch.mock.calls.find(([, entry]) => entry?.path === 'settings/games/history/clue-budget');
-    expect(call[1].value[call[1].value.length - 1]).toMatchObject({ won: false, saved: 0 });
+    expect(call[1].value[call[1].value.length - 1]).toMatchObject({ won: false, saved: 0, movie: wrapper.vm.target.dbKey });
   });
 });
 

@@ -524,3 +524,24 @@ describe('PosterZoomGame', () => {
     });
   });
 });
+
+// Game Stats' "ones that got away" / "nailed it" poster rows (bug report
+// -P0r4mFHYUfHFEpfwcpQ) need to know WHICH movie each round was.
+describe('PosterZoomGame - round records carry the target movie key', () => {
+  const lastHistoryRecord = (dispatch) => dispatch.mock.calls
+    .find(([, entry]) => entry?.path === 'settings/games/history/poster-zoom')[1].value.at(-1);
+
+  it('on a win and on a give-up', async () => {
+    let dispatch = vi.fn();
+    let { wrapper } = factory(tenMovies(), { dispatch });
+    const wonKey = targetOf(wrapper).dbKey;
+    wrapper.vm.submitGuess(targetOf(wrapper));
+    expect(lastHistoryRecord(dispatch)).toMatchObject({ won: true, movie: wonKey });
+
+    dispatch = vi.fn();
+    ({ wrapper } = factory(tenMovies(), { dispatch }));
+    const lostKey = targetOf(wrapper).dbKey;
+    wrapper.vm.giveUp();
+    expect(lastHistoryRecord(dispatch)).toMatchObject({ won: false, movie: lostKey });
+  });
+});

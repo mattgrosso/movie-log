@@ -291,3 +291,25 @@ describe('ReelWordleGame end-of-round actions', () => {
     expect(wrapper.find('.give-up-puzzle').exists()).toBe(true)
   })
 })
+
+// Game Stats' "nailed it" poster row (bug report -P0r4mFHYUfHFEpfwcpQ)
+// needs to know WHICH movie each solved puzzle was.
+describe('ReelWordleGame - round records carry the target movie key', () => {
+  it('a solve records the target', async () => {
+    const dispatch = vi.fn();
+    const wrapper = mount(ReelWordleGame, {
+      global: {
+        mocks: {
+          $store: { state: {}, getters: { allMediaAsArray: Array.from({ length: 10 }, (_, i) => entry(i)) }, commit: vi.fn(), dispatch },
+          $router: { push: vi.fn() },
+          $route: { path: '/games/wordle' }
+        }
+      }
+    });
+    const targetKey = wrapper.vm.target.dbKey;
+    await wrapper.vm.submitGuess(wrapper.vm.target);
+    await wrapper.vm.$nextTick();
+    const call = dispatch.mock.calls.find(([, entry]) => entry?.path === 'settings/games/history/wordle');
+    expect(call[1].value.at(-1)).toMatchObject({ guesses: 1, movie: targetKey });
+  });
+});

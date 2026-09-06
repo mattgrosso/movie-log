@@ -412,7 +412,7 @@ export default {
     },
     giveUp () {
       if (this.status !== 'playing') return;
-      this.recordGameRound({ won: false, zoomOuts: this.zoomOuts });
+      this.recordGameRound({ won: false, zoomOuts: this.zoomOuts, movie: entryKey(this.target) });
       this.status = 'revealed';
       this.persistState(); // no longer 'playing', so this clears the save
     },
@@ -420,7 +420,7 @@ export default {
       this.status = 'won';
       this.lastWrongTitle = null;
       this.recordGameWin();
-      this.recordGameRound({ won: true, zoomOuts: this.zoomOuts });
+      this.recordGameRound({ won: true, zoomOuts: this.zoomOuts, movie: entryKey(this.target) });
       if (isNewBestScore(this.zoomOuts, this.bestZoomOuts)) {
         this.$store.dispatch('writeDurably', {
           path: 'settings/games/posterZoomBestZoomOuts',

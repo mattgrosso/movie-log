@@ -380,3 +380,25 @@ describe('TriviaGame', () => {
     });
   });
 });
+
+// Game Stats' "ones that got away" / "nailed it" poster rows (bug report
+// -P0r4mFHYUfHFEpfwcpQ) need to know WHICH movie each round was.
+describe('TriviaGame - round records carry the target movie key', () => {
+  it('on a win and on a loss', async () => {
+    let dispatch = vi.fn();
+    let wrapper = factory(tenMovies(), dispatch);
+    await flushPromises();
+    const targetKey = wrapper.vm.target.dbKey;
+    wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.dbKey === targetKey));
+    let record = dispatch.mock.calls.find(([, entry]) => entry?.path === 'settings/games/history/trivia')[1].value.at(-1);
+    expect(record).toMatchObject({ won: true, movie: targetKey });
+
+    dispatch = vi.fn();
+    wrapper = factory(tenMovies(), dispatch);
+    await flushPromises();
+    const lostKey = wrapper.vm.target.dbKey;
+    wrapper.vm.submitGuess(wrapper.vm.eligibleGameEntries.find((e) => e.dbKey !== lostKey));
+    record = dispatch.mock.calls.find(([, entry]) => entry?.path === 'settings/games/history/trivia')[1].value.at(-1);
+    expect(record).toMatchObject({ won: false, movie: lostKey });
+  });
+});

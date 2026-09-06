@@ -218,14 +218,14 @@ export default {
     // comment for why guessing is one-shot now.
     lose () {
       this.revealedCount = this.facts.length;
-      this.recordGameRound({ won: false, facts: this.revealedCount });
+      this.recordGameRound({ won: false, facts: this.revealedCount, movie: entryKey(this.target) });
       this.status = 'lost';
       this.persistState(); // status !== 'playing' now, so this clears the save
     },
     win () {
       this.status = 'won';
       this.recordGameWin();
-      this.recordGameRound({ won: true, facts: this.revealedCount });
+      this.recordGameRound({ won: true, facts: this.revealedCount, movie: entryKey(this.target) });
       if (isNewBestScore(this.revealedCount, this.bestFactsUsed)) {
         this.$store.dispatch('writeDurably', { path: 'settings/games/triviaBestFactsUsed', value: this.revealedCount });
       }

@@ -78,6 +78,16 @@ playable. The five games with a discrete win state hook their win moment; the th
 endless streak games count one correct answer. Games deriving `status` as a computed need
 a `watch`, not an imperative call.
 
+## Round history
+
+`recordGameRound(metrics)` appends `{ at, ...metrics }` to `settings/games/history/<key>`
+(capped at `HISTORY_CAP`, oldest first). Each game owns its metric shape — see
+`gameHistory.js`'s per-game summaries and `gameStats.js`'s `METRICS` table, which is
+where a new game declares its headline field and which direction is "better". The
+single-target games (Wordle, Clue Budget, Trivia, Poster Zoom) also record
+`movie: entryKey(this.target)` so Game Stats can show poster rows; a new guess-the-movie
+game should do the same. Keep records small: settings ride along on every launch.
+
 ## Testing traps specific to games
 
 1. `new Date('YYYY-01-01')` parses as UTC and shifts a year/decade in this repo's
