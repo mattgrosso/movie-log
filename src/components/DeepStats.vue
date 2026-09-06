@@ -173,7 +173,7 @@
     </section>
 
     <!-- Decade Championship -->
-    <section v-if="championship" class="ds-section decade-championship">
+    <section v-if="championship" ref="championshipSection" class="ds-section decade-championship">
       <h2 class="ds-section-title">Decade Championship</h2>
       <p class="ds-section-caption">
         Who dominated each decade of your library, by release year. Log Score throughout, so depth
@@ -477,6 +477,11 @@ export default {
       handler () {
         this.openCategoryKey = null;
         this.startCastWalk();
+        // A different decade is a different row: start it from its left
+        // edge. Bug report (2026-09-02): "when I click a year here... it's
+        // just leaving me scrolled horizontally wherever I happen to have
+        // been." The pill strip keeps its scroll — the tapped pill is there.
+        this.$nextTick(this.resetChampionshipScroll);
       }
     },
     // Portraits for whoever is on screen: the winners, plus the unfolded
@@ -494,6 +499,13 @@ export default {
     }
   },
   methods: {
+    resetChampionshipScroll () {
+      const section = this.$refs.championshipSection;
+      if (!section) return;
+      section.querySelectorAll('.ds-poster-row').forEach((row) => {
+        row.scrollLeft = 0;
+      });
+    },
     startCastWalk () {
       this.castSeq += 1;
       this.castWalk = { target: 0, index: 0, lookups: 0, loading: false, done: false, actors: [], actresses: [] };

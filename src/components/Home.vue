@@ -1346,8 +1346,14 @@
           @startNewSearch="startNewSearch"
         />
       </div>
+      <!-- The spinner waits ~0.7s before showing: a warm launch (auth restore
+           and the IndexedDB snapshot overlap, see initializeDB) paints the
+           library well inside that, so the loading screen is only ever seen
+           on a load that's genuinely slow — never as a flash on the way in
+           (bug report 2026-09-05: notification tap "flashes to the loading
+           screen and then shows it again"). -->
       <div v-else class="loading-screen d-flex justify-content-center align-items-center my-5">
-        <div class="spinner-border text-light" role="status">
+        <div v-if="libraryLoadIsSlow" class="spinner-border text-light" role="status">
           <span class="visually-hidden">Loading...</span>
         </div>
       </div>
@@ -1615,6 +1621,10 @@ const GROUP_DISPLAY_NAMES = {
   other: 'Other'
 };
 
+// How long the library may take to arrive before Home shows a spinner.
+// A warm launch reads the last snapshot from IndexedDB in well under this.
+export const LOADING_SPINNER_DELAY_MS = 700;
+
 export default {
   components: {
     DBGridLayoutSearchResult,
@@ -1632,6 +1642,10 @@ export default {
   },
   data () {
     return {
+      // True once the library has taken long enough to load that a spinner
+      // is worth showing. See the loading-screen comment in the template.
+      libraryLoadIsSlow: false,
+      libraryLoadTimer: null,
       // Movie Hat linking (settings pane).
       findingHats: false,
       searchedForHats: false,
@@ -1890,6 +1904,8 @@ export default {
     },
   },
   mounted () {
+    this.armLoadingSpinner();
+
     // Which state the Notifications settings card should render in.
     this.checkPushDevice();
 
@@ -2129,6 +2145,7 @@ export default {
   },
   beforeUnmount () {
     window.removeEventListener('resize', this.debouncedUpdateDidYouMeanFitCount);
+    clearTimeout(this.libraryLoadTimer);
 
     // Clean up error log refresh interval
     this.stopErrorLogRefresh();
@@ -3933,6 +3950,16 @@ export default {
     },
   },
   methods: {
+    // The loading spinner only earns its place on a genuinely slow load.
+    // Under this it stays hidden, so a warm launch goes straight from the
+    // header to the library with nothing flashing in between.
+    armLoadingSpinner () {
+      clearTimeout(this.libraryLoadTimer);
+      if (this.$store.state.dbLoaded) return;
+      this.libraryLoadTimer = setTimeout(() => {
+        this.libraryLoadIsSlow = true;
+      }, LOADING_SPINNER_DELAY_MS);
+    },
     async connectMovieHat () {
       this.connectingHat = true;
       this.hatConnectError = null;

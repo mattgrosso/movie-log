@@ -196,6 +196,60 @@ const stampSocialPublish = () => {
   }
 };
 
+// Offline fallback / warm-launch source: Firebase RTDB's web SDK has no disk
+// persistence (unlike Firestore), so the onValue socket in initializeDB never
+// fires without a live connection and dbLoaded would hang forever. The
+// last-synced IndexedDB snapshot races it: whichever settles the UI first,
+// the onValue callback (which always fires once connected, cache hit or
+// miss) is the source of truth and overwrites/re-persists on arrival — the
+// dbLoaded guard just stops a slower cache read from clobbering
+// already-arrived live data. One read per launch, shared by that race AND
+// the delta-sync shadow check, which needs the snapshot as it stood BEFORE
+// this launch's live data re-persists it (an IndexedDB read transaction
+// opened here sees the pre-overwrite value regardless of when it resolves).
+//
+// Started BEFORE initializeDB awaits the auth restore — the snapshot is this
+// device's own copy and needs no token — so a warm launch paints the library
+// as soon as the slower of the two settles, not the sum. Cached at module
+// scope so the router guard re-dispatching initializeDB during that wait
+// can't fan out into duplicate multi-megabyte reads.
+let snapshotReadInFlight = null; // { key, promise }
+
+function listenersLiveFor (context, key) {
+  return context.state.dbListenersAttachedFor === key && !context.state.dbReadDenied;
+}
+
+function startSnapshotRead (context, key) {
+  if (snapshotReadInFlight && snapshotReadInFlight.key === key && !listenersLiveFor(context, key)) {
+    return snapshotReadInFlight.promise;
+  }
+  const promise = loadSnapshot(key, 'movieLog').catch(() => null);
+  snapshotReadInFlight = { key, promise };
+
+  promise.then(async (cached) => {
+    // The account changed while this read was in flight: whoever started
+    // the read for the new key applies that one instead.
+    if (context.getters.databaseTopKey !== key) return null;
+    if (cached && !context.state.dbLoaded) {
+      context.commit('setMovieLog', cached);
+    }
+    // Re-top the snapshot with anything still durably queued — the
+    // snapshot only mirrors the last SERVER state, so without this a
+    // movie rated offline vanished from view on relaunch (bug
+    // report). Also covers a snapshot-less first session: the queue
+    // entry alone is enough to show the rating.
+    if (!context.state.dbLoaded) {
+      await context.dispatch('replayPendingWrites', 'movieLog');
+    }
+    if (!context.state.dbLoaded && (cached || Object.keys(context.state.movieLog).length)) {
+      context.commit('setDbLoaded', true);
+    }
+    return null;
+  }).catch(() => {});
+
+  return promise;
+}
+
 // Firebase restores a persisted session asynchronously after page load. The
 // router guard, meanwhile, decides you're logged in synchronously from
 // localStorage — so without this, database listeners can be attached before the
@@ -998,6 +1052,20 @@ export default createStore({
       // keep working from the IndexedDB snapshot even when there's no live
       // session to restore, and the router owns the "you're signed out, go to
       // /login" decision (see verifyRestoredSession).
+      // Start the local snapshot read NOW, in parallel with the auth restore,
+      // instead of after it. Bug report (Matt, 2026-09-05): tapping a push
+      // notification "shows me Cinema Roll and then immediately flashes to
+      // the loading screen and then shows it again." iOS reloads a Home
+      // Screen web app when a notification navigates it (the declarative
+      // payload's `navigate` URL is mandatory), so the reload itself is the
+      // OS's; what's ours is how long the reloaded page sits on the spinner.
+      // It used to be auth restore + IndexedDB read back to back, for a
+      // read that never needed a token — it's this device's own copy.
+      // Now they overlap, and the spinner is delayed on Home so a warm
+      // launch never shows it at all.
+      const earlyKey = context.getters.databaseTopKey;
+      let priorSnapshotPromise = listenersLiveFor(context, earlyKey) ? null : startSnapshotRead(context, earlyKey);
+
       await authReady;
 
       const topKey = context.getters.databaseTopKey;
@@ -1010,43 +1078,16 @@ export default createStore({
       // without personalAwards (the vanished Insights pane). An explicit
       // flag can't be fooled by local writes. dbReadDenied still forces a
       // re-attach after sign-in, since a cancelled listener never refires.
-      const listenersLive = context.state.dbListenersAttachedFor === topKey && !context.state.dbReadDenied;
+      const listenersLive = listenersLiveFor(context, topKey);
       if (!listenersLive) {
         context.commit('setDbListenersAttachedFor', topKey);
-        // Offline fallback: Firebase RTDB's web SDK has no disk persistence
-        // (unlike Firestore), so the onValue socket below never fires without
-        // a live connection and dbLoaded would hang forever. Race it against
-        // the last-synced IndexedDB snapshot so a cold offline start still
-        // becomes usable. Whichever settles the UI first, the onValue
-        // callback (which always fires once connected, cache hit or miss)
-        // is the source of truth and overwrites/re-persists on arrival - the
-        // dbLoaded guard just stops a slower cache read from clobbering
-        // already-arrived live data.
-        // Started once, shared by the offline-fallback race below AND the
-        // delta-sync shadow check: the shadow comparison needs the snapshot
-        // as it stood BEFORE this launch's live data re-persists it, and an
-        // IndexedDB read transaction opened here sees the pre-overwrite
-        // value regardless of when it resolves.
-        const priorSnapshotPromise = loadSnapshot(topKey, 'movieLog').catch(() => null);
+        // The snapshot read started above, before auth settled. Only if the
+        // account changed while auth was restoring (a dev-mode flip mid-boot)
+        // does it need starting over for the right key.
+        if (!priorSnapshotPromise || earlyKey !== topKey) {
+          priorSnapshotPromise = startSnapshotRead(context, topKey);
+        }
         let shadowCheckStarted = false;
-
-        priorSnapshotPromise.then(async (cached) => {
-          if (cached && !context.state.dbLoaded) {
-            context.commit('setMovieLog', cached);
-          }
-          // Re-top the snapshot with anything still durably queued — the
-          // snapshot only mirrors the last SERVER state, so without this a
-          // movie rated offline vanished from view on relaunch (bug
-          // report). Also covers a snapshot-less first session: the queue
-          // entry alone is enough to show the rating.
-          if (!context.state.dbLoaded) {
-            await context.dispatch('replayPendingWrites', 'movieLog');
-          }
-          if (!context.state.dbLoaded && (cached || Object.keys(context.state.movieLog).length)) {
-            context.commit('setDbLoaded', true);
-          }
-          return null;
-        }).catch(() => {});
 
         // Shared by both load modes: a cancelled listener means permission
         // denied under the locked-down rules — a dead/wrong session, or dev

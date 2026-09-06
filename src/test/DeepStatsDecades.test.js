@@ -212,6 +212,31 @@ describe('DeepStats — Decade Championship', () => {
     expect(card(wrapper, 'actor').exists()).toBe(false)
   })
 
+  // Bug report 2026-09-02: "when I click a year here in the decade
+  // championships, it should take me back to the left edge of the scroll
+  // instead, it's just leaving me scrolled horizontally wherever I happen to
+  // have been." jsdom never lays anything out, so scrollLeft is stubbed as a
+  // plain writable value on the row; the assertion is that the component
+  // writes 0 to it when the decade changes.
+  it('switching decade scrolls the winners row back to its left edge', async () => {
+    const { wrapper } = mountDeepStats()
+    await flushPromises()
+
+    const row = section(wrapper).find('.ds-poster-row.champions').element
+    let scrollLeft = 240
+    Object.defineProperty(row, 'scrollLeft', {
+      configurable: true,
+      get: () => scrollLeft,
+      set: (value) => { scrollLeft = value }
+    })
+
+    await section(wrapper).findAll('.ds-decade-pill')[0].trigger('click')
+    await flushPromises()
+
+    expect(section(wrapper).text()).toContain('3 films rated from the 2000s')
+    expect(row.scrollLeft).toBe(0)
+  })
+
   it('offline, actors and actresses share one Performer card and nothing is looked up', async () => {
     const { wrapper } = mountDeepStats({ isOnline: false })
     await flushPromises()
