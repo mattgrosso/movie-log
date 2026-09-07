@@ -294,7 +294,20 @@ function composeMessage (due, digest, news, now = Date.now()) {
   };
 }
 
+// The body of a friend-log push. `scoreLine` is null when the rater doesn't
+// share ratings (their tier, decided client-side); `prefs.friendLogScores`
+// is the RECIPIENT's choice to hear about the film without the number
+// (2026-09-06: "turn off the score so you see that they watched it, but you
+// don't see their score"). Default on, so an account that has never seen the
+// toggle keeps the notification it already had.
+function friendLogBody (scoreLine, prefs) {
+  const quiet = 'Tap to see it in their library.';
+  if (!scoreLine) return quiet;
+  return prefs && prefs.friendLogScores === false ? quiet : scoreLine;
+}
+
 module.exports = {
+  friendLogBody,
   ONE_DAY_MS,
   ACTIVE_IN_APP_MS,
   STALE_REMINDER_MS,

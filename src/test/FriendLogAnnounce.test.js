@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { shallowMount } from '@vue/test-utils'
+import { shallowMount, flushPromises } from '@vue/test-utils'
 import RateMovie from '@/components/RateMovie.vue'
 
 // 2026-08-30. Seth rated Tenet at 5:21pm and put his phone away. Matt's phone
@@ -113,10 +113,48 @@ describe('announcing a new viewing to the film club', () => {
     const { wrapper, mockStore } = await mountRating()
 
     await wrapper.vm.addRating()
+    await flushPromises()
 
     expect(announceMock).toHaveBeenCalledTimes(1)
     expect(announceMock.mock.calls[0][0]).toMatchObject({ tmdbId: 577922, title: 'Tenet' })
     expect(publishCalls(mockStore)).toHaveLength(1)
+  })
+
+  // 2026-09-06 (report -P0sDPxbC4120byAaK5W): the push and the publish left
+  // together, and the push won the race — Matt tapped "Seth Hopper logged
+  // Coyote vs. Acme", the page opened, and the snapshot it reads had not
+  // landed. The push is what makes someone open the page, so it goes second.
+  it('sends the push only after the profile snapshot has landed', async () => {
+    let landed
+    const { wrapper, mockStore } = await mountRating()
+    mockStore.dispatch.mockImplementation((action) => {
+      if (action === 'publishSocialProfileNow') return new Promise((resolve) => { landed = resolve })
+      return Promise.resolve()
+    })
+
+    await wrapper.vm.addRating()
+    await flushPromises()
+    expect(publishCalls(mockStore)).toHaveLength(1)
+    expect(announceMock).not.toHaveBeenCalled()
+
+    landed()
+    await flushPromises()
+    expect(announceMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('withholds the push when the publish fails', async () => {
+    const { wrapper, mockStore } = await mountRating()
+    mockStore.dispatch.mockImplementation((action) => {
+      if (action === 'publishSocialProfileNow') return Promise.reject(new Error('PERMISSION_DENIED'))
+      return Promise.resolve()
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await wrapper.vm.addRating()
+    await flushPromises()
+
+    expect(announceMock).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 
   // The pairing, stated as the invariant rather than as two counts: the club

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { reactive } from 'vue'
-import FriendsWhoSaw from '@/components/FriendsWhoSaw.vue'
+import FriendsWhoSaw, { FRIEND_PROFILE_MAX_AGE_MS } from '@/components/FriendsWhoSaw.vue'
 
 // "I just need little pills that show the name and rating for any friends who
 // have seen and rated the movie" (2026-08-25), then: "let's use the normalized
@@ -86,7 +86,7 @@ describe('FriendsWhoSaw', () => {
   it('asks the store to load club data as soon as it mounts', () => {
     const store = mockStore([])
     mountPills([], {}, store)
-    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData')
+    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData', { maxAgeMs: FRIEND_PROFILE_MAX_AGE_MS })
   })
 
   // The notification path, and the one that has to work without any external
@@ -101,7 +101,7 @@ describe('FriendsWhoSaw', () => {
 
     store.getters.socialUserKey = 'mattgrosso-gmail-com'
     await wrapper.vm.$nextTick()
-    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData')
+    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData', { maxAgeMs: FRIEND_PROFILE_MAX_AGE_MS })
   })
 
   it('asks again when club membership arrives after mount', async () => {
@@ -112,12 +112,24 @@ describe('FriendsWhoSaw', () => {
     // Settings land late, the cold-start order the bug shipped in.
     store.state.settings = { externalFriends: { 'ext-1': { name: 'Brian', feedUrl: 'https://example.com/feed.json' } } }
     await wrapper.vm.$nextTick()
-    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData')
+    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData', { maxAgeMs: FRIEND_PROFILE_MAX_AGE_MS })
 
     // And again as native edges arrive.
     store.dispatch.mockClear()
     store.getters.socialFriendKeys = ['seth-gmail-com']
     await wrapper.vm.$nextTick()
-    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData')
+    expect(store.dispatch).toHaveBeenCalledWith('ensureClubData', { maxAgeMs: FRIEND_PROFILE_MAX_AGE_MS })
+  })
+
+  // 2026-09-06 (report -P0sDPxbC4120byAaK5W): Seth logged a film, the push
+  // steered Matt's already-running app to the film's page, and the pills were
+  // blank — the profile in memory was that morning's. The pills must ask for
+  // a copy no older than a few minutes, not merely a copy.
+  it('asks for a fresh copy, not just a present one', () => {
+    const store = mockStore([rated('Seth', 7.16, 3.5)])
+    mountPills([], {}, store)
+    const [, options] = store.dispatch.mock.calls.find(([action]) => action === 'ensureClubData')
+    expect(options.maxAgeMs).toBeLessThanOrEqual(5 * 60 * 1000)
+    expect(options.maxAgeMs).toBeGreaterThan(0)
   })
 })

@@ -474,9 +474,25 @@ export function myRatingsById (myEntries, getRatingFn) {
 // syncExternalFriends iterates; an errored feed counts as missing so a
 // transient failure heals on the next surface that asks, rather than staying
 // blank until the next full app launch.
-export function clubFetchesNeeded ({ friendKeys = [], nativeProfiles = {}, externalFriends = {}, externalProfiles = {} } = {}) {
+//
+// STALENESS (bug report, 2026-09-06): profiles are fetched with a one-shot
+// `get`, never a listener, so an app that has been open since breakfast still
+// holds the snapshot it fetched at breakfast. Seth logged a film at 3:14pm;
+// Matt's phone buzzed; the push steered his already-running app to that
+// film's page, and the pills showed nothing — his copy of Seth's profile was
+// hours old and nothing here asked for a newer one, because "already here"
+// was the only test. So a caller that is about to SHOW club data may name a
+// `maxAgeMs`; a fetch older than that counts as missing. Profiles are ~100KB
+// each, which is why this is opt-in per surface rather than the default.
+export function clubFetchesNeeded ({
+  friendKeys = [], nativeProfiles = {}, externalFriends = {}, externalProfiles = {},
+  fetchedAt = 0, maxAgeMs = Infinity, now = Date.now()
+} = {}) {
+  const stale = (now - (Number(fetchedAt) || 0)) > maxAgeMs;
+  const nativeKeys = friendKeys || [];
+  const externalIds = Object.keys(externalFriends || {});
   return {
-    native: (friendKeys || []).some((key) => !nativeProfiles?.[key]),
-    external: Object.keys(externalFriends || {}).some((id) => !externalProfiles?.[id])
+    native: nativeKeys.some((key) => !nativeProfiles?.[key]) || (stale && nativeKeys.length > 0),
+    external: externalIds.some((id) => !externalProfiles?.[id]) || (stale && externalIds.length > 0)
   };
 }

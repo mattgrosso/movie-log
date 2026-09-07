@@ -6,6 +6,7 @@ import {
   spacingMs,
   shouldSend,
   composeMessage,
+  friendLogBody,
   stickinessLead,
   EMPTY_BASELINE
 } from '../../aws-lambda/pushCadence.js';
@@ -384,3 +385,23 @@ describe('quota gates — only promise what the app will actually show', () => {
     expect(dueFromDigest(digest, {}, now).stickinessCount).toBe(3)
   })
 })
+
+// "You should have the option in your notifications to turn off the score so
+// you see that they watched it, but you don't see their score" (2026-09-06).
+describe('friendLogBody', () => {
+  const line = 'They gave it a 7.16.';
+
+  it('includes the score by default', () => {
+    expect(friendLogBody(line, {})).toBe(line);
+    expect(friendLogBody(line, undefined)).toBe(line);
+    expect(friendLogBody(line, { friendLogScores: true })).toBe(line);
+  });
+
+  it('leaves the score out when the recipient has turned it off', () => {
+    expect(friendLogBody(line, { friendLogScores: false })).toBe('Tap to see it in their library.');
+  });
+
+  it('has nothing to hide when the rater does not share ratings', () => {
+    expect(friendLogBody(null, { friendLogScores: true })).toBe('Tap to see it in their library.');
+  });
+});

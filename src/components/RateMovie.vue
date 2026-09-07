@@ -800,22 +800,29 @@ export default {
       // for a friend's app to link to, so it stays quiet until reconciled.
       const social = this.$store.getters.socialSettings;
       if (!editing && !isPlaceholderId(this.id) && social?.enabled && this.$store.state.isOnline) {
-        announceLoggedMovie({
+        const announce = () => announceLoggedMovie({
           tmdbId: this.id,
           title: this.title,
           // The score travels only when ratings are shared — the same
           // opt-in tier that governs what friends see in the app.
           score: social.shareRatings ? getRating(dbEntry.value)?.calculatedTotal : null
         });
-        // The push has just left. A friend's Film Club renders the published
-        // profile snapshot, never the rater's live library, so the two have to
-        // go out together — publishing on the usual 20-second debounce means
-        // returnHome() below, plus a phone going back in a pocket, loses the
-        // timer and leaves the notification pointing at nothing. Not awaited:
-        // the write is in flight across the route change, which narrows the
-        // loss window from twenty seconds to one round trip without putting a
-        // ~100KB upload in front of the transition.
-        this.$store.dispatch('publishSocialProfileNow');
+        // A friend's Film Club — and the pills on the film's page — render
+        // the published profile snapshot, never the rater's live library, so
+        // the push and the publish have to go out together, and IN THAT
+        // ORDER: the push is what makes a friend open the page, so it leaves
+        // only once the snapshot it points at has landed (2026-09-06: Seth's
+        // push reached Matt's phone and the page had no rating to show).
+        // Publishing on the usual 20-second debounce would lose the timer to
+        // returnHome() below plus a phone going back in a pocket. Not
+        // awaited: the write is in flight across the route change, which
+        // keeps a ~100KB upload out of the transition; the push follows the
+        // moment it resolves. A publish that fails withholds the push — a
+        // notification for something the club cannot show is worse than no
+        // notification (see publishSocialProfileNow).
+        Promise.resolve(this.$store.dispatch('publishSocialProfileNow')).then(announce).catch((error) => {
+          console.warn('Profile publish failed; friend-log push withheld (non-fatal):', error?.message);
+        });
       }
 
       window.scroll({

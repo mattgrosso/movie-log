@@ -364,6 +364,9 @@ export default createStore({
     socialEdges: {},
     socialDirectory: {},
     socialFriendProfiles: {},
+    // When fetchFriendProfiles last STARTED. Profiles are one-shot reads, so
+    // this is the only measure of how old they are (see clubFetchesNeeded).
+    socialProfilesFetchedAt: 0,
     // Hats this account belongs to, from the one-off Movie Hat lookup.
     availableMovieHats: [],
     // TMDB ids of everything currently WAITING in a linked hat, so a "send
@@ -662,6 +665,9 @@ export default createStore({
     },
     setSocialFriendProfile (state, { key, profile }) {
       state.socialFriendProfiles = { ...state.socialFriendProfiles, [key]: profile };
+    },
+    setSocialProfilesFetchedAt (state, value) {
+      state.socialProfilesFetchedAt = value;
     },
     setSocialAttachedFor (state, value) {
       state.socialAttachedFor = value;
@@ -1900,13 +1906,21 @@ export default createStore({
     // none showed). FriendsWhoSaw watches club membership and dispatches
     // this as it lands; clubFetchesNeeded (social.js) keeps the re-runs from
     // re-fetching anything already here.
-    ensureClubData (context) {
+    //
+    // `maxAgeMs` (2026-09-06): a surface that is about to SHOW a friend's
+    // rating passes how old a copy it will tolerate. Without it only a
+    // missing profile is fetched, and an app open since morning shows the
+    // morning's snapshot — which is how a friend-log push steered Matt's
+    // running app to the film and the pills had nothing to say.
+    ensureClubData (context, { maxAgeMs = Infinity } = {}) {
       context.dispatch('attachSocialListeners');
       const needed = clubFetchesNeeded({
         friendKeys: context.getters.socialFriendKeys,
         nativeProfiles: context.state.socialFriendProfiles,
         externalFriends: context.state.settings?.externalFriends,
-        externalProfiles: context.state.externalFriendProfiles
+        externalProfiles: context.state.externalFriendProfiles,
+        fetchedAt: context.state.socialProfilesFetchedAt,
+        maxAgeMs
       });
       if (needed.native) context.dispatch('fetchFriendProfiles');
       if (needed.external) context.dispatch('syncExternalFriends');
@@ -1915,6 +1929,7 @@ export default createStore({
     // and non-fatal — one unreachable feed must not blank the club.
     async syncExternalFriends (context) {
       const friends = context.state.settings?.externalFriends || {};
+      if (Object.keys(friends).length) context.commit('setSocialProfilesFetchedAt', Date.now());
       await Promise.all(Object.entries(friends).map(async ([id, friend]) => {
         if (!friend?.feedUrl) return;
         try {
@@ -2440,6 +2455,10 @@ export default createStore({
     },
     async fetchFriendProfiles (context) {
       const keys = context.getters.socialFriendKeys;
+      // Stamped at the START so a second caller in the same moment (the
+      // edges listener and a detail page's own ensure, on a cold start) sees
+      // a fresh fetch rather than a stale one.
+      if (keys.length) context.commit('setSocialProfilesFetchedAt', Date.now());
       await Promise.all(keys.map(async (key) => {
         try {
           const snapshot = await get(ref(db, `social/profiles/${key}`));

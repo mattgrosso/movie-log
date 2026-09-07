@@ -4,6 +4,7 @@
 // Group scoring uses the Log Score (logScore.js) throughout.
 
 import { logScore, globalAverage } from './logScore.js';
+import { findTiedGroup } from './tieBreakTournament.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const YEAR_MS = 365.25 * DAY_MS;
@@ -375,4 +376,49 @@ export function standouts (entries, getRatingFn, weights, { minCount = 4, perFac
       return true;
     })
     .slice(0, cap);
+}
+
+// Ties across the whole library (bug report, 2026-09-06: "Would be cool if I
+// could see how many ties there are in the whole database").
+//
+// A tie is EXACT equality of calculatedTotal, fourth decimal included — the
+// same `===` the tiebreak tournament uses (findTiedGroup), not a two-decimal
+// look-alike: scores are kept at 4dp precisely so that films showing the same
+// 7.16 can still be ordered. Two films that only match at 2dp are not tied,
+// and the tournament would never offer them.
+//
+// `next` is literally what the tournament would take up next — the highest-
+// scoring tie — computed by the tournament's own walker so the two screens
+// can never disagree about it.
+export function tieStats (entries, getRatingFn, { cap = 8 } = {}) {
+  // Score once, then group — getRating in a comparator is the documented
+  // perf trap (CLAUDE.md).
+  const scored = (entries || [])
+    .map((entry) => ({ entry, score: getRatingFn(entry)?.calculatedTotal }))
+    .filter((item) => Number.isFinite(item.score))
+    .sort((a, b) => (b.score - a.score) || String(a.entry.movie?.title || '').localeCompare(String(b.entry.movie?.title || '')));
+  if (!scored.length) return null;
+
+  const byScore = new Map();
+  scored.forEach(({ entry, score }) => {
+    if (!byScore.has(score)) byScore.set(score, []);
+    byScore.get(score).push(entry);
+  });
+  const groups = [...byScore.entries()]
+    .filter(([, films]) => films.length > 1)
+    .map(([score, films]) => ({ score, films }));
+  if (!groups.length) return null;
+
+  const tiedFilms = groups.reduce((sum, group) => sum + group.films.length, 0);
+  const next = findTiedGroup(scored, (item) => item.score);
+  const bySize = [...groups].sort((a, b) => (b.films.length - a.films.length) || (b.score - a.score));
+
+  return {
+    tiedFilms,
+    groups: groups.length,
+    largest: bySize[0].films.length,
+    share: tiedFilms / scored.length,
+    next: { score: next[0].score, films: next.map((item) => item.entry) },
+    biggest: bySize.slice(0, cap)
+  };
 }

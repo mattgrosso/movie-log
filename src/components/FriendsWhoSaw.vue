@@ -28,6 +28,14 @@
 import { formatScore } from '../assets/javascript/formatScore.js';
 import { friendsWhoRated } from '../assets/javascript/friendViewings.js';
 
+// How old a copy of a friend's profile these pills will show. Profiles are
+// one-shot reads, so an app left open holds whatever it fetched at launch;
+// a friend-log push arriving hours later steers that same running app to the
+// film, and the pills have to be able to say what the push just said. Five
+// minutes keeps a movie-to-movie browse from re-downloading ~100KB per
+// friend at every step while still beating any notification tap.
+export const FRIEND_PROFILE_MAX_AGE_MS = 5 * 60 * 1000;
+
 export default {
   name: 'FriendsWhoSaw',
   props: {
@@ -50,6 +58,11 @@ export default {
     // and none of the other ratings, none of them were there"). The pills
     // therefore ensure their own data.
     //
+    // And the pills ask for a FRESH copy (maxAgeMs), not just a present one:
+    // report -P0sDPxbC4120byAaK5W (2026-09-06), Seth logged a film, the push
+    // steered Matt's already-open app here, and Seth's profile in memory was
+    // the one fetched that morning.
+    //
     // The user KEY is watched alongside membership, and it is the load-
     // bearing part on that path: at mount, auth hasn't resolved, so
     // attachSocialListeners has no account to listen for and returns having
@@ -70,7 +83,7 @@ export default {
       // what's missing, so re-fires are cheap no-ops once profiles are in.
       immediate: true,
       handler () {
-        this.$store.dispatch('ensureClubData');
+        this.$store.dispatch('ensureClubData', { maxAgeMs: FRIEND_PROFILE_MAX_AGE_MS });
       }
     }
   },

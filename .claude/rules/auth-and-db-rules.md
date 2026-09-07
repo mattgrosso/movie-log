@@ -250,6 +250,19 @@ deliberately a no-op when nothing is pending — backgrounding is constant, and 
 ~100KB document on every tab switch would be worse than the bug.
 
 The invariant, guarded by `FriendLogAnnounce.test.js`: **anything that announces must also
-publish.** Never notify the club about a film it cannot then show. The publish is not
-awaited before `returnHome()` — the write rides across the route change, which trades one
-round trip's exposure for no delay on the transition.
+publish — and the publish lands first.** Never notify the club about a film it cannot then
+show. Since 2026-09-06 the announce is chained onto the publish promise (report
+-P0sDPxbC4120byAaK5W: the push won the race and the film's page had no rating to show);
+a failed publish withholds the push. Neither is awaited before `returnHome()` — the write
+rides across the route change, which trades one round trip's exposure for no delay on the
+transition.
+
+The reader's half of the same bug: friend profiles are one-shot `get`s, so an app open
+since morning holds the morning's snapshot. `ensureClubData` takes `maxAgeMs`, and
+`FriendsWhoSaw` passes five minutes (`FRIEND_PROFILE_MAX_AGE_MS`), so a film's page always
+shows a copy newer than any notification that led there. Other surfaces still fetch only
+what's missing — profiles are ~100KB each.
+
+Friend-log body: `prefs.friendLogScores` (default on) is the RECIPIENT's choice to hear
+about the film without the number; a null score is the rater's sharing tier. Both cases
+live in `pushCadence.friendLogBody`, where the tests are.

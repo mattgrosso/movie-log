@@ -554,3 +554,34 @@ describe('clubFetchesNeeded', () => {
       .toEqual({ native: false, external: false })
   })
 })
+
+// 2026-09-06: Seth logged a film, Matt's phone buzzed, and the film's page
+// showed no rating — Matt's app had been open all day and held the copy of
+// Seth's profile it fetched that morning. "Already here" was the only test.
+describe('clubFetchesNeeded — staleness', () => {
+  const NOW = Date.UTC(2026, 8, 6, 19, 37)
+  const loaded = {
+    friendKeys: ['seth-gmail-com'],
+    nativeProfiles: { 'seth-gmail-com': { name: 'Seth' } },
+    externalFriends: { 'ext-1': { feedUrl: 'https://example.com/f.json' } },
+    externalProfiles: { 'ext-1': { name: 'Brian' } }
+  }
+
+  it('treats a copy older than maxAgeMs as missing', () => {
+    expect(clubFetchesNeeded({ ...loaded, fetchedAt: NOW - 6 * 60 * 1000, maxAgeMs: 5 * 60 * 1000, now: NOW }))
+      .toEqual({ native: true, external: true })
+  })
+
+  it('is satisfied by a copy younger than maxAgeMs', () => {
+    expect(clubFetchesNeeded({ ...loaded, fetchedAt: NOW - 60 * 1000, maxAgeMs: 5 * 60 * 1000, now: NOW }))
+      .toEqual({ native: false, external: false })
+  })
+
+  it('never fetches for an empty club, however stale', () => {
+    expect(clubFetchesNeeded({ fetchedAt: 0, maxAgeMs: 1000, now: NOW })).toEqual({ native: false, external: false })
+  })
+
+  it('leaves the default behaviour alone: without maxAgeMs only a missing profile counts', () => {
+    expect(clubFetchesNeeded({ ...loaded, fetchedAt: 0, now: NOW })).toEqual({ native: false, external: false })
+  })
+})

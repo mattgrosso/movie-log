@@ -844,9 +844,17 @@
                       <input class="form-check-input" type="checkbox" id="pushAwardsToggle" :checked="pushPrefs.awards" @change="updatePushPref('awards', $event)">
                       <label class="form-check-label" for="pushAwardsToggle">Award years needing input</label>
                     </div>
-                    <div class="form-check form-switch mb-3">
+                    <div class="form-check form-switch" :class="pushPrefs.friendLogs ? 'mb-1' : 'mb-3'">
                       <input class="form-check-input" type="checkbox" id="pushFriendLogsToggle" :checked="pushPrefs.friendLogs" @change="updatePushPref('friendLogs', $event)">
                       <label class="form-check-label" for="pushFriendLogsToggle">A friend logs a movie</label>
+                    </div>
+                    <!-- Only meaningful while friend logs are on. The score is
+                         the reader's call (2026-09-06: "turn off the score so
+                         you see that they watched it, but you don't see their
+                         score"); whether one exists at all is the rater's. -->
+                    <div v-if="pushPrefs.friendLogs" class="form-check form-switch mb-3 push-sub-toggle">
+                      <input class="form-check-input" type="checkbox" id="pushFriendLogScoresToggle" :checked="pushPrefs.friendLogScores" @change="updatePushPref('friendLogScores', $event)">
+                      <label class="form-check-label" for="pushFriendLogScoresToggle">Include what they rated it</label>
                     </div>
                     <div class="mb-3">
                       <label for="pushCadenceSelect" class="form-label">When to tell me</label>
@@ -6826,6 +6834,11 @@ export default {
 </style>
 
 <style scoped>
+/* A toggle that only applies while its parent toggle is on: indented under it. */
+.push-sub-toggle {
+  margin-left: 1.75rem;
+}
+
 .welcome-new-user-text {
   color: #ccc;
   font-size: 0.9rem;

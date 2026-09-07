@@ -22,6 +22,12 @@ export const PUSH_PREF_DEFAULTS = {
   tiebreak: true,
   awards: true,
   friendLogs: true,
+  // Whether a friend-log push says what they rated it. Matt, 2026-09-06:
+  // "you should have the option in your notifications to turn off the score
+  // so you see that they watched it, but you don't see their score." The
+  // READER's choice; whether a score travels at all is still the rater's
+  // sharing tier (RateMovie sends null when ratings aren't shared).
+  friendLogScores: true,
   cadence: 'asTheyCome',
   // Waking hours. Anything maturing overnight waits for the morning.
   windowStart: 9,

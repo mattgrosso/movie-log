@@ -556,3 +556,42 @@ below-the-ten-anchor filter, search narrowing, and that choosing a card writes t
 dbKey and closes the sheet. Asserting on `wrapper.vm.pickerCandidates` alone would have
 caught the method's throw but not the template's, and the template's is the half that
 blanks the screen.
+
+
+## Three from one evening: the push that beat its own snapshot, the score switch, and Ties (2026-09-06)
+
+**"I get a notice that my friend rated the movie but when I click on the notification,
+it takes me to the movie and I don't see their rating included there."** Seth logged
+Coyote vs. Acme at 3:14pm; Matt's report came at 3:37pm from `/movie/1204680`. The
+production probe (Admin SDK) showed Seth's profile snapshot carrying the rating — by then.
+Two roads could have left the page blank at 3:37, and the data can't say which, so both
+were closed:
+
+- **The rater's side.** `RateMovie` fired `announceLoggedMovie` and
+  `publishSocialProfileNow` in the same breath, push first. The push is what makes a
+  friend open the page, so it now leaves only when the publish promise resolves; a failed
+  publish withholds it (the repo's standing rule: a notification for something the club
+  cannot show is worse than a later one). Two new tests in `FriendLogAnnounce.test.js`
+  hold the order and the withholding; reverting the chain fails both.
+- **The reader's side.** Friend profiles are one-shot `get`s. An app open since morning
+  holds the morning's snapshot, and `ensureClubData` only ever fetched what was *missing*.
+  `clubFetchesNeeded` gained `fetchedAt`/`maxAgeMs`; `FriendsWhoSaw` asks for a copy no
+  older than five minutes. The 2026-08-29 fix made the pills fetch their own data; this
+  makes them fetch *current* data. Not the default for every surface — profiles are
+  ~100KB each.
+
+Not verified on the phone: whether iOS reloads the PWA on a notification tap or steers the
+running one. The two fixes cover both.
+
+**"You should have the option in your notifications to turn off the score."** A new
+push pref, `friendLogScores` (default on), an indented switch under "A friend logs a
+movie" in Home's Notifications card, and `pushCadence.friendLogBody`, which the Lambda now
+calls so the choice is in the one tested file under `aws-lambda/`. Lambda redeployed from
+the previously deployed zip's `node_modules` plus the repo's two source files.
+
+**"Would be cool if I could see how many ties there are in the whole database."** A Ties
+section on `/stats`, between Marathon Club and Years. The definition is the tournament's:
+exact `calculatedTotal` equality at the fourth decimal (`findTiedGroup` is reused to name
+the next-up group, so the two screens cannot disagree). Strip of four numbers, the next-up
+group as a poster row, then the biggest ties by size. Two films that merely display the
+same 7.16 are not tied, and `deepStats.test.js` says so — grouping at 2dp fails it.

@@ -131,6 +131,47 @@
       </ol>
     </section>
 
+    <!-- Ties. "Would be cool if I could see how many ties there are in the
+         whole database" (2026-09-06). Exact equality at the fourth decimal,
+         the tournament's own definition (deepStats.tieStats). -->
+    <section v-if="ties" class="ds-section ties">
+      <h2 class="ds-section-title">Ties</h2>
+      <p class="ds-section-caption">
+        Films whose scores match exactly, to the fourth decimal — the ties the tiebreak tournament
+        settles, one group at a time, starting from the top.
+      </p>
+      <div class="ds-strip">
+        <div class="ds-strip-item"><span class="ds-strip-value">{{ ties.tiedFilms }}</span><span class="ds-strip-label">films tied</span></div>
+        <div class="ds-strip-item"><span class="ds-strip-value">{{ ties.groups }}</span><span class="ds-strip-label">tied groups</span></div>
+        <div class="ds-strip-item"><span class="ds-strip-value">{{ ties.largest }}</span><span class="ds-strip-label">biggest tie</span></div>
+        <div class="ds-strip-item"><span class="ds-strip-value">{{ Math.round(ties.share * 100) }}%</span><span class="ds-strip-label">of the library</span></div>
+      </div>
+      <h3 class="pantheon-label">
+        Next up for the tournament
+        <span class="pantheon-count">{{ ties.next.films.length }} at {{ formatScore(ties.next.score) }}</span>
+      </h3>
+      <div class="ds-poster-row">
+        <div v-for="film in ties.next.films" :key="`tie-next-${film.dbKey}`" class="ds-poster-card" role="button" :aria-label="film.movie.title" @click="goToMovie(film)">
+          <img v-if="film.movie.poster_path" :src="poster(film)" :alt="film.movie.title" class="ds-poster">
+          <div v-else class="ds-poster ds-poster-blank">{{ film.movie.title }}</div>
+        </div>
+      </div>
+      <template v-if="biggestTies.length">
+        <h3 class="pantheon-label">Biggest ties</h3>
+        <div v-for="group in biggestTies" :key="`tie-${group.score}`" class="pantheon-category tie-group">
+          <h3 class="pantheon-label">
+            {{ group.films.length }} films at {{ formatScore(group.score) }}
+          </h3>
+          <div class="ds-poster-row">
+            <div v-for="film in group.films" :key="`tie-${group.score}-${film.dbKey}`" class="ds-poster-card" role="button" :aria-label="film.movie.title" @click="goToMovie(film)">
+              <img v-if="film.movie.poster_path" :src="poster(film)" :alt="film.movie.title" class="ds-poster">
+              <div v-else class="ds-poster ds-poster-blank">{{ film.movie.title }}</div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </section>
+
     <!-- Years -->
     <section v-if="years.length" class="ds-section">
       <h2 class="ds-section-title">Years</h2>
@@ -347,7 +388,7 @@
 import BackLink from './games/BackLink.vue';
 import PersonModal from './PersonModal.vue';
 import { getRating } from '../assets/javascript/GetRating.js';
-import { crownTimeline, pantheon, rewatchStats, marathonStats, yearStats, genreStats, standouts } from '../assets/javascript/deepStats.js';
+import { crownTimeline, pantheon, rewatchStats, marathonStats, yearStats, genreStats, standouts, tieStats } from '../assets/javascript/deepStats.js';
 import { logScoreSettings } from '../assets/javascript/logScore.js';
 import { decadesAvailable, defaultDecade, decadeChampionship, DECADE_DEFAULTS } from '../assets/javascript/decadeChampionship.js';
 import { isEligibleForActingCategory } from '../assets/javascript/genderEligibility.js';
@@ -449,6 +490,13 @@ export default {
     pantheonData () {
       return pantheon(this.library, getRating);
     },
+    ties () {
+      return tieStats(this.library, getRating);
+    },
+    // The next-up group already has its own row; don't show it twice.
+    biggestTies () {
+      return (this.ties?.biggest || []).filter((group) => group.score !== this.ties.next.score);
+    },
     rewatches () {
       return rewatchStats(this.library);
     },
@@ -499,6 +547,7 @@ export default {
     }
   },
   methods: {
+    formatScore,
     resetChampionshipScroll () {
       const section = this.$refs.championshipSection;
       if (!section) return;

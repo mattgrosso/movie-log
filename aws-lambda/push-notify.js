@@ -31,7 +31,7 @@
 
 const crypto = require('crypto');
 const webpush = require('web-push');
-const { dueFromDigest, nextBaseline, shouldSend, composeMessage, EMPTY_BASELINE } = require('./pushCadence');
+const { dueFromDigest, nextBaseline, shouldSend, composeMessage, friendLogBody, EMPTY_BASELINE } = require('./pushCadence');
 
 const FIREBASE_PROJECT_ID = 'movie-log-8c4d5';
 const DATABASE_URL = 'https://movie-log-8c4d5-default-rtdb.firebaseio.com';
@@ -318,9 +318,7 @@ const notifyFriendsOfLog = async (myKey, { tmdbId, title, score }) => {
 
   const navigate = tmdbId ? `/movie/${tmdbId}` : '/';
   const scoreNumber = Number(score);
-  const body = Number.isFinite(scoreNumber)
-    ? `They gave it a ${scoreNumber.toFixed(2)}.`
-    : 'Tap to see it in their library.';
+  const scoreLine = Number.isFinite(scoreNumber) ? `They gave it a ${scoreNumber.toFixed(2)}.` : null;
 
   let notified = 0;
   await Promise.all(mutuals.map(async (friendKey) => {
@@ -329,6 +327,11 @@ const notifyFriendsOfLog = async (myKey, { tmdbId, title, score }) => {
       if (!push || !push.subscriptions) return;
       const prefs = push.prefs || {};
       if (prefs.enabled === false || prefs.friendLogs === false) return;
+
+      // The RECIPIENT decides whether the score is in the notification
+      // (prefs.friendLogScores); a null score means the rater doesn't share
+      // ratings at all. Both cases live in friendLogBody, where the tests are.
+      const body = friendLogBody(scoreLine, prefs);
 
       // Icon badge: the recipient's own chore count plus this log — a badge
       // should say "things waiting for you", and the friend's log is one of

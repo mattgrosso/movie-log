@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { crownTimeline, pantheon, rewatchStats, marathonStats, yearStats, genreStats } from '@/assets/javascript/deepStats.js'
+import { crownTimeline, pantheon, rewatchStats, marathonStats, yearStats, genreStats, tieStats } from '@/assets/javascript/deepStats.js'
 
 const NOW = Date.UTC(2026, 7, 15)
 const day = (y, m, d) => Date.UTC(y, m, d, 12)
@@ -126,5 +126,59 @@ describe('yearStats / genreStats (log-scored)', () => {
     expect(genres.map((g) => g.name)).toEqual(['Horror', 'Comedy'])
     expect(genres[0].score).toBeGreaterThan(genres[1].score)
     expect(genres.find((g) => g.name === 'Documentary')).toBeUndefined()
+  })
+})
+
+// "Would be cool if I could see how many ties there are in the whole
+// database" (2026-09-06). A tie is the tournament's tie: exact equality at
+// the fourth decimal, nothing looser.
+describe('tieStats', () => {
+  it('counts films, groups, the biggest group, and the share of the library', () => {
+    const entries = [
+      entry(1, { rating: 8.1234 }),
+      entry(2, { rating: 8.1234 }),
+      entry(3, { rating: 8.1234 }),
+      entry(4, { rating: 6.5 }),
+      entry(5, { rating: 6.5 }),
+      entry(6, { rating: 9 }) // alone
+    ]
+    const stats = tieStats(entries, ratingOf)
+
+    expect(stats.tiedFilms).toBe(5)
+    expect(stats.groups).toBe(2)
+    expect(stats.largest).toBe(3)
+    expect(stats.share).toBeCloseTo(5 / 6, 5)
+    expect(stats.biggest.map((g) => [g.score, g.films.length])).toEqual([[8.1234, 3], [6.5, 2]])
+  })
+
+  it('does not call two films tied because they round to the same two decimals', () => {
+    // 7.1600 and 7.1601 both DISPLAY as 7.16; the tournament would never
+    // offer them, so neither does this.
+    const stats = tieStats([entry(1, { rating: 7.16 }), entry(2, { rating: 7.1601 })], ratingOf)
+    expect(stats).toBeNull()
+  })
+
+  it('names the highest-scoring tie as the one the tournament takes up next', () => {
+    const entries = [
+      entry(1, { rating: 6 }), entry(2, { rating: 6 }), entry(3, { rating: 6 }), // biggest
+      entry(4, { rating: 9 }), entry(5, { rating: 9 }) // highest
+    ]
+    const stats = tieStats(entries, ratingOf)
+    expect(stats.next.score).toBe(9)
+    expect(stats.next.films.map((f) => f.movie.id).sort()).toEqual([4, 5])
+    expect(stats.biggest[0].score).toBe(6)
+  })
+
+  it('ignores unrated entries and returns null for a library with no ties', () => {
+    const unrated = { dbKey: 'u', movie: { id: 99, title: 'Unrated' }, ratings: [] }
+    expect(tieStats([entry(1, { rating: 7 }), entry(2, { rating: 8 }), unrated], ratingOf)).toBeNull()
+    expect(tieStats([], ratingOf)).toBeNull()
+  })
+
+  it('caps the biggest-ties list', () => {
+    const entries = []
+    for (let g = 0; g < 10; g++) entries.push(entry(g * 2, { rating: 5 + g * 0.01 }), entry(g * 2 + 1, { rating: 5 + g * 0.01 }))
+    expect(tieStats(entries, ratingOf, { cap: 3 }).biggest).toHaveLength(3)
+    expect(tieStats(entries, ratingOf, { cap: 3 }).groups).toBe(10)
   })
 })
