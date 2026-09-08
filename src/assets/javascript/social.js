@@ -390,9 +390,14 @@ export function filmClubSummary (myEntries, getRatingFn, friendProfiles) {
     });
   });
 
+  // Chips read highest score first (Matt, 2026-09-07: "everyone who likes it
+  // with their ratings, we should sort them by rating"). Insertion order was
+  // "You" then friends in profile order, which put the numbers in no order
+  // at all.
   const multi = [...pool.values()].filter((movie) => movie.scores.length >= 2)
     .map((movie) => ({
       ...movie,
+      scores: [...movie.scores].sort((a, b) => b.r - a.r),
       average: round2(movie.scores.reduce((sum, s) => sum + s.r, 0) / movie.scores.length),
       spread: round2(Math.max(...movie.scores.map((s) => s.r)) - Math.min(...movie.scores.map((s) => s.r)))
     }));

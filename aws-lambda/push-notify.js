@@ -31,7 +31,10 @@
 
 const crypto = require('crypto');
 const webpush = require('web-push');
-const { dueFromDigest, nextBaseline, shouldSend, composeMessage, friendLogBody, EMPTY_BASELINE } = require('./pushCadence');
+const {
+  dueFromDigest, nextBaseline, shouldSend, composeMessage, friendLogBody, EMPTY_BASELINE,
+  gamesDue, shouldSendGames, composeGamesMessage
+} = require('./pushCadence');
 
 const FIREBASE_PROJECT_ID = 'movie-log-8c4d5';
 const DATABASE_URL = 'https://movie-log-8c4d5-default-rtdb.firebaseio.com';
@@ -262,6 +265,9 @@ const runSweep = async () => {
       if (!push || !push.subscriptions || !push.digest) continue;
 
       const prefs = push.prefs || {};
+      const tz = prefs.tz || 'America/New_York';
+      const hourNow = localHour(tz);
+      const digestUpdatedAt = Number(push.digest.updatedAt) || 0;
       const baseline = push.state?.baseline || EMPTY_BASELINE;
       const due = dueFromDigest(push.digest, prefs, now);
 
@@ -270,9 +276,9 @@ const runSweep = async () => {
         prefs,
         baseline,
         now,
-        localHour: localHour(prefs.tz || 'America/New_York'),
+        localHour: hourNow,
         lastSentAt: Number(push.state?.lastSentAt) || 0,
-        digestUpdatedAt: Number(push.digest.updatedAt) || 0
+        digestUpdatedAt
       });
 
       let delivered = 0;
@@ -292,6 +298,25 @@ const runSweep = async () => {
       if (sent) await dbSet(`${topKey}/push/state/lastSentAt`, now);
 
       if (sent || decision.send) results.push({ topKey, delivered, reason: decision.reason });
+
+      // The games reminder: its own stream, its own once-a-day stamp, its own
+      // tag (so it never replaces a chores notification on the lock screen),
+      // and no badge — the badge counts chores, and a game isn't one.
+      const games = shouldSendGames({
+        prefs,
+        now,
+        localHour: hourNow,
+        lastGamesSentAt: Number(push.state?.gamesSentAt) || 0,
+        digestUpdatedAt
+      });
+      if (games.send) {
+        const message = composeGamesMessage(gamesDue(push.digest, prefs, now, tz), (push.digest.games?.list || []).length);
+        if (message) {
+          const gamesDelivered = await sendToAccount(topKey, push.subscriptions, buildPayload({ ...message, tag: 'games' }));
+          if (gamesDelivered > 0) await dbSet(`${topKey}/push/state/gamesSentAt`, now);
+          results.push({ topKey, delivered: gamesDelivered, reason: games.reason });
+        }
+      }
     } catch (error) {
       console.error(`Sweep failed for ${topKey}:`, error.message);
     }

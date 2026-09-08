@@ -3,8 +3,10 @@ import {
   buildPushDigest,
   stickinessDigest,
   tiebreakDigest,
-  awardsYearsNeedingInput
+  awardsYearsNeedingInput,
+  gamesDigest
 } from '@/assets/javascript/pushDigest.js';
+import { GAME_NAMES } from '@/mixins/gameData.js';
 
 // The digest is what the push Lambda trusts VERBATIM — it never re-derives
 // prompt logic. So these tests pin the digest to the same behaviour the
@@ -210,7 +212,8 @@ describe('buildPushDigest', () => {
       // No lastTweak on a fresh account, so Home.vue's `|| now` fallback
       // makes the first tiebreak wait one full interval.
       tiebreak: { due: false, count: 0, eligibleAt: NOW + ONE_DAY, pinned: false },
-      awards: { years: [], eligibleAt: 0 }
+      awards: { years: [], eligibleAt: 0 },
+      games: gamesDigest({})
     });
   });
 });
@@ -297,5 +300,45 @@ describe('dueTimes counts each film once', () => {
       rating: { userAddedStickiness: true }
     })];
     expect(stickinessDigest(entries, {}, NOW).dueTimes).toEqual([]);
+  });
+});
+
+// The games reminder (2026-09-07) names only games not yet played today. The
+// Lambda decides "today" in the user's timezone; the digest's job is to
+// carry every game, by name, with when it was last played.
+describe('gamesDigest', () => {
+  it('lists every game by name, unplayed ones with no time', () => {
+    const digest = gamesDigest({});
+    expect(digest.list.length).toBe(Object.keys(GAME_NAMES).length);
+    expect(digest.list.find((g) => g.key === 'wordle')).toEqual({ key: 'wordle', name: 'Reel Wordle', lastPlayedAt: null });
+  });
+
+  it('takes the latest recorded round as the last play', () => {
+    const settings = { games: { history: { wordle: [{ at: NOW - 3 * ONE_DAY }, { at: NOW - ONE_DAY }] } } };
+    expect(gamesDigest(settings).list.find((g) => g.key === 'wordle').lastPlayedAt).toBe(NOW - ONE_DAY);
+  });
+
+  it('reads history that came back from Firebase as an object', () => {
+    const settings = { games: { history: { trivia: { a: { at: NOW - 5 * ONE_DAY }, b: { at: NOW - 2 * ONE_DAY } } } } };
+    expect(gamesDigest(settings).list.find((g) => g.key === 'trivia').lastPlayedAt).toBe(NOW - 2 * ONE_DAY);
+  });
+
+  // The streak games stamp a win on the first correct answer but only record
+  // a round when the streak ends — quitting mid-streak is still playing.
+  it('counts a win stamp as playing when it is newer than the last round', () => {
+    const stampDay = new Date(NOW);
+    const settings = {
+      games: {
+        history: { timeline: [{ at: NOW - 10 * ONE_DAY }] },
+        wins: { timeline: stampDay.toDateString() }
+      }
+    };
+    const midnight = new Date(stampDay.toDateString()).getTime();
+    expect(gamesDigest(settings).list.find((g) => g.key === 'timeline').lastPlayedAt).toBe(midnight);
+  });
+
+  it('rides along in the full digest', () => {
+    const digest = buildPushDigest({ entries: [], settings: {}, getRating, now: NOW });
+    expect(digest.games.list.length).toBe(Object.keys(GAME_NAMES).length);
   });
 });

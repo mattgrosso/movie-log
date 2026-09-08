@@ -210,6 +210,17 @@ while the app is open** (`digest.updatedAt` within 30 min — the prompts are al
 screen). A 24h staleness backstop re-mentions unfinished work so one ignored notification
 isn't the last word. `prefs.cadence = 'daily'` restores the original single-nudge mode.
 
+**The games reminder is a second stream** (2026-09-07, Matt: "an optional notification,
+one that defaults to off... that reminds you to play the games every day, maybe even you
+can choose per game"). `prefs.games` (default **false**), `prefs.gamesHour` (20), and
+`prefs.gamePicks` (`{ [gameKey]: false }` mutes one; absent = on, so new games join
+automatically). The digest carries `games.list` — every game's key, name and
+`lastPlayedAt` (latest history round or win stamp) — and the Lambda's `gamesDue` names
+only the games not yet played **today in the user's timezone** (`localDateKey`); a day
+with everything played sends nothing. Once a day at the chosen hour, `state/gamesSentAt`,
+tag `games` (never replaces a chores notification), no badge. All decisions in
+`pushCadence.js`, tested alongside the chores.
+
 Infra (all `--profile personal`, us-east-1): Lambda `cinemaroll-push` (nodejs22.x,
 role `cinemaroll-push-role`), HTTP API `8rptihkn0l` ($default → Lambda, throttle 5/10),
 env vars `FIREBASE_SA`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. The

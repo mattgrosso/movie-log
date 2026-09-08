@@ -53,6 +53,13 @@ const DAILY_MIN_GAP_MS = 20 * HOUR_MS;
 
 const EMPTY_BASELINE = { stickinessCount: 0, tiebreak: false, awardYears: [] };
 
+// The games reminder (Matt, 2026-09-07: "an optional notification, one that
+// defaults to off ... that reminds you to play the games every day, maybe
+// even you can choose per game"). A different animal from the chores above:
+// not news, a fixed daily hour — but it still only names games NOT YET
+// PLAYED that day, and a day with everything played sends nothing.
+const DEFAULT_GAMES_HOUR = 20;
+
 /**
  * What's due right now, honouring per-category opt-outs.
  *
@@ -294,6 +301,76 @@ function composeMessage (due, digest, news, now = Date.now()) {
   };
 }
 
+// --- The games reminder -----------------------------------------------------
+
+/** 'YYYY-MM-DD' in the user's own timezone — "today" is theirs, not UTC's. */
+function localDateKey (tz, at) {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
+  } catch {
+    return new Date(at).toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * The games still unplayed today, honouring the per-game picks. Mirrors
+ * pushPrefs.js's gameReminderOn: `gamePicks[key] === false` mutes a game,
+ * anything else (including no picks at all) leaves it in.
+ *
+ * `digest.games.list` is published by the app (pushDigest.js gamesDigest)
+ * with each game's name and last-played time; a digest from before it
+ * existed has no list, and an empty list sends nothing.
+ */
+function gamesDue (digest, prefs, now, tz) {
+  const today = localDateKey(tz, now);
+  return (digest?.games?.list || []).filter((game) => {
+    if (!game || !game.key || !game.name) return false;
+    if (prefs?.gamePicks?.[game.key] === false) return false;
+    const playedAt = Number(game.lastPlayedAt);
+    if (!Number.isFinite(playedAt) || playedAt <= 0) return true;
+    return localDateKey(tz, playedAt) !== today;
+  });
+}
+
+/**
+ * Should the games reminder go out right now? Off unless opted in; at the
+ * chosen hour only; once a day; and — like the chores — not while the app
+ * is open, where the Games button is already on screen.
+ */
+function shouldSendGames ({ prefs = {}, now, localHour, lastGamesSentAt = 0, digestUpdatedAt = 0 }) {
+  if (prefs.enabled === false) return { send: false, reason: 'disabled' };
+  if (prefs.games !== true) return { send: false, reason: 'games-off' };
+
+  const hour = Number.isFinite(Number(prefs.gamesHour)) ? Number(prefs.gamesHour) : DEFAULT_GAMES_HOUR;
+  if (localHour !== hour) return { send: false, reason: 'wrong-hour' };
+  if (now - lastGamesSentAt < DAILY_MIN_GAP_MS) return { send: false, reason: 'too-soon' };
+  if (now - digestUpdatedAt < ACTIVE_IN_APP_MS) return { send: false, reason: 'in-app' };
+  return { send: true, reason: 'games' };
+}
+
+/**
+ * The reminder text. Names the unplayed games — up to four, then a count —
+ * and deep-links a lone game straight to itself.
+ */
+function composeGamesMessage (unplayed, total = unplayed.length) {
+  if (!unplayed.length) return null;
+  if (unplayed.length === 1) {
+    return {
+      title: `${unplayed[0].name} is waiting for you today`,
+      body: 'Tap to play.',
+      navigate: `/games/${unplayed[0].key}`
+    };
+  }
+  const names = unplayed.map((game) => game.name);
+  const shown = names.slice(0, 4);
+  const rest = names.length - shown.length;
+  return {
+    title: unplayed.length >= total ? "Today's games are waiting" : `${unplayed.length} games still to play today`,
+    body: rest > 0 ? `${shown.join(', ')} and ${rest} more.` : `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}.`,
+    navigate: '/games'
+  };
+}
+
 // The body of a friend-log push. `scoreLine` is null when the rater doesn't
 // share ratings (their tier, decided client-side); `prefs.friendLogScores`
 // is the RECIPIENT's choice to hear about the film without the number
@@ -323,5 +400,10 @@ module.exports = {
   spacingMs,
   shouldSend,
   composeMessage,
-  stickinessLead
+  stickinessLead,
+  DEFAULT_GAMES_HOUR,
+  localDateKey,
+  gamesDue,
+  shouldSendGames,
+  composeGamesMessage
 };

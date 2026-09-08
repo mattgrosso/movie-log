@@ -28,6 +28,18 @@ export const PUSH_PREF_DEFAULTS = {
   // READER's choice; whether a score travels at all is still the rater's
   // sharing tier (RateMovie sends null when ratings aren't shared).
   friendLogScores: true,
+  // A once-a-day reminder to play the games. OFF by default — Matt,
+  // 2026-09-07: "an optional notification, one that defaults to off, but
+  // you can turn it on, that reminds you to play the games every day, maybe
+  // even you can choose per game." Only the games not yet played that day
+  // are named; a day with every game played sends nothing. `gamePicks`
+  // holds the per-game choice as `{ [gameKey]: false }` for a game muted
+  // from the reminder — absent means ON, so a game added later joins the
+  // reminder without anyone touching a switch (and an empty map, which
+  // Firebase would drop anyway, means "all of them"). See gameReminderOn.
+  games: false,
+  // Evening, like the daily cadence: games are a wind-down thing.
+  gamesHour: 20,
   cadence: 'asTheyCome',
   // Waking hours. Anything maturing overnight waits for the morning.
   windowStart: 9,
@@ -39,6 +51,12 @@ export const PUSH_PREF_DEFAULTS = {
   // app tasks, and evening is when movies happen.
   hour: 19
 };
+
+// Whether one game is part of the reminder. Mirrored in
+// aws-lambda/pushCadence.js (gamesDue) — the Lambda reads prefs directly.
+export function gameReminderOn (prefs, gameKey) {
+  return prefs?.gamePicks?.[gameKey] !== false;
+}
 
 export function pushPrefsWithDefaults (stored) {
   return {

@@ -8,7 +8,11 @@ import {
   composeMessage,
   friendLogBody,
   stickinessLead,
-  EMPTY_BASELINE
+  EMPTY_BASELINE,
+  localDateKey,
+  gamesDue,
+  shouldSendGames,
+  composeGamesMessage
 } from '../../aws-lambda/pushCadence.js';
 
 // Matt, 2026-08-28: notify "as the prompts come in", not once a day. The
@@ -403,5 +407,105 @@ describe('friendLogBody', () => {
 
   it('has nothing to hide when the rater does not share ratings', () => {
     expect(friendLogBody(null, { friendLogScores: true })).toBe('Tap to see it in their library.');
+  });
+});
+
+// --- The games reminder (2026-09-07) ----------------------------------------
+// "An optional notification, one that defaults to off, but you can turn it
+// on, that reminds you to play the games every day, maybe even you can
+// choose per game." Off by default, one fixed hour, and it only ever names
+// games not yet played that day — in the USER's day, not UTC's.
+
+describe('gamesDue', () => {
+  const TZ = 'America/New_York';
+  // 18:00Z on Aug 28 is 2pm in New York.
+  const games = (overrides = {}) => ({
+    games: {
+      list: [
+        { key: 'wordle', name: 'Reel Wordle', lastPlayedAt: null },
+        { key: 'trivia', name: 'Trivia', lastPlayedAt: NOW - 2 * HOUR },
+        { key: 'timeline', name: 'Timeline', lastPlayedAt: NOW - 20 * HOUR },
+        ...(overrides.extra || [])
+      ]
+    }
+  });
+
+  it('keeps games never played or played before today', () => {
+    expect(gamesDue(games(), {}, NOW, TZ).map((g) => g.key)).toEqual(['wordle', 'timeline']);
+  });
+
+  it("decides today by the user's clock, not UTC", () => {
+    // NOW is 18:00Z. A play 9 hours earlier (09:00Z) is 5am the same day in
+    // New York — played today — but 11pm the previous evening in Honolulu,
+    // where the game is therefore still waiting.
+    const played = { key: 'stamp', name: 'Stamp', lastPlayedAt: NOW - 9 * HOUR };
+    expect(gamesDue({ games: { list: [played] } }, {}, NOW, TZ).length).toBe(0);
+    expect(gamesDue({ games: { list: [played] } }, {}, NOW, 'Pacific/Honolulu').length).toBe(1);
+  });
+
+  it('drops games muted in gamePicks, and nothing else', () => {
+    const prefs = { gamePicks: { wordle: false, trivia: true } };
+    expect(gamesDue(games(), prefs, NOW, TZ).map((g) => g.key)).toEqual(['timeline']);
+  });
+
+  it('is empty for a digest published before the list existed', () => {
+    expect(gamesDue({ stickiness: {} }, {}, NOW, TZ)).toEqual([]);
+    expect(gamesDue(null, {}, NOW, TZ)).toEqual([]);
+  });
+
+  it('formats the local date key', () => {
+    expect(localDateKey(TZ, NOW)).toBe('2026-08-28');
+    expect(localDateKey('Asia/Tokyo', NOW)).toBe('2026-08-29');
+  });
+});
+
+describe('shouldSendGames', () => {
+  const on = { enabled: true, games: true, gamesHour: 20 };
+  const base = { now: NOW, localHour: 20, lastGamesSentAt: NOW - 30 * HOUR, digestUpdatedAt: NOW - 6 * HOUR };
+
+  it('is off by default, and off when notifications are off', () => {
+    expect(shouldSendGames({ ...base, prefs: {} }).reason).toBe('games-off');
+    expect(shouldSendGames({ ...base, prefs: { games: true, enabled: false } }).reason).toBe('disabled');
+  });
+
+  it('sends at the chosen hour, once a day', () => {
+    expect(shouldSendGames({ ...base, prefs: on })).toEqual({ send: true, reason: 'games' });
+    expect(shouldSendGames({ ...base, prefs: on, localHour: 19 }).reason).toBe('wrong-hour');
+    expect(shouldSendGames({ ...base, prefs: on, lastGamesSentAt: NOW - 2 * HOUR }).reason).toBe('too-soon');
+    expect(shouldSendGames({ ...base, prefs: { ...on, gamesHour: 9 }, localHour: 9 }).send).toBe(true);
+  });
+
+  it('stays quiet while the app is open', () => {
+    expect(shouldSendGames({ ...base, prefs: on, digestUpdatedAt: NOW - 5 * 60 * 1000 }).reason).toBe('in-app');
+  });
+});
+
+describe('composeGamesMessage', () => {
+  const g = (key, name) => ({ key, name });
+
+  it('says nothing when every game has been played', () => {
+    expect(composeGamesMessage([], 11)).toBeNull();
+  });
+
+  it('deep-links a lone game to itself', () => {
+    expect(composeGamesMessage([g('wordle', 'Reel Wordle')], 11)).toEqual({
+      title: 'Reel Wordle is waiting for you today',
+      body: 'Tap to play.',
+      navigate: '/games/wordle'
+    });
+  });
+
+  it('names up to four, then counts the rest, and lands on the hub', () => {
+    const all = [g('a', 'Higher or Lower'), g('b', 'Reel Wordle'), g('c', 'Connections'), g('d', 'Six Degrees'), g('e', 'Timeline'), g('f', 'Trivia')];
+    expect(composeGamesMessage(all, 6)).toEqual({
+      title: "Today's games are waiting",
+      body: 'Higher or Lower, Reel Wordle, Connections, Six Degrees and 2 more.',
+      navigate: '/games'
+    });
+    expect(composeGamesMessage(all.slice(0, 3), 6)).toEqual({
+      title: '3 games still to play today',
+      body: 'Higher or Lower, Reel Wordle and Connections.',
+      navigate: '/games'
+    });
   });
 });

@@ -234,6 +234,15 @@ describe('filmClubSummary', () => {
     expect(summary.biggestDivides[0].spread).toBe(6)
   })
 
+  // 2026-09-07: "everyone who likes it with their ratings, we should sort
+  // them by rating." The chips used to come out You-first, then friends in
+  // whatever order their profiles loaded.
+  it('lists each movie\'s scores highest first, whoever gave them', () => {
+    const summary = filmClubSummary(myLibrary, ratingOf, friends)
+    expect(summary.clubFavorites[0].scores.map((s) => s.who)).toEqual(['Seth', 'You', 'Natalie'])
+    expect(summary.biggestDivides[0].scores.map((s) => s.r)).toEqual([9, 3])
+  })
+
   it('null with no friends', () => {
     expect(filmClubSummary(myLibrary, ratingOf, {})).toBeNull()
   })

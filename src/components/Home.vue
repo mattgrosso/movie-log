@@ -856,6 +856,27 @@
                       <input class="form-check-input" type="checkbox" id="pushFriendLogScoresToggle" :checked="pushPrefs.friendLogScores" @change="updatePushPref('friendLogScores', $event)">
                       <label class="form-check-label" for="pushFriendLogScoresToggle">Include what they rated it</label>
                     </div>
+                    <!-- Off by default (2026-09-07: "an optional notification,
+                         one that defaults to off ... that reminds you to play
+                         the games every day, maybe even you can choose per
+                         game"). Only names games not yet played that day. -->
+                    <div class="form-check form-switch" :class="pushPrefs.games ? 'mb-1' : 'mb-3'">
+                      <input class="form-check-input" type="checkbox" id="pushGamesToggle" :checked="pushPrefs.games" @change="updatePushPref('games', $event)">
+                      <label class="form-check-label" for="pushGamesToggle">A daily reminder to play the games</label>
+                    </div>
+                    <div v-if="pushPrefs.games" class="mb-3 push-sub-toggle">
+                      <label for="pushGamesHour" class="form-label">Remind me around</label>
+                      <select class="form-select mb-2" id="pushGamesHour" :value="pushPrefs.gamesHour" @change="updatePushPrefNumber('gamesHour', $event.target.value)">
+                        <option v-for="hour in 24" :key="hour - 1" :value="hour - 1">{{ formatPushHour(hour - 1) }}</option>
+                      </select>
+                      <small class="form-text text-white d-block mb-2">
+                        Only the games you haven't played yet that day — nothing on a day you've played them all.
+                      </small>
+                      <div v-for="game in gameReminderRows" :key="game.key" class="form-check form-switch mb-1">
+                        <input class="form-check-input" type="checkbox" :id="`pushGame-${game.key}`" :checked="game.on" @change="updateGameReminderPick(game.key, $event)">
+                        <label class="form-check-label" :for="`pushGame-${game.key}`">{{ game.name }}</label>
+                      </div>
+                    </div>
                     <div class="mb-3">
                       <label for="pushCadenceSelect" class="form-label">When to tell me</label>
                       <select class="form-select" id="pushCadenceSelect" :value="pushPrefs.cadence" @change="updatePushPrefValue('cadence', $event.target.value)">
@@ -1549,7 +1570,7 @@ import { getRating } from "../assets/javascript/GetRating.js";
 import { awardsYearThreshold, yearsMeetingAwardsThreshold } from "../assets/javascript/personalAwards.js";
 import { promptsPerDay, dueForPrompt, lastAwardsPromptAt } from "../assets/javascript/promptQuota.js";
 import { pushApiConfigured, pushSupport, subscribeThisDevice, unsubscribeThisDevice, sendTestNotification } from "../utils/push.js";
-import { pushPrefsWithDefaults } from "../assets/javascript/pushPrefs.js";
+import { pushPrefsWithDefaults, gameReminderOn } from "../assets/javascript/pushPrefs.js";
 import { logScore, globalAverage, logScoreSettings } from "../assets/javascript/logScore.js";
 import ErrorLogService from '../services/ErrorLogService.js';
 import { computeFlatKeywords } from '../utils/keywords.js';
@@ -1579,7 +1600,7 @@ import {
 } from '../assets/javascript/personalAwards.js';
 import { groupByPersonRole } from '../assets/javascript/personRoleGroups.js';
 import { findTiedGroup } from '../assets/javascript/tieBreakTournament.js';
-import { GAME_ICONS, lastPlayedGamePath } from '../mixins/gameData.js';
+import { GAME_ICONS, GAME_NAMES, gameWinKey, lastPlayedGamePath } from '../mixins/gameData.js';
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
 import { backfillProductionCountries, collectMoviesNeedingCountries } from '../assets/javascript/backfillProductionCountries.js';
@@ -2415,6 +2436,13 @@ export default {
     },
     pushPrefs () {
       return pushPrefsWithDefaults(this.$store.state.pushPrefs);
+    },
+    // One switch per game for the reminder, in the hub's own roster order.
+    gameReminderRows () {
+      return Object.entries(GAME_NAMES).map(([path, name]) => {
+        const key = gameWinKey(path);
+        return { key, name, on: gameReminderOn(this.pushPrefs, key) };
+      });
     },
     stickinessPromptState () {
       const value = this.$store.state.settings?.stickinessPromptState;
@@ -4078,6 +4106,15 @@ export default {
     updatePushPrefNumber (key, value) {
       const number = Number(value);
       if (Number.isFinite(number)) this.$store.dispatch('savePushPrefs', { [key]: number });
+    },
+    // Stores only the muted games (`false`); a game switched back on is
+    // removed from the map rather than written as `true`, so "absent = on"
+    // stays the one rule and a fully re-enabled map disappears entirely.
+    updateGameReminderPick (gameKey, event) {
+      const picks = { ...(this.pushPrefs.gamePicks || {}) };
+      if (event.target.checked) delete picks[gameKey];
+      else picks[gameKey] = false;
+      this.$store.dispatch('savePushPrefs', { gamePicks: picks });
     },
     formatPushHour (hour) {
       const twelve = hour % 12 === 0 ? 12 : hour % 12;

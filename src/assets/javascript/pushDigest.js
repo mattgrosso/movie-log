@@ -31,6 +31,7 @@
 import { findTiedGroup, tiedContestantCount } from './tieBreakTournament.js';
 import { yearsMeetingAwardsThreshold } from './personalAwards.js';
 import { promptsPerDay, lastAwardsPromptAt, ONE_DAY_MS } from './promptQuota.js';
+import { GAME_NAMES, gameWinKey } from '../../mixins/gameData.js';
 
 const ONE_WEEK_MS = 604800000;
 // Same odd constant StickinessInline.vue uses (≈ half a Julian year).
@@ -224,6 +225,34 @@ export function awardsYearsNeedingInput (entries, settings, now = Date.now()) {
 }
 
 /**
+ * Games: every game with when it was last played, so the server can say
+ * which ones are still unplayed TODAY in the user's own timezone (the date
+ * arithmetic is the Lambda's, because "today" depends on when the sweep
+ * runs, not on when the app last published). Names travel with the keys —
+ * the Lambda knows nothing about the games and shouldn't have to.
+ *
+ * "Played" is the later of the last recorded round (settings/games/history)
+ * and the day's win stamp (settings/games/wins, a toDateString), because the
+ * endless streak games record a round only when the streak ends but stamp a
+ * win on the first correct answer — quitting mid-streak is still playing.
+ */
+export function gamesDigest (settings) {
+  const history = settings?.games?.history || {};
+  const wins = settings?.games?.wins || {};
+  return {
+    list: Object.entries(GAME_NAMES).map(([path, name]) => {
+      const key = gameWinKey(path);
+      const rounds = history[key];
+      const roundList = Array.isArray(rounds) ? rounds : Object.values(rounds || {});
+      const lastRoundAt = Math.max(0, ...roundList.map((round) => Number(round?.at) || 0));
+      const winStamp = typeof wins[key] === 'string' ? new Date(wins[key]).getTime() : NaN;
+      const lastPlayedAt = Math.max(lastRoundAt, Number.isFinite(winStamp) ? winStamp : 0);
+      return { key, name, lastPlayedAt: lastPlayedAt > 0 ? lastPlayedAt : null };
+    })
+  };
+}
+
+/**
  * The full digest published to `{topKey}/push/digest`. Always a complete
  * object (empty sections stay present) so the Lambda never has to guess
  * whether an absent key means "nothing due" or "old app version".
@@ -239,6 +268,7 @@ export function buildPushDigest ({ entries, settings, getRating, now = Date.now(
         lastAwardsPromptAt(settings, now),
         promptsPerDay(settings?.awardsPromptsPerDay, 1)
       ) ?? 0
-    }
+    },
+    games: gamesDigest(settings)
   };
 }
