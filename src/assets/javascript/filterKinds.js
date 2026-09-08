@@ -40,6 +40,7 @@ export const FILTER_KINDS = {
       return s.titleLoose.includes(looseSearchText(filter.value)) ||
         s.keywords.some(keyword => keyword === searchValue) ||
         s.genres.some(genre => genre === searchValue) ||
+        s.places.some(place => place === searchValue) ||
         // A name-part (split on space) is always a substring of the full name,
         // so checking the full name covers part matches too.
         s.cast.some(name => name.includes(searchValue)) ||
@@ -107,6 +108,16 @@ export const FILTER_KINDS = {
     discoverGroup: 'keywords',
     matchLocal (result, filter, s) {
       return s.keywords.some(keyword => keyword === normalizeSearchText(filter.value));
+    }
+  },
+
+  // A place a film was shot in or set in (Wikidata, see places.js). Exact
+  // match like keyword/genre: "York" must not pull in New York. Local only —
+  // TMDB has no idea where anything was filmed.
+  place: {
+    discoverGroup: 'local',
+    matchLocal (result, filter, s) {
+      return s.places.some(place => place === normalizeSearchText(filter.value));
     }
   },
 

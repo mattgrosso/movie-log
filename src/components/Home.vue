@@ -1111,6 +1111,29 @@
                                 </div>
                               </div>
                 <div class="mt-4">
+                                <label class="form-label d-block">Filming &amp; story locations</label>
+                                <small class="form-text text-white d-block mb-2">
+                                  Looks up where each movie was filmed and where its story is set, from Wikidata. New ratings fetch this on their own; this catches up the rest. Safe to run again anytime.
+                                </small>
+                                <button
+                                  class="btn btn-outline-info btn-sm"
+                                  @click="backfillLocationsData"
+                                  :disabled="locationsBackfill.status === 'running'"
+                                >
+                                  <span v-if="locationsBackfill.status === 'running'">
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    Looking up {{ locationsBackfill.completed }}/{{ locationsBackfill.total }}...
+                                  </span>
+                                  <span v-else>
+                                    <i class="bi bi-geo-alt"></i> Fill in locations for all movies
+                                  </span>
+                                </button>
+                                <div v-if="locationsBackfill.status === 'done'" class="text-success mt-2">
+                                  <small v-if="locationsBackfill.total"><i class="bi bi-check-circle"></i> Checked {{ locationsBackfill.total }} movie{{ locationsBackfill.total === 1 ? '' : 's' }}; {{ locationsBackfill.withLocations }} had locations{{ locationsBackfill.failed ? ` (${locationsBackfill.failed} failed — check your connection and try again)` : '' }}.</small>
+                                  <small v-else><i class="bi bi-check-circle"></i> Everything's already been checked.</small>
+                                </div>
+                              </div>
+                <div class="mt-4">
                                 <label class="form-label d-block">Slim down stored data</label>
                                 <small class="form-text text-white d-block mb-2">
                                   Removes crew the app never shows (stunts, hair, makeup and so on) plus a few fields that get recalculated anyway. Cuts what has to download each time you open the app by roughly 40%. Nothing you can see in the app changes. Safe to run again anytime.
@@ -1464,6 +1487,15 @@
             </option>
           </select>
         </div>
+        <div class="filter-section mb-3">
+          <label class="form-label">Place</label>
+          <select class="form-select" @change="addPlaceFilter($event)">
+            <option value="">Select a place...</option>
+            <option v-for="place in topPlaces" :key="place.name" :value="place.name">
+              {{ place.name }} ({{ place.count }})
+            </option>
+          </select>
+        </div>
 
         <!-- Tag Filter -->
         <div class="filter-section mb-3" v-if="userTags.length">
@@ -1604,6 +1636,7 @@ import { GAME_ICONS, GAME_NAMES, gameWinKey, lastPlayedGamePath } from '../mixin
 import { collectImageUrls, warmImageCache } from '../assets/javascript/offlinePosterCache.js';
 import { backfillBoxOffice, collectMoviesNeedingBoxOffice } from '../assets/javascript/backfillBoxOffice.js';
 import { backfillProductionCountries, collectMoviesNeedingCountries } from '../assets/javascript/backfillProductionCountries.js';
+import { backfillMovieLocations, collectMoviesNeedingLocations } from '../assets/javascript/movieLocations.js';
 import { trimStoredEntries, collectEntriesNeedingTrim, entryForStorage } from '../assets/javascript/storedEntry.js';
 import { collectEntriesNeedingStamp, stampBackfillUpdates } from '../assets/javascript/syncStamp.js';
 import { makePlaceholderId } from '../utils/placeholderId.js';
@@ -1612,8 +1645,7 @@ import {
   countCastCrew as countCastCrewUtil,
   countGenres as countGenresUtil,
   countKeywords as countKeywordsUtil,
-  countStudios as countStudiosUtil
-} from '../assets/javascript/entityCounts.js';
+  countStudios as countStudiosUtil, countPlaces as countPlacesUtil } from '../assets/javascript/entityCounts.js';
 
 // Default priority order for the grouped search view. The order decides which
 // group claims a movie that matches multiple categories. Users can reorder this
@@ -1625,6 +1657,7 @@ const DEFAULT_GROUP_ORDER = [
   'producer',
   'company',
   'keyword-genre',
+  'place',
   'writer',
   'music',
   'editor',
@@ -1642,6 +1675,7 @@ const GROUP_DISPLAY_NAMES = {
   producer: 'Producer',
   company: 'Production Companies',
   'keyword-genre': 'Keywords & Genres',
+  place: 'Places',
   writer: 'Writer',
   music: 'Music',
   editor: 'Editor',
@@ -1723,7 +1757,7 @@ export default {
       // filter can't paint over a newer one (see
       // fetchUnratedMoviesBySearchFilter).
       unratedRequestId: 0,
-      filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'tag'],
+      filterTypes: ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'place', 'tag'],
       hasAutoRandomChip: false, // Track if current chip was added by auto random search
 
       inputValue: "", // Visual input value (can be different from internal value)
@@ -1740,6 +1774,7 @@ export default {
       offlineDownload: { status: 'idle', completed: 0, total: 0, failed: 0 },
       boxOfficeBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
       countriesBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
+      locationsBackfill: { status: 'idle', completed: 0, total: 0, failed: 0, withLocations: 0 },
       libraryTrim: { status: 'idle', completed: 0, total: 0, failed: 0 },
       syncStampBackfill: { status: 'idle', completed: 0, total: 0, failed: 0 },
       quickLinksSortType: "count",
@@ -2574,6 +2609,7 @@ export default {
     allCounts () {
       return {
         keywords: this.countedKeywords,
+        places: this.countedPlaces,
         genres: this.countedGenres,
         years: this.countedYears,
         directors: this.countDirectors,
@@ -2764,6 +2800,9 @@ export default {
     },
     countedKeywords () {
       return countKeywordsUtil(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
+    },
+    countedPlaces () {
+      return countPlacesUtil(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
     countedYears () {
       const counts = {};
@@ -3166,6 +3205,7 @@ export default {
         candidatesByKey[config.key] = { displayName: config.displayName, movies: [] };
       });
       candidatesByKey['keyword-genre'] = { displayName: 'Keywords & Genres', movies: [] };
+      candidatesByKey.place = { displayName: 'Set or Filmed There', movies: [] };
 
       // Inlined matcher (perf): instead of 7 dispatched applyFilter calls per
       // movie (each re-reading/re-deriving the same data), read each movie's
@@ -3183,6 +3223,7 @@ export default {
       const producerBucket = candidatesByKey.producer.movies;
       const companyBucket = candidatesByKey.company.movies;
       const keywordGenreBucket = candidatesByKey['keyword-genre'].movies;
+      const placeBucket = candidatesByKey.place.movies;
 
       allResults.forEach(media => {
         const s = media._search || this.buildSearchFields(media.movie);
@@ -3198,6 +3239,11 @@ export default {
         if (s.keywords.some(k => k === term) || s.genres.some(g => g === term)) {
           keywordGenreBucket.push(media);
         }
+
+        // Mirrors FILTER_KINDS.place exactly (exact match on the normalized
+        // name), so "Paris" typed gets its own section — the ask behind the
+        // whole feature: "see what movies are set where".
+        if (s.places.some(p => p === term)) placeBucket.push(media);
       });
 
       // Step 2: Walk groupOrder and claim movies in priority order. A movie claimed
@@ -3888,6 +3934,12 @@ export default {
     },
     topGenres () {
       return Object.entries(this.allCounts.genres || {})
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20);
+    },
+    topPlaces () {
+      return Object.entries(this.allCounts.places || {})
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 20);
@@ -5087,6 +5139,28 @@ export default {
       // value in state that was never actually stored.
       this.syncStampBackfill = { status: 'done', total: candidates.length, completed, failed };
     },
+    async backfillLocationsData () {
+      if (this.locationsBackfill.status === 'running') {
+        return;
+      }
+
+      const candidateCount = collectMoviesNeedingLocations(this.$store.state.movieLog).length;
+      this.locationsBackfill = { status: 'running', completed: 0, total: candidateCount, failed: 0, withLocations: 0 };
+
+      // Wikidata rather than TMDB, and queried in large batches rather than
+      // per movie - ~1,400 films is about 7 requests, not 1,400.
+      const result = await backfillMovieLocations(
+        this.$store.state.movieLog,
+        (batch) => this.writeMovieFieldBatch(batch, (item) => ({ locations: item.locations })),
+        {
+          onProgress: (progress) => {
+            this.locationsBackfill = { ...this.locationsBackfill, ...progress };
+          }
+        }
+      );
+
+      this.locationsBackfill = { status: 'done', ...result };
+    },
     async backfillProductionCountriesData () {
       if (this.countriesBackfill.status === 'running') {
         return;
@@ -5280,6 +5354,16 @@ export default {
           display: `Genre: ${genre}`
         });
         this.hasAutoRandomChip = false; // Reset auto chip flag
+        event.target.value = '';
+        this.showAddFilterModal = false;
+      }
+    },
+    // Same shape as the genre/director pickers: a typed chip, exact match.
+    addPlaceFilter (event) {
+      const place = event.target.value;
+      if (place) {
+        this.activeFilters.push({ id: `place-${Date.now()}`, type: 'place', value: place, display: place });
+        this.hasAutoRandomChip = false;
         event.target.value = '';
         this.showAddFilterModal = false;
       }
@@ -5598,6 +5682,8 @@ export default {
           return { type: 'person', value: trimmed, display: trimmed };
         case "studios":
           return { type: 'company', value: trimmed, display: trimmed };
+        case "place":
+          return { type: 'place', value: trimmed, display: trimmed };
         default:
           // Fall back to detection if unknown type
           return this.detectFilterType(trimmed);

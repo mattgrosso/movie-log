@@ -11,6 +11,7 @@
 
 // The text primitives live in searchText.js (Phase 3: the kind registry
 // needs them without an import cycle); re-exported here so the many existing
+import { placeNames } from './places.js';
 // importers keep working unchanged.
 import { normalizeSearchText, looseSearchText } from './searchText.js';
 import { FILTER_KINDS, getListOfYearsFromRange } from './filterKinds.js';
@@ -32,6 +33,10 @@ export { normalizeSearchText, looseSearchText, getListOfYearsFromRange };
  */
 export function buildSearchFields (movie) {
   return {
+    // Filming and story locations from Wikidata (places.js). Both types in
+    // one list: a chip for "Paris" means films that touch Paris either way,
+    // and the movie page says which.
+    places: placeNames(movie).map(normalizeSearchText),
     title: normalizeSearchText(movie.title),
     titleLoose: looseSearchText(movie.title),
     keywords: (movie.flatKeywords || []).filter(Boolean).map(normalizeSearchText),

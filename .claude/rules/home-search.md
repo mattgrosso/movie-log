@@ -160,6 +160,18 @@ merely guarded against. It reuses `FILTER_KINDS.person`'s exact/surname matcher 
 or the sections would partition a different set than the count claims. If you add
 grouping for another chip type, partition; never re-search.
 
+## Places are a chip kind and a grouped section (2026-09-08)
+
+`movie.locations` (Wikidata, `movieLocations.js` fetch + `places.js` shaping) reaches
+search through `buildSearchFields().places` — both types, normalized, one list. The
+`place` kind is an EXACT match (`York` must not reach `New York City`), local-only (TMDB
+knows nothing about where a film was shot), and the general matcher also checks it, so
+typing "Paris" finds the films through the flat pipeline. The grouped view has a
+`place` bucket ("Set or Filmed There", after Keywords & Genres in `DEFAULT_GROUP_ORDER`)
+whose inline condition mirrors `FILTER_KINDS.place` exactly, like every other bucket.
+`countPlaces` feeds the catalog/typeahead, the Add Filter picker and MovieDetail's (N)
+badges. Tests: `PlaceSearch.test.js`, `filterKinds.test.js`, `catalog.test.js`.
+
 ## Year chips get a scroller, not a chip
 
 Any active `type === 'year'` chip (not `yearRange`/decades) swaps the chip row for

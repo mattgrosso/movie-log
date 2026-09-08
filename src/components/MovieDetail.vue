@@ -335,6 +335,26 @@
           <p class="long-list mb-0">{{ productionCountries.join(' · ') }}</p>
         </div>
 
+        <!-- Where the story is set and where it was shot (Wikidata, see
+             places.js). Plain text and a search, no map: tapping "Paris"
+             runs a Cinema Roll search (Matt, 2026-09-08). -->
+        <div v-if="narrativePlaces.length" class="places mb-3">
+          <h4>Set In</h4>
+          <p class="long-list mb-0">
+            <a v-for="(place, index) in narrativePlaces" :key="`set-${index}`" class="link" @click.stop="searchFor(place, 'place')">
+              {{ place }}<span class="small-count-bubble">&nbsp;({{ placeCounts[place] || 1 }})</span><span v-if="index !== narrativePlaces.length - 1">&nbsp;&nbsp;</span>
+            </a>
+          </p>
+        </div>
+        <div v-if="filmingPlaces.length" class="places mb-3">
+          <h4>Filmed In</h4>
+          <p class="long-list mb-0">
+            <a v-for="(place, index) in filmingPlaces" :key="`filmed-${index}`" class="link" @click.stop="searchFor(place, 'place')">
+              {{ place }}<span class="small-count-bubble">&nbsp;({{ placeCounts[place] || 1 }})</span><span v-if="index !== filmingPlaces.length - 1">&nbsp;&nbsp;</span>
+            </a>
+          </p>
+        </div>
+
         <!-- Tags -->
         <div v-if="(viewingTags && viewingTags.length) || isEditingTags" class="tags mb-3">
           <div class="tags-header d-flex align-items-center">
@@ -565,7 +585,8 @@ import { sortByAcademyCategoryOrder } from '../assets/javascript/academyAwards.j
 import { awardNameWithThe } from '../assets/javascript/personalAwards.js';
 import { warmImageCache, posterUrl, backdropUrl } from '../assets/javascript/offlinePosterCache.js';
 import { entryForStorage } from '../assets/javascript/storedEntry.js';
-import { countDirectors, countCastCrew, countGenres, countKeywords, countStudios } from '../assets/javascript/entityCounts.js';
+import { countDirectors, countCastCrew, countGenres, countKeywords, countStudios, countPlaces } from '../assets/javascript/entityCounts.js';
+import { placeNames, PLACE_TYPES } from '../assets/javascript/places.js';
 import { genreIdFor } from '../assets/javascript/tmdbGenres.js';
 
 export default {
@@ -690,6 +711,17 @@ export default {
       return (this.movie?.production_countries || [])
         .map((country) => country?.name)
         .filter(Boolean);
+    },
+    narrativePlaces () {
+      return placeNames(this.movie, PLACE_TYPES.NARRATIVE);
+    },
+    filmingPlaces () {
+      return placeNames(this.movie, PLACE_TYPES.FILMING);
+    },
+    // (N) badges like the keyword ones: how many films in the library touch
+    // the place, either way.
+    placeCounts () {
+      return countPlaces(this.allEntriesWithFlatKeywordsAdded, this.showShorts);
     },
     // My personal awards (PersonalAwardsModal.vue) — settings.personalAwards is
     // keyed by year, each year holding { categories: { <key>: { nominees, winner } } }.
@@ -1075,6 +1107,7 @@ export default {
       if (type === 'genre') return stamp('genre', { genreId: genreIdFor(value) });
       if (type === 'keyword') return stamp('keyword');
       if (type === 'company') return stamp('company');
+      if (type === 'place') return stamp('place');
       // 'title' and anything unlabelled stay a plain search — a title IS the
       // free-text question, and an unknown click should not invent a filter.
       return null;
@@ -1085,6 +1118,7 @@ export default {
       const map = {
         keyword: 'keyword-genre',
         genre: 'keyword-genre',
+        place: 'place',
         director: 'director',
         cast: 'cast',
         producer: 'producer',

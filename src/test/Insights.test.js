@@ -592,3 +592,107 @@ describe('Insights — what lives on which tab', () => {
     expect(wrapper.vm.scatterReading).toMatch(/Runtime .* and User Rating rise together/)
   })
 })
+
+// The Places tab (2026-09-08): "see what movies are set where", "I really
+// like movies set in Paris", and a coverage map of the world. Drives the
+// tab through the DOM; the map itself is tested in CoverageMap.test.js.
+describe('Places tab', () => {
+  // shallowMount stubs InsightsPane, which would swallow the lists inside
+  // it — so this block mounts with a pane that renders its slot, and a
+  // stubbed map (CoverageMap.test.js covers the drawing).
+  function mountPlaces (mediaEntries) {
+    // The tab and the set/filmed choice persist in localStorage, which jsdom
+    // keeps across tests in a file — one test's "Filmed in" must not leak
+    // into the next one's counts.
+    window.localStorage.clear()
+    const pushSpy = vi.fn()
+    const commitSpy = vi.fn()
+    const mockStore = {
+      state: { currentLog: 'movieLog', settings: {} },
+      getters: { allMediaAsArray: mediaEntries },
+      commit: commitSpy,
+      dispatch: vi.fn(() => Promise.resolve())
+    }
+    const wrapper = shallowMount(Insights, {
+      global: {
+        mocks: { $store: mockStore, $route: { query: {} }, $router: { push: pushSpy } },
+        stubs: { InsightsPane: { template: '<div><slot /></div>' }, CoverageMap: true }
+      }
+    })
+    return { wrapper, pushSpy, commitSpy }
+  }
+  async function showTab (wrapper, key) {
+    await wrapper.setData({ activeTab: key })
+    return wrapper
+  }
+  const paris = (type) => ({ name: 'Paris', lat: 48.8566, lon: 2.3522, type, id: 'Q90' })
+  const placed = (id, title, score, locations, extra = {}) => ({
+    dbKey: `m${id}`,
+    movie: { id, title, release_date: '2001-04-25', runtime: 120, genres: [], locations, ...extra },
+    ratings: [{ calculatedTotal: score, date: localDate(2026, 1, 15) }]
+  })
+  const library = () => [
+    placed(1, 'Amélie', 9.5, [paris('narrative'), paris('filming')], { production_countries: [{ iso_3166_1: 'FR', name: 'France' }] }),
+    placed(2, 'Ratatouille', 9.0, [paris('narrative')]),
+    placed(3, 'Before Sunset', 8.5, [paris('narrative')]),
+    placed(4, 'Lost in Translation', 9.8, [{ name: 'Tokyo', lat: 35.68, lon: 139.69, type: 'filming', id: 'Q1490' }])
+  ]
+
+  it('offers the tab, and ranks the places you love with their scores', async () => {
+    const { wrapper } = mountPlaces(library())
+    await showTab(wrapper, 'places')
+
+    expect(wrapper.find('.insights-tab-places').exists()).toBe(true)
+    const rows = wrapper.findAll('.place-row')
+    // Places You Love needs three films: only Paris qualifies. Most Visited
+    // lists both.
+    expect(rows.map((r) => r.find('.place-row-name').text())).toEqual(['Paris', 'Paris', 'Tokyo'])
+    expect(rows[0].find('.place-row-score').text()).toBe('9.00')
+    expect(rows[0].find('.place-row-films').text()).toBe('3 films')
+    expect(wrapper.find('.places-summary').text()).toMatch(/2 of \d+ countries, across 4 of your 4 films/)
+  })
+
+  it('narrows to set-in or filmed-in', async () => {
+    const { wrapper } = mountPlaces(library())
+    await showTab(wrapper, 'places')
+    const filmedChip = wrapper.findAll('.people-chip').find((c) => c.text() === 'Filmed in')
+    await filmedChip.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Filmed in: Paris once (Amélie), Tokyo once.
+    const most = wrapper.findAll('.place-row').map((r) => r.find('.place-row-films').text())
+    expect(most).toEqual(['1 film', '1 film'])
+    expect(wrapper.vm.placeType).toBe('filming')
+  })
+
+  it('tapping a place hands Home a real place chip', async () => {
+    const { wrapper, commitSpy, pushSpy } = mountPlaces(library())
+    await showTab(wrapper, 'places')
+    await wrapper.find('.place-row').trigger('click')
+
+    const chips = commitSpy.mock.calls.find(([name]) => name === 'setHomePageSearchChips')[1]
+    expect(chips).toHaveLength(1)
+    expect(chips[0]).toMatchObject({ type: 'place', value: 'Paris', display: 'Paris' })
+    expect(commitSpy).toHaveBeenCalledWith('setHomePagePromoteGroup', 'place')
+    expect(pushSpy).toHaveBeenCalledWith('/')
+  })
+
+  it('a tapped country shows its breakdown and its places', async () => {
+    const { wrapper } = mountPlaces(library())
+    await showTab(wrapper, 'places')
+    wrapper.vm.selectCountry({ iso: 'FR', name: 'France' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.country-card-title').text()).toContain('France')
+    expect(wrapper.find('.country-card-title').text()).toContain('3 films')
+    expect(wrapper.find('.country-card-breakdown').text()).toBe('3 set here · 1 filmed here · 1 made here')
+    expect(wrapper.find('.place-pill').text()).toBe('Paris 3')
+  })
+
+  it('says how to fill places in when there are none', async () => {
+    const { wrapper } = mountPlaces([placed(1, 'Unplaced', 7, [])])
+    await showTab(wrapper, 'places')
+    expect(wrapper.find('.places-empty').text()).toMatch(/Filming & story locations/)
+    expect(wrapper.find('.place-row').exists()).toBe(false)
+  })
+})

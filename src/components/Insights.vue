@@ -183,6 +183,89 @@
     </template>
 
     <!-- PEOPLE: the eight Favorite sections behind one chip selector. -->
+    <!-- PLACES: where the films are set and shot (Matt, 2026-09-08: "see
+         what movies are set where", "I really like movies set in Paris",
+         "a coverage map that shows me how much of the world I've explored
+         in film"). Data from Wikidata via places.js; tapping any place runs
+         a Cinema Roll search, never a map app. -->
+    <template v-else-if="activeTab === 'places'">
+    <div class="people-chips">
+      <button
+        v-for="option in placeTypeOptions"
+        :key="option.key"
+        type="button"
+        class="people-chip"
+        :class="{ active: placeType === option.key }"
+        @click="setPlaceType(option.key)"
+      >
+        <span class="people-chip-pill">{{ option.label }}</span>
+      </button>
+    </div>
+
+    <p v-if="!placeSummaryLine.movies" class="places-empty">
+      No places yet. Settings → Filming &amp; story locations fills them in for the whole library; new ratings pick theirs up on their own.
+    </p>
+
+    <template v-else>
+      <InsightsPane>
+        <div class="insights-pane-header"><p>Where You've Been</p></div>
+        <p class="places-summary">
+          {{ worldCoverage.touched }} of {{ worldCoverage.total }} countries, across {{ placeSummaryLine.movies }} of your {{ placeSummaryLine.library }} films.
+          Tap a country.
+        </p>
+        <CoverageMap
+          :counts="worldCoverage.counts"
+          :selectedIso="selectedCountry ? selectedCountry.iso : null"
+          accent="#f0ad4e"
+          ariaLabel="Map of every country your films touch"
+          @select="selectCountry"
+        />
+        <div v-if="selectedCountryRow" class="country-card">
+          <p class="country-card-title">
+            <strong>{{ selectedCountryRow.name }}</strong>
+            <span class="country-card-count">{{ selectedCountryRow.films }} film{{ selectedCountryRow.films === 1 ? '' : 's' }}</span>
+          </p>
+          <p class="country-card-breakdown">{{ countryBreakdown(selectedCountryRow) }}</p>
+          <div v-if="selectedCountryRow.places.length" class="country-places">
+            <button
+              v-for="place in selectedCountryRow.places.slice(0, 8)"
+              :key="place.name"
+              type="button"
+              class="place-pill"
+              @click="searchPlace(place.name)"
+            >{{ place.name }} <span class="place-pill-count">{{ place.films }}</span></button>
+          </div>
+        </div>
+        <p v-else-if="selectedCountry" class="country-card-breakdown">
+          {{ selectedCountry.name }} — none of your films yet.
+        </p>
+      </InsightsPane>
+
+      <InsightsPane v-if="favouritePlaceRows.length">
+        <div class="insights-pane-header"><p>Places You Love</p></div>
+        <p class="places-summary">Ranked by how their films rate — three films or more, so one great night out doesn't count as a place.</p>
+        <ol class="place-list">
+          <li v-for="place in favouritePlaceRows" :key="`fav-${place.key}`" class="place-row" @click="searchPlace(place.name)">
+            <span class="place-row-name">{{ place.name }}</span>
+            <span class="place-row-films">{{ place.films }} film{{ place.films === 1 ? '' : 's' }}</span>
+            <span class="place-row-score">{{ formatScore(place.average) }}</span>
+          </li>
+        </ol>
+      </InsightsPane>
+
+      <InsightsPane v-if="mostVisitedRows.length">
+        <div class="insights-pane-header"><p>Most Visited</p></div>
+        <ol class="place-list">
+          <li v-for="place in mostVisitedRows" :key="`most-${place.key}`" class="place-row" @click="searchPlace(place.name)">
+            <span class="place-row-name">{{ place.name }}</span>
+            <span class="place-row-films">{{ place.films }} film{{ place.films === 1 ? '' : 's' }}</span>
+            <span class="place-row-score">{{ formatScore(place.average) }}</span>
+          </li>
+        </ol>
+      </InsightsPane>
+    </template>
+    </template>
+
     <template v-else-if="activeTab === 'people'">
     <div class="people-chips">
       <button
@@ -239,6 +322,10 @@ import { allViewings, calendarCoverage } from "../assets/javascript/yearInReview
 import { Chart, registerables } from "chart.js";
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
 import InsightsPane from "./InsightsPane.vue";
+import CoverageMap from "./CoverageMap.vue";
+import worldCountries from "../assets/data/worldCountries.json";
+import { placeRows, favouritePlaces, mostVisitedPlaces, placeSummary, countryCoverage } from "../assets/javascript/places.js";
+import { formatScore } from "../assets/javascript/formatScore.js";
 import FunFactsRow from './FunFactsRow.vue';
 import BackLink from './games/BackLink.vue';
 import { followNavigationTarget } from '../utils/navigationTarget.js';
@@ -250,6 +337,7 @@ Chart.register(...registerables);
 export default {
   name: "Insights",
   components: {
+    CoverageMap,
     FunFactsRow,
     LineChart,
     ScatterChart,
@@ -277,8 +365,12 @@ export default {
         { key: 'overview', label: 'Overview' },
         { key: 'ratings', label: 'Ratings' },
         { key: 'activity', label: 'Activity' },
-        { key: 'people', label: 'People' }
+        { key: 'people', label: 'People' },
+        { key: 'places', label: 'Places' }
       ],
+      // Set in / filmed in / both, for the Places tab. Persists like the tab.
+      placeType: localStorage.getItem('cinemaRoll.insights.placeType') || 'all',
+      selectedCountry: null,
       selectedXAxis: 'runtime', // Will be randomized on mount
       selectedYAxis: 'userRating', // Will be randomized on mount
       axisOptions: [
@@ -370,6 +462,32 @@ export default {
     includeShorts () {
       // Default to false if not set
       return this.$store.state.settings.includeShorts === true;
+    },
+    placeTypeOptions () {
+      return [
+        { key: 'all', label: 'Set or filmed' },
+        { key: 'narrative', label: 'Set in' },
+        { key: 'filming', label: 'Filmed in' }
+      ];
+    },
+    placeRowsForType () {
+      return placeRows(this.filteredEntriesWithFlatKeywordsAdded, getRating, { type: this.placeType, includeShorts: true });
+    },
+    favouritePlaceRows () {
+      return favouritePlaces(this.placeRowsForType, { minFilms: 3, limit: 12 });
+    },
+    mostVisitedRows () {
+      return mostVisitedPlaces(this.placeRowsForType, { limit: 12 });
+    },
+    placeSummaryLine () {
+      return placeSummary(this.filteredEntriesWithFlatKeywordsAdded, { type: this.placeType, includeShorts: true });
+    },
+    worldCoverage () {
+      return countryCoverage(this.filteredEntriesWithFlatKeywordsAdded, worldCountries, { type: this.placeType, includeShorts: true });
+    },
+    selectedCountryRow () {
+      if (!this.selectedCountry) return null;
+      return this.worldCoverage.rows.find((row) => row.iso === this.selectedCountry.iso) || null;
     },
     filteredEntriesWithFlatKeywordsAdded () {
       if (this.includeShorts) return this.allEntriesWithFlatKeywordsAdded;
@@ -1004,6 +1122,31 @@ export default {
     setTab (key) {
       this.activeTab = key;
       localStorage.setItem('cinemaRoll.insights.tab', key);
+    },
+    setPlaceType (key) {
+      this.placeType = key;
+      localStorage.setItem('cinemaRoll.insights.placeType', key);
+    },
+    selectCountry (country) {
+      this.selectedCountry = country;
+    },
+    countryBreakdown (row) {
+      const parts = [];
+      if (row.setIn) parts.push(`${row.setIn} set here`);
+      if (row.filmedIn) parts.push(`${row.filmedIn} filmed here`);
+      if (row.madeIn) parts.push(`${row.madeIn} made here`);
+      return parts.join(' · ');
+    },
+    formatScore,
+    // The same hand-off MovieDetail's links make: a real place chip, so Home
+    // answers precisely rather than re-reading "Paris" as free text.
+    searchPlace (name) {
+      this.$store.commit('setHomePageNavigationIntent', 'search');
+      this.$store.commit('setHomePagePromoteGroup', 'place');
+      this.$store.commit('setHomePageSearchValue', '');
+      this.$store.commit('setHomePageSearchChips', [{ id: `place-${Date.now()}`, type: 'place', value: name, display: name }]);
+      this.$store.commit('setHomePageScrollPosition', 0);
+      this.$router.push('/');
     },
     setPeopleCategory (key) {
       this.peopleCategory = key;
@@ -2636,11 +2779,17 @@ export default {
     --accent-deep: #6d3b7f;
   }
 
+  &.insights-accent-places {
+    --accent: #f0ad4e;
+    --accent-deep: #7a4f14;
+  }
+
   /* The deep shades are dark enough to need white back. */
   &.insights-accent-overview .alt .glance-label,
   &.insights-accent-ratings .alt .glance-label,
   &.insights-accent-activity .alt .glance-label,
-  &.insights-accent-people .alt .glance-label {
+  &.insights-accent-people .alt .glance-label,
+  &.insights-accent-places .alt .glance-label {
     color: white;
   }
 
@@ -2672,6 +2821,7 @@ export default {
       &.insights-tab-ratings.active { background: #1D8BF1; }
       &.insights-tab-activity.active { background: #24d776; }
       &.insights-tab-people.active { background: #cd7fe8; }
+      &.insights-tab-places.active { background: #f0ad4e; }
 
       &:active {
         opacity: 0.7;
@@ -2908,6 +3058,103 @@ export default {
     margin: 0.6rem 0 0;
     text-align: center;
     width: 100%;
+  }
+
+  /* Places tab. Same tile language as the rest; scores use the tab accent. */
+  .places-empty,
+  .places-summary,
+  .country-card-breakdown {
+    /* #ccc on the panel background, ~6:1. */
+    color: #ccc;
+    font-size: 0.82rem;
+    margin: 0 0 0.6rem;
+  }
+
+  .country-card {
+    background: #161616;
+    border: 1px solid #2e2e2e;
+    border-radius: 8px;
+    margin-top: 0.6rem;
+    padding: 0.6rem 0.75rem;
+
+    .country-card-title {
+      align-items: baseline;
+      display: flex;
+      justify-content: space-between;
+      margin: 0 0 0.2rem;
+    }
+
+    .country-card-count {
+      color: var(--accent);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .country-card-breakdown {
+      margin-bottom: 0.4rem;
+    }
+  }
+
+  .country-places {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .place-pill {
+    background: none;
+    border: 1px solid #6f6f6f;
+    border-radius: 999px;
+    color: #eee;
+    font-size: 0.75rem;
+    line-height: 1;
+    min-height: 32px;
+    padding: 0.35rem 0.65rem;
+
+    .place-pill-count {
+      color: var(--accent);
+      font-weight: 600;
+      margin-left: 0.2rem;
+    }
+
+    &:active { opacity: 0.7; }
+  }
+
+  .place-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    .place-row {
+      align-items: baseline;
+      border-top: 1px solid #2e2e2e;
+      display: flex;
+      gap: 0.6rem;
+      min-height: 40px;
+      padding: 0.45rem 0;
+
+      &:first-child { border-top: none; }
+      &:active { opacity: 0.7; }
+    }
+
+    .place-row-name {
+      flex: 1 1 auto;
+      font-weight: 600;
+      min-width: 0;
+    }
+
+    .place-row-films {
+      color: #ccc;
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+
+    .place-row-score {
+      color: var(--accent);
+      font-weight: 700;
+      min-width: 2.6rem;
+      text-align: right;
+    }
   }
 
   .people-chips {

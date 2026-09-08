@@ -18,7 +18,10 @@ Full narrative: `docs/history/ui-and-layout.md`, `docs/history/search-and-home.m
 
 ## MovieDetail
 
-- **Section order**: Genres → Awards → Cast → Keywords → Box Office → Made In → Tags.
+- **Section order**: Genres → Awards → Cast → Keywords → Box Office → Made In → Set In →
+  Filmed In → Tags. Set In / Filmed In are plain text from `movie.locations`
+  (`places.js`); tapping a place runs a Cinema Roll search via a `place` chip (Matt,
+  2026-09-08: "tapping Paris just does a search"), never a map app. No map on the page.
 - **It is a pure local lookup — no live TMDB fetch on view.** That's deliberate. Optional
   data (box office, production countries) is `v-if`-guarded so older library entries just
   don't render the section, and a Settings-panel backfill catches them up.
@@ -62,6 +65,19 @@ is defensible but shouldn't be changed unilaterally.
 
 Note two computed-side-effect lint errors here are suppressed with an inline disable +
 TODO rather than rewritten — that logic has a documented bug history and no coverage.
+
+## Places tab (2026-09-08)
+
+Fifth tab, accent `#f0ad4e`. Three pure sources in `places.js`, tested directly:
+`placeRows` → `favouritePlaces` (ranked by the average shrunk toward the library's own,
+`RANK_SHRINK`, three films minimum — "I really like movies set in Paris" is a pattern,
+one great film isn't) and `mostVisitedPlaces`; `countryCoverage` rolls set/filmed points
+into countries through `countryLookup.js` (ray-cast against `worldCountries.json`, with a
+nearest-vertex fallback so coastal cities don't fall in the sea at 110m) plus made-in via
+TMDB's ISO codes. `CoverageMap.vue` shades countries by quantile — a choropleth, never
+dots, because a country centroid can't lie on a shaded country. The set/filmed choice
+persists in `localStorage` (`cinemaRoll.insights.placeType`) — tests must clear it.
+Every tap on a place hands Home a real `place` chip (`searchPlace`), the MovieDetail way.
 
 ## Deep Stats
 

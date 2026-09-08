@@ -96,3 +96,36 @@ Tests: the `re-rating preserves locally-owned data` block in `TMDbDataProcessing
 **Letterboxd log date** (reported by Natalie) — *"it should have the date automatically filled in ... Even if I didn't watch it today and also even if I have watched it multiple times."* `generateUrls` was always sending **today**. It now takes `options.viewingDate` and uses the date the movie was actually watched, falling back to today only when there isn't a usable one. Both call sites (`MovieDetail`, `DBGridLayoutSearchResult`) pass `mostRecentRating(result)?.date` — the latest viewing, which is the one being logged for a rewatch. New `toLocalISODate(value)` generalises `todayLocalISODate`, and keeps the local-components approach for the same reason: `toISOString()` is UTC and would report the previous day for an evening viewing in a western timezone.
 
 Tests: viewing-date blocks in `LetterboxdUrlService.test.js`. (The map-zoom fix from this same round was removed along with the maps.)
+
+## Second attempt (2026-09-08): places, not maps
+
+Matt reopened it from a bug report ("Let's look into that location work we started a
+month ago") and, asked what he'd actually do with it: "I just think it would be fun to
+be able to see what movies are set where. Seeing that I really like movies set in Paris
+would be cool. Even better would be if I can find filming locations (like specific
+addresses)... a map near me... Finally, it would be cool to see a coverage map that
+shows me how much of the world I've explored in film."
+
+A probe of the real library first (the backfill HAD run): 918 of 1,404 films carried
+locations — 804 set somewhere (416 distinct places), 683 filmed somewhere (734
+distinct), Paris 45, New York City 131. Top filming places were Los Angeles, New York
+City, California, Santa Monica, Long Beach; Pinewood Studios and Kauaʻi were as specific
+as it got. So the honest reading: **the data is city-level**, addresses aren't in it
+(Reading Maps is off limits, IMDb has no API), and "near me" is round two, sized to what
+the data can deliver.
+
+Round one shipped the first and third wants and skipped every dot map:
+- `movieLocations.js` restored verbatim minus the dot-map rollup; auto-fetch on new
+  ratings and the Settings backfill restored with it.
+- `places.js`: counting, "places you love" (shrunk average, three films minimum), most
+  visited, and `countryCoverage` (points → countries by point-in-polygon with a
+  nearest-vertex fallback, plus TMDB production countries by ISO).
+- Search: `place` chip kind, general-search hit, a "Set or Filmed There" grouped section,
+  Add Filter picker, typeahead. MovieDetail: Set In / Filmed In lines whose taps search.
+- Insights: a Places tab — coverage choropleth (`CoverageMap.vue`, Natural Earth 110m,
+  93K raw / 35K gzipped, no zoom), favourite places, most visited.
+
+Why a choropleth and not dots: the first attempt's hardest problems (dot size in CSS
+pixels, centroid-vs-street precision, labels beating geometry, tile terms) all belong
+to a zoomable map of points. A country shaded by count has none of them, and a country
+centroid is exactly right on it.

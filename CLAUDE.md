@@ -214,8 +214,11 @@ load's: a tab left open for a week keeps showing the build it's still running.
   device. Watch `yarn delta-shadow-report` and the in-app error log for `[delta-shadow]`
   divergences. Details in `.claude/rules/data-writes.md` and
   `docs/history/data-and-offline.md`.
-- **Locations/maps was built and removed.** Read `docs/history/geography-removed.md`
-  before any second attempt — the research is expensive to redo.
+- **Places (second attempt, 2026-09-08) is live**: Wikidata filming/story locations as
+  search chips, "Set In / Filmed In" on the movie page, and an Insights **Places** tab
+  (favourite places, most visited, a country coverage map). No dot maps this time —
+  `docs/history/geography-removed.md` explains why the first attempt was pulled and
+  what this one kept. Street-level "near me" is round two, and the data is city-level.
 - Known issues: rating a perfect 10, database sharding as the library grows.
 
 ## Testing against real data

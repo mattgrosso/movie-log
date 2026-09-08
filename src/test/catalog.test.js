@@ -169,3 +169,29 @@ describe('typeaheadEntries', () => {
     expect(typeaheadEntries(buildCatalog([]))).toEqual([]);
   });
 });
+
+// Places (2026-09-08) ride the same catalog so the typeahead offers "Paris"
+// with its count, as it does a keyword — with no TMDB id, honestly.
+describe('places in the catalog', () => {
+  const placed = () => [
+    ...library(),
+    entry({ id: 9, title: 'Amélie', release_date: '2001-04-25', runtime: 122, genres: [], cast: [], crew: [], production_companies: [], keywords: [],
+      locations: [{ name: 'Paris', type: 'narrative', lat: 48.85, lon: 2.35, id: 'Q90' }, { name: 'Paris', type: 'filming', lat: 48.85, lon: 2.35, id: 'Q90' }] }),
+    entry({ id: 10, title: 'Ratatouille', release_date: '2007-06-29', runtime: 111, genres: [], cast: [], crew: [], production_companies: [], keywords: [],
+      locations: [{ name: 'Paris', type: 'narrative', lat: 48.85, lon: 2.35, id: 'Q90' }] })
+  ];
+
+  it('lists each place once per film, without a TMDB id', () => {
+    const paris = buildCatalog(placed()).entries.find((e) => e.kind === 'place' && e.name === 'Paris');
+    expect(paris).toBeTruthy();
+    expect(paris.count).toBe(2);
+    expect(paris.tmdbId).toBeNull();
+  });
+
+  it('reaches the typeahead as a place', () => {
+    const offered = typeaheadEntries(buildCatalog(placed())).find((e) => e.value === 'Paris');
+    expect(offered).toBeTruthy();
+    expect(offered.expectedType).toBe('place');
+    expect(CATALOG_KINDS.place.label).toBe('place');
+  });
+});

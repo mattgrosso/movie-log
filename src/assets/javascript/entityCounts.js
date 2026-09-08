@@ -1,4 +1,5 @@
 import uniq from 'lodash/uniq';
+import { placeNames } from './places.js';
 
 // Pure counting logic shared by Home.vue's "add filter" dropdown counts and
 // MovieDetail.vue's parenthetical (N) badges next to cast/director/genre/
@@ -95,6 +96,16 @@ export function countStudios (entries, includeShorts) {
   eligibleEntries(entries, includeShorts).forEach((result) => {
     const companies = (result.movie.production_companies || []).map((company) => company.name);
     incrementEach(counts, companies);
+  });
+  return counts;
+}
+
+// Places (Wikidata filming + narrative locations, see places.js): one count
+// per movie per place, whichever type it was.
+export function countPlaces (entries, includeShorts) {
+  const counts = {};
+  eligibleEntries(entries, includeShorts).forEach((result) => {
+    incrementEach(counts, placeNames(result.movie));
   });
   return counts;
 }

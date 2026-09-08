@@ -51,7 +51,8 @@ const SUBJECT = {
       { name: 'Pat Money', job: 'Producer' }
     ],
     production_companies: [{ name: 'Lantern Pictures' }],
-    keywords: [{ name: 'heist' }]
+    keywords: [{ name: 'heist' }],
+    locations: [{ name: 'Kyoto', type: 'narrative', lat: 35.01, lon: 135.77, id: 'Q34600' }]
   },
   ratings: [{ calculatedTotal: 8.5, date: '2023-01-01', tags: [{ title: 'DARK' }] }]
 };
@@ -75,7 +76,8 @@ const SIBLING = {
       { name: 'Pat Money', job: 'Producer' }
     ],
     production_companies: [{ name: 'Lantern Pictures' }],
-    keywords: [{ name: 'heist' }]
+    keywords: [{ name: 'heist' }],
+    locations: [{ name: 'Kyoto', type: 'filming', lat: 35.01, lon: 135.77, id: 'Q34600' }]
   },
   ratings: [{ calculatedTotal: 7.5, date: '2023-02-01', tags: [{ title: 'DARK' }] }]
 };
@@ -85,7 +87,7 @@ const DECOY = {
   dbKey: 'decoy',
   movie: {
     id: 44,
-    title: 'Heist of the Lantern Thriller: Ada Jane Joe Mel Ed Phil Pat',
+    title: 'Heist of the Lantern Thriller: Ada Jane Joe Mel Ed Phil Pat in Kyoto',
     release_date: '2011-01-01',
     genres: [{ name: 'Comedy' }],
     cast: [{ name: 'Nobody Else', character: 'Nobody' }],
@@ -186,7 +188,10 @@ const LINKS = [
   ['editor', (vm) => vm.searchFor('Ed Cutter', 'editor')],
   ['cinematographer', (vm) => vm.searchFor('Phil Lens', 'photo')],
   ['producer', (vm) => vm.searchFor('Pat Money', 'producer')],
-  ['tag', (vm) => vm.searchForTag('DARK')]
+  ['tag', (vm) => vm.searchForTag('DARK')],
+  // Set In / Filmed In (2026-09-08): a place chip, exact match — the decoy
+  // has "Kyoto" in its title and must stay out.
+  ['place', (vm) => vm.searchFor('Kyoto', 'place')]
 ];
 
 describe('every search link on a movie detail page', () => {

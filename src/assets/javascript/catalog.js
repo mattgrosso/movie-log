@@ -30,8 +30,7 @@ import {
   countCastCrew,
   countGenres,
   countKeywords,
-  countStudios
-} from './entityCounts.js';
+  countStudios, countPlaces } from './entityCounts.js';
 import { genreIdFor } from './tmdbGenres.js';
 import { normalizeSearchText } from './searchFiltering.js';
 
@@ -43,7 +42,8 @@ export const CATALOG_KINDS = {
   genre: { expectedType: 'genre', label: 'genre' },
   company: { expectedType: 'studios', label: 'studio' },
   cast: { expectedType: 'cast/crew', label: 'cast' },
-  keyword: { expectedType: 'keyword', label: 'keyword' }
+  keyword: { expectedType: 'keyword', label: 'keyword' },
+  place: { expectedType: 'place', label: 'place' }
 };
 
 /**
@@ -124,6 +124,9 @@ export function buildCatalog (entries, includeShorts = false) {
   // honest: TMDB has never heard of it.
   fromCounts(countKeywords(library, includeShorts), 'keyword',
     (norm) => ids.keyword[norm] ?? null);
+  // Places are Wikidata items, not TMDB ones, so there is no TMDB id to
+  // carry; the chip is local-only (filterKinds.js).
+  fromCounts(countPlaces(library, includeShorts), 'place', null);
 
   return {
     entries: catalogEntries,
@@ -147,7 +150,7 @@ export function buildCatalog (entries, includeShorts = false) {
  * consumed, now carrying the id the eventual chip will need.
  */
 export function typeaheadEntries (catalog) {
-  const priority = ['director', 'genre', 'company', 'cast', 'keyword'];
+  const priority = ['director', 'genre', 'company', 'cast', 'keyword', 'place'];
   const seen = new Set();
   const projected = [];
 

@@ -23,7 +23,7 @@ describe('the registry contract', () => {
   it('covers every chip type the app creates', () => {
     // Home.vue's filterTypes list, plus the specific crew types MovieDetail
     // links create. A type missing here silently matches nothing.
-    ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'tag',
+    ['general', 'person', 'year', 'yearRange', 'genre', 'company', 'keyword', 'place', 'tag',
       'title', 'director', 'producer', 'cast', 'list'].forEach((type) => {
       expect(kindFor(type), type).not.toBeNull();
     });
@@ -55,6 +55,17 @@ describe('consumers read the registry', () => {
     flatKeywords: ['alien']
   };
   const result = { movie, ratings: [{ tags: [{ title: 'rewatch' }] }] };
+
+  // Places (2026-09-08): exact match on the normalized name, and a typed
+  // word finds them through the general search too.
+  it('a place chip matches the whole name and nothing looser', () => {
+    const placed = { movie: { ...movie, locations: [{ name: 'New York City', type: 'narrative', lat: 40.7, lon: -74 }] }, ratings: [] };
+    expect(applyFilter(placed, { type: 'place', value: 'new york city' })).toBe(true);
+    expect(applyFilter(placed, { type: 'place', value: 'York' })).toBe(false);
+    expect(applyFilter(placed, { type: 'general', value: 'New York City' })).toBe(true);
+    expect(applyFilter(result, { type: 'place', value: 'New York City' })).toBe(false);
+    expect(FILTER_KINDS.place.discoverGroup).toBe('local');
+  });
 
   it('applyFilter delegates to the kind matcher', () => {
     expect(applyFilter(result, { type: 'genre', value: 'science fiction' })).toBe(true);
