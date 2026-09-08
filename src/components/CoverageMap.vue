@@ -1,5 +1,12 @@
 <template>
   <div ref="wrapper" class="coverage-map">
+    <!-- A SQUARE stage, not the world's own 2.5:1 strip (Matt, 2026-09-08:
+         "the image is so short vertically that when I pinch to zoom, I can
+         only zoom a tiny bit before my fingers leave that box"). The home
+         view is a square window on the grid with the world centred in it;
+         the ocean fills the rest. Pointer moves are read from the window
+         once a gesture starts, so fingers that wander off the box still
+         count. -->
     <svg
       :viewBox="viewBoxString"
       class="coverage-map-svg"
@@ -7,12 +14,9 @@
       role="img"
       :aria-label="ariaLabel"
       @pointerdown="onPointerDown"
-      @pointermove="onPointerMove"
-      @pointerup="onPointerUp"
-      @pointercancel="onPointerUp"
       @wheel="onWheel"
     >
-      <rect class="ocean" x="0" y="0" :width="world.width" :height="world.height"/>
+      <rect class="ocean" :x="home.x" :y="home.y" :width="home.w" :height="home.h"/>
       <path
         v-for="country in world.countries"
         :key="country.iso || country.name"
@@ -88,6 +92,13 @@ const parseViewBox = (text) => {
   return { x, y, w, h };
 };
 
+// The world's own viewBox (polar caps cropped) squared up: same width, the
+// height made equal, and the crop centred vertically in it.
+const squareHome = (world) => {
+  const crop = parseViewBox(world.viewBox);
+  return { x: crop.x, y: crop.y + (crop.h - crop.w) / 2, w: crop.w, h: crop.w };
+};
+
 export default {
   name: 'CoverageMap',
   props: {
@@ -102,7 +113,7 @@ export default {
     return {
       ZOOM_STEP,
       LABEL_FONT_PX,
-      view: parseViewBox(this.world.viewBox),
+      view: squareHome(this.world),
       // Rendered width in CSS pixels — what turns pixel sizes into grid
       // units. Measured after mount; the default only stands in for jsdom.
       containerWidth: 360,
@@ -112,7 +123,7 @@ export default {
   },
   computed: {
     home () {
-      return parseViewBox(this.world.viewBox);
+      return squareHome(this.world);
     },
     viewBoxString () {
       const { x, y, w, h } = this.view;
@@ -186,6 +197,7 @@ export default {
     }
   },
   beforeUnmount () {
+    this.stopTracking();
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -243,7 +255,7 @@ export default {
       this.zoomAt(factor, null);
     },
     resetView () {
-      this.view = parseViewBox(this.world.viewBox);
+      this.view = squareHome(this.world);
     },
     panBy (dxPixels, dyPixels) {
       const { x, y, w, h } = this.view;
@@ -274,7 +286,22 @@ export default {
         last: points.length === 1 ? points[0] : null,
         pinch: points.length === 2 ? this.pinchState(points) : null
       };
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      // Track on the window for the rest of the gesture: a pinch that starts
+      // in the box keeps zooming after the fingers leave it. (Pointer capture
+      // alone was not holding on the phone.)
+      if (!this.tracking) {
+        this.tracking = true;
+        window.addEventListener('pointermove', this.onPointerMove);
+        window.addEventListener('pointerup', this.onPointerUp);
+        window.addEventListener('pointercancel', this.onPointerUp);
+      }
+    },
+    stopTracking () {
+      if (!this.tracking) return;
+      this.tracking = false;
+      window.removeEventListener('pointermove', this.onPointerMove);
+      window.removeEventListener('pointerup', this.onPointerUp);
+      window.removeEventListener('pointercancel', this.onPointerUp);
     },
     onPointerMove (event) {
       if (!this.pointers.has(event.pointerId) || !this.gesture) return;
@@ -309,6 +336,7 @@ export default {
     onPointerUp (event) {
       this.pointers.delete(event.pointerId);
       if (!this.pointers.size) {
+        this.stopTracking();
         // Keep `moved` for the click event that follows a drag, then clear.
         const moved = this.gesture?.moved;
         this.gesture = moved ? { moved: true } : null;
@@ -340,6 +368,7 @@ export default {
   }
 
   .coverage-map-svg {
+    aspect-ratio: 1 / 1;
     display: block;
     height: auto;
     // At 1x a finger on the map scrolls the page; the browser owns vertical

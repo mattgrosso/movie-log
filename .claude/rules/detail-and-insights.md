@@ -77,7 +77,10 @@ nearest-vertex fallback so coastal cities don't fall in the sea) plus made-in vi
 ISO codes. `CoverageMap.vue` shades countries by quantile — a choropleth, never dots,
 because a country centroid can't lie on a shaded country — and **zooms** (pinch, drag
 once zoomed, buttons, ctrl+wheel; `touch-action` is `pan-y` at 1x so a finger still
-scrolls the page) with country names appearing where they fit. Data is Natural Earth
+scrolls the page) with country names appearing where they fit. The stage is **square**
+(a square window on the grid, world centred, ocean filling the rest) and pointer moves
+are read from the **window** once a gesture starts — the world's own 2.5:1 strip was
+too short to pinch in, and iOS dropped the gesture the moment a finger left the box. Data is Natural Earth
 **50m** on a 4000-wide grid, tiny islands dropped and coastlines Douglas–Peucker'd (62K
 gzipped, measured against 110m's 35K and raw 50m's 212K), loaded **lazily** when the tab
 opens — `world` is a required prop, never imported by the component. The set/filmed choice
