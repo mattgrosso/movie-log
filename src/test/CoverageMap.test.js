@@ -63,3 +63,89 @@ describe('CoverageMap', () => {
     expect(mountMap().findAll('.legend-swatch')).toHaveLength(5);
   });
 });
+
+// Zoom (Matt, 2026-09-08: "I'd like to be able to zoom in on the map").
+describe('CoverageMap zoom', () => {
+  const view = (wrapper) => wrapper.find('svg').attributes('viewBox').split(' ').map(Number);
+
+  it('starts on the whole world, with zoom-out and reset disabled', () => {
+    const wrapper = mountMap();
+    expect(view(wrapper)).toEqual([0, 0, 360, 180]);
+    expect(wrapper.find('[aria-label="Zoom out"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[aria-label="Whole world"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('svg').classes()).not.toContain('zoomed');
+  });
+
+  it('the buttons zoom about the centre, clamp to the world, and reset', async () => {
+    const wrapper = mountMap();
+    await wrapper.find('[aria-label="Zoom in"]').trigger('click');
+    const [x, y, w, h] = view(wrapper);
+    expect(w).toBeCloseTo(200, 5);
+    expect(h).toBeCloseTo(100, 5);
+    expect(x).toBeCloseTo(80, 5);
+    expect(y).toBeCloseTo(40, 5);
+    expect(wrapper.find('svg').classes()).toContain('zoomed');
+
+    await wrapper.find('[aria-label="Zoom out"]').trigger('click');
+    await wrapper.find('[aria-label="Zoom out"]').trigger('click');
+    expect(view(wrapper)).toEqual([0, 0, 360, 180]);
+
+    for (let i = 0; i < 12; i++) await wrapper.find('[aria-label="Zoom in"]').trigger('click');
+    expect(view(wrapper)[2]).toBeCloseTo(30, 5); // MAX_SCALE 12
+    await wrapper.find('[aria-label="Whole world"]').trigger('click');
+    expect(view(wrapper)).toEqual([0, 0, 360, 180]);
+  });
+
+  it('a one-finger drag pans only once zoomed, and does not select', async () => {
+    const wrapper = mountMap();
+    const svg = wrapper.find('svg');
+    await svg.trigger('pointerdown', { pointerId: 1, clientX: 100, clientY: 50 });
+    await svg.trigger('pointermove', { pointerId: 1, clientX: 140, clientY: 50 });
+    await svg.trigger('pointerup', { pointerId: 1, clientX: 140, clientY: 50 });
+    expect(view(wrapper)).toEqual([0, 0, 360, 180]); // page scroll, not a pan
+
+    wrapper.vm.zoomBy(2);
+    await wrapper.vm.$nextTick();
+    const before = view(wrapper);
+    await svg.trigger('pointerdown', { pointerId: 1, clientX: 100, clientY: 50 });
+    await svg.trigger('pointermove', { pointerId: 1, clientX: 60, clientY: 50 });
+    // The click a drag ends with must not toggle a selection.
+    await wrapper.find('path[data-iso="AA"]').trigger('click');
+    await svg.trigger('pointerup', { pointerId: 1, clientX: 60, clientY: 50 });
+    expect(view(wrapper)[0]).toBeGreaterThan(before[0]);
+    expect(wrapper.emitted('select')).toBeUndefined();
+  });
+
+  it('a tap still selects', async () => {
+    const wrapper = mountMap();
+    const svg = wrapper.find('svg');
+    await svg.trigger('pointerdown', { pointerId: 1, clientX: 100, clientY: 50 });
+    await svg.trigger('pointerup', { pointerId: 1, clientX: 101, clientY: 50 });
+    await wrapper.find('path[data-iso="AA"]').trigger('click');
+    expect(wrapper.emitted('select')[0][0]).toMatchObject({ iso: 'AA' });
+  });
+
+  it('a pinch zooms in', async () => {
+    const wrapper = mountMap();
+    const svg = wrapper.find('svg');
+    await svg.trigger('pointerdown', { pointerId: 1, clientX: 100, clientY: 50 });
+    await svg.trigger('pointerdown', { pointerId: 2, clientX: 140, clientY: 50 });
+    await svg.trigger('pointermove', { pointerId: 2, clientX: 220, clientY: 50 });
+    await svg.trigger('pointerup', { pointerId: 2, clientX: 220, clientY: 50 });
+    await svg.trigger('pointerup', { pointerId: 1, clientX: 100, clientY: 50 });
+    expect(view(wrapper)[2]).toBeLessThan(360);
+  });
+
+  it('labels countries only when they are wide enough on screen', async () => {
+    const wrapper = mountMap();
+    expect(wrapper.findAll('.country-label')).toHaveLength(0);
+    wrapper.vm.containerWidth = 360;
+    // Zoom 12x about Alpha's own centre: one grid unit is now 12px, so
+    // Alpha (10 units wide, 120px) fits a label; Beta, 15 units east, is
+    // outside the 30-unit window.
+    wrapper.vm.zoomAt(12, { x: 195, y: 75 });
+    await wrapper.vm.$nextTick();
+    const labels = wrapper.findAll('.country-label').map((n) => n.text());
+    expect(labels).toEqual(['Alpha']);
+  });
+});

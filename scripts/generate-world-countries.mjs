@@ -27,8 +27,21 @@ import { gzipSync } from 'node:zlib';
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const NE = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson';
 
-const WIDTH = 2000;
-const HEIGHT = 1000;
+// Measured 2026-09-08 (gzipped): 110m/2000 grid 35K; 50m/4000 grid raw 212K,
+// with sub-5-unit islands dropped and a 1.5-unit Douglas–Peucker pass 62K.
+// The map zooms to ~10x now, and 110m staircases past ~5x, so 50m it is —
+// 27K more than the coarse file for four times the coastline.
+//
+// Resolution and grid are overridable so the trade-off can be re-measured
+// (`NE_SCALE=50m GRID_WIDTH=4000 OUT=/tmp/x.json node scripts/...`).
+const NE_SCALE = process.env.NE_SCALE || '50m';
+const WIDTH = Number(process.env.GRID_WIDTH) || 4000;
+const HEIGHT = WIDTH / 2;
+const OUT = process.env.OUT || join(repoRoot, 'src/assets/data/worldCountries.json');
+// Rings whose bounding box is smaller than this many grid units on both axes
+// are dropped: sub-pixel islands at any zoom this map reaches, and there are
+// thousands of them in the 50m set.
+const MIN_RING_SIZE = Number(process.env.MIN_RING_SIZE) || 5;
 
 // The display window crops the empty polar caps: Antarctica and the high Arctic
 // are ~20% of an equirectangular map's height and essentially never hold a film
@@ -71,16 +84,80 @@ function toRing (coordinates) {
   return ring;
 }
 
+// Douglas–Peucker on the projected ring: drops points that sit within
+// SIMPLIFY_TOLERANCE grid units of the line between their neighbours. At a
+// 3000-wide grid one unit is ~13km, so a tolerance of one unit removes only
+// what the screen could never show, and it roughly halves the 50m payload.
+const SIMPLIFY_TOLERANCE = Number(process.env.SIMPLIFY_TOLERANCE) || 1.5;
+
+function simplifyRing (ring, tolerance) {
+  if (!tolerance || ring.length < 8) return ring;
+  const points = [];
+  for (let i = 0; i < ring.length; i += 2) points.push([ring[i], ring[i + 1]]);
+  const keep = new Uint8Array(points.length);
+  keep[0] = 1;
+  keep[points.length - 1] = 1;
+  const stack = [[0, points.length - 1]];
+  const sq = tolerance * tolerance;
+  while (stack.length) {
+    const [first, last] = stack.pop();
+    let maxDist = 0;
+    let index = -1;
+    const [x1, y1] = points[first];
+    const [x2, y2] = points[last];
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lengthSq = dx * dx + dy * dy;
+    for (let i = first + 1; i < last; i++) {
+      const [px, py] = points[i];
+      let dist;
+      if (lengthSq === 0) {
+        dist = (px - x1) * (px - x1) + (py - y1) * (py - y1);
+      } else {
+        const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lengthSq));
+        const cx = x1 + t * dx;
+        const cy = y1 + t * dy;
+        dist = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+      }
+      if (dist > maxDist) { maxDist = dist; index = i; }
+    }
+    if (maxDist > sq && index > 0) {
+      keep[index] = 1;
+      stack.push([first, index], [index, last]);
+    }
+  }
+  const out = [];
+  points.forEach((point, i) => { if (keep[i]) out.push(point[0], point[1]); });
+  return out;
+}
+
+// The larger side of a ring's bounding box, in grid units. A loop rather
+// than Math.max(...ring): a 50m coastline can run to tens of thousands of
+// points, past the spread-argument limit.
+function ringSpan (ring) {
+  let minX = Infinity; let maxX = -Infinity; let minY = Infinity; let maxY = -Infinity;
+  for (let i = 0; i < ring.length; i += 2) {
+    minX = Math.min(minX, ring[i]); maxX = Math.max(maxX, ring[i]);
+    minY = Math.min(minY, ring[i + 1]); maxY = Math.max(maxY, ring[i + 1]);
+  }
+  return Math.max(maxX - minX, maxY - minY);
+}
+
 function countryRings (feature) {
   const geometry = feature.geometry || {};
   const polygons = geometry.type === 'Polygon'
     ? [geometry.coordinates]
     : (geometry.coordinates || []);
 
-  return polygons
+  const rings = polygons
     // Outer ring only — the holes are inland lakes, which this map doesn't draw.
-    .map((polygon) => toRing(polygon[0] || []))
+    .map((polygon) => simplifyRing(toRing(polygon[0] || []), SIMPLIFY_TOLERANCE))
     .filter((ring) => ring.length >= 6);
+  // Drop sub-pixel islands, but never a country's LARGEST ring: Malta is
+  // under 3 units wide and Gladiator was filmed there — a country that
+  // vanishes from the map vanishes from the coverage count too.
+  const largest = rings.reduce((best, ring) => (ringSpan(ring) > ringSpan(best) ? ring : best), rings[0]);
+  return rings.filter((ring) => ring === largest || ringSpan(ring) >= MIN_RING_SIZE);
 }
 
 // Plain ISO_A2 is "-99" for France and Norway (Natural Earth's own quirk);
@@ -91,7 +168,7 @@ function isoFor (properties) {
   return iso && iso !== '-99' ? iso : null;
 }
 
-const countriesJson = await fetchGeoJson('ne_110m_admin_0_countries');
+const countriesJson = await fetchGeoJson(`ne_${NE_SCALE}_admin_0_countries`);
 
 const countries = countriesJson.features
   .map((feature) => ({
@@ -106,7 +183,7 @@ const top = Math.round(((90 - TOP_LAT) / 180) * HEIGHT);
 const bottom = Math.round(((90 - BOTTOM_LAT) / 180) * HEIGHT);
 
 const output = {
-  note: 'GENERATED — run scripts/generate-world-countries.mjs. Natural Earth 110m (public domain).',
+  note: `GENERATED — run scripts/generate-world-countries.mjs. Natural Earth ${NE_SCALE} (public domain).`,
   projection: 'equirectangular',
   width: WIDTH,
   height: HEIGHT,
@@ -115,11 +192,11 @@ const output = {
 };
 
 const serialised = JSON.stringify(output);
-writeFileSync(join(repoRoot, 'src/assets/data/worldCountries.json'), serialised);
+writeFileSync(OUT, serialised);
 
 const raw = Buffer.byteLength(serialised) / 1024;
 const gzipped = gzipSync(serialised, { level: 9 }).length / 1024;
-console.log('Wrote src/assets/data/worldCountries.json');
+console.log(`Wrote ${OUT} (${NE_SCALE}, ${WIDTH}x${HEIGHT})`);
 console.log(`  countries ${countries.length} (${countries.filter((c) => c.iso).length} with an ISO code)`);
 console.log(`  rings     ${countries.reduce((sum, c) => sum + c.rings.length, 0)}`);
 console.log(`  size      ${raw.toFixed(0)}K raw, ${gzipped.toFixed(0)}K gzipped`);

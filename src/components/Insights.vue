@@ -210,10 +210,13 @@
       <InsightsPane>
         <div class="insights-pane-header"><p>Where You've Been</p></div>
         <p class="places-summary">
-          {{ worldCoverage.touched }} of {{ worldCoverage.total }} countries, across {{ placeSummaryLine.movies }} of your {{ placeSummaryLine.library }} films.
-          Tap a country.
+          <template v-if="world">{{ worldCoverage.touched }} of {{ worldCoverage.total }} countries, across {{ placeSummaryLine.movies }} of your {{ placeSummaryLine.library }} films.</template>
+          <template v-else>Loading the map…</template>
+          Tap a country. Pinch to zoom, or use the buttons.
         </p>
         <CoverageMap
+          v-if="world"
+          :world="world"
           :counts="worldCoverage.counts"
           :selectedIso="selectedCountry ? selectedCountry.iso : null"
           accent="#f0ad4e"
@@ -323,7 +326,6 @@ import { Chart, registerables } from "chart.js";
 import { BarChart, DoughnutChart, ScatterChart, RadarChart, LineChart } from "vue-chart-3";
 import InsightsPane from "./InsightsPane.vue";
 import CoverageMap from "./CoverageMap.vue";
-import worldCountries from "../assets/data/worldCountries.json";
 import { placeRows, favouritePlaces, mostVisitedPlaces, placeSummary, countryCoverage } from "../assets/javascript/places.js";
 import { formatScore } from "../assets/javascript/formatScore.js";
 import FunFactsRow from './FunFactsRow.vue';
@@ -371,6 +373,9 @@ export default {
       // Set in / filmed in / both, for the Places tab. Persists like the tab.
       placeType: localStorage.getItem('cinemaRoll.insights.placeType') || 'all',
       selectedCountry: null,
+      // The country polygons (worldCountries.json, ~60K gzipped) are pulled
+      // in only when the Places tab is opened, not with the Insights chunk.
+      world: null,
       selectedXAxis: 'runtime', // Will be randomized on mount
       selectedYAxis: 'userRating', // Will be randomized on mount
       axisOptions: [
@@ -483,7 +488,8 @@ export default {
       return placeSummary(this.filteredEntriesWithFlatKeywordsAdded, { type: this.placeType, includeShorts: true });
     },
     worldCoverage () {
-      return countryCoverage(this.filteredEntriesWithFlatKeywordsAdded, worldCountries, { type: this.placeType, includeShorts: true });
+      if (!this.world) return { rows: [], counts: {}, touched: 0, total: 0 };
+      return countryCoverage(this.filteredEntriesWithFlatKeywordsAdded, this.world, { type: this.placeType, includeShorts: true });
     },
     selectedCountryRow () {
       if (!this.selectedCountry) return null;
@@ -1111,6 +1117,14 @@ export default {
       };
     },
   },
+  watch: {
+    activeTab: {
+      immediate: true,
+      handler (tab) {
+        if (tab === 'places') this.loadWorld();
+      }
+    }
+  },
   methods: {
     coverageClass (cell) {
       if (!cell.count) return cell.rare ? 'coverage-rare' : 'coverage-none';
@@ -1122,6 +1136,15 @@ export default {
     setTab (key) {
       this.activeTab = key;
       localStorage.setItem('cinemaRoll.insights.tab', key);
+    },
+    async loadWorld () {
+      if (this.world) return;
+      try {
+        const module = await import(/* webpackChunkName: "world-countries" */ '../assets/data/worldCountries.json');
+        this.world = module.default || module;
+      } catch (error) {
+        console.error('Could not load the world map data:', error);
+      }
     },
     setPlaceType (key) {
       this.placeType = key;

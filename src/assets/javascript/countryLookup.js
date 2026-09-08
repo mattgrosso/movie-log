@@ -9,7 +9,7 @@
 
 // The polygons are 110m Natural Earth, so a coastal city (Santa Monica, a
 // Hawaiian island) can land a few grid units out to sea. Within this many
-// units (~20km each, so ~160km) of a country's coastline still counts as that
+// units (~10km each on the 4000-wide grid, so ~80km) of a country's coastline still counts as that
 // country; beyond it the point is genuinely at sea, or nowhere we draw.
 export const NEAREST_FALLBACK_UNITS = 8;
 

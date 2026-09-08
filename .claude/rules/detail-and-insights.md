@@ -73,9 +73,14 @@ Fifth tab, accent `#f0ad4e`. Three pure sources in `places.js`, tested directly:
 `RANK_SHRINK`, three films minimum — "I really like movies set in Paris" is a pattern,
 one great film isn't) and `mostVisitedPlaces`; `countryCoverage` rolls set/filmed points
 into countries through `countryLookup.js` (ray-cast against `worldCountries.json`, with a
-nearest-vertex fallback so coastal cities don't fall in the sea at 110m) plus made-in via
-TMDB's ISO codes. `CoverageMap.vue` shades countries by quantile — a choropleth, never
-dots, because a country centroid can't lie on a shaded country. The set/filmed choice
+nearest-vertex fallback so coastal cities don't fall in the sea) plus made-in via TMDB's
+ISO codes. `CoverageMap.vue` shades countries by quantile — a choropleth, never dots,
+because a country centroid can't lie on a shaded country — and **zooms** (pinch, drag
+once zoomed, buttons, ctrl+wheel; `touch-action` is `pan-y` at 1x so a finger still
+scrolls the page) with country names appearing where they fit. Data is Natural Earth
+**50m** on a 4000-wide grid, tiny islands dropped and coastlines Douglas–Peucker'd (62K
+gzipped, measured against 110m's 35K and raw 50m's 212K), loaded **lazily** when the tab
+opens — `world` is a required prop, never imported by the component. The set/filmed choice
 persists in `localStorage` (`cinemaRoll.insights.placeType`) — tests must clear it.
 Every tap on a place hands Home a real `place` chip (`searchPlace`), the MovieDetail way.
 

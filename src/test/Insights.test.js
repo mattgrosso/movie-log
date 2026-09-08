@@ -621,8 +621,12 @@ describe('Places tab', () => {
     })
     return { wrapper, pushSpy, commitSpy }
   }
+  // Opening the tab starts the lazy import of the country polygons; the
+  // coverage line and the map only render once it has landed.
   async function showTab (wrapper, key) {
     await wrapper.setData({ activeTab: key })
+    await wrapper.vm.loadWorld()
+    await wrapper.vm.$nextTick()
     return wrapper
   }
   const paris = (type) => ({ name: 'Paris', lat: 48.8566, lon: 2.3522, type, id: 'Q90' })
