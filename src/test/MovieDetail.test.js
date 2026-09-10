@@ -350,10 +350,25 @@ describe('MovieDetail geography sections', () => {
   const paris = { name: 'Paris', lat: 48.85, lon: 2.35, type: 'filming', id: 'Q90' }
   const tokyo = { name: 'Tokyo', lat: 35.68, lon: 139.69, type: 'narrative', id: 'Q1490' }
 
-  describe('Made In', () => {
+  describe('Country of Origin (production countries)', () => {
     it('lists production country names', async () => {
       wrapper = await mountWith({ production_countries: [{ name: 'France' }, { name: 'Ireland' }] })
       expect(wrapper.vm.productionCountries).toEqual(['France', 'Ireland'])
+    })
+
+    it('is headed "Country of Origin", not "Made In" — which read as a synonym for Filmed In', async () => {
+      // Matt, 2026-09-08: "I'm not sure I understand the difference between
+      // made in and filmed in." Production country is whose industry made the
+      // film; Filmed In is where the cameras were. The heading says which.
+      wrapper = await mountWith({ production_countries: [{ name: 'France' }] })
+      const heading = wrapper.find('.production-countries h4')
+      expect(heading.text()).toBe('Country of Origin')
+      expect(wrapper.text()).not.toContain('Made In')
+    })
+
+    it('pluralises the heading for a co-production', async () => {
+      wrapper = await mountWith({ production_countries: [{ name: 'France' }, { name: 'Ireland' }] })
+      expect(wrapper.find('.production-countries h4').text()).toBe('Countries of Origin')
     })
 
     it('is empty for an entry predating the field, so the section does not render', async () => {

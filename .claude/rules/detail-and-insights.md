@@ -18,8 +18,10 @@ Full narrative: `docs/history/ui-and-layout.md`, `docs/history/search-and-home.m
 
 ## MovieDetail
 
-- **Section order**: Genres → Awards → Cast → Keywords → Box Office → Made In → Set In →
-  Filmed In → Tags. Set In / Filmed In are plain text from `movie.locations`
+- **Section order**: Genres → Awards → Cast → Keywords → Box Office → Country of Origin →
+  Set In → Filmed In → Tags. "Country of Origin" is TMDB's production countries; it was
+  headed "Made In" until 2026-09-08, when Matt couldn't tell it from Filmed In. Don't
+  rename it back to anything that sounds like a place the cameras went. Set In / Filmed In are plain text from `movie.locations`
   (`places.js`); tapping a place runs a Cinema Roll search via a `place` chip (Matt,
   2026-09-08: "tapping Paris just does a search"), never a map app. No map on the page.
 - **It is a pure local lookup — no live TMDB fetch on view.** That's deliberate. Optional

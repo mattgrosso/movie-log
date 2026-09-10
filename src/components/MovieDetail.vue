@@ -329,9 +329,12 @@
           </p>
         </div>
 
-        <!-- Production countries -->
+        <!-- Production countries (TMDB): whose film industry made it, which is
+             a different fact from where the cameras were. Matt read "Made In"
+             next to "Filmed In" and couldn't tell them apart (2026-09-08), so
+             this uses the term IMDb and Letterboxd use. -->
         <div v-if="productionCountries.length" class="production-countries mb-3">
-          <h4>Made In</h4>
+          <h4>Countr<span v-if="productionCountries.length > 1">ies</span><span v-else>y</span> of Origin</h4>
           <p class="long-list mb-0">{{ productionCountries.join(' · ') }}</p>
         </div>
 
