@@ -77,7 +77,11 @@
         </div>
       </section>
 
-      <button class="search-btn" @click="$emit('search')">Search the library for them</button>
+      <div class="person-modal-actions">
+        <button class="search-btn" @click="$emit('search')">Search the library for them</button>
+        <!-- The Web (2026-09-08): their films and everyone in them, drawn. -->
+        <button class="search-btn web-btn" @click="openWeb"><i class="bi bi-diagram-3"></i> See their web</button>
+      </div>
     </div>
   </div>
 </template>
@@ -192,6 +196,10 @@ export default {
     document.body.classList.remove('no-scroll');
   },
   methods: {
+    openWeb () {
+      this.$emit('close');
+      this.$router?.push({ path: '/web', query: { person: this.person.name } });
+    },
     year (date) {
       const parsed = new Date(date);
       return Number.isNaN(parsed.getTime()) ? '' : parsed.getUTCFullYear();
@@ -460,6 +468,12 @@ export default {
     }
   }
 
+  .person-modal-actions {
+    display: flex;
+    gap: 0.6rem;
+    .search-btn { flex: 1 1 0; }
+    .web-btn { background: #5a4a1a; &:active { background: #7a6524; } }
+  }
   .search-btn {
     background: #1976d2;
     border: none;

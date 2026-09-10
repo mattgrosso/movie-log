@@ -219,6 +219,9 @@ load's: a tab left open for a week keeps showing the build it's still running.
   (favourite places, most visited, a country coverage map). No dot maps this time —
   `docs/history/geography-removed.md` explains why the first attempt was pulled and
   what this one kept. Street-level "near me" is round two, and the data is city-level.
+- **The Web (2026-09-09) is live**: `/web`, the library as a zoomable, walkable
+  picture of films and shared people. Rules and the layout lessons in
+  `.claude/rules/detail-and-insights.md`.
 - Known issues: rating a perfect 10, database sharding as the library grows.
 
 ## Testing against real data

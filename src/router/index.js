@@ -9,6 +9,7 @@ const PickMedia = () => import(/* webpackChunkName: "pick-media" */ "../componen
 const RateMovie = () => import(/* webpackChunkName: "rate-movie" */ "../components/RateMovie.vue");
 const ReconcilePlaceholder = () => import(/* webpackChunkName: "reconcile-placeholder" */ "../components/ReconcilePlaceholder.vue");
 const Insights = () => import(/* webpackChunkName: "insights" */ "../components/Insights.vue");
+const WebScreen = () => import(/* webpackChunkName: "web" */ "../components/WebScreen.vue");
 const ShareDBResults = () => import(/* webpackChunkName: "share-db-results" */ "../components/ShareDBResults.vue");
 const MovieDetail = () => import(/* webpackChunkName: "movie-detail" */ "../components/MovieDetail.vue");
 const YearInReview = () => import(/* webpackChunkName: "year-in-review" */ "../components/YearInReview.vue");
@@ -132,6 +133,24 @@ const routes = [
       // goes when there is no history to go back to.
       title: 'Insights',
       parent: '/',
+      requiresLogin: true
+    },
+    beforeEnter: (to, from, next) => {
+      if (!loggedIn()) {
+        next('/login');
+      } else {
+        next();
+      }
+    }
+  },
+  {
+    // The Web: the library as one picture (Matt, 2026-09-08). `?movie=` or
+    // `?person=` is the web around one node; bare, the whole library.
+    path: '/web',
+    component: WebScreen,
+    meta: {
+      title: 'Web',
+      parent: '/insights',
       requiresLogin: true
     },
     beforeEnter: (to, from, next) => {

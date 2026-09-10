@@ -245,7 +245,14 @@
 
         <!-- Cast -->
         <div v-if="topStructure(result).cast && topStructure(result).cast.length" class="cast mb-3">
-          <h4>Cast</h4>
+          <h4 class="d-flex align-items-center">
+            Cast
+            <!-- The Web (2026-09-08): this film's people and their other
+                 films, as a picture you can walk. -->
+            <button type="button" class="web-link btn btn-sm btn-link p-0 ms-2" aria-label="See this film's web" @click.stop="openWeb">
+              <i class="bi bi-diagram-3"></i>
+            </button>
+          </h4>
           <p class="long-list">
             <a v-for="(castMember, index) in topStructure(result).cast" :key="index" class="link" @click.stop="searchFor(castMember.name, 'cast')">
               {{castMember.name}}<span v-if="countCastCrew(castMember.name)" class="small-count-bubble">&nbsp;({{ countCastCrew(castMember.name) }})</span><span v-if="index !== topStructure(result).cast.length - 1">&nbsp;&nbsp;</span>
@@ -1230,6 +1237,10 @@ export default {
     // Same pattern as Insights.resumeAwards — jump straight into that year's
     // PersonalAwardsModal (bypassing the once-a-day gate) so tapping a personal
     // award on a movie's page doubles as a shortcut back into editing it.
+    openWeb () {
+      const id = this.topStructure(this.result)?.id;
+      if (id) this.$router.push({ path: '/web', query: { movie: String(id) } });
+    },
     openPersonalAwardsYear (year) {
       // Direct to the awards page — the old settings-flag handoff could
       // race the navigation and open nothing (see Insights.resumeAwards).
@@ -2313,6 +2324,15 @@ export default {
   .tags-header {
     margin-bottom: 2px;
 
+    .web-link {
+      color: #fff;
+      line-height: 1;
+      min-height: 28px;
+      min-width: 28px;
+      opacity: 0.8;
+      &:active { opacity: 1; }
+      i { font-size: 1rem; }
+    }
     .tag-edit-toggle {
       color: #fff;
       line-height: 1;

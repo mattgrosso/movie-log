@@ -54,6 +54,9 @@
         <button type="button" class="insights-link-card" @click="$router.push('/library-poster')">
           <i class="bi bi-image"></i><span>Library Poster</span><i class="bi bi-chevron-right link-chevron"></i>
         </button>
+        <button type="button" class="insights-link-card" @click="$router.push('/web')">
+          <i class="bi bi-diagram-3"></i><span>The Web</span><i class="bi bi-chevron-right link-chevron"></i>
+        </button>
       </div>
 
       <!-- Board item 8: funFacts.js finally gets a shelf (bug report: "more

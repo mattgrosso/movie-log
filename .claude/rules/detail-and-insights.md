@@ -174,3 +174,29 @@ stickiness queue permanently.
 After saving, stay on the form and advance to the next movie; only collapse the panel once
 the queue is genuinely empty. Build the `dbEntry` *before* dispatching, since the local
 commit is synchronous and `firstStickinessResult` already points at the next movie.
+
+## The Web (2026-09-09)
+
+`/web` draws the library as one picture: films and the people who appear in more than
+one, one thread per credit (`web.js`, pure and tested; `WebScreen.vue` draws it on a
+canvas with d3-force). `?movie=<tmdbId>` / `?person=<name>` is the two-hop web around one
+node; the card's "web around" button walks. Entry points: the Insights directory, the
+Cast heading on MovieDetail, and "See their web" in `PersonModal`. Matt's brief:
+"a visualization that lets me zoom in and pan around to look at the web of my whole
+database."
+
+Things learned laying out 3,600 nodes, all measured on Matt's real library:
+
+- **`markRaw` the graph.** Vue proxies on thousands of nodes made every draw ~10x slower
+  and the settle unwatchable.
+- **The whole layout runs in a Web Worker** (`webLayout.worker.js`) and is remembered in
+  `localStorage` keyed by the web's shape plus `LAYOUT_VERSION`; bump the version when
+  the dials change.
+- **Never give `forceManyBody` a short `distanceMax`.** A cutoff piles nodes into shells
+  at exactly that distance from every hub — rings all over the picture. Leave it
+  effectively off and use a coarse `theta` for speed instead. Use d3's default link
+  strength (degree-aware); a fixed strength pinned every co-star at one radius.
+- **Debounce the rebuild on the entries getter** — it changes many times a second while
+  the library streams in.
+- Label budgets are dials at the top of `WebScreen.vue`; a phone-width focus web names
+  only the centre and its first hop until you zoom.
